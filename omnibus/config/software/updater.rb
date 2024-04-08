@@ -32,9 +32,10 @@ build do
   env = with_embedded_path(env)
 
   if linux_target?
-    command "invoke updater.build --rebuild", env: env
+    command "invoke updater.build --rebuild --install-path=#{install_dir}", env: env
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
+    mkdir "#{install_dir}/systemd/"
 
 
     # Config
@@ -52,23 +53,27 @@ build do
 
     copy 'bin/updater', "#{install_dir}/bin/"
 
-    # Systemd
+    # Add updater unit
     systemdPath = "/lib/systemd/system/"
     if not debian_target?
       mkdir "/usr/lib/systemd/system/"
       systemdPath = "/usr/lib/systemd/system/"
     end
+    erb source: "datadog-installer.service.erb",
+       dest: systemdPath + "datadog-installer.service",
+       mode: 0644,
+       vars: { install_dir: install_dir, etc_dir: etc_dir}
 
-    # Add stable systemd units
+
+    systemdPath = "#{install_dir}/systemd/"
+    # Add stable agent units
     templateToFile = {
       "datadog-agent.service.erb" => "datadog-agent.service",
       "datadog-agent-trace.service.erb" => "datadog-agent-trace.service",
       "datadog-agent-process.service.erb" => "datadog-agent-process.service",
       "datadog-agent-security.service.erb" => "datadog-agent-security.service",
       "datadog-agent-sysprobe.service.erb" => "datadog-agent-sysprobe.service",
-      "start-experiment.path.erb" => "start-experiment.path",
-      "stop-experiment.path.erb" => "stop-experiment.path",
-      "datadog-updater.service.erb" => "datadog-updater.service",
+      "datadog-installer.service.erb" => "datadog-installer.service",
     }
     templateToFile.each do |template, file|
       agent_dir = "/opt/datadog-packages/datadog-agent/stable"
@@ -77,7 +82,7 @@ build do
          mode: 0644,
          vars: { install_dir: install_dir, etc_dir: etc_dir, agent_dir: agent_dir }
     end
-    # Add experiment systemd units
+    # Add experiment agent units
     expTemplateToFile = {
       "datadog-agent-exp.service.erb" => "datadog-agent-exp.service",
       "datadog-agent-trace-exp.service.erb" => "datadog-agent-trace-exp.service",

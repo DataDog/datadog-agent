@@ -79,7 +79,7 @@ func TestMonitorProtocolFail(t *testing.T) {
 
 			cfg := config.New()
 			cfg.EnableHTTPMonitoring = true
-			monitor, err := NewMonitor(cfg, nil, nil)
+			monitor, err := NewMonitor(cfg, nil)
 			skipIfNotSupported(t, err)
 			require.NoError(t, err)
 			t.Cleanup(monitor.Stop)
@@ -525,7 +525,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 }
 
 var (
-	httpMethods         = []string{nethttp.MethodGet, nethttp.MethodHead, nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete, nethttp.MethodOptions}
+	httpMethods         = []string{nethttp.MethodGet, nethttp.MethodHead, nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete, nethttp.MethodOptions, nethttp.MethodTrace}
 	httpMethodsWithBody = []string{nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete}
 	statusCodes         = []int{nethttp.StatusOK, nethttp.StatusMultipleChoices, nethttp.StatusBadRequest, nethttp.StatusInternalServerError}
 )
@@ -637,7 +637,7 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 func newHTTPMonitorWithCfg(t *testing.T, cfg *config.Config) *Monitor {
 	cfg.EnableHTTPMonitoring = true
 
-	monitor, err := NewMonitor(cfg, nil, nil)
+	monitor, err := NewMonitor(cfg, nil)
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
 	t.Cleanup(func() {

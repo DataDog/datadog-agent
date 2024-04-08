@@ -15,10 +15,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
+
+	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
+	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -34,7 +39,14 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func() types.CheckComponent { return nil }),
 		core.MockBundle(),
 		workloadmeta.Module(),
+		coreStatusImpl.Module(),
+		statusimpl.Module(),
 		fx.Supply(tagger.NewFakeTaggerParams()),
+		fx.Supply(
+			status.Params{
+				PythonVersionGetFunc: python.GetPythonVersion,
+			},
+		),
 		fx.Provide(func() context.Context { return context.TODO() }),
 	)
 }
@@ -70,6 +82,8 @@ func TestBundleOneShot(t *testing.T) {
 			"hostname": "testhost",
 		}}),
 		core.MockBundle(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.Module(),
 		Bundle(),
 	)
 	require.NoError(t, err)

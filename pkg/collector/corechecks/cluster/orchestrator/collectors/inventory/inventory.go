@@ -47,13 +47,14 @@ func NewCollectorInventory() *CollectorInventory {
 			k8sCollectors.NewUnassignedPodCollectorVersions(),
 			k8sCollectors.NewVerticalPodAutoscalerCollectorVersions(),
 			k8sCollectors.NewHorizontalPodAutoscalerCollectorVersions(),
+			k8sCollectors.NewNetworkPolicyCollectorVersions(),
 		},
 	}
 }
 
 // CollectorForDefaultVersion retrieves a collector given its name. It returns an error if the
 // name is not known.
-func (ci *CollectorInventory) CollectorForDefaultVersion(collectorName string) (collectors.Collector, error) {
+func (ci *CollectorInventory) CollectorForDefaultVersion(collectorName string) (collectors.K8sCollector, error) {
 	for _, cv := range ci.collectors {
 		for _, c := range cv.Collectors {
 			if c.Metadata().Name == collectorName && c.Metadata().IsDefaultVersion {
@@ -66,7 +67,7 @@ func (ci *CollectorInventory) CollectorForDefaultVersion(collectorName string) (
 
 // CollectorForVersion gets a collector given its name and version. It returns
 // an error if the collector name or version is not known.
-func (ci *CollectorInventory) CollectorForVersion(collectorName, collectorVersion string) (collectors.Collector, error) {
+func (ci *CollectorInventory) CollectorForVersion(collectorName, collectorVersion string) (collectors.K8sCollector, error) {
 	for _, cv := range ci.collectors {
 		for _, c := range cv.Collectors {
 			if c.Metadata().Name == collectorName && c.Metadata().Version == collectorVersion {
@@ -78,8 +79,8 @@ func (ci *CollectorInventory) CollectorForVersion(collectorName, collectorVersio
 }
 
 // StableCollectors get a list of all stable collectors in the inventory.
-func (ci *CollectorInventory) StableCollectors() []collectors.Collector {
-	var stableCollectors []collectors.Collector
+func (ci *CollectorInventory) StableCollectors() []collectors.K8sCollector {
+	var stableCollectors []collectors.K8sCollector
 	for _, cv := range ci.collectors {
 		for _, c := range cv.Collectors {
 			if c.Metadata().IsStable && c.Metadata().IsDefaultVersion {

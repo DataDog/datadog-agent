@@ -17,8 +17,8 @@ from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
 from tasks.go_test import test_flavor
+from tasks.libs.common.junit_upload_core import produce_junit_tar
 from tasks.libs.common.utils import REPO_PATH, get_git_commit
-from tasks.libs.junit_upload_core import produce_junit_tar
 from tasks.modules import DEFAULT_MODULES
 
 

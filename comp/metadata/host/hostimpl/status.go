@@ -13,6 +13,7 @@ import (
 	"expvar"
 	"io"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
@@ -21,29 +22,36 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
-func (h *host) Name() string {
+// StatusProvider implements the status provider interface
+type StatusProvider struct {
+	Config config.Component
+}
+
+// Name returns the name
+func (p StatusProvider) Name() string {
 	return "Hostname"
 }
 
-func (h *host) Index() int {
+// Index returns the index
+func (p StatusProvider) Index() int {
 	return 1
 }
 
-func (h *host) getStatusInfo() map[string]interface{} {
+func (p StatusProvider) getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	h.populateStatus(stats)
+	p.populateStatus(stats)
 
 	return stats
 }
 
-func (h *host) populateStatus(stats map[string]interface{}) {
+func (p StatusProvider) populateStatus(stats map[string]interface{}) {
 	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
 	hostnameStats := make(map[string]interface{})
 	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
 	stats["hostnameStats"] = hostnameStats
 
-	payload := utils.GetFromCache(context.TODO(), h.config)
+	payload := utils.GetFromCache(context.TODO(), p.Config)
 	metadataStats := make(map[string]interface{})
 	payloadBytes, _ := json.Marshal(payload)
 
@@ -62,16 +70,19 @@ func (h *host) populateStatus(stats map[string]interface{}) {
 	stats["hostinfo"] = hostinfoMap
 }
 
-func (h *host) JSON(_ bool, stats map[string]interface{}) error {
-	h.populateStatus(stats)
+// JSON populates the status map
+func (p StatusProvider) JSON(_ bool, stats map[string]interface{}) error {
+	p.populateStatus(stats)
 
 	return nil
 }
 
-func (h *host) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "host.tmpl", buffer, h.getStatusInfo())
+// Text renders the text output
+func (p StatusProvider) Text(_ bool, buffer io.Writer) error {
+	return status.RenderText(templatesFS, "host.tmpl", buffer, p.getStatusInfo())
 }
 
-func (h *host) HTML(_ bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "hostHTML.tmpl", buffer, h.getStatusInfo())
+// HTML renders the html output
+func (p StatusProvider) HTML(_ bool, buffer io.Writer) error {
+	return status.RenderHTML(templatesFS, "hostHTML.tmpl", buffer, p.getStatusInfo())
 }

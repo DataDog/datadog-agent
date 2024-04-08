@@ -28,6 +28,7 @@ var All = []module.Factory{
 	LanguageDetectionModule,
 	ComplianceModule,
 	Pinger,
+	Traceroute,
 }
 
 func inactivityEventLog(_ time.Duration) {

@@ -14,7 +14,16 @@ import (
 	"github.com/cilium/ebpf/asm"
 )
 
-var noopIns = asm.Mov.Reg(asm.R1, asm.R1)
+// noopIns is used in place of the eBPF helpers we wish to remove from
+// the bytecode.
+//
+// note we're using here the same noop instruction used internally by the
+// verifier:
+// https://elixir.bootlin.com/linux/v6.7/source/kernel/bpf/verifier.c#L18582
+var noopIns = asm.Instruction{
+	OpCode:   asm.Ja.Op(asm.ImmSource),
+	Constant: 0,
+}
 
 // NewHelperCallRemover provides a `Modifier` that patches eBPF bytecode
 // such that calls to the functions given by `helpers` are replaced by

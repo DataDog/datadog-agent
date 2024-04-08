@@ -26,7 +26,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -44,8 +43,8 @@ const (
 	sslReadExRetprobe           = "uretprobe__SSL_read_ex"
 	sslWriteExProbe             = "uprobe__SSL_write_ex"
 	sslWriteExRetprobe          = "uretprobe__SSL_write_ex"
-	ssDoHandshakeProbe          = "uprobe__SSL_do_handshake"
-	ssDoHandshakeRetprobe       = "uretprobe__SSL_do_handshake"
+	sslDoHandshakeProbe         = "uprobe__SSL_do_handshake"
+	sslDoHandshakeRetprobe      = "uretprobe__SSL_do_handshake"
 	sslConnectProbe             = "uprobe__SSL_connect"
 	sslConnectRetprobe          = "uretprobe__SSL_connect"
 	sslSetBioProbe              = "uprobe__SSL_set_bio"
@@ -99,12 +98,12 @@ var openSSLProbes = []manager.ProbesSelector{
 		Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: ssDoHandshakeProbe,
+					EBPFFuncName: sslDoHandshakeProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: ssDoHandshakeRetprobe,
+					EBPFFuncName: sslDoHandshakeRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
@@ -296,12 +295,12 @@ var opensslSpec = &protocols.ProtocolSpec{
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: ssDoHandshakeProbe,
+				EBPFFuncName: sslDoHandshakeProbe,
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: ssDoHandshakeRetprobe,
+				EBPFFuncName: sslDoHandshakeRetprobe,
 			},
 		},
 		{
@@ -418,14 +417,15 @@ var opensslSpec = &protocols.ProtocolSpec{
 }
 
 type sslProgram struct {
-	cfg          *config.Config
-	watcher      *sharedlibraries.Watcher
-	istioMonitor *istioMonitor
+	cfg           *config.Config
+	watcher       *sharedlibraries.Watcher
+	istioMonitor  *istioMonitor
+	nodeJSMonitor *nodeJSMonitor
 }
 
-func newSSLProgramProtocolFactory(m *manager.Manager, bpfTelemetry *ebpftelemetry.EBPFTelemetry) protocols.ProtocolFactory {
+func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
-		if (!c.EnableNativeTLSMonitoring || !http.TLSSupported(c)) && !c.EnableIstioMonitoring {
+		if (!c.EnableNativeTLSMonitoring || !http.TLSSupported(c)) && !c.EnableIstioMonitoring && !c.EnableNodeJSMonitoring {
 			return nil, nil
 		}
 
@@ -437,7 +437,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, bpfTelemetry *ebpftelemetr
 		procRoot := kernel.ProcFSRoot()
 
 		if c.EnableNativeTLSMonitoring && http.TLSSupported(c) {
-			watcher, err = sharedlibraries.NewWatcher(c, bpfTelemetry,
+			watcher, err = sharedlibraries.NewWatcher(c,
 				sharedlibraries.Rule{
 					Re:           regexp.MustCompile(`libssl.so`),
 					RegisterCB:   addHooks(m, procRoot, openSSLProbes),
@@ -460,9 +460,10 @@ func newSSLProgramProtocolFactory(m *manager.Manager, bpfTelemetry *ebpftelemetr
 		}
 
 		return &sslProgram{
-			cfg:          c,
-			watcher:      watcher,
-			istioMonitor: newIstioMonitor(c, m),
+			cfg:           c,
+			watcher:       watcher,
+			istioMonitor:  newIstioMonitor(c, m),
+			nodeJSMonitor: newNodeJSMonitor(c, m),
 		}, nil
 	}
 }
@@ -481,6 +482,7 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 func (o *sslProgram) PreStart(*manager.Manager) error {
 	o.watcher.Start()
 	o.istioMonitor.Start()
+	o.nodeJSMonitor.Start()
 	return nil
 }
 
@@ -491,6 +493,7 @@ func (o *sslProgram) PostStart(*manager.Manager) error {
 func (o *sslProgram) Stop(*manager.Manager) {
 	o.watcher.Stop()
 	o.istioMonitor.Stop()
+	o.nodeJSMonitor.Stop()
 }
 
 func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {

@@ -13,33 +13,35 @@
 # a slack channel in tasks/libs/pipeline_notifications.py
 
 # Config files for various CI systems / tasks
-/.*                                     @DataDog/agent-platform
-/.go-version                            @DataDog/agent-shared-components @DataDog/agent-platform
+/.*                                     @DataDog/agent-ci-experience
+/.go-version                            @DataDog/agent-shared-components @DataDog/agent-build-and-releases
 
-/CHANGELOG.rst                          @DataDog/agent-platform
+/CHANGELOG.rst                          @DataDog/agent-build-and-releases
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations
-/CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-platform
+/CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-build-and-releases
 
-/*.md                                   @DataDog/agent-platform @DataDog/documentation
-/NOTICE                                 @DataDog/agent-platform @DataDog/documentation
+/*.md                                   @DataDog/agent-ci-experience @DataDog/documentation
+/NOTICE                                 @DataDog/agent-build-and-releases @DataDog/documentation
 
 /LICENSE*                               # do not notify anyone
 
 # Todo: is this file still needed?
-/Makefile.trace                         @DataDog/agent-platform
+/Makefile.trace                         @DataDog/agent-build-and-releases
 
-/release.json                           @DataDog/agent-platform @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations @DataDog/agent-release-management @DataDog/agent-security
-/requirements.txt                       @DataDog/agent-platform
-/pyproject.toml                         @DataDog/agent-platform
-/setup.cfg                              @DataDog/agent-platform
-/repository.datadog.yml                 @DataDog/agent-platform
-/generate_tools.go                      @DataDog/agent-platform
+/release.json                           @DataDog/agent-build-and-releases @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations @DataDog/agent-release-management @DataDog/agent-security
+/requirements.txt                       @DataDog/agent-ci-experience
+/pyproject.toml                         @DataDog/agent-ci-experience
+/setup.cfg                              @DataDog/agent-ci-experience
+/repository.datadog.yml                 @DataDog/agent-ci-experience
+/generate_tools.go                      @DataDog/agent-ci-experience
+/service.datadog.yaml                   @DataDog/agent-build-and-releases
+/.pre-commit-config.yaml                @DataDog/agent-developer-tools
 
-/.circleci/                             @DataDog/agent-platform
+/.circleci/                             @DataDog/agent-ci-experience
 
 /.github/CODEOWNERS                                 # do not notify anyone
 /.github/*_TEMPLATE.md                              @DataDog/agent-all
-/.github/dependabot.yaml                            @DataDog/agent-platform
+/.github/dependabot.yaml                            @DataDog/agent-ci-experience
 /.github/workflows/serverless-benchmarks.yml        @DataDog/serverless
 /.github/workflows/serverless-binary-size.yml       @DataDog/serverless
 /.github/workflows/serverless-integration.yml       @DataDog/serverless
@@ -48,84 +50,94 @@
 /.github/workflows/cws-btfhub-sync.yml              @DataDog/agent-security
 /.github/workflows/gohai.yml                        @DataDog/agent-shared-components
 /.github/workflows/go-update-commenter.yml          @DataDog/agent-shared-components
-/.github/workflows/buildimages-update.yml           @DataDog/agent-platform @DataDog/agent-shared-components
+/.github/workflows/buildimages-update.yml           @DataDog/agent-build-and-releases @DataDog/agent-shared-components
 
-/.run                                               @DataDog/agent-platform
+/.run                                               @DataDog/agent-developer-tools
 /.run/docker/                                       @DataDog/container-integrations
 
 # Gitlab files
-# Files containing job contents are owned by teams in charge of the jobs + agent-platform
-# Files that only describe structure (eg. includes, rules) are owned by agent-platform
+# Files containing job contents are owned by teams in charge of the jobs + agent-ci-experience or agent-build-and-releases
+# Files that only describe structure (eg. includes, rules) are owned by agent-ci-experience
 
-/.gitlab/                                            @DataDog/agent-platform
+/.gitlab/                                            @DataDog/agent-ci-experience
 
-/.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/platform-integrations @DataDog/agent-platform
-/.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-platform
-/.gitlab/binary_build/serverless.yml                 @DataDog/serverless @DataDog/agent-platform
-/.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-platform
-/.gitlab/binary_build/windows.yml                    @DataDog/agent-platform @DataDog/windows-agent
+/.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/platform-integrations @DataDog/agent-build-and-releases
+/.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-build-and-releases
+/.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-developer-tools
+/.gitlab/binary_build/serverless.yml                 @DataDog/serverless @DataDog/agent-build-and-releases
+/.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-build-and-releases
+/.gitlab/binary_build/windows.yml                    @DataDog/agent-build-and-releases @DataDog/windows-agent
 
-/.gitlab/benchmarks/                                 @DataDog/agent-platform @DataDog/apm-core-reliability-and-performance @DataDog/agent-apm
+/.gitlab/benchmarks/                                 @DataDog/agent-ci-experience @DataDog/apm-core-reliability-and-performance @DataDog/agent-apm
 
-/.gitlab/deploy_6/container.yml                      @DataDog/container-integrations @DataDog/agent-platform
-/.gitlab/deploy_6/windows.yml                        @DataDog/agent-platform @DataDog/windows-agent
+/.gitlab/deploy_containers/                          @DataDog/container-integrations @DataDog/agent-build-and-releases
+/.gitlab/deploy_dca/                                 @DataDog/container-integrations @DataDog/agent-build-and-releases
 
-/.gitlab/deploy_7/cluster_agent_cloudfoundry.yml     @DataDog/platform-integrations @DataDog/agent-platform
-/.gitlab/deploy_7/container.yml                      @DataDog/container-integrations @DataDog/agent-platform
-/.gitlab/deploy_7/windows.yml                        @DataDog/agent-platform @DataDog/windows-agent
-/.gitlab/deploy_7/winget.yml                         @DataDog/agent-platform @DataDog/windows-agent
+/.gitlab/deploy_packages/                               @DataDog/agent-build-and-releases
+/.gitlab/deploy_packages/windows.yml                    @DataDog/agent-build-and-releases @DataDog/windows-agent
+/.gitlab/deploy_packages/winget.yml                     @DataDog/agent-build-and-releases @DataDog/windows-agent
+/.gitlab/deploy_packages/cluster_agent_cloudfoundry.yml @DataDog/platform-integrations @DataDog/agent-ci-experience
 
-/.gitlab/deploy_dca.yml                             @DataDog/container-integrations @DataDog/agent-platform
-
-/.gitlab/deps_build.yml                              @DataDog/ebpf-platform @DataDog/agent-platform @DataDog/windows-agent
+/.gitlab/deps_build/                                 @DataDog/ebpf-platform @DataDog/agent-build-and-releases @DataDog/windows-agent
 /.gitlab/windows_python_build.yml                    @DataDog/windows-agent
 
-/.gitlab/kitchen_testing/windows.yml                 @DataDog/agent-platform @DataDog/windows-agent
-/.gitlab/kitchen_testing/new-e2e_testing/windows.yml @DataDog/agent-platform @DataDog/windows-agent
+/.gitlab/kitchen_*                                   @DataDog/agent-build-and-releases
+/.gitlab/kitchen_testing/windows.yml                 @DataDog/agent-build-and-releases @DataDog/windows-agent
+/.gitlab/kitchen_testing/new-e2e_testing/windows.yml @DataDog/agent-build-and-releases @DataDog/windows-agent
 
-/.gitlab/common/                                     @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/common/                                     @DataDog/container-integrations @DataDog/agent-ci-experience
+/.gitlab/common/test_infra_version.yml               @DataDog/agent-developer-tools @DataDog/agent-ci-experience
 
-/.gitlab/e2e.yml                                     @DataDog/container-integrations @DataDog/agent-platform
-/.gitlab/fakeintake.yml                              @DataDog/agent-e2e-testing
+/.gitlab/e2e/e2e.yml                                 @DataDog/container-integrations @DataDog/agent-developer-tools
+/.gitlab/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-developer-tools
+/.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-e2e-testing @DataDog/agent-developer-tools
 
-/.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-platform
-/.gitlab/functional_test/serverless.yml              @DataDog/serverless @DataDog/agent-platform
-/.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/ebpf-platform @DataDog/agent-platform
-/.gitlab/functional_test/system_probe_windows.yml    @DataDog/agent-platform @DataDog/windows-kernel-integrations
-/.gitlab/functional_test/common.yml                  @DataDog/agent-platform @DataDog/windows-kernel-integrations @DataDog/ebpf-platform
-/.gitlab/functional_test_sysprobe/system_probe.yml   @DataDog/ebpf-platform @DataDog/agent-platform
+/.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-ci-experience
+/.gitlab/functional_test/serverless.yml              @DataDog/serverless @DataDog/agent-ci-experience
+/.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/ebpf-platform @DataDog/agent-ci-experience
+/.gitlab/functional_test/system_probe_windows.yml    @DataDog/agent-ci-experience @DataDog/windows-kernel-integrations
+/.gitlab/functional_test/common.yml                  @DataDog/agent-ci-experience @DataDog/windows-kernel-integrations @DataDog/ebpf-platform
+/.gitlab/functional_test_sysprobe/system_probe.yml   @DataDog/ebpf-platform @DataDog/agent-ci-experience
+/.gitlab/choco_build/choco_build.yml                 @DataDog/agent-build-and-releases @DataDog/windows-agent
+/.gitlab/choco_deploy/choco_deploy.yml               @DataDog/agent-build-and-releases @DataDog/windows-agent
 
-/.gitlab/integration_test/windows.yml                @DataDog/agent-platform @DataDog/windows-agent
+/.gitlab/integration_test/windows.yml                @DataDog/agent-ci-experience @DataDog/windows-agent
 
-/.gitlab/kernel_version_testing                      @DataDog/ebpf-platform
+/.gitlab/kernel_matrix_testing                       @DataDog/ebpf-platform
+/.gitlab/kernel_matrix_testing/security_agent.yml    @DataDog/agent-security
 
-/.gitlab/container_build/                            @DataDog/container-integrations @DataDog/agent-platform
-/.gitlab/container_build/docker_windows_agent6.yml   @DataDog/agent-platform @DataDog/windows-agent
-/.gitlab/container_build/docker_windows_agent7.yml   @DataDog/agent-platform @DataDog/windows-agent
+/.gitlab/common/container_publish_job_templates.yml  @DataDog/container-integrations @DataDog/agent-build-and-releases
+/.gitlab/container_build/                            @DataDog/container-integrations @DataDog/agent-build-and-releases
+/.gitlab/container_build/include.yml                 @DataDog/container-integrations @DataDog/agent-build-and-releases
+/.gitlab/container_build/docker_windows_agent6.yml   @DataDog/agent-build-and-releases @DataDog/windows-agent
+/.gitlab/container_build/docker_windows_agent7.yml   @DataDog/agent-build-and-releases @DataDog/windows-agent
 
-/.gitlab/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-platform
-/.gitlab/dev_container_deploy/docker_windows.yml     @DataDog/agent-platform @DataDog/windows-agent
+/.gitlab/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-build-and-releases
+/.gitlab/dev_container_deploy/fakeintake.yml         @DataDog/agent-developer-tools
+/.gitlab/dev_container_deploy/docker_windows.yml     @DataDog/agent-build-and-releases @DataDog/windows-agent
 
-/.gitlab/container_scan.yml                          @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/container_scan/container_scan.yml           @DataDog/container-integrations @DataDog/agent-build-and-releases
 
-/.gitlab/internal_image_deploy.yml                   @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/internal_image_deploy.yml                   @DataDog/container-integrations @DataDog/agent-build-and-releases
 
-/.gitlab/maintenance_jobs/docker.yml                 @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/maintenance_jobs/docker.yml                 @DataDog/container-integrations @DataDog/agent-build-and-releases
 
-/.gitlab/source_test/ebpf.yml                        @DataDog/ebpf-platform @DataDog/agent-platform
-/.gitlab/source_test/windows.yml                     @DataDog/agent-platform @DataDog/windows-agent
+/.gitlab/source_test/ebpf.yml                        @DataDog/ebpf-platform @DataDog/agent-ci-experience
+/.gitlab/source_test/windows.yml                     @DataDog/agent-ci-experience @DataDog/windows-agent
+/.gitlab/source_test/go_generate_check.yml           @DataDog/agent-security
 
-/.gitlab/package_build/windows.yml                   @DataDog/agent-platform @DataDog/windows-agent
-
-/.gitlab/choco_build.yml                             @DataDog/agent-platform @DataDog/windows-agent
-/.gitlab/choco_deploy.yml                            @DataDog/agent-platform @DataDog/windows-agent
+/.gitlab/package_build/                              @DataDog/agent-build-and-releases
+/.gitlab/package_build/windows.yml                   @DataDog/agent-build-and-releases @DataDog/windows-agent
+/.gitlab/packaging/                                  @DataDog/agent-build-and-releases
 
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
 
 /.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
 /.gitlab/functional_test/workload_checks.yml         @DataDog/single-machine-performance
 
-/.gitlab/software_composition_analysis.yml           @DataDog/software-integrity-and-trust
+/.gitlab/software_composition_analysis/              @DataDog/software-integrity-and-trust
+
+/.gitlab/source_test_stats/windows.yml                                   @DataDog/agent-platform @DataDog/windows-agent
 
 /chocolatey/                            @DataDog/windows-agent
 
@@ -147,13 +159,14 @@
 /cmd/agent/dist/conf.d/containerd.d/    @DataDog/container-integrations
 /cmd/agent/dist/conf.d/container_image.d/      @DataDog/container-integrations
 /cmd/agent/dist/conf.d/container_lifecycle.d/  @DataDog/container-integrations
-/cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-platform
+/cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-ci-experience
+/cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
-/cmd/agent/dist/conf.d/oracle-dbm.d/conf.yaml.default @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
-/cmd/agent/install*.sh                  @DataDog/agent-platform
+/cmd/agent/install*.sh                  @DataDog/agent-build-and-releases
 /cmd/agent/gui/views/private/js/apm.js                       @DataDog/agent-apm
+/cmd/agentless-scanner/                 @DataDog/agent-cspm
 /cmd/cluster-agent/                     @DataDog/container-integrations
 /cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/platform-integrations
 /cmd/cluster-agent-cloudfoundry/        @DataDog/platform-integrations
@@ -173,6 +186,7 @@
 /cmd/system-probe/modules/process*      @DataDog/processes
 /cmd/system-probe/modules/eventmonitor* @DataDog/agent-security
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
+/cmd/system-probe/modules/traceroute*   @DataDog/network-device-monitoring @Datadog/Networks
 /cmd/system-probe/modules/ping*         @DataDog/network-device-monitoring
 /cmd/system-probe/windows/              @DataDog/windows-kernel-integrations
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
@@ -180,23 +194,27 @@
 /cmd/systray/                           @DataDog/windows-agent
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/updater/                           @DataDog/fleet
+/cmd/installer/                         @DataDog/fleet
 
-/dev/                                   @DataDog/agent-platform
-/devenv/                                @DataDog/agent-platform
+/dev/                                   @DataDog/agent-developer-tools
+/devenv/                                @DataDog/agent-developer-tools
 
 /Dockerfiles/                            @DataDog/container-integrations
 /Dockerfiles/agent/entrypoint.d.windows/ @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent/entrypoint.ps1        @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent/windows/              @DataDog/container-integrations @DataDog/windows-agent
 
-/docs/                                  @DataDog/documentation @DataDog/agent-platform
+/docs/                                  @DataDog/documentation @DataDog/agent-developer-tools
 /docs/agent/                            @DataDog/documentation @DataDog/agent-shared-components
-/docs/components/                       @DataDog/documentation @DataDog/agent-shared-components
-/docs/dogstatsd/                        @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/trace-agent/                      @DataDog/documentation @DataDog/agent-apm
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
+
+/docs/public/architecture/components/                        @DataDog/agent-shared-components
+/docs/public/architecture/dogstatsd/                         @DataDog/agent-metrics-logs
+/docs/public/guidelines/components/                          @DataDog/agent-shared-components
+/docs/public/how-to/components/                              @DataDog/agent-shared-components
 
 /google-marketplace/                    @DataDog/container-ecosystems
 
@@ -208,10 +226,10 @@
 
 /Makefile.trace                         @DataDog/agent-apm
 
-/omnibus/                               @DataDog/agent-platform
+/omnibus/                               @DataDog/agent-build-and-releases
 /omnibus/config/patches/openscap/                         @DataDog/agent-cspm
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
-/omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-platform
+/omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-build-and-releases
 /omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
 /omnibus/config/software/snmp-traps.rb                    @DataDog/network-device-monitoring
 /omnibus/resources/*/msi/                                 @DataDog/windows-agent
@@ -219,9 +237,10 @@
 # The following is managed by `inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS
 /comp @DataDog/agent-shared-components
-/comp/aggregator @DataDog/agent-shared-components
+/comp/agent @DataDog/agent-shared-components
+/comp/aggregator @DataDog/agent-metrics-logs
 /comp/api @DataDog/agent-shared-components
-/comp/checks @DataDog/agent-shared-components
+/comp/checks @DataDog/agent-metrics-logs
 /comp/collector @DataDog/agent-metrics-logs
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
@@ -238,8 +257,12 @@
 /comp/systray @DataDog/windows-agent
 /comp/trace @DataDog/agent-apm
 /comp/updater @DataDog/fleet
+/comp/agent/jmxlogger @DataDog/agent-metrics-logs
+/comp/aggregator/diagnosesendermanager @DataDog/agent-shared-components
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
+/comp/checks/windowseventlog @DataDog/windows-agent
 /comp/checks/winregistry @DataDog/windows-agent
+/comp/core/autodiscovery @DataDog/container-integrations
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/tagger @DataDog/container-integrations
 /comp/core/workloadmeta @DataDog/container-integrations
@@ -247,9 +270,10 @@
 /comp/forwarder/eventplatformreceiver @DataDog/agent-metrics-logs
 /comp/forwarder/orchestrator @DataDog/agent-metrics-logs
 /comp/forwarder/orchestrator/orchestratorinterface @DataDog/agent-metrics-logs
-/comp/metadata/packagesigning @DataDog/agent-platform
+/comp/metadata/packagesigning @DataDog/agent-build-and-releases
 /comp/trace/etwtracer @DataDog/windows-agent
 /comp/etw @DataDog/windows-agent
+/comp/serializer/compression @DataDog/agent-metrics-logs
 # END COMPONENTS
 
 # pkg
@@ -280,16 +304,17 @@
 /pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
 /pkg/trace/api/otlp*.go                 @DataDog/opentelemetry
+/pkg/trace/traceutil/otel*.go           @DataDog/opentelemetry
+/pkg/trace/stats/                       @DataDog/agent-apm @DataDog/opentelemetry
 /pkg/trace/telemetry/                   @DataDog/telemetry-and-analytics
-/pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-metrics-logs
-/pkg/autodiscovery/listeners/           @DataDog/container-integrations
-/pkg/autodiscovery/listeners/cloudfoundry*.go  @DataDog/platform-integrations
-/pkg/autodiscovery/listeners/snmp*.go   @DataDog/network-device-monitoring
-/pkg/autodiscovery/providers/           @DataDog/container-integrations
-/pkg/autodiscovery/providers/file*.go   @DataDog/agent-metrics-logs
-/pkg/autodiscovery/providers/config_reader*.go @DataDog/container-integrations @DataDog/agent-metrics-logs
-/pkg/autodiscovery/providers/cloudfoundry*.go  @DataDog/platform-integrations
-/pkg/autodiscovery/providers/remote_config*.go  @DataDog/remote-config
+/comp/core/autodiscovery/listeners/           @DataDog/container-integrations
+/comp/core/autodiscovery/listeners/cloudfoundry*.go  @DataDog/platform-integrations
+/comp/core/autodiscovery/listeners/snmp*.go   @DataDog/network-device-monitoring
+/comp/core/autodiscovery/providers/           @DataDog/container-integrations
+/comp/core/autodiscovery/providers/file*.go   @DataDog/agent-metrics-logs
+/comp/core/autodiscovery/providers/config_reader*.go @DataDog/container-integrations @DataDog/agent-metrics-logs
+/comp/core/autodiscovery/providers/cloudfoundry*.go  @DataDog/platform-integrations
+/comp/core/autodiscovery/providers/remote_config*.go  @DataDog/remote-config
 /pkg/cloudfoundry                       @Datadog/platform-integrations
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
@@ -304,14 +329,15 @@
 /pkg/collector/corechecks/ebpf/ebpf*                  @DataDog/ebpf-platform
 /pkg/collector/corechecks/ebpf/probe/ebpfcheck/       @DataDog/ebpf-platform
 /pkg/collector/corechecks/ebpf/c/runtime/ebpf*        @DataDog/ebpf-platform
-/pkg/collector/corechecks/embed/        @Datadog/agent-platform
+/pkg/collector/corechecks/embed/        @Datadog/agent-ci-experience
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-metrics-logs
-/pkg/collector/corechecks/embed/apm/            @Datadog/agent-platform @DataDog/agent-apm
-/pkg/collector/corechecks/embed/process/  @Datadog/agent-platform @DataDog/processes
+/pkg/collector/corechecks/embed/apm/            @Datadog/agent-ci-experience @DataDog/agent-apm
+/pkg/collector/corechecks/embed/process/  @Datadog/agent-ci-experience @DataDog/processes
+/pkg/collector/corechecks/network-devices/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
 /pkg/collector/corechecks/kubernetes/       @DataDog/container-integrations
 /pkg/collector/corechecks/net/          @DataDog/platform-integrations
-/pkg/collector/corechecks/oracle-dbm        @DataDog/database-monitoring
+/pkg/collector/corechecks/oracle        @DataDog/database-monitoring
 /pkg/collector/corechecks/sbom/         @DataDog/container-integrations
 /pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/system/                 @DataDog/platform-integrations
@@ -320,14 +346,14 @@
 /pkg/collector/corechecks/system/winkmem/         @DataDog/windows-agent
 /pkg/collector/corechecks/system/winproc/         @DataDog/windows-agent
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
-/pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
+/pkg/collector/corechecks/nvidia/       @DataDog/agent-ci-experience
 /pkg/collector/corechecks/windows_event_log/ @DataDog/windows-agent
 /pkg/config/                            @DataDog/agent-shared-components
 /pkg/config/config_template.yaml        @DataDog/agent-shared-components @DataDog/documentation
 /pkg/config/setup/apm.go                @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/env                         @DataDog/container-integrations @DataDog/container-app
-/pkg/config/logs                        @Datadog/agent-shared-components @Datadog/agent-platform
+/pkg/config/logs                        @Datadog/agent-shared-components
 /pkg/config/logs/internal/seelog/seelog_config.go          @Datadog/agent-shared-components
 /pkg/config/setup                            @DataDog/agent-shared-components
 /pkg/config/setup/process*.go                 @DataDog/processes
@@ -353,7 +379,6 @@
 /pkg/pidfile/                           @DataDog/agent-shared-components
 /pkg/persistentcache/                   @DataDog/agent-metrics-logs
 /pkg/proto/                             @DataDog/agent-shared-components
-/pkg/proto/connectionserver/            @DataDog/universal-service-monitoring @DataDog/Networks
 /pkg/proto/datadog/languagedetection    @DataDog/processes
 /pkg/proto/datadog/process              @DataDog/processes
 /pkg/proto/datadog/trace                @DataDog/agent-apm
@@ -362,6 +387,7 @@
 /pkg/serializer/                        @DataDog/agent-metrics-logs
 /pkg/tagset/                            @DataDog/agent-shared-components
 /pkg/updater/                           @DataDog/fleet
+/pkg/installer/                         @DataDog/fleet
 /pkg/util/                              @DataDog/agent-shared-components
 /pkg/util/aggregatingqueue              @DataDog/container-integrations
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/platform-integrations
@@ -385,11 +411,12 @@
 /pkg/util/crashreport/                  @DataDog/windows-kernel-integrations
 /pkg/util/pdhutil/                      @DataDog/windows-agent
 /pkg/util/winutil/                      @DataDog/windows-agent
-/pkg/util/testutil/flake                @DataDog/agent-platform
+/pkg/util/testutil/flake                @DataDog/agent-developer-tools
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
 /pkg/logs/                              @DataDog/agent-metrics-logs
 /pkg/logs/launchers/windowsevent        @DataDog/agent-metrics-logs @DataDog/windows-agent
 /pkg/logs/tailers/windowsevent          @DataDog/agent-metrics-logs @DataDog/windows-agent
+/pkg/logs/util/windowsevent             @DataDog/agent-metrics-logs @DataDog/windows-agent
 /pkg/process/                           @DataDog/processes
 /pkg/process/util/address*.go           @DataDog/Networks
 /pkg/process/util/netns*.go             @DataDog/Networks
@@ -451,15 +478,19 @@
 /pkg/ebpf/bytecode/runtime/tracer.go    @DataDog/Networks @DataDog/universal-service-monitoring
 /pkg/ebpf/map_cleaner*.go               @DataDog/universal-service-monitoring
 /pkg/compliance/                        @DataDog/agent-cspm
+/pkg/databasemonitoring                 @DataDog/database-monitoring
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/networkdevice/                     @DataDog/network-device-monitoring
 /pkg/snmp/                              @DataDog/network-device-monitoring
+/pkg/tagger/                            @DataDog/container-integrations
 /pkg/windowsdriver/                     @DataDog/windows-kernel-integrations
 /comp/core/workloadmeta/collectors/internal/cloudfoundry @DataDog/platform-integrations
 /pkg/sbom/                              @DataDog/container-integrations @DataDog/agent-security
 /pkg/internaltelemetry                  @DataDog/windows-kernel-integrations
-/pkg-config/                            @DataDog/agent-platform
+/pkg-config/                            @DataDog/agent-build-and-releases
+/pkg/networkpath/                       @DataDog/network-device-monitoring @DataDog/Networks
+/pkg/collector/corechecks/networkpath/  @DataDog/network-device-monitoring @DataDog/Networks
 
 /releasenotes/                          @DataDog/documentation
 /releasenotes-installscript/            @DataDog/documentation
@@ -467,13 +498,13 @@
 
 /rtloader/                              @DataDog/agent-metrics-logs
 
-/tasks/                                 @DataDog/agent-platform
+/tasks/                                 @DataDog/agent-developer-tools @DataDog/agent-ci-experience
 /tasks/msi.py                           @DataDog/windows-agent
 /tasks/agent.py                         @DataDog/agent-shared-components
 /tasks/update_go.py                     @DataDog/agent-shared-components
 /tasks/unit-tests/update_go_tests.py    @DataDog/agent-shared-components
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/platform-integrations
-/tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing
+/tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing @DataDog/agent-developer-tools
 /tasks/process_agent.py                 @DataDog/processes
 /tasks/system_probe.py                  @DataDog/ebpf-platform
 /tasks/ebpf.py                          @DataDog/ebpf-platform
@@ -486,7 +517,9 @@
 /tasks/windows_resources.py             @DataDog/windows-agent
 /tasks/components.py                    @DataDog/agent-shared-components
 /tasks/components_templates             @DataDog/agent-shared-components
-/test/                                  @DataDog/agent-platform
+/tasks/updater.py                       @DataDog/fleet
+/tasks/installer.py                     @DataDog/fleet
+/test/                                  @DataDog/agent-developer-tools
 /test/benchmarks/                       @DataDog/agent-metrics-logs
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
 /test/e2e/                              @DataDog/container-integrations @DataDog/agent-security
@@ -496,7 +529,9 @@
 /test/integration/                      @DataDog/container-integrations
 /test/integration/serverless            @DataDog/serverless
 /test/integration/serverless_perf       @DataDog/serverless
-/test/kitchen/                          @DataDog/agent-platform
+/test/kitchen/                          @DataDog/agent-developer-tools
+/test/kitchen/test-definitions/         @DataDog/agent-build-and-releases
+/test/kitchen/test/integration/         @DataDog/agent-build-and-releases
 /test/kitchen/kitchen-azure-security-agent-test.yml @DataDog/agent-security
 /test/kitchen/kitchen-vagrant-security-agent.yml @DataDog/agent-security
 /test/kitchen/site-cookbooks/dd-security-agent-check/ @DataDog/agent-security
@@ -511,36 +546,41 @@
 /test/kitchen/test/integration/win-install-fail/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-installopts/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-no-subservices/ @DataDog/windows-agent
+/test/kitchen/test/integration/win-sysprobe-test/ @DataDog/windows-kernel-integrations
 /test/kitchen/test/integration/win-reinstall-option/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-repair/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
-/test/fakeintake/                             @DataDog/agent-e2e-testing
-/test/new-e2e/                                @DataDog/agent-e2e-testing
-/test/new-e2e/test-infra-definition           @DataDog/agent-platform
+/test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-developer-tools
+/test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/network-device-monitoring
+/test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/network-device-monitoring
+/test/new-e2e/                                @DataDog/agent-e2e-testing @DataDog/agent-developer-tools
+/test/new-e2e/test-infra-definition           @DataDog/agent-developer-tools
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
+/test/new-e2e/tests/agent-platform            @DataDog/agent-build-and-releases @DataDog/agent-developer-tools
 /test/new-e2e/tests/agent-shared-components   @DataDog/agent-shared-components
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-shared-components
 /test/new-e2e/tests/containers                @DataDog/container-integrations
 /test/new-e2e/tests/language-detection        @DataDog/processes
 /test/new-e2e/tests/ndm                       @DataDog/network-device-monitoring
 /test/new-e2e/tests/npm                       @DataDog/Networks
+/test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/Networks @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/orchestrator              @DataDog/container-app
 /test/new-e2e/tests/process                   @DataDog/processes
 /test/new-e2e/tests/cws                       @DataDog/agent-security
-/test/new-e2e/tests/agent-platform            @DataDog/agent-platform
 /test/new-e2e/tests/agent-metric-logs   @DataDog/agent-metrics-logs
 /test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/apm                       @DataDog/agent-apm
 /test/new-e2e/tests/remote-config             @DataDog/remote-config
 /test/new-e2e/tests/updater                   @DataDog/fleet
+/test/new-e2e/tests/installer                 @DataDog/fleet
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
 /test/regression/                             @DataDog/single-machine-performance
 /test/workload-checks/                        @DataDog/single-machine-performance
 
-/tools/                                 @DataDog/agent-platform
+/tools/                                 @DataDog/agent-developer-tools
 /tools/ebpf/                            @DataDog/ebpf-platform
 /tools/gdb/                             @DataDog/agent-shared-components
 /tools/go-update/                       @DataDog/agent-shared-components
@@ -549,7 +589,7 @@
 /tools/windows/DatadogAgentInstaller/WixSetup/localization-en-us.wxl @DataDog/windows-agent @DataDog/documentation
 /tools/agent_QA/                        @DataDog/agent-metrics-logs
 
-/internal/tools/                        @DataDog/agent-platform
+/internal/tools/                        @DataDog/agent-developer-tools @DataDog/agent-ci-experience
 /internal/third_party/client-go         @DataDog/container-integrations
 /internal/third_party/kubernetes        @DataDog/container-integrations
 /internal/third_party/golang/           @DataDog/container-integrations

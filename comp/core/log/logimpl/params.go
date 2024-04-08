@@ -152,3 +152,28 @@ func (params Params) LogLevelFn(c configGetter) string {
 func (params Params) LogFileFn(c configGetter) string {
 	return params.logFileFn(c)
 }
+
+// IsLogLevelFnSet returns whether the logLevelFn field is set
+func (params Params) IsLogLevelFnSet() bool {
+	return params.logLevelFn != nil
+}
+
+// LogSyslogURIFn returns the syslog URI
+func (params Params) LogSyslogURIFn(c configGetter) string {
+	return params.logSyslogURIFn(c)
+}
+
+// LogSyslogRFCFn returns a boolean determining whether to use syslog RFC 5424
+func (params Params) LogSyslogRFCFn(c configGetter) bool {
+	return params.logSyslogRFCFn(c)
+}
+
+// LogToConsoleFn returns a boolean determining whether to write logs to the console
+func (params Params) LogToConsoleFn(c configGetter) bool {
+	return params.logToConsoleFn(c)
+}
+
+// LogFormatJSONFn returns a boolean determining whether logs should be written in JSON format
+func (params Params) LogFormatJSONFn(c configGetter) bool {
+	return params.logFormatJSONFn(c)
+}

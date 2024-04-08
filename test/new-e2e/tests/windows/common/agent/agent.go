@@ -8,15 +8,18 @@ package agent
 
 import (
 	"fmt"
-	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	infraCommon "github.com/DataDog/test-infra-definitions/common"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,11 +29,46 @@ const (
 	// Valid From: May 2023
 	// Valid To:   May 2025
 	DatadogCodeSignatureThumbprint = `B03F29CC07566505A718583E9270A6EE17678742`
+	// RegistryKeyPath is the root registry key that the Datadog Agent uses to store some state
+	RegistryKeyPath = "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent"
 )
 
 // GetDatadogAgentProductCode returns the product code GUID for the Datadog Agent
 func GetDatadogAgentProductCode(host *components.RemoteHost) (string, error) {
-	return windows.GetProductCodeByName(host, "Datadog Agent")
+	return windowsCommon.GetProductCodeByName(host, "Datadog Agent")
+}
+
+// InstallAgent installs the agent and returns the remote MSI path and any errors
+func InstallAgent(host *components.RemoteHost, options ...InstallAgentOption) (string, error) {
+	p, err := infraCommon.ApplyOption(&InstallAgentParams{}, options)
+	if err != nil {
+		return "", err
+	}
+
+	if p.Package == nil {
+		return "", fmt.Errorf("missing agent package to install")
+	}
+	if p.InstallLogFile != "" {
+		// InstallMSI always used a temporary file path
+		return "", fmt.Errorf("Setting the remote MSI log file path is not supported")
+	}
+
+	if p.LocalInstallLogFile == "" {
+		p.LocalInstallLogFile = filepath.Join(os.TempDir(), "install.log")
+	}
+
+	args := p.toArgs()
+
+	remoteMSIPath, err := windowsCommon.GetTemporaryFile(host)
+	if err != nil {
+		return "", err
+	}
+	err = windowsCommon.PutOrDownloadFile(host, p.Package.URL, remoteMSIPath)
+	if err != nil {
+		return "", err
+	}
+
+	return remoteMSIPath, windowsCommon.InstallMSI(host, remoteMSIPath, strings.Join(args, " "), p.LocalInstallLogFile)
 }
 
 // RepairAllAgent repairs the Datadog Agent
@@ -39,7 +77,7 @@ func RepairAllAgent(host *components.RemoteHost, args string, logPath string) er
 	if err != nil {
 		return err
 	}
-	return windows.RepairAllMSI(host, product, args, logPath)
+	return windowsCommon.RepairAllMSI(host, product, args, logPath)
 }
 
 // UninstallAgent uninstalls the Datadog Agent
@@ -48,12 +86,12 @@ func UninstallAgent(host *components.RemoteHost, logPath string) error {
 	if err != nil {
 		return err
 	}
-	return windows.UninstallMSI(host, product, logPath)
+	return windowsCommon.UninstallMSI(host, product, logPath)
 }
 
 // HasValidDatadogCodeSignature an error if the file at the given path is not validy signed by the Datadog Code Signing certificate
 func HasValidDatadogCodeSignature(host *components.RemoteHost, path string) error {
-	sig, err := windows.GetAuthenticodeSignature(host, path)
+	sig, err := windowsCommon.GetAuthenticodeSignature(host, path)
 	if err != nil {
 		return err
 	}
@@ -96,4 +134,27 @@ func TestAgentVersion(t *testing.T, expected string, actual string) bool {
 		require.NoErrorf(t, err, "invalid actual version %s", actual)
 		assert.Equal(t, expectedVersion.GetNumberAndPre(), actualVersion.GetNumberAndPre(), "agent version mismatch")
 	})
+}
+
+// GetAgentUserFromRegistry gets the domain and username that the agent was installed with from the registry
+func GetAgentUserFromRegistry(host *components.RemoteHost) (string, string, error) {
+	domain, err := windowsCommon.GetRegistryValue(host, RegistryKeyPath, "installedDomain")
+	if err != nil {
+		return "", "", err
+	}
+	username, err := windowsCommon.GetRegistryValue(host, RegistryKeyPath, "installedUser")
+	if err != nil {
+		return "", "", err
+	}
+	return domain, username, nil
+}
+
+// GetInstallPathFromRegistry gets the install path from the registry, e.g. C:\Program Files\Datadog\Datadog Agent
+func GetInstallPathFromRegistry(host *components.RemoteHost) (string, error) {
+	return windowsCommon.GetRegistryValue(host, RegistryKeyPath, "InstallPath")
+}
+
+// GetConfigRootFromRegistry gets the config root from the registry, e.g. C:\ProgramData\Datadog
+func GetConfigRootFromRegistry(host *components.RemoteHost) (string, error) {
+	return windowsCommon.GetRegistryValue(host, RegistryKeyPath, "ConfigRoot")
 }

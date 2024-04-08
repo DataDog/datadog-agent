@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -97,7 +98,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func getClient(sysprobeconfig sysprobeconfig.Component) (settings.Client, error) {
 	cfg := sysprobeconfig.SysProbeObject()
 	hc := client.Get(cfg.SocketAddress)
-	return settingshttp.NewClient(hc, "http://localhost/config", "system-probe"), nil
+	return settingshttp.NewClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }
 
 func showRuntimeConfiguration(sysprobeconfig sysprobeconfig.Component, _ *cliParams) error {

@@ -128,7 +128,7 @@ The Parameters.Create.FileAttributes and Parameters.Create.EaLength members are 
 	by file systems and file system filter drivers. For more information, see the IRP_MJ_CREATE topic in
 	the Installable File System (IFS) documentation.
 */
-func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
+func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 	ca := &createHandleArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -155,13 +155,17 @@ func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
-
+	if _, ok := filePathResolver[ca.fileObject]; ok {
+		wp.stats.filePathOverwrites++
+	} else {
+		wp.stats.filePathNewWrites++
+	}
 	filePathResolver[ca.fileObject] = ca.fileName
 	return ca, nil
 }
 
-func parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
-	ca, err := parseCreateHandleArgs(e)
+func (wp *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
+	ca, err := wp.parseCreateHandleArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +173,7 @@ func parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
 }
 
 // nolint: unused
-func (ca *createHandleArgs) string() string {
+func (ca *createHandleArgs) String() string {
 	var output strings.Builder
 
 	output.WriteString("  Create PID: " + strconv.Itoa(int(ca.ProcessID)) + "\n")
@@ -180,8 +184,8 @@ func (ca *createHandleArgs) string() string {
 }
 
 // nolint: unused
-func (ca *createNewFileArgs) string() string {
-	return (*createHandleArgs)(ca).string()
+func (ca *createNewFileArgs) String() string {
+	return (*createHandleArgs)(ca).String()
 }
 
 /*
@@ -203,7 +207,7 @@ func (ca *createNewFileArgs) string() string {
       <data name="InfoClass" inType="win:UInt32"/>
      </template>
 */
-
+// nolint: unused
 type setInformationArgs struct {
 	etw.DDEventHeader
 	irp        uint64
@@ -215,6 +219,7 @@ type setInformationArgs struct {
 	fileName   string
 }
 
+// nolint: unused
 func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	sia := &setInformationArgs{
 		DDEventHeader: e.EventHeader,
@@ -245,7 +250,7 @@ func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 }
 
 // nolint: unused
-func (sia *setInformationArgs) string() string {
+func (sia *setInformationArgs) String() string {
 	var output strings.Builder
 
 	output.WriteString("  SIA TID: " + strconv.Itoa(int(sia.threadID)) + "\n")
@@ -331,7 +336,7 @@ func parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error) {
 }
 
 // nolint: unused
-func (ca *cleanupArgs) string() string {
+func (ca *cleanupArgs) String() string {
 	var output strings.Builder
 
 	output.WriteString("  CLEANUP: TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
@@ -342,11 +347,11 @@ func (ca *cleanupArgs) string() string {
 }
 
 // nolint: unused
-func (ca *closeArgs) string() string {
-	return (*cleanupArgs)(ca).string()
+func (ca *closeArgs) String() string {
+	return (*cleanupArgs)(ca).String()
 }
 
 // nolint: unused
-func (fa *flushArgs) string() string {
-	return (*cleanupArgs)(fa).string()
+func (fa *flushArgs) String() string {
+	return (*cleanupArgs)(fa).String()
 }

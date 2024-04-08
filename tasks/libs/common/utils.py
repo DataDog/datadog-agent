@@ -18,6 +18,7 @@ from tasks.libs.common.color import color_message
 
 # constants
 DEFAULT_BRANCH = "main"
+DEFAULT_INTEGRATIONS_CORE_BRANCH = "master"
 GITHUB_ORG = "DataDog"
 REPO_NAME = "datadog-agent"
 GITHUB_REPO_NAME = f"{GITHUB_ORG}/{REPO_NAME}"
@@ -135,6 +136,26 @@ def get_embedded_path(ctx):
     return embedded_path
 
 
+def get_xcode_version(ctx):
+    """
+    Get the version of XCode used depending on how it's installed.
+    """
+    if sys.platform != "darwin":
+        raise ValueError("The get_xcode_version function is only available on macOS")
+    xcode_path = ctx.run("xcode-select -p", hide=True).stdout.strip()
+    if xcode_path == "/Library/Developer/CommandLineTools":
+        xcode_version = ctx.run("pkgutil --pkg-info=com.apple.pkg.CLTools_Executables", hide=True).stdout.strip()
+        xcode_version = re.search(r"version: ([0-9.]+)", xcode_version).group(1)
+        xcode_version = re.search(r"([0-9]+.[0-9]+)", xcode_version).group(1)
+    elif xcode_path.startswith("/Applications/Xcode.app"):
+        xcode_version = ctx.run(
+            "xcodebuild -version | grep -Eo 'Xcode [0-9.]+' | awk '{print $2}'", hide=True
+        ).stdout.strip()
+    else:
+        raise ValueError(f"Unknown XCode installation at {xcode_path}.")
+    return xcode_version
+
+
 def get_build_flags(
     ctx,
     static=False,
@@ -155,7 +176,7 @@ def get_build_flags(
     Context object.
     """
     gcflags = ""
-    ldflags = get_version_ldflags(ctx, prefix, major_version=major_version)
+    ldflags = get_version_ldflags(ctx, prefix, major_version=major_version, install_path=install_path)
     # External linker flags; needs to be handled separately to avoid overrides
     extldflags = ""
     env = {"GO111MODULE": "on"}
@@ -173,9 +194,9 @@ def get_build_flags(
 
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
 
-    # setting the install path
+    # setting the install path, allowing the agent to be installed in a custom location
     if sys.platform.startswith('linux') and install_path:
-        ldflags += f"-X {REPO_PATH}/pkg/config.InstallPath={install_path} "
+        ldflags += f"-X {REPO_PATH}/pkg/config/setup.InstallPath={install_path} "
 
     # setting python homes in the code
     if python_home_2:
@@ -228,10 +249,24 @@ def get_build_flags(
     elif os.environ.get("NO_GO_OPT"):
         gcflags = "-N -l"
 
-    # On macOS work around https://github.com/golang/go/issues/38824
-    # as done in https://go-review.googlesource.com/c/go/+/372798
     if sys.platform == "darwin":
-        extldflags += "-Wl,-bind_at_load "
+        # On macOS work around https://github.com/golang/go/issues/38824
+        # as done in https://go-review.googlesource.com/c/go/+/372798
+        extldflags += "-Wl,-bind_at_load"
+
+        # On macOS when using XCode 15 the -no_warn_duplicate_libraries linker flag is needed to avoid getting ld warnings
+        # for duplicate libraries: `ld: warning: ignoring duplicate libraries: '-ldatadog-agent-rtloader', '-ldl'`.
+        # Gotestsum sees the ld warnings as errors, breaking the test invoke task, so we have to remove them.
+        # See https://indiestack.com/2023/10/xcode-15-duplicate-library-linker-warnings/
+        try:
+            xcode_version = get_xcode_version(ctx)
+            if int(xcode_version.split('.')[0]) >= 15:
+                extldflags += ",-no_warn_duplicate_libraries "
+        except ValueError:
+            print(
+                "Could not determine XCode version, not adding -no_warn_duplicate_libraries to extldflags",
+                file=sys.stderr,
+            )
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
@@ -274,7 +309,7 @@ def get_payload_version():
     raise Exception("Could not find valid version for agent-payload in go.mod file")
 
 
-def get_version_ldflags(ctx, prefix=None, major_version='7'):
+def get_version_ldflags(ctx, prefix=None, major_version='7', install_path=None):
     """
     Compute the version from the git tags, and set the appropriate compiler
     flags
@@ -285,6 +320,10 @@ def get_version_ldflags(ctx, prefix=None, major_version='7'):
     ldflags = f"-X {REPO_PATH}/pkg/version.Commit={commit} "
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersion={get_version(ctx, include_git=True, prefix=prefix, major_version=major_version)} "
     ldflags += f"-X {REPO_PATH}/pkg/serializer.AgentPayloadVersion={payload_v} "
+    if install_path:
+        package_version = os.path.basename(install_path)
+        if package_version != "datadog-agent":
+            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
 
     return ldflags
 

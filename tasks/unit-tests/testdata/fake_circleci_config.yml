@@ -163,7 +163,7 @@ jobs:
       - run:
           name: run go linters
           no_output_timeout: 20m
-          command: inv -e lint-go
+          command: inv -e linter.go
 
   licenses_linting:
     <<: *job_template
@@ -181,7 +181,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run copyrights linting
-          command: inv -e lint-copyrights
+          command: inv -e linter.copyrights
 
   filename_linting:
     <<: *job_template
@@ -190,7 +190,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run filename linting
-          command: inv -e lint-filenames
+          command: inv -e linter.filenames
 
   shell_linting:
     <<: *job_template
@@ -222,7 +222,7 @@ jobs:
               echo 'export LANG="C.UTF-8"' >> $BASH_ENV
       - run:
           name: lint python files
-          command: inv -e lint-python
+          command: inv -e linter.python
 
   component_linting:
     <<: *job_template

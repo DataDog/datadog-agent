@@ -419,7 +419,8 @@ func TestPublishUptime(t *testing.T) {
 func TestPublishReceiverStats(t *testing.T) {
 	receiverStats = []TagStats{{
 		Tags: Tags{
-			Lang: "go",
+			Lang:    "go",
+			Service: "service",
 		},
 		Stats: Stats{
 			TracesReceived: atom(1),
@@ -487,6 +488,7 @@ func TestPublishReceiverStats(t *testing.T) {
 			"LangVersion":           "",
 			"PayloadAccepted":       15.0,
 			"PayloadRefused":        16.0,
+			"Service":               "service",
 			"SpansDropped":          11.0,
 			"SpansFiltered":         12.0,
 			"SpansMalformed": map[string]interface{}{

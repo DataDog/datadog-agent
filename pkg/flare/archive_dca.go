@@ -14,26 +14,23 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // ProfileData maps (pprof) profile names to the profile data
 type ProfileData map[string][]byte
 
 // CreateDCAArchive packages up the files
-func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileData, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) (string, error) {
+func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileData, diagnoseDeps diagnose.SuitesDeps, statusComponent status.Component) (string, error) {
 	fb, err := flarehelpers.NewFlareBuilder(local)
 	if err != nil {
 		return "", err
@@ -44,31 +41,32 @@ func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileDat
 		"dist": filepath.Join(distPath, "conf.d"),
 	}
 
-	createDCAArchive(fb, confSearchPaths, logFilePath, pdata, senderManager, collector, secretResolver)
+	createDCAArchive(fb, confSearchPaths, logFilePath, pdata, diagnoseDeps, statusComponent)
 	return fb.Save()
 }
 
-func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]string, logFilePath string, pdata ProfileData, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) {
+func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]string, logFilePath string, pdata ProfileData, diagnoseDeps diagnose.SuitesDeps, statusComponent status.Component) {
 	// If the request against the API does not go through we don't collect the status log.
 	if fb.IsLocal() {
 		fb.AddFile("local", nil)
 	} else {
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running
-		err := fb.AddFileFromFunc("cluster-agent-status.log", clusteragentStatus.GetAndFormatStatus)
+		err := fb.AddFileFromFunc("cluster-agent-status.log", func() ([]byte, error) { return statusComponent.GetStatus("text", true) })
 		if err != nil {
 			log.Errorf("Error getting the status of the DCA, %q", err)
 			return
 		}
+
 	}
 
 	getLogFiles(fb, logFilePath)
 	getConfigFiles(fb, confSearchPaths)
-	getClusterAgentConfigCheck(fb)                                        //nolint:errcheck
-	getExpVar(fb)                                                         //nolint:errcheck
-	getMetadataMap(fb)                                                    //nolint:errcheck
-	getClusterAgentClusterChecks(fb)                                      //nolint:errcheck
-	getClusterAgentDiagnose(fb, senderManager, collector, secretResolver) //nolint:errcheck
+	getClusterAgentConfigCheck(fb)            //nolint:errcheck
+	getExpVar(fb)                             //nolint:errcheck
+	getMetadataMap(fb)                        //nolint:errcheck
+	getClusterAgentClusterChecks(fb)          //nolint:errcheck
+	getClusterAgentDiagnose(fb, diagnoseDeps) //nolint:errcheck
 	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)
 	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment)
 	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)
@@ -160,11 +158,11 @@ func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("config-check.log", b.Bytes())
 }
 
-func getClusterAgentDiagnose(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) error {
+func getClusterAgentDiagnose(fb flaretypes.FlareBuilder, deps diagnose.SuitesDeps) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetClusterAgentDiagnose(writer, senderManager, collector, secretResolver) //nolint:errcheck
+	GetClusterAgentDiagnose(writer, deps) //nolint:errcheck
 	writer.Flush()
 
 	return fb.AddFile("diagnose.log", b.Bytes())

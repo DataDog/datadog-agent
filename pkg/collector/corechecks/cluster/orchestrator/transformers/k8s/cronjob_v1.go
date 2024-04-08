@@ -42,6 +42,9 @@ func ExtractCronJobV1(cj *batchv1.CronJob) *model.CronJob {
 	if cj.Status.LastScheduleTime != nil {
 		cronJob.Status.LastScheduleTime = cj.Status.LastScheduleTime.Unix()
 	}
+	if cj.Status.LastSuccessfulTime != nil {
+		cronJob.Status.LastSuccessfulTime = cj.Status.LastSuccessfulTime.Unix()
+	}
 	for _, job := range cj.Status.Active {
 		cronJob.Status.Active = append(cronJob.Status.Active, &model.ObjectReference{
 			ApiVersion:      job.APIVersion,

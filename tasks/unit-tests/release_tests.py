@@ -6,13 +6,14 @@ from unittest import mock
 from invoke.exceptions import Exit
 
 from tasks import release
-from tasks.libs.version import Version
+from tasks.libs.types.version import Version
+
+
+def fake_tag(value):
+    return SimpleNamespace(name=value)
 
 
 def mocked_github_requests_get(*args, **_kwargs):
-    def fake_tag(value):
-        return SimpleNamespace(name=value)
-
     if args[0][-1] == "6":
         return [
             fake_tag("6.28.0-rc.1"),
@@ -49,7 +50,29 @@ def mocked_github_requests_get(*args, **_kwargs):
     ]
 
 
+def mocked_github_requests_incorrect_get(*_args, **_kwargs):
+    return [
+        fake_tag("7.28.0-test"),
+        fake_tag("7.28.0-rc.1"),
+        fake_tag("7.28.0-rc.2"),
+        fake_tag("7.28.0-beta"),
+    ]
+
+
 class TestGetHighestRepoVersion(unittest.TestCase):
+    @mock.patch('tasks.release.GithubAPI')
+    def test_ignore_incorrect_tag(self, gh_mock):
+        gh_instance = mock.MagicMock()
+        gh_instance.get_tags.side_effect = mocked_github_requests_incorrect_get
+        gh_mock.return_value = gh_instance
+        version = release._get_highest_repo_version(
+            "target-repo",
+            "",
+            release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 28),
+            release.COMPATIBLE_MAJOR_VERSIONS[7],
+        )
+        self.assertEqual(version, Version(major=7, minor=28, patch=0, rc=2))
+
     @mock.patch('tasks.release.GithubAPI')
     def test_one_allowed_major_multiple_entries(self, gh_mock):
         gh_instance = mock.MagicMock()
