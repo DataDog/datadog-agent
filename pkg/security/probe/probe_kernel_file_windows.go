@@ -128,7 +128,7 @@ The Parameters.Create.FileAttributes and Parameters.Create.EaLength members are 
 	by file systems and file system filter drivers. For more information, see the IRP_MJ_CREATE topic in
 	the Installable File System (IFS) documentation.
 */
-func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
+func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 	ca := &createHandleArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -155,13 +155,17 @@ func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
-
+	if _, ok := filePathResolver[ca.fileObject]; ok {
+		wp.stats.filePathOverwrites++
+	} else {
+		wp.stats.filePathNewWrites++
+	}
 	filePathResolver[ca.fileObject] = ca.fileName
 	return ca, nil
 }
 
-func parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
-	ca, err := parseCreateHandleArgs(e)
+func (wp *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
+	ca, err := wp.parseCreateHandleArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +207,7 @@ func (ca *createNewFileArgs) String() string {
       <data name="InfoClass" inType="win:UInt32"/>
      </template>
 */
-
+// nolint: unused
 type setInformationArgs struct {
 	etw.DDEventHeader
 	irp        uint64
@@ -215,6 +219,7 @@ type setInformationArgs struct {
 	fileName   string
 }
 
+// nolint: unused
 func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	sia := &setInformationArgs{
 		DDEventHeader: e.EventHeader,

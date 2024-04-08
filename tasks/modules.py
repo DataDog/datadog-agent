@@ -177,6 +177,7 @@ DEFAULT_MODULES = {
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True),
     "comp/core/status": GoModule("comp/core/status", independent=True),
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
+    "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True),
     "comp/forwarder/defaultforwarder": GoModule("comp/forwarder/defaultforwarder", independent=True),
     "comp/forwarder/orchestrator/orchestratorinterface": GoModule(
@@ -185,6 +186,10 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/components/exporter/serializerexporter": GoModule(
         "comp/otelcol/otlp/components/exporter/serializerexporter", independent=True
     ),
+    "comp/otelcol/otlp/components/exporter/logsagentexporter": GoModule(
+        "comp/otelcol/otlp/components/exporter/logsagentexporter", independent=True
+    ),
+    "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
     "comp/netflow/payload": GoModule("comp/netflow/payload", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
@@ -203,6 +208,7 @@ DEFAULT_MODULES = {
     "pkg/logs/message": GoModule("pkg/logs/message", independent=True),
     "pkg/logs/metrics": GoModule("pkg/logs/metrics", independent=True),
     "pkg/logs/pipeline": GoModule("pkg/logs/pipeline", independent=True),
+    "pkg/logs/sds": GoModule("pkg/logs/sds", independent=True),
     "pkg/logs/sender": GoModule("pkg/logs/sender", independent=True),
     "pkg/logs/sources": GoModule("pkg/logs/sources", independent=True),
     "pkg/logs/status/statusinterface": GoModule("pkg/logs/status/statusinterface", independent=True),
@@ -328,3 +334,15 @@ def go_work(_: Context):
             prefix = "" if mod.condition() else "//"
             f.write(f"\t{prefix}{mod.path}\n")
         f.write(")\n")
+
+
+@task
+def for_each(ctx: Context, cmd: str, skip_untagged: bool = False):
+    """
+    Run the given command in the directory of each module.
+    """
+    for mod in DEFAULT_MODULES.values():
+        if skip_untagged and not mod.should_tag:
+            continue
+        with ctx.cd(mod.full_path()):
+            ctx.run(cmd)

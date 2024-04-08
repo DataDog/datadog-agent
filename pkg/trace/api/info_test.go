@@ -268,7 +268,6 @@ func TestInfoHandler(t *testing.T) {
 		StatsdHost:                  "stastd.localhost",
 		StatsdPort:                  123,
 		LogFilePath:                 "/path/to/logfile",
-		LogThrottling:               false,
 		MaxMemory:                   1000000,
 		MaxCPU:                      12345,
 		WatchdogInterval:            time.Minute,
