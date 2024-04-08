@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/DataDog/test-infra-definitions/components/os"
 )
@@ -19,11 +20,15 @@ type agentHostExecutor struct {
 	host        *components.RemoteHost
 }
 
-func newDefaultAgentHostExecutor(host *components.RemoteHost) agentCommandExecutor {
+func newAgentHostExecutor(host *components.RemoteHost, params *agentclientparams.Params) agentCommandExecutor {
 	var baseCommand string
 	switch host.OSFamily {
 	case os.WindowsFamily:
-		baseCommand = agentHostBaseCommandWithInstallPath(host, defaultWindowsAgentInstallPath(host))
+		installPath := params.AgentInstallPath
+		if len(installPath) == 0 {
+			installPath = defaultWindowsAgentInstallPath(host)
+		}
+		baseCommand = fmt.Sprintf(`& "%s\bin\agent.exe"`, installPath)
 	case os.LinuxFamily:
 		baseCommand = "sudo datadog-agent"
 	case os.MacOSFamily:
@@ -32,10 +37,6 @@ func newDefaultAgentHostExecutor(host *components.RemoteHost) agentCommandExecut
 		panic(fmt.Sprintf("unsupported OS family: %v", host.OSFamily))
 	}
 
-	return newAgentHostExecutor(host, baseCommand)
-}
-
-func newAgentHostExecutor(host *components.RemoteHost, baseCommand string) agentCommandExecutor {
 	return &agentHostExecutor{
 		baseCommand: baseCommand,
 		host:        host,
@@ -51,19 +52,11 @@ func (ae agentHostExecutor) execute(arguments []string) (string, error) {
 	return ae.host.Execute(ae.baseCommand + " " + parameters)
 }
 
-func agentHostBaseCommandWithInstallPath(host *components.RemoteHost, installPath string) string {
-	var baseCommand string
-	switch host.OSFamily {
-	case os.WindowsFamily:
-		baseCommand = fmt.Sprintf(`& "%s\bin\agent.exe"`, installPath)
-	default:
-		panic(fmt.Sprintf("OS family %v does not support custom install paths", host.OSFamily))
-	}
-	return baseCommand
-}
-
+// defaultWindowsAgentInstallPath returns a reasonable default for the AgentInstallPath.
+//
+// If the AgentInstallPath is not provided, it will attempt to read the install path from the registry.
+// If the registry key is not found, it will return the default install path.
 func defaultWindowsAgentInstallPath(host *components.RemoteHost) string {
-	// If the agent is installed get the path from the registry, fallback to default path
 	path, err := windowsAgent.GetInstallPathFromRegistry(host)
 	if err != nil {
 		path = windowsAgent.DefaultInstallPath

@@ -20,9 +20,13 @@ const (
 
 // NewHostAgentClient creates an Agent client for host install
 func NewHostAgentClient(t *testing.T, host *components.RemoteHost, waitForAgentReady bool) (agentclient.Agent, error) {
-	commandRunner := newAgentCommandRunner(t, newDefaultAgentHostExecutor(host))
+	params := agentclientparams.NewParams()
+	params.ShouldWaitForReady = waitForAgentReady
 
-	if waitForAgentReady {
+	ae := newAgentHostExecutor(host, params)
+	commandRunner := newAgentCommandRunner(t, ae)
+
+	if params.ShouldWaitForReady {
 		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
 			return nil, err
 		}
@@ -34,15 +38,7 @@ func NewHostAgentClient(t *testing.T, host *components.RemoteHost, waitForAgentR
 // NewHostAgentClientWithParams creates an Agent client for host install with custom parameters
 func NewHostAgentClientWithParams(t *testing.T, host *components.RemoteHost, options ...agentclientparams.Option) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(options...)
-
-	var ae agentCommandExecutor
-	if len(params.AgentInstallPath) > 0 {
-		baseCommand := agentHostBaseCommandWithInstallPath(host, params.AgentInstallPath)
-		ae = newAgentHostExecutor(host, baseCommand)
-	} else {
-		ae = newDefaultAgentHostExecutor(host)
-	}
-
+	ae := newAgentHostExecutor(host, params)
 	commandRunner := newAgentCommandRunner(t, ae)
 
 	if params.ShouldWaitForReady {
