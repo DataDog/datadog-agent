@@ -225,7 +225,8 @@ def is_e2e_internal_failure(xml_path):
     """
     Check if the given JUnit XML file contains E2E INTERAL ERROR string.
     """
-    filecontent = open(xml_path).read()
+    with open(xml_path) as f:
+        filecontent = f.read()
     return E2E_INTERNAL_ERROR_STRING in filecontent
 
 
