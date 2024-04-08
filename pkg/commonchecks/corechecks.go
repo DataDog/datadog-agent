@@ -46,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 	telemetryCheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
-	windowsEvent "github.com/DataDog/datadog-agent/pkg/collector/corechecks/windows_event_log"
 )
 
 // RegisterChecks registers all core checks
@@ -72,7 +71,7 @@ func RegisterChecks(store workloadmeta.Component) {
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory())
 	corecheckLoader.RegisterCheck(ebpf.CheckName, ebpf.Factory())
-	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory())
+	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store))
 	corecheckLoader.RegisterCheck(oomkill.CheckName, oomkill.Factory())
 	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory())
 	corecheckLoader.RegisterCheck(apm.CheckName, apm.Factory())
@@ -86,7 +85,6 @@ func RegisterChecks(store workloadmeta.Component) {
 	corecheckLoader.RegisterCheck(winkmem.CheckName, winkmem.Factory())
 	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
 	corecheckLoader.RegisterCheck(systemd.CheckName, systemd.Factory())
-	corecheckLoader.RegisterCheck(windowsEvent.CheckName, windowsEvent.Factory())
 	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory())
 	corecheckLoader.RegisterCheck(docker.CheckName, docker.Factory(store))
 	corecheckLoader.RegisterCheck(sbom.CheckName, sbom.Factory(store))

@@ -29,6 +29,11 @@ func TestParseMod(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
+			name:        "Correct module with patch version in go directive",
+			modPath:     "./testdata/patchgoversion/",
+			expectedErr: nil,
+		},
+		{
 			name:        "Missing module",
 			modPath:     "./testdata/nonexistant/",
 			expectedErr: fmt.Errorf("could not read go.mod file in ./testdata/nonexistant/"),

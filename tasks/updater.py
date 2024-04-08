@@ -2,6 +2,7 @@
 Updater namespaced tasks
 """
 
+
 import os
 import sys
 
@@ -198,38 +199,3 @@ def omnibus_build(
         print(f"Deps:    {deps_elapsed.duration}")
     print(f"Bundle:  {bundle_elapsed.duration}")
     print(f"Omnibus: {omnibus_elapsed.duration}")
-
-
-@task
-def omnibus_package(
-    ctx,
-    log_level="info",
-    base_dir=None,
-    gem_path=None,
-    skip_sign=False,
-    release_version="nightly",
-    hardened_runtime=False,
-    go_mod_cache=None,
-):
-    env = get_omnibus_env(
-        ctx,
-        skip_sign=skip_sign,
-        release_version=release_version,
-        hardened_runtime=hardened_runtime,
-        go_mod_cache=go_mod_cache,
-    )
-
-    with timed(quiet=True) as bundle_elapsed:
-        bundle_install_omnibus(ctx, gem_path, env)
-
-    with timed(quiet=True) as omnibus_elapsed:
-        omnibus_run_task(
-            ctx=ctx,
-            task="build",
-            target_project="updater-packager",
-            base_dir=base_dir,
-            env=env,
-            log_level=log_level,
-        )
-    print(f"Bundle:  {bundle_elapsed.duration}")
-    print(f"Packaging time: {omnibus_elapsed.duration}")

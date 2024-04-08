@@ -156,26 +156,36 @@ func convertNodeStatusToTags(nodeStatus string) []string {
 
 func extractCapacitiesAndAllocatables(n *corev1.Node, mn *model.Node) {
 	// Milli Value ceil(q * 1000), which fits to be the lowest value. CPU -> Millicore and Memory -> byte
-	supportedResourcesMilli := []corev1.ResourceName{corev1.ResourceCPU}
-	supportedResources := []corev1.ResourceName{corev1.ResourcePods, corev1.ResourceMemory}
-	setSupportedResources(n, mn, supportedResources, false)
-	setSupportedResources(n, mn, supportedResourcesMilli, true)
+
+	resourcesMilli := map[corev1.ResourceName]bool{
+		corev1.ResourceCPU:    true,
+		corev1.ResourceMemory: false,
+		corev1.ResourcePods:   false,
+	}
+
+	setSupportedResources(n, mn, resourcesMilli)
 }
 
-func setSupportedResources(n *corev1.Node, mn *model.Node, supportedResources []corev1.ResourceName, isMilli bool) {
-	for _, resource := range supportedResources {
-		capacity, hasCapacity := n.Status.Capacity[resource]
-		if hasCapacity && !capacity.IsZero() {
-			if isMilli {
+// The function iterates over the capacity and allocatable resources of the node and sets the corresponding values in the model.Node object.
+// If a resource is in milli format, the milli value is used; otherwise, the regular value is used.
+func setSupportedResources(n *corev1.Node, mn *model.Node, resourcesMilli map[corev1.ResourceName]bool) {
+	// Iterate over the capacity resources of the node
+	for resource, capacity := range n.Status.Capacity {
+		if !capacity.IsZero() {
+			isMilli, ok := resourcesMilli[resource]
+			if ok && isMilli {
 				mn.Status.Capacity[resource.String()] = capacity.MilliValue()
 			} else {
 				mn.Status.Capacity[resource.String()] = capacity.Value()
 			}
 		}
-		allocatable, hasAllocatable := n.Status.Allocatable[resource]
+	}
 
-		if hasAllocatable && !allocatable.IsZero() {
-			if isMilli {
+	// Iterate over the allocatable resources of the node
+	for resource, allocatable := range n.Status.Allocatable {
+		if !allocatable.IsZero() {
+			isMilli, ok := resourcesMilli[resource]
+			if ok && isMilli {
 				mn.Status.Allocatable[resource.String()] = allocatable.MilliValue()
 			} else {
 				mn.Status.Allocatable[resource.String()] = allocatable.Value()
