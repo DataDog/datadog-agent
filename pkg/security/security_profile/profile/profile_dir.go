@@ -161,7 +161,7 @@ func (dp *DirectoryProvider) onNewProfileDebouncerCallback() {
 		for profileSelector, profilePath := range dp.profileMapping {
 			if selector.Match(profileSelector) {
 				// read and parse profile
-				profile, err := LoadProfileFromFile(profilePath.path)
+				profile, err := LoadProtoFromFile(profilePath.path)
 				if err != nil {
 					seclog.Warnf("couldn't load profile %s: %v", profilePath.path, err)
 					continue
@@ -203,7 +203,7 @@ func (dp *DirectoryProvider) listProfiles() ([]string, error) {
 }
 
 func (dp *DirectoryProvider) loadProfile(profilePath string) error {
-	profile, err := LoadProfileFromFile(profilePath)
+	profile, err := LoadProtoFromFile(profilePath)
 	if err != nil {
 		return fmt.Errorf("couldn't load profile %s: %w", profilePath, err)
 	}

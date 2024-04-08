@@ -688,7 +688,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 								dump.Metadata.ContainerID = contID
 								at = dump.ActivityTree
 							} else /* profileTree */ {
-								profile := profile.NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType})
+								profile := profile.NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType}, nil)
 								at = activity_tree.NewActivityTree(profile, nil, "profile")
 								profile.ActivityTree = at
 								profile.Instances = append(profile.Instances, &cgroupModel.CacheEntry{

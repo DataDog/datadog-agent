@@ -363,7 +363,7 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 			m.cacheMiss.Inc()
 
 			// create a new entry
-			profile = NewSecurityProfile(selector, m.eventTypes)
+			profile = NewSecurityProfile(selector, m.eventTypes, m.pathsReducer)
 			m.profiles[selector] = profile
 
 			// notify the providers that we're interested in a new workload selector
@@ -527,24 +527,6 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	m.pendingCache.Add(profile.selector, profile)
 }
 
-func (m *SecurityProfileManager) protoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfile) {
-	// decode the content of the profile
-	ProtoToSecurityProfile(output, m.pathsReducer, input)
-	output.ActivityTree.DNSMatchMaxDepth = m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth
-	if m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs && input.Metadata.DifferentiateArgs {
-		output.ActivityTree.DifferentiateArgs()
-	}
-	output.loadedInKernel = false
-	// compute activity tree initial stats
-	output.ActivityTree.ComputeActivityTreeStats()
-	// prepare the profile for insertion
-	m.prepareProfile(output)
-	// if the input is an activity dump then change the selector to a profile selector
-	if input.Selector.GetImageTag() != "*" {
-		output.selector.Tag = "*"
-	}
-}
-
 // OnNewProfileEvent handles the arrival of a new profile (or the new version of a profile) from a provider
 func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.WorkloadSelector, newProfile *proto.SecurityProfile) {
 	m.profilesLock.Lock()
@@ -560,14 +542,17 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 		profileManagerSelector.Tag = "*"
 	}
 
+	loadOpts := LoadOpts{
+		DNSMatchMaxDepth:  m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth,
+		DifferentiateArgs: m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs,
+	}
+
 	// Update the Security Profile content
 	profile, ok := m.profiles[profileManagerSelector]
 	if !ok {
 		// this was likely a short-lived workload, cache the profile in case this workload comes back
-		profile = NewSecurityProfile(selector, m.eventTypes)
-
-		// decode the content of the profile
-		m.protoToSecurityProfile(profile, newProfile)
+		profile = NewSecurityProfile(selector, m.eventTypes, m.pathsReducer)
+		profile.LoadFromProto(newProfile, loadOpts)
 
 		// insert in cache and leave
 		m.pendingCacheLock.Lock()
@@ -582,7 +567,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	// if profile was waited, push it
 	if !profile.loadedInKernel {
 		// decode the content of the profile
-		m.protoToSecurityProfile(profile, newProfile)
+		profile.LoadFromProto(newProfile, loadOpts)
 
 		// load the profile in kernel space
 		if err := m.loadProfile(profile); err != nil {
@@ -692,14 +677,6 @@ func (m *SecurityProfileManager) SendStats() error {
 	}
 
 	return nil
-}
-
-// prepareProfile (thread unsafe) generates eBPF programs and cookies to prepare for kernel space insertion
-func (m *SecurityProfileManager) prepareProfile(profile *SecurityProfile) {
-	// generate cookies for the profile
-	profile.generateCookies()
-
-	// TODO: generate eBPF programs and make sure the profile is ready to be inserted in kernel space
 }
 
 // loadProfile (thread unsafe) loads a Security Profile in kernel space
