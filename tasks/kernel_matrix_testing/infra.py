@@ -3,15 +3,17 @@ from __future__ import annotations
 import glob
 import json
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 from invoke.context import Context
 
+from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.tool import Exit, ask, error
+from tasks.kernel_matrix_testing.tool import Exit, ask, error, info
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import ArchOrLocal, PathOrStr, StackOutput
+    from tasks.kernel_matrix_testing.types import ArchOrLocal, PathOrStr, SSHKey, StackOutput
 
 # Common SSH options for all SSH commands
 SSH_OPTIONS = {
@@ -64,9 +66,10 @@ class LocalCommandRunner:
 class RemoteCommandRunner:
     @staticmethod
     def run_cmd(ctx: Context, instance: 'HostInstance', cmd: str, allow_fail: bool, verbose: bool):
+        ssh_key_arg = f"-i {instance.ssh_key_path}" if instance.ssh_key_path is not None else ""
         res = ctx.run(
             cmd.format(
-                proxy_cmd=f"-o ProxyCommand='ssh {ssh_options_command()} -i {instance.ssh_key} -W %h:%p ubuntu@{instance.ip}'"
+                proxy_cmd=f"-o ProxyCommand='ssh {ssh_options_command()} {ssh_key_arg} -W %h:%p ubuntu@{instance.ip}'"
             ),
             hide=(not verbose),
             warn=allow_fail,
@@ -90,8 +93,9 @@ class RemoteCommandRunner:
             full_target = os.path.join(get_kmt_os().shared_dir, subdir)
             RemoteCommandRunner.run_cmd(ctx, instance, f"mkdir -p {full_target}", False, False)
 
+        ssh_key_arg = f"-i {instance.ssh_key_path}" if instance.ssh_key_path is not None else ""
         ctx.run(
-            f"rsync -e \"ssh {ssh_options_command()} -i {instance.ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance.ip}:{full_target}"
+            f"rsync -e \"ssh {ssh_options_command()} {ssh_key_arg}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance.ip}:{full_target}"
         )
 
 
@@ -147,10 +151,10 @@ class LibvirtDomain:
 
 
 class HostInstance:
-    def __init__(self, ip: str, arch: ArchOrLocal, ssh_key: Optional[str]):
+    def __init__(self, ip: str, arch: ArchOrLocal, ssh_key_path: Optional[str]):
         self.ip: str = ip
         self.arch: ArchOrLocal = arch
-        self.ssh_key: Optional[str] = ssh_key
+        self.ssh_key_path: Optional[str] = ssh_key_path
         self.microvms: List[LibvirtDomain] = []
         self.runner = get_instance_runner(arch)
 
@@ -164,7 +168,7 @@ class HostInstance:
         return f"<HostInstance> {self.ip} {self.arch}"
 
 
-def build_infrastructure(stack: str, remote_ssh_key: Optional[str] = None):
+def build_infrastructure(stack: str, ssh_key_obj: Optional[SSHKey] = None):
     stack_output = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
     if not os.path.exists(stack_output):
         raise Exit(f"no stack.output file present at {stack_output}")
@@ -177,13 +181,7 @@ def build_infrastructure(stack: str, remote_ssh_key: Optional[str] = None):
 
     infra: Dict[ArchOrLocal, HostInstance] = dict()
     for arch in infra_map:
-        if arch != "local" and remote_ssh_key is None:
-            if ask_for_ssh():
-                raise Exit("No ssh key provided. Pass with '--ssh-key=<key-name>'")
-
-        key = None
-        if remote_ssh_key is not None:
-            key = ssh_key_to_path(remote_ssh_key)
+        key = ssh_key_obj['path'] if ssh_key_obj is not None else None
         instance = HostInstance(infra_map[arch]["ip"], arch, key)
         for vm in infra_map[arch]["microvms"]:
             # We use the local ddvm_rsa key as the path to the key stored in the pulumi output JSON
@@ -200,15 +198,6 @@ def build_infrastructure(stack: str, remote_ssh_key: Optional[str] = None):
     return infra
 
 
-def ssh_key_to_path(ssh_key: str) -> str:
-    ssh_key_path = ""
-    if ssh_key != "":
-        ssh_key.rstrip(".pem")
-        ssh_key_path = find_ssh_key(ssh_key)
-
-    return ssh_key_path
-
-
 def ask_for_ssh() -> bool:
     return (
         ask(
@@ -218,26 +207,89 @@ def ask_for_ssh() -> bool:
     )
 
 
-def find_ssh_key(ssh_key: str) -> str:
-    possible_paths = [f"~/.ssh/{ssh_key}", f"~/.ssh/{ssh_key}.pem"]
+def get_ssh_key_name(pubkey: Path) -> Optional[str]:
+    parts = pubkey.read_text().split()
+    if len(parts) != 3:
+        return None
+    return parts[2]
 
-    # Try direct files
-    for path in possible_paths:
-        if os.path.exists(os.path.expanduser(path)):
-            return path
 
-    # Ok, no file found with that name. However, maybe we can identify the key by the key name
-    # that's present in the corresponding pub files
+def get_ssh_agent_key_names(ctx: Context) -> List[str]:
+    """Return the key names found in the SSH agent"""
+    agent_output = ctx.run("ssh-add -l")
+    if agent_output is None or not agent_output.ok:
+        raise Exit("Cannot find any keys in the SSH agent")
+    output_parts = [line.split() for line in agent_output.stdout.split("\n")]
+    return [parts[2] for parts in output_parts if len(parts) >= 3]
 
-    for pubkey in glob.glob(os.path.expanduser("~/.ssh/*.pub")):
-        privkey = pubkey[:-4]
-        possible_paths.append(privkey)  # Keep track of paths we've checked
 
-        with open(pubkey) as f:
-            parts = f.read().split()
+def try_get_ssh_key(ctx: Context, key_hint: Optional[str]) -> Optional[SSHKey]:
+    """Return a SSHKey object, either using the hint provided
+    or using the configuration.
 
-            # Public keys have three "words": key type, public key, name
-            if len(parts) == 3 and parts[2] == ssh_key:
-                return privkey
+    The hint can either be a file path, a key name or a name of a file in ~/.ssh
+    """
+    if key_hint is not None:
+        checked_paths: List[str] = []
+        possible_paths = map(Path, [key_hint, f"~/.ssh/{key_hint}", f"~/.ssh/{key_hint}.pem"])
+        for path in possible_paths:
+            checked_paths.append(os.fspath(path))
+            if not path.is_file():
+                continue
 
-    raise Exit(f"Could not find file for ssh key {ssh_key}. Looked in {possible_paths}")
+            # Try to get the public key
+            if path.suffix == '.pub':
+                pubkey = path
+                privkey = path.with_suffix("")
+            else:
+                # Try replacing and adding the .pub suffix
+                possible_pubkeys = [path.with_suffix(".pub"), Path(f"{os.fspath(path)}.pub")]
+                pubkey = next((p for p in possible_pubkeys if p.is_file()), None)
+                privkey = path
+
+            keyname = get_ssh_key_name(pubkey) if pubkey is not None else None
+            if keyname is None:
+                raise Exit(f"Cannot find a key name in {path}")
+            return {'path': os.fspath(privkey), 'name': keyname, 'aws_key_name': keyname}
+
+        # Key hint is not a file, see if it's a key name
+        for pubkey in glob.glob(os.path.expanduser("~/.ssh/*.pub")):
+            privkey = pubkey[:-4]
+            checked_paths.append(privkey)
+            key_name = get_ssh_key_name(Path(pubkey))
+            if key_name == key_hint:
+                return {'path': privkey, 'name': key_hint, 'aws_key_name': key_hint}
+
+        # Check if it's a key name that's there in the agent
+        agent_keys = get_ssh_agent_key_names(ctx)
+        if key_hint in agent_keys:
+            return {'path': None, 'name': key_hint, 'aws_key_name': key_hint}
+
+        raise Exit(
+            f"Could not find file for ssh key {key_hint}. Looked in {possible_paths}, it's not a path, not a file name nor a key name"
+        )
+
+    cm = ConfigManager()
+    return cm.config.get("ssh")
+
+
+def ensure_key_in_agent(ctx: Context, key: SSHKey):
+    info(f"[+] Checking that key {key} is in the SSH agent...")
+    res = ctx.run(f"ssh-add -l | grep {key['name']}")
+    if res is None or not res.ok:
+        if key['path'] is None:
+            raise Exit(f"Key {key} not found in the agent and no path provided to add it")
+
+        info(f"[+] Key {key} not present in the agent, adding it")
+        res = ctx.run(f"ssh-add {key['path']}")
+        if res is None or not res.ok:
+            raise Exit(f"Could not add key {key} to the SSH agent")
+
+
+def ensure_key_in_ec2(ctx: Context, key: SSHKey):
+    info(f"[+] Checking that key {key} is in AWS...")
+    res = ctx.run(
+        f"aws-vault exec sso-sandbox-account-admin -- aws ec2 describe-key-pairs --key-names {key['aws_key_name']}"
+    )
+    if res is None or not res.ok:
+        raise Exit(f"Couldn't retrieve {key} from AWS EC2")

@@ -18,8 +18,18 @@ from invoke.tasks import task
 from tasks.kernel_matrix_testing import stacks, vmconfig
 from tasks.kernel_matrix_testing.ci import KMTTestRunJob, get_all_jobs_for_pipeline
 from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, all_compilers, get_compiler
+from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
-from tasks.kernel_matrix_testing.infra import SSH_OPTIONS, HostInstance, LibvirtDomain, build_infrastructure
+from tasks.kernel_matrix_testing.infra import (
+    SSH_OPTIONS,
+    HostInstance,
+    LibvirtDomain,
+    build_infrastructure,
+    ensure_key_in_ec2,
+    get_ssh_agent_key_names,
+    get_ssh_key_name,
+    try_get_ssh_key,
+)
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
@@ -33,6 +43,7 @@ if TYPE_CHECKING:
         Component,
         DependenciesLayout,
         PathOrStr,
+        SSHKey,
     )
 
 try:
@@ -180,7 +191,7 @@ def gen_config_from_ci_pipeline(
 def launch_stack(
     ctx: Context,
     stack: Optional[str] = None,
-    ssh_key: str = "",
+    ssh_key: Optional[str] = None,
     x86_ami: str = X86_AMI_ID_SANDBOX,
     arm_ami: str = ARM_AMI_ID_SANDBOX,
     provision_microvms: bool = True,
@@ -189,7 +200,7 @@ def launch_stack(
 
 
 @task
-def destroy_stack(ctx: Context, stack: Optional[str] = None, pulumi=False, ssh_key=""):
+def destroy_stack(ctx: Context, stack: Optional[str] = None, pulumi=False, ssh_key: Optional[str] = None):
     clean(ctx, stack)
     stacks.destroy_stack(ctx, stack, pulumi, ssh_key)
 
@@ -215,6 +226,88 @@ def ls(_, distro=False, custom=False):
 @task
 def init(ctx: Context, lite=False):
     init_kernel_matrix_testing_system(ctx, lite)
+    config_ssh_key(ctx)
+
+
+@task
+def config_ssh_key(ctx: Context):
+    """Automatically configure the default SSH key to use"""
+    agent_choices = [
+        ("ssh", "Keys located in ~/.ssh"),
+        ("1password", "1Password SSH agent (valid for any other SSH agent too)"),
+        ("manual", "Manual input"),
+    ]
+    choices = "\n".join([f" - [{i + 1}] {short}: {name}" for i, (short, name) in enumerate(agent_choices)])
+    opts_numbers = [str(i + 1) for i in range(len(agent_choices))]
+    opts_words = [name for name, _ in agent_choices]
+    result = ask(
+        f"[?] Choose your SSH key storage method\n{choices}\nChoose a number ({','.join(opts_numbers)}) or option name ({','.join(opts_words)}): "
+    ).strip()
+    method = None
+    if result in opts_numbers:
+        method = agent_choices[int(result) - 1][0]
+    elif result in opts_words:
+        method = result
+    else:
+        raise Exit(
+            f"Invalid choice {result}, must be a number between 1 and {len(agent_choices)} or option name ({opts_words})"
+        )
+
+    ssh_key: SSHKey
+    if method == "manual":
+        warn("[!] The manual method does not do any validation. Ensure the key is valid and loaded in AWS.")
+        ssh_key_path = ask("Enter the path to the SSH key (can be left blank): ")
+        name = ask("Enter the key name: ")
+        aws_config_name = ask("Enter the AWS key name (leave blank to set the same as the key name): ")
+        if ssh_key_path.strip() == "":
+            ssh_key_path = None
+        if aws_config_name.strip() == "":
+            aws_config_name = name
+
+        ssh_key = {'path': ssh_key_path, 'name': name, 'aws_key_name': aws_config_name}
+    else:
+        info("[+] Finding SSH keys to use...")
+        ssh_keys: List[SSHKey]
+        if method == "1password":
+            agent_keys = get_ssh_agent_key_names(ctx)
+            ssh_keys = [{'path': None, 'name': key, 'aws_key_name': key} for key in agent_keys]
+        else:
+            ssh_key_files = [Path(f[: -len(".pub")]) for f in glob(os.path.expanduser("~/.ssh/*.pub"))]
+            ssh_keys = []
+
+            for f in ssh_key_files:
+                key_comment = get_ssh_key_name(f.with_suffix(".pub"))
+                if key_comment is None:
+                    warn(f"[x] {f} does not have a valid key name, cannot be used")
+                else:
+                    ssh_keys.append({'path': os.fspath(f), 'name': key_comment, 'aws_key_name': ''})
+
+        keys_str = "\n".join([f" - [{i + 1}] {key['name']} (path: {key['path']})" for i, key in enumerate(ssh_keys)])
+        result = ask(f"[?] Found these valid key files:\n{keys_str}\nChoose one of these files (1-{len(ssh_keys)}): ")
+        try:
+            ssh_key = ssh_keys[int(result.strip()) - 1]
+        except ValueError:
+            raise Exit(f"Choice {result} is not a valid number")
+        except IndexError:  # out of range
+            raise Exit(f"Invalid choice {result}, must be a number between 1 and {len(ssh_keys)} (inclusive)")
+
+        aws_key_name = ask(
+            f"Enter the key name configured in AWS for this key (leave blank to set the same as the local key name '{ssh_key['name']}'): "
+        )
+        if aws_key_name.strip() != "":
+            ssh_key['aws_key_name'] = aws_key_name.strip()
+        else:
+            ssh_key['aws_key_name'] = ssh_key['name']
+
+        ensure_key_in_ec2(ctx, ssh_key)
+
+    cm = ConfigManager()
+    cm.config["ssh"] = ssh_key
+    cm.save()
+
+    info(
+        f"[+] Saved for use: SSH key '{ssh_key}'. You can run this command later or edit the file manually in ~/kernel-version-testing/config.json"
+    )
 
 
 @task
@@ -450,7 +543,8 @@ def prepare(
 
     info(f"[+] Preparing VMs {vms} in stack {stack} for {arch}")
 
-    infra = build_infrastructure(stack, ssh_key)
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+    infra = build_infrastructure(stack, ssh_key_obj)
     domains = filter_target_domains(vms, infra, arch)
     paths = KMTPaths(stack, arch)
     cc = get_compiler(ctx, arch)
@@ -527,7 +621,7 @@ def build_run_config(run: Optional[str], packages: List[str]):
         "retry": "Number of times to retry a failing test",
         "run-count": "Number of times to run a tests regardless of status",
         "full-rebuild": "Do a full rebuild of all test dependencies to share with VMs, before running tests. Useful when changes are not being picked up correctly",
-        "ssh-key": "SSH key to use for connecting to a remote EC2 instance hosting the target VM",
+        "ssh-key": "SSH key to use for connecting to a remote EC2 instance hosting the target VM. Can be either a name of a file in ~/.ssh, a key name (the comment in the public key) or a full path",
         "verbose": "Enable full output of all commands executed",
         "test-logs": "Set 'gotestsum' verbosity to 'standard-verbose' to print all test logs. Default is 'testname'",
         "test-extra-arguments": "Extra arguments to pass to the test runner, see `go help testflag` for more details",
@@ -555,7 +649,8 @@ def test(
     if vms is None:
         vms = ",".join(stacks.get_all_vms_in_stack(stack))
         info(f"[+] Running tests on all VMs in stack {stack}: vms={vms}")
-    infra = build_infrastructure(stack, ssh_key)
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+    infra = build_infrastructure(stack, ssh_key_obj)
     domains = filter_target_domains(vms, infra)
     used_archs = get_archs_in_domains(domains)
 
@@ -575,9 +670,11 @@ def test(
     with tempfile.NamedTemporaryFile(mode='w') as tmp:
         json.dump(run_config, tmp)
         tmp.flush()
+        remote_tmp = "/tmp"
+        remote_run_config = os.path.join(remote_tmp, os.path.basename(tmp.name))
 
         args = [
-            f"-packages-run-config /tmp/{os.path.basename(tmp.name)}",
+            f"-packages-run-config {remote_run_config}",
             f"-retry {retry}",
             "-verbose" if test_logs else "",
             f"-run-count {run_count}",
@@ -586,7 +683,7 @@ def test(
         ]
         for d in domains:
             info(f"[+] Running tests on {d}")
-            d.copy(ctx, f"{tmp.name}", "/tmp")
+            d.copy(ctx, f"{tmp.name}", remote_tmp)
             d.run_cmd(ctx, f"bash /micro-vm-init.sh {' '.join(args)}", verbose=verbose)
 
 
@@ -594,7 +691,7 @@ def test(
     help={
         "vms": "Comma seperated list of vms to target when running tests",
         "stack": "Stack in which the VMs exist. If not provided stack is autogenerated based on branch name",
-        "ssh-key": "SSH key to use for connecting to a remote EC2 instance hosting the target VM",
+        "ssh-key": "SSH key to use for connecting to a remote EC2 instance hosting the target VM. Can be either a name of a file in ~/.ssh, a key name (the comment in the public key) or a full path",
         "full-rebuild": "Do a full rebuild of all test dependencies to share with VMs, before running tests. Useful when changes are not being picked up correctly",
         "verbose": "Enable full output of all commands executed",
         "arch": "Architecture to build the system-probe for",
@@ -620,7 +717,8 @@ def build(
     paths = KMTPaths(stack, arch)
     paths.arch_dir.mkdir(parents=True, exist_ok=True)
 
-    infra = build_infrastructure(stack, ssh_key)
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+    infra = build_infrastructure(stack, ssh_key_obj)
     domains = filter_target_domains(vms, infra, arch)
     cc = get_compiler(ctx, arch)
 
@@ -678,7 +776,9 @@ def clean(ctx: Context, stack: Optional[str] = None, container=False, image=Fals
     }
 )
 def ssh_config(
-    _, stacks: Optional[str] = None, ddvm_rsa="~/dd/ami-builder/scripts/kernel-version-testing/files/ddvm_rsa"
+    ctx: Context,
+    stacks: Optional[str] = None,
+    ddvm_rsa="tasks/kernel_matrix_testing/ddvm_rsa",
 ):
     """
     Print the SSH config for the given stacks.
@@ -713,11 +813,14 @@ def ssh_config(
         ):
             continue
 
-        for _, instance in build_infrastructure(stack.name, remote_ssh_key="").items():
+        for _, instance in build_infrastructure(stack.name, try_get_ssh_key(ctx, None)).items():
             if instance.arch != "local":
                 print(f"Host kmt-{stack_name}-{instance.arch}")
                 print(f"    HostName {instance.ip}")
                 print("    User ubuntu")
+                if instance.ssh_key_path is not None:
+                    print(f"    IdentityFile {instance.ssh_key_path}")
+                    print("    IdentitiesOnly yes")
                 print("")
 
             for domain in instance.microvms:
@@ -751,10 +854,11 @@ def status(ctx: Context, stack: Optional[str] = None, all=False, ssh_key: Option
     status: Dict[str, List[str]] = defaultdict(list)
     stack_status: Dict[str, Tuple[int, int, int, int]] = {}
     info("[+] Getting status...")
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
 
     for stack in stacks:
         try:
-            infrastructure = build_infrastructure(stack, remote_ssh_key=ssh_key)
+            infrastructure = build_infrastructure(stack, ssh_key_obj)
         except Exception:
             warn(f"Failed to get status for stack {stack}. stacks.output file might be corrupt.")
             print("")

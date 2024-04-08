@@ -175,4 +175,4 @@ class MacOS:
             )
 
         ctx.run("sudo nfsd enable || true")
-        ctx.run("sudo nfsd restart")
+        ctx.run("sudo nfsd update")
