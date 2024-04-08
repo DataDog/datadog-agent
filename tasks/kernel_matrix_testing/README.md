@@ -57,9 +57,19 @@ inv -e kmt.init
 inv -e kmt.init --lite
 ```
 
-This command will also ask you for the default SSH key to use, so it does not need to be provided every time. You can configure the SSH key again at any time running `inv -e kmt.config-ssh-key`.
+This command will also ask you for the default SSH key to use, so it does not need to be provided every time. You can configure the SSH key again at any time running `inv -e kmt.config-ssh-key`. See more details below
 
-> IMPORTANT: the name of the SSH key you use (the third "word" in the public key file) must be the same as the key name you have configured in AWS EC2. If they do not match you will not be able to SSH into the instances. To fix it, you can either import the key with the correct name in the AWS EC2 web interface, change the name manually in the public key file, or change the name that gets configured in ~/kernel-version-testing/config.json.
+#### SSH key configuration
+
+In order to create EC2 instances, we need to specify which SSH key will be provisioned on them. As that key is usually always the same, we ask the user to provide it once and store it in the configuration file. This way, the user does not need to provide it every time they launch a stack (although it's possible to change it by using the argument `--ssh-key` with KMT tasks).
+
+The configuration wizards will ask for the SSH key to use. There are three methods supported:
+
+- Keys stored in `.ssh`. The wizard will automatically look for key files present there, and you will be able to choose one of them.
+- Keys stored in a SSH agent (main use: 1Password SSH agent). The wizard will look for agent keys. Note that with this method we don't know the path to the private key file, which means that SSH configurations will not specify the key to use. This might be problematic if you have a lot of keys in the agent, as SSH will try all of them and it might reject your connection before finding the correct one. In that case you should download the public key from 1Password and configure it manually. [See more details in 1Password docs](https://developer.1password.com/docs/ssh/agent/advanced/).
+- Manual input. If you have a key that is not in `.ssh` or in the agent, you can provide the path to the private key file and key name. Note that **this method performs no validation**.
+
+In all cases, you will be able to input a key name for AWS, in case the keypair you stored in AWS has a different name than the name present in the key file.
 
 ### Create stack
 
@@ -316,7 +326,7 @@ If you are launching remote instances then the ssh key used to access the machin
 
 - A path pointing the private key
 - The filename of a private key located in `~/.ssh`. For example, if you pass `--ssh-key=id_ed25519`, we will look for keys `~/.ssh/id_ed25519` or `~/.ssh/id_ed25519.pem`.
-- A key name (the third part of the public key file). We will look for public key files in `~/.ssh/*.pub` and try to find one matching that name.
+- A key name (the third part of the public key file). We will look for public key files in `~/.ssh/*.pub` and in the current SSH agent and try to find one matching that name.
 
 ```bash
 inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
