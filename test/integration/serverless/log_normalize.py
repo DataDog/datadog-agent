@@ -38,10 +38,8 @@ def normalize_metrics(stage, aws_account_id):
 
 def normalize_logs(stage, aws_account_id):
     rmvs = (
-        "DATADOG TRACER CONFIGURATION",
         # TODO: these messages may be an indication of a real problem and
         # should be investigated
-        "TIMESTAMP UTC | DD_EXTENSION | ERROR | could not forward the request context canceled",
         "TIMESTAMP http: proxy error: context canceled",
     )
 
@@ -99,6 +97,8 @@ def normalize_traces(stage, aws_account_id):
         exclude(r'"_dd.install.id":"[a-zA-Z0-9\-]+",'),
         exclude(r'"_dd.install.time":"[0-9]+",'),
         exclude(r'"_dd.install.type":"[a-zA-Z0-9_\-]+",'),
+        exclude(r'"_dd.p.tid":"[0-9a-fA-F]+",'),
+        exclude(r'"_dd.tracer_hostname":"\d{1,3}(?:.\d{1,3}){3}"+,'),
         replace(r'(ts":)[0-9]{10}', r'\1XXX'),
         replace(r'((startTime|endTime|traceID|trace_id|span_id|parent_id|start|system.pid)":)[0-9]+', r'\1null'),
         replace(r'((tracer_version|language_version)":)["a-zA-Z0-9~\-\.\_]+', r'\1null'),
@@ -113,7 +113,6 @@ def normalize_traces(stage, aws_account_id):
         replace(r'("otel.trace_id":")[a-zA-Z0-9]+"', r'\1null"'),
         replace(r'("faas.execution":")[a-zA-Z0-9-]+"', r'\1null"'),
         replace(r'("faas.instance":")[a-zA-Z0-9-/]+\[\$LATEST\][a-zA-Z0-9]+"', r'\1null"'),
-        replace(r'("_dd.tracer_hostname":)"\d{1,3}(?:.\d{1,3}){3}"+', r'\1"<redacted>"'),
         replace(stage, 'XXXXXX'),
         replace(aws_account_id, '############'),
         exclude(r'[ ]$'),
