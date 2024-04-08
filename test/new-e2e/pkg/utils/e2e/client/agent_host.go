@@ -54,8 +54,8 @@ func (ae agentHostExecutor) execute(arguments []string) (string, error) {
 
 // defaultWindowsAgentInstallPath returns a reasonable default for the AgentInstallPath.
 //
-// If the AgentInstallPath is not provided, it will attempt to read the install path from the registry.
-// If the registry key is not found, it will return the default install path.
+// If the Agent is installed, the installPath is read from the registry.
+// If the registry key is not found, returns the default install path.
 func defaultWindowsAgentInstallPath(host *components.RemoteHost) string {
 	path, err := windowsAgent.GetInstallPathFromRegistry(host)
 	if err != nil {
