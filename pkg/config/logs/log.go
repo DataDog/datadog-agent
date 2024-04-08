@@ -110,8 +110,12 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	}
 	_ = seelog.ReplaceLogger(loggerInterface)
 	log.SetupLogger(loggerInterface, seelogLogLevel)
+	flareStrippedKeys := cfg.GetStringSlice("flare_stripped_keys")
+	if len(flareStrippedKeys) > 0 {
+		log.Warn("flare_stripped_keys is deprecated, please use scrubber.additional_keys instead.")
+	}
 	scrubber.AddStrippedKeys(mergeAdditionalKeysToScrubber(
-		cfg.GetStringSlice("flare_stripped_keys"),
+		flareStrippedKeys,
 		cfg.GetStringSlice("scrubber.additional_keys")))
 	return nil
 }
