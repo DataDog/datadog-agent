@@ -127,7 +127,9 @@ func (p *protocol) Stop(*manager.Manager) {
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
 	}
-	close(p.kernelTelemetryStopChannel)
+	if p.kernelTelemetryStopChannel != nil {
+		close(p.kernelTelemetryStopChannel)
+	}
 }
 
 // DumpMaps empty implementation.
