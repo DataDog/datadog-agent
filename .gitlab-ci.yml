@@ -767,7 +767,6 @@ workflow:
   - <<: *if_main_branch
   - !reference [.except_mergequeue]
   - <<: *fakeintake_changes
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     variables:
       FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
     when: on_success
