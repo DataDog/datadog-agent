@@ -1,11 +1,11 @@
 [Unit]
-Description=Datadog Updater
+Description=Datadog Installer
 After=network.target
 
 [Service]
 Type=simple
 PIDFile=<%= install_dir %>/run/updater.pid
-User=dd-updater
+User=dd-installer
 Restart=on-failure
 EnvironmentFile=-<%= etc_dir %>/environment
 ExecStart=<%= install_dir %>/bin/updater/updater run -p <%= install_dir %>/run/updater.pid

@@ -59,8 +59,8 @@ build do
       mkdir "/usr/lib/systemd/system/"
       systemdPath = "/usr/lib/systemd/system/"
     end
-    erb source: "datadog-updater.service.erb",
-       dest: systemdPath + "datadog-updater.service",
+    erb source: "datadog-installer.service.erb",
+       dest: systemdPath + "datadog-installer.service",
        mode: 0644,
        vars: { install_dir: install_dir, etc_dir: etc_dir}
 
@@ -73,7 +73,7 @@ build do
       "datadog-agent-process.service.erb" => "datadog-agent-process.service",
       "datadog-agent-security.service.erb" => "datadog-agent-security.service",
       "datadog-agent-sysprobe.service.erb" => "datadog-agent-sysprobe.service",
-      "datadog-updater.service.erb" => "datadog-updater.service",
+      "datadog-installer.service.erb" => "datadog-installer.service",
     }
     templateToFile.each do |template, file|
       agent_dir = "/opt/datadog-packages/datadog-agent/stable"

@@ -15,8 +15,8 @@ import (
 	"syscall"
 )
 
-func moveToDDUpdater() error {
-	grp, err := user.LookupGroup("dd-updater")
+func moveToDDInstaller() error {
+	grp, err := user.LookupGroup("dd-installer")
 	if err != nil {
 		return err
 	}
@@ -38,7 +38,7 @@ func moveToDDUpdater() error {
 	if err := syscall.Setgroups([]int{agentGid, gid}); err != nil {
 		return err
 	}
-	usr, err := user.Lookup("dd-updater")
+	usr, err := user.Lookup("dd-installer")
 	if err != nil {
 		return err
 	}
@@ -49,14 +49,14 @@ func moveToDDUpdater() error {
 	return syscall.Setuid(uid)
 }
 
-func rootToDDUpdater() {
+func rootToDDInstaller() {
 	userID := syscall.Getuid()
 	if userID != 0 {
 		return
 	}
-	fmt.Println("Program run as root, downgrading to dd-updater user and group.")
+	fmt.Println("Program run as root, downgrading to dd-installer user and group.")
 
-	if err := moveToDDUpdater(); err != nil {
-		fmt.Printf("Failed to downgrade to dd-updater user, running as root: %v\n", err)
+	if err := moveToDDInstaller(); err != nil {
+		fmt.Printf("Failed to downgrade to dd-installer user, running as root: %v\n", err)
 	}
 }

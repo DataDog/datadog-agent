@@ -3,7 +3,6 @@
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - export INSTALL_DIR=/opt/datadog/updater/
   stage: packaging
   script:
     - source /root/.bashrc

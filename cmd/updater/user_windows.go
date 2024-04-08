@@ -6,4 +6,4 @@
 // Package main implements 'updater'.
 package main
 
-func rootToDDUpdater() {}
+func rootToDDInstaller() {}
