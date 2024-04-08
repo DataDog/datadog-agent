@@ -13,7 +13,7 @@ from tasks.libs.ciproviders.gitlab import (
     generate_gitlab_full_configuration,
     get_gitlab_token,
     get_preset_contexts,
-    retrieve_context,
+    load_context,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.utils import DEFAULT_BRANCH, color_message
@@ -367,7 +367,7 @@ def gitlab_ci(_, test="all", custom_context=None):
     """
     all_contexts = []
     if custom_context:
-        all_contexts = retrieve_context(custom_context)
+        all_contexts = load_context(custom_context)
     else:
         all_contexts = get_preset_contexts(test)
     print(f"We will tests {len(all_contexts)} contexts.")

@@ -392,7 +392,7 @@ class ReferenceTag(yaml.YAMLObject):
         return dumper.represent_sequence(cls.yaml_tag, data.data, flow_style=True)
 
 
-def generate_gitlab_full_configuration(input_file, context=None):
+def generate_gitlab_full_configuration(input_file, context=None, compare_to=None):
     """
     Generate a full gitlab-ci configuration by resolving all includes
     """
@@ -408,6 +408,24 @@ def generate_gitlab_full_configuration(input_file, context=None):
     # Override some variables with a dedicated context
     if context:
         full_configuration["variables"].update(context)
+    if compare_to:
+        for value in full_configuration.values():
+            if (
+                isinstance(value, dict)
+                and "changes" in value
+                and isinstance(value["changes"], dict)
+                and "compare_to" in value["changes"]
+            ):
+                value["changes"]["compare_to"] = compare_to
+            elif isinstance(value, list):
+                for v in value:
+                    if (
+                        isinstance(v, dict)
+                        and "changes" in v
+                        and isinstance(v["changes"], dict)
+                        and "compare_to" in v["changes"]
+                    ):
+                        v["changes"]["compare_to"] = compare_to
     return yaml.safe_dump(full_configuration)
 
 
@@ -426,6 +444,9 @@ def read_includes(yaml_file, includes):
 
 
 def read_content(file_path):
+    """
+    Read the content of a file, either from a local file or from an http endpoint
+    """
     content = None
     if file_path.startswith('http'):
         import requests
@@ -439,16 +460,17 @@ def read_content(file_path):
     return yaml.safe_load(content)
 
 
-def get_preset_contexts(test):
-    tests = ["all", "main", "release", "mq"]
-    if test not in tests:
-        raise Exit(f"Invalid test type: {test}, must belong to {tests}", 1)
+def get_preset_contexts(required_tests):
+    possible_tests = ["all", "main", "release", "mq"]
+    required_tests = required_tests.casefold().split(",")
+    if set(required_tests) | set(possible_tests) != set(possible_tests):
+        raise Exit(f"Invalid test required: {required_tests} must contain only values from {possible_tests}", 1)
     main_contexts = [
-        ("BUCKET_BRANCH", ["nightly", "stable"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
+        ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
         ("CI_COMMIT_TAG", [""]),  # ["", "1.2.3-rc.4", "6.6.6"]
         ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
-        ("DEPLOY_AGENT", ["true", "false"]),
+        ("DEPLOY_AGENT", ["true"]),
         ("RUN_ALL_BUILDS", ["true"]),
         ("RUN_E2E_TESTS", ["auto"]),
         ("RUN_KMT_TESTS", ["on"]),
@@ -459,7 +481,7 @@ def get_preset_contexts(test):
         ("BUCKET_BRANCH", ["stable"]),
         ("CI_COMMIT_BRANCH", ["7.42.x"]),
         ("CI_COMMIT_TAG", ["3.2.1", "1.2.3-rc.4"]),
-        ("CI_PIPELINE_SOURCE", ["trigger", "schedule"]),
+        ("CI_PIPELINE_SOURCE", ["schedule"]),
         ("DEPLOY_AGENT", ["true"]),
         ("RUN_ALL_BUILDS", ["true"]),
         ("RUN_E2E_TESTS", ["auto"]),
@@ -479,16 +501,20 @@ def get_preset_contexts(test):
         ("TESTING_CLEANUP", ["false"]),
     ]
     all_contexts = []
-    if test in ["all", "main"]:
-        generate_contexts(main_contexts, [], all_contexts)
-    if test in ["all", "release"]:
-        generate_contexts(release_contexts, [], all_contexts)
-    if test in ["all", "mq"]:
-        generate_contexts(mq_contexts, [], all_contexts)
+    for test in required_tests:
+        if test in ["all", "main"]:
+            generate_contexts(main_contexts, [], all_contexts)
+        if test in ["all", "release"]:
+            generate_contexts(release_contexts, [], all_contexts)
+        if test in ["all", "mq"]:
+            generate_contexts(mq_contexts, [], all_contexts)
     return all_contexts
 
 
 def generate_contexts(contexts, context, all_contexts):
+    """
+    Recursive method to generate all possible contexts from a list of tuples
+    """
     if len(contexts) == 0:
         all_contexts.append(context[:])
         return
@@ -498,7 +524,10 @@ def generate_contexts(contexts, context, all_contexts):
         context.pop()
 
 
-def retrieve_context(context):
+def load_context(context):
+    """
+    Load a context either from a file or from a json string
+    """
     if os.path.exists(context):
         with open(context) as f:
             y = yaml.safe_load(f)
