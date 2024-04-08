@@ -47,6 +47,7 @@ func TestServer(t *testing.T) {
 		opt          Option
 		possibleUrl  []string
 		expectedAddr string
+		port         int
 	}{
 		{
 			name: "Make sure WithPort sets the port correctly",
@@ -56,6 +57,7 @@ func TestServer(t *testing.T) {
 				"http://0.0.0.0:1234",
 			},
 			expectedAddr: ":1234",
+			port:         1234,
 		},
 		{
 			name: "Make sure WithAddress sets the port correctly",
@@ -64,6 +66,7 @@ func TestServer(t *testing.T) {
 				"http://127.0.0.1:3456",
 			},
 			expectedAddr: "127.0.0.1:3456",
+			port:         3456,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -74,7 +77,7 @@ func TestServer(t *testing.T) {
 				assert.True(collect, fi.IsRunning())
 				// Assert that the address is in possible addr
 				assert.Contains(collect, tt.possibleUrl, fi.URL())
-				resp, err := http.Get(fi.URL() + "/fakeintake/health")
+				resp, err := http.Get(fmt.Sprintf("http://localhost:%d/fakeintake/health", tt.port))
 				assert.NoError(collect, err)
 				if err != nil {
 					return
