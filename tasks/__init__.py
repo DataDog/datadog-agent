@@ -34,6 +34,7 @@ from tasks import (
     process_agent,
     release,
     rtloader,
+    sds,
     security_agent,
     selinux,
     system_probe,
@@ -117,6 +118,7 @@ ns.add_task(fuzz)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
 ns.add_task(get_impacted_packages)
+ns.add_task(sds.build_sds_library)
 
 ns.add_task(get_modified_packages)
 ns.add_task(send_unit_tests_stats)

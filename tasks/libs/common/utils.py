@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
+from tasks.rtloader import get_dev_path
 
 # constants
 DEFAULT_BRANCH = "main"
@@ -168,6 +169,7 @@ def get_build_flags(
     major_version='7',
     python_runtimes='3',
     headless_mode=False,
+    include_sds=False
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.

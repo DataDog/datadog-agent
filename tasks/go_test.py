@@ -324,6 +324,7 @@ def test(
     junit_tar="",
     only_modified_packages=False,
     only_impacted_packages=False,
+    include_sds=False,
     skip_flakes=False,
     build_stdlib=False,
 ):
@@ -361,6 +362,7 @@ def test(
         python_home_3=python_home_3,
         major_version=major_version,
         python_runtimes=python_runtimes,
+        include_sds=include_sds,
     )
 
     # Use stdout if no profile is set
@@ -412,6 +414,9 @@ def test(
 
     # Test
     for flavor, build_tags in unit_tests_tags.items():
+        if include_sds:
+            build_tags.append("sds")
+
         if build_stdlib:
             build_standard_lib(
                 ctx,

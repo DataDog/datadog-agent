@@ -15,6 +15,7 @@ end
 
 if osx_target?
   dependency 'unixodbc'
+  dependency 'sds'
 end
 
 if linux_target?
@@ -29,6 +30,8 @@ if linux_target?
   dependency 'libkrb5'
   # needed for glusterfs
   dependency 'gstatus'
+  # SDS library
+  dependency 'sds'
 end
 
 if linux_target?
