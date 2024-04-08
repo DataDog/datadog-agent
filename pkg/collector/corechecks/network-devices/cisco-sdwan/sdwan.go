@@ -51,14 +51,18 @@ type CiscoSdwanCheck struct {
 	core.CheckBase
 	interval      time.Duration
 	config        checkCfg
-	clientOptions []client.ClientOptions
 	metricsSender *report.SDWanSender
 }
 
 // Run executes the check
 func (c *CiscoSdwanCheck) Run() error {
+	clientOptions, err := c.buildClientOptions()
+	if err != nil {
+		return err
+	}
+
 	// Create Cisco SD-WAN API client
-	client, err := client.NewClient(c.config.VManageEndpoint, c.config.Username, c.config.Password, c.config.UseHTTP, c.clientOptions...)
+	client, err := client.NewClient(c.config.VManageEndpoint, c.config.Username, c.config.Password, c.config.UseHTTP, clientOptions...)
 	if err != nil {
 		return err
 	}
@@ -173,38 +177,40 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 		c.interval = time.Second * time.Duration(c.config.MinCollectionInterval)
 	}
 
+	c.metricsSender = report.NewSDWanSender(sender, c.config.Namespace)
+
+	return nil
+}
+
+func (c *CiscoSdwanCheck) buildClientOptions() ([]client.ClientOptions, error) {
 	var clientOptions []client.ClientOptions
 
-	if instanceConfig.Insecure || instanceConfig.CAFile != "" {
-		options, err := client.WithTLSConfig(instanceConfig.Insecure, instanceConfig.CAFile)
+	if c.config.Insecure || c.config.CAFile != "" {
+		options, err := client.WithTLSConfig(c.config.Insecure, c.config.CAFile)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		clientOptions = append(clientOptions, options)
 	}
 
-	if instanceConfig.MaxAttempts > 0 {
-		clientOptions = append(clientOptions, client.WithMaxAttempts(instanceConfig.MaxAttempts))
+	if c.config.MaxAttempts > 0 {
+		clientOptions = append(clientOptions, client.WithMaxAttempts(c.config.MaxAttempts))
 	}
 
-	if instanceConfig.MaxPages > 0 {
-		clientOptions = append(clientOptions, client.WithMaxPages(instanceConfig.MaxPages))
+	if c.config.MaxPages > 0 {
+		clientOptions = append(clientOptions, client.WithMaxPages(c.config.MaxPages))
 	}
 
-	if instanceConfig.MaxCount > 0 {
-		clientOptions = append(clientOptions, client.WithMaxCount(instanceConfig.MaxCount))
+	if c.config.MaxCount > 0 {
+		clientOptions = append(clientOptions, client.WithMaxCount(c.config.MaxCount))
 	}
 
-	if instanceConfig.LookbackTimeWindowMinutes > 0 {
-		clientOptions = append(clientOptions, client.WithLookback(time.Minute*time.Duration(instanceConfig.LookbackTimeWindowMinutes)))
+	if c.config.LookbackTimeWindowMinutes > 0 {
+		clientOptions = append(clientOptions, client.WithLookback(time.Minute*time.Duration(c.config.LookbackTimeWindowMinutes)))
 	}
 
-	c.clientOptions = clientOptions
-
-	c.metricsSender = report.NewSDWanSender(sender, c.config.Namespace)
-
-	return nil
+	return clientOptions, nil
 }
 
 // Interval returns the scheduling time for the check
