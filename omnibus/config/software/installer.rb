@@ -6,7 +6,7 @@
 require './lib/ostools.rb'
 require 'pathname'
 
-name 'updater'
+name 'installer'
 
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
@@ -32,7 +32,7 @@ build do
   env = with_embedded_path(env)
 
   if linux_target?
-    command "invoke updater.build --rebuild --install-path=#{install_dir}", env: env
+    command "invoke installer.build --rebuild --install-path=#{install_dir}", env: env
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
     mkdir "#{install_dir}/systemd/"
@@ -53,7 +53,7 @@ build do
 
     copy 'bin/updater', "#{install_dir}/bin/"
 
-    # Add updater unit
+    # Add installer units
     systemdPath = "/lib/systemd/system/"
     if not debian_target?
       mkdir "/usr/lib/systemd/system/"

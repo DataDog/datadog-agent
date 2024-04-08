@@ -218,27 +218,27 @@ deploy_staging_iot_agent:
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
     - $S3_CP_CMD ./agent $S3_DSD6_URI/linux/iot/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# Remote Updater
-deploy_remote_updater_deb_arm64:
+# Datadog Installer
+deploy_installer_deb_arm64:
   extends: .deploy_packages_deb-7
-  needs: ["updater_deb-arm64"]
+  needs: ["installer_deb-arm64"]
   variables:
     PACKAGE_ARCH: arm64
 
-deploy_remote_updater_deb_amd64:
+deploy_installer_deb_amd64:
   extends: .deploy_packages_deb-7
-  needs: ["updater_deb-amd64"]
+  needs: ["installer_deb-amd64"]
   variables:
     PACKAGE_ARCH: amd64
 
-deploy_remote_updater_rpm_arm64:
+deploy_installer_rpm_arm64:
   extends: .deploy_packages_rpm-7
-  needs: ["updater_rpm-arm64"]
+  needs: ["installer_rpm-arm64"]
   variables:
     PACKAGE_ARCH: aarch64
 
-deploy_remote_updater_rpm_amd64:
+deploy_installer_rpm_amd64:
   extends: .deploy_packages_rpm-7
-  needs: ["updater_rpm-amd64"]
+  needs: ["installer_rpm-amd64"]
   variables:
     PACKAGE_ARCH: x86_64

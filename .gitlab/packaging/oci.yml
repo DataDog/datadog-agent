@@ -9,6 +9,10 @@
     - source /root/.bashrc
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
     - export INSTALL_DIR=/opt/datadog-packages/${OCI_PRODUCT}/${PACKAGE_VERSION}-1
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: "32Gi"
+    KUBERNETES_MEMORY_LIMIT: "32Gi"
   script:
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-key)
@@ -59,18 +63,18 @@ agent_oci:
   extends: .package_oci
   needs:
     [
-      "agent_remote_updater-x64-a7",
-      "agent_remote_updater-arm64-a7",
+      "datadog-agent-oci-x64-a7",
+      "datadog-agent-oci-arm64-a7",
     ]
   variables:
     OCI_PRODUCT: "datadog-agent"
 
-updater_oci:
+installer_oci:
   extends: .package_oci
   needs:
     [
-      "updater-arm64-oci",
-      "updater-amd64-oci",
+      "installer-arm64-oci",
+      "installer-amd64-oci",
     ]
   variables:
-    OCI_PRODUCT: "datadog-updater"
+    OCI_PRODUCT: "datadog-installer"
