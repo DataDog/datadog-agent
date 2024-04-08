@@ -54,5 +54,6 @@ type (
 		Source      NetworkPathSource      `json:"source"`
 		Destination NetworkPathDestination `json:"destination"`
 		Hops        []NetworkPathHop       `json:"hops"`
+		Tags        []string               `json:"tags"`
 	}
 )

@@ -9,9 +9,9 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.libs.ciproviders.github_api import GithubAPI
+from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from tasks.libs.common.color import color_message
-from tasks.libs.common.github_api import GithubAPI
-from tasks.libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
@@ -21,8 +21,9 @@ from tasks.libs.common.utils import (
     nightly_entry_for,
     release_entry_for,
 )
-from tasks.libs.pipeline_notifications import read_owners, send_slack_message
-from tasks.libs.pipeline_tools import (
+from tasks.libs.owners.parsing import read_owners
+from tasks.libs.pipeline.notifications import send_slack_message
+from tasks.libs.pipeline.tools import (
     FilteredOutException,
     cancel_pipelines_with_confirmation,
     get_running_pipelines_on_same_ref,

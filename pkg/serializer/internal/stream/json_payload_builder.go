@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
 
-//go:build zlib || zstd
-
 package stream
 
 import (
@@ -18,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -69,10 +68,11 @@ type JSONPayloadBuilder struct {
 	input, output                 *bytes.Buffer
 	mu                            sync.Mutex
 	config                        config.Component
+	compressor                    compression.Component
 }
 
 // NewJSONPayloadBuilder returns a new JSONPayloadBuilder
-func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component) *JSONPayloadBuilder {
+func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component, compressor compression.Component) *JSONPayloadBuilder {
 	if shareAndLockBuffers {
 		return &JSONPayloadBuilder{
 			inputSizeHint:       4096,
@@ -81,6 +81,7 @@ func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component) *J
 			input:               bytes.NewBuffer(make([]byte, 0, 4096)),
 			output:              bytes.NewBuffer(make([]byte, 0, 4096)),
 			config:              config,
+			compressor:          compressor,
 		}
 	}
 	return &JSONPayloadBuilder{
@@ -88,6 +89,7 @@ func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component) *J
 		outputSizeHint:      4096,
 		shareAndLockBuffers: false,
 		config:              config,
+		compressor:          compressor,
 	}
 }
 
@@ -158,7 +160,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	compressor, err := NewCompressor(
 		input, output,
 		maxPayloadSize, maxUncompressedSize,
-		header.Bytes(), footer.Bytes(), []byte(","), b.config)
+		header.Bytes(), footer.Bytes(), []byte(","), b.compressor)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +197,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			compressor, err = NewCompressor(
 				input, output,
 				maxPayloadSize, maxUncompressedSize,
-				header.Bytes(), footer.Bytes(), []byte(","), b.config)
+				header.Bytes(), footer.Bytes(), []byte(","), b.compressor)
 			if err != nil {
 				return nil, err
 			}
