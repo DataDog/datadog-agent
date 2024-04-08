@@ -46,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -108,16 +107,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 				fx.Provide(func() settings.Settings {
 					profilingGoRoutines := commonsettings.NewProfilingGoroutines()
-					profilingGoRoutines.Config = pkgconfig.SystemProbe
+					profilingGoRoutines.Config = ddconfig.SystemProbe
 					profilingGoRoutines.ConfigPrefix = configPrefix
 
 					return settings.Settings{
-						"log_level":                       &commonsettings.LogLevelRuntimeSetting{ConfigKey: configPrefix + "log_level", Config: pkgconfig.SystemProbe},
-						"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe},
-						"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe},
+						"log_level":                       &commonsettings.LogLevelRuntimeSetting{ConfigKey: configPrefix + "log_level", Config: ddconfig.SystemProbe},
+						"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix, Config: ddconfig.SystemProbe},
+						"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix, Config: ddconfig.SystemProbe},
 						"internal_profiling_goroutines":   profilingGoRoutines,
 						commonsettings.MaxDumpSizeConfKey: &commonsettings.ActivityDumpRuntimeSetting{ConfigKey: commonsettings.MaxDumpSizeConfKey},
-						"internal_profiling":              &commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe},
+						"internal_profiling":              &commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix, Config: ddconfig.SystemProbe},
 					}
 				}),
 				settingsimpl.Module(),
@@ -263,16 +262,16 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		}),
 		fx.Provide(func() settings.Settings {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
-			profilingGoRoutines.Config = pkgconfig.SystemProbe
+			profilingGoRoutines.Config = ddconfig.SystemProbe
 			profilingGoRoutines.ConfigPrefix = configPrefix
 
 			return settings.Settings{
-				"log_level":                       &commonsettings.LogLevelRuntimeSetting{ConfigKey: configPrefix + "log_level", Config: pkgconfig.SystemProbe},
-				"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe},
-				"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe},
+				"log_level":                       &commonsettings.LogLevelRuntimeSetting{ConfigKey: configPrefix + "log_level", Config: ddconfig.SystemProbe},
+				"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix, Config: ddconfig.SystemProbe},
+				"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix, Config: ddconfig.SystemProbe},
 				"internal_profiling_goroutines":   profilingGoRoutines,
 				commonsettings.MaxDumpSizeConfKey: &commonsettings.ActivityDumpRuntimeSetting{ConfigKey: commonsettings.MaxDumpSizeConfKey},
-				"internal_profiling":              &commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe},
+				"internal_profiling":              &commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix, Config: ddconfig.SystemProbe},
 			}
 		}),
 		settingsimpl.Module(),
