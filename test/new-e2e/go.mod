@@ -41,7 +41,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.6
-	github.com/pulumi/pulumi/sdk/v3 v3.108.1
+	github.com/pulumi/pulumi/sdk/v3 v3.112.0
 	github.com/samber/lo v1.39.0
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.9.0
@@ -238,7 +238,7 @@ require (
 )
 
 require (
-	github.com/pulumi/pulumi-aws/sdk/v6 v6.25.0
+	github.com/pulumi/pulumi-aws/sdk/v6 v6.29.0
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.5.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.9.0
 )
