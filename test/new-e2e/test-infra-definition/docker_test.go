@@ -29,6 +29,7 @@ func TestDocker(t *testing.T) {
 
 	// When we modify the fakeintake, this test will run with the new version of the fakeintake
 	if fakeintakeImage, ok := os.LookupEnv("FAKEINTAKE_IMAGE_OVERRIDE"); ok {
+		t.Logf("Running with fakeintake image %s", fakeintakeImage)
 		fakeintakeOpts = append(fakeintakeOpts, fakeintake.WithImageURL(fakeintakeImage))
 	}
 	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithFakeIntakeOptions(fakeintakeOpts...))))
