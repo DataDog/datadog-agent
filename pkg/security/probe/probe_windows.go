@@ -68,6 +68,9 @@ type WindowsProbe struct {
 	fimSession etw.Session
 	fimwg      sync.WaitGroup
 
+	// path caches
+	filePathResolver map[fileObjectPointer]string
+
 	// stats
 	stats stats
 }
@@ -261,21 +264,21 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				}
 				p.stats.fileCreateNew++
 			case idCleanup:
-				if ca, err := parseCleanupArgs(e); err == nil {
+				if ca, err := p.parseCleanupArgs(e); err == nil {
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 				p.stats.fileCleanup++
 			case idClose:
-				if ca, err := parseCloseArgs(e); err == nil {
+				if ca, err := p.parseCloseArgs(e); err == nil {
 					//fmt.Printf("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 					if e.EventHeader.EventDescriptor.ID == idClose {
-						delete(filePathResolver, ca.fileObject)
+						delete(p.filePathResolver, ca.fileObject)
 					}
 				}
 				p.stats.fileClose++
 			case idFlush:
-				if fa, err := parseFlushArgs(e); err == nil {
+				if fa, err := p.parseFlushArgs(e); err == nil {
 					ecb(fa, e.EventHeader.ProcessID)
 				}
 				p.stats.fileFlush++
@@ -637,7 +640,7 @@ func (p *WindowsProbe) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegSetValue, float64(p.stats.regSetValueKey), nil, 1); err != nil {
 		return err
 	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfFilePathResolver, float64(len(filePathResolver)), nil, 1); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfFilePathResolver, float64(len(p.filePathResolver)), nil, 1); err != nil {
 		return err
 	}
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfRegistryPathResolver, float64(len(regPathResolver)), nil, 1); err != nil {
@@ -667,6 +670,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		onStop:            make(chan *procmon.ProcessStopNotification),
 		onError:           make(chan bool),
 		onETWNotification: make(chan etwNotification),
+		filePathResolver:  make(map[fileObjectPointer]string, 0),
 	}
 
 	var err error
