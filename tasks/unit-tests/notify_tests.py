@@ -13,21 +13,64 @@ from tasks.libs.types.types import FailedJobs, FailedJobType
 
 class TestSendMessage(unittest.TestCase):
     @patch("tasks.notify.get_failed_jobs")
+    def test_merge_without_get_failed_call(self, get_failed_jobs_mock):
+        failed = FailedJobs()
+        failed.add_failed_job(
+            {
+                "name": "job1",
+                "stage": "stage1",
+                "retry_summary": [],
+                "url": "http://www.job.com",
+                "failure_type": FailedJobType.INFRA_FAILURE,
+                "allow_failure": False,
+            }
+        )
+        failed.add_failed_job(
+            {
+                "name": "job2",
+                "stage": "stage2",
+                "retry_summary": [],
+                "url": "http://www.job.com",
+                "failure_type": FailedJobType.INFRA_FAILURE,
+                "allow_failure": True,
+            }
+        )
+        failed.add_failed_job(
+            {
+                "name": "job3",
+                "stage": "stage3",
+                "retry_summary": [],
+                "url": "http://www.job.com",
+                "failure_type": FailedJobType.JOB_FAILURE,
+                "allow_failure": False,
+            }
+        )
+        failed.add_failed_job(
+            {
+                "name": "job4",
+                "stage": "stage4",
+                "retry_summary": [],
+                "url": "http://www.job.com",
+                "failure_type": FailedJobType.JOB_FAILURE,
+                "allow_failure": True,
+            }
+        )
+        get_failed_jobs_mock.return_value = failed
+        notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
+        get_failed_jobs_mock.assert_called()
+
     @patch("requests.get")
-    def test_merge(self, get_mock, get_failed_jobs_mock):
+    def test_merge_with_get_failed_call(self, get_mock):
         with open("tasks/unit-tests/testdata/jobs.json") as f:
             jobs = json.load(f)
         job_list = {"json.return_value": jobs}
         no_jobs = {"json.return_value": ""}
-        get_mock.side_effect = [MagicMock(status_code=200, **job_list), MagicMock(status_code=200, **no_jobs)]
-        failed = FailedJobs()
-        failed.add_failed_job({"failure_type": FailedJobType.INFRA_FAILURE, "allow_failure": False})
-        failed.add_failed_job({"failure_type": FailedJobType.INFRA_FAILURE, "allow_failure": True})
-        failed.add_failed_job({"failure_type": FailedJobType.JOB_FAILURE, "allow_failure": False})
-        failed.add_failed_job({"failure_type": FailedJobType.JOB_FAILURE, "allow_failure": True})
-        get_failed_jobs_mock.return_value = failed
+        get_mock.side_effect = [
+            MagicMock(status_code=200, **job_list),
+            MagicMock(status_code=200, **no_jobs),
+            MagicMock(status_code=200, text="no basic auth credentials"),
+        ]
         notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
-        get_failed_jobs_mock.assert_called()
         get_mock.assert_called()
 
     def test_post_to_channel1(self):
@@ -66,7 +109,11 @@ class TestSendStats(unittest.TestCase):
             jobs = json.load(f)
         job_list = {"json.return_value": jobs}
         no_jobs = {"json.return_value": ""}
-        get_mock.side_effect = [MagicMock(status_code=200, **job_list), MagicMock(status_code=200, **no_jobs)]
+        get_mock.side_effect = [
+            MagicMock(status_code=200, **job_list),
+            MagicMock(status_code=200, **no_jobs),
+            MagicMock(status_code=200, text="E2E INTERNAL ERROR"),
+        ]
         notify.send_stats(MockContext(), print_to_stdout=True)
         get_mock.assert_called()
 
@@ -79,7 +126,11 @@ class TestCheckConsistentFailures(unittest.TestCase):
             jobs = json.load(f)
         job_list = {"json.return_value": jobs}
         no_jobs = {"json.return_value": ""}
-        get_mock.side_effect = [MagicMock(status_code=200, **job_list), MagicMock(status_code=200, **no_jobs)]
+        get_mock.side_effect = [
+            MagicMock(status_code=200, **job_list),
+            MagicMock(status_code=200, **no_jobs),
+            MagicMock(status_code=200, text="net/http: TLS handshake timeout"),
+        ]
         notify.check_consistent_failures(
             MockContext(run=Result("test")), "tasks/unit-tests/testdata/job_executions.json"
         )
