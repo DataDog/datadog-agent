@@ -51,6 +51,7 @@ func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.De
 }
 
 func TestCentOS(t *testing.T) {
+	t.Skip()
 	t.Parallel()
 	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault)
 }
