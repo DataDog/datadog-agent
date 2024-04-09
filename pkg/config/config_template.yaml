@@ -481,7 +481,7 @@ api_key:
 ## @param scrubber - custom object - optional
 ## Configuration for scrubbing sensitive information from logs and traces.
 ## The Agent scrubs sensitive information from logs and traces before sending them to Datadog.
-## Add any parametter you want to scrub in addidtion of the generic scrubbing.
+## Add any parameters you want to scrub in addition to the parameters that are scrubbed by default.
 #
 # scrubber:
 #
