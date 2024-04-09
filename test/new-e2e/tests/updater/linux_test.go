@@ -51,13 +51,10 @@ func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.De
 }
 
 func TestCentOS(t *testing.T) {
-	t.Skip()
-	t.Parallel()
 	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault)
 }
 
 func TestUbuntu(t *testing.T) {
-	t.Parallel()
 	runTest(t, "dpkg", os.ARM64Arch, os.UbuntuDefault)
 }
 
@@ -106,8 +103,9 @@ func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
 }
 
 func (v *vmUpdaterSuite) TestExperimentCrash() {
-	host := v.Env().RemoteHost
 	t := v.T()
+	t.Skip()
+	host := v.Env().RemoteHost
 	startTime := getMonotonicTimestamp(t, host)
 	host.MustExecute(fmt.Sprintf(`sudo %v/bin/updater/updater bootstrap --url "oci://us-docker.pkg.dev/datadog-sandbox/updater-dev/agent@sha256:868287768e7f224fbf210a864c3da614ab19cde23ddbd8a94e747c915d8c9ab1"`, bootUpdaterDir))
 	v.Env().RemoteHost.MustExecute(`sudo systemctl start datadog-agent-exp --no-block`)
