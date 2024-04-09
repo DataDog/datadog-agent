@@ -4,13 +4,31 @@ package ${COMPONENT_NAME}impl
 
 import (
 	"go.uber.org/fx"
-
+	
+	"github.com/DataDog/datadog-agent/${COMPONENT_PATH}"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type dependencies struct {
+	fx.In
+	
+	// populate the component dependencies
+}
+
+type provides struct {
+	fx.Out
+
+	Comp ${COMPONENT_NAME}.Component
+}
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-    	fx.Provide(/* TODO: provide Component constructor */),
+		fx.Provide(new${CAPITALIZED_COMPONENT_NAME}),
 	)
+}
+
+func new${CAPITALIZED_COMPONENT_NAME}(deps dependencies) provides {
+  // Component initialization
+	return provides{}
 }

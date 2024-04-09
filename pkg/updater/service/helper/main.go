@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package main is a package that allows dd-updater
+// Package main is a package that allows dd-installer
 // to execute a subset of priviledged commands
 package main
 
@@ -145,14 +145,14 @@ func executeCommand() error {
 		return err
 	}
 
-	// only root or dd-updater can execute this command
+	// only root or dd-installer can execute this command
 	if currentUser != 0 && enforceUID() {
-		ddUpdaterUser, err := user.Lookup("dd-updater")
+		ddUpdaterUser, err := user.Lookup("dd-installer")
 		if err != nil {
-			return fmt.Errorf("failed to lookup dd-updater user: %s", err)
+			return fmt.Errorf("failed to lookup dd-installer user: %s", err)
 		}
 		if strconv.Itoa(currentUser) != ddUpdaterUser.Uid {
-			return fmt.Errorf("only root or dd-updater can execute this command")
+			return fmt.Errorf("only root or dd-installer can execute this command")
 		}
 		if err := syscall.Setuid(0); err != nil {
 			return fmt.Errorf("failed to setuid: %s", err)
