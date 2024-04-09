@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build test && trivy
+//go:build test
 
 // Package scanner holds scanner related files
 package scanner
@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 	"github.com/stretchr/testify/assert"
@@ -111,7 +112,7 @@ func TestRetryLogic_Error(t *testing.T) {
 	cfg.Set("sbom.scan_queue.max_backoff", "3s", model.SourceAgentRuntime)
 
 	// Create a scanner and start it
-	scanner := NewScanner(cfg)
+	scanner := NewScanner(cfg, optional.NewOption[workloadmeta.Component](workloadmetaStore))
 	ctx, cancel := context.WithCancel(context.Background())
 	scanner.Start(ctx)
 
@@ -178,7 +179,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	cfg.Set("sbom.scan_queue.max_backoff", "3s", model.SourceAgentRuntime)
 
 	// Create a scanner and start it
-	scanner := NewScanner(cfg)
+	scanner := NewScanner(cfg, optional.NewOption[workloadmeta.Component](workloadmetaStore))
 	ctx, cancel := context.WithCancel(context.Background())
 	scanner.Start(ctx)
 
@@ -223,7 +224,7 @@ func TestRetryLogic_Host(t *testing.T) {
 	cfg.Set("sbom.scan_queue.max_backoff", "3s", model.SourceAgentRuntime)
 
 	// Create a scanner and start it
-	scanner := NewScanner(cfg)
+	scanner := NewScanner(cfg, optional.NewNoneOption[workloadmeta.Component]())
 	ctx, cancel := context.WithCancel(context.Background())
 	scanner.Start(ctx)
 
