@@ -504,6 +504,7 @@
 /tasks/                                 @DataDog/agent-developer-tools @DataDog/agent-ci-experience
 /tasks/msi.py                           @DataDog/windows-agent
 /tasks/agent.py                         @DataDog/agent-shared-components
+/tasks/dogstatsd.py                     @DataDog/agent-metrics-logs
 /tasks/update_go.py                     @DataDog/agent-shared-components
 /tasks/unit-tests/update_go_tests.py    @DataDog/agent-shared-components
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/platform-integrations
@@ -514,6 +515,7 @@
 /tasks/kmt.py                           @DataDog/ebpf-platform
 /tasks/kernel_matrix_testing/           @DataDog/ebpf-platform
 /tasks/trace_agent.py                   @DataDog/agent-apm
+/tasks/rtloader.py                      @DataDog/agent-metrics-logs
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/systray.py                       @DataDog/windows-agent
 /tasks/winbuildscripts/                 @DataDog/windows-agent
