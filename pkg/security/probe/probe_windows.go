@@ -69,8 +69,9 @@ type WindowsProbe struct {
 	fimwg      sync.WaitGroup
 
 	// path caches
-	filePathResolver map[fileObjectPointer]string
-	regPathResolver  map[regObjectPointer]string
+	filePathResolverLock sync.Mutex
+	filePathResolver     map[fileObjectPointer]string
+	regPathResolver      map[regObjectPointer]string
 
 	// stats
 	stats stats
@@ -274,7 +275,9 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					//fmt.Printf("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 					if e.EventHeader.EventDescriptor.ID == idClose {
+						p.filePathResolverLock.Lock()
 						delete(p.filePathResolver, ca.fileObject)
+						p.filePathResolverLock.Unlock()
 					}
 				}
 				p.stats.fileClose++
@@ -583,6 +586,10 @@ func (p *WindowsProbe) Close() error {
 
 // SendStats sends statistics about the probe to Datadog
 func (p *WindowsProbe) SendStats() error {
+	p.filePathResolverLock.Lock()
+	fprLen := len(p.filePathResolver)
+	p.filePathResolverLock.Unlock()
+
 	// may need to lock here
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsProcessStart, float64(p.stats.procStart), nil, 1); err != nil {
 		return err
@@ -641,7 +648,7 @@ func (p *WindowsProbe) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegSetValue, float64(p.stats.regSetValueKey), nil, 1); err != nil {
 		return err
 	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfFilePathResolver, float64(len(p.filePathResolver)), nil, 1); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfFilePathResolver, float64(fprLen), nil, 1); err != nil {
 		return err
 	}
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfRegistryPathResolver, float64(len(p.regPathResolver)), nil, 1); err != nil {
