@@ -46,6 +46,7 @@ repos:
       description: checks that the commit isn't created on a protected branch
       entry: 'python3 tasks/git-hooks/protected-branches.py'
       language: system
+      pass_filenames: false
     - id: revive
       name: revive
       description: revive
