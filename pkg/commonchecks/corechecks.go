@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
+	ciscosdwan "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
 	nvidia "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
 	oracle "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle"
@@ -91,4 +92,5 @@ func RegisterChecks(store workloadmeta.Component) {
 	corecheckLoader.RegisterCheck(kubelet.CheckName, kubelet.Factory(store))
 	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store))
 	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store))
+	corecheckLoader.RegisterCheck(ciscosdwan.CheckName, ciscosdwan.Factory())
 }
