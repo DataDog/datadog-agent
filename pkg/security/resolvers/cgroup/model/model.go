@@ -60,6 +60,16 @@ func (ws *WorkloadSelector) Version() string {
 	return ws.tag
 }
 
+// SetVersion sets the selector name
+func (ws *WorkloadSelector) SetName(name string) {
+	ws.image = name
+}
+
+// SetVersion sets the selector version
+func (ws *WorkloadSelector) SetVersion(version string) {
+	ws.tag = version
+}
+
 // Key returns the selector key
 func (ws *WorkloadSelector) Key() WorkloadKey {
 	return WorkloadKey(ws.image + ":" + ws.tag)

@@ -19,7 +19,7 @@ func WorkloadSelectorToProto(input *WorkloadSelector) *proto.ProfileSelector {
 	}
 
 	return &proto.ProfileSelector{
-		ImageName: input.image,
-		ImageTag:  input.tag,
+		ImageName: input.Name(),
+		ImageTag:  input.Version(),
 	}
 }

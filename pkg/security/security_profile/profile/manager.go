@@ -336,7 +336,7 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 	}
 
 	// check if the workload of this selector already exists
-	profile, ok := m.profiles[workload.WorkloadSelector.Key()]
+	profile, ok := m.profiles[selector.Key()]
 	if !ok {
 		// check the cache
 		m.pendingCacheLock.Lock()
@@ -1111,10 +1111,8 @@ func (m *SecurityProfileManager) ListAllProfileStates() {
 func (m *SecurityProfileManager) CountEvictedVersion(imageName, imageTag string) {
 	m.evictedVersionsLock.Lock()
 	defer m.evictedVersionsLock.Unlock()
-	workloadSelector, err := cgroupModel.NewWorkloadSelector(
-		imageName, imageTag,
-	)
-	if err == nil {
+
+	if workloadSelector, err := cgroupModel.NewWorkloadSelector(imageName, imageTag); err == nil {
 		m.evictedVersions = append(m.evictedVersions, workloadSelector)
 	}
 }

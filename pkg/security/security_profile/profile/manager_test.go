@@ -845,7 +845,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 					ContainerContext: model.ContainerContext{
 						ID: defaultContainerID,
 					},
-					WorkloadSelector: selector,
+					WorkloadSelector: workloadSelector,
 				})
 				profile.loadedNano = uint64(t0.UnixNano())
 			}

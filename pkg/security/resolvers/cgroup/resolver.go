@@ -173,7 +173,7 @@ func (cr *Resolver) checkTags(workload *cgroupModel.CacheEntry) {
 }
 
 func (cr *Resolver) ResolveTags(cgroupID string, cgroupFlags uint64) (newTags []string, selector cgroupModel.WorkloadSelector, err error) {
-	if cgroupFlags&containerutils.CGroupManagerSystemd != 0 {
+	if cr.sbomResolver != nil && (cgroupFlags&containerutils.CGroupManagerSystemd != 0) {
 		systemdService := cgroupID
 		serviceVersion := "latest"
 		servicePath := filepath.Join(systemdSystemDir, systemdService+".service")

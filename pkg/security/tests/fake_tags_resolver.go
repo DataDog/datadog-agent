@@ -149,7 +149,7 @@ func (fmr *FakeManualResolver) Resolve(containerID string) []string {
 	// first, use cache if any
 	selector, alreadyResolved := fmr.containerToSelector[containerID]
 	if alreadyResolved {
-		return []string{"container_id:" + containerID, "image_name:" + selector.Image, "image_tag:" + selector.Tag}
+		return []string{"container_id:" + containerID, "image_name:" + selector.Name(), "image_tag:" + selector.Version()}
 	}
 
 	// if no cache and there is a pending list, use it
@@ -157,17 +157,18 @@ func (fmr *FakeManualResolver) Resolve(containerID string) []string {
 		selector = fmr.nextSelectors[0]
 		fmr.nextSelectors = fmr.nextSelectors[1:]
 		fmr.containerToSelector[containerID] = selector
-		return []string{"container_id:" + containerID, "image_name:" + selector.Image, "image_tag:" + selector.Tag}
+		return []string{"container_id:" + containerID, "image_name:" + selector.Name(), "image_tag:" + selector.Version()}
 	}
 
 	// otherwise generate a new selector
 	fmr.cpt++
-	selector = &cgroupModel.WorkloadSelector{
-		Image: fmt.Sprintf("fake_name_%d", fmr.cpt),
-		Tag:   "fake_tag",
-	}
+	newSelector, _ := cgroupModel.NewWorkloadSelector(
+		fmt.Sprintf("fake_name_%d", fmr.cpt),
+		"fake_tag",
+	)
+	selector = &newSelector
 	fmr.containerToSelector[containerID] = selector
-	return []string{"container_id:" + containerID, "image_name:" + selector.Image, "image_tag:" + selector.Tag}
+	return []string{"container_id:" + containerID, "image_name:" + selector.Name(), "image_tag:" + selector.Version()}
 }
 
 // ResolveWithErr returns the tags for the given id
