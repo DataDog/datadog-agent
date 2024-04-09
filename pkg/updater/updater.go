@@ -34,8 +34,7 @@ const (
 	// defaultLocksPath is the default path to the run directory.
 	defaultLocksPath = "/var/run/datadog-packages"
 	// gcInterval is the interval at which the GC will run
-	gcInterval  = 1 * time.Hour
-	bootUpdater = defaultRepositoriesPath + "/installer_boot"
+	gcInterval = 1 * time.Hour
 )
 
 var (
@@ -43,9 +42,6 @@ var (
 	// It is the sum of the maximum size of the extracted oci-layout and the maximum size of the datadog package
 	requiredDiskSpace = ociLayoutMaxSize + datadogPackageMaxSize
 	fsDisk            = filesystem.NewDisk()
-	avoidPurge        = map[string]struct{}{
-		bootUpdater: {},
-	}
 )
 
 // Updater is the updater used to update packages.
@@ -108,9 +104,6 @@ func cleanDir(dir string, cleanFunc func(string) error) {
 
 	for _, entry := range entries {
 		path := filepath.Join(dir, entry.Name())
-		if _, ok := avoidPurge[path]; ok {
-			continue
-		}
 		err := cleanFunc(path)
 		if err != nil {
 			log.Warnf("updater: could not remove %s: %v", path, err)

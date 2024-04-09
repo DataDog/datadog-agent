@@ -13,7 +13,7 @@ from tasks.flavor import AgentFlavor
 from tasks.go import deps
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version, load_release_versions, timed
 
-BIN_PATH = os.path.join(".", "bin", "updater")
+BIN_PATH = os.path.join(".", "bin", "installer")
 MAJOR_VERSION = '7'
 
 
@@ -48,13 +48,13 @@ def build(
     race_opt = "-race" if race else ""
     build_type = "-a" if rebuild else ""
     go_build_tags = " ".join(build_tags)
-    updater_bin = os.path.join(BIN_PATH, bin_name("updater"))
+    updater_bin = os.path.join(BIN_PATH, bin_name("installer"))
     cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += f"-o {updater_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/updater"
 
     ctx.run(cmd, env=env)
 
-    helper_bin = os.path.join(BIN_PATH, bin_name("updater-helper"))
+    helper_bin = os.path.join(BIN_PATH, bin_name("helper"))
     helper_ldflags = f"-X main.installPath={install_path} -w -s"
     helper_path = os.path.join("pkg", "updater", "service", "helper")
     cmd = f"CGO_ENABLED=0 go build {build_type} -tags \"{go_build_tags}\" "
