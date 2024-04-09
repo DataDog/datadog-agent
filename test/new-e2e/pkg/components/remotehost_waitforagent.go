@@ -13,6 +13,8 @@ import (
 	osComp "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 )
 
 type agentReadyParams struct {
@@ -38,7 +40,7 @@ type agentReadyParams struct {
 // - WithSecurityAgent: enables waiting for the Security Agent, using the default API port.
 // - WithWaitFor: sets the max duration to wait for the agents to be ready.
 // - WithTick: sets the duration between checks for the agents to be ready.
-type AgentReadyOption func(*agentReadyParams)
+type AgentReadyOption func(*agentReadyParams) error
 
 // WaitForAgentsReady waits for the given agents to be ready.
 // The given options configure which Agents to wait for, and how long to wait.
@@ -50,7 +52,7 @@ type AgentReadyOption func(*agentReadyParams)
 //
 // This is used as follows:
 // h.WaitForAgentsReady(WithTraceAgent(), WithProcessAgentOnPort(1234), WithTick(10*time.Second))
-func (h *RemoteHost) WaitForAgentsReady(opts ...AgentReadyOption) {
+func WaitForAgentsReady(h *RemoteHost, opts ...AgentReadyOption) {
 	if h.OSFamily != osComp.LinuxFamily {
 		h.context.T().Error("WaitForAgentsReady is only implemented on Linux")
 	}
@@ -60,9 +62,8 @@ func (h *RemoteHost) WaitForAgentsReady(opts ...AgentReadyOption) {
 		waitFor:       2 * time.Minute,
 		tick:          20 * time.Second,
 	}
-	for _, opt := range opts {
-		opt(&params)
-	}
+	err := optional.ApplyOptions(&params, opts)
+	require.NoError(h.context.T(), err, "applying WaitForAgentsReady options")
 
 	require.EventuallyWithT(h.context.T(), func(t *assert.CollectT) {
 		if params.authToken == "" {
@@ -99,8 +100,9 @@ func (h *RemoteHost) WaitForAgentsReady(opts ...AgentReadyOption) {
 
 // WithAuthToken sets the auth token.
 func WithAuthToken(authToken string) AgentReadyOption {
-	return func(p *agentReadyParams) {
+	return func(p *agentReadyParams) error {
 		p.authToken = authToken
+		return nil
 	}
 }
 
@@ -108,15 +110,17 @@ func WithAuthToken(authToken string) AgentReadyOption {
 // The file is read from the remote host.
 // This is not used if the auth token is provided directly with WithAuthToken.
 func WithAuthTokenPath(path string) AgentReadyOption {
-	return func(p *agentReadyParams) {
+	return func(p *agentReadyParams) error {
 		p.authTokenPath = path
+		return nil
 	}
 }
 
 // WithProcessAgentOnPort enables waiting for the Process Agent, using the given port for the API.
 func WithProcessAgentOnPort(port int) AgentReadyOption {
-	return func(p *agentReadyParams) {
+	return func(p *agentReadyParams) error {
 		p.processAgentPort = port
+		return nil
 	}
 }
 
@@ -127,8 +131,9 @@ func WithProcessAgent() AgentReadyOption {
 
 // WithTraceAgentOnPort enables waiting for the Trace Agent, using the given port for the API.
 func WithTraceAgentOnPort(port int) AgentReadyOption {
-	return func(p *agentReadyParams) {
+	return func(p *agentReadyParams) error {
 		p.traceAgentPort = port
+		return nil
 	}
 }
 
@@ -139,8 +144,9 @@ func WithTraceAgent() AgentReadyOption {
 
 // WithSecurityAgentOnPort enables waiting for the Security Agent, using the given port for the API.
 func WithSecurityAgentOnPort(port int) AgentReadyOption {
-	return func(p *agentReadyParams) {
+	return func(p *agentReadyParams) error {
 		p.securityAgentPort = port
+		return nil
 	}
 }
 
@@ -151,15 +157,17 @@ func WithSecurityAgent() AgentReadyOption {
 
 // WithWaitFor sets the duration to wait for the agents to be ready.
 func WithWaitFor(d time.Duration) AgentReadyOption {
-	return func(p *agentReadyParams) {
+	return func(p *agentReadyParams) error {
 		p.waitFor = d
+		return nil
 	}
 }
 
 // WithTick sets the duration between checks for the agents to be ready.
 func WithTick(d time.Duration) AgentReadyOption {
-	return func(p *agentReadyParams) {
+	return func(p *agentReadyParams) error {
 		p.tick = d
+		return nil
 	}
 }
 
