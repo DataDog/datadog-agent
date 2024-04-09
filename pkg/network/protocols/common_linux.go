@@ -7,6 +7,7 @@ package protocols
 
 import (
 	"fmt"
+
 	"github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 )
