@@ -536,6 +536,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 }
 
 func TestKafkaInFlightMapCleaner(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
 	cfg := getDefaultTestConfiguration()
 	cfg.HTTPMapCleanerInterval = 5 * time.Second
 	cfg.HTTPIdleConnectionTTL = time.Second
