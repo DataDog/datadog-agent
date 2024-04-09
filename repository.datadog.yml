@@ -22,4 +22,6 @@ max_age: 4380h # 6 months
 excludes:
   - main
   - 7.*.x
+  - 6.*.x
   - gh-pages
+  - *DO-NOT-DELETE
