@@ -3,7 +3,6 @@
 #
 # .deb: STEP 1 of 5
 
-readonly PACKAGES_DIR=/opt/datadog-packages
 readonly INSTALL_DIR=/opt/datadog-installer
 
 SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-installer || true
