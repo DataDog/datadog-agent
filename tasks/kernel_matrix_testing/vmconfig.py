@@ -465,6 +465,7 @@ def add_disks(vmconfig_template: VMConfig, vmset: VMSetDict):
             if vmset["arch"] == local_arch:
                 kmt_os = get_kmt_os()
             else:
+                # Remote VMs are always Linux instances
                 kmt_os = Linux
 
             for disk in vmset.get("disks", []):

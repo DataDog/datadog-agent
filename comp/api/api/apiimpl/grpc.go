@@ -81,7 +81,7 @@ func (s *serverSecure) DogstatsdCaptureTrigger(_ context.Context, req *pb.Captur
 		return &pb.CaptureTriggerResponse{}, err
 	}
 
-	p, err := s.capture.Start(req.GetPath(), d, req.GetCompressed())
+	p, err := s.capture.StartCapture(req.GetPath(), d, req.GetCompressed())
 	if err != nil {
 		return &pb.CaptureTriggerResponse{}, err
 	}

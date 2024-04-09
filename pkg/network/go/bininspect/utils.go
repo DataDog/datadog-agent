@@ -12,9 +12,11 @@ import (
 	"debug/elf"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/asmscan"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
+	ddversion "github.com/DataDog/datadog-agent/pkg/network/go/goversion"
 	"github.com/go-delve/delve/pkg/goversion"
 )
 
@@ -53,31 +55,27 @@ func HasDwarfInfo(elfFile *elf.File) (*dwarf.Data, bool) {
 // The implementation is available in src/cmd/go/internal/version/version.go:
 // https://cs.opensource.google/go/go/+/refs/tags/go1.17.2:src/cmd/go/internal/version/version.go
 // The main logic was pulled out to a sub-package, `binversion`
-func FindGoVersion(elfFile *elf.File) (goversion.GoVersion, error) {
+func FindGoVersion(elfFile *elf.File) (ddversion.GoVersion, error) {
 	version, err := binversion.ReadElfBuildInfo(elfFile)
 	if err != nil {
-		return goversion.GoVersion{}, fmt.Errorf("could not get Go toolchain version from ELF binary file: %w", err)
+		return ddversion.GoVersion{}, fmt.Errorf("could not get Go toolchain version from ELF binary file: %w", err)
 	}
 
-	parsed, ok := goversion.Parse(version)
-	if !ok {
-		return goversion.GoVersion{}, fmt.Errorf("failed to parse Go toolchain version %q", version)
-	}
-	return parsed, nil
+	return ddversion.NewGoVersion(strings.TrimPrefix(version, "go"))
 }
 
 // FindABI returns the ABI for a given go version and architecture.
 // We statically assume the ABI based on the Go version and architecture
-func FindABI(version goversion.GoVersion, arch GoArch) (GoABI, error) {
+func FindABI(version ddversion.GoVersion, arch GoArch) (GoABI, error) {
 	switch arch {
 	case GoArchX86_64:
-		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 17}) {
+		if version.GoVersion.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 17}) {
 			return GoABIRegister, nil
 		}
 		return GoABIStack, nil
 
 	case GoArchARM64:
-		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 18}) {
+		if version.GoVersion.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 18}) {
 			return GoABIRegister, nil
 		}
 		return GoABIStack, nil

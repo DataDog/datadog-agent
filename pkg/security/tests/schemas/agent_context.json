@@ -1,0 +1,50 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "agent_context.json",
+    "type": "object",
+    "properties": {
+        "rule_id": {
+            "type": "string"
+        },
+        "rule_version": {
+            "type": "string"
+        },
+        "policy_name": {
+            "type": "string"
+        },
+        "policy_version": {
+            "type": "string"
+        },
+        "version": {
+            "type": "string"
+        },
+        "os": {
+            "type": "string"
+        },
+        "arch": {
+            "type": "string"
+        },
+        "origin": {
+            "type": "string"
+        },
+        "rule_actions": {
+            "type": "array",
+            "items": {
+                "oneOf": [
+                    {
+                        "$ref": "/schemas/kill.schema.json"
+                    }
+                ]
+            }
+        }
+    },
+    "required": [
+        "rule_id",
+        "policy_name",
+        "policy_version",
+        "version",
+        "os",
+        "arch",
+        "origin"
+    ]
+}

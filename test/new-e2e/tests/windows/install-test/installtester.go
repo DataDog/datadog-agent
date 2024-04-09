@@ -7,18 +7,22 @@ package installtest
 
 import (
 	"fmt"
+	"io/fs"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	agentClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	agentClientParams "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
+	commonHelper "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
 
-	"testing"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"testing"
 )
 
 // Tester is a test helper for testing agent installations
@@ -35,6 +39,9 @@ type Tester struct {
 
 	expectedAgentVersion      string
 	expectedAgentMajorVersion string
+
+	expectedInstallPath string
+	expectedConfigRoot  string
 }
 
 // TesterOption is a function that can be used to configure a Tester
@@ -47,13 +54,14 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 	var err error
 
 	t.host = host
-	t.InstallTestClient = common.NewWindowsTestClient(tt, t.host)
 	t.hostInfo, err = windows.GetHostInfo(t.host)
 	if err != nil {
 		return nil, err
 	}
-	t.expectedUserName = "ddagentuser"
+	t.expectedUserName = windowsAgent.DefaultAgentUserName
 	t.expectedUserDomain = windows.NameToNetBIOSName(t.hostInfo.Hostname)
+	t.expectedInstallPath = windowsAgent.DefaultInstallPath
+	t.expectedConfigRoot = windowsAgent.DefaultConfigRoot
 
 	for _, opt := range opts {
 		opt(t)
@@ -70,6 +78,16 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 		}
 	}) {
 		tt.FailNow()
+	}
+
+	t.InstallTestClient = common.NewWindowsTestClient(tt, t.host)
+	t.InstallTestClient.Helper = commonHelper.NewWindowsHelperWithCustomPaths(t.expectedInstallPath, t.expectedConfigRoot)
+	t.InstallTestClient.AgentClient, err = agentClient.NewHostAgentClientWithParams(tt, t.host,
+		agentClientParams.WithSkipWaitForAgentReady(),
+		agentClientParams.WithAgentInstallPath(t.expectedInstallPath),
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	return t, nil
@@ -97,6 +115,20 @@ func WithExpectedAgentUser(domain string, user string) TesterOption {
 	return func(t *Tester) {
 		t.expectedUserDomain = domain
 		t.expectedUserName = user
+	}
+}
+
+// WithExpectedInstallPath sets the expected install path for the agent
+func WithExpectedInstallPath(path string) TesterOption {
+	return func(t *Tester) {
+		t.expectedInstallPath = path
+	}
+}
+
+// WithExpectedConfigRoot sets the expected config root for the agent
+func WithExpectedConfigRoot(path string) TesterOption {
+	return func(t *Tester) {
+		t.expectedConfigRoot = path
 	}
 }
 
@@ -171,6 +203,34 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 		// this helper uses require so wrap it in a subtest so we can continue even if it fails
 		common.CheckUninstallation(tt, t.InstallTestClient)
 	})
+
+	_, err := t.host.Lstat(t.expectedInstallPath)
+	assert.ErrorIs(tt, err, fs.ErrNotExist, "uninstall should remove install path")
+	_, err = t.host.Lstat(t.expectedConfigRoot)
+	assert.NoError(tt, err, "uninstall should not remove config root")
+
+	configPaths := []string{
+		"datadog.yaml",
+		"system-probe.yaml",
+	}
+	for _, configPath := range configPaths {
+		configPath := filepath.Join(t.expectedConfigRoot, configPath)
+		_, err = t.host.Lstat(configPath)
+		assert.NoError(tt, err, "uninstall should not remove %s config file", configPath)
+		examplePath := configPath + ".example"
+		_, err = t.host.Lstat(examplePath)
+		assert.ErrorIs(tt, err, fs.ErrNotExist, "uninstall should remove %s example config files", examplePath)
+	}
+
+	_, err = windows.GetSIDForUser(t.host,
+		windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
+	)
+	assert.NoError(tt, err, "uninstall should not remove agent user")
+
+	for _, serviceName := range servicetest.ExpectedInstalledServices() {
+		_, err := windows.GetServiceConfig(t.host, serviceName)
+		assert.Errorf(tt, err, "uninstall should remove service %s", serviceName)
+	}
 }
 
 // Only do some basic checks on the agent since it's a previous version
@@ -181,15 +241,64 @@ func (t *Tester) testPreviousVersionExpectations(tt *testing.T) {
 // More in depth checks on current version
 func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	common.CheckInstallation(tt, t.InstallTestClient)
-	tt.Run("user in registry", func(tt *testing.T) {
+
+	// If install paths differ from default ensure the defaults don't exist
+	if t.expectedInstallPath != windowsAgent.DefaultInstallPath {
+		_, err := t.host.Lstat(windowsAgent.DefaultInstallPath)
+		assert.ErrorIs(tt, err, fs.ErrNotExist, "default install path should not exist")
+	}
+	if t.expectedConfigRoot != windowsAgent.DefaultConfigRoot {
+		_, err := t.host.Lstat(windowsAgent.DefaultConfigRoot)
+		assert.ErrorIs(tt, err, fs.ErrNotExist, "default config root should not exist")
+	}
+
+	tt.Run("agent paths in registry", func(tt *testing.T) {
+		installPathFromRegistry, err := windowsAgent.GetInstallPathFromRegistry(t.host)
+		assert.NoError(tt, err, "InstallPath should be in registry")
+		assert.Equalf(tt,
+			windows.TrimTrailingSlashesAndLower(t.expectedInstallPath),
+			windows.TrimTrailingSlashesAndLower(installPathFromRegistry),
+			"install path matches registry")
+		configRootFromRegistry, err := windowsAgent.GetConfigRootFromRegistry(t.host)
+		assert.NoError(tt, err, "ConfigRoot should be in registry")
+		assert.Equalf(tt,
+			windows.TrimTrailingSlashesAndLower(t.expectedConfigRoot),
+			windows.TrimTrailingSlashesAndLower(configRootFromRegistry),
+			"config root matches registry")
+	})
+
+	tt.Run("agent user in registry", func(tt *testing.T) {
 		AssertInstalledUserInRegistry(tt, t.host, t.expectedUserDomain, t.expectedUserName)
+	})
+
+	tt.Run("creates config files", func(tt *testing.T) {
+		configPaths := []string{
+			"datadog.yaml",
+			"system-probe.yaml",
+		}
+		for _, configPath := range configPaths {
+			configPath := filepath.Join(t.expectedConfigRoot, configPath)
+			_, err := t.host.Lstat(configPath)
+			assert.NoError(tt, err, "install should create %s config file", configPath)
+			examplePath := configPath + ".example"
+			_, err = t.host.Lstat(examplePath)
+			assert.NoError(tt, err, "install should create %s example config files", examplePath)
+		}
 	})
 
 	serviceTester, err := servicetest.NewTester(t.host,
 		servicetest.WithExpectedAgentUser(t.expectedUserDomain, t.expectedUserName),
+		servicetest.WithExpectedInstallPath(t.expectedInstallPath),
+		servicetest.WithExpectedConfigRoot(t.expectedConfigRoot),
 	)
 	require.NoError(tt, err)
-	serviceTester.TestInstall(tt)
+	tt.Run("service config", func(tt *testing.T) {
+		actual, err := windows.GetServiceConfigMap(t.host, servicetest.ExpectedInstalledServices())
+		require.NoError(tt, err)
+		expected, err := serviceTester.ExpectedServiceConfig()
+		require.NoError(tt, err)
+		servicetest.AssertEqualServiceConfigValues(tt, expected, actual)
+	})
 
 	tt.Run("user is a member of expected groups", func(tt *testing.T) {
 		AssertAgentUserGroupMembership(tt, t.host,
