@@ -113,6 +113,7 @@ func copyFileAttributes(src *ebpfless.FileSyscallMsg, dst *model.FileEvent) {
 		dst.PathnameStr = src.Filename
 		dst.BasenameStr = filepath.Base(src.Filename)
 	}
+	dst.IsPathnameStrResolved = true
 	dst.CTime = src.CTime
 	dst.MTime = src.MTime
 	dst.Mode = uint16(src.Mode)
@@ -302,6 +303,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		p.processKiller.HandleProcessExited(event)
 	}
 
+	event.ResolveFields()
 	p.DispatchEvent(event)
 
 	// flush pending kill actions
