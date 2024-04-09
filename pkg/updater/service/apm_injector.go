@@ -9,7 +9,9 @@
 package service
 
 import (
+	"bytes"
 	"os"
+	"os/exec"
 	"path"
 	"strings"
 
@@ -141,15 +143,15 @@ func removeDockerDaemon(basePath string) error {
 
 // isDockerInstalled checks if docker is installed on the system
 func isDockerInstalled() bool {
-	// Check that docker is installed, if not fail early
-	_, err := os.Stat("/etc/docker/daemon.json")
-	if err != nil && os.IsNotExist(err) {
-		return false
-	} else if err != nil {
-		log.Error("Failed to check if docker is installed: ", err)
+	cmd := exec.Command("which", "docker")
+	var outb bytes.Buffer
+	cmd.Stdout = &outb
+	err := cmd.Run()
+	if err != nil {
+		log.Warn("updater: failed to check if docker is installed, assuming it isn't: ", err)
 		return false
 	}
-	return true
+	return len(outb.String()) != 0
 }
 
 // backupDockerDaemon backs up the docker daemon configuration

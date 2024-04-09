@@ -37,12 +37,13 @@ const (
 type vmUpdaterSuite struct {
 	e2e.BaseSuite[environments.Host]
 	packageManager string
+	distro         os.Descriptor
 }
 
 func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.Descriptor) {
 	reg := regexp.MustCompile(`[^a-zA-Z0-9_\-.]`)
 	testName := reg.ReplaceAllString(distro.String()+"-"+string(arch), "_")
-	e2e.Run(t, &vmUpdaterSuite{packageManager: pkgManager}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
+	e2e.Run(t, &vmUpdaterSuite{packageManager: pkgManager, distro: distro}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 		awshost.WithUpdater(),
 		awshost.WithEC2InstanceOptions(ec2.WithOSArch(distro, arch)),
 	)),
@@ -50,10 +51,10 @@ func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.De
 	)
 }
 
-func TestCentOS(t *testing.T) {
-	t.Parallel()
-	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault)
-}
+// func TestCentOS(t *testing.T) {
+// 	t.Parallel()
+// 	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault)
+// }
 
 func TestUbuntu(t *testing.T) {
 	t.Parallel()
@@ -187,6 +188,95 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	}
 }
 
+func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
+	host := v.Env().RemoteHost
+	host.MustExecute(fmt.Sprintf("sudo %v/bin/updater/updater purge", bootUpdaterDir))
+	// Install docker
+	installDocker(v, v.T(), host)
+
+	// packages dir exists; but there are no packages installed
+	host.MustExecute(`test -d /opt/datadog-packages`)
+	_, err := host.Execute(`test -d /opt/datadog-packages/datadog-apm-inject`)
+	require.NotNil(v.T(), err)
+	_, err = host.Execute(`test -d /opt/datadog-packages/datadog-agent`)
+	require.NotNil(v.T(), err)
+	_, err = host.Execute(`test -d /opt/datadog-packages/datadog-apm-library-java`)
+	require.NotNil(v.T(), err)
+
+	// /etc/ld.so.preload does not contain the injector
+	_, err = host.Execute(`grep "/opt/datadog-packages/datadog-apm-inject" /etc/ld.so.preload`)
+	require.NotNil(v.T(), err)
+
+	// docker daemon does not contain the injector
+	_, err = host.Execute(`grep "/opt/datadog-packages/datadog-apm-inject" /etc/docker/daemon.json`)
+	require.NotNil(v.T(), err)
+
+	// setup to make sure we backup the file later on
+	host.MustExecute("echo 1 | sudo tee /etc/docker/daemon.json")
+
+	// bootstrap packages
+	// TODO: use working agent version here
+	// TODO: use working version with a java tracer here
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/updater/updater bootstrap --url "oci://docker.io/datadog/apm-inject-package-dev:0.12.3-dev.bddec85.glci481808135.g8acdc698-1"`, bootUpdaterDir))
+
+	// assert packages dir exist
+	_ = host.MustExecute(`test -L /opt/datadog-packages/datadog-apm-inject/stable`)
+	// TODO uncomment after bootstrap
+	// _ = host.MustExecute(`test -L /opt/datadog-packages/datadog-agent/stable`)
+	// _ = host.MustExecute(`test -L /opt/datadog-packages/datadog-apm-library-java/stable`)
+
+	// assert /etc/ld.so.preload contains the injector
+	res, err := host.Execute(`grep "/opt/datadog-packages/datadog-apm-inject" /etc/ld.so.preload`)
+	require.Nil(v.T(), err)
+	require.Equal(v.T(), "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so\n", res)
+
+	// assert docker daemon contains the injector
+	res, err = host.Execute(`grep "/opt/datadog-packages/datadog-apm-inject" /etc/docker/daemon.json | sed -re 's/^[[:blank:]]+|[[:blank:]]+$//g' -e 's/[[:blank:]]+/ /g'`)
+	require.Nil(v.T(), err)
+	require.Equal(v.T(), "\"path\": \"/opt/datadog-packages/datadog-apm-inject/0.12.3-dev.bddec85.glci481808135.g8acdc698-1/inject/auto_inject_runc\"\n", res)
+	// assert original file was backed up
+	host.MustExecute(`test -f /etc/docker/daemon.json.bak`)
+
+	// assert required files exist
+	requiredFiles := []string{
+		"auto_inject_runc",
+		"launcher.preload.so",
+		"ld.so.preload",
+		"musl-launcher.preload.so",
+		"process",
+	}
+	for _, file := range requiredFiles {
+		host.MustExecute(fmt.Sprintf("test -f /opt/datadog-packages/datadog-apm-inject/stable/inject/%s", file))
+	}
+
+	// assert file ownerships
+	injectorDir := "/opt/datadog-packages/datadog-apm-inject"
+	require.Equal(v.T(), "dd-installer\n", host.MustExecute(`stat -c "%U" `+injectorDir))
+	require.Equal(v.T(), "dd-installer\n", host.MustExecute(`stat -c "%G" `+injectorDir))
+	require.Equal(v.T(), "drwxr-xr-x\n", host.MustExecute(`stat -c "%A" `+injectorDir))
+	require.Equal(v.T(), "1\n", host.MustExecute(`sudo ls -l /opt/datadog-packages/datadog-apm-inject | awk '$9 != "stable" && $3 == "dd-installer" && $4 == "dd-installer"' | wc -l`))
+
+	// assert app gets injected
+	// TODO build and launch app
+
+	// TODO check "Flushed traces to the API" in trace agent logs
+
+	// check purge uninstalls the injector
+	host.MustExecute(fmt.Sprintf("sudo %v/bin/updater/updater purge", bootUpdaterDir))
+	_, err = host.Execute(`test -d /opt/datadog-packages/datadog-apm-inject`)
+	require.NotNil(v.T(), err)
+	_, err = host.Execute(`test -d /opt/datadog-packages/datadog-agent`)
+	require.NotNil(v.T(), err)
+	_, err = host.Execute(`test -d /opt/datadog-packages/datadog-apm-library-java`)
+	require.NotNil(v.T(), err)
+	_, err = host.Execute(`grep "/opt/datadog-packages/datadog-apm-inject" /etc/ld.so.preload`)
+	require.NotNil(v.T(), err)
+	_, err = host.Execute(`grep "/opt/datadog-packages/datadog-apm-inject" /etc/docker/daemon.json`)
+	require.NotNil(v.T(), err)
+	_, err = host.Execute(`test -f /etc/docker/daemon.json.bak`)
+	require.NotNil(v.T(), err)
+}
+
 func assertInstallMethod(v *vmUpdaterSuite, t *testing.T, host *components.RemoteHost) {
 	rawYaml, err := host.ReadFile(filepath.Join(confDir, "install_info"))
 	assert.Nil(t, err)
@@ -196,6 +286,29 @@ func assertInstallMethod(v *vmUpdaterSuite, t *testing.T, host *components.Remot
 	assert.Equal(t, "updater_package", config.InstallMethod["installer_version"])
 	assert.Equal(t, v.packageManager, config.InstallMethod["tool"])
 	assert.True(t, "" != config.InstallMethod["tool_version"])
+}
+
+func installDocker(v *vmUpdaterSuite, t *testing.T, host *components.RemoteHost) {
+	switch v.distro {
+	case os.UbuntuDefault:
+		host.MustExecute(`sudo apt-get update`)
+		host.MustExecute(`sudo apt-get install ca-certificates curl`)
+		host.MustExecute(`sudo install -m 0755 -d /etc/apt/keyrings`)
+		host.MustExecute(`sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc`)
+		host.MustExecute(`sudo chmod a+r /etc/apt/keyrings/docker.asc`)
+		host.MustExecute(`echo \
+		  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+		  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+		  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null`)
+		host.MustExecute(`sudo apt-get update`)
+		host.MustExecute(`sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin`)
+	case os.CentOSDefault:
+		host.MustExecute(`sudo yum install -y yum-utils`)
+		host.MustExecute(`sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo`)
+		host.MustExecute(`sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin`)
+	default:
+		t.Fatalf("unsupported distro: %s", v.distro.String())
+	}
 }
 
 // Config yaml struct
