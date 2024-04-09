@@ -119,7 +119,7 @@ installer-amd64:
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: amd64
-    DESTINATION_FILE: "datadog-installer-amd64.tar.xz"
+    DESTINATION_FILE: "datadog-installer_7-amd64.tar.xz"
     RELEASE_VERSION: "$RELEASE_VERSION_7"
 
 installer-arm64:
