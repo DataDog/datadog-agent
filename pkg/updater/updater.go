@@ -227,12 +227,7 @@ func (u *updaterImpl) boostrapPackage(ctx context.Context, stablePackage Package
 		return fmt.Errorf("not enough disk space to install package: %w", err)
 	}
 	log.Infof("Updater: Bootstrapping stable version %s of package %s", stablePackage.Version, stablePackage.Name)
-	tmpDir, err := os.MkdirTemp("", "")
-	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-	image, err := u.downloader.Download(ctx, tmpDir, stablePackage)
+	image, err := u.downloader.Download(ctx, stablePackage)
 	if err != nil {
 		return fmt.Errorf("could not download: %w", err)
 	}
@@ -261,12 +256,7 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version s
 	if !ok {
 		return fmt.Errorf("could not get package %s, %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
-	tmpDir, err := os.MkdirTemp("", "")
-	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-	image, err := u.downloader.Download(ctx, tmpDir, experimentPackage)
+	image, err := u.downloader.Download(ctx, experimentPackage)
 	if err != nil {
 		return fmt.Errorf("could not download experiment: %w", err)
 	}
