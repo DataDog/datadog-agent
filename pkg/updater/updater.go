@@ -35,10 +35,6 @@ const (
 	defaultLocksPath = "/var/run/datadog-packages"
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
-	// catalogOverridePath is the path to the catalog override file
-	catalogOverridePath = defaultRepositoriesPath + "/catalog.json"
-	// bootstrapVersionsOverridePath is the path to the bootstrap versions override file
-	bootstrapVersionsOverridePath = defaultRepositoriesPath + "/bootstrap.json"
 )
 
 var (
@@ -46,10 +42,6 @@ var (
 	// It is the sum of the maximum size of the extracted oci-layout and the maximum size of the datadog package
 	requiredDiskSpace = ociLayoutMaxSize + datadogPackageMaxSize
 	fsDisk            = filesystem.NewDisk()
-	avoidPurge        = map[string]struct{}{
-		catalogOverridePath:           {},
-		bootstrapVersionsOverridePath: {},
-	}
 )
 
 // Updater is the updater used to update packages.
@@ -57,7 +49,8 @@ type Updater interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 
-	Bootstrap(ctx context.Context, pkg string) error
+	BootstrapURL(ctx context.Context, url string) error
+	BootstrapDefault(ctx context.Context, pkg string) error
 	BootstrapVersion(ctx context.Context, pkg string, version string) error
 	StartExperiment(ctx context.Context, pkg string, version string) error
 	StopExperiment(ctx context.Context, pkg string) error
@@ -85,11 +78,11 @@ type disk interface {
 	GetUsage(path string) (*filesystem.DiskUsage, error)
 }
 
-// Bootstrap bootstraps the default version for the given package.
-func Bootstrap(ctx context.Context, pkg string, config config.Reader) error {
+// BootstrapURL bootstraps the updater with the given package.
+func BootstrapURL(ctx context.Context, url string, config config.Reader) error {
 	rc := newNoopRemoteConfig()
-	u := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, catalogOverridePath, bootstrapVersionsOverridePath, config)
-	return u.Bootstrap(ctx, pkg)
+	u := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config)
+	return u.BootstrapURL(ctx, url)
 }
 
 // Purge removes files installed by the updater
@@ -111,69 +104,11 @@ func cleanDir(dir string, cleanFunc func(string) error) {
 
 	for _, entry := range entries {
 		path := filepath.Join(dir, entry.Name())
-		if _, ok := avoidPurge[path]; ok {
-			continue
-		}
 		err := cleanFunc(path)
 		if err != nil {
 			log.Warnf("updater: could not remove %s: %v", path, err)
 		}
 	}
-}
-
-func getDefaultCatalog(catalogOverridePath string) (catalog, error) {
-	var c catalog
-
-	file, err := os.ReadFile(catalogOverridePath)
-	if err != nil {
-		return catalog{}, fmt.Errorf("could not read provided catalog file: %w", err)
-	}
-
-	err = json.Unmarshal(file, &c)
-	if err != nil {
-		return catalog{}, fmt.Errorf("could not unmarshal provided catalog file: %w", err)
-	}
-
-	return c, err
-}
-
-func getDefaultBootstrapVersions(bootstrapVersionsOverridePath string) (bootstrapVersions, error) {
-	var b bootstrapVersions
-
-	file, err := os.ReadFile(bootstrapVersionsOverridePath)
-	if err != nil {
-		return bootstrapVersions{}, fmt.Errorf("could not read provided catalog file: %w", err)
-	}
-
-	err = json.Unmarshal(file, &b)
-	if err != nil {
-		return bootstrapVersions{}, fmt.Errorf("could not unmarshal provided catalog file: %w", err)
-	}
-
-	return b, err
-}
-
-func getDefaults(catalogOverridePath string, bootstrapVersionsOverridePath string) (catalog catalog, versions bootstrapVersions, overridden bool) {
-	catalog = defaultCatalog
-
-	tmpCatalog, err := getDefaultCatalog(catalogOverridePath)
-	if err != nil {
-		log.Debug(fmt.Sprintf("could not read override catalog file: %s, falling back to default", err))
-	} else {
-		catalog = tmpCatalog
-		overridden = true
-	}
-
-	versions = defaultBootstrapVersions
-	tmpVersions, err := getDefaultBootstrapVersions(bootstrapVersionsOverridePath)
-	if err != nil {
-		log.Debug(fmt.Sprintf("could not read provided catalog file: %s, falling back to default", err))
-	} else {
-		versions = tmpVersions
-		overridden = true
-	}
-
-	return
 }
 
 // NewUpdater returns a new Updater.
@@ -182,28 +117,22 @@ func NewUpdater(rcFetcher client.ConfigFetcher, config config.Reader) (Updater, 
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, catalogOverridePath, bootstrapVersionsOverridePath, config), nil
+	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config), nil
 }
 
-func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, catalogOverridePath string, bootstrapVersionsOverridePath string, config config.Reader) *updaterImpl {
+func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, config config.Reader) *updaterImpl {
 	repositories := repository.NewRepositories(repositoriesPath, locksPath)
 	remoteRegistryOverride := config.GetString("updater.registry")
-
 	rcClient := rc
-	catalog, defaultVersions, overridden := getDefaults(catalogOverridePath, bootstrapVersionsOverridePath)
-	if overridden {
-		log.Info("updater: catalog and/or default versions overridden, disabling remote config")
-		rcClient = newNoopRemoteConfig()
-	}
 
 	u := &updaterImpl{
 		rc:                rcClient,
 		repositories:      repositories,
 		downloader:        newDownloader(http.DefaultClient, remoteRegistryOverride),
 		installer:         newInstaller(repositories),
-		catalog:           catalog,
 		requests:          make(chan remoteAPIRequest, 32),
-		bootstrapVersions: defaultVersions,
+		catalog:           catalog{},
+		bootstrapVersions: bootstrapVersions{},
 		stopChan:          make(chan struct{}),
 	}
 	u.refreshState(context.Background())
@@ -251,7 +180,7 @@ func (u *updaterImpl) Stop(_ context.Context) error {
 }
 
 // Bootstrap installs the stable version of the package.
-func (u *updaterImpl) Bootstrap(ctx context.Context, pkg string) error {
+func (u *updaterImpl) BootstrapDefault(ctx context.Context, pkg string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	u.refreshState(ctx)
@@ -264,7 +193,7 @@ func (u *updaterImpl) Bootstrap(ctx context.Context, pkg string) error {
 	return u.boostrapPackage(ctx, stablePackage)
 }
 
-// Bootstrap installs the stable version of the package.
+// BootstrapVersion installs the stable version of the package.
 func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
@@ -274,6 +203,19 @@ func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version 
 	stablePackage, ok := u.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
 	if !ok {
 		return fmt.Errorf("could not get package %s version %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
+	}
+	return u.boostrapPackage(ctx, stablePackage)
+}
+
+// BootstrapURL installs the stable version of the package.
+func (u *updaterImpl) BootstrapURL(ctx context.Context, url string) error {
+	u.m.Lock()
+	defer u.m.Unlock()
+	u.refreshState(ctx)
+	defer u.refreshState(ctx)
+	stablePackage, err := u.downloader.Package(ctx, url)
+	if err != nil {
+		return fmt.Errorf("could not get package from url: %w", err)
 	}
 	return u.boostrapPackage(ctx, stablePackage)
 }
@@ -423,7 +365,7 @@ func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err erro
 		}
 		log.Infof("Updater: Received remote request %s to bootstrap package %s version %s", request.ID, request.Package, params.Version)
 		if params.Version == "" {
-			return u.Bootstrap(context.Background(), request.Package)
+			return u.BootstrapDefault(context.Background(), request.Package)
 		}
 		return u.BootstrapVersion(context.Background(), request.Package, params.Version)
 	default:
