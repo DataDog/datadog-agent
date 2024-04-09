@@ -50,7 +50,7 @@ func NewWorkloadSelector(image string, tag string) (WorkloadSelector, error) {
 	}, nil
 }
 
-// Version returns the selector name
+// Name returns the selector name
 func (ws *WorkloadSelector) Name() string {
 	return ws.image
 }
@@ -60,7 +60,7 @@ func (ws *WorkloadSelector) Version() string {
 	return ws.tag
 }
 
-// SetVersion sets the selector name
+// SetName sets the selector name
 func (ws *WorkloadSelector) SetName(name string) {
 	ws.image = name
 }
@@ -75,7 +75,7 @@ func (ws *WorkloadSelector) Key() WorkloadKey {
 	return WorkloadKey(ws.image + ":" + ws.tag)
 }
 
-// IsReady returns true if the selector is ready
+// Clone the selector
 func (ws *WorkloadSelector) Clone() *WorkloadSelector {
 	return &WorkloadSelector{
 		image: ws.image,

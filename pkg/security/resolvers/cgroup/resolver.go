@@ -172,6 +172,7 @@ func (cr *Resolver) checkTags(workload *cgroupModel.CacheEntry) {
 	}
 }
 
+// ResolveTags resolves the tags for the specified cgroup
 func (cr *Resolver) ResolveTags(cgroupID string, cgroupFlags uint64) (newTags []string, selector cgroupModel.WorkloadSelector, err error) {
 	if cr.sbomResolver != nil && (cgroupFlags&containerutils.CGroupManagerSystemd != 0) {
 		systemdService := cgroupID

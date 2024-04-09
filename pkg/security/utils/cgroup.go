@@ -50,7 +50,7 @@ type ControlGroup struct {
 	Path string
 }
 
-// GetContainerContainer returns both the container ID and its manager
+// GetContainerContext returns both the container ID and its manager
 func (cg ControlGroup) GetContainerContext() (ContainerID, ContainerFlags) {
 	id, flags := containerutils.FindContainerID(cg.Path)
 	return ContainerID(id), ContainerFlags(flags)

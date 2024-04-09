@@ -149,6 +149,7 @@ func (at *ActivityTree) walk(processNodes []*ProcessNode, fn func(*ProcessNode) 
 	}
 }
 
+// Walk through the activity tree, executing the specified callback on every process node
 func (at *ActivityTree) Walk(fn func(*ProcessNode) bool) {
 	at.walk(at.ProcessNodes, fn)
 }

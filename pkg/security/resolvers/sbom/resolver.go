@@ -71,6 +71,7 @@ func (s *SBOM) IsComputed() bool {
 	return s.scanSuccessful.Load()
 }
 
+// SetReport sets the SBOM of the report
 func (s *SBOM) SetReport(report *trivy.Report) {
 	// cleanup file cache
 	s.files = make(map[uint64]*Package)

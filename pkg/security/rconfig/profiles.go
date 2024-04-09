@@ -93,10 +93,6 @@ func (r *RCProfileProvider) Start(ctx context.Context) error {
 	return nil
 }
 
-func selectorToTag(selector *cgroupModel.WorkloadSelector) string {
-	return selector.Name() + separator + selector.Version()
-}
-
 // UpdateWorkloadSelectors updates the selectors used to query profiles
 func (r *RCProfileProvider) UpdateWorkloadSelectors(selectors []cgroupModel.WorkloadKey) {
 	r.Lock()
