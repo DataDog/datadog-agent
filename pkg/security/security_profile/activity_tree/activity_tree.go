@@ -930,6 +930,7 @@ func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition,
 
 		for _, file := range processNode.Files {
 			at.visitFileNode(file, func(fileNode *FileNode) {
+
 				fmt.Print(">>>>>: %+v\n", fileNode.File.PathnameStr)
 			})
 		}
@@ -937,6 +938,9 @@ func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition,
 
 	execRuleDef := &rules.RuleDefinition{
 		Expression: strings.Join(execRuleExp, " && "),
+	}
+	if opts.EnableKill {
+		applyKillAction(execRuleDef)
 	}
 	ruleDefs = append(ruleDefs, execRuleDef)
 
