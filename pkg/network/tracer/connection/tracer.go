@@ -222,10 +222,10 @@ func NewTracer(config *config.Config) (Tracer, error) {
 		closedChannelSize = config.ClosedChannelSize
 	}
 	var connCloseEventHandler ddebpf.EventHandler
-	var failedConnsHandler ddebpf.EventHandler
+	var failedConnsHandler ddebpf.EventHandler = nil
 	if config.RingBufferSupportedNPM() {
 		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
-		failedConnsHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
+		//failedConnsHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
 	} else {
 		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
 		failedConnsHandler = ddebpf.NewPerfHandler(closedChannelSize)
@@ -261,7 +261,7 @@ func NewTracer(config *config.Config) (Tracer, error) {
 
 	closeConsumer := newTCPCloseConsumer(connCloseEventHandler, batchMgr)
 
-	failedConnConsumer := newFailedConnConsumer(failedConnsHandler, batchMgr)
+	failedConnConsumer := newFailedConnConsumer(failedConnsHandler)
 
 	tr := &tracer{
 		m:                  m,

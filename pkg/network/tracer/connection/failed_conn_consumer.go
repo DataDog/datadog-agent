@@ -33,7 +33,6 @@ var failedConnConsumerTelemetry = struct {
 
 type tcpFailedConnConsumer struct {
 	eventHandler  ddebpf.EventHandler
-	batchManager  *perfBatchManager
 	requests      chan chan struct{}
 	buffer        *network.ConnectionBuffer
 	once          sync.Once
@@ -55,10 +54,9 @@ func (t failedConnStats) String() string {
 
 type failedConnMap map[netebpf.ConnTuple]*failedConnStats
 
-func newFailedConnConsumer(eventHandler ddebpf.EventHandler, batchManager *perfBatchManager) *tcpFailedConnConsumer {
+func newFailedConnConsumer(eventHandler ddebpf.EventHandler) *tcpFailedConnConsumer {
 	return &tcpFailedConnConsumer{
 		eventHandler:  eventHandler,
-		batchManager:  batchManager,
 		requests:      make(chan chan struct{}),
 		buffer:        network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
 		closed:        make(chan struct{}),
