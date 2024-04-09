@@ -37,7 +37,7 @@ import (
 	"go.uber.org/fx"
 )
 
-var entityIDRegex = regexp.MustCompile(`^en-(init\.)?([a-zA-Z0-9-_]+)/([a-zA-Z0-9-_]+)$`)
+var entityIDRegex = regexp.MustCompile(`^en-(init\.)?([a-fA-F0-9-]+)/([a-zA-Z0-9-_]+)$`)
 
 type dependencies struct {
 	fx.In
@@ -448,7 +448,7 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 
 type cidRetriever interface {
 	// ContainerIDForPodUIDAndContName returns the container ID for a given pod UID and container name
-	ContainerIDForPodUIDAndContName(podUID, contName string, isInit bool, timeout time.Duration) (string, error)
+	ContainerIDForPodUIDAndContName(podUID, contName string, isInit bool, cacheValidity time.Duration) (string, error)
 }
 
 // parseEntityID parses the entity ID and returns the correct tagger entity
