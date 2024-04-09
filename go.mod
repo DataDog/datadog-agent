@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.21.8
+go 1.21.9
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -40,6 +40,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ./comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ./comp/otelcol/otlp/components/exporter/serializerexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
+	github.com/DataDog/datadog-agent/comp/serializer/compression => ./comp/serializer/compression
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/api => ./pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
@@ -58,6 +59,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ./pkg/logs/metrics
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ./pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ./pkg/logs/processor
+	github.com/DataDog/datadog-agent/pkg/logs/sds => ./pkg/logs/sds
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ./pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ./pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ./pkg/logs/status/statusinterface
@@ -279,7 +281,7 @@ require (
 	golang.org/x/sys v0.19.0
 	golang.org/x/text v0.14.0
 	golang.org/x/time v0.5.0
-	golang.org/x/tools v0.19.0
+	golang.org/x/tools v0.20.0
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028
 	google.golang.org/genproto v0.0.0-20240213162025-012b6fc9bca9 // indirect
 	google.golang.org/grpc v1.62.1
@@ -562,7 +564,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.23.1
 	go.opentelemetry.io/otel/sdk/metric v1.22.0 // indirect
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
-	go.opentelemetry.io/proto/otlp v1.1.0 // indirect
+	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	golang.org/x/crypto v0.22.0 // indirect
 	golang.org/x/mod v0.17.0
 	golang.org/x/oauth2 v0.18.0 // indirect
@@ -616,6 +618,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/comp/serializer/compression v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/api v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.53.0-rc.2
@@ -633,6 +636,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/sds v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.53.0-rc.2
@@ -703,6 +707,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
+	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240318112024-de26033b606a // indirect
 	github.com/DataDog/go-sqllexer v0.0.9 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.13.3 // indirect
 	github.com/Intevation/gval v1.3.0 // indirect
@@ -859,3 +864,6 @@ replace (
 	github.com/prometheus/client_golang => github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/common => github.com/prometheus/common v0.46.0
 )
+
+// Prevent a false-positive detection by the Google and Ikarus security vendors on VirusTotal
+exclude go.opentelemetry.io/proto/otlp v1.1.0

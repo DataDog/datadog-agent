@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/grpc
 
-go 1.21.8
+go 1.21.9
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/proto => ../../proto

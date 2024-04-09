@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/status
 
-go 1.21.8
+go 1.21.9
 
 require (
 	github.com/dustin/go-humanize v1.0.1

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -173,7 +174,7 @@ func (a *TestAgentDemultiplexer) Reset() {
 }
 
 // initTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given flush interval.
-func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hostname.Component, flushInterval time.Duration) *TestAgentDemultiplexer {
+func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hostname.Component, compressor compression.Component, flushInterval time.Duration) *TestAgentDemultiplexer {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
@@ -183,6 +184,6 @@ func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hos
 	sharedForwarder := defaultforwarder.NewDefaultForwarder(config.Datadog, log, sharedForwarderOptions)
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname))
-	demux := aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, "hostname")
+	demux := aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, compressor, "hostname")
 	return NewTestAgentDemultiplexer(demux)
 }

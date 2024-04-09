@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter
 
-go 1.21.8
+go 1.21.9
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../../../../cmd/agent/common/path
@@ -12,6 +12,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../core/telemetry
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../../forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../../../forwarder/orchestrator/orchestratorinterface
+	github.com/DataDog/datadog-agent/comp/serializer/compression => ../../../../../serializer/compression/
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../../../pkg/config/env
@@ -90,6 +91,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/serializer/compression v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.53.0-rc.2 // indirect
