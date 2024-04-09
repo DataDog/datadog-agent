@@ -8,8 +8,10 @@
 package autodiscoveryimpl
 
 import (
+	"net/http"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -23,14 +25,35 @@ type MockParams struct {
 	Scheduler *scheduler.MetaScheduler
 }
 
+type MockEndpoint struct {
+	Comp *AutoConfig
+}
+
+// ServeHTTP is a simple mocked http.Handler function
+func (e MockEndpoint) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	w.Write([]byte("OK"))
+}
+
 type mockdependencies struct {
 	fx.In
 	WMeta  optional.Option[workloadmeta.Component]
 	Params MockParams
 }
 
-func newMockAutoConfig(deps mockdependencies) autodiscovery.Mock {
-	return createNewAutoConfig(deps.Params.Scheduler, nil, deps.WMeta)
+type mockprovides struct {
+	fx.Out
+
+	Comp     autodiscovery.Mock
+	Endpoint api.AgentEndpointProvider
+}
+
+func newMockAutoConfig(deps mockdependencies) mockprovides {
+	ac := createNewAutoConfig(deps.Params.Scheduler, nil, deps.WMeta)
+	endpoint := api.NewAgentEndpointProvider(MockEndpoint{Comp: ac}, "/config-check", "GET")
+	return mockprovides{
+		Comp:     ac,
+		Endpoint: endpoint,
+	}
 }
 
 // MockModule provides the default autoconfig without other components configured, and not started

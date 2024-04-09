@@ -1,8 +1,9 @@
 package secretsimpl
 
 import (
-	"encoding/json"
 	"net/http"
+
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
 )
 
 type InfoProvider struct {
@@ -20,15 +21,8 @@ func (p InfoProvider) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 func (p RefreshProvider) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	result, err := p.secretResolver.Refresh()
 	if err != nil {
-		setJSONError(w, err, 500)
+		utils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write([]byte(result))
-}
-
-// TODO: move this to a api util function
-func setJSONError(w http.ResponseWriter, err error, errorCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	body, _ := json.Marshal(map[string]string{"error": err.Error()})
-	http.Error(w, string(body), errorCode)
 }

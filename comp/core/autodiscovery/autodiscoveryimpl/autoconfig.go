@@ -14,6 +14,7 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
@@ -84,6 +85,7 @@ type provides struct {
 
 	Comp           autodiscovery.Component
 	StatusProvider status.InformationProvider
+	Endpoint       api.AgentEndpointProvider
 }
 
 // Module defines the fx options for this component.
@@ -96,9 +98,12 @@ func Module() fxutil.Module {
 
 func newProvides(deps dependencies) provides {
 	c := newAutoConfig(deps)
+	endpoint := EndpointProvider{ac: c.(*AutoConfig)}
 	return provides{
 		Comp:           c,
 		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c)),
+
+		Endpoint: api.NewAgentEndpointProvider(endpoint, "/config-check", "GET"),
 	}
 }
 

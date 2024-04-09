@@ -8,11 +8,10 @@ package flare
 import (
 	"encoding/json"
 	"io"
-	"net"
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
 )
 
 // EndpointProvider wraps the flare component with a http.Handler interface
@@ -40,7 +39,7 @@ func (e EndpointProvider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Reset the `server_timeout` deadline for this connection as creating a flare can take some time
-	conn := GetConnection(r)
+	conn := utils.GetConnection(r)
 	_ = conn.SetDeadline(time.Time{})
 
 	var filePath string
@@ -57,9 +56,4 @@ func (e EndpointProvider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
-}
-
-// GetConnection returns the connection for the request
-func GetConnection(r *http.Request) net.Conn {
-	return r.Context().Value(grpc.ConnContextKey).(net.Conn)
 }

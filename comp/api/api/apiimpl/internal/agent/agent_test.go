@@ -167,6 +167,11 @@ func TestSetupHandlers(t *testing.T) {
 			method:   "GET",
 			wantCode: 200,
 		},
+		{
+			route:    "/config-check",
+			method:   "GET",
+			wantCode: 200,
+		},
 	}
 	router := setupRoutes(t)
 	ts := httptest.NewServer(router)
