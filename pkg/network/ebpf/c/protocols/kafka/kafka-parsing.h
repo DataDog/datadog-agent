@@ -12,6 +12,8 @@ static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struc
 static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction, struct __sk_buff* skb, __u32 offset, kafka_telemetry_t *kafka_tel);
 static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size);
 
+#define BUCKET_SIZE (TOPIC_NAME_MAX_ALLOWED_SIZE / KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS)
+
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
 // The iterations reads up to MIN(max_buffer_size, real_size).
 // Has to be a template and not a function, as we have pragma unroll.
@@ -206,7 +208,6 @@ static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struc
 
 // update_path_size_telemetry updates the topic name size telemetry.
 static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size) {
-#define BUCKET_SIZE (TOPIC_NAME_MAX_ALLOWED_SIZE / KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS)
     __u8 bucket_idx = size / BUCKET_SIZE;
 
     // Ensure that the bucket index falls within the valid range.
