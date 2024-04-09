@@ -16,6 +16,7 @@ import (
 
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -115,42 +116,32 @@ func TestMergedKeys(t *testing.T) {
 
 func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	// Test that the scrubber is correctly configured with the expected keys
-	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-	some_other_key: 'bbbb'
-	app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccc'
-	yet_another_key: 'dddd'`
-
 	cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	// Setup the config with the ENV var keys
-	ddFlareStrippedKeys := "some_other_key"
-	ddScrubberAdditionalKeys := "app_key yet_another_key"
-	t.Setenv("DD_FLARE_STRIPPED_KEYS", ddFlareStrippedKeys)
-	t.Setenv("DD_SCRUBBER_ADDITIONAL_KEYS", ddScrubberAdditionalKeys)
+	pkgconfigsetup.InitConfig(cfg)
 
-	cfg.BindEnv("flare_stripped_keys")
-	cfg.BindEnv("scrubber.additional_keys")
+	cfg.SetWithoutSource("scrubber.additional_keys", []string{"yet_another_key"})
+	cfg.SetWithoutSource("flare_stripped_keys", []string{"some_other_key"})
 
-	getAdditionalKeysToScrubber := mergeAdditionalKeysToScrubber(
-		cfg.GetStringSlice("flare_stripped_keys"),
-		cfg.GetStringSlice("scrubber.additional_keys"))
+	SetupLogger(
+		"TestENVAdditionalKeysToScrubberLogger",
+		"info",
+		"",
+		"",
+		false,
+		false,
+		false,
+		cfg)
 
-	// Check that the scrubber is correctly configured
+	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+some_other_key: 'bbbb'
+app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccc'
+yet_another_key: 'dddd'`
+
 	scrubbed, err := scrubber.ScrubYamlString(stringToScrub)
 	assert.Nil(t, err)
 	expected := `api_key: '***************************aaaaa'
-	some_other_key: 'bbbb'
-	app_key: '***********************************acccc'
-	yet_another_key: 'dddd'`
+some_other_key: "********"
+app_key: '***********************************acccc'
+yet_another_key: "********"`
 	assert.Equal(t, expected, scrubbed)
-
-	scrubber.AddStrippedKeys(getAdditionalKeysToScrubber)
-
-	scrubbed, err = scrubber.ScrubYamlString(stringToScrub)
-	assert.Nil(t, err)
-	expected = `api_key: '***************************aaaaa'
-	some_other_key: "********"
-	app_key: '***********************************acccc'
-	yet_another_key: "********"`
-	assert.Equal(t, expected, scrubbed)
-
 }

@@ -348,6 +348,7 @@ func AddStrippedKeys(strippedKeys []string) {
 	})
 
 	if len(strippedKeys) > 0 {
+		fmt.Println("Adding stripped keys")
 		replacer := matchYAMLKey(
 			fmt.Sprintf("(%s)", strings.Join(strippedKeys, "|")),
 			strippedKeys,
