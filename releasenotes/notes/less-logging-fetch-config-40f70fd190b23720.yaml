@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Don't log when failing to fetch config of other agents
+    Don't log when failing to fetch config of other Agents
