@@ -135,16 +135,51 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 			continue
 		}
 
+		evt := newEvent()
 		fullPath := filepath.Join(utils.ProcRootPath(pn.Process.Pid), f)
 
 		var fileStats unix.Statx_t
 		if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err != nil {
-			seclog.Tracef("unable to stat mapped file %s", fullPath)
-			continue
+			fileinfo, err := os.Stat(fullPath)
+			if err != nil {
+				seclog.Tracef("unable to stat mapped file %s", fullPath)
+				continue
+			}
+
+			stat, ok := fileinfo.Sys().(*syscall.Stat_t)
+			if !ok {
+				continue
+			}
+
+			evt.Open.File.FileFields.Mode = uint16(stat.Mode)
+			evt.Open.File.FileFields.Inode = stat.Ino
+			evt.Open.File.FileFields.UID = stat.Uid
+			evt.Open.File.FileFields.GID = stat.Gid
+
+			if fileinfo.Mode().IsRegular() {
+				evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &pn.Process, &evt.Open.File)
+			}
+		} else {
+			evt.Open.File.FileFields.Mode = uint16(fileStats.Mode)
+			evt.Open.File.FileFields.Inode = fileStats.Ino
+			evt.Open.File.FileFields.UID = fileStats.Uid
+			evt.Open.File.FileFields.GID = fileStats.Gid
+
+			evt.Open.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
+			evt.Open.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
+			evt.Open.File.Mode = fileStats.Mode
+			evt.Open.File.Inode = fileStats.Ino
+			evt.Open.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
+			evt.Open.File.NLink = fileStats.Nlink
+			evt.Open.File.MountID = uint32(fileStats.Mnt_id)
+
+			if (fileStats.Mode & syscall.S_IFREG) != 0 {
+				evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &pn.Process, &evt.Open.File)
+			}
 		}
 
-		evt := newEvent()
 		evt.Type = uint32(model.FileOpenEventType)
+		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
 
 		resolvedPath, err = filepath.EvalSymlinks(f)
 		if err == nil && len(resolvedPath) != 0 {
@@ -153,24 +188,6 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 			evt.Open.File.SetPathnameStr(f)
 		}
 		evt.Open.File.SetBasenameStr(path.Base(evt.Open.File.PathnameStr))
-		evt.Open.File.FileFields.Mode = uint16(fileStats.Mode)
-		evt.Open.File.FileFields.Inode = fileStats.Ino
-		evt.Open.File.FileFields.UID = fileStats.Uid
-		evt.Open.File.FileFields.GID = fileStats.Gid
-
-		evt.Open.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
-		evt.Open.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
-		evt.Open.File.Mode = fileStats.Mode
-		evt.Open.File.Inode = fileStats.Ino
-		evt.Open.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
-		evt.Open.File.NLink = fileStats.Nlink
-		evt.Open.File.MountID = uint32(fileStats.Mnt_id)
-
-		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
-
-		if (fileStats.Mode & syscall.S_IFREG) != 0 {
-			evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &pn.Process, &evt.Open.File)
-		}
 
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
