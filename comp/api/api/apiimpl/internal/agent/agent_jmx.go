@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
+	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
 	yaml "gopkg.in/yaml.v2"
