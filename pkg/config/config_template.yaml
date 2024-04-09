@@ -479,8 +479,7 @@ api_key:
 # azure_hostname_style: "os"
 
 ## @param scrubber - custom object - optional
-## The Agent scrubs sensitive information present in logs before sending them to Datadog.
-## Add any parameters you want to scrub in addition to the parameters that are scrubbed by default.
+## Configuration for scrubbing sensitive information from the Agent's logs, configuration and flares.
 #
 # scrubber:
 #

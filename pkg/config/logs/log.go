@@ -124,7 +124,6 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 func mergeAdditionalKeysToScrubber(elems ...[]string) []string {
 	set := []string{}
 	for _, elem := range elems {
-		clone := slices.Clone(elem)
 		set = append(set, clone...)
 	}
 	return slices.Compact(set)
