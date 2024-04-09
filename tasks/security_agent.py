@@ -15,6 +15,7 @@ from tasks.agent import build as agent_build
 from tasks.agent import generate_config
 from tasks.build_tags import get_default_build_tags
 from tasks.go import run_golangci_lint
+from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -26,7 +27,6 @@ from tasks.libs.common.utils import (
     get_gopath,
     get_version,
 )
-from tasks.libs.ninja_syntax import NinjaWriter
 from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,

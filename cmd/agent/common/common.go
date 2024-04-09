@@ -21,11 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-var (
-	// ExpvarServer is the global expvar server
-	ExpvarServer *http.Server
-)
-
 // GetPythonPaths returns the paths (in order of precedence) from where the agent
 // should load python modules and checks
 func GetPythonPaths() []string {

@@ -397,7 +397,7 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 		// We use the UDS socket origin if no origin ID was specify in the tags
 		// or 'dogstatsd_entity_id_precedence' is set to False (default false).
 		if originInfo.FromUDS != packets.NoOrigin &&
-			(originInfo.FromTag == "" || t.datadogConfig.dogstatsdEntityIDPrecedenceEnabled) {
+			(originInfo.FromTag == "" || !t.datadogConfig.dogstatsdEntityIDPrecedenceEnabled) {
 			if err := t.AccumulateTagsFor(originInfo.FromUDS, cardinality, tb); err != nil {
 				log.Errorf(err.Error())
 			}
