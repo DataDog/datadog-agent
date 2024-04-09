@@ -230,6 +230,17 @@ func TestDownloadInvalidHash(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestDownloadInvalidVersion(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	d := s.Downloader()
+
+	pkg := s.Package(fixtureSimpleV1)
+	pkg.Version = "v1-1"
+	_, err := d.Download(context.Background(), t.TempDir(), pkg)
+	assert.Error(t, err)
+}
+
 func TestDownloadPlatformNotAvailable(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()

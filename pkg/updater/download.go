@@ -39,6 +39,11 @@ const (
 	annotationVersion = "com.datadoghq.package.version"
 )
 
+type packageMetadata struct {
+	Name    string
+	Version string
+}
+
 // downloader is the downloader used by the updater to download packages.
 type downloader struct {
 	client        *http.Client
@@ -72,6 +77,10 @@ func (d *downloader) Download(ctx context.Context, tmpDir string, pkg Package) (
 	if err != nil {
 		return nil, fmt.Errorf("could not download package from %s: %w", pkg.URL, err)
 	}
+	err = d.checkImageMetadata(image, pkg.Name, pkg.Version)
+	if err != nil {
+		return nil, fmt.Errorf("invalid package metadata: %w", err)
+	}
 	log.Debugf("Successfully downloaded package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
 	return image, nil
 }
@@ -90,23 +99,45 @@ func (d *downloader) Package(ctx context.Context, pkgURL string) (Package, error
 	if err != nil {
 		return Package{}, fmt.Errorf("could not download package from %s: %w", pkgURL, err)
 	}
+	metadata, err := d.imageMetadata(image)
+	if err != nil {
+		return Package{}, fmt.Errorf("could not get package metadata: %w", err)
+	}
+	return Package{
+		Name:    metadata.Name,
+		Version: metadata.Version,
+		URL:     pkgURL,
+	}, nil
+}
+
+func (d *downloader) imageMetadata(image oci.Image) (packageMetadata, error) {
 	manifest, err := image.Manifest()
 	if err != nil {
-		return Package{}, fmt.Errorf("could not get image manifest: %w", err)
+		return packageMetadata{}, fmt.Errorf("could not get image manifest: %w", err)
 	}
-	pkg, ok := manifest.Annotations[annotationPackage]
+	name, ok := manifest.Annotations[annotationPackage]
 	if !ok {
-		return Package{}, fmt.Errorf("package manifest is missing package annotation")
+		return packageMetadata{}, fmt.Errorf("package manifest is missing package annotation")
 	}
 	version, ok := manifest.Annotations[annotationVersion]
 	if !ok {
-		return Package{}, fmt.Errorf("package manifest is missing version annotation")
+		return packageMetadata{}, fmt.Errorf("package manifest is missing version annotation")
 	}
-	return Package{
-		Name:    pkg,
+	return packageMetadata{
+		Name:    name,
 		Version: version,
-		URL:     pkgURL,
 	}, nil
+}
+
+func (d *downloader) checkImageMetadata(image oci.Image, expectedName string, expectedVersion string) error {
+	imageMetadata, err := d.imageMetadata(image)
+	if err != nil {
+		return fmt.Errorf("could not get image metadata: %w", err)
+	}
+	if imageMetadata.Name != expectedName || imageMetadata.Version != expectedVersion {
+		return fmt.Errorf("invalid image metadata: expected %s version %s, got %s version %s", expectedName, expectedVersion, imageMetadata.Name, imageMetadata.Version)
+	}
+	return nil
 }
 
 func (d *downloader) getRegistryURL(url string) string {
