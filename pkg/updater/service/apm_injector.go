@@ -18,8 +18,18 @@ import (
 
 // SetupAPMInjector sets up the injector at bootstrap
 func SetupAPMInjector() error {
+	var err error
+	defer func() {
+		if err != nil {
+			removeErr := RemoveAPMInjector()
+			if removeErr != nil {
+				log.Warnf("Failed to remove APM injector: %v", removeErr)
+			}
+		}
+	}()
+
 	injectorPath := "/opt/datadog-packages/datadog-apm-inject/stable"
-	err := os.Chmod(path.Join(injectorPath, "inject", "run"), 0777)
+	err = os.Chmod(path.Join(injectorPath, "inject", "run"), 0777)
 	if err != nil {
 		return err
 	}
