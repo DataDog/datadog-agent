@@ -41,6 +41,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	tracerNoStart = false
+	tracerStart   = true
+)
+
 var (
 	clientMessageSize = 2 << 8
 	serverMessageSize = 2 << 14
@@ -73,16 +78,20 @@ func isFentry() bool {
 	return fentryTests == "true"
 }
 
-func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
+func setupTracer(t testing.TB, cfg *config.Config, start bool) *Tracer {
 	if isFentry() {
 		ddconfig.SetFeatures(t, ddconfig.ECSFargate)
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}
 
-	tr, err := NewTracer(cfg)
+	tr, err := newTracer(cfg)
 	require.NoError(t, err)
-	t.Cleanup(tr.Stop)
+	if start {
+		err = tr.start()
+		require.NoError(t, err)
+		t.Cleanup(tr.Stop)
+	}
 
 	initTracerState(t, tr)
 	return tr
@@ -125,7 +134,7 @@ func (s *TracerSuite) TestGetStats() {
 			cfg := testConfig()
 			cfg.EnableHTTPMonitoring = true
 			cfg.EnableEbpfConntracker = enableEbpfConntracker
-			tr := setupTracer(t, cfg)
+			tr := setupTracer(t, cfg, tracerNoStart)
 
 			<-time.After(time.Second)
 
@@ -155,7 +164,7 @@ func (s *TracerSuite) TestGetStats() {
 
 func (s *TracerSuite) TestTCPSendAndReceive() {
 	t := s.T()
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, testConfig(), tracerNoStart)
 
 	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
 	server := NewTCPServer(func(c net.Conn) {
@@ -218,7 +227,7 @@ func (s *TracerSuite) TestTCPShortLived() {
 	// Enable BPF-based system probe
 	cfg := testConfig()
 	cfg.TCPClosedTimeout = 10 * time.Millisecond
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, tracerNoStart)
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := NewTCPServer(func(c net.Conn) {
@@ -272,7 +281,7 @@ func (s *TracerSuite) TestTCPOverIPv6() {
 	t.SkipNow()
 	cfg := testConfig()
 	cfg.CollectTCPv6Conns = true
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, tracerNoStart)
 
 	ln, err := net.Listen("tcp6", ":0")
 	require.NoError(t, err)
@@ -333,7 +342,7 @@ func (s *TracerSuite) TestTCPCollectionDisabled() {
 	cfg := testConfig()
 	cfg.CollectTCPv4Conns = false
 	cfg.CollectTCPv6Conns = false
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, tracerNoStart)
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := NewTCPServer(func(c net.Conn) {
@@ -372,7 +381,7 @@ func (s *TracerSuite) TestTCPConnsReported() {
 	cfg := testConfig()
 	cfg.CollectTCPv4Conns = true
 	cfg.CollectTCPv6Conns = true
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, tracerNoStart)
 
 	processedChan := make(chan struct{})
 	server := NewTCPServer(func(c net.Conn) {
@@ -401,7 +410,7 @@ func (s *TracerSuite) TestTCPConnsReported() {
 func (s *TracerSuite) TestUDPSendAndReceive() {
 	t := s.T()
 	cfg := testConfig()
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, tracerNoStart)
 
 	t.Run("v4", func(t *testing.T) {
 		if !testConfig().CollectUDPv4Conns {
@@ -478,7 +487,7 @@ func (s *TracerSuite) TestUDPDisabled() {
 	cfg := testConfig()
 	cfg.CollectUDPv4Conns = false
 	cfg.CollectUDPv6Conns = false
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, tracerNoStart)
 
 	// Create UDP Server which sends back serverMessageSize bytes
 	server := &UDPServer{
@@ -517,7 +526,7 @@ func (s *TracerSuite) TestLocalDNSCollectionDisabled() {
 	// Enable BPF-based system probe with DNS disabled (by default)
 	config := testConfig()
 
-	tr := setupTracer(t, config)
+	tr := setupTracer(t, config, tracerNoStart)
 
 	// Connect to local DNS
 	addr, err := net.ResolveUDPAddr("udp", "localhost:53")
@@ -543,7 +552,7 @@ func (s *TracerSuite) TestLocalDNSCollectionEnabled() {
 	cfg := testConfig()
 	cfg.CollectLocalDNS = true
 	cfg.CollectUDPv4Conns = true
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, tracerNoStart)
 
 	// Connect to local DNS
 	addr, err := net.ResolveUDPAddr("udp", "localhost:53")
@@ -578,7 +587,7 @@ func (s *TracerSuite) TestShouldSkipExcludedConnection() {
 	// exclude source SSH connections to make this pass in VM
 	cfg.ExcludedSourceConnections = map[string][]string{"127.0.0.1": {"80"}, "*": {"22"}}
 	cfg.ExcludedDestinationConnections = map[string][]string{"127.0.0.1": {"tcp 80"}}
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, tracerNoStart)
 
 	// Connect to 127.0.0.1:80
 	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:80")
@@ -613,7 +622,7 @@ func (s *TracerSuite) TestShouldSkipExcludedConnection() {
 func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
 	t := s.T()
 	cfg := testConfig()
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, tracerNoStart)
 
 	// Connect to 127.0.0.1:80
 	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:80")
@@ -730,7 +739,7 @@ func BenchmarkUDPEcho(b *testing.B) {
 	runBenchtests(b, payloadSizesUDP, "", benchEchoUDP)
 
 	// Enable BPF-based system probe
-	_ = setupTracer(b, testConfig())
+	_ = setupTracer(b, testConfig(), tracerNoStart)
 
 	runBenchtests(b, payloadSizesUDP, "eBPF", benchEchoUDP)
 }
@@ -774,7 +783,7 @@ func BenchmarkTCPEcho(b *testing.B) {
 	runBenchtests(b, payloadSizesTCP, "", benchEchoTCP)
 
 	// Enable BPF-based system probe
-	_ = setupTracer(b, testConfig())
+	_ = setupTracer(b, testConfig(), tracerNoStart)
 	runBenchtests(b, payloadSizesTCP, "eBPF", benchEchoTCP)
 }
 
@@ -782,7 +791,7 @@ func BenchmarkTCPSend(b *testing.B) {
 	runBenchtests(b, payloadSizesTCP, "", benchSendTCP)
 
 	// Enable BPF-based system probe
-	_ = setupTracer(b, testConfig())
+	_ = setupTracer(b, testConfig(), tracerNoStart)
 	runBenchtests(b, payloadSizesTCP, "eBPF", benchSendTCP)
 }
 
@@ -1062,7 +1071,7 @@ func (s *TracerSuite) TestDNSStats() {
 	cfg.CollectDNSStats = true
 	cfg.DNSTimeout = 1 * time.Second
 	cfg.CollectLocalDNS = true
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, tracerNoStart)
 	t.Run("valid domain", func(t *testing.T) {
 		testDNSStats(t, tr, "good.com", 1, 0, 0, testdns.GetServerIP(t).String())
 	})
@@ -1080,7 +1089,7 @@ func (s *TracerSuite) TestTCPEstablished() {
 	cfg := testConfig()
 	cfg.TCPClosedTimeout = 500 * time.Millisecond
 
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, tracerNoStart)
 
 	server := NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
@@ -1130,7 +1139,7 @@ func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
 	cfg := testConfig()
 	cfg.TCPClosedTimeout = 500 * time.Millisecond
 
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, tracerNoStart)
 
 	c.Write([]byte("hello"))
 	c.Close()
@@ -1148,7 +1157,7 @@ func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
 func (s *TracerSuite) TestUnconnectedUDPSendIPv4() {
 	t := s.T()
 	cfg := testConfig()
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, tracerNoStart)
 
 	remotePort := rand.Int()%5000 + 15000
 	remoteAddr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: remotePort}
@@ -1175,7 +1184,7 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 	if !testConfig().CollectUDPv6Conns {
 		t.Skip("UDPv6 disabled")
 	}
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, tracerNoStart)
 
 	remotePort := rand.Int()%5000 + 15000
 	remoteAddr := &net.UDPAddr{IP: net.IPv6loopback, Port: remotePort}
@@ -1199,7 +1208,7 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 func (s *TracerSuite) TestTCPDirection() {
 	t := s.T()
 	cfg := testConfig()
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, tracerNoStart)
 
 	// Start an HTTP server on localhost:8080
 	serverAddr := "127.0.0.1:8080"

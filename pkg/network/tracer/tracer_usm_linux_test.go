@@ -347,13 +347,12 @@ func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 	})
 
 	t.Run("From PCAP", func(t *testing.T) {
-		tr := setupTracer(t, cfg)
+		tr := setupTracer(t, cfg, tracerNoStart)
 
 		prog := tr.ebpfTracer.GetProg("socket__classifier_entry")
 		require.NotNil(t, prog)
 
 		curDir, _ := testutil.CurDir()
-		pktSource := pcap.GetPacketSourceFromPCAP(t, curDir+"/testdata/tls_already_running.pcap")
 
 		for packet := range pktSource.Packets() {
 			// HACK: For some reason, the first 14bytes are skipped, so we pad

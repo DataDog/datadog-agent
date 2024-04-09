@@ -109,9 +109,9 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, err
 	}
 
-	//if err := tr.start(); err != nil {
-	//	return nil, err
-	//}
+	if err := tr.start(); err != nil {
+		return nil, err
+	}
 
 	return tr, nil
 }
