@@ -9,19 +9,23 @@ package usm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	nethttp "net/http"
 	"testing"
 	"time"
+	"unsafe"
 
+	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
 	"github.com/twmb/franz-go/pkg/kversion"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -529,6 +533,34 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 			testProtocolParsingInner(t, tt, tt.configuration())
 		})
 	}
+}
+
+func TestKafkaInFlightMapCleaner(t *testing.T) {
+	cfg := getDefaultTestConfiguration()
+	cfg.HTTPMapCleanerInterval = 5 * time.Second
+	cfg.HTTPIdleConnectionTTL = time.Second
+	monitor := newKafkaMonitor(t, cfg)
+	ebpfNow, err := ddebpf.NowNanoseconds()
+	require.NoError(t, err)
+	inFlightMap, _, err := monitor.ebpfProgram.GetMap("kafka_in_flight")
+	require.NoError(t, err)
+	key := kafka.KafkaTransactionKey{
+		Id: 99,
+	}
+	val := kafka.KafkaTransaction{
+		Request_started: uint64(ebpfNow - (time.Second * 3).Nanoseconds()),
+		Request_api_key: 55,
+	}
+	require.NoError(t, inFlightMap.Update(unsafe.Pointer(&key), unsafe.Pointer(&val), ebpf.UpdateAny))
+
+	var newVal kafka.KafkaTransaction
+	require.NoError(t, inFlightMap.Lookup(unsafe.Pointer(&key), unsafe.Pointer(&newVal)))
+	require.Equal(t, val, newVal)
+
+	require.Eventually(t, func() bool {
+		err := inFlightMap.Lookup(unsafe.Pointer(&key), unsafe.Pointer(&newVal))
+		return errors.Is(err, ebpf.ErrKeyNotExist)
+	}, 3*cfg.HTTPMapCleanerInterval, time.Millisecond*100)
 }
 
 type PrintableInt int

@@ -192,7 +192,10 @@ func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) {
 		log.Errorf("error getting %q map: %s", inFlightMap, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](inFlightMap, 1024)
+	// Disable batching as a temporary workaround since enabling it leads to
+	// TestKafkaInFlightMapCleaner() failing due to the values read not matching
+	// the values inserted into the map.
+	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](inFlightMap, 1)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
