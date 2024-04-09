@@ -407,6 +407,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_API_KEY: NO_NEED_TO_BE_VALID
+      DD_SERVERLESS_FLUSH_STRATEGY: periodically,60000
 
   log-python:
     enabled: '"${env:RUN_SUITE_LOG}" == "true"'
@@ -421,6 +422,7 @@ functions:
     environment:
       DD_API_KEY: NO_NEED_TO_BE_VALID
       DD_LAMBDA_HANDLER: src/logPython.log
+      DD_SERVERLESS_FLUSH_STRATEGY: periodically,60000
 
   log-go:
     enabled: '"${env:RUN_SUITE_LOG}" == "true"'
@@ -435,6 +437,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_API_KEY: NO_NEED_TO_BE_VALID
+      DD_SERVERLESS_FLUSH_STRATEGY: periodically,60000
 
   log-csharp:
     enabled: '"${env:RUN_SUITE_LOG}" == "true"'
@@ -450,6 +453,7 @@ functions:
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
       DD_API_KEY: NO_NEED_TO_BE_VALID
+      DD_SERVERLESS_FLUSH_STRATEGY: periodically,60000
 
   log-java:
     enabled: '"${env:RUN_SUITE_LOG}" == "true"'
@@ -466,6 +470,7 @@ functions:
       DD_API_KEY: NO_NEED_TO_BE_VALID
       JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       DD_JMXFETCH_ENABLED: false
+      DD_SERVERLESS_FLUSH_STRATEGY: periodically,60000
 
   log-proxy:
     enabled: '"${env:RUN_SUITE_LOG}" == "true"'
@@ -480,6 +485,7 @@ functions:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
       DD_API_KEY: NO_NEED_TO_BE_VALID
+      DD_SERVERLESS_FLUSH_STRATEGY: periodically,60000
 
   trace-node:
     enabled: '"${env:RUN_SUITE_TRACE}" == "true"'
