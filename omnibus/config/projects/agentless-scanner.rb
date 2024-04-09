@@ -8,8 +8,8 @@ require "./lib/ostools.rb"
 name 'agentless-scanner'
 package_name 'datadog-agentless-scanner'
 homepage 'http://www.datadoghq.com'
-license "Apache-2.0"
-license_file "../LICENSE"
+license "Datadog EULA"
+license_file "../DD-EULA"
 
 if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
   COMPRESSION_THREADS = ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
@@ -73,7 +73,7 @@ description 'Datadog Agentless Scanner
 package :deb do
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
-  license 'Apache License Version 2.0'
+  license 'Datadog EULA'
   section 'utils'
   priority 'extra'
   compression_threads COMPRESSION_THREADS
@@ -92,7 +92,7 @@ package :rpm do
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   dist_tag ''
-  license 'Apache License Version 2.0'
+  license 'Datadog EULA'
   category 'System Environment/Daemons'
   priority 'extra'
   compression_threads COMPRESSION_THREADS
