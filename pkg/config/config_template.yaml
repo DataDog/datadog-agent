@@ -487,7 +487,7 @@ api_key:
 #
   ## @param scrubber.additional_keys - list of strings - optional
   ## @env DD_SCRUBBER_ADDITIONAL_KEYS - space-separated list of strings - optional
-  ## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
+  ## By default, the Agent removes known sensitive keys from Agent and integrations YAML configs before
   ## including them in the flare.
   ## Use this parameter to define additional sensitive keys that the Agent should scrub from
   ## the YAML files included in the flare.
