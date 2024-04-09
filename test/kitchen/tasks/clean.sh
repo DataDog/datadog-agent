@@ -4,7 +4,7 @@
 
 # http://redsymbol.net/articles/unofficial-bash-strict-mode/
 IFS=$'\n\t'
-set -euxo pipefail
+set -euo pipefail
 
 # These should not be printed out
 if [ -z ${AZURE_CLIENT_ID+x} ]; then
@@ -34,7 +34,6 @@ if [ -z ${AZURE_SUBSCRIPTION_ID+x} ] || [ -z ${AZURE_TENANT_ID+x} ] || [ -z ${AZ
 fi
 
 az login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID" > /dev/null
-set -x
 
 if [ ${CLEAN_ALL+x} ]; then
   groups=$(az group list -o tsv --query "[?starts_with(name, 'kitchen')].[name]")

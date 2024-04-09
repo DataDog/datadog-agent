@@ -57,6 +57,33 @@ func (m *mockLogLevelRuntimeSettings) Hidden() bool {
 
 func applyEmpty(_ string, _ state.ApplyStatus) {}
 
+func TestRCClientCreate(t *testing.T) {
+	_, err := newRemoteConfigClient(
+		fxutil.Test[dependencies](
+			t,
+			logimpl.MockModule(),
+		),
+	)
+	// Missing params
+	assert.Error(t, err)
+
+	client, err := newRemoteConfigClient(
+		fxutil.Test[dependencies](
+			t,
+			logimpl.MockModule(),
+			fx.Supply(
+				rcclient.Params{
+					AgentName:    "test-agent",
+					AgentVersion: "7.0.0",
+				},
+			),
+		),
+	)
+	assert.NoError(t, err)
+	assert.NotNil(t, client)
+	assert.NotNil(t, client.(rcClient).client)
+}
+
 func TestAgentConfigCallback(t *testing.T) {
 	pkglog.SetupLogger(seelog.Default, "info")
 	_ = config.Mock(t)
@@ -64,7 +91,16 @@ func TestAgentConfigCallback(t *testing.T) {
 	err := settings.RegisterRuntimeSetting(mockSettings)
 	assert.NoError(t, err)
 
-	rc := fxutil.Test[rcclient.Component](t, fx.Options(Module(), logimpl.MockModule()))
+	rc := fxutil.Test[rcclient.Component](t, fx.Options(
+		Module(),
+		logimpl.MockModule()),
+		fx.Supply(
+			rcclient.Params{
+				AgentName:    "test-agent",
+				AgentVersion: "7.0.0",
+			},
+		),
+	)
 
 	layerStartFlare := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": "debug"}}`)}
 	layerEndFlare := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": ""}}`)}

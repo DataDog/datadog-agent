@@ -20,6 +20,7 @@ from tasks.agent import BUNDLED_AGENTS
 from tasks.agent import build as agent_build
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -30,7 +31,6 @@ from tasks.libs.common.utils import (
     get_gobin,
     get_version_numeric_only,
 )
-from tasks.libs.ninja_syntax import NinjaWriter
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -858,7 +858,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/bytecode/testsuite
     for i, pkg in enumerate(target_packages):
-        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, pkg.lstrip(os.getcwd()))
+        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, os.path.relpath(pkg, os.getcwd()))
         target_bin = "testsuite"
         if is_windows:
             target_bin = "testsuite.exe"
@@ -1769,6 +1769,10 @@ def print_failed_tests(_, output_dir):
 def save_test_dockers(ctx, output_dir, arch, use_crane=False):
     if is_windows:
         return
+
+    # crane does not accept 'x86_64' as a valid architecture
+    if arch == "x86_64":
+        arch = "amd64"
 
     # only download images not present in preprepared vm disk
     resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/docker.ls')
