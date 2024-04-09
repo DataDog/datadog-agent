@@ -545,6 +545,9 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.Processed
 
 // isManualUserDrop returns true if and only if the ProcessedTrace is marked as Priority User Drop
 // AND has a sampling decision maker of "Manual Sampling" (-4)
+//
+// Note: This does not work for traces with PriorityUserDrop, since most tracers do not set
+// the decision maker field for user drop scenarios.
 func isManualUserDrop(pt *traceutil.ProcessedTrace) bool {
 	priority, _ := sampler.GetSamplingPriority(pt.TraceChunk)
 	// Default priority is non-drop, so it's safe to ignore if the priority wasn't found
