@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build test
+//go:build test && trivy
 
 // Package scanner holds scanner related files
 package scanner
