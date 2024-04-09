@@ -6,7 +6,7 @@
 
 readonly PACKAGES_DIR=/opt/datadog-packages
 readonly INSTALL_DIR=/opt/datadog-installer
-readonly HELPER=${INSTALL_DIR}/bin/installer/installer-helper
+readonly HELPER=${INSTALL_DIR}/bin/installer/helper
 readonly LOG_DIR=/var/log/datadog
 readonly PACKAGES_LOCK_DIR=/var/run/datadog-packages
 readonly CONFIG_DIR=/etc/datadog-agent
