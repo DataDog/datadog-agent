@@ -36,8 +36,10 @@ func createTestProbe() (*WindowsProbe, error) {
 	// probe and config are provided as null.  During the tests, it is assumed
 	// that we will not access those values.
 	wp := &WindowsProbe{
-		opts:   opts,
-		config: cfg,
+		opts:             opts,
+		config:           cfg,
+		filePathResolver: make(map[fileObjectPointer]string, 0),
+		regPathResolver:  make(map[regObjectPointer]string, 0),
 	}
 	err = wp.Init()
 
