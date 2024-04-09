@@ -13,6 +13,7 @@
 '@datadog/network-device-monitoring': '#network-device-monitoring'
 '@datadog/processes': '#process-agent-ops'
 '@datadog/agent-metrics-logs': '#agent-metrics-logs'
+'@datadog/agent-processing-and-routing': '#agent-processing-and-routing'
 '@datadog/agent-shared-components': '#agent-shared-components'
 '@datadog/container-app': '#container-app'
 '@datadog/metrics-aggregation': '#metrics-aggregation'
