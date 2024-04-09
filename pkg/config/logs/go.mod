@@ -3,10 +3,27 @@ module github.com/DataDog/datadog-agent/pkg/config/logs
 go 1.21.9
 
 replace (
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
+	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../comp/core/secrets
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/env => ../env/
 	github.com/DataDog/datadog-agent/pkg/config/model => ../model/
+	github.com/DataDog/datadog-agent/pkg/config/setup => ../setup/
+	github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable
+	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../util/filesystem
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../util/fxutil
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log/
+	github.com/DataDog/datadog-agent/pkg/util/optional => ../../util/optional
+	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber/
-
+	github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../util/testutil
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
+	github.com/DataDog/datadog-agent/pkg/util/yaml => ../../util/yaml
 )
 
 require (
@@ -19,17 +36,17 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.52.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.52.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.52.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.52.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.52.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.52.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.52.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.52.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.52.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.52.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.52.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2 // indirect
 	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
