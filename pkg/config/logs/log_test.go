@@ -13,6 +13,7 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -122,10 +123,15 @@ func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	cfg.SetWithoutSource("scrubber.additional_keys", []string{"yet_another_key"})
 	cfg.SetWithoutSource("flare_stripped_keys", []string{"some_other_key"})
 
+	pathDir := t.TempDir()
+
+	// Add a log file at the end of pathDir string
+	pathDir = pathDir + "/tests.log"
+
 	SetupLogger(
 		"TestENVAdditionalKeysToScrubberLogger",
 		"info",
-		"",
+		pathDir,
 		"",
 		false,
 		false,
@@ -143,5 +149,5 @@ yet_another_key: 'dddd'`
 some_other_key: "********"
 app_key: '***********************************acccc'
 yet_another_key: "********"`
-	assert.Equal(t, expected, scrubbed)
+	require.YAMLEq(t, expected, scrubbed)
 }

@@ -126,8 +126,6 @@ func mergeAdditionalKeysToScrubber(elems ...[]string) []string {
 	for _, elem := range elems {
 		set = append(set, elem...)
 	}
-	compact := slices.Compact(set)
-	fmt.Printf("compact: %v\n", compact)
 	return slices.Compact(set)
 }
 
