@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -88,6 +89,7 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 		fx.Provide(func() config.Params {
 			return config.NewAgentParams(params.ConfPath)
 		}),
+		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		fx.Provide(func() corelogimpl.Params {
 			// TODO configure the log level from collector config
 			return corelogimpl.ForOneShot(params.LoggerName, "debug", true)
