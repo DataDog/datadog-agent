@@ -19,6 +19,6 @@ const (
 )
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
+func Factory(_ ...any) optional.Option[func() check.Check] {
 	return optional.NewNoneOption[func() check.Check]()
 }
