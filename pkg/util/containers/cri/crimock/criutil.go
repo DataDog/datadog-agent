@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build cri
+//go:build test && cri
 
 // Package crimock implements a mock Container Runtime Interface (CRI) client.
 package crimock
