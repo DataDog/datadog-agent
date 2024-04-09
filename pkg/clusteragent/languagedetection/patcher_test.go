@@ -10,12 +10,17 @@ package languagedetection
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,9 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
-	"reflect"
-	"testing"
-	"time"
 )
 
 const (
@@ -175,9 +177,10 @@ func TestHandleDeploymentEvent(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
 	))
+	mocklogger := fxutil.Test[log.Component](t, logimpl.MockModule())
 
 	ctx := context.Background()
-	lp := newMockLanguagePatcher(ctx, mockK8sClient, mockStore, nil)
+	lp := newMockLanguagePatcher(ctx, mockK8sClient, mockStore, mocklogger)
 
 	deploymentName := "test-deployment"
 	ns := "test-namespace"
@@ -204,6 +207,42 @@ func TestHandleDeploymentEvent(t *testing.T) {
 	_, err := mockK8sClient.Resource(gvr).Namespace(ns).Create(context.TODO(), deploymentObject, metav1.CreateOptions{})
 	assert.NoError(t, err)
 
+	////////////////////////////////////////////////
+	//                                            //
+	//     Deployments with patching disabled     //
+	//                                            //
+	////////////////////////////////////////////////
+	disabledDeploymentName := "test-disabled-deployment"
+
+	mockDisabledDeploymentEvent := workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesDeployment{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesDeployment,
+				ID:   "test-namespace/" + disabledDeploymentName,
+			},
+			LanguageDetectionPatchEnabled: pointer.Ptr(false),
+			DetectedLanguages: map[langUtil.Container]langUtil.LanguageSet{
+				*langUtil.NewContainer("some-cont"):            {"java": {}, "python": {}},
+				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
+			},
+		},
+	}
+
+	mockStore.Push(workloadmeta.SourceLanguageDetectionServer, mockDisabledDeploymentEvent)
+
+	assert.Eventuallyf(t,
+		func() bool {
+			_, err := mockStore.GetKubernetesDeployment(fmt.Sprintf("%s/%s", ns, disabledDeploymentName))
+			return err == nil
+		},
+		eventuallyTestTimeout,
+		eventuallyTestTick,
+		"Should find deployment in workloadmeta store")
+
+	patched := lp.handleDeploymentEvent(mockDisabledDeploymentEvent)
+	assert.Falsef(t, patched, "Should have skipped patching deployment since it has %s label set to 'false'", langUtil.LanguageDetectionEnabledLabel)
+
 	////////////////////////////////
 	//                            //
 	//     Handling Set Event     //
@@ -217,6 +256,7 @@ func TestHandleDeploymentEvent(t *testing.T) {
 				Kind: workloadmeta.KindKubernetesDeployment,
 				ID:   "test-namespace/test-deployment",
 			},
+			LanguageDetectionPatchEnabled: pointer.Ptr(true),
 			InjectableLanguages: map[langUtil.Container]langUtil.LanguageSet{
 				*langUtil.NewContainer("some-cont"):  {"java": {}},
 				*langUtil.NewContainer("stale-cont"): {"java": {}, "python": {}},
@@ -325,6 +365,7 @@ func TestHandleDeploymentEvent(t *testing.T) {
 				Kind: workloadmeta.KindKubernetesDeployment,
 				ID:   "test-namespace/test-deployment",
 			},
+			LanguageDetectionPatchEnabled: pointer.Ptr(true),
 			InjectableLanguages: map[langUtil.Container]langUtil.LanguageSet{
 				*langUtil.NewContainer("some-cont"):            {"java": {}, "python": {}},
 				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
@@ -500,6 +541,7 @@ func TestRun(t *testing.T) {
 				Kind: workloadmeta.KindKubernetesDeployment,
 				ID:   "test-namespace/test-deployment",
 			},
+			LanguageDetectionPatchEnabled: pointer.Ptr(true),
 			InjectableLanguages: map[langUtil.Container]langUtil.LanguageSet{
 				*langUtil.NewContainer("some-cont"):  {"java": {}},
 				*langUtil.NewContainer("stale-cont"): {"java": {}, "python": {}},
@@ -559,6 +601,7 @@ func TestRun(t *testing.T) {
 				Kind: workloadmeta.KindKubernetesDeployment,
 				ID:   "test-namespace/test-deployment",
 			},
+			LanguageDetectionPatchEnabled: pointer.Ptr(true),
 			InjectableLanguages: map[langUtil.Container]langUtil.LanguageSet{
 				*langUtil.NewContainer("some-cont"):            {"java": {}, "python": {}},
 				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},

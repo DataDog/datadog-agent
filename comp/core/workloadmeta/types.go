@@ -825,6 +825,9 @@ type KubernetesDeployment struct {
 	Service string
 	Version string
 
+	// LanguageDetectionPatchEnabled specifies if it is allowed to patch this deployment with language detection annotations
+	LanguageDetectionPatchEnabled *bool
+
 	// InjectableLanguages indicate containers languages that can be injected by the admission controller
 	// These languages are determined by parsing the deployment annotations
 	InjectableLanguages langUtil.ContainersLanguages
@@ -832,6 +835,10 @@ type KubernetesDeployment struct {
 	// DetectedLanguages languages indicate containers languages detected and reported by the language
 	// detection server.
 	DetectedLanguages langUtil.ContainersLanguages
+}
+
+func (d *KubernetesDeployment) IsLanguageDetectionPatchingEnabled() bool {
+	return d.LanguageDetectionPatchEnabled != nil && *d.LanguageDetectionPatchEnabled
 }
 
 // GetID implements Entity#GetID.
@@ -895,6 +902,9 @@ func (d KubernetesDeployment) String(verbose bool) string {
 			}
 		}
 	}
+
+	_, _ = fmt.Fprintln(&sb, "Language Detection Annotations Patching Enabled: ", d.IsLanguageDetectionPatchingEnabled())
+
 	_, _ = fmt.Fprintln(&sb, "----------- Injectable Languages -----------")
 	langPrinter(d.InjectableLanguages)
 

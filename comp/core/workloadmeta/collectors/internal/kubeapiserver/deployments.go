@@ -10,13 +10,14 @@ package kubeapiserver
 
 import (
 	"context"
+	"strings"
+
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	languagedetectionUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
@@ -99,14 +100,23 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 		}
 	}
 
+	// Check if language detection patching should be skipped for this deployment
+	languageDetectionPatchEnabled := true
+
+	patchingEnabledLabelValue, _ := deployment.Labels[languagedetectionUtil.LanguageDetectionEnabledLabel]
+	if patchingEnabledLabelValue == "false" {
+		languageDetectionPatchEnabled = false
+	}
+
 	return &workloadmeta.KubernetesDeployment{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   deployment.Namespace + "/" + deployment.Name, // we use the namespace/name as id to make it easier for the admission controller to retrieve the corresponding deployment
 		},
-		Env:                 deployment.Labels[ddkube.EnvTagLabelKey],
-		Service:             deployment.Labels[ddkube.ServiceTagLabelKey],
-		Version:             deployment.Labels[ddkube.VersionTagLabelKey],
-		InjectableLanguages: containerLanguages,
+		LanguageDetectionPatchEnabled: &languageDetectionPatchEnabled,
+		Env:                           deployment.Labels[ddkube.EnvTagLabelKey],
+		Service:                       deployment.Labels[ddkube.ServiceTagLabelKey],
+		Version:                       deployment.Labels[ddkube.VersionTagLabelKey],
+		InjectableLanguages:           containerLanguages,
 	}
 }

@@ -175,7 +175,9 @@ func (lp *languagePatcher) handleEvent(eventBundle workloadmeta.EventBundle) {
 	}
 }
 
-func (lp *languagePatcher) handleDeploymentEvent(event workloadmeta.Event) {
+// handleDeploymentEvent handles deployment events
+// returns true if patching operation was performed and false if the operation was skipped
+func (lp *languagePatcher) handleDeploymentEvent(event workloadmeta.Event) (patched bool) {
 	deploymentID := event.Entity.(*workloadmeta.KubernetesDeployment).ID
 
 	// extract deployment name and namespace from entity id
@@ -189,6 +191,13 @@ func (lp *languagePatcher) handleDeploymentEvent(event workloadmeta.Event) {
 	if err != nil {
 		lp.logger.Info("Didn't find deployment in store, skipping")
 		// skip if not in store
+		return
+	}
+
+	// Don't patch the deployment if language detection annotation is set to false
+	if !deployment.IsLanguageDetectionPatchingEnabled() {
+		lp.logger.Infof("Skipping patching deployment %s with language annotations because it has the label '%s' set to 'false'", deploymentID, langUtil.LanguageDetectionEnabledLabel)
+		Patches.Inc(langUtil.KindDeployment, deploymentName, namespace, statusSkip)
 		return
 	}
 
@@ -208,7 +217,7 @@ func (lp *languagePatcher) handleDeploymentEvent(event workloadmeta.Event) {
 			// If some annotations still exist, remove them
 			annotationsPatch := lp.generateAnnotationsPatch(deployment.InjectableLanguages, langUtil.ContainersLanguages{})
 			lp.patchOwner(&owner, annotationsPatch)
-			return
+			patched = true
 		}
 
 		Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusSkip)
@@ -220,11 +229,13 @@ func (lp *languagePatcher) handleDeploymentEvent(event workloadmeta.Event) {
 		annotationsPatch := lp.generateAnnotationsPatch(injectableLanguages, detectedLanguages)
 		if len(annotationsPatch) > 0 {
 			lp.patchOwner(&owner, annotationsPatch)
+			patched = true
 		} else {
 			Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusSkip)
 		}
 
 	}
+	return patched
 }
 
 // patches the owner with the corresponding language annotations

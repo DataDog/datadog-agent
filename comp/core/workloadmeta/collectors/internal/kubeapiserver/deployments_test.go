@@ -9,8 +9,10 @@ package kubeapiserver
 
 import (
 	"context"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"testing"
+
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,9 +37,10 @@ func TestDeploymentParser_Parse(t *testing.T) {
 					Kind: workloadmeta.KindKubernetesDeployment,
 					ID:   "test-namespace/test-deployment",
 				},
-				Env:     "env",
-				Service: "service",
-				Version: "version",
+				Env:                           "env",
+				Service:                       "service",
+				Version:                       "version",
+				LanguageDetectionPatchEnabled: pointer.Ptr(true),
 				InjectableLanguages: langUtil.ContainersLanguages{
 					*langUtil.NewInitContainer("nginx-cont"): {
 						langUtil.Language(languagemodels.Go):     {},
@@ -75,10 +78,11 @@ func TestDeploymentParser_Parse(t *testing.T) {
 					Kind: workloadmeta.KindKubernetesDeployment,
 					ID:   "test-namespace/test-deployment",
 				},
-				Env:                 "env",
-				Service:             "service",
-				Version:             "version",
-				InjectableLanguages: make(langUtil.ContainersLanguages),
+				Env:                           "env",
+				Service:                       "service",
+				Version:                       "version",
+				LanguageDetectionPatchEnabled: pointer.Ptr(true),
+				InjectableLanguages:           make(langUtil.ContainersLanguages),
 			},
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
@@ -100,6 +104,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 					Kind: workloadmeta.KindKubernetesDeployment,
 					ID:   "test-namespace/test-deployment",
 				},
+				LanguageDetectionPatchEnabled: pointer.Ptr(true),
 				InjectableLanguages: langUtil.ContainersLanguages{
 					*langUtil.NewInitContainer("nginx-cont"): {
 						langUtil.Language(languagemodels.Go):     {},
@@ -124,6 +129,28 @@ func TestDeploymentParser_Parse(t *testing.T) {
 						"internal.dd.datadoghq.com/nginx-cont.detected_langs":      "go,java,  python  ",
 						"internal.dd.datadoghq.com/init.nginx-cont.detected_langs": "go,java,  python  ",
 					},
+				},
+			},
+		},
+		{
+			name: "patching disabled",
+			expected: &workloadmeta.KubernetesDeployment{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesDeployment,
+					ID:   "test-namespace/test-deployment",
+				},
+				LanguageDetectionPatchEnabled: pointer.Ptr(false),
+				InjectableLanguages:           langUtil.ContainersLanguages{},
+			},
+			deployment: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-deployment",
+					Namespace: "test-namespace",
+					Labels: map[string]string{
+						"test-label": "test-value",
+						"internal.dd.datadoghq.com/language_detection.enabled": "false",
+					},
+					Annotations: map[string]string{},
 				},
 			},
 		},
@@ -170,8 +197,9 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 								ID:   "test-namespace/test-deployment",
 								Kind: workloadmeta.KindKubernetesDeployment,
 							},
-							Env:                 "env",
-							InjectableLanguages: make(langUtil.ContainersLanguages),
+							Env:                           "env",
+							LanguageDetectionPatchEnabled: pointer.Ptr(true),
+							InjectableLanguages:           make(langUtil.ContainersLanguages),
 						},
 					},
 				},
@@ -203,6 +231,7 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 								ID:   "test-namespace/test-deployment",
 								Kind: workloadmeta.KindKubernetesDeployment,
 							},
+							LanguageDetectionPatchEnabled: pointer.Ptr(true),
 							InjectableLanguages: langUtil.ContainersLanguages{
 								*langUtil.NewContainer("nginx"): {
 									langUtil.Language(languagemodels.Go):   {},
