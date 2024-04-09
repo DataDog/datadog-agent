@@ -39,6 +39,7 @@ func createTestProbe() (*WindowsProbe, error) {
 		opts:             opts,
 		config:           cfg,
 		filePathResolver: make(map[fileObjectPointer]string, 0),
+		regPathResolver:  make(map[regObjectPointer]string, 0),
 	}
 	err = wp.Init()
 
