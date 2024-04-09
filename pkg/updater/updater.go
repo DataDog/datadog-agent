@@ -96,6 +96,9 @@ func Purge() {
 
 func purge(locksPath, repositoryPath string) {
 	service.RemoveAgentUnits()
+	if err := service.RemoveAPMInjector(); err != nil {
+		log.Warnf("updater: could not remove APM injector: %v", err)
+	}
 	cleanDir(locksPath, os.RemoveAll)
 	cleanDir(repositoryPath, service.RemoveAll)
 }
