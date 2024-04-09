@@ -112,7 +112,7 @@ func ClassificationSupported(config *config.Config) bool {
 
 // FailedConnectionsSupported returns true if the current kernel version supports ringbuffers, the config & TCP is enabled
 func FailedConnectionsSupported(c *config.Config) bool {
-	log.Info("adamk checking if FailedConnectionsSupported?")
+	log.Info("adamk checking if FailedConnectionsSupported")
 	if !c.FailedConnectionsEnabled {
 		log.Info("adamk FailedConnectionsSupported? config disabled; failed connections monitoring disabled.")
 		return false
@@ -121,13 +121,7 @@ func FailedConnectionsSupported(c *config.Config) bool {
 		log.Info("adamk FailedConnectionsSupported? tcp disabled; failed connections monitoring disabled.")
 		return false
 	}
-	currentKernelVersion, err := kernel.HostVersion()
-	if err != nil {
-		log.Warn("could not determine the current kernel version. failed connections monitoring disabled.")
-		return false
-	}
-
-	return currentKernelVersion >= kernel.VersionCode(5, 8, 0)
+	return true
 }
 
 // LoadTracer loads the co-re/prebuilt/runtime compiled network tracer, depending on config

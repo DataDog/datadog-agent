@@ -105,11 +105,13 @@ func SetupFailedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.M
 		}
 		mgr.PerfMaps = []*manager.PerfMap{pm}
 		ebpftelemetry.ReportPerfMapTelemetry(pm)
-		helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
-		err := helperCallRemover.BeforeInit(mgr.Manager, nil)
-		if err != nil {
-			log.Error("Failed to remove helper calls from eBPF programs: ", err)
-		}
+		//helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
+		//err := helperCallRemover.BeforeInit(mgr.Manager, nil)
+		//if err != nil {
+		//	log.Error("Failed to remove helper calls from eBPF programs: ", err)
+		//}
+	default:
+		log.Warn("Failed to set up failed connection handler: unknown event handler type")
 	}
 }
 

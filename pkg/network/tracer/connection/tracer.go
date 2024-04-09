@@ -222,15 +222,12 @@ func NewTracer(config *config.Config) (Tracer, error) {
 		closedChannelSize = config.ClosedChannelSize
 	}
 	var connCloseEventHandler ddebpf.EventHandler
+	var failedConnsHandler ddebpf.EventHandler
 	if config.RingBufferSupportedNPM() {
 		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
-	} else {
-		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
-	}
-	var failedConnsHandler ddebpf.EventHandler
-	if kprobe.FailedConnectionsSupported(config) {
 		failedConnsHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
 	} else {
+		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
 		failedConnsHandler = ddebpf.NewPerfHandler(closedChannelSize)
 	}
 
@@ -328,7 +325,7 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 
 	t.closeConsumer.Start(callback)
 	log.Info("starting failed connection consumer")
-	t.failedConnConsumer.Start(callback)
+	//t.failedConnConsumer.Start(callback)
 	return nil
 }
 
@@ -347,7 +344,7 @@ func (t *tracer) Resume() error {
 
 func (t *tracer) FlushPending() {
 	t.closeConsumer.FlushPending()
-	t.failedConnConsumer.FlushPending()
+	//t.failedConnConsumer.FlushPending()
 }
 
 func (t *tracer) Stop() {
