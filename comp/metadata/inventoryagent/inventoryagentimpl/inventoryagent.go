@@ -181,12 +181,18 @@ type configGetter interface {
 	GetString(string) string
 }
 
+type zeroConfigGetter struct{}
+
+func (z *zeroConfigGetter) GetBool(string) bool     { return false }
+func (z *zeroConfigGetter) GetInt(string) int       { return 0 }
+func (z *zeroConfigGetter) GetString(string) string { return "" }
+
 // getCorrectConfig tries to fetch the configuration from another process. It returns a new
-// configuration object on success and the fallback upon failure.
-func (ia *inventoryagent) getCorrectConfig(name string, conf model.Reader, configFetcher func(config model.Reader) (string, error), fallback configGetter) configGetter {
+// configuration object on success and the local config upon failure.
+func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, configFetcher func(config model.Reader) (string, error)) configGetter {
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
-	if remoteConfig, err := configFetcher(conf); err == nil {
+	if remoteConfig, err := configFetcher(localConf); err == nil {
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
@@ -194,10 +200,8 @@ func (ia *inventoryagent) getCorrectConfig(name string, conf model.Reader, confi
 		} else {
 			return cfg
 		}
-	} else {
-		ia.log.Infof("could not fetch %s process configuration: %s", name, err)
 	}
-	return fallback
+	return localConf
 }
 
 func (ia *inventoryagent) fetchCoreAgentMetadata() {
@@ -232,21 +236,21 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 }
 
 func (ia *inventoryagent) fetchSecurityAgentMetadata() {
-	securityCfg := ia.getCorrectConfig("security-agent", ia.conf, fetchSecurityConfig, ia.conf)
+	securityCfg := ia.getCorrectConfig("security-agent", ia.conf, fetchSecurityConfig)
 
 	ia.data["feature_cspm_enabled"] = securityCfg.GetBool("compliance_config.enabled")
 	ia.data["feature_cspm_host_benchmarks_enabled"] = securityCfg.GetBool("compliance_config.enabled") && securityCfg.GetBool("compliance_config.host_benchmarks.enabled")
 }
 
 func (ia *inventoryagent) fetchTraceAgentMetadata() {
-	traceCfg := ia.getCorrectConfig("trace-agent", ia.conf, fetchTraceConfig, ia.conf)
+	traceCfg := ia.getCorrectConfig("trace-agent", ia.conf, fetchTraceConfig)
 
 	ia.data["config_apm_dd_url"] = scrub(traceCfg.GetString("apm_config.apm_dd_url"))
 	ia.data["feature_apm_enabled"] = traceCfg.GetBool("apm_config.enabled")
 }
 
 func (ia *inventoryagent) fetchProcessAgentMetadata() {
-	processCfg := ia.getCorrectConfig("process-agent", ia.conf, fetchProcessConfig, ia.conf)
+	processCfg := ia.getCorrectConfig("process-agent", ia.conf, fetchProcessConfig)
 
 	ia.data["feature_process_enabled"] = processCfg.GetBool("process_config.process_collection.enabled")
 	ia.data["feature_processes_container_enabled"] = processCfg.GetBool("process_config.container_collection.enabled")
@@ -254,63 +258,60 @@ func (ia *inventoryagent) fetchProcessAgentMetadata() {
 }
 
 func (ia *inventoryagent) fetchSystemProbeMetadata() {
-	// If the system-probe configuration is not loaded we fallback on zero value for all metadata
-	getBoolSysProbe := func(_ string) bool { return false }
-	getIntSysProbe := func(_ string) int { return 0 }
-
+	var sysProbeConf configGetter
 	localSysProbeConf, isSet := ia.sysprobeConf.Get()
 	if isSet {
 		// If we can fetch the configuration from the system-probe process, we use it. If not we fallback on the
 		// local instance.
-		sysProbeConf := ia.getCorrectConfig("system-probe", localSysProbeConf, fetchSystemProbeConfig, localSysProbeConf)
-
-		getBoolSysProbe = sysProbeConf.GetBool
-		getIntSysProbe = sysProbeConf.GetInt
+		sysProbeConf = ia.getCorrectConfig("system-probe", localSysProbeConf, fetchSystemProbeConfig)
+	} else {
+		// If the system-probe configuration is not loaded we fallback on zero value for all metadata
+		sysProbeConf = &zeroConfigGetter{}
 	}
 
 	// Cloud Workload Security / system-probe
 
-	ia.data["feature_cws_enabled"] = getBoolSysProbe("runtime_security_config.enabled")
-	ia.data["feature_cws_security_profiles_enabled"] = getBoolSysProbe("runtime_security_config.activity_dump.enabled")
-	ia.data["feature_cws_remote_config_enabled"] = getBoolSysProbe("runtime_security_config.remote_configuration.enabled")
-	ia.data["feature_cws_network_enabled"] = getBoolSysProbe("event_monitoring_config.network.enabled")
+	ia.data["feature_cws_enabled"] = sysProbeConf.GetBool("runtime_security_config.enabled")
+	ia.data["feature_cws_security_profiles_enabled"] = sysProbeConf.GetBool("runtime_security_config.activity_dump.enabled")
+	ia.data["feature_cws_remote_config_enabled"] = sysProbeConf.GetBool("runtime_security_config.remote_configuration.enabled")
+	ia.data["feature_cws_network_enabled"] = sysProbeConf.GetBool("event_monitoring_config.network.enabled")
 
 	// Service monitoring / system-probe
 
-	ia.data["feature_networks_enabled"] = getBoolSysProbe("network_config.enabled")
-	ia.data["feature_networks_http_enabled"] = getBoolSysProbe("service_monitoring_config.enable_http_monitoring")
-	ia.data["feature_networks_https_enabled"] = getBoolSysProbe("service_monitoring_config.tls.native.enabled")
+	ia.data["feature_networks_enabled"] = sysProbeConf.GetBool("network_config.enabled")
+	ia.data["feature_networks_http_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http_monitoring")
+	ia.data["feature_networks_https_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.native.enabled")
 
-	ia.data["feature_usm_enabled"] = getBoolSysProbe("service_monitoring_config.enabled")
-	ia.data["feature_usm_kafka_enabled"] = getBoolSysProbe("service_monitoring_config.enable_kafka_monitoring")
-	ia.data["feature_usm_java_tls_enabled"] = getBoolSysProbe("service_monitoring_config.tls.java.enabled")
-	ia.data["feature_usm_http2_enabled"] = getBoolSysProbe("service_monitoring_config.enable_http2_monitoring")
-	ia.data["feature_usm_istio_enabled"] = getBoolSysProbe("service_monitoring_config.tls.istio.enabled")
-	ia.data["feature_usm_http_by_status_code_enabled"] = getBoolSysProbe("service_monitoring_config.enable_http_stats_by_status_code")
-	ia.data["feature_usm_go_tls_enabled"] = getBoolSysProbe("service_monitoring_config.tls.go.enabled")
+	ia.data["feature_usm_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enabled")
+	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_kafka_monitoring")
+	ia.data["feature_usm_java_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.java.enabled")
+	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http2_monitoring")
+	ia.data["feature_usm_istio_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.istio.enabled")
+	ia.data["feature_usm_http_by_status_code_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http_stats_by_status_code")
+	ia.data["feature_usm_go_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.go.enabled")
 
 	// miscellaneous / system-probe
 
-	ia.data["feature_tcp_queue_length_enabled"] = getBoolSysProbe("system_probe_config.enable_tcp_queue_length")
-	ia.data["feature_oom_kill_enabled"] = getBoolSysProbe("system_probe_config.enable_oom_kill")
-	ia.data["feature_windows_crash_detection_enabled"] = getBoolSysProbe("windows_crash_detection.enabled")
-	ia.data["feature_dynamic_instrumentation_enabled"] = getBoolSysProbe("dynamic_instrumentation.enabled")
+	ia.data["feature_tcp_queue_length_enabled"] = sysProbeConf.GetBool("system_probe_config.enable_tcp_queue_length")
+	ia.data["feature_oom_kill_enabled"] = sysProbeConf.GetBool("system_probe_config.enable_oom_kill")
+	ia.data["feature_windows_crash_detection_enabled"] = sysProbeConf.GetBool("windows_crash_detection.enabled")
+	ia.data["feature_dynamic_instrumentation_enabled"] = sysProbeConf.GetBool("dynamic_instrumentation.enabled")
 
-	ia.data["system_probe_core_enabled"] = getBoolSysProbe("system_probe_config.enable_co_re")
-	ia.data["system_probe_runtime_compilation_enabled"] = getBoolSysProbe("system_probe_config.enable_runtime_compiler")
-	ia.data["system_probe_kernel_headers_download_enabled"] = getBoolSysProbe("system_probe_config.enable_kernel_header_download")
-	ia.data["system_probe_prebuilt_fallback_enabled"] = getBoolSysProbe("system_probe_config.allow_precompiled_fallback")
-	ia.data["system_probe_telemetry_enabled"] = getBoolSysProbe("system_probe_config.telemetry_enabled")
-	ia.data["system_probe_max_connections_per_message"] = getIntSysProbe("system_probe_config.max_conns_per_message")
-	ia.data["system_probe_track_tcp_4_connections"] = getBoolSysProbe("network_config.collect_tcp_v4")
-	ia.data["system_probe_track_tcp_6_connections"] = getBoolSysProbe("network_config.collect_tcp_v6")
-	ia.data["system_probe_track_udp_4_connections"] = getBoolSysProbe("network_config.collect_udp_v4")
-	ia.data["system_probe_track_udp_6_connections"] = getBoolSysProbe("network_config.collect_udp_v6")
-	ia.data["system_probe_protocol_classification_enabled"] = getBoolSysProbe("network_config.enable_protocol_classification")
-	ia.data["system_probe_gateway_lookup_enabled"] = getBoolSysProbe("network_config.enable_gateway_lookup")
-	ia.data["system_probe_root_namespace_enabled"] = getBoolSysProbe("network_config.enable_root_netns")
+	ia.data["system_probe_core_enabled"] = sysProbeConf.GetBool("system_probe_config.enable_co_re")
+	ia.data["system_probe_runtime_compilation_enabled"] = sysProbeConf.GetBool("system_probe_config.enable_runtime_compiler")
+	ia.data["system_probe_kernel_headers_download_enabled"] = sysProbeConf.GetBool("system_probe_config.enable_kernel_header_download")
+	ia.data["system_probe_prebuilt_fallback_enabled"] = sysProbeConf.GetBool("system_probe_config.allow_precompiled_fallback")
+	ia.data["system_probe_telemetry_enabled"] = sysProbeConf.GetBool("system_probe_config.telemetry_enabled")
+	ia.data["system_probe_max_connections_per_message"] = sysProbeConf.GetInt("system_probe_config.max_conns_per_message")
+	ia.data["system_probe_track_tcp_4_connections"] = sysProbeConf.GetBool("network_config.collect_tcp_v4")
+	ia.data["system_probe_track_tcp_6_connections"] = sysProbeConf.GetBool("network_config.collect_tcp_v6")
+	ia.data["system_probe_track_udp_4_connections"] = sysProbeConf.GetBool("network_config.collect_udp_v4")
+	ia.data["system_probe_track_udp_6_connections"] = sysProbeConf.GetBool("network_config.collect_udp_v6")
+	ia.data["system_probe_protocol_classification_enabled"] = sysProbeConf.GetBool("network_config.enable_protocol_classification")
+	ia.data["system_probe_gateway_lookup_enabled"] = sysProbeConf.GetBool("network_config.enable_gateway_lookup")
+	ia.data["system_probe_root_namespace_enabled"] = sysProbeConf.GetBool("network_config.enable_root_netns")
 
-	ia.data["feature_dynamic_instrumentation_enabled"] = getBoolSysProbe("dynamic_instrumentation.enabled")
+	ia.data["feature_dynamic_instrumentation_enabled"] = sysProbeConf.GetBool("dynamic_instrumentation.enabled")
 
 	// ECS Fargate
 	ia.fetchECSFargateAgentMetadata()
