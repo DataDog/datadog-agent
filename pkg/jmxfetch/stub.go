@@ -18,7 +18,7 @@ func InitRunner(_ dogstatsdServer.Component, _ jmxlogger.Component) {}
 
 // RegisterWith adds the JMX scheduler to receive events from the autodiscovery.
 // Noop version for builds without jmx.
-func RegisterWith(ac autodiscovery.Component) {}
+func RegisterWith(_ autodiscovery.Component) {}
 
 // StopJmxfetch does nothing when the agent does not ship jmx
 func StopJmxfetch() {}
