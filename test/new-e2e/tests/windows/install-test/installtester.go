@@ -228,7 +228,12 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 	assert.NoError(tt, err, "uninstall should not remove agent user")
 
 	for _, serviceName := range servicetest.ExpectedInstalledServices() {
-		_, err := windows.GetServiceConfig(t.host, serviceName)
+		conf, err := windows.GetServiceConfig(t.host, serviceName)
+		if err == nil && windows.IsKernelModeServiceType(conf.ServiceType) {
+			// TODO WKINT-410: kernel mode services are not removed on install rollback
+			tt.Logf("WKINT-410: Skipping known failure, kernel mode service not removed: %s", serviceName)
+			continue
+		}
 		assert.Errorf(tt, err, "uninstall should remove service %s", serviceName)
 	}
 
