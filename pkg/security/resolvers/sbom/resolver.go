@@ -218,7 +218,7 @@ func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
-	scanRequest := host.ScanRequest{Path: root}
+	scanRequest := host.NewScanRequest(root)
 	ch := collectors.GetHostScanner().Channel()
 	if ch == nil {
 		return fmt.Errorf("couldn't retrieve global host scanner result channel")
