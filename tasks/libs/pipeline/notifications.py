@@ -86,7 +86,7 @@ def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNE
 
     # For e2e test infrastructure errors, notify the agent-e2e-testing team
     for job in failed_jobs.mandatory_infra_job_failures:
-        if job.failure_type == FailedJobReason.E2E_INFRA_FAILURE:
+        if job["failure_type"] == FailedJobReason.E2E_INFRA_FAILURE:
             owners_to_notify["@datadog/agent-e2e-testing"].add_failed_job(job)
 
     for job in failed_jobs.all_non_infra_failures():
