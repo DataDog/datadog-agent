@@ -96,7 +96,7 @@ func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
 		"datadog-agent-sysprobe.service",
 		"datadog-agent-security.service",
 	}
-	v.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo %v/bin/updater/updater bootstrap --url "oci://us-docker.pkg.dev/datadog-sandbox/updater-dev/agent@sha256:868287768e7f224fbf210a864c3da614ab19cde23ddbd8a94e747c915d8c9ab1"`, bootUpdaterDir))
+	v.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://us-docker.pkg.dev/datadog-sandbox/updater-dev/agent@sha256:868287768e7f224fbf210a864c3da614ab19cde23ddbd8a94e747c915d8c9ab1"`, bootUpdaterDir))
 	for _, unit := range stableUnits {
 		require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, unit)))
 	}
@@ -107,7 +107,7 @@ func (v *vmUpdaterSuite) TestExperimentCrash() {
 	t.Skip()
 	host := v.Env().RemoteHost
 	startTime := getMonotonicTimestamp(t, host)
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/updater/updater bootstrap --url "oci://us-docker.pkg.dev/datadog-sandbox/updater-dev/agent@sha256:868287768e7f224fbf210a864c3da614ab19cde23ddbd8a94e747c915d8c9ab1"`, bootUpdaterDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://us-docker.pkg.dev/datadog-sandbox/updater-dev/agent@sha256:868287768e7f224fbf210a864c3da614ab19cde23ddbd8a94e747c915d8c9ab1"`, bootUpdaterDir))
 	v.Env().RemoteHost.MustExecute(`sudo systemctl start datadog-agent-exp --no-block`)
 	res := getJournalDOnCondition(t, host, startTime, stopCondition([]JournaldLog{
 		{Unit: "datadog-agent.service", Message: "Started"},
@@ -123,7 +123,7 @@ func (v *vmUpdaterSuite) TestExperimentCrash() {
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	host := v.Env().RemoteHost
-	host.MustExecute(fmt.Sprintf("sudo %v/bin/updater/updater purge", bootUpdaterDir))
+	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootUpdaterDir))
 	stableUnits := []string{
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -157,7 +157,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	}
 
 	// bootstrap
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/updater/updater bootstrap --url "oci://us-docker.pkg.dev/datadog-sandbox/updater-dev/agent@sha256:868287768e7f224fbf210a864c3da614ab19cde23ddbd8a94e747c915d8c9ab1"`, bootUpdaterDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://us-docker.pkg.dev/datadog-sandbox/updater-dev/agent@sha256:868287768e7f224fbf210a864c3da614ab19cde23ddbd8a94e747c915d8c9ab1"`, bootUpdaterDir))
 
 	// assert agent symlink
 	_ = host.MustExecute(`test -L /usr/bin/datadog-agent`)
