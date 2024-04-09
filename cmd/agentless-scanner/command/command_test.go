@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestStartAgentlessScannerAzure(t *testing.T) {
+func TestStartAgentlessScannerRoot(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(newGlobalParamsTest(t)),
 		[]string{"run"},
@@ -34,9 +34,8 @@ func TestStartAgentlessScannerAzure(t *testing.T) {
 		Commands(newGlobalParamsTest(t)),
 		[]string{"run-scanner", "--sock", "plop"},
 		runScannerCmd,
-		func(params *runScannerParams, log complog.Component, sc *types.ScannerConfig) {
+		func(params *runScannerParams, log complog.Component) {
 			require.NotNil(t, log)
-			require.NotNil(t, sc)
 
 			require.NotNil(t, params)
 			require.Equal(t, "plop", params.sock)

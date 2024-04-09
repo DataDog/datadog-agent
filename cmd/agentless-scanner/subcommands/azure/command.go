@@ -64,8 +64,9 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					azureAttachCmd,
-					fx.Supply(&params),
-					common.Bundle(globalParams))
+					common.Bundle(globalParams),
+					fx.Provide(common.ConfigProvider(globalParams)),
+					fx.Supply(&params))
 			},
 		}
 		cmd.Flags().StringVar(&params.targetID, "target-id", "", "attch target id")
@@ -84,8 +85,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 					azureScanCmd,
 					common.Bundle(globalParams),
 					fx.Provide(common.ConfigProvider(globalParams)),
-					fx.Supply(&params),
-				)
+					fx.Supply(&params))
 			},
 		}
 		cmd.Flags().StringVar(&params.targetID, "target-id", "", "attch target id")
@@ -103,8 +103,9 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					azureOfflineCmd,
-					fx.Supply(&params),
-					common.Bundle(globalParams))
+					common.Bundle(globalParams),
+					fx.Provide(common.ConfigProvider(globalParams)),
+					fx.Supply(&params))
 			},
 		}
 
