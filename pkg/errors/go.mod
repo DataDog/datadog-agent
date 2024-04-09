@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/errors
 
-go 1.21.8
+go 1.21.9
 
 require github.com/stretchr/testify v1.9.0
 

@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/logs/message
 
-go 1.21.8
+go 1.21.9
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
