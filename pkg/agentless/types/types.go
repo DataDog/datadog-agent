@@ -300,8 +300,11 @@ func (s *ScanTask) String() string {
 func (s *ScanTask) Tags(rest ...string) []string {
 	return append([]string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
-		fmt.Sprintf("region:%s", s.TargetID.Region()),
-		fmt.Sprintf("type:%s", s.Type),
+		fmt.Sprintf("type:%s", s.Type), // retro-compat
+		fmt.Sprintf("scan_type:%s", s.Type),
+		fmt.Sprintf("scan_target_provider:%s", s.TargetID.Provider()),
+		fmt.Sprintf("scan_target_region:%s", s.TargetID.Region()),
+		fmt.Sprintf("scan_target_account:%s", s.TargetID.AccountID()),
 	}, rest...)
 }
 
