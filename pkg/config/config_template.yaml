@@ -490,7 +490,7 @@ api_key:
   ## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
   ## including them in the flare.
   ## Use this parameter to define additional sensitive keys that the Agent should scrub from
-  ## the yaml files included in the flare.
+  ## the YAML files included in the flare.
   #
   # additional_keys:
   #   - "sensitive_key_1"
