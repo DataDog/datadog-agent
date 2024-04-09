@@ -33,6 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -45,7 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -78,6 +80,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(),
 				forwarder.Bundle(),
 				fx.Provide(defaultforwarder.NewParamsWithResolvers),
+				compressionimpl.Module(),
 				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
@@ -98,6 +101,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// so there is no need to initialize the status component
 				fx.Provide(func() status.Component { return nil }),
 				autodiscoveryimpl.Module(),
+				fx.Provide(func(config config.Component) healthprobe.Options {
+					return healthprobe.Options{
+						Port:           config.GetInt("health_port"),
+						LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
+					}
+				}),
+				healthprobeimpl.Module(),
 			)
 		},
 	}
@@ -112,23 +122,15 @@ func run(log log.Component,
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
 	collector collector.Component,
-	statusComponent status.Component) error {
+	statusComponent status.Component,
+	_ healthprobe.Component,
+) error {
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
 
 	if !pkgconfig.Datadog.IsSet("api_key") {
 		pkglog.Critical("no API key configured, exiting")
 		return nil
-	}
-
-	// Setup healthcheck port
-	var healthPort = pkgconfig.Datadog.GetInt("health_port")
-	if healthPort > 0 {
-		err := healthprobe.Serve(mainCtx, pkgconfig.Datadog, healthPort)
-		if err != nil {
-			return pkglog.Errorf("Error starting health port, exiting: %v", err)
-		}
-		pkglog.Debugf("Health check listening on port %d", healthPort)
 	}
 
 	// get hostname

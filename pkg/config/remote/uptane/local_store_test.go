@@ -35,7 +35,7 @@ func TestLocalStore(t *testing.T) {
 	}
 	transactionalStore := newTransactionalStore(db)
 
-	store, err := newLocalStore(transactionalStore, "test", "testkey", embededRoots)
+	store, err := newLocalStore(transactionalStore, "test", embededRoots)
 	assert.NoError(t, err)
 	storeRoot1 := json.RawMessage(embededRoots[1])
 	storeRoot2 := json.RawMessage(embededRoots[2])

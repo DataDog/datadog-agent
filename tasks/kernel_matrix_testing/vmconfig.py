@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 from invoke.context import Context
 
 from tasks.kernel_matrix_testing.kmt_os import Linux, get_kmt_os
-from tasks.kernel_matrix_testing.platforms import get_platforms
+from tasks.kernel_matrix_testing.platforms import filter_by_ci_component, get_platforms
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, stack_exists
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
 from tasks.kernel_matrix_testing.vars import VMCONFIG, arch_mapping
@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import (  # noqa: F401
         Arch,
         ArchOrLocal,
+        Component,
         CustomKernel,
         DistroKernel,
         Kernel,
@@ -405,6 +406,7 @@ def add_disks(vmconfig_template: VMConfig, vmset: VMSetDict):
             if vmset["arch"] == local_arch:
                 kmt_os = get_kmt_os()
             else:
+                # Remote VMs are always Linux instances
                 kmt_os = Linux
 
             for disk in vmset.get("disks", []):
@@ -627,8 +629,10 @@ def gen_config_for_stack(
     info(f"[+] vmconfig @ {vmconfig_file}")
 
 
-def list_all_distro_normalized_vms(archs: List[Arch]):
+def list_all_distro_normalized_vms(archs: List[Arch], component: Optional[Component] = None):
     platforms = get_platforms()
+    if component is not None:
+        platforms = filter_by_ci_component(platforms, component)
 
     vms: List[VMDef] = list()
     for arch in archs:
@@ -650,7 +654,7 @@ def gen_config(
     ci: bool,
     arch: str,
     output_file: PathOrStr,
-    template: str,
+    template: Component,
 ):
     vcpu_ls = vcpu.split(',')
     memory_ls = memory.split(',')
@@ -678,7 +682,7 @@ def gen_config(
     if arch != "":
         arch_ls = [arch_mapping[arch]]
 
-    vms_to_generate = list_all_distro_normalized_vms(arch_ls)
+    vms_to_generate = list_all_distro_normalized_vms(arch_ls, template)
     vm_config = generate_vmconfig(
         {"vmsets": []}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci, template
     )
