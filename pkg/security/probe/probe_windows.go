@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
@@ -66,11 +67,46 @@ type WindowsProbe struct {
 	//etwcomp    etw.Component
 	fimSession etw.Session
 	fimwg      sync.WaitGroup
+
+	// stats
+	stats stats
 }
 
 type etwNotification struct {
 	arg any
 	pid uint32
+}
+
+type stats struct {
+	// driver notifications
+	procStart uint64
+	procStop  uint64
+
+	// etw file notifications
+	fileCreate    uint64
+	fileCreateNew uint64
+	fileCleanup   uint64
+	fileClose     uint64
+	fileFlush     uint64
+
+	fileSetInformation     uint64
+	fileSetDelete          uint64
+	fileidRename           uint64
+	fileidQueryInformation uint64
+	fileidFSCTL            uint64
+	fileidRename29         uint64
+
+	// etw registry notifications
+	regCreateKey   uint64
+	regOpenKey     uint64
+	regDeleteKey   uint64
+	regFlushKey    uint64
+	regCloseKey    uint64
+	regSetValueKey uint64
+
+	//filePathResolver status
+	filePathNewWrites  uint64
+	filePathOverwrites uint64
 }
 
 /*
@@ -214,20 +250,21 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
 			case idCreate:
-				if ca, err := parseCreateHandleArgs(e); err == nil {
+				if ca, err := p.parseCreateHandleArgs(e); err == nil {
 					log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 				}
-
+				p.stats.fileCreate++
 			case idCreateNewFile:
-				if ca, err := parseCreateNewFileArgs(e); err == nil {
+				if ca, err := p.parseCreateNewFileArgs(e); err == nil {
 					ecb(ca, e.EventHeader.ProcessID)
 				}
+				p.stats.fileCreateNew++
 			case idCleanup:
 				if ca, err := parseCleanupArgs(e); err == nil {
 					ecb(ca, e.EventHeader.ProcessID)
 				}
-
+				p.stats.fileCleanup++
 			case idClose:
 				if ca, err := parseCloseArgs(e); err == nil {
 					//fmt.Printf("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
@@ -236,24 +273,30 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 						delete(filePathResolver, ca.fileObject)
 					}
 				}
+				p.stats.fileClose++
 			case idFlush:
 				if fa, err := parseFlushArgs(e); err == nil {
 					ecb(fa, e.EventHeader.ProcessID)
 				}
+				p.stats.fileFlush++
+
+			// cases below here are file id events we're not currently processing.
+			// for now, just count them so that we can get an idea of frequency/voluem
 			case idSetInformation:
-				fallthrough
+				p.stats.fileSetInformation++
+
 			case idSetDelete:
-				fallthrough
+				p.stats.fileSetDelete++
+
 			case idRename:
-				fallthrough
+				p.stats.fileidRename++
 			case idQueryInformation:
-				fallthrough
+				p.stats.fileidQueryInformation++
 			case idFSCTL:
-				fallthrough
+				p.stats.fileidFSCTL++
+
 			case idRename29:
-				if sia, err := parseInformationArgs(e); err == nil {
-					log.Tracef("got id %v args %s", e.EventHeader.EventDescriptor.ID, sia)
-				}
+				p.stats.fileidRename29++
 			}
 
 		case etw.DDGUID(p.regguid):
@@ -263,27 +306,30 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					log.Tracef("Got idRegCreateKey %s", cka)
 					ecb(cka, e.EventHeader.ProcessID)
 				}
+				p.stats.regCreateKey++
 			case idRegOpenKey:
 				if cka, err := parseOpenRegistryKey(e); err == nil {
 					log.Tracef("Got idRegOpenKey %s", cka)
 					ecb(cka, e.EventHeader.ProcessID)
 				}
-
+				p.stats.regOpenKey++
 			case idRegDeleteKey:
 				if dka, err := parseDeleteRegistryKey(e); err == nil {
 					log.Tracef("Got idRegDeleteKey %v", dka)
 					ecb(dka, e.EventHeader.ProcessID)
-
 				}
+				p.stats.regDeleteKey++
 			case idRegFlushKey:
 				if dka, err := parseFlushKey(e); err == nil {
 					log.Tracef("Got idRegFlushKey %v", dka)
 				}
+				p.stats.regFlushKey++
 			case idRegCloseKey:
 				if dka, err := parseCloseKeyArgs(e); err == nil {
 					log.Tracef("Got idRegCloseKey %s", dka)
 					delete(regPathResolver, dka.keyObject)
 				}
+				p.stats.regCloseKey++
 			case idQuerySecurityKey:
 				if dka, err := parseQuerySecurityKeyArgs(e); err == nil {
 					log.Tracef("Got idQuerySecurityKey %v", dka.keyName)
@@ -298,6 +344,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					ecb(svk, e.EventHeader.ProcessID)
 
 				}
+				p.stats.regSetValueKey++
 
 			}
 		}
@@ -366,6 +413,7 @@ func (p *WindowsProbe) handleProcessStart(ev *model.Event, start *procmon.Proces
 	if pid == 0 {
 		return false
 	}
+	p.stats.procStart++
 
 	log.Debugf("Received start %v", start)
 
@@ -407,7 +455,7 @@ func (p *WindowsProbe) handleProcessStop(ev *model.Event, stop *procmon.ProcessS
 		return false
 	}
 	log.Debugf("Received stop %v", stop)
-
+	p.stats.procStop++
 	pce := p.Resolvers.ProcessResolver.GetEntry(pid)
 	p.Resolvers.ProcessResolver.AddToExitedQueue(pid)
 
@@ -438,6 +486,7 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 				BasenameStr: filepath.Base(arg.fileName),
 			},
 		}
+
 	case *createKeyArgs:
 		ev.Type = uint32(model.CreateRegistryKeyEventType)
 		ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
@@ -530,6 +579,76 @@ func (p *WindowsProbe) Close() error {
 
 // SendStats sends statistics about the probe to Datadog
 func (p *WindowsProbe) SendStats() error {
+	// may need to lock here
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsProcessStart, float64(p.stats.procStart), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsProcessStop, float64(p.stats.procStop), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileCreate, float64(p.stats.fileCreate), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileCreateNew, float64(p.stats.fileCreateNew), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileCleanup, float64(p.stats.fileCleanup), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileClose, float64(p.stats.fileClose), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileFlush, float64(p.stats.fileFlush), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileSetInformation, float64(p.stats.fileSetInformation), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileSetDelete, float64(p.stats.fileSetDelete), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIDRename, float64(p.stats.fileidRename), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIDQueryInformation, float64(p.stats.fileidQueryInformation), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIDFSCTL, float64(p.stats.fileidFSCTL), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIDRename29, float64(p.stats.fileidRename29), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegCreateKey, float64(p.stats.regCreateKey), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegOpenKey, float64(p.stats.regOpenKey), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegDeleteKey, float64(p.stats.regDeleteKey), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegFlushKey, float64(p.stats.regFlushKey), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegCloseKey, float64(p.stats.regCloseKey), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegSetValue, float64(p.stats.regSetValueKey), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfFilePathResolver, float64(len(filePathResolver)), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfRegistryPathResolver, float64(len(regPathResolver)), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileResolverNew, float64(p.stats.filePathNewWrites), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileResolverOverwrite, float64(p.stats.filePathOverwrites), nil, 1); err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -4,7 +4,6 @@
 #
 # .deb: STEP 3 of 5
 
-INSTALL_DIR=/opt/datadog
 PACKAGES_DIR=/opt/datadog-packages
 LOG_DIR=/var/log/datadog
 CONFIG_DIR=/etc/datadog-agent
@@ -16,12 +15,11 @@ case "$1" in
     purge)
         echo "Deleting dd-agent user"
         deluser dd-agent --quiet
-        deluser dd-updater --quiet
+        deluser dd-installer --quiet
         echo "Deleting dd-agent group"
         (getent group dd-agent >/dev/null && delgroup dd-agent --quiet) || true
-        (getent group dd-updater >/dev/null && delgroup dd-updater --quiet) || true
-        echo "Force-deleting $INSTALL_DIR"
-        rm -rf $INSTALL_DIR
+        (getent group dd-installer >/dev/null && delgroup dd-installer --quiet) || true
+        echo "Force-deleting $PACKAGES_DIR, $LOG_DIR, $CONFIG_DIR"
         rm -rf $LOG_DIR
         rm -rf $CONFIG_DIR
         rm -rf $PACKAGES_DIR
