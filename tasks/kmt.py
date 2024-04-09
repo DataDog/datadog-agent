@@ -706,6 +706,7 @@ def build(
     full_rebuild=False,
     verbose=True,
     arch: Optional[ArchOrLocal] = None,
+    system_probe_yaml: Optional[str] = DEFAULT_CONFIG_PATH,
 ):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
@@ -746,6 +747,10 @@ def build(
         f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e system-probe.build --no-bundle",
     )
     cc.exec(f"tar cf {shared_archive} {EMBEDDED_SHARE_DIR}")
+
+    if not os.path.exists(system_probe_yaml):
+        raise Exit(f"file {system_probe_yaml} not found")
+
     for d in domains:
         d.copy(ctx, "./bin/system-probe", "/root")
         d.copy(ctx, shared_archive, "/")
