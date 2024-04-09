@@ -59,7 +59,7 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 		ucred, cerr = syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
 	})
 	if err != nil {
-		log.Debugf("Failed to read credentials from unix socket: %v", err)
+		log.Debugf("Failed to control raw unix socket: %v", err)
 		return ctx
 	}
 	if cerr != nil {
