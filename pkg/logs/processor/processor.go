@@ -7,10 +7,12 @@ package processor
 
 import (
 	"context"
+	"time"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -34,6 +36,7 @@ type Processor struct {
 	encoder                   Encoder
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
+	flareCtl                  *flare.FlareController
 	mu                        sync.Mutex
 	hostname                  hostnameinterface.Component
 
@@ -41,7 +44,9 @@ type Processor struct {
 }
 
 // New returns an initialized Processor.
-func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component) *Processor {
+func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder,
+	diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
+	flareCtl *flare.FlareController) *Processor {
 	sdsScanner := sds.CreateScanner()
 
 	return &Processor{
@@ -52,6 +57,7 @@ func New(inputChan, outputChan chan *message.Message, processingRules []*config.
 		encoder:                   encoder,
 		done:                      make(chan struct{}),
 		sds:                       sdsScanner,
+		flareCtl:                  flareCtl,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		hostname:                  hostname,
 	}
@@ -113,6 +119,13 @@ func (p *Processor) run() {
 				log.Errorf("Error while reconfiguring the SDS scanner: %v", err)
 				order.ResponseChan <- err
 			} else {
+			    p.flareCtl.SetStandardSDSRules([]string{})
+			    p.flareCtl.SetEnabledSDSRules([]string{})
+			    if p.sds.IsReady() {
+					p.flareCtl.SetStandardSDSRules(p.sds.GetStandardRulesNames())
+					p.flareCtl.SetEnabledSDSRules(p.sds.GetEnabledRulesNames())
+				    p.flareCtl.SetSDSLastReconfiguration(time.Now())
+				}
 				order.ResponseChan <- nil
 			}
 			p.mu.Unlock()

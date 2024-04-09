@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -49,19 +50,40 @@ type provider struct {
 
 	serverless bool
 
-	status   statusinterface.Status
-	hostname hostnameinterface.Component
-	cfg      pkgconfigmodel.Reader
+	status    statusinterface.Status
+	hostname  hostnameinterface.Component
+	cfg       pkgconfigmodel.Reader
+	flareCtrl *flare.FlareController
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
-	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false, status, hostname, cfg)
+func NewProvider(numberOfPipelines int,
+	auditor auditor.Auditor,
+	diagnosticMessageReceiver diagnostic.MessageReceiver,
+	processingRules []*config.ProcessingRule,
+	endpoints *config.Endpoints,
+	destinationsContext *client.DestinationsContext,
+	status statusinterface.Status,
+	hostname hostnameinterface.Component,
+	cfg pkgconfigmodel.Reader,
+	flareCtl *flare.FlareController) Provider {
+	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver,
+		processingRules, endpoints, destinationsContext, false,
+		status, hostname, cfg, flareCtl)
 }
 
 // NewServerlessProvider returns a new Provider in serverless mode
-func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
-	return newProvider(numberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, endpoints, destinationsContext, true, status, hostname, cfg)
+func NewServerlessProvider(numberOfPipelines int,
+	auditor auditor.Auditor,
+	processingRules []*config.ProcessingRule,
+	endpoints *config.Endpoints,
+	destinationsContext *client.DestinationsContext,
+	status statusinterface.Status,
+	hostname hostnameinterface.Component,
+	cfg pkgconfigmodel.Reader) Provider {
+	return newProvider(numberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{},
+		processingRules, endpoints, destinationsContext, true,
+		status, hostname, cfg, nil)
 }
 
 // NewMockProvider creates a new provider that will not provide any pipelines.
@@ -69,7 +91,17 @@ func NewMockProvider() Provider {
 	return &provider{}
 }
 
-func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool, status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
+func newProvider(numberOfPipelines int,
+	auditor auditor.Auditor,
+	diagnosticMessageReceiver diagnostic.MessageReceiver,
+	processingRules []*config.ProcessingRule,
+	endpoints *config.Endpoints,
+	destinationsContext *client.DestinationsContext,
+	serverless bool,
+	status statusinterface.Status,
+	hostname hostnameinterface.Component,
+	cfg pkgconfigmodel.Reader,
+	flareCtrl *flare.FlareController) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,
 		auditor:                   auditor,
@@ -83,6 +115,7 @@ func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessa
 		status:                    status,
 		hostname:                  hostname,
 		cfg:                       cfg,
+		flareCtrl:                 flareCtrl,
 	}
 }
 
@@ -92,7 +125,9 @@ func (p *provider) Start() {
 	p.outputChan = p.auditor.Channel()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.diagnosticMessageReceiver, p.serverless, i, p.status, p.hostname, p.cfg)
+		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints,
+			p.destinationsContext, p.diagnosticMessageReceiver,
+			p.serverless, i, p.status, p.hostname, p.cfg, p.flareCtrl)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}

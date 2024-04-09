@@ -242,6 +242,27 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 	return sds.Rule{}, fmt.Errorf("Unknown MatchAction type (%v) received through RC for rule '%s':", matchAction, standardRule.Name)
 }
 
+// GetEnabledRulesNames returns the name of all enabled rules.
+// Main usage of this function is to ship this list in the flare.
+func (s *Scanner) GetEnabledRulesNames() []string {
+	var rv []string
+	for _, rule := range s.configuredRules {
+		rv = append(rv, rule.Name)
+	}
+	return rv
+}
+
+// GetStandardRulesNames returns the name of all received standard rules.
+// Main usage of this function is to ship this list in the flare.
+func (s *Scanner) GetStandardRulesNames() []string {
+	var rv []string
+	for _, rule := range s.standardRules {
+		rv = append(rv, rule.Name)
+	}
+	return rv
+}
+
+
 // Scan scans the given `event` using the internal SDS scanner.
 // Returns an error if the internal SDS scanner is not ready. If you need to
 // validate that the internal SDS scanner can be used, use `IsReady()`.

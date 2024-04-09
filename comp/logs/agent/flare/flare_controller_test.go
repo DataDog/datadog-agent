@@ -27,7 +27,33 @@ func TestFillFlare(t *testing.T) {
 
 	fc.FillFlare(f.Fb)
 	f.AssertFileExists("logs_file_permissions.log")
+	f.AssertNoFileExists("sds.log")
 	f.AssertFileContent(file.Name()+" "+fi.Mode().String(), "logs_file_permissions.log")
+
+    // one enabled rule, the file should exist
+	fc = NewFlareController()
+	f = helpers.NewFlareBuilderMock(t, false)
+	fc.SetEnabledSDSRules([]string{"rule1"});
+	fc.FillFlare(f.Fb)
+	f.AssertFileExists("sds.log")
+
+    // empty list even if the list exists, should not create the file
+	fc = NewFlareController()
+	f = helpers.NewFlareBuilderMock(t, false)
+	fc.SetEnabledSDSRules([]string{});
+	fc.FillFlare(f.Fb)
+	f.AssertNoFileExists("sds.log")
+
+    // one standard rule, the file should exist
+	fc = NewFlareController()
+	f = helpers.NewFlareBuilderMock(t, false)
+	fc.SetStandardSDSRules([]string{"rule1"});
+	fc.FillFlare(f.Fb)
+	f.AssertFileExists("sds.log")
+    // one standard rule and one enabled rule, the file should exist
+	fc.SetEnabledSDSRules([]string{"rule1"});
+	fc.FillFlare(f.Fb)
+	f.AssertFileExists("sds.log")
 }
 
 func TestAllFiles(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -42,7 +43,8 @@ func NewPipeline(outputChan chan *message.Payload,
 	pipelineID int,
 	status statusinterface.Status,
 	hostname hostnameinterface.Component,
-	cfg pkgconfigmodel.Reader) *Pipeline {
+	cfg pkgconfigmodel.Reader,
+	flareCtrl *flare.FlareController) *Pipeline {
 
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless, status, cfg)
 
@@ -67,7 +69,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize)
 
 	inputChan := make(chan *message.Message, config.ChanSize)
-	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver, hostname)
+	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver, hostname, flareCtrl)
 
 	return &Pipeline{
 		InputChan: inputChan,
