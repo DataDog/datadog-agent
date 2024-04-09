@@ -638,10 +638,6 @@ func (suite *k8sSuite) testDogstatsdPodUID(kubeNamespace string) {
 }
 
 func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment string) {
-	if kubeDeployment == kubeDeploymentDogstatsdUDPOrigin {
-		// CONTINT-3934: This test is flaky, skip it for now
-		suite.T().Skipf("Skipping test for %s/%s as it is currently flaky", kubeNamespace, kubeDeployment)
-	}
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
