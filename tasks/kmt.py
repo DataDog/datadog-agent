@@ -183,18 +183,7 @@ def gen_config_from_ci_pipeline(
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
     memory = DEFAULT_MEMORY if memory is None else memory
     vmconfig.gen_config(
-        ctx,
-        stack,
-        ",".join(vms),
-        "",
-        init_stack,
-        vcpu,
-        memory,
-        new,
-        ci,
-        arch,
-        output_file,
-        vmconfig_template,
+        ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template
     )
     info("[+] You can run the following command to execute only packages with failed tests")
     print(f"inv kmt.test --packages=\"{' '.join(failed_packages)}\"")
