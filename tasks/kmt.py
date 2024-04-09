@@ -64,8 +64,8 @@ X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
 ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
 DEFAULT_VCPU = "4"
 DEFAULT_MEMORY = "8192"
-
 DEFAULT_CONFIG_PATH = "tasks/kernel_matrix_testing/default-system-probe.yaml"
+
 
 @task
 def create_stack(ctx, stack=None):
