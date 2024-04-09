@@ -11,6 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -19,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/go-multierror"
-	"go.uber.org/atomic"
 )
 
 // SelfTest represent one self test
@@ -66,12 +67,8 @@ func (t *SelfTester) RunSelfTest(timeout time.Duration) error {
 	return nil
 }
 
-// Start the self tester policy provider
-func (t *SelfTester) Start() {
-	if t.config.EBPFLessEnabled {
-		t.selfTestRunning <- DefaultTimeout
-	}
-}
+// Start implements the policy provider interface
+func (t *SelfTester) Start() {}
 
 // GetStatus returns the result of the last performed self tests
 func (t *SelfTester) GetStatus() *api.SelfTestsStatus {
