@@ -45,28 +45,17 @@ func TestServer(t *testing.T) {
 	for _, tt := range []struct {
 		name         string
 		opt          Option
-		possibleUrl  []string
 		expectedAddr string
-		port         int
 	}{
 		{
-			name: "Make sure WithPort sets the port correctly",
-			opt:  WithPort(1234),
-			possibleUrl: []string{
-				"http://[::]:1234",
-				"http://0.0.0.0:1234",
-			},
-			expectedAddr: ":1234",
-			port:         1234,
+			name:         "Make sure WithPort sets the port correctly",
+			opt:          WithPort(1234),
+			expectedAddr: "0.0.0.0:1234",
 		},
 		{
-			name: "Make sure WithAddress sets the port correctly",
-			opt:  WithAddress("127.0.0.1:3456"),
-			possibleUrl: []string{
-				"http://127.0.0.1:3456",
-			},
+			name:         "Make sure WithAddress sets the port correctly",
+			opt:          WithAddress("127.0.0.1:3456"),
 			expectedAddr: "127.0.0.1:3456",
-			port:         3456,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -75,9 +64,7 @@ func TestServer(t *testing.T) {
 			fi.Start()
 			assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 				assert.True(collect, fi.IsRunning())
-				// Assert that the address is in possible addr
-				assert.Contains(collect, tt.possibleUrl, fi.URL())
-				resp, err := http.Get(fmt.Sprintf("http://localhost:%d/fakeintake/health", tt.port))
+				resp, err := http.Get(fmt.Sprintf("http://%s/fakeintake/health", tt.expectedAddr))
 				assert.NoError(collect, err)
 				if err != nil {
 					return

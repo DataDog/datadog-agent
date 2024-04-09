@@ -149,7 +149,7 @@ func WithAddress(addr string) Option {
 // WithPort changes the server port.
 // If the port is 0, a port number is automatically chosen
 func WithPort(port int) Option {
-	return WithAddress(fmt.Sprintf(":%d", port))
+	return WithAddress(fmt.Sprintf("0.0.0.0:%d", port))
 }
 
 // WithReadyChannel assign a boolean channel to get notified when the server is ready
