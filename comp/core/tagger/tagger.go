@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -446,14 +447,9 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 
 }
 
-type cidRetriever interface {
-	// ContainerIDForPodUIDAndContName returns the container ID for a given pod UID and container name
-	ContainerIDForPodUIDAndContName(podUID, contName string, isInit bool, cacheValidity time.Duration) (string, error)
-}
-
 // parseEntityID parses the entity ID and returns the correct tagger entity
 // It can be either just a pod uid or `en-(init.)$(POD_UID)/$(CONTAINER_NAME)`
-func (t *TaggerClient) parseEntityID(entityID string, metricsProvider cidRetriever) string {
+func (t *TaggerClient) parseEntityID(entityID string, metricsProvider provider.ContainerIDForPodUIDAndContNameRetriever) string {
 	// Parse the (init.)$(POD_UID)/$(CONTAINER_NAME) entity ID with a regex
 	parts := entityIDRegex.FindStringSubmatch(entityID)
 	var cname, podUID string

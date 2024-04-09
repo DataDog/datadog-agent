@@ -106,7 +106,7 @@ func TestParseEntityID(t *testing.T) {
 		name        string
 		entityID    string
 		expected    string
-		cidProvider cidRetriever
+		cidProvider *fakeCIDProvider
 	}{
 		{
 			name:        "empty",
@@ -142,7 +142,7 @@ func TestParseEntityID(t *testing.T) {
 		},
 		{
 			name:        "not found",
-			entityID:    "en-init.my-pod_uid/init-my-cont_name",
+			entityID:    "en-init.62381f4f-a19f-4f37-9413-90b738f92f83/init-my-cont_name",
 			cidProvider: &fakeCIDProvider{},
 		},
 	} {
