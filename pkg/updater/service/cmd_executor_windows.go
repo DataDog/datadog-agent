@@ -18,7 +18,7 @@ func RemoveAll(path string) error {
 	return os.RemoveAll(path)
 }
 
-// BuildHelperForTests builds the updater-helper binary for test
+// BuildHelperForTests builds the helper binary for test
 func BuildHelperForTests(_, _ string, _ bool) error {
 	return nil
 }
