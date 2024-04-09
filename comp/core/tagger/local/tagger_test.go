@@ -12,7 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -22,7 +23,10 @@ import (
 func TestTagBuilder(t *testing.T) {
 
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle(),
+		fx.Supply(config.Params{}),
+		fx.Supply(logimpl.Params{}),
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
 	))

@@ -11,7 +11,9 @@ package tagger
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -37,7 +39,11 @@ func NewMock(deps dependencies) Mock {
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(NewMock),
-		core.MockBundle(),
+		fx.Supply(config.Params{}),
+		fx.Supply(logimpl.Params{}),
+		logimpl.MockModule(),
+		config.MockModule(),
+		sysprobeconfigimpl.MockModule(),
 		fx.Supply(NewFakeTaggerParams()),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.Module(),

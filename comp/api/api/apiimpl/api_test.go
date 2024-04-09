@@ -16,10 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -86,7 +86,7 @@ type testdeps struct {
 func getComponentDependencies(t *testing.T) testdeps {
 	return fxutil.Test[testdeps](
 		t,
-		core.MockBundle(),
+		hostnameimpl.MockModule(),
 		flareimpl.MockModule(),
 		dogstatsdServer.MockModule(),
 		replay.MockModule(),
