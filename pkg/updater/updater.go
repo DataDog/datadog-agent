@@ -71,6 +71,7 @@ type updaterImpl struct {
 	downloader   *downloader
 	installer    *installer
 
+	remoteUpdates     bool
 	rc                *remoteConfig
 	catalog           catalog
 	requests          chan remoteAPIRequest
@@ -133,6 +134,7 @@ func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, con
 	rcClient := rc
 
 	u := &updaterImpl{
+		remoteUpdates:     config.GetBool("updater.remote_updates"),
 		rc:                rcClient,
 		repositories:      repositories,
 		downloader:        newDownloader(http.DefaultClient, remoteRegistryOverride),
@@ -333,6 +335,10 @@ func (u *updaterImpl) scheduleRemoteAPIRequest(request remoteAPIRequest) error {
 
 func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error) {
 	defer u.requestsWG.Done()
+	if !u.remoteUpdates {
+		log.Infof("remote request %s not executed as remote updates are disabled", request.ID)
+		return nil
+	}
 	ctx := newRequestContext(request)
 	u.refreshState(ctx)
 	defer u.refreshState(ctx)
