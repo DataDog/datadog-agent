@@ -109,6 +109,11 @@ infra_failure_logs = [
         re.compile(r'Connection to [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ closed by remote host\.'),
         FailedJobReason.EC2_SPOT,
     ),
+    # End to end tests internal infrastructure failures
+    (
+        re.compile(r'E2E INTERNAL ERROR'),
+        FailedJobReason.E2E_INFRA_FAILURE,
+    ),
 ]
 
 

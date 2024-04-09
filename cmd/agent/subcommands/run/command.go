@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 
@@ -50,7 +51,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
@@ -344,6 +344,12 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
 		}),
+		fx.Supply(
+			rcclient.Params{
+				AgentName:    "core-agent",
+				AgentVersion: version.AgentVersion,
+			},
+		),
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
@@ -374,7 +380,7 @@ func getSharedFxOption() fx.Option {
 		// error prone.
 		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, _ tagger.Component, ac autodiscovery.Component, secretResolver secrets.Component) {
 			lc.Append(fx.Hook{
-				OnStart: func(_ context.Context) error {
+				OnStart: func(ctx context.Context) error {
 					//  setup the AutoConfig instance
 					common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
@@ -407,7 +413,6 @@ func getSharedFxOption() fx.Option {
 		snmptraps.Bundle(),
 		collectorimpl.Module(),
 		process.Bundle(),
-		guiimpl.Module(),
 		agent.Bundle(),
 		fx.Supply(jmxloggerimpl.NewDefaultParams()),
 		fx.Provide(func(config config.Component) healthprobe.Options {
@@ -423,7 +428,7 @@ func getSharedFxOption() fx.Option {
 // startAgent Initializes the agent process
 func startAgent(
 	log log.Component,
-	_ flare.Component,
+	flare flare.Component,
 	telemetry telemetry.Component,
 	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
@@ -440,7 +445,7 @@ func startAgent(
 	demultiplexer demultiplexer.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
-	_ status.Component,
+	statusComponent status.Component,
 	collector collector.Component,
 	_ metadatascheduler.Component,
 	jmxLogger jmxlogger.Component,
@@ -491,22 +496,18 @@ func startAgent(
 
 	// start remote configuration management
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
-		if err := rcclient.Start("core-agent"); err != nil {
-			pkglog.Errorf("Failed to start the RC client component: %s", err)
-		} else {
-			// Subscribe to `AGENT_TASK` product
-			rcclient.SubscribeAgentTask()
+		// Subscribe to `AGENT_TASK` product
+		rcclient.SubscribeAgentTask()
 
-			// Subscribe to `APM_TRACING` product
-			rcclient.SubscribeApmTracing()
+		// Subscribe to `APM_TRACING` product
+		rcclient.SubscribeApmTracing()
 
-			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
-				// Spin up the config provider to schedule integrations through remote-config
-				rcProvider := providers.NewRemoteConfigProvider()
-				rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
-				// LoadAndRun is called later on
-				ac.AddConfigProvider(rcProvider, true, 10*time.Second)
-			}
+		if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
+			// Spin up the config provider to schedule integrations through remote-config
+			rcProvider := providers.NewRemoteConfigProvider()
+			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
+			// LoadAndRun is called later on
+			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
 		}
 	}
 
@@ -550,6 +551,14 @@ func startAgent(
 	// Create the Leader election engine without initializing it
 	if pkgconfig.Datadog.GetBool("leader_election") {
 		leaderelection.CreateGlobalLeaderEngine(ctx)
+	}
+
+	// start the GUI server
+	guiPort := pkgconfig.Datadog.GetString("GUI_port")
+	if guiPort == "-1" {
+		log.Infof("GUI server port -1 specified: not starting the GUI.")
+	} else if err = gui.StartGUIServer(guiPort, flare, statusComponent, collector, ac); err != nil {
+		log.Errorf("Error while starting GUI: %v", err)
 	}
 
 	// Setup stats telemetry handler
@@ -605,6 +614,7 @@ func stopAgent(agentAPI internalAPI.Component) {
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
 
+	gui.StopGUIServer()
 	profiler.Stop()
 
 	// gracefully shut down any component

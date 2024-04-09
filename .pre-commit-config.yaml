@@ -46,6 +46,7 @@ repos:
       description: checks that the commit isn't created on a protected branch
       entry: 'python3 tasks/git-hooks/protected-branches.py'
       language: system
+      pass_filenames: false
     - id: revive
       name: revive
       description: revive
@@ -62,7 +63,7 @@ repos:
     - id: copyright
       name: copyright
       description: copyright headers
-      entry: 'python3 tasks/git-hooks/copyright.py'
+      entry: 'python3 -m tasks.git-hooks.copyright'
       language: system
       require_serial: true
       files: \.go$

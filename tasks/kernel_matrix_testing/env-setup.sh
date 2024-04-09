@@ -40,6 +40,17 @@ else
         gnu-sed
 fi
 
+is_python_unsupported="$(python3 -c 'import sys; print(sys.version_info.major > 3 or sys.version_info.minor > 11)')"
+
+if [ "$is_python_unsupported" == "True" ]; then
+    read -p "WARNING: Your python version ($(python -V)) is not tested, some packages might not be available. Do you want to continue? [y/N] " -n 1 -r
+    if [[ ! $REPLY =~ ^[Yy]$ ]] ; then
+        echo "Cancelling setup, change your python version or run this in a virtualenv"
+        exit 1
+    fi
+fi
+
+
 pip3 install -r "${DIR_NAME}"/requirements.txt
 
 if ! command -v pulumi &>/dev/null; then
