@@ -20,10 +20,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -68,6 +72,10 @@ func testUDSOriginDetection(t *testing.T, network string) {
 		fx.Replace(config.MockParams{Overrides: cfg}),
 	))
 
+	pidMap := fxutil.Test[pidmap.Component](t, fx.Options(
+		pidmapimpl.Module(),
+	))
+
 	// Start DSD
 	// The packet channel needs to be buffered, otherwise the sender will block and this
 	// will prevent disconnections.
@@ -77,9 +85,9 @@ func testUDSOriginDetection(t *testing.T, network string) {
 	var err error
 	var s listeners.StatsdListener
 	if network == "unixgram" {
-		s, err = listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil)
+		s, err = listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap)
 	} else if network == "unix" {
-		s, err = listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil)
+		s, err = listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap)
 	}
 	require.NotNil(t, s)
 	require.Nil(t, err)

@@ -17,10 +17,7 @@ single-machine-performance-regression_detector:
       - outputs/report.html # for debugging, also on S3
     when: always
   variables:
-    SMP_VERSION: 0.12.0
-    LADING_VERSION: 0.20.9
-    CPUS: 7
-    MEMORY: "30g"
+    SMP_VERSION: 0.13.0
   # At present we require two artifacts to exist for the 'baseline' and the
   # 'comparison'. We are guaranteed by the structure of the pipeline that
   # 'comparison' exists, not so much with 'baseline' as it has to come from main
@@ -72,17 +69,11 @@ single-machine-performance-regression_detector:
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
       job submit
-      --lading-version ${LADING_VERSION}
       --baseline-image ${BASELINE_IMAGE}
       --comparison-image ${COMPARISON_IMAGE}
       --baseline-sha ${BASELINE_SHA}
       --comparison-sha ${CI_COMMIT_SHA}
-      --target-name datadog-agent
-      --target-command "/bin/entrypoint.sh"
-      --target-environment-variables "DD_HOSTNAME=smp-regression,DD_DD_URL=http://127.0.0.1:9092"
       --target-config-dir test/regression/
-      --target-cpu-allotment ${CPUS}
-      --target-memory-allotment ${MEMORY}
       --submission-metadata submission_metadata
     # Wait for job to complete.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}

@@ -151,6 +151,8 @@ func (adm *ActivityDumpManager) cleanup() {
 		adm.Unlock()
 	}
 
+	adm.RemoveStoppedActivityDumps()
+
 	// cleanup cgroup_wait_list map
 	iterator := adm.cgroupWaitList.Iterate()
 	containerIDB := make([]byte, model.ContainerIDLen)
@@ -163,7 +165,24 @@ func (adm *ActivityDumpManager) cleanup() {
 			}
 		}
 	}
+}
 
+// RemoveStoppedActivityDumps removes all stopped activity dumps from the active list
+func (adm *ActivityDumpManager) RemoveStoppedActivityDumps() {
+	adm.Lock()
+	defer adm.Unlock()
+
+	newActiveDumps := make([]*ActivityDump, 0, len(adm.activeDumps))
+	for _, ad := range adm.activeDumps {
+		ad.Lock()
+		state := ad.state
+		ad.Unlock()
+
+		if state != Stopped {
+			newActiveDumps = append(newActiveDumps, ad)
+		}
+	}
+	adm.activeDumps = newActiveDumps
 }
 
 // getExpiredDumps returns the list of dumps that have timed out
@@ -172,18 +191,61 @@ func (adm *ActivityDumpManager) getExpiredDumps() []*ActivityDump {
 	defer adm.Unlock()
 
 	var dumps []*ActivityDump
-	var toDelete []int
-	for i, ad := range adm.activeDumps {
+	for _, ad := range adm.activeDumps {
 		if time.Now().After(ad.Metadata.End) {
-			toDelete = append([]int{i}, toDelete...)
 			dumps = append(dumps, ad)
 			adm.ignoreFromSnapshot[ad.Metadata.ContainerID] = true
 		}
 	}
-	for _, i := range toDelete {
-		adm.activeDumps = append(adm.activeDumps[:i], adm.activeDumps[i+1:]...)
-	}
 	return dumps
+}
+
+func (adm *ActivityDumpManager) resolveTagsPerAd(ad *ActivityDump) {
+	ad.Lock()
+	defer ad.Unlock()
+
+	err := ad.resolveTags()
+	if err != nil {
+		seclog.Warnf("couldn't resolve activity dump tags (will try again later): %v", err)
+	}
+
+	// check if we should discard this dump based on the manager dump limiter or the deny list
+	selector := ad.GetWorkloadSelector()
+	if selector == nil {
+		// wait for the tags
+		return
+	}
+
+	shouldFinalize := false
+
+	// check if the workload is in the deny list
+	for _, entry := range adm.workloadDenyList {
+		if entry.Match(*selector) {
+			shouldFinalize = true
+			adm.workloadDenyListHits.Inc()
+			break
+		}
+	}
+
+	if !shouldFinalize && !ad.countedByLimiter {
+		counter, ok := adm.dumpLimiter.Get(*selector)
+		if !ok {
+			counter = atomic.NewUint64(0)
+			adm.dumpLimiter.Add(*selector, counter)
+		}
+
+		if counter.Load() >= uint64(ad.adm.config.RuntimeSecurity.ActivityDumpMaxDumpCountPerWorkload) {
+			shouldFinalize = true
+			adm.dropMaxDumpReached.Inc()
+		} else {
+			ad.countedByLimiter = true
+			counter.Add(1)
+		}
+	}
+
+	if shouldFinalize {
+		ad.finalize(true)
+	}
 }
 
 // resolveTags resolves activity dump container tags when they are missing
@@ -194,51 +256,8 @@ func (adm *ActivityDumpManager) resolveTags() {
 	copy(dumps, adm.activeDumps)
 	adm.Unlock()
 
-	var err error
 	for _, ad := range dumps {
-		err = ad.ResolveTags()
-		if err != nil {
-			seclog.Warnf("couldn't resolve activity dump tags (will try again later): %v", err)
-		}
-
-		// check if we should discard this dump based on the manager dump limiter or the deny list
-		selector := ad.GetWorkloadSelector()
-		if selector == nil {
-			// wait for the tags
-			continue
-		}
-
-		shouldFinalize := false
-
-		// check if the workload is in the deny list
-		for _, entry := range adm.workloadDenyList {
-			if entry.Match(*selector) {
-				shouldFinalize = true
-				adm.workloadDenyListHits.Inc()
-				break
-			}
-		}
-
-		if !shouldFinalize && !ad.countedByLimiter {
-			counter, ok := adm.dumpLimiter.Get(*selector)
-			if !ok {
-				counter = atomic.NewUint64(0)
-				adm.dumpLimiter.Add(*selector, counter)
-			}
-
-			if counter.Load() >= uint64(ad.adm.config.RuntimeSecurity.ActivityDumpMaxDumpCountPerWorkload) {
-				shouldFinalize = true
-				adm.dropMaxDumpReached.Inc()
-			} else {
-				ad.countedByLimiter = true
-				counter.Add(1)
-			}
-		}
-
-		if shouldFinalize {
-			ad.Finalize(true)
-			adm.RemoveDump(ad)
-		}
+		adm.resolveTagsPerAd(ad)
 	}
 }
 
@@ -570,26 +589,6 @@ func (adm *ActivityDumpManager) ListActivityDumps(_ *api.ActivityDumpListParams)
 	return &api.ActivityDumpListMessage{
 		Dumps: activeDumps,
 	}, nil
-}
-
-// RemoveDump removes a dump
-func (adm *ActivityDumpManager) RemoveDump(dump *ActivityDump) {
-	adm.Lock()
-	defer adm.Unlock()
-	adm.removeDump(dump)
-}
-
-func (adm *ActivityDumpManager) removeDump(dump *ActivityDump) {
-	toDelete := -1
-	for i, d := range adm.activeDumps {
-		if d.Name == dump.Name {
-			toDelete = i
-			break
-		}
-	}
-	if toDelete >= 0 {
-		adm.activeDumps = append(adm.activeDumps[:toDelete], adm.activeDumps[toDelete+1:]...)
-	}
 }
 
 // StopActivityDump stops an active activity dump
@@ -968,19 +967,14 @@ func (adm *ActivityDumpManager) StopDumpsWithSelector(selector cgroupModel.Workl
 	}
 
 	adm.Lock()
-	activeDumps := make([]*ActivityDump, 0, len(adm.activeDumps))
-	copy(activeDumps, adm.activeDumps)
-	adm.Unlock()
+	defer adm.Unlock()
 
-	for _, ad := range activeDumps {
+	for _, ad := range adm.activeDumps {
 		ad.Lock()
 		if adSelector := ad.GetWorkloadSelector(); adSelector != nil && adSelector.Match(selector) {
 			ad.finalize(true)
-			adm.RemoveDump(ad)
 			adm.dropMaxDumpReached.Inc()
 		}
 		ad.Unlock()
 	}
-	//nolint:gosimple // TODO(SEC) Fix gosimple linter
-	return
 }

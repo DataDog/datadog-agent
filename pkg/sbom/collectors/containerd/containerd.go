@@ -27,19 +27,24 @@ import (
 // 1000 is already a very large default value
 const resultChanSize = 1000
 
-// ScanRequest defines a scan request. This struct should be
+// scanRequest defines a scan request. This struct should be
 // hashable to be pushed in the work queue for processing.
-type ScanRequest struct {
-	ImageID string
+type scanRequest struct {
+	imageID string
+}
+
+// NewScanRequest creates a new scan request
+func NewScanRequest(imageID string) sbom.ScanRequest {
+	return scanRequest{imageID: imageID}
 }
 
 // Collector returns the collector name
-func (r ScanRequest) Collector() string {
+func (r scanRequest) Collector() string {
 	return collectors.ContainerdCollector
 }
 
 // Type returns the scan request type
-func (r ScanRequest) Type() string {
+func (r scanRequest) Type() string {
 	if config.Datadog.GetBool("sbom.container_image.use_mount") {
 		return sbom.ScanFilesystemType
 	}
@@ -47,8 +52,8 @@ func (r ScanRequest) Type() string {
 }
 
 // ID returns the scan request ID
-func (r ScanRequest) ID() string {
-	return r.ImageID
+func (r scanRequest) ID() string {
+	return r.imageID
 }
 
 // Collector defines a containerd collector
@@ -57,6 +62,7 @@ type Collector struct {
 	resChan          chan sbom.ScanResult
 	opts             sbom.ScanOptions
 	containerdClient cutil.ContainerdItf
+	wmeta            optional.Option[workloadmeta.Component]
 
 	fromFileSystem bool
 	closed         bool
@@ -73,6 +79,7 @@ func (c *Collector) Init(cfg config.Config, wmeta optional.Option[workloadmeta.C
 	if err != nil {
 		return err
 	}
+	c.wmeta = wmeta
 	c.trivyCollector = trivyCollector
 	c.fromFileSystem = cfg.GetBool("sbom.container_image.use_mount")
 	c.opts = sbom.ScanOptionsFromConfig(config.Datadog, true)
@@ -81,7 +88,7 @@ func (c *Collector) Init(cfg config.Config, wmeta optional.Option[workloadmeta.C
 
 // Scan performs the scan
 func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
-	containerdScanRequest, ok := request.(ScanRequest)
+	containerdScanRequest, ok := request.(scanRequest)
 	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectors.ContainerdCollector)}
 	}
@@ -94,11 +101,11 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 		c.containerdClient = cl
 	}
 
-	wlm := workloadmeta.GetGlobalStore()
-	if wlm == nil {
+	wmeta, ok := c.wmeta.Get()
+	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("workloadmeta store is not initialized")}
 	}
-	imageMeta, err := wlm.GetImage(containerdScanRequest.ID())
+	imageMeta, err := wmeta.GetImage(containerdScanRequest.ID())
 	if err != nil {
 		return sbom.ScanResult{Error: fmt.Errorf("image metadata not found for image id %s: %s", containerdScanRequest.ID(), err)}
 	}

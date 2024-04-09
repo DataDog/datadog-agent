@@ -12,21 +12,26 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkmocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 	processmocks "github.com/DataDog/datadog-agent/pkg/process/runner/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestUpdateRTStatus(t *testing.T) {
 	cfg := ddconfig.Mock(t)
 
 	assert := assert.New(t)
-	c, err := NewRunner(cfg, nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg)}, nil)
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	c, err := NewRunner(cfg, nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta)}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -62,7 +67,8 @@ func TestUpdateRTStatus(t *testing.T) {
 func TestUpdateRTInterval(t *testing.T) {
 	cfg := ddconfig.Mock(t)
 	assert := assert.New(t)
-	c, err := NewRunner(ddconfig.Mock(t), nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg)}, nil)
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	c, err := NewRunner(ddconfig.Mock(t), nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta)}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -121,14 +127,14 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 			disableRealtime: false,
 		},
 	}
-
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := ddconfig.Mock(t)
 			mockConfig.SetWithoutSource("process_config.disable_realtime_checks", tc.disableRealtime)
 
 			assert := assert.New(t)
-			expectedChecks := []checks.Check{checks.NewProcessCheck(mockConfig, mockConfig)}
+			expectedChecks := []checks.Check{checks.NewProcessCheck(mockConfig, mockConfig, wmeta)}
 
 			c, err := NewRunner(mockConfig, nil, &checks.HostInfo{}, expectedChecks, nil)
 			assert.NoError(err)

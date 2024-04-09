@@ -101,6 +101,9 @@ int uprobe__SSL_read(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read: pid_tgid=%llx ctx=%llx", pid_tgid, args.ctx);
     bpf_map_update_with_telemetry(ssl_read_args, &pid_tgid, &args, BPF_ANY);
+
+    // Trigger mapping of SSL context to connection tuple in case it is missing.
+    tup_from_ssl_ctx(args.ctx, pid_tgid);
     return 0;
 }
 
@@ -149,6 +152,11 @@ int uretprobe__SSL_read(struct pt_regs *ctx) {
 SEC("uretprobe/SSL_read")
 int istio_uretprobe__SSL_read(struct pt_regs *ctx) {
     return SSL_read_ret(ctx, ISTIO);
+}
+
+SEC("uretprobe/SSL_read")
+int nodejs_uretprobe__SSL_read(struct pt_regs *ctx) {
+    return SSL_read_ret(ctx, NODEJS);
 }
 
 SEC("uprobe/SSL_write")
@@ -206,6 +214,11 @@ int istio_uretprobe__SSL_write(struct pt_regs* ctx) {
     return SSL_write_ret(ctx, ISTIO);
 }
 
+SEC("uretprobe/SSL_write")
+int nodejs_uretprobe__SSL_write(struct pt_regs* ctx) {
+    return SSL_write_ret(ctx, NODEJS);
+}
+
 SEC("uprobe/SSL_read_ex")
 int uprobe__SSL_read_ex(struct pt_regs* ctx) {
     ssl_read_ex_args_t args = {0};
@@ -215,11 +228,13 @@ int uprobe__SSL_read_ex(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read_ex: pid_tgid=%llx ctx=%llx", pid_tgid, args.ctx);
     bpf_map_update_elem(&ssl_read_ex_args, &pid_tgid, &args, BPF_ANY);
+
+    // Trigger mapping of SSL context to connection tuple in case it is missing.
+    tup_from_ssl_ctx(args.ctx, pid_tgid);
     return 0;
 }
 
-SEC("uretprobe/SSL_read_ex")
-int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
+static __always_inline int SSL_read_ex_ret(struct pt_regs* ctx, __u64 tags) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     const int return_code = (int)PT_REGS_RC(ctx);
     if (return_code != 1) {
@@ -261,11 +276,21 @@ int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
     // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
     // the inverse direction, thus we're normalizing the tuples into a client <-> server direction.
     normalize_tuple(&copy);
-    tls_process(ctx, &copy, buffer_ptr, bytes_count, LIBSSL);
+    tls_process(ctx, &copy, buffer_ptr, bytes_count, tags);
     return 0;
 cleanup:
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
     return 0;
+}
+
+SEC("uretprobe/SSL_read_ex")
+int uretprobe__SSL_read_ex(struct pt_regs* ctx, __u64 tags) {
+    return SSL_read_ex_ret(ctx, LIBSSL);
+}
+
+SEC("uretprobe/SSL_read_ex")
+int nodejs_uretprobe__SSL_read_ex(struct pt_regs *ctx) {
+    return SSL_read_ex_ret(ctx, NODEJS);
 }
 
 SEC("uprobe/SSL_write_ex")
@@ -280,8 +305,7 @@ int uprobe__SSL_write_ex(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("uretprobe/SSL_write_ex")
-int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
+static __always_inline int SSL_write_ex_ret(struct pt_regs* ctx, __u64 tags) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     const int return_code = (int)PT_REGS_RC(ctx);
     if (return_code != 1) {
@@ -322,11 +346,21 @@ int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
     // to the server <-> client direction.
     normalize_tuple(&copy);
     flip_tuple(&copy);
-    tls_process(ctx, &copy, buffer_ptr, bytes_count, LIBSSL);
+    tls_process(ctx, &copy, buffer_ptr, bytes_count, tags);
     return 0;
 cleanup:
     bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
     return 0;
+}
+
+SEC("uretprobe/SSL_write_ex")
+int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
+    return SSL_write_ex_ret(ctx, LIBSSL);
+}
+
+SEC("uretprobe/SSL_write_ex")
+int nodejs_uretprobe__SSL_write_ex(struct pt_regs *ctx) {
+    return SSL_write_ex_ret(ctx, NODEJS);
 }
 
 SEC("uprobe/SSL_shutdown")
@@ -341,7 +375,7 @@ int uprobe__SSL_shutdown(struct pt_regs *ctx) {
 
     // tls_finish can launch a tail call, thus cleanup should be done before.
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
-    tls_finish(ctx, t);
+    tls_finish(ctx, t, false);
 
     return 0;
 }
@@ -518,7 +552,7 @@ static __always_inline void gnutls_goodbye(struct pt_regs *ctx, void *ssl_sessio
 
     // tls_finish can launch a tail call, thus cleanup should be done before.
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
-    tls_finish(ctx, t);
+    tls_finish(ctx, t, false);
 }
 
 // int gnutls_bye (gnutls_session_t session, gnutls_close_request_t how)

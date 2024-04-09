@@ -11,9 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// TODO Improve test coverage with dogstatsd/enrich tests once Origin Detection is refactored.
 
 func Test_taggerCardinality(t *testing.T) {
 	tests := []struct {
@@ -64,6 +68,19 @@ func TestEnrichTagsOrchestrator(t *testing.T) {
 	defer fakeTagger.ResetTagger()
 	fakeTagger.SetTags("foo", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
-	EnrichTags(tb, "foo", "", "orchestrator")
+	EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "foo", Cardinality: "orchestrator"})
 	assert.Equal(t, []string{"lowTag", "orchTag"}, tb.Get())
+}
+
+func TestEnrichTagsOptOut(t *testing.T) {
+	fakeTagger := fxutil.Test[Mock](t, MockModule())
+	defer fakeTagger.ResetTagger()
+	cfg := config.Mock(t)
+	cfg.SetWithoutSource("dogstatsd_origin_optout_enabled", true)
+	fakeTagger.SetTags("foo", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
+	tb := tagset.NewHashingTagsAccumulator()
+	EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "originID", FromTag: "pod-uid", FromMsg: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
+	assert.Equal(t, []string{}, tb.Get())
+	EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "originID", FromMsg: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
+	assert.Equal(t, []string{}, tb.Get())
 }
