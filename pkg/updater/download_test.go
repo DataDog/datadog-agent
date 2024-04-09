@@ -206,6 +206,19 @@ func TestDownload(t *testing.T) {
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), os.DirFS(tmpDir))
 }
 
+func TestPackage(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	d := s.Downloader()
+
+	expectedPackage := s.PackageOCI(fixtureSimpleV1)
+	pkg, err := d.Package(context.Background(), expectedPackage.URL)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedPackage.Name, pkg.Name)
+	assert.Equal(t, expectedPackage.Version, pkg.Version)
+	assert.Equal(t, expectedPackage.URL, pkg.URL)
+}
+
 func TestDownloadInvalidHash(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
@@ -213,6 +226,17 @@ func TestDownloadInvalidHash(t *testing.T) {
 
 	pkg := s.Package(fixtureSimpleV1)
 	pkg.SHA256 = "2857b8e9faf502169c9cfaf6d4ccf3a035eccddc0f5b87c613b673a807ff6d23"
+	_, err := d.Download(context.Background(), t.TempDir(), pkg)
+	assert.Error(t, err)
+}
+
+func TestDownloadInvalidVersion(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	d := s.Downloader()
+
+	pkg := s.Package(fixtureSimpleV1)
+	pkg.Version = "v1-1"
 	_, err := d.Download(context.Background(), t.TempDir(), pkg)
 	assert.Error(t, err)
 }
@@ -261,11 +285,11 @@ func TestGetRegistryURL(t *testing.T) {
 	}
 
 	d := s.DownloaderOCI()
-	url := d.getRegistryURL(pkg)
+	url := d.getRegistryURL(pkg.URL)
 	assert.Equal(t, s.soci.URL+"/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d", url)
 
 	d = s.DownloaderOCIRegistryOverride()
-	url = d.getRegistryURL(pkg)
+	url = d.getRegistryURL(pkg.URL)
 	assert.Equal(t, "my.super/registry/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d", url)
 }
 
