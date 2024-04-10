@@ -80,8 +80,6 @@ func TestRetryLogic_Error(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
 	))
-	workloadmeta.SetGlobalStore(workloadmetaStore)
-	defer workloadmeta.SetGlobalStore(nil)
 
 	// Store the image
 	imageID := "id"
@@ -148,8 +146,6 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
 	))
-	workloadmeta.SetGlobalStore(workloadmetaStore)
-	defer workloadmeta.SetGlobalStore(nil)
 
 	// Store the image
 	imageID := "id"
