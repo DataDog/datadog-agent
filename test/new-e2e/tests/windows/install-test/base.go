@@ -14,14 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-
-	componentos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"gopkg.in/yaml.v3"
 
@@ -234,6 +232,17 @@ func (s *baseAgentMSISuite) cleanupOnSuccessInDevMode() {
 	s.cleanupAgent()
 }
 
+// isDevMode returns true when DevMode is enabled.
+// We can't always use e2e.Suite.IsDevMode since that's only available once the suite is initialized
+func isDevMode(t *testing.T) bool {
+	devMode, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.DevMode, false)
+	if err != nil {
+		t.Logf("Unable to get DevMode value, DevMode will be disabled, error: %v", err)
+		return false
+	}
+	return devMode
+}
+
 func run[Env any](t *testing.T, s e2e.Suite[Env]) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake())}
 
@@ -245,7 +254,12 @@ func run[Env any](t *testing.T, s e2e.Suite[Env]) {
 
 	majorVersion := strings.Split(agentPackage.Version, ".")[0]
 
-	// E2E auto includes the job ID in the stack name in CI tests, so we don't need to do that here.
+	// E2E auto includes the job ID in the stack name in CI tests. We only run one test per CI job
+	// so in the CI this is sufficient for unique stack names.
+	if isDevMode(t) {
+		// if running in dev mode, set a stack name so we can re-use the same resource for each test.
+		opts = append(opts, e2e.WithStackName("windows-msi-test"))
+	}
 
 	// Include the agent major version in the test name so junit reports will differentiate the tests
 	t.Run(fmt.Sprintf("Agent v%s", majorVersion), func(t *testing.T) {
