@@ -33,7 +33,6 @@ installer_rpm-amd64:
   needs: ["installer-amd64"]
   variables:
     PACKAGE_ARCH: x86_64
-    DESTINATION_RPM: "datadog-installer_7_amd64.rpm"
 
 installer_rpm-arm64:
   extends: .installer_package_rpm_common
@@ -42,6 +41,5 @@ installer_rpm-arm64:
   needs: ["installer-arm64"]
   variables:
     PACKAGE_ARCH: aarch64
-    DESTINATION_RPM: "datadog-installer_7_arm64.rpm"
 
 
