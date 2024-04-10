@@ -103,9 +103,6 @@ func SetupHandlers(
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
-	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
-		getWorkloadList(w, r, wmeta)
-	}).Methods("GET")
 	r.HandleFunc("/metadata/gohai", metadataPayloadGohai).Methods("GET")
 	r.HandleFunc("/metadata/v5", func(w http.ResponseWriter, r *http.Request) { metadataPayloadV5(w, r, hostMetadata) }).Methods("GET")
 	r.HandleFunc("/metadata/inventory-checks", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvChecks(w, r, invChecks) }).Methods("GET")
@@ -354,25 +351,6 @@ func getHealth(w http.ResponseWriter, _ *http.Request) {
 
 func getCSRFToken(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte(gui.CsrfToken))
-}
-
-func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
-	verbose := false
-	params := r.URL.Query()
-	if v, ok := params["verbose"]; ok {
-		if len(v) >= 1 && v[0] == "true" {
-			verbose = true
-		}
-	}
-
-	response := wmeta.Dump(verbose)
-	jsonDump, err := json.Marshal(response)
-	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)
-		return
-	}
-
-	w.Write(jsonDump)
 }
 
 func metadataPayloadV5(w http.ResponseWriter, _ *http.Request, hostMetadataComp host.Component) {

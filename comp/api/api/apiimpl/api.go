@@ -65,6 +65,7 @@ type apiServer struct {
 	taggerComp            tagger.Component
 	autoConfig            autodiscovery.Component
 	logsAgentComp         optional.Option[logsAgent.Component]
+	wmeta                 workloadmeta.Component
 	endpointProviders     []api.EndpointProvider
 }
 
@@ -90,6 +91,7 @@ type dependencies struct {
 	Tagger                tagger.Component
 	AutoConfig            autodiscovery.Component
 	LogsAgentComp         optional.Option[logsAgent.Component]
+	WorkloadMeta          workloadmeta.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -116,13 +118,13 @@ func newAPIServer(deps dependencies) api.Component {
 		taggerComp:            deps.Tagger,
 		autoConfig:            deps.AutoConfig,
 		logsAgentComp:         deps.LogsAgentComp,
+		wmeta:                 deps.WorkloadMeta,
 		endpointProviders:     deps.EndpointProviders,
 	}
 }
 
 // StartServer creates the router and starts the HTTP server
 func (server *apiServer) StartServer(
-	wmeta workloadmeta.Component,
 	senderManager sender.DiagnoseSenderManager,
 	collector optional.Option[collector.Component],
 ) error {
@@ -132,7 +134,7 @@ func (server *apiServer) StartServer(
 		server.capture,
 		server.pidMap,
 		server.serverDebug,
-		wmeta,
+		server.wmeta,
 		server.taggerComp,
 		server.logsAgentComp,
 		senderManager,

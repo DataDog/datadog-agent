@@ -12,6 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -65,6 +66,7 @@ type provider struct {
 
 	Comp          Component
 	FlareProvider flaretypes.Provider
+	Endpoint      api.AgentEndpointProvider
 }
 
 type optionalProvider struct {
@@ -72,6 +74,7 @@ type optionalProvider struct {
 
 	Comp          optional.Option[Component]
 	FlareProvider flaretypes.Provider
+	Endpoint      api.AgentEndpointProvider
 }
 
 func newWorkloadMeta(deps dependencies) provider {
@@ -116,9 +119,12 @@ func newWorkloadMeta(deps dependencies) provider {
 		return nil
 	}})
 
+	endpoint := EndpointProvider{wmeta: wm}
+
 	return provider{
 		Comp:          wm,
 		FlareProvider: flaretypes.NewProvider(wm.sbomFlareProvider),
+		Endpoint:      api.NewAgentEndpointProvider(endpoint, "/workload-list", "GET"),
 	}
 }
 
@@ -133,5 +139,6 @@ func newWorkloadMetaOptional(deps dependencies) optionalProvider {
 	return optionalProvider{
 		Comp:          optional.NewOption(c.Comp),
 		FlareProvider: c.FlareProvider,
+		Endpoint:      c.Endpoint,
 	}
 }

@@ -165,12 +165,22 @@ func TestSetupHandlers(t *testing.T) {
 			wantCode: 200,
 		},
 		{
+			route:    "/secret/refresh",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
 			route:    "/config-check",
 			method:   "GET",
 			wantCode: 200,
 		},
 		{
 			route:    "/tagger-list",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/workload-list",
 			method:   "GET",
 			wantCode: 200,
 		},

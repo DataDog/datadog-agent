@@ -11,7 +11,6 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -28,7 +27,6 @@ import (
 // Component is the component type.
 type Component interface {
 	StartServer(
-		wmeta workloadmeta.Component,
 		senderManager sender.DiagnoseSenderManager,
 		collector optional.Option[collector.Component],
 	) error
