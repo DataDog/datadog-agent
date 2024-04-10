@@ -160,8 +160,9 @@ func (c *client) sendPayload(requestType RequestType, payload interface{}) {
 	event.RequestType = requestType
 	event.SequenceID = sequenceID.Add(1)
 	event.TracerTime = time.Now().Unix()
+	event.Payload = payload
 
-	serializedPayload, err := json.Marshal(payload)
+	serializedPayload, err := json.Marshal(event)
 	if err != nil {
 		log.Errorf("failed to serialize payload: %v", err)
 		return

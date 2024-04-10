@@ -77,7 +77,7 @@ func (t *telemetry) Start(_ context.Context) {
 		env = "staging"
 	}
 	tracer.Start(
-		tracer.WithServiceName("installer"),
+		tracer.WithServiceName("datadog-installer"),
 		tracer.WithServiceVersion(version.AgentVersion),
 		tracer.WithEnv(env),
 		tracer.WithGlobalTag("site", t.site),
