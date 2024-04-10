@@ -11,12 +11,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 const (
@@ -52,10 +54,19 @@ type processAgent struct {
 	Log     logComponent.Component
 }
 
-func newProcessAgent(p processAgentParams) agent.Component {
+type provides struct {
+	fx.Out
+
+	Comp           agent.Component
+	StatusProvider statusComponent.InformationProvider
+}
+
+func newProcessAgent(p processAgentParams) provides {
 	if !agent.Enabled(p.Config, p.Checks, p.Log) {
-		return processAgent{
-			enabled: false,
+		return provides{
+			Comp: processAgent{
+				enabled: false,
+			},
 		}
 	}
 
@@ -70,8 +81,10 @@ func newProcessAgent(p processAgentParams) agent.Component {
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if len(enabledChecks) == 0 {
 		p.Log.Info(agentDisabledMessage)
-		return processAgent{
-			enabled: false,
+		return provides{
+			Comp: processAgent{
+				enabled: false,
+			},
 		}
 	}
 
@@ -81,7 +94,16 @@ func newProcessAgent(p processAgentParams) agent.Component {
 		Log:     p.Log,
 	}
 
-	return processAgentComponent
+	if flavor.GetFlavor() == flavor.ProcessAgent {
+		return  provides {
+			Comp: processAgentComponent,
+		}
+	}
+
+	return provides{
+		Comp:           processAgentComponent,
+		StatusProvider: statusComponent.NewInformationProvider(agent.NewStatusProvider(p.Config)),
+	}
 }
 
 // Enabled determines whether the process agent is enabled based on the configuration.

@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -53,10 +54,15 @@ type dependencies struct {
 
 func newExpvarServer(deps dependencies) (expvars.Component, error) {
 	// Initialize status
-	err := initStatus(deps)
+	err := initProcessStatus(deps)
 	if err != nil {
 		_ = deps.Log.Critical("Failed to initialize status server:", err)
 		return nil, err
+	}
+
+	if flavor.GetFlavor() == flavor.DefaultAgent {
+		// Don't run the actual server if we're in the core agent
+		return nil, nil
 	}
 
 	expvarPort := getExpvarPort(deps)
@@ -92,7 +98,7 @@ func getExpvarPort(deps dependencies) int {
 	return expVarPort
 }
 
-func initStatus(deps dependencies) error {
+func initProcessStatus(deps dependencies) error {
 	// update docker socket path in info
 	dockerSock, err := util.GetDockerSocketPath()
 	if err != nil {
