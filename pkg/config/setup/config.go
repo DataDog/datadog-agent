@@ -1334,6 +1334,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	setupHighAvailability(config)
 
 	// Updater configuration
+	config.BindEnvAndSetDefault("updater.remote_updates", false)
 	config.BindEnv("updater.registry")
 }
 
