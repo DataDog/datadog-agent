@@ -89,3 +89,5 @@ apm_config:
     credit_cards:
       enabled: true
       luhn: true
+    command_execution:
+      enabled: true

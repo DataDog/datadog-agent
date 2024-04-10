@@ -727,6 +727,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(t, o.Memcached.KeepCommand)
 	assert.True(t, o.CreditCards.Enabled)
 	assert.True(t, o.CreditCards.Luhn)
+	assert.True(t, o.CommandExecution.Enabled)
 
 	assert.True(t, cfg.InstallSignature.Found)
 	assert.Equal(t, traceconfig.InstallSignatureConfig{
@@ -2169,6 +2170,25 @@ func TestLoadEnv(t *testing.T) {
 		actualParsed := cfg.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
+	})
+
+	env = "DD_APM_OBFUSCATION_COMMAND_EXECUTION_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule(),
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.command_execution.enabled"))
+		assert.True(t, cfg.Obfuscation.CommandExecution.Enabled)
 	})
 
 	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"

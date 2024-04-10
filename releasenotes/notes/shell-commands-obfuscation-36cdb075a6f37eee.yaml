@@ -9,3 +9,6 @@
 features:
   - |
     APM: Introducing obfuscation of shell commands sent by tracers.
+
+    Bind ``apm_config.obfuscation.command_execution.enabled`` to ``DD_APM_OBFUSCATION_COMMAND_EXECUTION_ENABLED``:
+    It accepts a boolean value with default value true.

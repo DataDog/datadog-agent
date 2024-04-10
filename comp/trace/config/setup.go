@@ -401,6 +401,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.Obfuscation.Memcached.Enabled = true
 		c.Obfuscation.Redis.Enabled = true
 		c.Obfuscation.CreditCards.Enabled = true
+		c.Obfuscation.CommandExecution.Enabled = true
 
 		// TODO(x): There is an issue with coreconfig.Datadog.IsSet("apm_config.obfuscation"), probably coming from Viper,
 		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
@@ -467,6 +468,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values") {
 			c.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.command_execution.enabled") {
+			c.Obfuscation.CommandExecution.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.command_execution.enabled")
 		}
 	}
 

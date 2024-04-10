@@ -113,6 +113,7 @@ type ObfuscationConfig struct {
 	// CreditCards holds the configuration for obfuscating credit cards.
 	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
 
+	// CommandExecution holds the configuration for obfuscating command execution spans.
 	CommandExecution obfuscate.CommandExecutionConfig `mapstructure:"command_execution"`
 }
 
@@ -133,6 +134,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 		HTTP:                 o.HTTP,
 		Redis:                o.Redis,
 		Memcached:            o.Memcached,
+		CommandExecution:     o.CommandExecution,
 		Logger:               new(debugLogger),
 	}
 }

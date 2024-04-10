@@ -88,6 +88,9 @@ type Config struct {
 	// Memcached holds the obfuscation settings for Memcached commands.
 	Memcached MemcachedConfig
 
+	// CommandExecution holds the obfuscation settings for command execution.
+	CommandExecution CommandExecutionConfig
+
 	// Statsd specifies the statsd client to use for reporting metrics.
 	Statsd StatsClient
 

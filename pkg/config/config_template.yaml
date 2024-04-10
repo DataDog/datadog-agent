@@ -1473,6 +1473,11 @@ api_key:
   ##        The set of keys for which their values will be passed through SQL obfuscation
   #         obfuscate_sql_values:
   #             - val1
+  #
+  #     command_execution:
+  ##        @param DD_APM_OBFUSCATION_COMMAND_EXECUTION_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for spans of type "command_execution". Enabled by default.
+  #         enabled: false
 
   ## @param filter_tags - object - optional
   ## @env DD_APM_FILTER_TAGS_REQUIRE - object - optional
