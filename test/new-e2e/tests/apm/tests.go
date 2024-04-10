@@ -104,10 +104,10 @@ func tracesSampledByProbabilitySampler(t *testing.T, c *assert.CollectT, intake 
 			for _, chunk := range tp.Chunks {
 				dm, ok := chunk.Tags["_dd.p.dm"]
 				if !ok {
-					t.Failf("Expected trace chunk tags to contain _dd.p.dm, but it does not.")
+					t.Errorf("Expected trace chunk tags to contain _dd.p.dm, but it does not.")
 				}
 				if dm != "-9" {
-					t.Failf("Expected dm == -9, but got %d", dm)
+					t.Errorf("Expected dm == -9, but got %d", dm)
 				}
 			}
 		}
