@@ -430,6 +430,10 @@ class KMTPaths:
     def tools(self):
         return self.root / self.arch / "tools"
 
+    @property
+    def shared_archive(self):
+        return self.arch_dir / "shared.tar"
+
 
 def build_tests_package(ctx: Context, source_dir: str, stack: str, arch: Arch, ci: bool, verbose=True):
     paths = KMTPaths(stack, arch)
@@ -742,21 +746,21 @@ def build(
             d.run_cmd(ctx, f"/root/fetch_dependencies.sh {arch_mapping[platform.machine()]}")
             info(f"[+] Dependencies shared with target VM {d}")
 
-    shared_archive = os.path.join(CONTAINER_AGENT_PATH, os.path.relpath(paths.arch_dir / "shared.tar", paths.repo_root))
+    shared_archive_rel = os.path.join(CONTAINER_AGENT_PATH, os.path.relpath(paths.shared_archive, paths.repo_root))
     cc.exec(
         f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e system-probe.build --no-bundle",
     )
-    cc.exec(f"tar cf {shared_archive} {EMBEDDED_SHARE_DIR}")
+    cc.exec(f"tar cf {shared_archive_rel} {EMBEDDED_SHARE_DIR}")
 
     if not os.path.exists(system_probe_yaml):
         raise Exit(f"file {system_probe_yaml} not found")
 
     for d in domains:
         d.copy(ctx, "./bin/system-probe", "/root")
-        d.copy(ctx, shared_archive, "/")
+        d.copy(ctx, paths.shared_archive, "/")
         d.run_cmd(ctx, "tar xf /shared.tar -C /", verbose=verbose)
-        d.run_cmd(ctx, "mkdir /opt/datadog-agent/run")
-        d.run_cmd(ctx, "mkdir /etc/datadog-agent")
+        d.run_cmd(ctx, "mkdir -p /opt/datadog-agent/run")
+        d.run_cmd(ctx, "mkdir -p /etc/datadog-agent")
         d.copy(ctx, DEFAULT_CONFIG_PATH, "/etc/datadog-agent/system-probe.yaml")
         info(f"[+] system-probe built for {d.name} @ /root")
 
