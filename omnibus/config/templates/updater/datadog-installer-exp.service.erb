@@ -10,9 +10,9 @@ Type=oneshot
 PIDFile=<%= install_dir %>/run/updater.pid
 User=dd-agent
 EnvironmentFile=-<%= etc_dir %>/environment
-ExecStart=<%= agent_dir %>/bin/updater/updater run -p <%= install_dir %>/run/agent.pid
-ExecStart=<%= agent_dir %>/bin/updater/updater run -p <%= install_dir %>/run/agent.pid
-ExecStart=<%= agent_dir %>/bin/updater/updater run -p <%= install_dir %>/run/agent.pid
+ExecStart=<%= install_dir %>/bin/updater/updater run -p <%= install_dir %>/run/agent.pid
+ExecStart=<%= install_dir %>/bin/updater/updater run -p <%= install_dir %>/run/agent.pid
+ExecStart=<%= install_dir %>/bin/updater/updater run -p <%= install_dir %>/run/agent.pid
 ExecStart=/bin/false
 ExecStop=/bin/false
 
