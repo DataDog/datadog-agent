@@ -128,7 +128,7 @@ func TestAgentUser(t *testing.T) {
 				tc.expectedUser = "testuser"
 			}},
 		&agentUserTestCaseWithHostInfo{
-			staticAgentUserTestCase{name: "domain_user"},
+			staticAgentUserTestCase{name: "hostname_user"},
 			func(tc *agentUserTestCaseWithHostInfo, hostInfo *windowsCommon.HostInfo) {
 				h := windowsCommon.NameToNetBIOSName(hostInfo.Hostname)
 				tc.username = fmt.Sprintf("%s\\testuser", h)
