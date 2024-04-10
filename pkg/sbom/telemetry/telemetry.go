@@ -84,6 +84,64 @@ var (
 		"SBOM total number of cache misses during SBOM collection",
 		commonOpts,
 	)
+
+	queueDepth = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"queue_depth",
+		[]string{},
+		"SBOM queue depth",
+		commonOpts,
+	)
+
+	queueAdds = telemetry.NewCounterWithOpts(
+		subsystem,
+		"queue_adds",
+		[]string{},
+		"SBOM queue adds",
+		commonOpts,
+	)
+
+	queueLatency = telemetry.NewHistogramWithOpts(
+		subsystem,
+		"queue_latency",
+		[]string{},
+		"SBOM queue latency in seconds",
+		[]float64{1, 15, 60, 120, 600, 1200},
+		commonOpts,
+	)
+
+	workDuration = telemetry.NewHistogramWithOpts(
+		subsystem,
+		"queue_work_duration",
+		[]string{},
+		"SBOM queue latency in seconds",
+		prometheus.DefBuckets,
+		commonOpts,
+	)
+
+	unfinishedWork = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"queue_unfinished_work",
+		[]string{},
+		"SBOM queue unfinished work in seconds",
+		commonOpts,
+	)
+
+	longestRunningProcessor = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"queue_longest_running_processor",
+		[]string{},
+		"SBOM queue longest running processor in seconds",
+		commonOpts,
+	)
+
+	queueRetries = telemetry.NewCounterWithOpts(
+		subsystem,
+		"queue_retries",
+		[]string{},
+		"SBOM queue retries",
+		commonOpts,
+	)
 )
 
 // QueueMetricProvider is a workqueue.MetricsProvider that provides metrics for the SBOM queue
@@ -131,79 +189,35 @@ func (l histgramWrapper) Observe(value float64) {
 
 // NewDepthMetric creates a new depth metric
 func (QueueMetricProvider) NewDepthMetric(string) workqueue.GaugeMetric {
-	return gaugeWrapper{telemetry.NewGaugeWithOpts(
-		subsystem,
-		"queue_depth",
-		[]string{},
-		"SBOM queue depth",
-		commonOpts,
-	)}
+	return gaugeWrapper{queueDepth}
 }
 
 // NewAddsMetric creates a new adds metric
 func (QueueMetricProvider) NewAddsMetric(string) workqueue.CounterMetric {
-	return counterWrapper{telemetry.NewCounterWithOpts(
-		subsystem,
-		"queue_adds",
-		[]string{},
-		"SBOM queue adds",
-		commonOpts,
-	)}
+	return counterWrapper{queueAdds}
 }
 
 // NewLatencyMetric creates a new latency metric
 func (QueueMetricProvider) NewLatencyMetric(string) workqueue.HistogramMetric {
-	return histgramWrapper{telemetry.NewHistogramWithOpts(
-		subsystem,
-		"queue_latency",
-		[]string{},
-		"SBOM queue latency in seconds",
-		[]float64{1, 15, 60, 120, 600, 1200},
-		commonOpts,
-	)}
+	return histgramWrapper{queueLatency}
 }
 
 // NewWorkDurationMetric creates a new work duration metric
 func (QueueMetricProvider) NewWorkDurationMetric(string) workqueue.HistogramMetric {
-	return histgramWrapper{telemetry.NewHistogramWithOpts(
-		subsystem,
-		"queue_work_duration",
-		[]string{},
-		"SBOM queue latency in seconds",
-		prometheus.DefBuckets,
-		commonOpts,
-	)}
+	return histgramWrapper{workDuration}
 }
 
 // NewUnfinishedWorkSecondsMetric creates a new unfinished work seconds metric
 func (QueueMetricProvider) NewUnfinishedWorkSecondsMetric(string) workqueue.SettableGaugeMetric {
-	return gaugeWrapper{telemetry.NewGaugeWithOpts(
-		subsystem,
-		"queue_unfinished_work",
-		[]string{},
-		"SBOM queue unfinished work in seconds",
-		commonOpts,
-	)}
+	return gaugeWrapper{unfinishedWork}
 }
 
 // NewLongestRunningProcessorSecondsMetric creates a new longest running processor seconds metric
 func (QueueMetricProvider) NewLongestRunningProcessorSecondsMetric(string) workqueue.SettableGaugeMetric {
-	return gaugeWrapper{telemetry.NewGaugeWithOpts(
-		subsystem,
-		"queue_longest_running_processor",
-		[]string{},
-		"SBOM queue longest running processor in seconds",
-		commonOpts,
-	)}
+	return gaugeWrapper{longestRunningProcessor}
 }
 
 // NewRetriesMetric creates a new retries metric
 func (QueueMetricProvider) NewRetriesMetric(string) workqueue.CounterMetric {
-	return counterWrapper{telemetry.NewCounterWithOpts(
-		subsystem,
-		"queue_retries",
-		[]string{},
-		"SBOM queue retries",
-		commonOpts,
-	)}
+	return counterWrapper{queueRetries}
 }

@@ -1249,7 +1249,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
-	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
 	config.BindEnv("compliance_config.run_commands_as")
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
 	config.BindEnvAndSetDefault("compliance_config.metrics.enabled", false)
@@ -1335,6 +1334,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	setupHighAvailability(config)
 
 	// Updater configuration
+	config.BindEnvAndSetDefault("updater.remote_updates", false)
 	config.BindEnv("updater.registry")
 }
 

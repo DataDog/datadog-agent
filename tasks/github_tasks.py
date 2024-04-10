@@ -18,7 +18,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
 from tasks.libs.common.utils import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH, get_git_pretty_ref
-from tasks.libs.pipeline.notifications import read_owners
+from tasks.libs.owners.parsing import read_owners
 from tasks.release import _get_release_json_value
 
 
