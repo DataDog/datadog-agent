@@ -106,7 +106,7 @@ func (t *telemetry) handler() http.Handler {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		var traces *pb.Traces
+		var traces pb.Traces
 		_, err = traces.UnmarshalMsg(body)
 		if err != nil {
 			log.Errorf("error unmarshalling traces: %v", err)

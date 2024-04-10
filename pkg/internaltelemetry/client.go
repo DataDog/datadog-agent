@@ -32,7 +32,7 @@ const (
 // Client defines the interface for a telemetry client
 type Client interface {
 	SendLog(level string, message string)
-	SendTraces(traces *pb.Traces)
+	SendTraces(traces pb.Traces)
 }
 
 type client struct {
@@ -146,11 +146,11 @@ func (c *client) SendLog(level, message string) {
 	c.sendPayload(RequestTypeLogs, payload)
 }
 
-func (c *client) SendTraces(traces *pb.Traces) {
+func (c *client) SendTraces(traces pb.Traces) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	payload := TracePayload{
-		Traces: *traces,
+		Traces: traces,
 	}
 	c.sendPayload(RequestTypeTraces, payload)
 }
