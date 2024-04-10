@@ -16,6 +16,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func runStatementMetrics(c *Check, t *testing.T) {
@@ -28,12 +29,14 @@ func runStatementMetrics(c *Check, t *testing.T) {
 func TestQueryMetrics(t *testing.T) {
 	config := `dbm: true
 query_metrics:
-trackers:
-- contains_text:
-  - begin null;
-- contains_text:
-  - dual`
+  trackers:
+  - contains_text:
+    - begin null;
+  - contains_text:
+    - dual`
 	c, _ := newDefaultCheck(t, config, "")
+
+	require.Equalf(t, len(c.config.QueryMetrics.Trackers), 2, "query metrics trackers")
 
 	var n int
 	var err error
