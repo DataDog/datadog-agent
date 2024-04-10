@@ -12,3 +12,8 @@ package service
 func SetupAPMInjector() error {
 	return nil
 }
+
+// RemoveAPMInjector noop
+func RemoveAPMInjector() error {
+	return nil
+}

@@ -10,26 +10,35 @@ package service
 
 import (
 	"encoding/json"
+	"os"
+	"path"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type unitCommand string
 
+var (
+	systemdPath = "/lib/systemd/system" // todo load it at build time from omnibus
+)
+
 const (
-	startCommand           unitCommand = "start"
-	stopCommand            unitCommand = "stop"
-	enableCommand          unitCommand = "enable"
-	disableCommand         unitCommand = "disable"
-	loadCommand            unitCommand = "load-unit"
-	removeCommand          unitCommand = "remove-unit"
-	linkDockerCommand      unitCommand = "link-docker-daemon"
-	cleanupDockerCommand   unitCommand = "cleanup-docker-daemon"
-	backupDockerCommand                = `{"command":"backup-docker-daemon"}`
-	restoreDockerCommand               = `{"command":"restore-docker-daemon"}`
-	reloadDockerCommand                = `{"command":"reload-docker"}`
-	setupLdPreloadCommand              = `{"command":"setup-ldpreload"}`
-	removeLdPreloadCommand             = `{"command":"remove-ldpreload"}`
-	systemdReloadCommand               = `{"command":"systemd-reload"}`
-	adminExecutor                      = "datadog-updater-admin.service"
+	startCommand             unitCommand = "start"
+	stopCommand              unitCommand = "stop"
+	enableCommand            unitCommand = "enable"
+	disableCommand           unitCommand = "disable"
+	loadCommand              unitCommand = "load-unit"
+	removeCommand            unitCommand = "remove-unit"
+	linkDockerCommand        unitCommand = "link-docker-daemon"
+	cleanupDockerCommand     unitCommand = "cleanup-docker-daemon"
+	addInstallerToAgentGroup unitCommand = "add-installer-to-agent-group"
+	backupCommand            unitCommand = `backup-file`
+	restoreCommand           unitCommand = `restore-file`
+	reloadDockerCommand                  = `{"command":"reload-docker"}`
+	setupLdPreloadCommand                = `{"command":"setup-ldpreload"}`
+	removeLdPreloadCommand               = `{"command":"remove-ldpreload"}`
+	systemdReloadCommand                 = `{"command":"systemd-reload"}`
+	adminExecutor                        = "datadog-updater-admin.service"
 )
 
 type privilegeCommand struct {
@@ -37,6 +46,23 @@ type privilegeCommand struct {
 	Unit    string `json:"unit,omitempty"`
 	Path    string `json:"path,omitempty"`
 	Content string `json:"content,omitempty"`
+}
+
+// restartUnit restarts a systemd unit
+func restartUnit(unit string) error {
+	// check that the unit exists first
+	if _, err := os.Stat(path.Join(systemdPath, unit)); os.IsNotExist(err) {
+		log.Infof("Unit %s does not exist, skipping restart", unit)
+		return nil
+	}
+
+	if err := stopUnit(unit); err != nil {
+		return err
+	}
+	if err := startUnit(unit); err != nil {
+		return err
+	}
+	return nil
 }
 
 func stopUnit(unit string) error {

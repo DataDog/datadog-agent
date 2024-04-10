@@ -25,6 +25,8 @@ var (
 	installPath string
 	systemdPath = "/lib/systemd/system" // todo load it at build time from omnibus
 	pkgDir      = "/opt/datadog-packages"
+	agentDir    = "/etc/datadog-agent"
+	dockerDir   = "/etc/docker"
 	testSkipUID = ""
 )
 
@@ -71,12 +73,12 @@ func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("/bin/sh", "-c", "echo /opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so >> /etc/ld.so.preload"), nil
 	case "remove-ldpreload":
 		return exec.Command("/bin/sh", "-c", "sed -ze 's/\\/opt\\/datadog-packages\\/datadog-apm-inject\\/stable\\/inject\\/launcher.preload.so\\n//g' /etc/ld.so.preload > /etc/ld.so.preload.tmp && mv /etc/ld.so.preload.tmp /etc/ld.so.preload"), nil
-	case "backup-docker-daemon":
-		return exec.Command("cp", "/etc/docker/daemon.json", "/etc/docker/daemon.json.bak"), nil
-	case "restore-docker-daemon":
-		return exec.Command("mv", "/etc/docker/daemon.json.bak", "/etc/docker/daemon.json"), nil
 	case "reload-docker":
 		return exec.Command("systemctl", "reload", "docker"), nil
+	case "add-installer-to-agent-group":
+		return exec.Command("usermod", "-aG", "dd-agent", "dd-installer"), nil
+	case "restart-agents":
+		return exec.Command("systemctl", "restart", "datadog-agent.service"), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}
@@ -110,7 +112,7 @@ func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 	if absPath != path || err != nil {
 		return nil, fmt.Errorf("invalid path")
 	}
-	if !strings.HasPrefix(path, pkgDir) {
+	if !strings.HasPrefix(path, pkgDir) && !strings.HasPrefix(path, agentDir) && !strings.HasPrefix(path, dockerDir) {
 		return nil, fmt.Errorf("invalid path")
 	}
 	switch inputCommand.Command {
@@ -122,6 +124,10 @@ func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("ln", "-sf", path, "/etc/docker/daemon.json"), nil
 	case "cleanup-docker-daemon":
 		return exec.Command("cp", path, "/etc/docker/daemon.json"), nil
+	case "backup-file":
+		return exec.Command("cp", path, path+".bak"), nil
+	case "restore-file":
+		return exec.Command("mv", path+".bak", path), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}
