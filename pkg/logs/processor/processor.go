@@ -7,8 +7,8 @@ package processor
 
 import (
 	"context"
-	"time"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -119,12 +119,10 @@ func (p *Processor) run() {
 				log.Errorf("Error while reconfiguring the SDS scanner: %v", err)
 				order.ResponseChan <- err
 			} else {
-			    p.flareCtl.SetStandardSDSRules([]string{})
-			    p.flareCtl.SetEnabledSDSRules([]string{})
-			    if p.sds.IsReady() {
-					p.flareCtl.SetStandardSDSRules(p.sds.GetStandardRulesNames())
-					p.flareCtl.SetEnabledSDSRules(p.sds.GetEnabledRulesNames())
-				    p.flareCtl.SetSDSLastReconfiguration(time.Now())
+				if p.sds.IsReady() {
+					p.flareCtl.SetSDSInfo(p.sds.GetStandardRulesNames(), p.sds.GetEnabledRulesNames(), time.Now())
+				} else {
+					p.flareCtl.ClearSDSRulesNames()
 				}
 				order.ResponseChan <- nil
 			}

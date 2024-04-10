@@ -7,7 +7,7 @@
 package flare
 
 import (
-    "bytes"
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
@@ -20,9 +20,9 @@ import (
 // FlareController is a type that contains information needed to insert into a
 // flare from the logs agent.
 type FlareController struct {
-	mu                    sync.Mutex
-	allFiles              []string
-	journalFiles          []string
+	mu           sync.Mutex
+	allFiles     []string
+	journalFiles []string
 	sdsInfos
 }
 
@@ -80,15 +80,15 @@ func (fc *FlareController) FillFlare(fb flaretypes.FlareBuilder) error {
 		fb.AddFileFromFunc("sds.log", func() ([]byte, error) {
 			output := bytes.NewBuffer(nil)
 
-            // last reconfiguration
+			// last reconfiguration
 			output.Write([]byte(fmt.Sprintf("Last reconfiguration: %s\n--\n", fc.sdsInfos.lastReconfiguration.String())))
 
-            // list of standard rules
+			// list of standard rules
 			output.Write([]byte("Standard rules:\n"))
 			list := []byte(strings.Join(fc.sdsInfos.standardRulesNames, ","))
 			list = append(list, '\n')
 			if len(list) > 1 {
-			    output.Write(list)
+				output.Write(list)
 			}
 
 			// list of configured rules
@@ -96,7 +96,7 @@ func (fc *FlareController) FillFlare(fb flaretypes.FlareBuilder) error {
 			list = []byte(strings.Join(fc.sdsInfos.enabledRulesNames, ","))
 			list = append(list, '\n')
 			if len(list) > 1 {
-			    output.Write(list)
+				output.Write(list)
 			}
 
 			return output.Bytes(), nil
@@ -114,29 +114,22 @@ func (fc *FlareController) SetAllFiles(files []string) {
 	fc.allFiles = files
 }
 
-// SetEnabledSDSRules stores the names of the enabled SDS rules received
-// through RC.
-func (fc *FlareController) SetEnabledSDSRules(rulesNames []string) {
+// ClearSDSRulesNames remove the stored SDS rules names.
+// Note that it is not resetting the SDS last reconfiguration time.
+func (fc *FlareController) ClearSDSRulesNames() {
+	fc.sdsInfos.standardRulesNames = []string{}
+	fc.sdsInfos.enabledRulesNames = []string{}
+}
+
+// SetSDSInfo sets information about the last SDS reconfiguration.
+func (fc *FlareController) SetSDSInfo(standardRulesNames []string, enabledRulesNames []string,
+	lastReconfiguration time.Time) {
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
 
-	fc.sdsInfos.enabledRulesNames = append([]string{}, rulesNames...)
-}
-
-// SetStandarddSDSRules stores the name of the standard SDS rules
-// received through RC.
-func (fc *FlareController) SetStandardSDSRules(rulesNames []string) {
-	fc.mu.Lock()
-	defer fc.mu.Unlock()
-
-	fc.sdsInfos.standardRulesNames = append([]string{}, rulesNames...)
-}
-
-func (fc *FlareController) SetSDSLastReconfiguration(t time.Time) {
-    fc.mu.Lock()
-    defer fc.mu.Unlock()
-
-    fc.sdsInfos.lastReconfiguration = t
+	fc.sdsInfos.standardRulesNames = append([]string{}, standardRulesNames...)
+	fc.sdsInfos.enabledRulesNames = append([]string{}, enabledRulesNames...)
+	fc.sdsInfos.lastReconfiguration = lastReconfiguration
 }
 
 // SetAllJournalFiles assigns the journalFiles parameter of FlareController
