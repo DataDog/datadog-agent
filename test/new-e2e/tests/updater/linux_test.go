@@ -58,6 +58,10 @@ func TestUbuntu(t *testing.T) {
 	runTest(t, "dpkg", os.ARM64Arch, os.UbuntuDefault)
 }
 
+func TestDebian(t *testing.T) {
+	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault)
+}
+
 func (v *vmUpdaterSuite) TestUserGroupsCreation() {
 	// users exist and is a system user
 	require.Equal(v.T(), "/usr/sbin/nologin\n", v.Env().RemoteHost.MustExecute(`getent passwd dd-agent | cut -d: -f7`), "unexpected: user does not exist or is not a system user")
