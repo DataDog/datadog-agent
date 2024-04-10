@@ -38,6 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -53,7 +55,7 @@ import (
 	pkgCompliance "github.com/DataDog/datadog-agent/pkg/compliance"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -175,6 +177,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// Force the instantiation of the component
 				fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
+				fx.Supply(
+					settings.Settings{
+						"log_level": commonsettings.NewLogLevelRuntimeSetting(),
+					},
+				),
+				settingsimpl.Module(),
 			)
 		},
 	}
@@ -189,11 +197,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // TODO(components): note how workloadmeta is passed anonymously, it is still required as it is used
 // as a global. This should eventually be fixed and all workloadmeta interactions should be via the
 // injected instance.
-func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component) error {
+func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component, settings settings.Component) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer StopAgent(cancel, log)
 
-	err := RunAgent(ctx, log, config, telemetry, statusComponent)
+	err := RunAgent(ctx, log, config, telemetry, statusComponent, settings)
+
 	if errors.Is(err, errAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
@@ -244,7 +253,7 @@ var errAllComponentsDisabled = errors.New("all security-agent component are disa
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(ctx context.Context, log log.Component, config config.Component, telemetry telemetry.Component, statusComponent status.Component) (err error) {
+func RunAgent(ctx context.Context, log log.Component, config config.Component, telemetry telemetry.Component, statusComponent status.Component, settings settings.Component) (err error) {
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
@@ -293,11 +302,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, t
 		}
 	}()
 
-	if err = initRuntimeSettings(); err != nil {
-		return err
-	}
-
-	srv, err = api.NewServer(statusComponent)
+	srv, err = api.NewServer(statusComponent, settings)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}
@@ -313,10 +318,6 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, t
 	log.Infof("Datadog Security Agent is now running.")
 
 	return
-}
-
-func initRuntimeSettings() error {
-	return settings.RegisterRuntimeSetting(settings.NewLogLevelRuntimeSetting())
 }
 
 // StopAgent stops the API server and clean up resources

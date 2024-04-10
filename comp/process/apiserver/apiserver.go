@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
 var _ Component = (*apiserver)(nil)
@@ -38,8 +37,6 @@ type dependencies struct {
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func newApiServer(deps dependencies) Component {
-	initRuntimeSettings(deps.Log)
-
 	r := mux.NewRouter()
 	api.SetupAPIServerHandlers(deps.APIServerDeps, r) // Set up routes
 
@@ -82,24 +79,4 @@ func newApiServer(deps dependencies) Component {
 	})
 
 	return apiserver
-}
-
-// initRuntimeSettings registers settings to be added to the runtime config.
-func initRuntimeSettings(logger log.Component) {
-	// NOTE: Any settings you want to register should simply be added here
-	processRuntimeSettings := []settings.RuntimeSetting{
-		settings.NewLogLevelRuntimeSetting(),
-		settings.NewRuntimeMutexProfileFraction(),
-		settings.NewRuntimeBlockProfileRate(),
-		settings.NewProfilingGoroutines(),
-		settings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
-	}
-
-	// Before we begin listening, register runtime settings
-	for _, setting := range processRuntimeSettings {
-		err := settings.RegisterRuntimeSetting(setting)
-		if err != nil {
-			_ = logger.Warnf("Cannot initialize the runtime setting %s: %v", setting.Name(), err)
-		}
-	}
 }
