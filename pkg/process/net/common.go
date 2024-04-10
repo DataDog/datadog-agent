@@ -56,9 +56,9 @@ type RemoteSysProbeUtil struct {
 	// Retrier used to setup system probe
 	initRetry retry.Retrier
 
-	path              string
-	httpClient        http.Client
-	longTimeoutClient http.Client
+	path                  string
+	httpClient            http.Client
+	extendedTimeoutClient http.Client
 }
 
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
@@ -203,7 +203,7 @@ func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port ui
 	}
 
 	req.Header.Set("Accept", "application/json")
-	resp, err := r.longTimeoutClient.Do(req)
+	resp, err := r.extendedTimeoutClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -293,8 +293,8 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 				ExpectContinueTimeout: 50 * time.Millisecond,
 			},
 		},
-		longTimeoutClient: http.Client{
-			Timeout: 10 * time.Second,
+		extendedTimeoutClient: http.Client{
+			Timeout: 60 * time.Second,
 			Transport: &http.Transport{
 				MaxIdleConns:    2,
 				IdleConnTimeout: 30 * time.Second,
@@ -302,7 +302,7 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 					return net.Dial(netType, path)
 				},
 				TLSHandshakeTimeout:   1 * time.Second,
-				ResponseHeaderTimeout: 60 * time.Second,
+				ResponseHeaderTimeout: 50 * time.Second,
 				ExpectContinueTimeout: 50 * time.Millisecond,
 			},
 		},
