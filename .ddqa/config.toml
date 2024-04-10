@@ -103,11 +103,11 @@ github_labels = ["team/platform-integrations"]
 exclude_members = ["hithwen"]
 
 [teams."APM"]
-jira_project = "AIT"
+jira_project = "APMSP"
 jira_component = "Trace Agent"
 jira_issue_type = "Task"
 jira_statuses = ["Backlog", "In Progress", "Done"]
-github_team = "apm-go"
+github_team = "agent-apm"
 github_labels = ["team/agent-apm"]
 
 [teams."Remote Config"]
