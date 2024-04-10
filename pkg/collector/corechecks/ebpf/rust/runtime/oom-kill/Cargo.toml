@@ -1,5 +1,5 @@
 [package]
-name = "oom-kill-kern"
+name = "oom-kill"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,7 +10,7 @@ aya-ebpf = { git = "https://github.com/aya-rs/aya" }
 aya-log-ebpf = { git = "https://github.com/aya-rs/aya" }
 
 [[bin]]
-name = "oom-kill-kern"
+name = "oom-kill"
 path = "src/main.rs"
 
 [profile.dev]

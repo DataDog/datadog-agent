@@ -292,7 +292,7 @@ def ninja_test_ebpf_programs(nw, build_dir):
 def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
-    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf"]
+    container_integrations_co_re_programs = ["tcp-queue-length", "ebpf"]
 
     for prog in container_integrations_co_re_programs:
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
@@ -509,6 +509,26 @@ def ninja_generate(
 
 
 @task
+def build_ebpf_rust(ctx):
+    src_path = "pkg/collector/corechecks/ebpf/rust/runtime/oom-kill"
+    build_dir = "target/bpfel-unknown-none/debug"
+    bin = "oom-kill"
+    co_re_build_dir = "pkg/ebpf/bytecode/build/co-re"
+
+    with ctx.cd(src_path):
+        ctx.run("cargo build")
+
+    ctx.run(f"mv -n {src_path}/{build_dir}/{bin} {co_re_build_dir}/{bin}.o")
+
+
+@task
+def clean_ebpf_rust(ctx):
+    src_path = "pkg/collector/corechecks/ebpf/rust/runtime/oom-kill"
+    with ctx.cd(src_path):
+        ctx.run("cargo clean")
+
+
+@task(pre=[build_ebpf_rust])
 def build(
     ctx,
     race=False,
@@ -555,7 +575,7 @@ def build(
     )
 
 
-@task
+@task(pre=[clean_ebpf_rust])
 def clean(
     ctx,
     arch=CURRENT_ARCH,

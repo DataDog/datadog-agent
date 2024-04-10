@@ -96,7 +96,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "oom-kill-kern"
+name = "oom-kill"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
