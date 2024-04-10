@@ -199,7 +199,6 @@ func (is *agentMSISuite) TestInstall() {
 
 func (is *agentMSISuite) TestInstallAltDir() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	installPath := `C:\altdir`
 	configRoot := `C:\altconfroot`
@@ -558,7 +557,6 @@ func (is *agentMSISuite) TestSubServicesOpts() {
 // Runs the installer with WIXFAILWHENDEFERRED=1 to trigger a failure at the very end of the installer.
 func (is *agentMSISuite) TestInstallFail() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	// run installer with failure flag
 	if !is.Run(fmt.Sprintf("install %s", is.AgentPackage.AgentVersion()), func() {
