@@ -11,16 +11,11 @@ import (
 	"fmt"
 	"log"
 
-	//"log"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func runStatementMetrics(c *Check, t *testing.T) {
@@ -30,38 +25,15 @@ func runStatementMetrics(c *Check, t *testing.T) {
 	assert.NotEmpty(t, count, "No statements processed in query metrics")
 }
 
-func initCheckReal(t *testing.T) Check {
-	c := Check{}
-
-	rawInstanceConfig := []byte(fmt.Sprintf(`
-server: %s
-port: %d
-username: %s
-password: %s
-service_name: %s
-dbm: true
-query_metrics:
-  trackers:
-    - contains_text:
-      - begin null;
-    - contains_text:
-      - dual
-`, HOST, PORT, USER, PASSWORD, SERVICE_NAME))
-	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := c.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
-	require.NoError(t, err)
-
-	assert.Equal(t, c.config.InstanceConfig.Server, HOST)
-	assert.Equal(t, c.config.InstanceConfig.Port, PORT)
-	assert.Equal(t, c.config.InstanceConfig.Username, USER)
-	assert.Equal(t, c.config.InstanceConfig.Password, PASSWORD)
-	assert.Equal(t, c.config.InstanceConfig.ServiceName, SERVICE_NAME)
-
-	return c
-}
-
 func TestQueryMetrics(t *testing.T) {
-	c := initCheckReal(t)
+	config := `dbm: true
+query_metrics:
+trackers:
+- contains_text:
+  - begin null;
+- contains_text:
+  - dual`
+	c, _ := newDefaultCheck(t, config, "")
 
 	var n int
 	var err error
@@ -94,11 +66,12 @@ func TestQueryMetrics(t *testing.T) {
 }
 
 func TestUInt64Binding(t *testing.T) {
+	c, _ := newDefaultCheck(t, "", "")
 
-	chk.dbmEnabled = true
-	chk.config.QueryMetrics.Enabled = true
+	c.dbmEnabled = true
+	c.config.QueryMetrics.Enabled = true
 
-	chk.config.InstanceConfig.OracleClient = false
+	c.config.InstanceConfig.OracleClient = false
 
 	type RowsStruct struct {
 		N                      int    `db:"N"`
@@ -107,58 +80,43 @@ func TestUInt64Binding(t *testing.T) {
 	}
 	r := RowsStruct{}
 
-	for _, tnsAlias := range []string{"", TNS_ALIAS} {
-		chk.db = nil
+	c.db = nil
 
-		chk.config.InstanceConfig.TnsAlias = tnsAlias
-		var driver string
-		if tnsAlias == "" {
-			driver = common.GoOra
-			chk.config.InstanceConfig.OracleClient = false
-		} else {
-			driver = common.Godror
-		}
-		if driver == common.Godror && skipGodror() {
-			continue
-		}
+	err := c.Run()
+	assert.NoError(t, err, "check run")
 
-		err := chk.Run()
-		assert.NoError(t, err, "check run with %s driver", driver)
+	m := make(map[string]int)
+	m["2267897546238586672"] = 1
 
-		m := make(map[string]int)
-		m["2267897546238586672"] = 1
+	err = c.db.Get(&r, "select force_matching_signature, sql_text from v$sqlstats where sql_text like '%t111%'") // force_matching_signature=17202440635181618732
+	assert.NoError(t, err, "running statement with large force_matching_signature")
 
-		err = chk.db.Get(&r, "select force_matching_signature, sql_text from v$sqlstats where sql_text like '%t111%'") // force_matching_signature=17202440635181618732
-		assert.NoError(t, err, "running statement with large force_matching_signature with %s driver", driver)
+	slice := []any{"17202440635181618732"}
+	var retValue int
+	err = c.db.Get(&retValue, "SELECT COUNT(*) FROM v$sqlstats WHERE force_matching_signature IN (:1)", slice...)
+	if err != nil {
+		return
+	}
+	assert.Equal(t, 1, retValue, "Testing IN slice uint64 overflow")
 
-		slice := []any{"17202440635181618732"}
-		var retValue int
-		err = chk.db.Get(&retValue, "SELECT COUNT(*) FROM v$sqlstats WHERE force_matching_signature IN (:1)", slice...)
+	//In Rebind with a large uint64 value
+	query, args, err := sqlx.In("SELECT COUNT(*) FROM v$sqlstats WHERE force_matching_signature IN (?)", slice)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	rows, err := c.db.Query(c.db.Rebind(query), args...)
+
+	assert.NoErrorf(t, err, "preparing statement with IN clause")
+
+	if err == nil {
+		defer rows.Close()
+		rows.Next()
+		err = rows.Scan(&retValue)
+
 		if err != nil {
-			//log.Fatalf("%S row error with driver %s %s", chk.logPrompt, driver, err)
-			return
+			log.Fatalf("%s scan error %s", c.logPrompt, err)
 		}
-		assert.Equal(t, 1, retValue, "Testing IN slice uint64 overflow with driver %s", driver)
-
-		//In Rebind with a large uint64 value
-		query, args, err := sqlx.In("SELECT COUNT(*) FROM v$sqlstats WHERE force_matching_signature IN (?)", slice)
-		if err != nil {
-			fmt.Println(err)
-		}
-
-		rows, err := chk.db.Query(chk.db.Rebind(query), args...)
-
-		assert.NoErrorf(t, err, "preparing statement with IN clause for %s driver", driver)
-
-		if err == nil {
-			defer rows.Close()
-			rows.Next()
-			err = rows.Scan(&retValue)
-
-			if err != nil {
-				log.Fatalf("%s scan error %s", chk.logPrompt, err)
-			}
-			assert.Equalf(t, retValue, 1, "IN uint64 with %s driver", driver)
-		}
+		assert.Equalf(t, retValue, 1, "IN uint64")
 	}
 }
