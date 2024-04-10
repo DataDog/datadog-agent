@@ -114,13 +114,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
@@ -581,7 +581,8 @@ func startAgent(
 	check.InitializeInventoryChecksContext(invChecks)
 
 	// Init JMX runner and inject dogstatsd component
-	jmx.InitRunner(server, jmxLogger)
+	jmxfetch.InitRunner(server, jmxLogger)
+	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta)
@@ -619,7 +620,7 @@ func stopAgent(agentAPI internalAPI.Component) {
 
 	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
-	jmx.StopJmxfetch()
+	jmxfetch.StopJmxfetch()
 
 	profiler.Stop()
 
