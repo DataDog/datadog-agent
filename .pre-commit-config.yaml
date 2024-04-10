@@ -104,7 +104,7 @@ repos:
     - id: shell-check-no-set-x
       name: shell-check-no-set-x
       description: check that no `set -x` is set within github / gitlab workflows
-      entry: bash ./tools/pre-commit/shell_check_no_set_x.sh
+      entry: inv pre-commit.shell-check-no-set-x
       language: system
       require_serial: true
       files: (\.yaml|\.yml|\.sh|Dockerfile)$
