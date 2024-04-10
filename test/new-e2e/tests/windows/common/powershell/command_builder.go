@@ -155,6 +155,33 @@ func (ps *powerShellCommandBuilder) WaitForServiceStatus(serviceName, status str
 	return ps
 }
 
+// DisableWindowsDefender creates a command to try and disable Windows Defender without uninstalling it
+func (ps *powerShellCommandBuilder) DisableWindowsDefender() *powerShellCommandBuilder {
+	// ScheduleDay = 8 means never
+	ps.cmds = append(ps.cmds, `
+if ((Get-MpComputerStatus).IsTamperProtected) {
+	Write-Error "Windows NewDefender is tamper protected, unable to modify settings"
+}
+(@{DisableArchiveScanning = $true },
+ @{DisableRealtimeMonitoring = $true },
+ @{DisableBehaviorMonitoring = $true },
+ @{MAPSReporting = 0 },
+ @{ScanScheduleDay = 8 },
+ @{RemediationScheduleDay = 8 }
+) | ForEach-Object { Set-MpPreference @_ }`)
+	// Even though Microsoft claims to have deprecated this option as of Platform Version 4.18.2108.4,
+	// it still works for me on Platform Version 4.18.23110.3 after a reboot, so set it anywawy.
+	ps.cmds = append(ps.cmds, `mkdir -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NewDefender"`)
+	ps.cmds = append(ps.cmds, `Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NewDefender" -Name DisableAntiSpyware -Value 1`)
+	return ps
+}
+
+// UninstallWindowsDefender creates a command to uninstall Windows Defender
+func (ps *powerShellCommandBuilder) UninstallWindowsDefender() *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, "Uninstall-WindowsFeature -Name Windows-Defender")
+	return ps
+}
+
 // Compile joins all the saved command into one valid PowerShell script command.
 func (ps *powerShellCommandBuilder) Compile() string {
 	return strings.Join(ps.cmds, ";")

@@ -26,14 +26,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/cmd/agent/gui"
+
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
@@ -49,7 +51,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
@@ -87,6 +88,8 @@ func SetupHandlers(
 	collector optional.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
+	gui optional.Option[gui.Component],
+	settings settings.Component,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -99,14 +102,22 @@ func SetupHandlers(
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
-	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
+	r.HandleFunc("/gui/csrf-token", func(w http.ResponseWriter, _ *http.Request) { getCSRFToken(w, gui) }).Methods("GET")
 	r.HandleFunc("/config-check", func(w http.ResponseWriter, r *http.Request) {
 		getConfigCheck(w, r, ac)
 	}).Methods("GET")
-	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")
-	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
+	r.HandleFunc("/config", settings.GetFullConfig(config.Datadog, "")).Methods("GET")
+	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
+	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		setting := vars["setting"]
+		settings.GetValue(setting, w, r)
+	}).Methods("GET")
+	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		setting := vars["setting"]
+		settings.SetValue(setting, w, r)
+	}).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
 		getWorkloadList(w, r, wmeta)
@@ -401,8 +412,13 @@ func getHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Write(jsonHealth)
 }
 
-func getCSRFToken(w http.ResponseWriter, _ *http.Request) {
-	w.Write([]byte(gui.CsrfToken))
+func getCSRFToken(w http.ResponseWriter, optGui optional.Option[gui.Component]) {
+	// WARNING: GUI comp currently not provided to JMX
+	gui, guiExist := optGui.Get()
+	if !guiExist {
+		return
+	}
+	w.Write([]byte(gui.GetCSRFToken()))
 }
 
 func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Component) {
