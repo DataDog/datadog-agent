@@ -8,17 +8,15 @@ package secret
 import (
 	_ "embed"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/activedirectory"
+	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 	msiparams "github.com/DataDog/test-infra-definitions/components/datadog/agentparams/msi"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
 
 const (
@@ -30,33 +28,28 @@ const (
 type windowsSecretSuite struct {
 	baseSecretSuite
 	name               string
-	provisionerOptions []awshost.ProvisionerOption
+	provisionerOptions []winawshost.ProvisionerOption
 }
 
 // updateEnvWithOption updates the environment with a new provisioner option
-func (v *windowsSecretSuite) updateEnvWithOption(opt awshost.ProvisionerOption) {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(append(v.provisionerOptions, opt)...))
+func (v *windowsSecretSuite) updateEnvWithOption(opt winawshost.ProvisionerOption) {
+	v.UpdateEnv(winawshost.ProvisionerNoFakeIntake(append(v.provisionerOptions, opt)...))
 }
 
 func TestWindowsSecretSuite(t *testing.T) {
 	suites := []windowsSecretSuite{
 		{
-			name: "windows-secret-suite",
-			provisionerOptions: []awshost.ProvisionerOption{
-				awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-			},
+			name:               "windows-secret-suite",
+			provisionerOptions: []winawshost.ProvisionerOption{},
 		},
 		{
 			name: "windows-domain-secret-suite",
-			provisionerOptions: []awshost.ProvisionerOption{
-				awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-				awshost.WithActiveDirectoryOptions(
-					activedirectory.CreateDomainController(
-						activedirectory.WithDomainName(TestDomain),
-						activedirectory.WithDomainPassword(TestPassword),
-					),
-					activedirectory.WithDomainUser(TestUser, TestPassword)),
-				awshost.WithAgentOptions(agentparams.WithAdditionalInstallParameters(
+			provisionerOptions: []winawshost.ProvisionerOption{
+				winawshost.WithActiveDirectoryOptions(
+					activedirectory.WithDomainController(TestDomain, TestPassword),
+					activedirectory.WithDomainUser(TestUser, TestPassword),
+				),
+				winawshost.WithAgentOptions(agentparams.WithAdditionalInstallParameters(
 					msiparams.NewInstallParams(
 						msiparams.WithAgentUser(fmt.Sprintf("%s\\%s", TestDomain, TestUser)),
 						msiparams.WithAgentUserPassword(TestPassword)))),
@@ -67,7 +60,7 @@ func TestWindowsSecretSuite(t *testing.T) {
 	for _, suite := range suites {
 		suite := suite
 		t.Run(suite.name, func(t *testing.T) {
-			e2e.Run(t, &suite, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
+			e2e.Run(t, &suite, e2e.WithProvisioner(winawshost.ProvisionerNoFakeIntake(
 				suite.provisionerOptions...,
 			)))
 		})
@@ -75,7 +68,7 @@ func TestWindowsSecretSuite(t *testing.T) {
 }
 
 func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {
-	v.updateEnvWithOption(awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist")))
+	v.updateEnvWithOption(winawshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist")))
 
 	output := v.Env().Agent.Client.Secret()
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
@@ -85,7 +78,7 @@ func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {
 }
 
 func (v *windowsSecretSuite) TestAgentSecretChecksExecutablePermissions() {
-	v.updateEnvWithOption(awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: C:\\Windows\\system32\\cmd.exe")))
+	v.updateEnvWithOption(winawshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: C:\\Windows\\system32\\cmd.exe")))
 
 	output := v.Env().Agent.Client.Secret()
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
@@ -104,7 +97,7 @@ host_aliases:
 
 	// We embed a script that creates the secret binary (C:\secret.bat) with the correct permissions
 	v.updateEnvWithOption(
-		awshost.WithAgentOptions(
+		winawshost.WithAgentOptions(
 			agentparams.WithFile(`C:/TestFolder/setup_secret.ps1`, string(secretSetupScript), true),
 		),
 	)
@@ -112,7 +105,7 @@ host_aliases:
 	v.Env().RemoteHost.MustExecute(`C:/TestFolder/setup_secret.ps1 -FilePath "C:/TestFolder/secret.bat" -FileContent '@echo {"alias_secret": {"value": "a_super_secret_string"}}'`)
 
 	v.updateEnvWithOption(
-		awshost.WithAgentOptions(agentparams.WithAgentConfig(config)),
+		winawshost.WithAgentOptions(agentparams.WithAgentConfig(config)),
 	)
 
 	output := v.Env().Agent.Client.Secret()
