@@ -17,6 +17,7 @@ import (
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -152,6 +153,7 @@ func GetStatus(coreConfig ddconfig.Reader, expVarURL string) (*Status, error) {
 	coreStatus := getCoreStatus(coreConfig)
 	processExpVars, err := getExpvars(expVarURL)
 	if err != nil {
+		log.Info("Failed GetStatus: %v", err)
 		return nil, err
 	}
 
