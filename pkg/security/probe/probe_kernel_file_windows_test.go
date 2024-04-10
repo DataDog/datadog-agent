@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/assert"
@@ -126,6 +128,33 @@ func processUntilClose(t *testing.T, et *etwTester) {
 			case *closeArgs:
 				et.notifications = append(et.notifications, n)
 				return
+			case *writeArgs:
+				et.notifications = append(et.notifications, n)
+			}
+		}
+	}
+
+}
+func processUntilCleanup(t *testing.T, et *etwTester) {
+
+	defer func() {
+		et.loopExited <- struct{}{}
+	}()
+	et.loopStarted <- struct{}{}
+	for {
+		select {
+		case <-et.stopLoop:
+			return
+
+		case n := <-et.notify:
+			switch n.(type) {
+			case *createHandleArgs, *createNewFileArgs:
+				et.notifications = append(et.notifications, n)
+			case *cleanupArgs:
+				et.notifications = append(et.notifications, n)
+				return
+			case *writeArgs:
+				et.notifications = append(et.notifications, n)
 			}
 		}
 	}
@@ -221,6 +250,80 @@ func testSimpleCreate(t *testing.T, et *etwTester, testfilename string) {
 	et.notifications = et.notifications[:0]
 }
 
+// will leave file left over for use in future tests.
+func testSimpleFileWrite(t *testing.T, et *etwTester, testfilename string) {
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		/*
+			I don't know why this is, but...
+			empirically, the kernel holds on to the close notification for long after the CloseHandle()
+			(I tried with the native closehandle API, same behavior), at least when there was a write on the
+			file (above, in the simple create test, it closes immediately).
+
+			the IRP_MJ_CLEANUP docs say that this is sent when the refcount on the handle has reached zero
+			(all handles closed).  So for this test it works fine, waiting for the close notification fails the
+			test
+		*/
+		processUntilCleanup(t, et)
+	}()
+	// wait till we're sure the listening loop is running
+	<-et.loopStarted
+
+	t.Logf("================\n")
+	// this will truncate the already existing file, that's OK.
+	f, err := os.OpenFile(testfilename, os.O_RDWR, 0666)
+	assert.NoError(t, err)
+	if err == nil {
+		// don't remove as it will be used in subsequent test
+		//defer os.Remove(testfilename)
+	}
+	f.WriteString("hello")
+	f.Close()
+
+	assert.Eventually(t, func() bool {
+		select {
+		case <-et.loopExited:
+			return true
+		}
+		return false
+	}, 10*time.Second, 250*time.Millisecond, "did not get notification")
+
+	stopLoop(et, &wg)
+
+	// now walk the list of notifications.
+
+	// expect to see in this order
+	// (idCreate)
+	// (write)
+	// (cleanup)
+
+	assert.Equal(t, 3, len(et.notifications), "expected 3 notifications, got %d", len(et.notifications))
+
+	if c, ok := et.notifications[0].(*createHandleArgs); ok {
+		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
+	} else {
+		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+	}
+
+	if wa, ok := et.notifications[1].(*writeArgs); ok {
+		assert.True(t, isSameFile(testfilename, wa.fileName), "expected %s, got %s", testfilename, wa.fileName)
+		assert.Equal(t, uint32(5), wa.IOSize, "expected 5, got %d", wa.IOSize)
+	} else {
+		t.Errorf("expected writeArgs, got %T", et.notifications[1])
+	}
+
+	if cl, ok := et.notifications[2].(*cleanupArgs); ok {
+		assert.True(t, isSameFile(testfilename, cl.fileName), "expected %s, got %s", testfilename, cl.fileName)
+	} else {
+		t.Errorf("expected cleanup, got %T", et.notifications[2])
+	}
+	et.notifications = et.notifications[:0]
+}
+
 func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 
 	var wg sync.WaitGroup
@@ -286,6 +389,7 @@ func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 
 }
 func TestETWFileNotifications(t *testing.T) {
+	ebpftest.LogLevel(t, "info")
 	ex, err := os.Executable()
 	require.NoError(t, err, "could not get executable path")
 	testfilename := ex + ".testfile"
@@ -338,6 +442,12 @@ func TestETWFileNotifications(t *testing.T) {
 	// and left over from testSimpleCreate
 	t.Run("testFileOpen", func(t *testing.T) {
 		testFileOpen(t, et, testfilename)
+	})
+
+	// this test assumes that the file is still there from previous tests.  If it's not,
+	// it will fail because the sequence of messages is different.
+	t.Run("testSimpleFileWrite", func(t *testing.T) {
+		testSimpleFileWrite(t, et, testfilename)
 	})
 	assert.NoError(t, os.Remove(testfilename), "failed to remove")
 }

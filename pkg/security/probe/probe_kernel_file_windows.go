@@ -232,6 +232,10 @@ type setInformationArgs struct {
 	fileName   string
 }
 
+type setDeleteArgs setInformationArgs
+type renameArgs setInformationArgs
+type fsctlArgs setInformationArgs
+
 // nolint: unused
 func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	sia := &setInformationArgs{
@@ -275,6 +279,48 @@ func (sia *setInformationArgs) String() string {
 	output.WriteString("      InfoClass: " + strconv.FormatUint(uint64(sia.infoClass), 16) + "\n")
 	return output.String()
 
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseSetDeleteArgs(e *etw.DDEventRecord) (*setDeleteArgs, error) {
+	sda, err := wp.parseInformationArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*setDeleteArgs)(sda), nil
+}
+
+// nolint: unused
+func (sda *setDeleteArgs) String() string {
+	return (*setInformationArgs)(sda).String()
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseRenameArgs(e *etw.DDEventRecord) (*renameArgs, error) {
+	ra, err := wp.parseInformationArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*renameArgs)(ra), nil
+}
+
+// nolint: unused
+func (ra *renameArgs) String() string {
+	return (*setInformationArgs)(ra).String()
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseFsctlArgs(e *etw.DDEventRecord) (*fsctlArgs, error) {
+	fa, err := wp.parseInformationArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*fsctlArgs)(fa), nil
+}
+
+// nolint: unused
+func (fa *fsctlArgs) String() string {
+	return (*setInformationArgs)(fa).String()
 }
 
 /*
@@ -374,4 +420,98 @@ func (ca *closeArgs) String() string {
 // nolint: unused
 func (fa *flushArgs) String() string {
 	return (*cleanupArgs)(fa).String()
+}
+
+/*
+<template tid="ReadArgs">
+<data name="ByteOffset" inType="win:UInt64"/>
+<data name="Irp" inType="win:Pointer"/>
+<data name="ThreadId" inType="win:Pointer"/>
+<data name="FileObject" inType="win:Pointer"/>
+<data name="FileKey" inType="win:Pointer"/>
+<data name="IOSize" inType="win:UInt32"/>
+<data name="IOFlags" inType="win:UInt32"/>
+</template>
+
+     <template tid="ReadArgs_V1">
+      <data name="ByteOffset" inType="win:UInt64"/>
+      <data name="Irp" inType="win:Pointer"/>
+      <data name="FileObject" inType="win:Pointer"/>
+      <data name="FileKey" inType="win:Pointer"/>
+      <data name="IssuingThreadId" inType="win:UInt32"/>
+      <data name="IOSize" inType="win:UInt32"/>
+      <data name="IOFlags" inType="win:UInt32"/>
+      <data name="ExtraFlags" inType="win:UInt32"/>
+     </template>
+
+*/
+
+type readArgs struct {
+	etw.DDEventHeader
+	ByteOffset uint64
+	irp        uint64
+	threadID   uint64
+	fileObject fileObjectPointer
+	fileKey    fileObjectPointer
+	IOSize     uint32
+	IOFlags    uint32
+	extraFlags uint32 // zero if version 0, as they're not supplied
+	fileName   string
+}
+type writeArgs readArgs
+
+func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
+	ra := &readArgs{
+		DDEventHeader: e.EventHeader,
+	}
+	data := etwimpl.GetUserData(e)
+	if e.EventHeader.EventDescriptor.Version == 0 {
+		ra.ByteOffset = data.GetUint64(0)
+		ra.irp = data.GetUint64(8)
+		ra.threadID = data.GetUint64(16)
+		ra.fileObject = fileObjectPointer(data.GetUint64(24))
+		ra.fileKey = fileObjectPointer(data.GetUint64(32))
+		ra.IOSize = data.GetUint32(40)
+		ra.IOFlags = data.GetUint32(44)
+	} else if e.EventHeader.EventDescriptor.Version == 1 {
+		ra.ByteOffset = data.GetUint64(0)
+		ra.irp = data.GetUint64(8)
+		ra.fileObject = fileObjectPointer(data.GetUint64(16))
+		ra.fileKey = fileObjectPointer(data.GetUint64(24))
+		ra.threadID = uint64(data.GetUint32(32))
+		ra.IOSize = data.GetUint32(36)
+		ra.IOFlags = data.GetUint32(40)
+		ra.extraFlags = data.GetUint32(44)
+	} else {
+		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
+	}
+	if s, ok := wp.filePathResolver[fileObjectPointer(ra.fileObject)]; ok {
+		ra.fileName = s
+	}
+	return ra, nil
+}
+
+// nolint: unused
+func (ra *readArgs) String() string {
+	var output strings.Builder
+
+	output.WriteString("  READ: PID: " + strconv.Itoa(int(ra.DDEventHeader.ProcessID)) + "\n")
+	output.WriteString("        fo: " + strconv.FormatUint(uint64(ra.fileObject), 16) + "\n")
+	output.WriteString("        fk: " + strconv.FormatUint(uint64(ra.fileKey), 16) + "\n")
+	output.WriteString("        Name: " + ra.fileName + "\n")
+	output.WriteString("        Size: " + strconv.FormatUint(uint64(ra.IOSize), 16) + "\n")
+	return output.String()
+
+}
+
+func (wp *WindowsProbe) parseWriteArgs(e *etw.DDEventRecord) (*writeArgs, error) {
+	wa, err := wp.parseReadArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*writeArgs)(wa), nil
+}
+
+func (wa *writeArgs) String() string {
+	return (*readArgs)(wa).String()
 }

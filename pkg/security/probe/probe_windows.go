@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -255,29 +256,35 @@ func (p *WindowsProbe) Stop() {
 func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 	log.Info("Starting tracing...")
+	pid := os.Getpid()
 	err := p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
+		if pid != int(e.EventHeader.ProcessID) {
+			return
+		}
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
 			case idCreate:
 				if ca, err := p.parseCreateHandleArgs(e); err == nil {
-					log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					log.Infof("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 				p.stats.fileCreate++
 			case idCreateNewFile:
 				if ca, err := p.parseCreateNewFileArgs(e); err == nil {
+					log.Infof("Received idCreateNewFile event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 				p.stats.fileCreateNew++
 			case idCleanup:
 				if ca, err := p.parseCleanupArgs(e); err == nil {
+					log.Infof("Received cleanup event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 				p.stats.fileCleanup++
 			case idClose:
 				if ca, err := p.parseCloseArgs(e); err == nil {
-					//fmt.Printf("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					log.Infof("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 					if e.EventHeader.EventDescriptor.ID == idClose {
 						p.filePathResolverLock.Lock()
@@ -291,6 +298,13 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					ecb(fa, e.EventHeader.ProcessID)
 				}
 				p.stats.fileFlush++
+
+			case idWrite:
+				if wa, err := p.parseWriteArgs(e); err == nil {
+					//fmt.Printf("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
+					log.Infof("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
+					ecb(wa, e.EventHeader.ProcessID)
+				}
 
 			// cases below here are file id events we're not currently processing.
 			// for now, just count them so that we can get an idea of frequency/voluem
