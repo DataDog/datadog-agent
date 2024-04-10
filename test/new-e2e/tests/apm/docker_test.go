@@ -142,3 +142,21 @@ func (s *DockerFakeintakeSuite) TestBasicTrace() {
 		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
 }
+
+func (s *DockerFakeintakeSuite) TestProbabilitySampler() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-probability-sampler-%s", s.transport)
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		tracesSampledByProbabilitySampler(s.T(), c, s.Env().FakeIntake)
+	}, 2*time.Minute, 10*time.Second, "Failed to find traces sampled by the probability sampler")
+}

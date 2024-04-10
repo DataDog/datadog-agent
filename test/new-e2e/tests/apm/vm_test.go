@@ -244,6 +244,28 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
 }
 
+func (s *VMFakeintakeSuite) TestProbabilitySampler() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-probability-sampler-%s", s.transport)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		tracesSampledByProbabilitySampler(s.T(), c, s.Env().FakeIntake)
+	}, 2*time.Minute, 10*time.Second, "Failed to find traces sampled by the probability sampler")
+}
+
 type statusReporter struct {
 	v *VMFakeintakeSuite
 }
