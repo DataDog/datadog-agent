@@ -9,6 +9,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -16,11 +17,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
-var updaterHelper = filepath.Join(setup.InstallPath, "bin", "updater", "updater-helper")
+var updaterHelper = filepath.Join(setup.InstallPath, "bin", "installer", "helper")
+
+const execTimeout = 30 * time.Second
 
 // ChownDDAgent changes the owner of the given path to the dd-agent user.
 func ChownDDAgent(path string) error {
@@ -41,7 +45,9 @@ func rmAgentSymlink() error {
 }
 
 func executeCommand(command string) error {
-	cmd := exec.Command(updaterHelper, command)
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	defer cancelfunc()
+	cmd := exec.CommandContext(cancelctx, updaterHelper, command)
 	cmd.Stdout = os.Stdout
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
@@ -61,9 +67,9 @@ func executeCommand(command string) error {
 	return nil
 }
 
-// BuildHelperForTests builds the updater-helper binary for test
+// BuildHelperForTests builds the helper binary for test
 func BuildHelperForTests(pkgDir, binPath string, skipUIDCheck bool) error {
-	updaterHelper = filepath.Join(binPath, "/updater-helper")
+	updaterHelper = filepath.Join(binPath, "/helper")
 	localPath, _ := filepath.Abs(".")
 	targetDir := "datadog-agent/pkg"
 	index := strings.Index(localPath, targetDir)
