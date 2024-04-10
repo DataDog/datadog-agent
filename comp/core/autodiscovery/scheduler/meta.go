@@ -6,13 +6,18 @@
 package scheduler
 
 import (
-	"context"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configstore"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/workqueue"
+)
+
+const (
+	// MaxRetries is the maximum number of retries for a failed task
+	MaxRetries = 5
 )
 
 // MetaScheduler is a scheduler dispatching to all its registered schedulers
@@ -23,34 +28,32 @@ type MetaScheduler struct {
 	// activeSchedulers is the set of schedulers currently subscribed to configs.
 	activeSchedulers map[string]Scheduler
 
-	// configStore contains the set of configs that have been scheduled and to be scheduled
-	configStore *configstore.ConfigStore
+	// scheduledConfigs contains the set of configs that have been scheduled
+	// via the metascheduler, but not subsequently unscheduled.
+	scheduledConfigs map[string]*integration.Config
 
-	scheduledEventCh chan scheduledEvent
+	// configStateStore contains the desired state of configs
+	configStateStore *ConfigStateStore
 
-	stopCh chan bool
+	// a workqueue to process the config events
+	queue workqueue.RateLimitingInterface
 
-	started bool
+	started     bool
+	stopChannel chan struct{}
 }
 
-type scheduledEvent struct {
-	configs   []integration.Config
-	eventType configstore.EventType
+type workItem struct {
+	config *integration.Config
 }
-
-const (
-	scheduledEventChBufferSize = 50
-	reTryInterval              = 30 * time.Second
-)
 
 // NewMetaScheduler inits a meta scheduler
 func NewMetaScheduler() *MetaScheduler {
 	metaScheduler := MetaScheduler{
+		scheduledConfigs: make(map[string]*integration.Config),
 		activeSchedulers: make(map[string]Scheduler),
-		configStore:      configstore.NewConfigStore(),
-		scheduledEventCh: make(chan scheduledEvent, scheduledEventChBufferSize),
-		stopCh:           make(chan bool),
-		started:          false,
+		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "MetaScheduler"),
+		stopChannel:      make(chan struct{}),
+		configStateStore: NewConfigStateStore(),
 	}
 	metaScheduler.start()
 	return &metaScheduler
@@ -61,67 +64,35 @@ func (ms *MetaScheduler) start() {
 	if ms.started {
 		return
 	}
-	ms.m.Unlock()
 	ms.started = true
-	go func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		for {
-			select {
-
-			case ev := <-ms.scheduledEventCh:
-				ms.configStore.Push(ev.configs, ev.eventType)
-				ms.processQueue()
-
-			case <-ms.stopCh:
-				ms.started = false
-				return
-
-			case <-ctx.Done():
-				ms.started = false
-				return
-			}
-		}
-	}()
-	go func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		ticker := time.NewTicker(reTryInterval)
-		for {
-			select {
-			case <-ticker.C:
-				ms.processQueue()
-
-			case <-ms.stopCh:
-				ms.started = false
-				return
-
-			case <-ctx.Done():
-				ms.started = false
-				return
-			}
-		}
-	}()
+	ms.m.Unlock()
+	go wait.Until(ms.worker, time.Second, ms.stopChannel)
 }
 
 // Register a new scheduler to receive configurations.
-//
 // Previously scheduled configurations that have not subsequently been
 // unscheduled can be replayed with the replayConfigs flag.  This replay occurs
 // immediately, before the AddScheduler call returns.
 func (ms *MetaScheduler) Register(name string, s Scheduler, replayConfigs bool) {
 	ms.m.Lock()
-	defer ms.m.Unlock()
 	if _, ok := ms.activeSchedulers[name]; ok {
 		log.Warnf("Scheduler %s already registered, overriding it", name)
 	}
 	ms.activeSchedulers[name] = s
+	ms.m.Unlock()
 
 	// if replaying configs, replay the currently-scheduled configs; note that
 	// this occurs under the protection of `ms.m`, so no config may be double-
 	// scheduled or missed in this process.
 	if replayConfigs {
-		configs := ms.configStore.List()
+		configStates := ms.configStateStore.List()
+
+		configs := make([]integration.Config, 0, len(configStates))
+		for _, config := range configStates {
+			if config.desiredState == Scheduled {
+				configs = append(configs, *config.config)
+			}
+		}
 		s.Schedule(configs)
 	}
 }
@@ -137,52 +108,85 @@ func (ms *MetaScheduler) Deregister(name string) {
 	delete(ms.activeSchedulers, name)
 }
 
-// Schedule schedules configs to all registered schedulers
+// Schedule updates desired state of configs and add to queue
 func (ms *MetaScheduler) Schedule(configs []integration.Config) {
+	ms.configStateStore.UpdateDesiredState(configs, Scheduled)
 	for _, config := range configs {
 		log.Tracef("Scheduling %s\n", config.Dump(false))
-	}
-	ms.scheduledEventCh <- scheduledEvent{
-		configs:   configs,
-		eventType: configstore.SCHEDULE_TASK,
+		ms.queue.AddRateLimited(workItem{config: &config})
 	}
 }
 
-// Unschedule unschedules configs to all registered schedulers
+// Unschedule updates desired state of configs and add to queue
 func (ms *MetaScheduler) Unschedule(configs []integration.Config) {
-
+	ms.configStateStore.UpdateDesiredState(configs, Unscheduled)
 	for _, config := range configs {
 		log.Tracef("Unscheduling %s\n", config.Dump(false))
-	}
-	ms.scheduledEventCh <- scheduledEvent{
-		configs:   configs,
-		eventType: configstore.UNSCHEDULE_TASK,
+		ms.queue.AddRateLimited(workItem{config: &config})
 	}
 }
 
-func (ms *MetaScheduler) processQueue() {
-	ms.m.Lock()
-	defer ms.m.Unlock()
-	for _, scheduler := range ms.activeSchedulers {
-		ms.configStore.HandleEvents(scheduler.Schedule, scheduler.Unschedule)
+func (ms *MetaScheduler) worker() {
+	for ms.processNextWorkItem() {
 	}
+}
+
+func (ms *MetaScheduler) processNextWorkItem() bool {
+	item, quit := ms.queue.Get()
+
+	if quit {
+		return false
+	}
+	config := item.(workItem).config
+	configDigest := (*config).Digest()
+	configName := (*config).Name
+	status := TaskSuccess
+	currentState := Unscheduled
+	newState := Unscheduled
+	if _, found := ms.scheduledConfigs[configDigest]; found {
+		currentState = Scheduled
+	}
+	ms.m.Lock() //lock on activeSchedulers
+	for _, scheduler := range ms.activeSchedulers {
+		status, newState = ms.configStateStore.HandleEvents(Digest(configDigest),
+			configName,
+			currentState,
+			scheduler.Schedule,
+			scheduler.Unschedule)
+		if status == TaskFailed {
+			log.Debugf("Failed to handle event for config %s", configName)
+			break
+		}
+	}
+	ms.m.Unlock()
+
+	if status == TaskFailed {
+		attempt := ms.queue.NumRequeues(item)
+		if attempt < MaxRetries {
+			ms.queue.AddRateLimited(item)
+		} else {
+			log.Warnf("Failed to handle event for config %s after %d attempts, giving up", configName, attempt)
+		}
+	} else if status == TaskSuccess {
+		ms.queue.Forget(item)
+		if newState == Scheduled {
+			ms.scheduledConfigs[configDigest] = config
+		} else {
+			delete(ms.scheduledConfigs, configDigest)
+		}
+	}
+	ms.queue.Done(item)
+	return true
 }
 
 // Stop handles clean stop of registered schedulers
 func (ms *MetaScheduler) Stop() {
 	ms.m.Lock()
 	defer ms.m.Unlock()
-	ms.stopCh <- true
-	ms.configStore.Stop()
 	for _, scheduler := range ms.activeSchedulers {
 		scheduler.Stop()
 	}
-}
-
-// PurgeStoreEvents purges task events in the config store
-// Used for testing purposes
-func (ms *MetaScheduler) PurgeStoreEvents() {
-	ms.m.Lock()
-	defer ms.m.Unlock()
-	ms.configStore.PurgeEvents()
+	close(ms.stopChannel)
+	ms.queue.ShutDown()
+	ms.started = false
 }
