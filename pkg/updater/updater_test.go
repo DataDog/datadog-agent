@@ -119,7 +119,7 @@ func TestUpdaterBootstrapURL(t *testing.T) {
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.BootstrapURL(context.Background(), s.PackageOCI(fixtureSimpleV1).URL)
+	err := updater.BootstrapURL(context.Background(), s.Package(fixtureSimpleV1).URL)
 	assert.NoError(t, err)
 
 	r := updater.repositories.Get(fixtureSimpleV1.pkg)

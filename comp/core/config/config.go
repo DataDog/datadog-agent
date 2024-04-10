@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Reader is a subset of Config that only allows reading of configuration
@@ -33,23 +34,22 @@ type cfg struct {
 // TODO: (components) investigate whether this interface is worth keeping, otherwise delete it and just use dependencies
 type configDependencies interface {
 	getParams() *Params
-	getSecretResolver() secrets.Component
+	getSecretResolver() (secrets.Component, bool)
 }
 
 type dependencies struct {
 	fx.In
 
 	Params Params
-	// secrets Component is optional, if not provided, the config will not decrypt secrets
-	Secret secrets.Component `optional:"true"`
+	Secret optional.Option[secrets.Component]
 }
 
 func (d dependencies) getParams() *Params {
 	return &d.Params
 }
 
-func (d dependencies) getSecretResolver() secrets.Component {
-	return d.Secret
+func (d dependencies) getSecretResolver() (secrets.Component, bool) {
+	return d.Secret.Get()
 }
 
 // NewServerlessConfig initializes a config component from the given config file

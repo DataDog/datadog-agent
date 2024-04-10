@@ -7,8 +7,8 @@
   tags: ["arch:amd64"]
   before_script:
     - source /root/.bashrc
-    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
-    - export INSTALL_DIR=/opt/datadog-packages/${OCI_PRODUCT}/${PACKAGE_VERSION}-1
+    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)-1
+    - export INSTALL_DIR=/opt/datadog-packages/${OCI_PRODUCT}/${PACKAGE_VERSION}
   variables:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
@@ -58,23 +58,14 @@
     paths:
       - ${OMNIBUS_PACKAGE_DIR}
 
-
 agent_oci:
   extends: .package_oci
-  needs:
-    [
-      "datadog-agent-oci-x64-a7",
-      "datadog-agent-oci-arm64-a7",
-    ]
+  needs: ["datadog-agent-oci-x64-a7", "datadog-agent-oci-arm64-a7"]
   variables:
     OCI_PRODUCT: "datadog-agent"
 
 installer_oci:
   extends: .package_oci
-  needs:
-    [
-      "installer-arm64-oci",
-      "installer-amd64-oci",
-    ]
+  needs: ["installer-arm64-oci", "installer-amd64-oci"]
   variables:
     OCI_PRODUCT: "datadog-installer"
