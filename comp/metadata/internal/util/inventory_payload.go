@@ -142,7 +142,7 @@ func (i *InventoryPayload) MetadataProvider() runnerimpl.Provider {
 	if i.Enabled {
 		return runnerimpl.NewProvider(i.collect)
 	}
-	return runnerimpl.NewEmptyProvider()
+	return runnerimpl.NewProvider(nil)
 }
 
 // collect is the callback expected by the metadata runner.Provider. It will send a new payload and return the next
