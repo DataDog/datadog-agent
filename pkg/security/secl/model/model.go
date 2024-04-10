@@ -586,3 +586,11 @@ func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheE
 func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false
 }
+
+// RawPacketEvent represents a packet event
+type RawPacketEvent struct {
+	NetworkContext
+
+	Payload string `field:"payload"` // SECLDoc[payload] Definition:`Payload of the l3/l4 packet`
+
+}

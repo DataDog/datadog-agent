@@ -21,6 +21,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"golang.org/x/sys/unix"
 )
 
 func validateReadSize(size, read int) (int, error) {
@@ -1299,4 +1302,56 @@ func (e *OnDemandEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.ID = binary.NativeEndian.Uint32(data[0:4])
 	SliceToArray(data[4:260], e.Data[:])
 	return 260, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := e.NetworkContext.Device.UnmarshalBinary(data)
+	if err != nil {
+		return 0, ErrNotEnoughData
+	}
+	data = data[read:]
+
+	size := binary.NativeEndian.Uint32(data)
+	if int(size) > len(data[4:]) {
+		return 0, ErrNotEnoughData
+	}
+	data = data[4:]
+
+	e.Size = size
+
+	packet := gopacket.NewPacket(data, layers.LayerTypeEthernet, gopacket.DecodeOptions{NoCopy: true, Lazy: true})
+	if layer := packet.Layer(layers.LayerTypeIPv4); layer != nil {
+		if rl, ok := layer.(*layers.IPv4); ok {
+			e.L3Protocol = unix.ETH_P_IP
+			e.Source.IPNet = *eval.IPNetFromIP(rl.SrcIP)
+			e.Destination.IPNet = *eval.IPNetFromIP(rl.DstIP)
+		}
+	} else if layer := packet.Layer(layers.LayerTypeIPv6); layer != nil {
+		if rl, ok := layer.(*layers.IPv4); ok {
+			e.L3Protocol = unix.ETH_P_IPV6
+			e.Source.IPNet = *eval.IPNetFromIP(rl.SrcIP)
+			e.Destination.IPNet = *eval.IPNetFromIP(rl.DstIP)
+		}
+	}
+
+	if layer := packet.Layer(layers.LayerTypeUDP); layer != nil {
+		if rl, ok := layer.(*layers.UDP); ok {
+			e.L4Protocol = uint16(layers.LayerTypeUDP)
+			e.Source.Port = uint16(rl.SrcPort)
+			e.Destination.Port = uint16(rl.DstPort)
+			e.Payload = string(rl.LayerPayload())
+		}
+	} else if layer := packet.Layer(layers.LayerTypeTCP); layer != nil {
+		if rl, ok := layer.(*layers.TCP); ok {
+			e.L4Protocol = uint16(layers.IPProtocolTCP)
+			e.Source.Port = uint16(rl.SrcPort)
+			e.Destination.Port = uint16(rl.DstPort)
+			e.Payload = string(rl.LayerPayload())
+		}
+	}
+
+	fmt.Printf("########################: %+v\n", e)
+
+	return len(data), nil
 }

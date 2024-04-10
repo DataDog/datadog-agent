@@ -29,6 +29,8 @@ int classifier_imds_request(struct __sk_buff *skb) {
         send_event_with_size_ptr(skb, EVENT_IMDS, evt, offsetof(struct imds_event_t, body) + (pkt->payload_len & (IMDS_MAX_LENGTH - 1)));
     }
 
+    tail_call_to_classifier(skb, RAW_PACKET);
+
     // done
     return ACT_OK;
 }

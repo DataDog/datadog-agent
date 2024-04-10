@@ -39,6 +39,7 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("mprotect"),
 		eval.EventType("ondemand"),
 		eval.EventType("open"),
+		eval.EventType("packet"),
 		eval.EventType("ptrace"),
 		eval.EventType("removexattr"),
 		eval.EventType("rename"),
@@ -59,8 +60,6 @@ func (m *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	case "network.destination.ip":
 		return []eval.EventType{"dns", "imds"}
 	case "network.destination.port":
-		return []eval.EventType{"dns", "imds"}
-	case "network.device.ifindex":
 		return []eval.EventType{"dns", "imds"}
 	case "network.device.ifname":
 		return []eval.EventType{"dns", "imds"}
@@ -4039,15 +4038,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "network.device.ifindex":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.NetworkContext.Device.IfIndex)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "network.device.ifname":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -4420,6 +4410,87 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "packet.destination.ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ev := ctx.Event.(*Event)
+				return ev.RawPacket.NetworkContext.Destination.IPNet
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "packet.destination.port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.RawPacket.NetworkContext.Destination.Port)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "packet.device.ifname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.RawPacket.NetworkContext.Device)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "packet.l3_protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.RawPacket.NetworkContext.L3Protocol)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "packet.l4_protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.RawPacket.NetworkContext.L4Protocol)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "packet.payload":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.RawPacket.Payload
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "packet.size":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.RawPacket.NetworkContext.Size)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "packet.source.ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ev := ctx.Event.(*Event)
+				return ev.RawPacket.NetworkContext.Source.IPNet
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "packet.source.port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.RawPacket.NetworkContext.Source.Port)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "process.ancestors.args":
 		return &eval.StringArrayEvaluator{
@@ -17885,7 +17956,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"mprotect.vm_protection",
 		"network.destination.ip",
 		"network.destination.port",
-		"network.device.ifindex",
 		"network.device.ifname",
 		"network.l3_protocol",
 		"network.l4_protocol",
@@ -17927,6 +17997,15 @@ func (ev *Event) GetFields() []eval.Field {
 		"open.syscall.flags",
 		"open.syscall.mode",
 		"open.syscall.path",
+		"packet.destination.ip",
+		"packet.destination.port",
+		"packet.device.ifname",
+		"packet.l3_protocol",
+		"packet.l4_protocol",
+		"packet.payload",
+		"packet.size",
+		"packet.source.ip",
+		"packet.source.port",
 		"process.ancestors.args",
 		"process.ancestors.args_flags",
 		"process.ancestors.args_options",
@@ -19894,8 +19973,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.NetworkContext.Destination.IPNet, nil
 	case "network.destination.port":
 		return int(ev.NetworkContext.Destination.Port), nil
-	case "network.device.ifindex":
-		return int(ev.NetworkContext.Device.IfIndex), nil
 	case "network.device.ifname":
 		return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device), nil
 	case "network.l3_protocol":
@@ -19978,6 +20055,24 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Open.SyscallContext)), nil
 	case "open.syscall.path":
 		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Open.SyscallContext), nil
+	case "packet.destination.ip":
+		return ev.RawPacket.NetworkContext.Destination.IPNet, nil
+	case "packet.destination.port":
+		return int(ev.RawPacket.NetworkContext.Destination.Port), nil
+	case "packet.device.ifname":
+		return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.RawPacket.NetworkContext.Device), nil
+	case "packet.l3_protocol":
+		return int(ev.RawPacket.NetworkContext.L3Protocol), nil
+	case "packet.l4_protocol":
+		return int(ev.RawPacket.NetworkContext.L4Protocol), nil
+	case "packet.payload":
+		return ev.RawPacket.Payload, nil
+	case "packet.size":
+		return int(ev.RawPacket.NetworkContext.Size), nil
+	case "packet.source.ip":
+		return ev.RawPacket.NetworkContext.Source.IPNet, nil
+	case "packet.source.port":
+		return int(ev.RawPacket.NetworkContext.Source.Port), nil
 	case "process.ancestors.args":
 		var values []string
 		ctx := eval.NewContext(ev)
@@ -26381,8 +26476,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "", nil
 	case "network.destination.port":
 		return "", nil
-	case "network.device.ifindex":
-		return "", nil
 	case "network.device.ifname":
 		return "", nil
 	case "network.l3_protocol":
@@ -26465,6 +26558,24 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "open", nil
 	case "open.syscall.path":
 		return "open", nil
+	case "packet.destination.ip":
+		return "packet", nil
+	case "packet.destination.port":
+		return "packet", nil
+	case "packet.device.ifname":
+		return "packet", nil
+	case "packet.l3_protocol":
+		return "packet", nil
+	case "packet.l4_protocol":
+		return "packet", nil
+	case "packet.payload":
+		return "packet", nil
+	case "packet.size":
+		return "packet", nil
+	case "packet.source.ip":
+		return "packet", nil
+	case "packet.source.port":
+		return "packet", nil
 	case "process.ancestors.args":
 		return "", nil
 	case "process.ancestors.args_flags":
@@ -29136,8 +29247,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Struct, nil
 	case "network.destination.port":
 		return reflect.Int, nil
-	case "network.device.ifindex":
-		return reflect.Int, nil
 	case "network.device.ifname":
 		return reflect.String, nil
 	case "network.l3_protocol":
@@ -29220,6 +29329,24 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "open.syscall.path":
 		return reflect.String, nil
+	case "packet.destination.ip":
+		return reflect.Struct, nil
+	case "packet.destination.port":
+		return reflect.Int, nil
+	case "packet.device.ifname":
+		return reflect.String, nil
+	case "packet.l3_protocol":
+		return reflect.Int, nil
+	case "packet.l4_protocol":
+		return reflect.Int, nil
+	case "packet.payload":
+		return reflect.String, nil
+	case "packet.size":
+		return reflect.Int, nil
+	case "packet.source.ip":
+		return reflect.Struct, nil
+	case "packet.source.port":
+		return reflect.Int, nil
 	case "process.ancestors.args":
 		return reflect.String, nil
 	case "process.ancestors.args_flags":
@@ -34487,13 +34614,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.NetworkContext.Destination.Port = uint16(rv)
 		return nil
-	case "network.device.ifindex":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Device.IfIndex"}
-		}
-		ev.NetworkContext.Device.IfIndex = uint32(rv)
-		return nil
 	case "network.device.ifname":
 		rv, ok := value.(string)
 		if !ok {
@@ -34788,6 +34908,81 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Open.SyscallContext.StrArg1"}
 		}
 		ev.Open.SyscallContext.StrArg1 = rv
+		return nil
+	case "packet.destination.ip":
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RawPacket.NetworkContext.Destination.IPNet"}
+		}
+		ev.RawPacket.NetworkContext.Destination.IPNet = rv
+		return nil
+	case "packet.destination.port":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RawPacket.NetworkContext.Destination.Port"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "RawPacket.NetworkContext.Destination.Port"}
+		}
+		ev.RawPacket.NetworkContext.Destination.Port = uint16(rv)
+		return nil
+	case "packet.device.ifname":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RawPacket.NetworkContext.Device.IfName"}
+		}
+		ev.RawPacket.NetworkContext.Device.IfName = rv
+		return nil
+	case "packet.l3_protocol":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RawPacket.NetworkContext.L3Protocol"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "RawPacket.NetworkContext.L3Protocol"}
+		}
+		ev.RawPacket.NetworkContext.L3Protocol = uint16(rv)
+		return nil
+	case "packet.l4_protocol":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RawPacket.NetworkContext.L4Protocol"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "RawPacket.NetworkContext.L4Protocol"}
+		}
+		ev.RawPacket.NetworkContext.L4Protocol = uint16(rv)
+		return nil
+	case "packet.payload":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RawPacket.Payload"}
+		}
+		ev.RawPacket.Payload = rv
+		return nil
+	case "packet.size":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RawPacket.NetworkContext.Size"}
+		}
+		ev.RawPacket.NetworkContext.Size = uint32(rv)
+		return nil
+	case "packet.source.ip":
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RawPacket.NetworkContext.Source.IPNet"}
+		}
+		ev.RawPacket.NetworkContext.Source.IPNet = rv
+		return nil
+	case "packet.source.port":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RawPacket.NetworkContext.Source.Port"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "RawPacket.NetworkContext.Source.Port"}
+		}
+		ev.RawPacket.NetworkContext.Source.Port = uint16(rv)
 		return nil
 	case "process.ancestors.args":
 		if ev.BaseEvent.ProcessContext == nil {

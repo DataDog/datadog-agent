@@ -4374,11 +4374,6 @@ func (ev *Event) GetNetworkDestinationPort() uint16 {
 	return ev.NetworkContext.Destination.Port
 }
 
-// GetNetworkDeviceIfindex returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkDeviceIfindex() uint32 {
-	return ev.NetworkContext.Device.IfIndex
-}
-
 // GetNetworkDeviceIfname returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkDeviceIfname() string {
 	return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
@@ -4735,6 +4730,78 @@ func (ev *Event) GetOpenSyscallStr3() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Open.SyscallContext)
+}
+
+// GetPacketDestinationIp returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketDestinationIp() net.IPNet {
+	if ev.GetEventType().String() != "packet" {
+		return net.IPNet{}
+	}
+	return ev.RawPacket.NetworkContext.Destination.IPNet
+}
+
+// GetPacketDestinationPort returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketDestinationPort() uint16 {
+	if ev.GetEventType().String() != "packet" {
+		return uint16(0)
+	}
+	return ev.RawPacket.NetworkContext.Destination.Port
+}
+
+// GetPacketDeviceIfname returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketDeviceIfname() string {
+	if ev.GetEventType().String() != "packet" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.RawPacket.NetworkContext.Device)
+}
+
+// GetPacketL3Protocol returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketL3Protocol() uint16 {
+	if ev.GetEventType().String() != "packet" {
+		return uint16(0)
+	}
+	return ev.RawPacket.NetworkContext.L3Protocol
+}
+
+// GetPacketL4Protocol returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketL4Protocol() uint16 {
+	if ev.GetEventType().String() != "packet" {
+		return uint16(0)
+	}
+	return ev.RawPacket.NetworkContext.L4Protocol
+}
+
+// GetPacketPayload returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketPayload() string {
+	if ev.GetEventType().String() != "packet" {
+		return ""
+	}
+	return ev.RawPacket.Payload
+}
+
+// GetPacketSize returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketSize() uint32 {
+	if ev.GetEventType().String() != "packet" {
+		return uint32(0)
+	}
+	return ev.RawPacket.NetworkContext.Size
+}
+
+// GetPacketSourceIp returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketSourceIp() net.IPNet {
+	if ev.GetEventType().String() != "packet" {
+		return net.IPNet{}
+	}
+	return ev.RawPacket.NetworkContext.Source.IPNet
+}
+
+// GetPacketSourcePort returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketSourcePort() uint16 {
+	if ev.GetEventType().String() != "packet" {
+		return uint16(0)
+	}
+	return ev.RawPacket.NetworkContext.Source.Port
 }
 
 // GetProcessAncestorsArgs returns the value of the field, resolving if necessary
