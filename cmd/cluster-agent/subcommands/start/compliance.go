@@ -79,7 +79,6 @@ func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Comp
 	}
 	stopper.Add(ctx)
 
-	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
 
@@ -88,8 +87,13 @@ func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Comp
 		return err
 	}
 
-	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", runPath, endpoints, ctx)
-	agent := compliance.NewAgent(senderManager, wmeta, compliance.AgentOptions{
+	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", endpoints, ctx)
+	statsdClient, err := simpleTelemetrySenderFromSenderManager(senderManager)
+	if err != nil {
+		return err
+	}
+
+	agent := compliance.NewAgent(statsdClient, wmeta, compliance.AgentOptions{
 		ConfigDir:     configDir,
 		Reporter:      reporter,
 		CheckInterval: checkInterval,
