@@ -59,6 +59,9 @@ type testdeps struct {
 	fx.In
 
 	// additional StartServer arguments
+	//
+	// TODO: remove these in the next PR once StartServer component arguments
+	//       are part of the api component dependency struct
 	DogstatsdServer       dogstatsdServer.Component
 	Capture               replay.Component
 	ServerDebug           dogstatsddebug.Component
@@ -83,6 +86,7 @@ type testdeps struct {
 }
 
 func getComponentDependencies(t *testing.T) testdeps {
+	// TODO: this fxutil.Test[T] can take a component and return the component
 	return fxutil.Test[testdeps](
 		t,
 		flareimpl.MockModule(),
