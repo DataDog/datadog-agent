@@ -232,7 +232,6 @@ agentless_scanner_rpm-x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_agentless_scanner-binary_x64", "go_deps"]
-  variables:
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
@@ -264,7 +263,6 @@ agentless_scanner_rpm-arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "build_agentless_scanner-binary_arm64", "go_deps"]
-  variables:
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
