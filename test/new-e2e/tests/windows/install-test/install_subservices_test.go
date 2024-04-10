@@ -13,9 +13,11 @@ import (
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
+	"github.com/stretchr/testify/suite"
 )
 
 type subservicesTestCase struct {
@@ -26,6 +28,9 @@ type subservicesTestCase struct {
 	apmEnabled     bool
 }
 
+// TestSubServicesOpts tests that the agent installer can configure the subservices.
+// TODO: Once E2E's Agent interface supports providing MSI installer options these tests
+// should be moved to regular Agent E2E tests for each subservice.
 func TestSubServicesOpts(t *testing.T) {
 	tcs := []subservicesTestCase{
 		// TC-INS-004
@@ -48,13 +53,15 @@ func TestSubServicesOpts(t *testing.T) {
 type testSubServicesOptsSuite struct {
 	baseAgentMSISuite
 
-	tc subservicesTestCase
+	tc       subservicesTestCase
+	confYaml map[string]interface{}
 }
 
-// TestSubServicesOpts tests that the agent installer can configure the subservices.
-// TODO: Once E2E's Agent interface supports providing MSI installer options these tests
-// should be moved to regular Agent E2E tests for each subservice.
-func (s *testSubServicesOptsSuite) TestSubServicesOpts() {
+func (s *testSubServicesOptsSuite) SetupSuite() {
+	if setupSuite, ok := any(&s.baseAgentMSISuite).(suite.SetupAllSuite); ok {
+		setupSuite.SetupSuite()
+	}
+
 	vm := s.Env().RemoteHost
 	tc := s.tc
 
@@ -68,11 +75,22 @@ func (s *testSubServicesOptsSuite) TestSubServicesOpts() {
 	_ = s.installAgentPackage(vm, s.AgentPackage, installOpts...)
 
 	// read the config file and check the options
-	confYaml, err := s.readAgentConfig(vm)
+	var err error
+	s.confYaml, err = s.readAgentConfig(vm)
 	s.Require().NoError(err)
+}
+
+func (s *testSubServicesOptsSuite) TestLogsEnabled() {
+	tc := s.tc
+	confYaml := s.confYaml
 
 	assert.Contains(s.T(), confYaml, "logs_enabled", "logs_enabled should be present in the config")
 	assert.Equal(s.T(), tc.logsEnabled, confYaml["logs_enabled"], "logs_enabled should match")
+}
+
+func (s *testSubServicesOptsSuite) TestProcessEnabled() {
+	tc := s.tc
+	confYaml := s.confYaml
 
 	if assert.Contains(s.T(), confYaml, "process_config", "process_config should be present in the config") {
 		processConf := confYaml["process_config"].(map[string]interface{})
@@ -88,32 +106,36 @@ func (s *testSubServicesOptsSuite) TestSubServicesOpts() {
 		}
 	}
 
+	// NOTE: Even with processEnabled=false the Agent will start process-agent because container_collection is
+	//       enabled by default. We do not have an installer option to control this process-agent setting.
+	//       However, process-agent will exit soon after starting because there's no container environment installed
+	//       and the other options are disabled.
+	s.testServiceState("datadog-process-agent", tc.processEnabled)
+}
+
+func (s *testSubServicesOptsSuite) TestAPMEnabled() {
+	tc := s.tc
+	confYaml := s.confYaml
+
 	if assert.Contains(s.T(), confYaml, "apm_config", "apm_config should be present in the config") {
 		apmConf := confYaml["apm_config"].(map[string]interface{})
 		assert.Contains(s.T(), apmConf, "enabled", "enabled should be present in apm_config")
 		assert.Equal(s.T(), tc.apmEnabled, apmConf["enabled"], "apm_config enabled should match")
 	}
 
-	tcs := []struct {
-		serviceName string
-		enabled     bool
-	}{
-		// NOTE: Even with processEnabled=false the Agent will start process-agent because container_collection is
-		//       enabled by default. We do not have an installer option to control this process-agent setting.
-		//       However, process-agent will exit soon after starting because there's no container environment installed
-		//       and the other options are disabled.
-		{"datadog-process-agent", tc.processEnabled},
-		{"datadog-trace-agent", tc.apmEnabled},
-	}
-	for _, tc := range tcs {
-		assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-			status, err := windowsCommon.GetServiceStatus(vm, tc.serviceName)
-			require.NoError(c, err)
-			if tc.enabled {
-				assert.Equal(c, "Running", status, "%s should be running", tc.serviceName)
-			} else {
-				assert.Equal(c, "Stopped", status, "%s should be stopped", tc.serviceName)
-			}
-		}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", tc.serviceName)
-	}
+	s.testServiceState("datadog-trace-agent", tc.apmEnabled)
+}
+
+func (s *testSubServicesOptsSuite) testServiceState(serviceName string, running bool) {
+	vm := s.Env().RemoteHost
+
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := windowsCommon.GetServiceStatus(vm, serviceName)
+		require.NoError(c, err)
+		if running {
+			assert.Equal(c, "Running", status, "%s should be running", serviceName)
+		} else {
+			assert.Equal(c, "Stopped", status, "%s should be stopped", serviceName)
+		}
+	}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
 }
