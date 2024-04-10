@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil
 
-go 1.21.8
+go 1.21.9
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
@@ -28,7 +28,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.0.0-00010101000000-000000000000
-	go.opentelemetry.io/collector/pdata v1.0.1
+	go.opentelemetry.io/collector/pdata v1.4.0
 )
 
 require (
@@ -81,7 +81,7 @@ require (
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.18.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
-	google.golang.org/grpc v1.62.0 // indirect
-	google.golang.org/protobuf v1.32.0 // indirect
+	google.golang.org/grpc v1.62.1 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

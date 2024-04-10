@@ -97,6 +97,7 @@ type Stats struct {
 	// LongRunning is true if the check is a long running check
 	// converted to a normal check
 	LongRunning              bool
+	Cancelling               bool
 	TotalRuns                uint64
 	TotalErrors              uint64
 	TotalWarnings            uint64
@@ -248,6 +249,13 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 		cs.TotalEventPlatformEvents[k] = cs.TotalEventPlatformEvents[k] + v
 		cs.EventPlatformEvents[k] = v
 	}
+}
+
+// SetStateCancelling sets the check stats to be in a cancelling state
+func (cs *Stats) SetStateCancelling() {
+	cs.m.Lock()
+	defer cs.m.Unlock()
+	cs.Cancelling = true
 }
 
 type aggStats struct {
