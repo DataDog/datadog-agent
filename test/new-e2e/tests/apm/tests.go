@@ -107,7 +107,7 @@ func tracesSampledByProbabilitySampler(t *testing.T, c *assert.CollectT, intake 
 					t.Errorf("Expected trace chunk tags to contain _dd.p.dm, but it does not.")
 				}
 				if dm != "-9" {
-					t.Errorf("Expected dm == -9, but got %d", dm)
+					t.Errorf("Expected dm == -9, but got %v", dm)
 				}
 			}
 		}
