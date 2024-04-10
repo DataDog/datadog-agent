@@ -67,6 +67,7 @@ type updaterImpl struct {
 	downloader   *downloader
 	installer    *installer
 
+	remoteUpdates     bool
 	rc                *remoteConfig
 	catalog           catalog
 	requests          chan remoteAPIRequest
@@ -126,6 +127,7 @@ func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, con
 	rcClient := rc
 
 	u := &updaterImpl{
+		remoteUpdates:     config.GetBool("updater.remote_updates"),
 		rc:                rcClient,
 		repositories:      repositories,
 		downloader:        newDownloader(http.DefaultClient, remoteRegistryOverride),
@@ -146,7 +148,6 @@ func (u *updaterImpl) GetState() (map[string]repository.State, error) {
 
 // Start starts remote config and the garbage collector.
 func (u *updaterImpl) Start(_ context.Context) error {
-	u.rc.Start(u.handleCatalogUpdate, u.scheduleRemoteAPIRequest)
 	go func() {
 		for {
 			select {
@@ -167,6 +168,11 @@ func (u *updaterImpl) Start(_ context.Context) error {
 			}
 		}
 	}()
+	if !u.remoteUpdates {
+		log.Infof("updater: Remote updates are disabled")
+		return nil
+	}
+	u.rc.Start(u.handleCatalogUpdate, u.scheduleRemoteAPIRequest)
 	return nil
 }
 

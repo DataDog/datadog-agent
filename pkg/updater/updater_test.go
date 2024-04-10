@@ -84,6 +84,8 @@ func newTestUpdater(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigCl
 
 func newTestUpdaterWithPaths(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) (*updaterImpl, string, string) {
 	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	var b = true
+	cfg.Set("updater.remote_updates", &b, model.SourceDefault)
 	rc := &remoteConfig{client: rcc}
 	rootPath := t.TempDir()
 	locksPath := t.TempDir()
