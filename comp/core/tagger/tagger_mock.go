@@ -9,8 +9,10 @@
 package tagger
 
 import (
+	"net/http"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -25,13 +27,34 @@ type MockTaggerClient struct {
 	*TaggerClient
 }
 
+type MockEndpoint struct {
+	Comp *TaggerClient
+}
+
+// ServeHTTP is a simple mocked http.Handler function
+func (e MockEndpoint) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	w.Write([]byte("OK"))
+}
+
+type MockProvides struct {
+	fx.Out
+
+	Comp     Mock
+	Endpoint api.AgentEndpointProvider
+}
+
 var _ Component = (*MockTaggerClient)(nil)
 
 // NewMock returns a MockTagger
-func NewMock(deps dependencies) Mock {
+func NewMock(deps dependencies) MockProvides {
 	taggerClient := newTaggerClient(deps)
-	return &MockTaggerClient{
+	c := &MockTaggerClient{
 		TaggerClient: taggerClient.(*TaggerClient),
+	}
+	endpoint := MockEndpoint{Comp: c.TaggerClient}
+	return MockProvides{
+		Comp:     c,
+		Endpoint: api.NewAgentEndpointProvider(endpoint, "/tagger-list", "GET"),
 	}
 }
 

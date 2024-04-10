@@ -62,6 +62,9 @@ type apiServer struct {
 	rcService             optional.Option[rcservice.Component]
 	rcServiceHA           optional.Option[rcserviceha.Component]
 	authToken             authtoken.Component
+	taggerComp            tagger.Component
+	autoConfig            autodiscovery.Component
+	logsAgentComp         optional.Option[logsAgent.Component]
 	endpointProviders     []api.EndpointProvider
 }
 
@@ -84,6 +87,9 @@ type dependencies struct {
 	RcService             optional.Option[rcservice.Component]
 	RcServiceHA           optional.Option[rcserviceha.Component]
 	AuthToken             authtoken.Component
+	Tagger                tagger.Component
+	AutoConfig            autodiscovery.Component
+	LogsAgentComp         optional.Option[logsAgent.Component]
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -107,6 +113,9 @@ func newAPIServer(deps dependencies) api.Component {
 		rcService:             deps.RcService,
 		rcServiceHA:           deps.RcServiceHA,
 		authToken:             deps.AuthToken,
+		taggerComp:            deps.Tagger,
+		autoConfig:            deps.AutoConfig,
+		logsAgentComp:         deps.LogsAgentComp,
 		endpointProviders:     deps.EndpointProviders,
 	}
 }
@@ -114,9 +123,6 @@ func newAPIServer(deps dependencies) api.Component {
 // StartServer creates the router and starts the HTTP server
 func (server *apiServer) StartServer(
 	wmeta workloadmeta.Component,
-	taggerComp tagger.Component,
-	ac autodiscovery.Component,
-	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	collector optional.Option[collector.Component],
 ) error {
@@ -127,8 +133,8 @@ func (server *apiServer) StartServer(
 		server.pidMap,
 		server.serverDebug,
 		wmeta,
-		taggerComp,
-		logsAgent,
+		server.taggerComp,
+		server.logsAgentComp,
 		senderManager,
 		server.hostMetadata,
 		server.invAgent,
@@ -140,7 +146,7 @@ func (server *apiServer) StartServer(
 		server.statusComponent,
 		collector,
 		server.eventPlatformReceiver,
-		ac,
+		server.autoConfig,
 		server.endpointProviders,
 	)
 }

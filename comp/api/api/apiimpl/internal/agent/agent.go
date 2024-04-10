@@ -33,8 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -105,7 +103,6 @@ func SetupHandlers(
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
-	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
 		getWorkloadList(w, r, wmeta)
 	}).Methods("GET")
@@ -357,19 +354,6 @@ func getHealth(w http.ResponseWriter, _ *http.Request) {
 
 func getCSRFToken(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte(gui.CsrfToken))
-}
-
-func getTaggerList(w http.ResponseWriter, _ *http.Request) {
-	// query at the highest cardinality between checks and dogstatsd cardinalities
-	cardinality := collectors.TagCardinality(max(int(tagger.ChecksCardinality), int(tagger.DogstatsdCardinality)))
-	response := tagger.List(cardinality)
-
-	jsonTags, err := json.Marshal(response)
-	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Unable to marshal tagger list response: %s", err), 500)
-		return
-	}
-	w.Write(jsonTags)
 }
 
 func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {

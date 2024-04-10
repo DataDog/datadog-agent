@@ -19,15 +19,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -76,17 +75,14 @@ type handlerdeps struct {
 	Collector             optional.Option[collector.Component]
 	EventPlatformReceiver eventplatformreceiver.Component
 	Ac                    autodiscovery.Mock
+	Tagger                tagger.Mock
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 func getComponentDeps(t *testing.T) handlerdeps {
 	return fxutil.Test[handlerdeps](
 		t,
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmeta.MockModule(),
 		hostnameinterface.MockModule(),
 		flareimpl.MockModule(),
 		dogstatsdServer.MockModule(),
@@ -110,6 +106,7 @@ func getComponentDeps(t *testing.T) handlerdeps {
 			return optional.NewNoneOption[collector.Component]()
 		}),
 		eventplatformreceiverimpl.MockModule(),
+		tagger.MockModule(),
 		fx.Options(
 			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
 			autodiscoveryimpl.MockModule(),
@@ -169,6 +166,11 @@ func TestSetupHandlers(t *testing.T) {
 		},
 		{
 			route:    "/config-check",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/tagger-list",
 			method:   "GET",
 			wantCode: 200,
 		},

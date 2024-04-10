@@ -141,6 +141,8 @@ func getTestAPIServer(deps testdeps) *apiServer {
 		RcService:             deps.RcService,
 		RcServiceHA:           deps.RcServiceHA,
 		AuthToken:             deps.AuthToken,
+		Tagger:                deps.Tagger,
+		LogsAgentComp:         deps.Logs,
 		EndpointProviders:     deps.EndpointProviders,
 	}
 	api := newAPIServer(apideps)
@@ -151,18 +153,12 @@ func TestStartServer(t *testing.T) {
 	deps := getComponentDependencies(t)
 
 	store := deps.WorkloadMeta
-	tags := deps.Tagger
-	ac := deps.Autodiscovery
 	sender := aggregator.NewNoOpSenderManager()
-	log := deps.Logs
 	col := deps.Collector
 
 	srv := getTestAPIServer(deps)
 	err := srv.StartServer(
 		store,
-		tags,
-		ac,
-		log,
 		sender,
 		col,
 	)
