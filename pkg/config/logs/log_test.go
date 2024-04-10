@@ -17,7 +17,6 @@ import (
 
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -118,7 +117,6 @@ func TestMergedKeys(t *testing.T) {
 func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	// Test that the scrubber is correctly configured with the expected keys
 	cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	pkgconfigsetup.InitConfig(cfg)
 
 	cfg.SetWithoutSource("scrubber.additional_keys", []string{"yet_another_key"})
 	cfg.SetWithoutSource("flare_stripped_keys", []string{"some_other_key"})
