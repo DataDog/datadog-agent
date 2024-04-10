@@ -5,3 +5,4 @@ variables:
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
   # Make sure to update test-infra-definitions version in go.mod as well
   TEST_INFRA_DEFINITIONS_BUILDIMAGES: 45eb73107979
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 53b7554e9643
