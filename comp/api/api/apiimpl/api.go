@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -63,6 +63,7 @@ type apiServer struct {
 	rcService             optional.Option[rcservice.Component]
 	rcServiceHA           optional.Option[rcserviceha.Component]
 	authToken             authtoken.Component
+	gui                   optional.Option[gui.Component]
 	settings              settings.Component
 	endpointProviders     []api.EndpointProvider
 }
@@ -86,6 +87,7 @@ type dependencies struct {
 	RcService             optional.Option[rcservice.Component]
 	RcServiceHA           optional.Option[rcserviceha.Component]
 	AuthToken             authtoken.Component
+	Gui                   optional.Option[gui.Component]
 	Settings              settings.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
@@ -110,6 +112,7 @@ func newAPIServer(deps dependencies) api.Component {
 		rcService:             deps.RcService,
 		rcServiceHA:           deps.RcServiceHA,
 		authToken:             deps.AuthToken,
+		gui:                   deps.Gui,
 		settings:              deps.Settings,
 		endpointProviders:     deps.EndpointProviders,
 	}
@@ -145,6 +148,7 @@ func (server *apiServer) StartServer(
 		collector,
 		server.eventPlatformReceiver,
 		ac,
+		server.gui,
 		server.settings,
 		server.endpointProviders,
 	)
