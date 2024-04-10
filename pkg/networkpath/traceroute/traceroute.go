@@ -27,6 +27,7 @@ type (
 		TimeoutMs uint
 	}
 
+	// Runner executes traceroutes
 	Runner struct {
 		subnetCache simplelru.LRUCache[int, any]
 		networkID   string
