@@ -20,6 +20,7 @@ function Install-DDAgent
     )
 
     validateAdminPriviledges
+    validate64BitProcess
     enableTSL12
 
     [string] $uniqueID = [System.Guid]::NewGuid()
@@ -108,6 +109,15 @@ function validateAdminPriviledges()
     if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
     {
         $exception = [Exception]::new("Administrator priviledges required.")
+        $PSCmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new($exception, "FatalError", [Management.Automation.ErrorCategory]::InvalidOperation, $null))
+    }
+}
+
+function validate64BitProcess()
+{
+    if (-not [Environment]::Is64BitProcess)
+    {
+        $exception = [Exception]::new("This command must be run in a 64-bit environment.")
         $PSCmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new($exception, "FatalError", [Management.Automation.ErrorCategory]::InvalidOperation, $null))
     }
 }
