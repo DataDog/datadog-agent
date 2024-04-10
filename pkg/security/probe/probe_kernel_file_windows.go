@@ -130,7 +130,7 @@ The Parameters.Create.FileAttributes and Parameters.Create.EaLength members are 
 	by file systems and file system filter drivers. For more information, see the IRP_MJ_CREATE topic in
 	the Installable File System (IFS) documentation.
 */
-func (p *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
+func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 	ca := &createHandleArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -158,28 +158,28 @@ func (p *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandl
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	p.filePathResolverLock.Lock()
-	defer p.filePathResolverLock.Unlock()
+	wp.filePathResolverLock.Lock()
+	defer wp.filePathResolverLock.Unlock()
 
-	if _, ok := p.discardedPaths.Get(ca.fileName); ok {
-		p.stats.fileCreateSkippedDiscardedPaths++
+	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
+		wp.stats.fileCreateSkippedDiscardedPaths++
 		return nil, errDiscardedPath
 	}
 
 	// not amazing to double compute the basename..
 	basename := filepath.Base(ca.fileName)
-	if _, ok := p.discardedBasenames.Get(basename); ok {
-		p.stats.fileCreateSkippedDiscardedBasenames++
+	if _, ok := wp.discardedBasenames.Get(basename); ok {
+		wp.stats.fileCreateSkippedDiscardedBasenames++
 		return nil, errDiscardedPath
 	}
 
-	p.filePathResolver[ca.fileObject] = ca.fileName
+	wp.filePathResolver[ca.fileObject] = ca.fileName
 
 	return ca, nil
 }
 
-func (p *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
-	ca, err := p.parseCreateHandleArgs(e)
+func (wp *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
+	ca, err := wp.parseCreateHandleArgs(e)
 	if err != nil {
 		return nil, err
 	}
