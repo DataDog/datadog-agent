@@ -118,8 +118,12 @@ func (s *testFixturesServer) Package(f fixture) Package {
 	return Package{
 		Name:    f.pkg,
 		Version: f.version,
-		URL:     fmt.Sprintf("oci://%s/%s@%s", strings.TrimPrefix(s.s.URL, "http://"), f.pkg, f.indexDigest),
+		URL:     s.PackageURL(f),
 	}
+}
+
+func (s *testFixturesServer) PackageURL(f fixture) string {
+	return fmt.Sprintf("oci://%s/%s@%s", strings.TrimPrefix(s.s.URL, "http://"), f.pkg, f.indexDigest)
 }
 
 func (s *testFixturesServer) PackageFS(f fixture) fs.FS {
@@ -142,11 +146,11 @@ func (s *testFixturesServer) ConfigFS(f fixture) fs.FS {
 }
 
 func (s *testFixturesServer) Image(f fixture) oci.Image {
-	image, err := s.Downloader().Download(context.Background(), s.Package(f))
+	downloadedPackage, err := s.Downloader().Download(context.Background(), s.Package(f).URL)
 	if err != nil {
 		panic(err)
 	}
-	return image
+	return downloadedPackage.Image
 }
 
 func (s *testFixturesServer) Catalog() catalog {
@@ -167,25 +171,14 @@ func TestDownload(t *testing.T) {
 	defer s.Close()
 	d := s.Downloader()
 
-	image, err := d.Download(context.Background(), s.Package(fixtureSimpleV1))
+	downloadedPackage, err := d.Download(context.Background(), s.PackageURL(fixtureSimpleV1))
 	assert.NoError(t, err)
+	assert.Equal(t, fixtureSimpleV1.pkg, downloadedPackage.Name)
+	assert.Equal(t, fixtureSimpleV1.version, downloadedPackage.Version)
 	tmpDir := t.TempDir()
-	err = extractPackageLayers(image, t.TempDir(), tmpDir)
+	err = extractPackageLayers(downloadedPackage.Image, t.TempDir(), tmpDir)
 	assert.NoError(t, err)
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), os.DirFS(tmpDir))
-}
-
-func TestPackage(t *testing.T) {
-	s := newTestFixturesServer(t)
-	defer s.Close()
-	d := s.Downloader()
-
-	expectedPackage := s.Package(fixtureSimpleV1)
-	pkg, err := d.Package(context.Background(), expectedPackage.URL)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedPackage.Name, pkg.Name)
-	assert.Equal(t, expectedPackage.Version, pkg.Version)
-	assert.Equal(t, expectedPackage.URL, pkg.URL)
 }
 
 func TestDownloadInvalidHash(t *testing.T) {
@@ -193,20 +186,9 @@ func TestDownloadInvalidHash(t *testing.T) {
 	defer s.Close()
 	d := s.Downloader()
 
-	pkg := s.Package(fixtureSimpleV1)
-	pkg.URL = pkg.URL[:strings.Index(pkg.URL, "@sha256:")] + "@sha256:2857b8e9faf502169c9cfaf6d4ccf3a035eccddc0f5b87c613b673a807ff6d23"
-	_, err := d.Download(context.Background(), pkg)
-	assert.Error(t, err)
-}
-
-func TestDownloadInvalidVersion(t *testing.T) {
-	s := newTestFixturesServer(t)
-	defer s.Close()
-	d := s.Downloader()
-
-	pkg := s.Package(fixtureSimpleV1)
-	pkg.Version = "v1-1"
-	_, err := d.Download(context.Background(), pkg)
+	pkgURL := s.PackageURL(fixtureSimpleV1)
+	pkgURL = pkgURL[:strings.Index(pkgURL, "@sha256:")] + "@sha256:2857b8e9faf502169c9cfaf6d4ccf3a035eccddc0f5b87c613b673a807ff6d23"
+	_, err := d.Download(context.Background(), pkgURL)
 	assert.Error(t, err)
 }
 
@@ -215,7 +197,7 @@ func TestDownloadPlatformNotAvailable(t *testing.T) {
 	defer s.Close()
 	d := s.Downloader()
 
-	pkg := s.Package(fixtureSimpleV1Linux2Amd128)
+	pkg := s.PackageURL(fixtureSimpleV1Linux2Amd128)
 	_, err := d.Download(context.Background(), pkg)
 	assert.Error(t, err)
 }
@@ -225,7 +207,7 @@ func TestDownloadRegistryWithOverride(t *testing.T) {
 	defer s.Close()
 	d := s.DownloaderRegistryOverride()
 
-	_, err := d.Download(context.Background(), s.Package(fixtureSimpleV1))
+	_, err := d.Download(context.Background(), s.PackageURL(fixtureSimpleV1))
 	assert.Error(t, err) // Host not found
 }
 
@@ -254,7 +236,7 @@ func TestDownloadOCIPlatformNotAvailable(t *testing.T) {
 	defer s.Close()
 	d := s.Downloader()
 
-	pkg := s.Package(fixtureSimpleV1Linux2Amd128)
+	pkg := s.PackageURL(fixtureSimpleV1Linux2Amd128)
 	_, err := d.Download(context.Background(), pkg)
 	assert.Error(t, err)
 }
