@@ -8,6 +8,7 @@
 package traceroute
 
 import (
+	"context"
 	"encoding/json"
 
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
@@ -28,14 +29,14 @@ type LinuxTraceroute struct {
 
 // New creates a new instance of LinuxTraceroute
 // based on an input configuration
-func New(cfg Config) *LinuxTraceroute {
+func New(cfg Config) (*LinuxTraceroute, error) {
 	return &LinuxTraceroute{
 		cfg: cfg,
-	}
+	}, nil
 }
 
 // Run executes a traceroute
-func (l *LinuxTraceroute) Run() (NetworkPath, error) {
+func (l *LinuxTraceroute) Run(_ context.Context) (NetworkPath, error) {
 	tu, err := net.GetRemoteSystemProbeUtil(
 		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {

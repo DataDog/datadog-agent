@@ -53,8 +53,11 @@ func (c *Check) Run() error {
 		TimeoutMs:    c.config.TimeoutMs,
 	}
 
-	tr := traceroute.New(cfg)
-	path, err := tr.Run()
+	tr, err := traceroute.New(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to initialize traceroute: %w", err)
+	}
+	path, err := tr.Run(context.TODO())
 	if err != nil {
 		return fmt.Errorf("failed to trace path: %w", err)
 	}

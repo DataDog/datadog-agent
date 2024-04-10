@@ -6,6 +6,12 @@
 // Package traceroute adds traceroute functionality to the agent
 package traceroute
 
+import (
+	"context"
+
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+)
+
 type (
 	// Config specifies the configuration of an instance
 	// of Traceroute
@@ -21,10 +27,15 @@ type (
 		TimeoutMs uint
 	}
 
+	Runner struct {
+		subnetCache simplelru.LRUCache[int, any]
+		networkID   string
+	}
+
 	// Traceroute defines an interface for running
 	// traceroutes for the Network Path integration
 	Traceroute interface {
-		Run() (NetworkPath, error)
+		Run(context.Context) (NetworkPath, error)
 	}
 
 	// NetworkPathHop encapsulates the data for a single
