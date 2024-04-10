@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -86,8 +87,7 @@ func (s *service) Run(svcctx context.Context) error {
 	err := fxutil.OneShot(
 		func(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component,
 			telemetry telemetry.Component, _ workloadmeta.Component, params *cliParams, statusComponent status.Component, _ autoexit.Component) error {
-			_, cancel := context.WithCancel(context.Background())
-			defer start.StopAgent(cancel, log)
+			defer start.StopAgent(log)
 
 			err := start.RunAgent(log, config, telemetry, statusComponent)
 			if err != nil {
@@ -168,6 +168,7 @@ func (s *service) Run(svcctx context.Context) error {
 		configsyncimpl.OptionalModule(),
 		// Force the instantiation of the component
 		fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
+		autoexitimpl.Module(),
 	)
 
 	return err

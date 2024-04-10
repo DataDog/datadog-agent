@@ -192,8 +192,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // as a global. This should eventually be fixed and all workloadmeta interactions should be via the
 // injected instance.
 func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component, _ autoexit.Component) error {
-	_, cancel := context.WithCancel(context.Background())
-	defer StopAgent(cancel, log)
+	defer StopAgent(log)
 
 	err := RunAgent(log, config, telemetry, statusComponent)
 	if errors.Is(err, errAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
@@ -316,7 +315,7 @@ func initRuntimeSettings() error {
 }
 
 // StopAgent stops the API server and clean up resources
-func StopAgent(cancel context.CancelFunc, log log.Component) {
+func StopAgent(log log.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	healthStatus, err := health.GetReadyNonBlocking()
@@ -325,9 +324,6 @@ func StopAgent(cancel context.CancelFunc, log log.Component) {
 	} else if len(healthStatus.Unhealthy) > 0 {
 		log.Warnf("Some components were unhealthy: %v", healthStatus.Unhealthy)
 	}
-
-	// gracefully shut down any component
-	cancel()
 
 	// stop metaScheduler and statsd if they are instantiated
 	if stopper != nil {
