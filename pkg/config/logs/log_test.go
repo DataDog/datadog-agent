@@ -13,7 +13,6 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -147,5 +146,5 @@ yet_another_key: 'dddd'`
 some_other_key: "********"
 app_key: '***********************************acccc'
 yet_another_key: "********"`
-	require.YAMLEq(t, expected, scrubbed)
+	assert.YAMLEq(t, expected, scrubbed)
 }
