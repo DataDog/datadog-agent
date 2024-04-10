@@ -188,10 +188,13 @@ func (c *client) sendPayload(requestType RequestType, payload interface{}) {
 		req.Header.Add("dd-agent-hostname", event.Host.Hostname)
 		resp, err := c.client.Do(req)
 		if err != nil {
-			log.Errorf("failed to send payload to endpoint %s: %v", url, err)
+			log.Warnf("failed to send telemetry payload to endpoint %s: %v", url, err)
 			continue
 		}
 		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			log.Warnf("failed to send telemetry payload to endpoint %s: %s", url, resp.Status)
+		}
 		_, _ = io.Copy(io.Discard, resp.Body)
 	}
 }
