@@ -101,7 +101,7 @@ func (c *Scrubber) ScrubDataObj(data *interface{}) {
 func (c *Scrubber) ScrubYaml(input []byte) ([]byte, error) {
 	var data *interface{}
 	err := yaml.Unmarshal(input, &data)
-	
+
 	// if we can't load the yaml run the default scrubber on the input
 	if len(input) != 0 && err == nil {
 		c.ScrubDataObj(data)
