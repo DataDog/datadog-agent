@@ -112,6 +112,14 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 				PythonVersionGetFunc: python.GetPythonVersion,
 			},
 		),
+		fx.Supply(
+			// Provide remote config client configuration
+			rcclient.Params{
+				AgentName:    "process-agent",
+				AgentVersion: version.AgentVersion,
+			},
+		),
+
 		// Populate dependencies required for initialization in this function
 		fx.Populate(&appInitDeps),
 
@@ -197,15 +205,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 				return errAgentDisabled
 			}
 			return nil
-		}),
-
-		// Initialize the remote-config client to update the runtime settings
-		fx.Invoke(func(rc rcclient.Component) {
-			if ddconfig.IsRemoteConfigEnabled(ddconfig.Datadog) {
-				if err := rc.Start("process-agent"); err != nil {
-					log.Errorf("Couldn't start the remote-config client of the process agent: %s", err)
-				}
-			}
 		}),
 	)
 

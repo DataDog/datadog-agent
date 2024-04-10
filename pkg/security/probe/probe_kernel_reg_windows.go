@@ -29,8 +29,7 @@ const (
 type regObjectPointer uint64
 
 var (
-	regPathResolver = make(map[regObjectPointer]string, 0)
-	regprefix       = `\REGISTRY`
+	regprefix = `\REGISTRY`
 )
 
 /*
@@ -110,7 +109,7 @@ type setValueKeyArgs struct {
 	computedFullPath         string
 }
 
-func parseCreateRegistryKey(e *etw.DDEventRecord) (*createKeyArgs, error) {
+func (wp *WindowsProbe) parseCreateRegistryKey(e *etw.DDEventRecord) (*createKeyArgs, error) {
 
 	crc := &createKeyArgs{
 		DDEventHeader: e.EventHeader,
@@ -131,7 +130,7 @@ func parseCreateRegistryKey(e *etw.DDEventRecord) (*createKeyArgs, error) {
 	}
 	crc.relativeName, _, _, _ = data.ParseUnicodeString(nextOffset)
 
-	crc.computeFullPath()
+	wp.computeFullPath(crc)
 	return crc, nil
 }
 
@@ -150,25 +149,22 @@ func (cka *createKeyArgs) translateBasePaths() {
 		}
 	}
 }
-func parseOpenRegistryKey(e *etw.DDEventRecord) (*openKeyArgs, error) {
-	cka, err := parseCreateRegistryKey(e)
+func (wp *WindowsProbe) parseOpenRegistryKey(e *etw.DDEventRecord) (*openKeyArgs, error) {
+	cka, err := wp.parseCreateRegistryKey(e)
 	if err != nil {
 		return nil, err
 	}
 	return (*openKeyArgs)(cka), nil
 }
 
-func (cka *createKeyArgs) computeFullPath() {
-
-	// var regPathResolver map[regObjectPointer]string
-
+func (wp *WindowsProbe) computeFullPath(cka *createKeyArgs) {
 	if strings.HasPrefix(cka.relativeName, regprefix) {
 		cka.translateBasePaths()
 		cka.computedFullPath = cka.relativeName
-		regPathResolver[cka.keyObject] = cka.relativeName
+		wp.regPathResolver[cka.keyObject] = cka.relativeName
 		return
 	}
-	if s, ok := regPathResolver[cka.keyObject]; ok {
+	if s, ok := wp.regPathResolver[cka.keyObject]; ok {
 		cka.computedFullPath = s
 	}
 	var outstr string
@@ -179,13 +175,13 @@ func (cka *createKeyArgs) computeFullPath() {
 		outstr += cka.relativeName
 	} else {
 
-		if s, ok := regPathResolver[cka.baseObject]; ok {
+		if s, ok := wp.regPathResolver[cka.baseObject]; ok {
 			outstr = s + "\\" + cka.relativeName
 		} else {
 			outstr = cka.relativeName
 		}
 	}
-	regPathResolver[cka.keyObject] = outstr
+	wp.regPathResolver[cka.keyObject] = outstr
 	cka.computedFullPath = outstr
 }
 func (cka *createKeyArgs) String() string {
@@ -206,7 +202,7 @@ func (cka *openKeyArgs) String() string {
 	return (*createKeyArgs)(cka).String()
 }
 
-func parseDeleteRegistryKey(e *etw.DDEventRecord) (*deleteKeyArgs, error) {
+func (wp *WindowsProbe) parseDeleteRegistryKey(e *etw.DDEventRecord) (*deleteKeyArgs, error) {
 
 	dka := &deleteKeyArgs{
 		DDEventHeader: e.EventHeader,
@@ -217,37 +213,37 @@ func parseDeleteRegistryKey(e *etw.DDEventRecord) (*deleteKeyArgs, error) {
 	dka.keyObject = regObjectPointer(data.GetUint64(0))
 	dka.status = data.GetUint32(8)
 	dka.keyName, _, _, _ = data.ParseUnicodeString(12)
-	if s, ok := regPathResolver[dka.keyObject]; ok {
+	if s, ok := wp.regPathResolver[dka.keyObject]; ok {
 		dka.computedFullPath = s
 	}
 
 	return dka, nil
 }
 
-func parseFlushKey(e *etw.DDEventRecord) (*flushKeyArgs, error) {
-	dka, err := parseDeleteRegistryKey(e)
+func (wp *WindowsProbe) parseFlushKey(e *etw.DDEventRecord) (*flushKeyArgs, error) {
+	dka, err := wp.parseDeleteRegistryKey(e)
 	if err != nil {
 		return nil, err
 	}
 	return (*flushKeyArgs)(dka), nil
 }
 
-func parseCloseKeyArgs(e *etw.DDEventRecord) (*closeKeyArgs, error) {
-	dka, err := parseDeleteRegistryKey(e)
+func (wp *WindowsProbe) parseCloseKeyArgs(e *etw.DDEventRecord) (*closeKeyArgs, error) {
+	dka, err := wp.parseDeleteRegistryKey(e)
 	if err != nil {
 		return nil, err
 	}
 	return (*closeKeyArgs)(dka), nil
 }
-func parseQuerySecurityKeyArgs(e *etw.DDEventRecord) (*querySecurityKeyArgs, error) {
-	dka, err := parseDeleteRegistryKey(e)
+func (wp *WindowsProbe) parseQuerySecurityKeyArgs(e *etw.DDEventRecord) (*querySecurityKeyArgs, error) {
+	dka, err := wp.parseDeleteRegistryKey(e)
 	if err != nil {
 		return nil, err
 	}
 	return (*querySecurityKeyArgs)(dka), nil
 }
-func parseSetSecurityKeyArgs(e *etw.DDEventRecord) (*setSecurityKeyArgs, error) {
-	dka, err := parseDeleteRegistryKey(e)
+func (wp *WindowsProbe) parseSetSecurityKeyArgs(e *etw.DDEventRecord) (*setSecurityKeyArgs, error) {
+	dka, err := wp.parseDeleteRegistryKey(e)
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +280,7 @@ func (ska *setSecurityKeyArgs) String() string {
 	return (*deleteKeyArgs)(ska).String()
 }
 
-func parseSetValueKey(e *etw.DDEventRecord) (*setValueKeyArgs, error) {
+func (wp *WindowsProbe) parseSetValueKey(e *etw.DDEventRecord) (*setValueKeyArgs, error) {
 
 	sv := &setValueKeyArgs{
 		DDEventHeader: e.EventHeader,
@@ -333,7 +329,7 @@ func parseSetValueKey(e *etw.DDEventRecord) (*setValueKeyArgs, error) {
 
 	sv.previousData = data.Bytes(nextOffset, int(sv.previousDataSize))
 
-	if s, ok := regPathResolver[sv.keyObject]; ok {
+	if s, ok := wp.regPathResolver[sv.keyObject]; ok {
 		sv.computedFullPath = s
 	}
 
@@ -348,9 +344,7 @@ func (sv *setValueKeyArgs) String() string {
 	output.WriteString("  keyObject: " + strconv.FormatUint(uint64(sv.keyObject), 16) + "\n")
 	output.WriteString("  keyName: " + sv.keyName + "\n")
 	output.WriteString("  valueName: " + sv.valueName + "\n")
-	if s, ok := regPathResolver[sv.keyObject]; ok {
-		output.WriteString("  resolved path: " + s + "\n")
-	}
+	output.WriteString("  computed path: " + sv.computedFullPath + "\n")
 
 	//output.WriteString("  CapturedSize: " + strconv.Itoa(int(sv.capturedPreviousDataSize)) + " pvssize: " + strconv.Itoa(int(sv.previousDataSize)) + " capturedpvssize " + strconv.Itoa(int(sv.capturedPreviousDataSize)) + "\n")
 	return output.String()
