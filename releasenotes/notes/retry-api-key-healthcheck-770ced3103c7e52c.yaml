@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    The Agent healthcheck will now continue running even if the API key validation endpoint returns a 403 response code. Because this can occur due to transient issues, retrying will allow the Agent health indicator to recover in some cases.
