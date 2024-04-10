@@ -6,7 +6,7 @@
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*_${MAJOR_VERSION}.*${PACKAGE_ARCH}.deb" "$OMNIBUS_PACKAGE_DIR" "$S3_RELEASE_ARTIFACTS_URI/deb/${PACKAGE_ARCH}/" || true
+    - $S3_CP_CMD --recursive --exclude "*" --include "*_${MAJOR_VERSION}.*${PACKAGE_ARCH}.deb" "$OMNIBUS_PACKAGE_DIR" "$S3_RELEASE_ARTIFACTS_URI/deb/${PACKAGE_ARCH}/"
 
 .deploy_packages_deb-6:
   extends: .deploy_packages_deb
@@ -33,7 +33,7 @@
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*-${MAJOR_VERSION}.*${PACKAGE_ARCH}.rpm" "$OMNIBUS_PACKAGE_DIR" "$S3_RELEASE_ARTIFACTS_URI/${ARTIFACTS_PREFIX}rpm/${PACKAGE_ARCH}/" || true
+    - $S3_CP_CMD --recursive --exclude "*" --include "*-${MAJOR_VERSION}.*${PACKAGE_ARCH}.rpm" "$OMNIBUS_PACKAGE_DIR" "$S3_RELEASE_ARTIFACTS_URI/${ARTIFACTS_PREFIX}rpm/${PACKAGE_ARCH}/"
 
 .deploy_packages_rpm-6:
   extends: .deploy_packages_rpm
