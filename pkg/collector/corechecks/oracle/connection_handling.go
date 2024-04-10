@@ -10,7 +10,6 @@ package oracle
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
@@ -129,32 +128,4 @@ func closeGoOraConnection(c *Check) {
 	if err != nil {
 		log.Warnf("%s failed to close go-ora connection: %s", c.logPrompt, err.Error())
 	}
-}
-
-func buildConnectionString(connectionConfig config.ConnectionConfig) string {
-	var connStr string
-	if connectionConfig.OracleClient {
-		protocolString := ""
-		walletString := ""
-		if connectionConfig.Protocol == "TCPS" {
-			protocolString = "tcps://"
-			if connectionConfig.Wallet != "" {
-				walletString = fmt.Sprintf("?wallet_location=%s", connectionConfig.Wallet)
-			}
-		}
-		connStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s%s:%d/%s%s"`,
-			connectionConfig.Username, connectionConfig.Password, protocolString, connectionConfig.Server,
-			connectionConfig.Port, connectionConfig.ServiceName, walletString)
-	} else {
-		connectionOptions := map[string]string{"TIMEOUT": DB_TIMEOUT}
-		if connectionConfig.Protocol == "TCPS" {
-			connectionOptions["SSL"] = "TRUE"
-			if connectionConfig.Wallet != "" {
-				connectionOptions["WALLET"] = connectionConfig.Wallet
-			}
-		}
-		connStr = go_ora.BuildUrl(
-			connectionConfig.Server, connectionConfig.Port, connectionConfig.ServiceName, connectionConfig.Username, connectionConfig.Password, connectionOptions)
-	}
-	return connStr
 }

@@ -318,3 +318,31 @@ func TestLegacyMode(t *testing.T) {
 		s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, "", []string{expectedServerTag}, "")
 	}
 }
+
+func buildConnectionString(connectionConfig config.ConnectionConfig) string {
+	var connStr string
+	if connectionConfig.OracleClient {
+		protocolString := ""
+		walletString := ""
+		if connectionConfig.Protocol == "TCPS" {
+			protocolString = "tcps://"
+			if connectionConfig.Wallet != "" {
+				walletString = fmt.Sprintf("?wallet_location=%s", connectionConfig.Wallet)
+			}
+		}
+		connStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s%s:%d/%s%s"`,
+			connectionConfig.Username, connectionConfig.Password, protocolString, connectionConfig.Server,
+			connectionConfig.Port, connectionConfig.ServiceName, walletString)
+	} else {
+		connectionOptions := map[string]string{"TIMEOUT": DB_TIMEOUT}
+		if connectionConfig.Protocol == "TCPS" {
+			connectionOptions["SSL"] = "TRUE"
+			if connectionConfig.Wallet != "" {
+				connectionOptions["WALLET"] = connectionConfig.Wallet
+			}
+		}
+		connStr = go_ora.BuildUrl(
+			connectionConfig.Server, connectionConfig.Port, connectionConfig.ServiceName, connectionConfig.Username, connectionConfig.Password, connectionOptions)
+	}
+	return connStr
+}
