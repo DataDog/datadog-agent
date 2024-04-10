@@ -28,7 +28,7 @@ startupTimes=()
 # counts are useful for exploiting large-sample-size statistics.
 ITERATION_COUNT=301
 
-for i in {1..${ITERATION_COUNT}}
+for i in $(seq 1 ${ITERATION_COUNT})
 do
     # create a new container to ensure cold start
     dockerId=$(docker run -d datadogci/lambda-extension)
