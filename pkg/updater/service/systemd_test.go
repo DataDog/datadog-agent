@@ -45,7 +45,7 @@ func TestAssertWorkingCommands(t *testing.T) {
 	testSetup(t)
 
 	// missing permissions on test setup, e2e tests verify the successful commands
-	successErr := "error: failed to lookup dd-updater user: user: unknown user dd-updater\n"
+	successErr := "error: failed to lookup dd-installer user: user: unknown user dd-installer\n"
 
 	require.Equal(t, successErr, startUnit("datadog-agent").Error())
 	assert.Equal(t, successErr, stopUnit("datadog-agent").Error())

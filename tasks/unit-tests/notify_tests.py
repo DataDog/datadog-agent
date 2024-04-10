@@ -8,18 +8,97 @@ from invoke import MockContext, Result
 from invoke.exceptions import UnexpectedExit
 
 from tasks import notify
+from tasks.libs.types.types import FailedJobs, FailedJobType
 
 
 class TestSendMessage(unittest.TestCase):
+    @patch("tasks.notify.get_failed_jobs")
+    def test_merge_without_get_failed_call(self, get_failed_jobs_mock):
+        failed = FailedJobs()
+        failed.add_failed_job(
+            {
+                "name": "job1",
+                "stage": "stage1",
+                "retry_summary": [],
+                "url": "http://www.job.com",
+                "failure_type": FailedJobType.INFRA_FAILURE,
+                "allow_failure": False,
+            }
+        )
+        failed.add_failed_job(
+            {
+                "name": "job2",
+                "stage": "stage2",
+                "retry_summary": [],
+                "url": "http://www.job.com",
+                "failure_type": FailedJobType.INFRA_FAILURE,
+                "allow_failure": True,
+            }
+        )
+        failed.add_failed_job(
+            {
+                "name": "job3",
+                "stage": "stage3",
+                "retry_summary": [],
+                "url": "http://www.job.com",
+                "failure_type": FailedJobType.JOB_FAILURE,
+                "allow_failure": False,
+            }
+        )
+        failed.add_failed_job(
+            {
+                "name": "job4",
+                "stage": "stage4",
+                "retry_summary": [],
+                "url": "http://www.job.com",
+                "failure_type": FailedJobType.JOB_FAILURE,
+                "allow_failure": True,
+            }
+        )
+        get_failed_jobs_mock.return_value = failed
+        notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
+        get_failed_jobs_mock.assert_called()
+
     @patch("requests.get")
-    def test_merge(self, get_mock):
+    def test_merge_with_get_failed_call(self, get_mock):
         with open("tasks/unit-tests/testdata/jobs.json") as f:
             jobs = json.load(f)
         job_list = {"json.return_value": jobs}
         no_jobs = {"json.return_value": ""}
-        get_mock.side_effect = [MagicMock(status_code=200, **job_list), MagicMock(status_code=200, **no_jobs)]
+        get_mock.side_effect = [
+            MagicMock(status_code=200, **job_list),
+            MagicMock(status_code=200, **no_jobs),
+            MagicMock(status_code=200, text="no basic auth credentials"),
+        ]
         notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
         get_mock.assert_called()
+
+    def test_post_to_channel1(self):
+        self.assertTrue(notify._should_send_message_to_channel('main', default_branch='main'))
+
+    def test_post_to_channel2(self):
+        self.assertTrue(notify._should_send_message_to_channel('7.52.x', default_branch='main'))
+
+    def test_post_to_channel3(self):
+        self.assertTrue(notify._should_send_message_to_channel('7.52.0', default_branch='main'))
+
+    def test_post_to_channel4(self):
+        self.assertTrue(notify._should_send_message_to_channel('7.52.0-rc.1', default_branch='main'))
+
+    def test_post_to_author1(self):
+        self.assertFalse(notify._should_send_message_to_channel('7.52.0-beta-test-feature', default_branch='main'))
+
+    def test_post_to_author2(self):
+        self.assertFalse(notify._should_send_message_to_channel('7.52.0-rc.1-beta-test-feature', default_branch='main'))
+
+    def test_post_to_author3(self):
+        self.assertFalse(notify._should_send_message_to_channel('celian/7.52.0', default_branch='main'))
+
+    def test_post_to_author4(self):
+        self.assertFalse(notify._should_send_message_to_channel('a.b.c', default_branch='main'))
+
+    def test_post_to_author5(self):
+        self.assertFalse(notify._should_send_message_to_channel('my-feature', default_branch='main'))
 
 
 class TestSendStats(unittest.TestCase):
@@ -30,7 +109,11 @@ class TestSendStats(unittest.TestCase):
             jobs = json.load(f)
         job_list = {"json.return_value": jobs}
         no_jobs = {"json.return_value": ""}
-        get_mock.side_effect = [MagicMock(status_code=200, **job_list), MagicMock(status_code=200, **no_jobs)]
+        get_mock.side_effect = [
+            MagicMock(status_code=200, **job_list),
+            MagicMock(status_code=200, **no_jobs),
+            MagicMock(status_code=200, text="E2E INTERNAL ERROR"),
+        ]
         notify.send_stats(MockContext(), print_to_stdout=True)
         get_mock.assert_called()
 
@@ -43,7 +126,11 @@ class TestCheckConsistentFailures(unittest.TestCase):
             jobs = json.load(f)
         job_list = {"json.return_value": jobs}
         no_jobs = {"json.return_value": ""}
-        get_mock.side_effect = [MagicMock(status_code=200, **job_list), MagicMock(status_code=200, **no_jobs)]
+        get_mock.side_effect = [
+            MagicMock(status_code=200, **job_list),
+            MagicMock(status_code=200, **no_jobs),
+            MagicMock(status_code=200, text="net/http: TLS handshake timeout"),
+        ]
         notify.check_consistent_failures(
             MockContext(run=Result("test")), "tasks/unit-tests/testdata/job_executions.json"
         )

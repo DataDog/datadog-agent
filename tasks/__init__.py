@@ -22,12 +22,14 @@ from tasks import (
     epforwarder,
     fakeintake,
     github_tasks,
+    installer,
     kmt,
     linter,
     modules,
     msi,
     new_e2e_tests,
     notify,
+    owners,
     package,
     pipeline,
     process_agent,
@@ -38,7 +40,6 @@ from tasks import (
     system_probe,
     systray,
     trace_agent,
-    updater,
     vscode,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
@@ -71,7 +72,7 @@ from tasks.go_test import (
 )
 from tasks.install_tasks import download_tools, install_shellcheck, install_tools
 from tasks.junit_tasks import junit_upload
-from tasks.libs.go_workspaces import handle_go_work
+from tasks.libs.common.go_workspaces import handle_go_work
 from tasks.pr_checks import lint_releasenote
 from tasks.show_linters_issues import show_linters_issues
 from tasks.unit_tests import invoke_unit_tests
@@ -154,7 +155,8 @@ ns.add_collection(new_e2e_tests)
 ns.add_collection(fakeintake)
 ns.add_collection(kmt)
 ns.add_collection(diff)
-ns.add_collection(updater)
+ns.add_collection(installer)
+ns.add_collection(owners)
 ns.add_collection(modules)
 ns.configure(
     {

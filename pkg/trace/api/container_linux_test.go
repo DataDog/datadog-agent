@@ -176,3 +176,64 @@ func TestGetContainerID(t *testing.T) {
 		assert.Equal(t, "", provider.GetContainerID(req.Context(), req.Header))
 	})
 }
+
+func BenchmarkUDSCred(b *testing.B) {
+	sockPath := "/tmp/test-trace.sock"
+	client := http.Client{
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", sockPath)
+			},
+		},
+	}
+
+	fi, err := os.Stat(sockPath)
+	if err == nil {
+		// already exists
+		if fi.Mode()&os.ModeSocket == 0 {
+			b.Fatalf("cannot reuse %q; not a unix socket", sockPath)
+		}
+		if err := os.Remove(sockPath); err != nil {
+			b.Fatalf("unable to remove stale socket: %v", err)
+		}
+	}
+	ln, err := net.Listen("unix", sockPath)
+	if err != nil {
+		b.Fatalf("error listening on unix socket %s: %v", sockPath, err)
+	}
+	if err := os.Chmod(sockPath, 0o722); err != nil {
+		b.Fatalf("error setting socket permissions: %v", err)
+	}
+	ln = NewMeasuredListener(ln, "uds_connections", 10, &statsd.NoOpClient{})
+	defer ln.Close()
+
+	recvbuf := make([]byte, 1024*1024*10) // 10MiB
+	s := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ucred, ok := r.Context().Value(ucredKey{}).(*syscall.Ucred)
+			if !ok || ucred == nil {
+				b.Fatalf("Expected a unix credential but found nothing.")
+			}
+			// actually read the body, and respond afterwards, to force benchmarking of
+			// io over the socket.
+			io.ReadFull(r.Body, recvbuf)
+			io.WriteString(w, "OK")
+		}),
+		ConnContext: connContext,
+	}
+	go s.Serve(ln)
+
+	buf := make([]byte, 1024*1024*10) // 10MiB
+	for i := 0; i < b.N; i++ {
+		resp, err := client.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(buf))
+		if err != nil {
+			b.Fatal(err)
+		}
+		// We don't read the response here to force a new connection for each request.
+		//io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != 200 {
+			b.Fatalf("expected http.StatusOK, got response: %#v", resp)
+		}
+	}
+}

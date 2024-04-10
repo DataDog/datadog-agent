@@ -82,57 +82,12 @@ func newTestUpdater(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigCl
 	return u
 }
 
-func newTestUpdaterWithCatalogOverride(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) *updaterImpl {
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-
-	tempDir := t.TempDir()
-	catalogOverridePath := filepath.Join(tempDir, "catalog.json")
-	bootstrapVersionsOverridePath := filepath.Join(tempDir, "bootstrap_versions.json")
-
-	// Override the catalog with a custom one
-	pkg := s.Package(defaultFixture)
-	pkg.Version = "7.8.9"
-	customCatalog := catalog{Packages: []Package{pkg}}
-	jsonCatalog, err := json.Marshal(customCatalog)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = os.WriteFile(catalogOverridePath, jsonCatalog, 0644)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Override the bootstrap versions with a custom one
-	bootstrapVersions := bootstrapVersions{
-		defaultFixture.pkg: "7.8.9",
-	}
-	jsonBootstrapVersions, err := json.Marshal(bootstrapVersions)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = os.WriteFile(bootstrapVersionsOverridePath, jsonBootstrapVersions, 0644)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rc := &remoteConfig{client: rcc}
-	rootPath := t.TempDir()
-	locksPath := t.TempDir()
-	u := newUpdater(rc, rootPath, locksPath, catalogOverridePath, bootstrapVersionsOverridePath, cfg)
-	u.installer.configsDir = t.TempDir()
-	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
-	u.Start(context.Background())
-	return u
-}
-
 func newTestUpdaterWithPaths(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) (*updaterImpl, string, string) {
 	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	rc := &remoteConfig{client: rcc}
 	rootPath := t.TempDir()
 	locksPath := t.TempDir()
-	catalogOverridePath := t.TempDir() + "/catalog.json"
-	bootstrapVersionsOverridePath := t.TempDir() + "/bootstrap_versions.json"
-	u := newUpdater(rc, rootPath, locksPath, catalogOverridePath, bootstrapVersionsOverridePath, cfg)
+	u := newUpdater(rc, rootPath, locksPath, cfg)
 	u.installer.configsDir = t.TempDir()
 	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
 	u.catalog = s.Catalog()
@@ -141,13 +96,30 @@ func newTestUpdaterWithPaths(t *testing.T, s *testFixturesServer, rcc *testRemot
 	return u, rootPath, locksPath
 }
 
-func TestUpdaterBootstrap(t *testing.T) {
+func TestUpdaterBootstrapDefault(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+	err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+	assert.NoError(t, err)
+
+	r := updater.repositories.Get(fixtureSimpleV1.pkg)
+	state, err := r.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
+	assert.False(t, state.HasExperiment())
+	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
+}
+
+func TestUpdaterBootstrapURL(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	rc := newTestRemoteConfigClient()
+	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
+
+	err := updater.BootstrapURL(context.Background(), s.Package(fixtureSimpleV1).URL)
 	assert.NoError(t, err)
 
 	r := updater.repositories.Get(fixtureSimpleV1.pkg)
@@ -165,7 +137,7 @@ func TestUpdaterPurge(t *testing.T) {
 	updater, rootPath, locksPath := newTestUpdaterWithPaths(t, s, rc, fixtureSimpleV1)
 
 	bootstrapAndAssert := func() {
-		err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+		err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 		assert.NoError(t, err)
 
 		r := updater.repositories.Get(fixtureSimpleV1.pkg)
@@ -231,33 +203,11 @@ func TestUpdaterBootstrapCatalogUpdate(t *testing.T) {
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 	updater.catalog = catalog{}
 
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+	err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.Error(t, err)
 	rc.SubmitCatalog(s.Catalog())
-	err = updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+	err = updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
-}
-
-func TestUpdaterBootstrapCustomCatalog(t *testing.T) {
-	s := newTestFixturesServer(t)
-	defer s.Close()
-	rc := newTestRemoteConfigClient()
-	updater := newTestUpdaterWithCatalogOverride(t, s, rc, fixtureSimpleV1)
-
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
-	assert.NoError(t, err)
-	r := updater.repositories.Get(fixtureSimpleV1.pkg)
-	state, err := r.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, "7.8.9", state.Stable)
-
-	rc.SubmitCatalog(s.Catalog()) // RC should be ignored
-	err = updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
-	assert.NoError(t, err)
-	r = updater.repositories.Get(fixtureSimpleV1.pkg)
-	state, err = r.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, "7.8.9", state.Stable)
 }
 
 func TestUpdaterStartExperiment(t *testing.T) {
@@ -266,7 +216,7 @@ func TestUpdaterStartExperiment(t *testing.T) {
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+	err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
@@ -294,7 +244,7 @@ func TestUpdaterPromoteExperiment(t *testing.T) {
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+	err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
@@ -331,7 +281,7 @@ func TestUpdaterStopExperiment(t *testing.T) {
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+	err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
