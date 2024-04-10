@@ -60,3 +60,11 @@ if($err -ne 0){
     Write-Host -ForegroundColor Red "test failed $err"
     [Environment]::Exit($err)
 }
+
+$ErrorActionPreference = "Continue" # Ignore upload errors now, until we change the logic to ignore empty files in the upload script
+$Env:DATADOG_API_KEY=$(& "c:\mnt\tools\ci\aws_ssm_get_wrapper.ps1" $Env:API_KEY_ORG2_SSM_NAME)
+Get-ChildItem -Path "c:\mnt" -Filter "junit-*.tgz" -Recurse | ForEach-Object {
+    $outputFilePath = "upload_output.txt"
+    inv -e junit-upload --tgz-path $_.FullName > $outputFilePath
+    
+}
