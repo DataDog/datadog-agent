@@ -144,6 +144,7 @@ func getTestAPIServer(deps testdeps) *apiServer {
 		Tagger:                deps.Tagger,
 		LogsAgentComp:         deps.Logs,
 		WorkloadMeta:          deps.WorkloadMeta,
+		Collector:             deps.Collector,
 		EndpointProviders:     deps.EndpointProviders,
 	}
 	api := newAPIServer(apideps)
@@ -154,12 +155,10 @@ func TestStartServer(t *testing.T) {
 	deps := getComponentDependencies(t)
 
 	sender := aggregator.NewNoOpSenderManager()
-	col := deps.Collector
 
 	srv := getTestAPIServer(deps)
 	err := srv.StartServer(
 		sender,
-		col,
 	)
 	defer srv.StopServer()
 

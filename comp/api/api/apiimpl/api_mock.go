@@ -13,10 +13,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type mockAPIServer struct {
@@ -37,7 +35,6 @@ func newMock() api.Mock {
 // StartServer creates the router and starts the HTTP server
 func (mock *mockAPIServer) StartServer(
 	_ sender.DiagnoseSenderManager,
-	_ optional.Option[collector.Component],
 ) error {
 	return nil
 }

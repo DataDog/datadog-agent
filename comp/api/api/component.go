@@ -10,9 +10,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/fx"
 )
@@ -28,7 +26,6 @@ import (
 type Component interface {
 	StartServer(
 		senderManager sender.DiagnoseSenderManager,
-		collector optional.Option[collector.Component],
 	) error
 	StopServer()
 	ServerAddress() *net.TCPAddr

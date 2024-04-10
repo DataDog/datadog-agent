@@ -66,6 +66,7 @@ type apiServer struct {
 	autoConfig            autodiscovery.Component
 	logsAgentComp         optional.Option[logsAgent.Component]
 	wmeta                 workloadmeta.Component
+	collector             optional.Option[collector.Component]
 	endpointProviders     []api.EndpointProvider
 }
 
@@ -92,6 +93,7 @@ type dependencies struct {
 	AutoConfig            autodiscovery.Component
 	LogsAgentComp         optional.Option[logsAgent.Component]
 	WorkloadMeta          workloadmeta.Component
+	Collector             optional.Option[collector.Component]
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -119,6 +121,7 @@ func newAPIServer(deps dependencies) api.Component {
 		autoConfig:            deps.AutoConfig,
 		logsAgentComp:         deps.LogsAgentComp,
 		wmeta:                 deps.WorkloadMeta,
+		collector:             deps.Collector,
 		endpointProviders:     deps.EndpointProviders,
 	}
 }
@@ -126,7 +129,6 @@ func newAPIServer(deps dependencies) api.Component {
 // StartServer creates the router and starts the HTTP server
 func (server *apiServer) StartServer(
 	senderManager sender.DiagnoseSenderManager,
-	collector optional.Option[collector.Component],
 ) error {
 	return StartServers(server.rcService,
 		server.rcServiceHA,
@@ -146,7 +148,7 @@ func (server *apiServer) StartServer(
 		server.invChecks,
 		server.pkgSigning,
 		server.statusComponent,
-		collector,
+		server.collector,
 		server.eventPlatformReceiver,
 		server.autoConfig,
 		server.endpointProviders,
