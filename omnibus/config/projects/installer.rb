@@ -4,8 +4,8 @@
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
 
-name 'updater'
-package_name 'datadog-updater'
+name 'installer'
+package_name 'datadog-installer'
 license "Apache-2.0"
 license_file "../LICENSE"
 
@@ -13,7 +13,7 @@ third_party_licenses "../LICENSE-3rdparty.csv"
 
 homepage 'http://www.datadoghq.com'
 
-INSTALL_DIR = ENV['INSTALL_DIR'] || '/opt/datadog/updater'
+INSTALL_DIR = ENV['INSTALL_DIR'] || '/opt/datadog-installer'
 
 install_dir INSTALL_DIR
 
@@ -63,8 +63,8 @@ build_version ENV['PACKAGE_VERSION']
 
 build_iteration 1
 
-description 'Datadog Updater
- The Datadog Updater is a lightweight process that updates the Datadog Agent
+description 'Datadog Installer
+ The Datadog Installer is a lightweight process that installs and updates the Datadog Agent
  and Tracers.
 
  See http://www.datadoghq.com/ for more information
@@ -77,7 +77,7 @@ else
   # creates required build directories
   dependency 'preparation'
 
-  dependency 'updater'
+  dependency 'installer'
 
   # version manifest file
   dependency 'version-manifest'
@@ -142,7 +142,7 @@ if linux_target?
   if debian_target?
     systemd_directory = "/lib/systemd/system"
   end
-  extra_package_file "#{systemd_directory}/datadog-updater.service"
+  extra_package_file "#{systemd_directory}/datadog-installer.service"
   extra_package_file '/etc/datadog-agent/'
   extra_package_file '/var/log/datadog/'
   extra_package_file '/var/run/datadog-packages/'

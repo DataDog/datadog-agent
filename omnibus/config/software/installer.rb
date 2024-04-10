@@ -6,7 +6,7 @@
 require './lib/ostools.rb'
 require 'pathname'
 
-name 'updater'
+name 'installer'
 
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
@@ -32,7 +32,7 @@ build do
   env = with_embedded_path(env)
 
   if linux_target?
-    command "invoke updater.build --rebuild --install-path=#{install_dir}", env: env
+    command "invoke installer.build --rebuild --install-path=#{install_dir}", env: env
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
     mkdir "#{install_dir}/systemd/"
@@ -51,16 +51,16 @@ build do
     # Packages
     mkdir "/opt/datadog-packages"
 
-    copy 'bin/updater', "#{install_dir}/bin/"
+    copy 'bin/installer', "#{install_dir}/bin/"
 
-    # Add updater unit
+    # Add installer units
     systemdPath = "/lib/systemd/system/"
     if not debian_target?
       mkdir "/usr/lib/systemd/system/"
       systemdPath = "/usr/lib/systemd/system/"
     end
-    erb source: "datadog-updater.service.erb",
-       dest: systemdPath + "datadog-updater.service",
+    erb source: "datadog-installer.service.erb",
+       dest: systemdPath + "datadog-installer.service",
        mode: 0644,
        vars: { install_dir: install_dir, etc_dir: etc_dir}
 
@@ -73,7 +73,7 @@ build do
       "datadog-agent-process.service.erb" => "datadog-agent-process.service",
       "datadog-agent-security.service.erb" => "datadog-agent-security.service",
       "datadog-agent-sysprobe.service.erb" => "datadog-agent-sysprobe.service",
-      "datadog-updater.service.erb" => "datadog-updater.service",
+      "datadog-installer.service.erb" => "datadog-installer.service",
     }
     templateToFile.each do |template, file|
       agent_dir = "/opt/datadog-packages/datadog-agent/stable"

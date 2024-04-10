@@ -344,6 +344,12 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
 		}),
+		fx.Supply(
+			rcclient.Params{
+				AgentName:    "core-agent",
+				AgentVersion: version.AgentVersion,
+			},
+		),
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
@@ -491,22 +497,18 @@ func startAgent(
 
 	// start remote configuration management
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
-		if err := rcclient.Start("core-agent"); err != nil {
-			pkglog.Errorf("Failed to start the RC client component: %s", err)
-		} else {
-			// Subscribe to `AGENT_TASK` product
-			rcclient.SubscribeAgentTask()
+		// Subscribe to `AGENT_TASK` product
+		rcclient.SubscribeAgentTask()
 
-			// Subscribe to `APM_TRACING` product
-			rcclient.SubscribeApmTracing()
+		// Subscribe to `APM_TRACING` product
+		rcclient.SubscribeApmTracing()
 
-			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
-				// Spin up the config provider to schedule integrations through remote-config
-				rcProvider := providers.NewRemoteConfigProvider()
-				rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
-				// LoadAndRun is called later on
-				ac.AddConfigProvider(rcProvider, true, 10*time.Second)
-			}
+		if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
+			// Spin up the config provider to schedule integrations through remote-config
+			rcProvider := providers.NewRemoteConfigProvider()
+			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
+			// LoadAndRun is called later on
+			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
 		}
 	}
 

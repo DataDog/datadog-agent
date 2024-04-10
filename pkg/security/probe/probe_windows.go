@@ -68,6 +68,11 @@ type WindowsProbe struct {
 	fimSession etw.Session
 	fimwg      sync.WaitGroup
 
+	// path caches
+	filePathResolverLock sync.Mutex
+	filePathResolver     map[fileObjectPointer]string
+	regPathResolver      map[regObjectPointer]string
+
 	// stats
 	stats stats
 }
@@ -261,21 +266,23 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				}
 				p.stats.fileCreateNew++
 			case idCleanup:
-				if ca, err := parseCleanupArgs(e); err == nil {
+				if ca, err := p.parseCleanupArgs(e); err == nil {
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 				p.stats.fileCleanup++
 			case idClose:
-				if ca, err := parseCloseArgs(e); err == nil {
+				if ca, err := p.parseCloseArgs(e); err == nil {
 					//fmt.Printf("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 					if e.EventHeader.EventDescriptor.ID == idClose {
-						delete(filePathResolver, ca.fileObject)
+						p.filePathResolverLock.Lock()
+						delete(p.filePathResolver, ca.fileObject)
+						p.filePathResolverLock.Unlock()
 					}
 				}
 				p.stats.fileClose++
 			case idFlush:
-				if fa, err := parseFlushArgs(e); err == nil {
+				if fa, err := p.parseFlushArgs(e); err == nil {
 					ecb(fa, e.EventHeader.ProcessID)
 				}
 				p.stats.fileFlush++
@@ -302,44 +309,44 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 		case etw.DDGUID(p.regguid):
 			switch e.EventHeader.EventDescriptor.ID {
 			case idRegCreateKey:
-				if cka, err := parseCreateRegistryKey(e); err == nil {
+				if cka, err := p.parseCreateRegistryKey(e); err == nil {
 					log.Tracef("Got idRegCreateKey %s", cka)
 					ecb(cka, e.EventHeader.ProcessID)
 				}
 				p.stats.regCreateKey++
 			case idRegOpenKey:
-				if cka, err := parseOpenRegistryKey(e); err == nil {
+				if cka, err := p.parseOpenRegistryKey(e); err == nil {
 					log.Tracef("Got idRegOpenKey %s", cka)
 					ecb(cka, e.EventHeader.ProcessID)
 				}
 				p.stats.regOpenKey++
 			case idRegDeleteKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
+				if dka, err := p.parseDeleteRegistryKey(e); err == nil {
 					log.Tracef("Got idRegDeleteKey %v", dka)
 					ecb(dka, e.EventHeader.ProcessID)
 				}
 				p.stats.regDeleteKey++
 			case idRegFlushKey:
-				if dka, err := parseFlushKey(e); err == nil {
+				if dka, err := p.parseFlushKey(e); err == nil {
 					log.Tracef("Got idRegFlushKey %v", dka)
 				}
 				p.stats.regFlushKey++
 			case idRegCloseKey:
-				if dka, err := parseCloseKeyArgs(e); err == nil {
+				if dka, err := p.parseCloseKeyArgs(e); err == nil {
 					log.Tracef("Got idRegCloseKey %s", dka)
-					delete(regPathResolver, dka.keyObject)
+					delete(p.regPathResolver, dka.keyObject)
 				}
 				p.stats.regCloseKey++
 			case idQuerySecurityKey:
-				if dka, err := parseQuerySecurityKeyArgs(e); err == nil {
+				if dka, err := p.parseQuerySecurityKeyArgs(e); err == nil {
 					log.Tracef("Got idQuerySecurityKey %v", dka.keyName)
 				}
 			case idSetSecurityKey:
-				if dka, err := parseSetSecurityKeyArgs(e); err == nil {
+				if dka, err := p.parseSetSecurityKeyArgs(e); err == nil {
 					log.Tracef("Got idSetSecurityKey %v", dka.keyName)
 				}
 			case idRegSetValueKey:
-				if svk, err := parseSetValueKey(e); err == nil {
+				if svk, err := p.parseSetValueKey(e); err == nil {
 					log.Tracef("Got idRegSetValueKey %s", svk)
 					ecb(svk, e.EventHeader.ProcessID)
 
@@ -579,6 +586,10 @@ func (p *WindowsProbe) Close() error {
 
 // SendStats sends statistics about the probe to Datadog
 func (p *WindowsProbe) SendStats() error {
+	p.filePathResolverLock.Lock()
+	fprLen := len(p.filePathResolver)
+	p.filePathResolverLock.Unlock()
+
 	// may need to lock here
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsProcessStart, float64(p.stats.procStart), nil, 1); err != nil {
 		return err
@@ -637,10 +648,10 @@ func (p *WindowsProbe) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegSetValue, float64(p.stats.regSetValueKey), nil, 1); err != nil {
 		return err
 	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfFilePathResolver, float64(len(filePathResolver)), nil, 1); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfFilePathResolver, float64(fprLen), nil, 1); err != nil {
 		return err
 	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfRegistryPathResolver, float64(len(regPathResolver)), nil, 1); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfRegistryPathResolver, float64(len(p.regPathResolver)), nil, 1); err != nil {
 		return err
 	}
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileResolverNew, float64(p.stats.filePathNewWrites), nil, 1); err != nil {
@@ -667,6 +678,8 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		onStop:            make(chan *procmon.ProcessStopNotification),
 		onError:           make(chan bool),
 		onETWNotification: make(chan etwNotification),
+		filePathResolver:  make(map[fileObjectPointer]string, 0),
+		regPathResolver:   make(map[regObjectPointer]string, 0),
 	}
 
 	var err error
