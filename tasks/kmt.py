@@ -831,6 +831,8 @@ def ssh_config(
                 if instance.ssh_key_path is not None:
                     print(f"    IdentityFile {instance.ssh_key_path}")
                     print("    IdentitiesOnly yes")
+                for key, value in SSH_OPTIONS.items():
+                    print(f"    {key} {value}")
                 print("")
 
             for domain in instance.microvms:
