@@ -36,8 +36,7 @@ const (
 	// defaultLocksPath is the default path to the run directory.
 	defaultLocksPath = "/var/run/datadog-packages"
 	// gcInterval is the interval at which the GC will run
-	gcInterval  = 1 * time.Hour
-	bootUpdater = defaultRepositoriesPath + "/installer_boot"
+	gcInterval = 1 * time.Hour
 )
 
 var (
@@ -45,9 +44,6 @@ var (
 	// It is the sum of the maximum size of the extracted oci-layout and the maximum size of the datadog package
 	requiredDiskSpace = ociLayoutMaxSize + datadogPackageMaxSize
 	fsDisk            = filesystem.NewDisk()
-	avoidPurge        = map[string]struct{}{
-		bootUpdater: {},
-	}
 )
 
 // Updater is the updater used to update packages.
@@ -74,6 +70,7 @@ type updaterImpl struct {
 	installer    *installer
 	telemetry    *telemetry
 
+	remoteUpdates     bool
 	rc                *remoteConfig
 	catalog           catalog
 	requests          chan remoteAPIRequest
@@ -124,9 +121,6 @@ func cleanDir(dir string, cleanFunc func(string) error) {
 
 	for _, entry := range entries {
 		path := filepath.Join(dir, entry.Name())
-		if _, ok := avoidPurge[path]; ok {
-			continue
-		}
 		err := cleanFunc(path)
 		if err != nil {
 			log.Warnf("updater: could not remove %s: %v", path, err)
@@ -154,6 +148,7 @@ func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, con
 	}
 
 	u := &updaterImpl{
+		remoteUpdates:     config.GetBool("updater.remote_updates"),
 		rc:                rcClient,
 		repositories:      repositories,
 		downloader:        newDownloader(http.DefaultClient, remoteRegistryOverride),
@@ -176,7 +171,6 @@ func (u *updaterImpl) GetState() (map[string]repository.State, error) {
 // Start starts remote config and the garbage collector.
 func (u *updaterImpl) Start(ctx context.Context) error {
 	u.telemetry.Start(ctx)
-	u.rc.Start(u.handleCatalogUpdate, u.scheduleRemoteAPIRequest)
 	go func() {
 		for {
 			select {
@@ -197,6 +191,11 @@ func (u *updaterImpl) Start(ctx context.Context) error {
 			}
 		}
 	}()
+	if !u.remoteUpdates {
+		log.Infof("updater: Remote updates are disabled")
+		return nil
+	}
+	u.rc.Start(u.handleCatalogUpdate, u.scheduleRemoteAPIRequest)
 	return nil
 }
 
@@ -223,7 +222,7 @@ func (u *updaterImpl) BootstrapDefault(ctx context.Context, pkg string) (err err
 	if !ok {
 		return fmt.Errorf("could not get default package %s for %s, %s", pkg, runtime.GOARCH, runtime.GOOS)
 	}
-	return u.boostrapPackage(ctx, stablePackage)
+	return u.boostrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
 }
 
 // BootstrapVersion installs the stable version of the package.
@@ -239,7 +238,7 @@ func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version 
 	if !ok {
 		return fmt.Errorf("could not get package %s version %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
-	return u.boostrapPackage(ctx, stablePackage)
+	return u.boostrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
 }
 
 // BootstrapURL installs the stable version of the package.
@@ -250,34 +249,31 @@ func (u *updaterImpl) BootstrapURL(ctx context.Context, url string) (err error) 
 	defer u.m.Unlock()
 	u.refreshState(ctx)
 	defer u.refreshState(ctx)
-	stablePackage, err := u.downloader.Package(ctx, url)
-	if err != nil {
-		return fmt.Errorf("could not get package from url: %w", err)
-	}
-	return u.boostrapPackage(ctx, stablePackage)
+
+	return u.boostrapPackage(ctx, url, "", "")
 }
 
-func (u *updaterImpl) boostrapPackage(ctx context.Context, stablePackage Package) error {
+func (u *updaterImpl) boostrapPackage(ctx context.Context, url string, expectedPackage string, expectedVersion string) error {
 	// both tmp and repository paths are checked for available disk space in case they are on different partitions
 	err := checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
 	if err != nil {
 		return fmt.Errorf("not enough disk space to install package: %w", err)
 	}
-	log.Infof("Updater: Bootstrapping stable version %s of package %s", stablePackage.Version, stablePackage.Name)
-	tmpDir, err := os.MkdirTemp("", "")
-	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-	image, err := u.downloader.Download(ctx, tmpDir, stablePackage)
+	log.Infof("Updater: Bootstrapping stable package from %s", url)
+	downloadedPackage, err := u.downloader.Download(ctx, url)
 	if err != nil {
 		return fmt.Errorf("could not download: %w", err)
 	}
-	err = u.installer.installStable(stablePackage.Name, stablePackage.Version, image)
+	// check that the downloaded package metadata matches the catalog metadata
+	if (expectedPackage != "" && downloadedPackage.Name != expectedPackage) || (expectedVersion != "" && downloadedPackage.Version != expectedVersion) {
+		return fmt.Errorf("downloaded package does not match expected package: %s, %s != %s, %s", downloadedPackage.Name, downloadedPackage.Version, expectedPackage, expectedVersion)
+	}
+	err = u.installer.installStable(downloadedPackage.Name, downloadedPackage.Version, downloadedPackage.Image)
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}
-	log.Infof("Updater: Successfully installed default version %s of package %s", stablePackage.Version, stablePackage.Name)
+
+	log.Infof("Updater: Successfully installed default version %s of package %s from %s", downloadedPackage.Version, downloadedPackage.Name, url)
 	return nil
 }
 
@@ -300,16 +296,15 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version s
 	if !ok {
 		return fmt.Errorf("could not get package %s, %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
-	tmpDir, err := os.MkdirTemp("", "")
-	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-	image, err := u.downloader.Download(ctx, tmpDir, experimentPackage)
+	downloadedPackage, err := u.downloader.Download(ctx, experimentPackage.URL)
 	if err != nil {
 		return fmt.Errorf("could not download experiment: %w", err)
 	}
-	err = u.installer.installExperiment(pkg, version, image)
+	// check that the downloaded package metadata matches the catalog metadata
+	if downloadedPackage.Name != experimentPackage.Name || downloadedPackage.Version != experimentPackage.Version {
+		return fmt.Errorf("downloaded package does not match requested package: %s, %s != %s, %s", downloadedPackage.Name, downloadedPackage.Version, experimentPackage.Name, experimentPackage.Version)
+	}
+	err = u.installer.installExperiment(pkg, version, downloadedPackage.Image)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
