@@ -184,7 +184,7 @@ func matchConfigFilters(filter diagSuiteFilter, s string) bool {
 	return true
 }
 
-func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config, suites []diagnosis.Suite) ([]diagnosis.Suite, error) {
+func getSortedAndFilteredDiagnoseSuites[T any](diagCfg diagnosis.Config, values []T, getName func(T) string) ([]T, error) {
 
 	var filter diagSuiteFilter
 	var err error
@@ -205,20 +205,20 @@ func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config, suites []diagn
 		}
 	}
 
-	sortedSuites := make([]diagnosis.Suite, len(suites))
-	copy(sortedSuites, suites)
-	sort.Slice(sortedSuites, func(i, j int) bool {
-		return sortedSuites[i].SuitName < sortedSuites[j].SuitName
+	sortedValues := make([]T, len(values))
+	copy(sortedValues, values)
+	sort.Slice(sortedValues, func(i, j int) bool {
+		return getName(sortedValues[i]) < getName(sortedValues[j])
 	})
 
-	var sortedFilteredSuites []diagnosis.Suite
-	for _, ds := range sortedSuites {
-		if matchConfigFilters(filter, ds.SuitName) {
-			sortedFilteredSuites = append(sortedFilteredSuites, ds)
+	var sortedFilteredValues []T
+	for _, ds := range sortedValues {
+		if matchConfigFilters(filter, getName(ds)) {
+			sortedFilteredValues = append(sortedFilteredValues, ds)
 		}
 	}
 
-	return sortedFilteredSuites, nil
+	return sortedFilteredValues, nil
 }
 
 func getSuiteDiagnoses(ds diagnosis.Suite) []diagnosis.Diagnosis {
@@ -253,30 +253,30 @@ func getSuiteDiagnoses(ds diagnosis.Suite) []diagnosis.Diagnosis {
 // for human consumption
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func ListStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) {
+func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
 	fmt.Fprintf(w, "Diagnose suites ...\n")
 
-	sortedSuites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, getSuites(diagCfg, deps))
+	sortedSuitesName, err := getSortedAndFilteredDiagnoseSuites(diagCfg, getCheckNames(diagCfg), func(name string) string { return name })
 	if err != nil {
 		fmt.Fprintf(w, "Failed to get list of diagnose suites. Validate your command line options. Error: %s\n", err.Error())
 		return
 	}
 
 	count := 0
-	for _, ds := range sortedSuites {
+	for _, suiteName := range sortedSuitesName {
 		count++
-		fmt.Fprintf(w, "  %d. %s\n", count, ds.SuitName)
+		fmt.Fprintf(w, "  %d. %s\n", count, suiteName)
 	}
 }
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
 func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, suites []diagnosis.Suite) ([]diagnosis.Diagnoses, error) {
-	suites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, suites)
+	suites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, suites, func(suite diagnosis.Suite) string { return suite.SuitName })
 	if err != nil {
 		return nil, err
 	}
@@ -437,11 +437,24 @@ func NewSuitesDeps(
 }
 
 func getSuites(diagCfg diagnosis.Config, deps SuitesDeps) []diagnosis.Suite {
-	catalog := diagnosis.NewCatalog()
-
-	catalog.Register("check-datadog", func() []diagnosis.Diagnosis {
+	return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
 		return getDiagnose(diagCfg, deps.senderManager, deps.collector, deps.secretResolver, deps.wmeta, deps.AC)
 	})
+}
+
+func getCheckNames(diagCfg diagnosis.Config) []string {
+	suites := buildSuites(diagCfg, func() []diagnosis.Diagnosis { return nil })
+	names := make([]string, len(suites))
+	for i, s := range suites {
+		names[i] = s.SuitName
+	}
+	return names
+}
+
+func buildSuites(diagCfg diagnosis.Config, checkDatadog func() []diagnosis.Diagnosis) []diagnosis.Suite {
+	catalog := diagnosis.NewCatalog()
+
+	catalog.Register("check-datadog", checkDatadog)
 	catalog.Register("connectivity-datadog-core-endpoints", func() []diagnosis.Diagnosis { return connectivity.Diagnose(diagCfg) })
 	catalog.Register("connectivity-datadog-autodiscovery", connectivity.DiagnoseMetadataAutodiscoveryConnectivity)
 	catalog.Register("connectivity-datadog-event-platform", eventplatformimpl.Diagnose)

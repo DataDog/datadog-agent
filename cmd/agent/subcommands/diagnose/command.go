@@ -250,7 +250,7 @@ func cmdDiagnose(cliParams *cliParams,
 	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, wmeta, ac)
 	// Is it List command
 	if cliParams.listSuites {
-		diagnose.ListStdOut(color.Output, diagCfg, diagnoseDeps)
+		diagnose.ListStdOut(color.Output, diagCfg)
 		return nil
 	}
 
