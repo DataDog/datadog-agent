@@ -41,7 +41,7 @@ const (
 )
 
 // Telemetry
-var TracerouteRunnerTelemetry = struct {
+var tracerouteRunnerTelemetry = struct {
 	runs       *telemetry.StatCounterWrapper
 	failedRuns *telemetry.StatCounterWrapper
 
@@ -60,6 +60,7 @@ var TracerouteRunnerTelemetry = struct {
 	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "subnet_lookup_errors", []string{"reason"}, "Counter measuring the number of subnet lookup errors"),
 }
 
+// NewRunner initializes a new traceroute runner
 func NewRunner() (*Runner, error) {
 	subnetCache, err := simplelru.NewLRU[int, any](maxSubnetCacheSize, nil)
 	if err != nil {
@@ -362,21 +363,21 @@ func getInterface(localAddr net.IP) (net.Interface, error) {
 func (r *Runner) resolveSubnetID(ctx context.Context, iface net.Interface) (string, error) {
 	cacheEntry, ok := r.subnetCache.Get(iface.Index)
 	// TODO: tagging
-	TracerouteRunnerTelemetry.subnetCacheLookups.Inc()
+	tracerouteRunnerTelemetry.subnetCacheLookups.Inc()
 	if !ok {
 		// TODO: tagging
-		TracerouteRunnerTelemetry.subnetCacheMisses.Inc()
+		tracerouteRunnerTelemetry.subnetCacheMisses.Inc()
 
 		if iface.Flags&net.FlagLoopback != 0 {
 			// negative cache loopback interfaces
 			r.subnetCache.Add(iface.Index, "")
-			TracerouteRunnerTelemetry.subnetCacheSize.Inc()
+			tracerouteRunnerTelemetry.subnetCacheSize.Inc()
 			return "", nil
 		}
 
 		subnet, err := ec2.GetSubnetForHardwareAddr(ctx, iface.HardwareAddr)
 		// TODO: tagging
-		TracerouteRunnerTelemetry.subnetLookups.Inc()
+		tracerouteRunnerTelemetry.subnetLookups.Inc()
 		if err != nil {
 			log.Debugf("interface index: %d, hardware address: %+v", iface.Index, iface.HardwareAddr)
 			log.Errorf("failed to get subnet from hardware address: %s", err.Error())
@@ -386,18 +387,18 @@ func (r *Runner) resolveSubnetID(ctx context.Context, iface net.Interface) (stri
 			if errors.IsTimeout(err) {
 				// retry after a minute if we timed out
 				r.subnetCache.Add(iface.Index, time.Now().Add(time.Minute))
-				TracerouteRunnerTelemetry.subnetLookupErrors.Inc("timeout")
+				tracerouteRunnerTelemetry.subnetLookupErrors.Inc("timeout")
 			} else {
 				// cache an empty string if there's no subnet
 				r.subnetCache.Add(iface.Index, "")
-				TracerouteRunnerTelemetry.subnetLookupErrors.Inc("general error")
+				tracerouteRunnerTelemetry.subnetLookupErrors.Inc("general error")
 			}
 
 			return "", err
 		}
 
 		r.subnetCache.Add(iface.Index, subnet.ID)
-		TracerouteRunnerTelemetry.subnetCacheSize.Inc()
+		tracerouteRunnerTelemetry.subnetCacheSize.Inc()
 
 		return subnet.ID, nil
 	}
@@ -406,7 +407,7 @@ func (r *Runner) resolveSubnetID(ctx context.Context, iface net.Interface) (stri
 	case time.Time:
 		if time.Now().After(value) {
 			r.subnetCache.Remove(iface.Index)
-			TracerouteRunnerTelemetry.subnetCacheSize.Dec()
+			tracerouteRunnerTelemetry.subnetCacheSize.Dec()
 		}
 		return "", nil
 	case string:
