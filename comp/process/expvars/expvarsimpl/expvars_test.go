@@ -21,6 +21,10 @@ import (
 )
 
 func TestExpvarServer(t *testing.T) {
+	originalFlavor := flavor.GetFlavor()
+	defer flavor.SetFlavor(originalFlavor)
+	flavor.SetFlavor("process_agent")
+
 	_ = fxutil.Test[expvars.Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
 
@@ -41,6 +45,10 @@ func TestExpvarServer(t *testing.T) {
 }
 
 func TestTelemetry(t *testing.T) {
+	originalFlavor := flavor.GetFlavor()
+	defer flavor.SetFlavor(originalFlavor)
+	flavor.SetFlavor("process_agent")
+	
 	_ = fxutil.Test[expvars.Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
 		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
