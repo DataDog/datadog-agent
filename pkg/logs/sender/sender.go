@@ -15,14 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
-const (
-	logsDroppedTelemetryMetricName     = "datadog.logs_agent.sender_logs_dropped"
-	payloadsDroppedTelemetryMetricName = "datadog.logs_agent.sender_payloads_dropped"
-)
-
 var (
-	tlmPayloadsDropped = telemetry.NewCounter("logs_sender", "payloads_dropped", []string{"reliable", "destination"}, "Payloads dropped")
-	tlmMessagesDropped = telemetry.NewCounter("logs_sender", "messages_dropped", []string{"reliable", "destination"}, "Messages dropped")
+	tlmPayloadsDropped = telemetry.NewCounterWithOpts("logs_sender", "payloads_dropped", []string{"reliable", "destination"}, "Payloads dropped", telemetry.Options{DefaultMetric: true})
+	tlmMessagesDropped = telemetry.NewCounterWithOpts("logs_sender", "messages_dropped", []string{"reliable", "destination"}, "Messages dropped", telemetry.Options{DefaultMetric: true})
 	tlmSendWaitTime    = telemetry.NewCounter("logs_sender", "send_wait", []string{}, "Time spent waiting for all sends to finish")
 )
 
@@ -97,9 +92,7 @@ func (s *Sender) run() {
 			if !destSender.lastSendSucceeded {
 				if !destSender.NonBlockingSend(payload) {
 					tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
-					telemetry.GetStatsTelemetryProvider().CountNoIndex(payloadsDroppedTelemetryMetricName, 1, []string{"reliable:true"})
 					tlmMessagesDropped.Add(float64(len(payload.Messages)), "true", strconv.Itoa(i))
-					telemetry.GetStatsTelemetryProvider().CountNoIndex(logsDroppedTelemetryMetricName, float64(len(payload.Messages)), []string{"reliable:true"})
 				}
 			}
 		}
@@ -108,9 +101,7 @@ func (s *Sender) run() {
 		for i, destSender := range unreliableDestinations {
 			if !destSender.NonBlockingSend(payload) {
 				tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
-				telemetry.GetStatsTelemetryProvider().CountNoIndex(payloadsDroppedTelemetryMetricName, 1, []string{"reliable:false"})
 				tlmMessagesDropped.Add(float64(len(payload.Messages)), "false", strconv.Itoa(i))
-				telemetry.GetStatsTelemetryProvider().CountNoIndex(logsDroppedTelemetryMetricName, float64(len(payload.Messages)), []string{"reliable:false"})
 			}
 		}
 

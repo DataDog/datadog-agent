@@ -36,17 +36,16 @@ const (
 	TextContentType     = "text/plain"
 	JSONContentType     = "application/json"
 	ProtobufContentType = "application/x-protobuf"
-
-	payloadsDroppedTelemetryMetricName = "datadog.logs_agent.http_destination_payloads_dropped"
 )
 
 // HTTP errors.
 var (
-	errClient = errors.New("client error")
-	errServer = errors.New("server error")
-	tlmSend   = telemetry.NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
-	tlmInUse  = telemetry.NewCounter("logs_client_http_destination", "in_use_ms", []string{"sender"}, "Time spent sending payloads in ms")
-	tlmIdle   = telemetry.NewCounter("logs_client_http_destination", "idle_ms", []string{"sender"}, "Time spent idle while not sending payloads in ms")
+	errClient  = errors.New("client error")
+	errServer  = errors.New("server error")
+	tlmSend    = telemetry.NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
+	tlmInUse   = telemetry.NewCounter("logs_client_http_destination", "in_use_ms", []string{"sender"}, "Time spent sending payloads in ms")
+	tlmIdle    = telemetry.NewCounter("logs_client_http_destination", "idle_ms", []string{"sender"}, "Time spent idle while not sending payloads in ms")
+	tlmDropped = telemetry.NewCounterWithOpts("logs_client_http_destination", "payloads_dropped", []string{}, "Number of payloads dropped because of unrecoverable errors", telemetry.Options{DefaultMetric: true})
 
 	expVarIdleMsMapKey  = "idleMs"
 	expVarInUseMsMapKey = "inUseMs"
@@ -338,10 +337,9 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		resp.StatusCode == http.StatusUnauthorized ||
 		resp.StatusCode == http.StatusForbidden ||
 		resp.StatusCode == http.StatusRequestEntityTooLarge {
-
 		// the logs-agent is likely to be misconfigured,
 		// the URL or the API key may be wrong.
-		telemetry.GetStatsTelemetryProvider().CountNoIndex(payloadsDroppedTelemetryMetricName, 1, []string{})
+		tlmDropped.Inc()
 		return errClient
 	} else if resp.StatusCode > http.StatusBadRequest {
 		// the server could not serve the request, most likely because of an

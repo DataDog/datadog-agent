@@ -21,7 +21,6 @@ type Sender interface {
 	GaugeNoIndex(metric string, value float64, hostname string, tags []string)
 	Rate(metric string, value float64, hostname string, tags []string)
 	Count(metric string, value float64, hostname string, tags []string)
-	CountNoIndex(metric string, value float64, hostname string, tags []string)
 	MonotonicCount(metric string, value float64, hostname string, tags []string)
 	MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool)
 	Counter(metric string, value float64, hostname string, tags []string)
