@@ -122,7 +122,7 @@ func getComponentDependencies(t *testing.T) testdeps {
 	)
 }
 
-func getTestAPIServer(deps testdeps) *apiServer {
+func getTestAPIServer(deps testdeps) api.Component {
 	apideps := dependencies{
 		DogstatsdServer:       deps.DogstatsdServer,
 		Capture:               deps.Capture,
@@ -141,8 +141,7 @@ func getTestAPIServer(deps testdeps) *apiServer {
 		AuthToken:             deps.AuthToken,
 		EndpointProviders:     deps.EndpointProviders,
 	}
-	api := newAPIServer(apideps)
-	return api.(*apiServer)
+	return newAPIServer(apideps)
 }
 
 func TestStartServer(t *testing.T) {
