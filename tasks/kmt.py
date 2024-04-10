@@ -1138,3 +1138,45 @@ def explain_ci_failure(_, pipeline: str):
                 headers=["Distro", "Login prompt found", "setup-ddvm ok", "Assigned IP", "Downloaded boot log"],
             )
         )
+
+
+@task()
+def tmux(ctx: Context, stack: Optional[str] = None):
+    """Create a tmux session with panes for each VM in the stack.
+
+    Note that this task requires the tmux command to be available on the system, and the SSH
+    config to have been generated with the kmt.ssh-config task.
+    """
+    stack = check_and_get_stack(stack)
+    stack_name = stack.replace('-ddvm', '')
+
+    ctx.run(f"tmux kill-session -t kmt-{stack_name} || true")
+    ctx.run(f"tmux new-session -d -s kmt-{stack_name}")
+
+    for i, (_, instance) in enumerate(build_infrastructure(stack, try_get_ssh_key(ctx, None)).items()):
+        window_name = instance.arch
+        if i == 0:
+            ctx.run(f"tmux rename-window -t kmt-{stack_name} {window_name}")
+        else:
+            ctx.run(f"tmux new-window -t kmt-{stack_name} -n {window_name}")
+
+        multiple_instances_with_same_tag = len({i.tag for i in instance.microvms}) != len(instance.microvms)
+
+        needs_split = False
+        for domain in instance.microvms:
+            domain_name = domain.tag
+            if multiple_instances_with_same_tag:
+                id_parts = domain.name.split('-')
+                mem = id_parts[-1]
+                cpu = id_parts[-2]
+                domain_name += f"-mem{mem}-cpu{cpu}"
+            ssh_name = f"kmt-{stack_name}-{instance.arch}-{domain_name}"
+
+            if needs_split:
+                ctx.run(f"tmux split-window -h -t kmt-{stack_name}:{i}")
+            needs_split = True
+
+            ctx.run(f"tmux send-keys -t kmt-{stack_name}:{i} 'ssh {ssh_name}' Enter")
+            ctx.run(f"tmux select-layout -t kmt-{stack_name}:{i} tiled")
+
+    info(f"[+] Tmux session kmt-{stack_name} created. Attach with 'tmux attach -t kmt-{stack_name}'")
