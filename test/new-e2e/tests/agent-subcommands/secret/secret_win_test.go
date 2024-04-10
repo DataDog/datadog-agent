@@ -8,6 +8,7 @@ package secret
 import (
 	_ "embed"
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 	msiparams "github.com/DataDog/test-infra-definitions/components/datadog/agentparams/msi"
 	"testing"
@@ -26,7 +27,7 @@ const (
 )
 
 type windowsSecretSuite struct {
-	baseSecretSuite
+	e2e.BaseSuite[environments.WindowsHost]
 	name               string
 	provisionerOptions []winawshost.ProvisionerOption
 }
