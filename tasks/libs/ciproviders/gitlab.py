@@ -526,7 +526,7 @@ def generate_contexts(contexts, context, all_contexts):
 
 def load_context(context):
     """
-    Load a context either from a file or from a json string
+    Load a context either from a yaml file or from a json string
     """
     if os.path.exists(context):
         with open(context) as f:

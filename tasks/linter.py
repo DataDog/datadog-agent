@@ -376,9 +376,10 @@ def gitlab_ci(_, test="all", custom_context=None):
         config = generate_gitlab_full_configuration(".gitlab-ci.yml", dict(context))
         gitlab = Gitlab(api_token=get_gitlab_token())
         res = gitlab.lint(config)
-        print(f"Config is valid: {res['valid']}")
+        status = color_message("valid", "green") if res["valid"] else color_message("invalid", "red")
+        print(f"Config is {status}")
         if len(res["warnings"]) > 0:
-            print(f"Warnings: {res['warnings']}")
+            print(color_message(f"Warnings: {res['warnings']}", "orange"), file=sys.stderr)
         if not res["valid"]:
-            print(f"Errors: {res['errors']}")
+            print(color_message(f"Errors: {res['errors']}", "red"), file=sys.stderr)
             raise Exit(code=1)
