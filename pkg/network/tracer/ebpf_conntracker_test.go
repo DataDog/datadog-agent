@@ -22,9 +22,15 @@ func ebpfPrebuiltConntrackerSupportedOnKernelT(t *testing.T) bool {
 	return supported
 }
 
+func ebpfCOREConntrackerSupportedOnKernelT(t *testing.T) bool {
+	supported, err := ebpfCOREConntrackerSupportedOnKernel()
+	require.NoError(t, err)
+	return supported
+}
+
 func skipPrebuiltEbpfConntrackerTestOnUnsupportedKernel(t *testing.T) {
 	if !ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
-		t.Skip("Skipping ebpf conntracker related test on unsupported kernel")
+		t.Skip("Skipping prebuilt ebpf conntracker related test on unsupported kernel")
 	}
 }
 
@@ -59,5 +65,22 @@ func TestEbpfConntrackerSkipsLoadOnOlderKernels(t *testing.T) {
 	conntracker, err := NewEBPFConntracker(cfg)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, errPrebuiltConntrackerUnsupported)
+	require.Nil(t, conntracker)
+}
+
+func TestCOREEbpfConntrackerSkipsLoadOnOlderKernels(t *testing.T) {
+	if ebpfCOREConntrackerSupportedOnKernelT(t) {
+		t.Skip("This test should only run on pre-4.14 kernels without backported eBPF support, like RHEL/CentOS")
+	}
+
+	offsetguess.TracerOffsets.Reset()
+
+	cfg := testConfig()
+	cfg.EnableRuntimeCompiler = false
+	cfg.EnableCORE = true
+	cfg.AllowPrecompiledFallback = false
+	conntracker, err := NewEBPFConntracker(cfg)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, errCOREConntrackerUnsupported)
 	require.Nil(t, conntracker)
 }

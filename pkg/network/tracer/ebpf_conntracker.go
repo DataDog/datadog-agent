@@ -463,11 +463,12 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 }
 
 var errPrebuiltConntrackerUnsupported = errors.New("prebuilt ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support")
+var errCOREConntrackerUnsupported = errors.New("CO-RE ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support")
 
 func getPrebuiltConntracker(cfg *config.Config) (*manager.Manager, error) {
 	supportedOnKernel, err := ebpfPrebuiltConntrackerSupportedOnKernel()
 	if err != nil {
-		return nil, fmt.Errorf("could not check if ebpf conntracker is supported on kernel: %w", err)
+		return nil, fmt.Errorf("could not check if prebuilt ebpf conntracker is supported on kernel: %w", err)
 	}
 	if !supportedOnKernel {
 		return nil, errPrebuiltConntrackerUnsupported
@@ -508,6 +509,18 @@ func ebpfPrebuiltConntrackerSupportedOnKernel() (bool, error) {
 	return false, nil
 }
 
+func ebpfCOREConntrackerSupportedOnKernel() (bool, error) {
+	kv, err := ebpfkernel.NewKernelVersion()
+	if err != nil {
+		return false, fmt.Errorf("could not get kernel version: %s", err)
+	}
+
+	if kv.Code >= ebpfkernel.Kernel4_14 || kv.IsRH7Kernel() {
+		return true, nil
+	}
+	return false, nil
+}
+
 func getRCConntracker(cfg *config.Config) (*manager.Manager, error) {
 	buf, err := getRuntimeCompiledConntracker(cfg)
 	if err != nil {
@@ -519,8 +532,15 @@ func getRCConntracker(cfg *config.Config) (*manager.Manager, error) {
 }
 
 func getCOREConntracker(cfg *config.Config) (*manager.Manager, error) {
+	supportedOnKernel, err := ebpfCOREConntrackerSupportedOnKernel()
+	if err != nil {
+		return nil, fmt.Errorf("could not check if CO-RE ebpf conntracker is supported on kernel: %w", err)
+	}
+	if !supportedOnKernel {
+		return nil, errCOREConntrackerUnsupported
+	}
+
 	var m *manager.Manager
-	var err error
 	err = ddebpf.LoadCOREAsset(netebpf.ModuleFileName("conntrack", cfg.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.ConstantEditors = append(o.ConstantEditors,
 			boolConst("tcpv6_enabled", cfg.CollectTCPv6Conns),

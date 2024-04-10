@@ -36,7 +36,10 @@ func TestConntrackers(t *testing.T) {
 		runConntrackerTest(t, "netlink", setupNetlinkConntracker)
 	})
 	t.Run("eBPF", func(t *testing.T) {
-		modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+		modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled}
+		if ebpfCOREConntrackerSupportedOnKernelT(t) {
+			modes = append([]ebpftest.BuildMode{ebpftest.CORE}, modes...)
+		}
 		if ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
 			modes = append([]ebpftest.BuildMode{ebpftest.Prebuilt}, modes...)
 		}

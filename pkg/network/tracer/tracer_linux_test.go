@@ -2057,6 +2057,10 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	if ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
 		prebuiltErrorValues = []bool{false, true}
 	}
+	coreErrorValues := []bool{true}
+	if ebpfCOREConntrackerSupportedOnKernelT(t) {
+		coreErrorValues = []bool{false, true}
+	}
 
 	type testCase struct {
 		enableCORE               bool
@@ -2076,7 +2080,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 		for _, allowRuntimeFallback := range []bool{false, true} {
 			for _, enableRuntimeCompiler := range []bool{false, true} {
 				for _, allowPrecompiledFallback := range []bool{false, true} {
-					for _, coreError := range []bool{false, true} {
+					for _, coreError := range coreErrorValues {
 						for _, rcError := range []bool{false, true} {
 							for _, prebuiltError := range prebuiltErrorValues {
 								tc := testCase{
