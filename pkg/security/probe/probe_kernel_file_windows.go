@@ -153,6 +153,9 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	}
 
 	if ca.fileName != "" {
+		wp.filePathResolverLock.Lock()
+		defer wp.filePathResolverLock.Unlock()
+
 		if _, ok := wp.filePathResolver[ca.fileObject]; ok {
 			wp.stats.filePathOverwrites++
 		} else {
@@ -243,9 +246,13 @@ func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformat
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
+
+	wp.filePathResolverLock.Lock()
+	defer wp.filePathResolverLock.Unlock()
 	if s, ok := wp.filePathResolver[fileObjectPointer(sia.fileObject)]; ok {
 		sia.fileName = s
 	}
+
 	return sia, nil
 }
 
@@ -310,10 +317,13 @@ func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, er
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
+
+	wp.filePathResolverLock.Lock()
+	defer wp.filePathResolverLock.Unlock()
 	if s, ok := wp.filePathResolver[ca.fileObject]; ok {
 		ca.fileName = s
-
 	}
+
 	return ca, nil
 }
 
