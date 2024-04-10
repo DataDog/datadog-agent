@@ -18,11 +18,13 @@ import (
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
 )
 
+// StatusProvider is the type for process component status methods
 type StatusProvider struct {
 	testServerURL string
 	config        config.Component
 }
 
+// NewStatusProvider fetches the status
 func NewStatusProvider(Config config.Component) *StatusProvider {
 	return &StatusProvider{
 		config: Config,

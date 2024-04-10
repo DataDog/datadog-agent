@@ -17,8 +17,8 @@ import (
 	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -95,7 +95,7 @@ func newProcessAgent(p processAgentParams) provides {
 	}
 
 	if flavor.GetFlavor() == flavor.ProcessAgent {
-		return  provides {
+		return provides{
 			Comp: processAgentComponent,
 		}
 	}
