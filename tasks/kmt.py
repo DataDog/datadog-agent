@@ -835,8 +835,17 @@ def ssh_config(
                     print(f"    {key} {value}")
                 print("")
 
+            multiple_instances_with_same_tag = len({i.tag for i in instance.microvms}) != len(instance.microvms)
+
             for domain in instance.microvms:
-                print(f"Host kmt-{stack_name}-{instance.arch}-{domain.tag}")
+                domain_name = domain.tag
+                if multiple_instances_with_same_tag:
+                    id_parts = domain.name.split('-')
+                    mem = id_parts[-1]
+                    cpu = id_parts[-2]
+                    domain_name += f"-mem{mem}-cpu{cpu}"
+
+                print(f"Host kmt-{stack_name}-{instance.arch}-{domain_name}")
                 print(f"    HostName {domain.ip}")
                 if instance.arch != "local":
                     print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
