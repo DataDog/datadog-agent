@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -163,6 +164,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			tagger.Module(),
 			autodiscoveryimpl.Module(),
+			fx.Supply(optional.NewNoneOption[gui.Component]()),
 			agent.Bundle(),
 			fx.Supply(jmxloggerimpl.NewCliParams(cliParams.logFile)),
 		)
