@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
@@ -85,6 +86,7 @@ func startCMDServer(
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
 	gui optional.Option[gui.Component],
+	settings settings.Component,
 ) (err error) {
 	// get the transport we're going to use under HTTP
 	cmdListener, err = getListener(cmdAddr)
@@ -169,6 +171,7 @@ func startCMDServer(
 				eventPlatformReceiver,
 				ac,
 				gui,
+				settings,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	cmdMux.Handle("/", gwmux)
