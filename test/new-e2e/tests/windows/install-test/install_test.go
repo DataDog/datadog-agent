@@ -578,6 +578,31 @@ func (is *agentMSISuite) TestSubServicesOpts() {
 	}
 }
 
+// TC-INS-007
+//
+// Runs the installer with WIXFAILWHENDEFERRED=1 to trigger a failure at the very end of the installer.
+func (is *agentMSISuite) TestInstallFail() {
+	vm := is.Env().RemoteHost
+	is.prepareHost()
+
+	// run installer with failure flag
+	if !is.Run(fmt.Sprintf("install %s", is.AgentPackage.AgentVersion()), func() {
+		_, err := is.InstallAgent(vm,
+			windowsAgent.WithPackage(is.AgentPackage),
+			windowsAgent.WithValidAPIKey(),
+			windowsAgent.WithWixFailWhenDeferred(),
+			windowsAgent.WithInstallLogFile(filepath.Join(is.OutputDir, "install.log")),
+		)
+		is.Require().Error(err, "should fail to install agent %s", is.AgentPackage.AgentVersion())
+	}) {
+		is.T().FailNow()
+	}
+
+	// currently the install failure tests are the same as the uninstall tests
+	t := is.newTester(vm)
+	t.TestUninstallExpectations(is.T())
+}
+
 func (is *agentMSISuite) readYamlConfig(host *components.RemoteHost, path string) (map[string]any, error) {
 	config, err := host.ReadFile(path)
 	if err != nil {
