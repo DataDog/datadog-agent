@@ -41,10 +41,6 @@ const (
 
 type fileObjectPointer uint64
 
-var (
-	filePathResolver = make(map[fileObjectPointer]string, 0)
-)
-
 /*
 		<template tid="CreateArgs">
 	      <data name="Irp" inType="win:Pointer"/>
@@ -155,12 +151,19 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	} else {
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
-	if _, ok := filePathResolver[ca.fileObject]; ok {
-		wp.stats.filePathOverwrites++
-	} else {
-		wp.stats.filePathNewWrites++
+
+	if ca.fileName != "" {
+		wp.filePathResolverLock.Lock()
+		defer wp.filePathResolverLock.Unlock()
+
+		if _, ok := wp.filePathResolver[ca.fileObject]; ok {
+			wp.stats.filePathOverwrites++
+		} else {
+			wp.stats.filePathNewWrites++
+		}
+		wp.filePathResolver[ca.fileObject] = ca.fileName
 	}
-	filePathResolver[ca.fileObject] = ca.fileName
+
 	return ca, nil
 }
 
@@ -220,7 +223,7 @@ type setInformationArgs struct {
 }
 
 // nolint: unused
-func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
+func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	sia := &setInformationArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -243,9 +246,13 @@ func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
-	if s, ok := filePathResolver[fileObjectPointer(sia.fileObject)]; ok {
+
+	wp.filePathResolverLock.Lock()
+	defer wp.filePathResolverLock.Unlock()
+	if s, ok := wp.filePathResolver[fileObjectPointer(sia.fileObject)]; ok {
 		sia.fileName = s
 	}
+
 	return sia, nil
 }
 
@@ -291,7 +298,7 @@ type closeArgs cleanupArgs
 // nolint: unused
 type flushArgs cleanupArgs
 
-func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
+func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	ca := &cleanupArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -310,16 +317,19 @@ func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
-	if s, ok := filePathResolver[ca.fileObject]; ok {
-		ca.fileName = s
 
+	wp.filePathResolverLock.Lock()
+	defer wp.filePathResolverLock.Unlock()
+	if s, ok := wp.filePathResolver[ca.fileObject]; ok {
+		ca.fileName = s
 	}
+
 	return ca, nil
 }
 
 // nolint: unused
-func parseCloseArgs(e *etw.DDEventRecord) (*closeArgs, error) {
-	ca, err := parseCleanupArgs(e)
+func (wp *WindowsProbe) parseCloseArgs(e *etw.DDEventRecord) (*closeArgs, error) {
+	ca, err := wp.parseCleanupArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -327,8 +337,8 @@ func parseCloseArgs(e *etw.DDEventRecord) (*closeArgs, error) {
 }
 
 // nolint: unused
-func parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error) {
-	ca, err := parseCleanupArgs(e)
+func (wp *WindowsProbe) parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error) {
+	ca, err := wp.parseCleanupArgs(e)
 	if err != nil {
 		return nil, err
 	}
