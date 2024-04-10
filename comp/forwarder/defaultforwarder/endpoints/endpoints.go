@@ -35,15 +35,15 @@ var (
 	HostMetadataEndpoint = transaction.Endpoint{Route: "/api/v2/host_metadata", Name: "host_metadata_v2"}
 
 	// ProcessesEndpoint is a v1 endpoint used to send processes checks
-	ProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"}
+	ProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"} // work with processes subdomain (get 403)
 	// ProcessDiscoveryEndpoint is a v1 endpoint used to sends process discovery checks
-	ProcessDiscoveryEndpoint = transaction.Endpoint{Route: "/api/v1/discovery", Name: "process_discovery"}
+	ProcessDiscoveryEndpoint = transaction.Endpoint{Route: "/api/v1/discovery", Name: "process_discovery"} // work with processes subdomain (get 403)
 	// ProcessLifecycleEndpoint is a v2 endpoint used to send process lifecycle events
-	ProcessLifecycleEndpoint = transaction.Endpoint{Route: "/api/v2/proclcycle", Name: "process_lifecycle"}
+	ProcessLifecycleEndpoint = transaction.Endpoint{Route: "/api/v2/proclcycle", Name: "process_lifecycle"} // 404 not found
 	// RtProcessesEndpoint is a v1 endpoint used to send real time process checks
-	RtProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "rtprocess"}
+	RtProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "rtprocess"} // work with processes subdomain (get 403)
 	// ContainerEndpoint is a v1 endpoint used to send container checks
-	ContainerEndpoint = transaction.Endpoint{Route: "/api/v1/container", Name: "container"}
+	ContainerEndpoint = transaction.Endpoint{Route: "/api/v1/container", Name: "container"} // work with processes subdomain (get 403)
 	// RtContainerEndpoint is a v1 endpoint used to send real time container checks
 	RtContainerEndpoint = transaction.Endpoint{Route: "/api/v1/container", Name: "rtcontainer"}
 	// ConnectionsEndpoint is a v1 endpoint used to send connection checks
