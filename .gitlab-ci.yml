@@ -1,6 +1,7 @@
 ---
 include:
   - .gitlab/.pre/cancel-prev-pipelines.yml
+  - .gitlab/.pre/test_gitlab_configuration.yml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
   - .gitlab/check_deploy/check_deploy.yml
@@ -1029,3 +1030,12 @@ workflow:
       FAST_TESTS: "false"
   - variables:
       FAST_TESTS: "true"
+
+.on_gitlab_changes:
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - .gitlab-ci.yml
+        - .gitlab/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    
