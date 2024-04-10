@@ -28,7 +28,8 @@ class DependenciesLayout(TypedDict):  # noqa: F841
 
 class PlatformInfo(TypedDict, total=False):
     os_name: str  # Official OS name  # noqa: F841
-    version: str  # Version
+    os_version: str  # Version  # noqa: F841
+    image_version: str  # Image version  # noqa: F841
     kernel: str  # Kernel version
     os_id: str  # Short ID for the OS (e.g., "centos" for CentOS)  # noqa: F841
     image: str  # Name of the image file

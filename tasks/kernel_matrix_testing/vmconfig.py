@@ -331,9 +331,9 @@ def get_kernel_config(
 
     url_base = platforms["url_base"]
     platinfo = platforms[arch][version]
-    if "image" not in platinfo:
+    if "image" not in platinfo or "image_version" not in platinfo:
         raise Exit(f"image not found in platform information for {version}")
-    kernel_path = platinfo["image"]
+    kernel_path = f"{platinfo['image_version']}/{platinfo['image']}"
     kernel_name = xz_suffix_removed(os.path.basename(kernel_path))
 
     return {"tag": version, "image_source": os.path.join(url_base, kernel_path), "dir": kernel_name}

@@ -32,7 +32,7 @@ from tasks.kernel_matrix_testing.infra import (
 )
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file, update_image_info
+from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.system_probe import EMBEDDED_SHARE_DIR
@@ -44,7 +44,6 @@ if TYPE_CHECKING:
         Component,
         DependenciesLayout,
         PathOrStr,
-        PlatformInfo,
         SSHKey,
     )
 
@@ -928,42 +927,91 @@ def status(ctx: Context, stack: Optional[str] = None, all=False, ssh_key: Option
 
 @task(
     help={
-        "path": "Path to the directory containing the rootfs images. If None, use the default path for KMT",
+        "version": "The version to update the images to. If not provided, version will not be changed. If 'latest' is provided, the latest version will be used.",
         "update-only-matching": "Only update the platform info for images that match the given regex",
     }
 )
-def update_platform_info(ctx: Context, path: Optional[str] = None, update_only_matching: Optional[str] = None):
+def update_platform_info(ctx: Context, version: Optional[str] = None, update_only_matching: Optional[str] = None):
     """Generate a JSON file with platform information for all the images
-    found in the KMT rootfs directory. Alternative paths can be provided for the image.
-
-    Note that it will update only for the images found in the given path. You might want to run
-    inv kmt.update-resources --all-archs to download images for all architectures before running this task.
+    found in the KMT S3 bucket.
     """
-    if path is None:
-        path_fs = get_kmt_os().rootfs_dir
-    else:
-        path_fs = Path(path)
+    res = ctx.run(
+        "aws-vault exec sso-staging-engineering -- aws s3 ls --recursive s3://dd-agent-omnibus/kernel-version-testing/rootfs"
+    )
+    if res is None or not res.ok:
+        raise Exit("Cannot list bucket contents")
 
-    info("[+] Generating platform info, this can take a while...")
+    objects = [line.split()[-1] for line in res.stdout.splitlines()]
+    objects_by_version: Dict[str, List[str]] = defaultdict(list)
+
+    for obj in objects:
+        v = "/".join(obj.split("/")[2:-1])
+        if v != "":
+            objects_by_version[v].append(obj)
+
+    if version is None:
+        master_versions = [v for v in objects_by_version if re.match(r"^20[0-9]{6}_[0-9a-f]+$", v)]
+        if len(master_versions) == 0:
+            raise Exit("No master versions available")
+
+        version = sorted(master_versions)[-1]
+        info(f"[+] detected {version} as latest version from master branch")
+
+    if version not in objects_by_version:
+        raise Exit(f"Version {version} not found in S3 bucket, cannot update")
+
+    manifests = [obj for obj in objects_by_version[version] if obj.endswith(".manifest")]
     platforms = get_platforms()
-    arch_ls: List[Arch] = ["x86_64", "arm64"]
 
-    for arch in arch_ls:
-        for name, platinfo in platforms[arch].items():
-            if update_only_matching is not None and re.search(update_only_matching, name) is None:
-                warn(f"[!] Image {name} does not match the filter, skipping")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        for manifest in manifests:
+            info(f"[+] Processing manifest {manifest}")
+            ctx.run(f"aws-vault exec sso-staging-engineering -- aws s3 cp s3://dd-agent-omnibus/{manifest} {tmpdir}")
+            with open(f"{tmpdir}/{os.path.basename(manifest)}") as f:
+                options = f.readlines()
+                keyvals = {line.split("=")[0]: line.split("=")[1].strip().strip('"') for line in options}
+
+            try:
+                arch = arch_mapping[keyvals['ARCH']]
+                image_name = keyvals['IMAGE_NAME']
+                image_filename = keyvals['IMAGE_FILENAME']
+            except KeyError:
+                warn(f"[!] Invalid manifest {manifest}, skipping")
                 continue
 
-            if isinstance(platinfo, str):
-                # Updat from the old format
-                platinfo = cast('PlatformInfo', {"image": platinfo})
-                platforms[arch][name] = platinfo
+            if arch not in platforms:
+                warn(f"[!] Unsupported architecture {arch}, skipping")
+                continue
 
-            info(f"[+] Processing image {name}...")
-            try:
-                update_image_info(ctx, path_fs, platinfo)
-            except Exception as e:
-                warn(f"[!] Failed to update image {name}: {e}")
+            if update_only_matching is not None and re.search(update_only_matching, image_name) is None:
+                warn(f"[!] Image {image_name} does not match the filter, skipping")
+                continue
+
+            manifest_to_platinfo_keys = {
+                'NAME': 'os_name',
+                'ID': 'os_id',
+                'KERNEL_VERSION': 'kernel',
+                'VERSION_ID': 'os_version',
+            }
+
+            if image_name not in platforms[arch]:
+                platforms[arch][image_name] = {}
+
+            for mkey, pkey in manifest_to_platinfo_keys.items():
+                if mkey in keyvals:
+                    platforms[arch][image_name][pkey] = keyvals[mkey]
+
+            platforms[arch][image_name]['image'] = image_filename
+            platforms[arch][image_name]['image_version'] = version
+
+            if 'VERSION_CODENAME' in keyvals:
+                altname = keyvals['VERSION_CODENAME']
+                # Do not modify existing altnames
+                altnames = platforms[arch][image_name].get('alt_version_names', [])
+                if altname not in altnames:
+                    altnames.append(altname)
+
+                platforms[arch][image_name]['alt_version_names'] = altnames
 
     info(f"[+] Writing output to {platforms_file}...")
 

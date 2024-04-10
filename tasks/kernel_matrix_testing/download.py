@@ -61,7 +61,7 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
         if path.endswith(".xz"):
             path = path[: -len(".xz")]
 
-        branch_mapping[path] = os.path.dirname(platinfo["image"]) or "master"
+        branch_mapping[path] = platinfo.get('image_version', 'master')
         file_ls.append(os.path.basename(path))
 
     # if file does not exist download it.
