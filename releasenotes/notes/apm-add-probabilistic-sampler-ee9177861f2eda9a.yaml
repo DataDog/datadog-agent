@@ -10,3 +10,12 @@ features:
   - |
     APM: Add a new Probabilistic Sampler sampling mechanism, which is
     compatible with OpenTelemetry's Probabilistic Sampling Processor.
+other:
+  - |
+    APM: While adding another sampler, we have modified the Rare sampler
+    so that it no longer has a separate TTL for priority traces, meaning
+    it no longer distinguishes between traces with priority > 0 and
+    priority <= 0. It is necessary to detangle the various samplers so
+    they can work independently from each other, in this case, so the
+    Rare sampler can work with the Probabilistic Sampler. This should not
+    have a noticeable impact on users.

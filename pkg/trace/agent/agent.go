@@ -121,7 +121,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		ErrorsSampler:         sampler.NewErrorsSampler(conf, statsd),
 		RareSampler:           sampler.NewRareSampler(conf, statsd),
 		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf, statsd),
-		ProbabilisticSampler:  sampler.NewProbabilisticSampler(conf),
+		ProbabilisticSampler:  sampler.NewProbabilisticSampler(conf, statsd),
 		EventProcessor:        newEventProcessor(conf, statsd),
 		StatsWriter:           writer.NewStatsWriter(conf, statsChan, telemetryCollector, statsd, timing),
 		obfuscator:            obfuscate.NewObfuscator(oconf),
@@ -151,6 +151,7 @@ func (a *Agent) Run() {
 		a.PrioritySampler,
 		a.ErrorsSampler,
 		a.NoPrioritySampler,
+		a.ProbabilisticSampler,
 		a.EventProcessor,
 		a.OTLPReceiver,
 		a.RemoteConfigHandler,
@@ -223,6 +224,7 @@ func (a *Agent) loop() {
 		a.PrioritySampler,
 		a.ErrorsSampler,
 		a.NoPrioritySampler,
+		a.ProbabilisticSampler,
 		a.RareSampler,
 		a.EventProcessor,
 		a.obfuscator,
@@ -561,53 +563,11 @@ func isManualUserDrop(pt *traceutil.ProcessedTrace) bool {
 	return dm == manualSampling
 }
 
-func (a *Agent) runProbabilisticSampler(now time.Time, pt *traceutil.ProcessedTrace) bool {
-	// run this early to make sure the signature gets counted by the RareSampler.
-	if a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv) {
-		return true
-	}
-	if a.ProbabilisticSampler.Sample(pt.Root) {
-		pt.TraceChunk.Tags[tagDecisionMaker] = probabilitySampling
-		return true
-	}
-	if traceContainsError(pt.TraceChunk.Spans) {
-		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
-	}
-	return false
-}
-
 // traceSampling reports whether the chunk should be kept as a trace, setting "DroppedTrace" on the chunk
 func (a *Agent) traceSampling(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, checkAnalyticsEvents bool) {
-	if a.conf.ProbabilisticSamplerEnabled {
-		// when using the probabilistic sampler, we ignore all priority.
-		sampled := a.runProbabilisticSampler(now, pt)
-		pt.TraceChunk.DroppedTrace = !sampled
-		return sampled, true
-	}
-
-	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
-
-	if hasPriority {
-		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
-	} else {
-		ts.TracesPriorityNone.Inc()
-	}
-	if a.conf.HasFeature("error_rare_sample_tracer_drop") {
-		// We skip analytics events when a trace is marked as manual drop (aka priority -1)
-		// Note that we DON'T skip single span sampling. We only do this for historical
-		// reasons and analytics events are deprecated so hopefully this can all go away someday.
-		if isManualUserDrop(pt) {
-			return false, false
-		}
-	} else { // This path to be deleted once manualUserDrop detection is available on all tracers for P < 1.
-		if priority < 0 {
-			return false, false
-		}
-	}
-	sampled := a.runSamplers(now, *pt, hasPriority)
+	sampled, check := a.runSamplers(now, ts, *pt)
 	pt.TraceChunk.DroppedTrace = !sampled
-
-	return sampled, true
+	return sampled, check
 }
 
 // getAnalyzedEvents returns any sampled analytics events in the ProcessedTrace
@@ -618,32 +578,68 @@ func (a *Agent) getAnalyzedEvents(pt *traceutil.ProcessedTrace, ts *info.TagStat
 	return events
 }
 
-// runSamplers runs the agent's priority sampler on pt and returns the sampling decision along with
-// the sampling rate.
+// runSamplers runs the agent's configured samplers on pt and returns the sampling decision along
+// with the sampling rate.
 //
-// The rare sampler is run first, catching all rare traces early. If the trace has a priority set,
-// the sampling priority is used with the Priority Sampler. When there is no priority set, the
-// NoPrioritySampler is run. Finally, if the trace has not been sampled by the other samplers, the
-// error sampler is run.
-func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPriority bool) bool {
+// The rare sampler is run first, catching all rare traces early. If the probabilistic sampler is
+// enabled, it is run on the trace, followed by the error sampler. Otherwise, If the trace has a
+// priority set, the sampling priority is used with the Priority Sampler. When there is no priority
+// set, the NoPrioritySampler is run. Finally, if the trace has not been sampled by the other
+// samplers, the error sampler is run.
+func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.ProcessedTrace) (keep bool, checkAnalyticsEvents bool) {
 	// run this early to make sure the signature gets counted by the RareSampler.
-	if a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv) {
-		return true
+	rare := a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
+
+	if a.conf.ProbabilisticSamplerEnabled {
+		if rare {
+			return true, true
+		}
+		if a.ProbabilisticSampler.Sample(pt.Root) {
+			pt.TraceChunk.Tags[tagDecisionMaker] = probabilitySampling
+			return true, true
+		}
+		if traceContainsError(pt.TraceChunk.Spans) {
+			return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), true
+		}
+		return false, true
+	}
+
+	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
+	if hasPriority {
+		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
+	} else {
+		ts.TracesPriorityNone.Inc()
+	}
+	if a.conf.HasFeature("error_rare_sample_tracer_drop") {
+		// We skip analytics events when a trace is marked as manual drop (aka priority -1)
+		// Note that we DON'T skip single span sampling. We only do this for historical
+		// reasons and analytics events are deprecated so hopefully this can all go away someday.
+		if isManualUserDrop(&pt) {
+			return false, false
+		}
+	} else { // This path to be deleted once manualUserDrop detection is available on all tracers for P < 1.
+		if priority < 0 {
+			return false, false
+		}
+	}
+
+	if rare {
+		return true, true
 	}
 
 	if hasPriority {
 		if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
-			return true
+			return true, true
 		}
 	} else if a.NoPrioritySampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv) {
-		return true
+		return true, true
 	}
 
 	if traceContainsError(pt.TraceChunk.Spans) {
-		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), true
 	}
 
-	return false
+	return false, true
 }
 
 func traceContainsError(trace pb.Trace) bool {

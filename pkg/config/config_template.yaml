@@ -1642,6 +1642,22 @@ api_key:
   #
   # trace_buffer: 0
 
+  ## @param probabilistic_sampler - object - optional
+  ## @env DD_APM_PROBABILISTIC_SAMPLER_ENABLED - boolean - optional - default: false
+  ## @env DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - float - optional - default: 0
+  ## @env DD_APM_PROBABILISTIC_SAMPLER_HASH_SEED - integer - optional - default: 0
+  ## Enables and configures the Probabilistic Sampler, compatible with the
+  ## OTel Probabilistic Sampler Processor ( https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor#probabilistic-sampling-processor )
+  ## enabled: enables or disables the probabilistic sampler
+  ## sampling_percentage: samples this percentage (0-100) of traffic
+  ## hash_seed: A seed used for the hash algorithm. This must match other agents and OTel
+  ##            collectors using the probabilistic sampler to ensure consistent sampling.
+  #
+  # probabilistic_sampler:
+  #     enabled: true
+  #     sampling_percentage: 20
+  #     hash_seed: 22
+
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.

@@ -31,7 +31,7 @@ func TestSpanSeenTTLExpiration(t *testing.T) {
 	testTime := time.Unix(13829192398, 0)
 	ttl := c.RareSamplerCooldownPeriod
 	testCases := []testCase{
-		{"blocked-p1", true, testTime, map[string]float64{"_top_level": 1}, PriorityAutoKeep},
+		{"p1", true, testTime, map[string]float64{"_top_level": 1}, PriorityAutoKeep},
 		{"p0-blocked-by-p1", false, testTime, map[string]float64{"_top_level": 1}, PriorityNone},
 		{"p0-ttl-before-expiration", false, testTime.Add(ttl), map[string]float64{"_top_level": 1}, PriorityNone},
 		{"p0-ttl-expired", true, testTime.Add(ttl + time.Nanosecond), map[string]float64{"_top_level": 1}, PriorityNone},

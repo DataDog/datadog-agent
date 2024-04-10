@@ -1074,7 +1074,7 @@ func TestSampling(t *testing.T) {
 			ErrorsSampler:        sampler.NewErrorsSampler(cfg, statsd),
 			PrioritySampler:      sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
 			RareSampler:          sampler.NewRareSampler(cfg, statsd),
-			ProbabilisticSampler: sampler.NewProbabilisticSampler(cfg),
+			ProbabilisticSampler: sampler.NewProbabilisticSampler(cfg, statsd),
 			conf:                 cfg,
 		}
 		if ac.errorsSampled {
@@ -1293,49 +1293,41 @@ func TestSample(t *testing.T) {
 		trace           traceutil.ProcessedTrace
 		keep            bool
 		keepWithFeature bool
-		dropped         bool // whether the trace was dropped by sampling
 	}{
 		"userdrop-error-no-dm-sampled": {
 			trace:           genSpan("", sampler.PriorityUserDrop, 1),
 			keep:            false,
 			keepWithFeature: true,
-			dropped:         false,
 		},
 		"userdrop-error-manual-dm-unsampled": {
 			trace:           genSpan("-4", sampler.PriorityUserDrop, 1),
 			keep:            false,
 			keepWithFeature: false,
-			dropped:         false,
 		},
 		"userdrop-error-agent-dm-sampled": {
 			trace:           genSpan("-1", sampler.PriorityUserDrop, 1),
 			keep:            false,
 			keepWithFeature: true,
-			dropped:         false,
 		},
 		"userkeep-error-no-dm-sampled": {
 			trace:           genSpan("", sampler.PriorityUserKeep, 1),
 			keep:            true,
 			keepWithFeature: true,
-			dropped:         false,
 		},
 		"userkeep-error-agent-dm-sampled": {
 			trace:           genSpan("-1", sampler.PriorityUserKeep, 1),
 			keep:            true,
 			keepWithFeature: true,
-			dropped:         false,
 		},
 		"autodrop-error-sampled": {
 			trace:           genSpan("", sampler.PriorityAutoDrop, 1),
 			keep:            true,
 			keepWithFeature: true,
-			dropped:         false,
 		},
 		"autodrop-not-sampled": {
 			trace:           genSpan("", sampler.PriorityAutoDrop, 0),
 			keep:            false,
 			keepWithFeature: false,
-			dropped:         true,
 		},
 	}
 	for name, tt := range tests {
@@ -1350,12 +1342,12 @@ func TestSample(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keep, keep)
-			assert.Equal(t, tt.dropped, tt.trace.TraceChunk.DroppedTrace)
+			assert.Equal(t, !tt.keep, tt.trace.TraceChunk.DroppedTrace)
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
 			keep, _ = a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keepWithFeature, keep)
-			assert.Equal(t, tt.dropped, tt.trace.TraceChunk.DroppedTrace)
+			assert.Equal(t, !tt.keepWithFeature, tt.trace.TraceChunk.DroppedTrace)
 		})
 	}
 }
