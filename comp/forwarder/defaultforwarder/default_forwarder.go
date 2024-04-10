@@ -59,8 +59,6 @@ type Response struct {
 
 // Forwarder interface allows packages to send payload to the backend
 type Forwarder interface {
-	Start() error
-	Stop()
 	SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitV1Intake(payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error
 	SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error
@@ -326,6 +324,19 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			}
 		}
 	}
+
+	config.OnUpdate(func(setting string, oldValue, newValue any) {
+		if setting != "api_key" {
+			return
+		}
+		oldAPIKey, ok1 := oldValue.(string)
+		newAPIKey, ok2 := newValue.(string)
+		if ok1 && ok2 {
+			for _, dr := range f.domainResolvers {
+				dr.UpdateAPIKey(oldAPIKey, newAPIKey)
+			}
+		}
+	})
 
 	timeInterval := config.GetInt("forwarder_retry_queue_capacity_time_interval_sec")
 	if f.agentName != "" {

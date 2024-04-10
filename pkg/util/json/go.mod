@@ -1,10 +1,10 @@
 module github.com/DataDog/datadog-agent/pkg/util/json
 
-go 1.21.7
+go 1.21.9
 
 require (
 	github.com/json-iterator/go v1.1.12
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 )
 
 require (

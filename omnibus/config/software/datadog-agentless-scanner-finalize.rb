@@ -18,8 +18,16 @@ build do
     license :project_license
 
     # Move system service files
+    mkdir "/etc/init"
+    move "#{install_dir}/scripts/datadog-agentless-scanner.conf", "/etc/init"
+    if debian_target?
+                # sysvinit support for debian only for now
+                mkdir "/etc/init.d"
+                move "#{install_dir}/scripts/datadog-agentless-scanner", "/etc/init.d"
+    end
     mkdir "/lib/systemd/system"
     move "#{install_dir}/scripts/datadog-agentless-scanner.service", "/lib/systemd/system"
+
     mkdir "/var/log/datadog"
 
     # cleanup clutter

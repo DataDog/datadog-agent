@@ -121,6 +121,11 @@ RULES:
 			continue
 		}
 
+		if ruleDef.GroupID != "" && !validators.CheckRuleID(ruleDef.GroupID) {
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleIDPattern})
+			continue
+		}
+
 		if ruleDef.Expression == "" && !ruleDef.Disabled && ruleDef.Combine == "" {
 			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleWithoutExpression})
 			continue

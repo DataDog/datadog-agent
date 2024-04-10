@@ -71,6 +71,9 @@ static __always_inline void http_parse_data(char const *p, http_packet_t *packet
     } else if ((p[0] == 'P') && (p[1] == 'A') && (p[2] == 'T') && (p[3] == 'C') && (p[4] == 'H') && (p[5]  == ' ') && (p[6] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_PATCH;
+    } else if ((p[0] == 'T') && (p[1] == 'R') && (p[2] == 'A') && (p[3] == 'C') && (p[4] == 'E') && (p[5]  == ' ') && (p[6] == '/')) {
+        *packet_type = HTTP_REQUEST;
+        *method = HTTP_TRACE;
     }
 }
 

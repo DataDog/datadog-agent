@@ -1,8 +1,7 @@
 #!/bin/bash
-set -eEuxo pipefail
+set -eEuo pipefail
 
-retry_count=$1
-pkgs_run_config_file=$2
+runner_config=$@
 docker_dir=/kmt-dockers
 
 # Add provisioning steps here !
@@ -16,7 +15,7 @@ fi
 
 # Start tests
 code=0
-/test-runner -retry "${retry_count}" -packages-run-config "${pkgs_run_config_file}" || code=$?
+/test-runner $runner_config || code=$?
 
 if [[ -f "/job_env.txt" ]]; then
     cp /job_env.txt /ci-visibility/junit/

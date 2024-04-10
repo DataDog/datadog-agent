@@ -38,6 +38,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 		DNSNames:       make(map[string]*DNSNode, len(pan.DnsNames)),
 		Sockets:        make([]*SocketNode, 0, len(pan.Sockets)),
 		Syscalls:       make([]int, 0, len(pan.Syscalls)),
+		ImageTags:      pan.ImageTags,
 	}
 
 	for _, rule := range pan.MatchedRules {
@@ -182,6 +183,7 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode) *FileNode {
 		FirstSeen:      ProtoDecodeTimestamp(fan.FirstSeen),
 		Open:           protoDecodeOpenNode(fan.Open),
 		Children:       make(map[string]*FileNode, len(fan.Children)),
+		ImageTags:      fan.ImageTags,
 	}
 
 	for _, rule := range fan.MatchedRules {
@@ -220,6 +222,7 @@ func protoDecodeDNSNode(dn *adproto.DNSNode) *DNSNode {
 	pdn := &DNSNode{
 		MatchedRules: make([]*model.MatchedRule, 0, len(dn.MatchedRules)),
 		Requests:     make([]model.DNSEvent, 0, len(dn.Requests)),
+		ImageTags:    dn.ImageTags,
 	}
 
 	for _, rule := range dn.MatchedRules {
@@ -261,6 +264,7 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
 			MatchedRules: make([]*model.MatchedRule, 0, len(bindNode.MatchedRules)),
 			Port:         uint16(bindNode.Port),
 			IP:           bindNode.Ip,
+			ImageTags:    bindNode.ImageTags,
 		}
 
 		for _, rule := range bindNode.MatchedRules {

@@ -5,7 +5,7 @@
 
 package components
 
-import "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/activedirectory"
+import "github.com/DataDog/test-infra-definitions/components/activedirectory"
 
 // RemoteActiveDirectory represents an Active Directory domain on a remote machine
 type RemoteActiveDirectory struct {

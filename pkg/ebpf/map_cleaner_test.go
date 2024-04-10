@@ -117,8 +117,7 @@ func benchmarkBatchCleaner(b *testing.B, numMapEntries, batchSize uint32) {
 		val = new(int64)
 	)
 
-	err := rlimit.RemoveMemlock()
-	require.NoError(b, err)
+	require.NoError(b, rlimit.RemoveMemlock())
 
 	m, err := ebpf.NewMap(&ebpf.MapSpec{
 		Type:       ebpf.Hash,

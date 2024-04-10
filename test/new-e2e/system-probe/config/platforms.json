@@ -15,7 +15,12 @@
         "debian_11": "master/debian-11-generic-x86_64.qcow2.xz",
         "debian_12": "master/debian-12-generic-x86_64.qcow2.xz",
         "centos_79": "master/centos-7.9-x86_64.qcow2.xz",
-        "centos_8": "master/centos-8-x86_64.qcow2.xz"
+        "centos_8": "master/centos-8-x86_64.qcow2.xz",
+        "oracle_7.9": "master/oracle-7.9-x86_64.qcow.xz",
+        "oracle_8.9": "master/oracle-8.9-x86_64.qcow.xz",
+        "oracle_9.3": "master/oracle-9.3-x86_64.qcow.xz",
+        "rocky_8.5": "master/rocky-8.5-x86_64.qcow2.xz",
+        "rocky_9.3": "master/rocky-9.3-x86_64.qcow2.xz"
     },
     "arm64": {
         "ubuntu_18.04": "master/ubuntu-18-arm64.qcow2.xz",
@@ -31,6 +36,10 @@
         "debian_11": "master/debian-11-generic-arm64.qcow2.xz",
         "debian_12": "master/debian-12-generic-arm64.qcow2.xz",
         "centos_79": "master/centos-7.9-arm64.qcow2.xz",
-        "centos_8": "master/centos-8-arm64.qcow2.xz"
+        "centos_8": "master/centos-8-arm64.qcow2.xz",
+        "oracle_8.9": "master/oracle-8.9-arm64.qcow.xz",
+        "oracle_9.3": "master/oracle-9.3-arm64.qcow.xz",
+        "rocky_8.5": "master/rocky-8.5-arm64.qcow2.xz",
+        "rocky_9.3": "master/rocky-9.3-arm64.qcow2.xz"
     }
 }

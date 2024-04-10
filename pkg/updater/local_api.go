@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
@@ -138,8 +137,7 @@ func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Infof("Received local request to start experiment for package %s version %s", pkg, request.Version)
-	taskID := uuid.New().String()
-	err = l.updater.StartExperiment(r.Context(), pkg, request.Version, taskID)
+	err = l.updater.StartExperiment(r.Context(), pkg, request.Version)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -156,8 +154,7 @@ func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
 	log.Infof("Received local request to stop experiment for package %s", pkg)
-	taskID := uuid.New().String()
-	err := l.updater.StopExperiment(pkg, taskID)
+	err := l.updater.StopExperiment(r.Context(), pkg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -174,8 +171,7 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 		_ = json.NewEncoder(w).Encode(response)
 	}()
 	log.Infof("Received local request to promote experiment for package %s", pkg)
-	taskID := uuid.New().String()
-	err := l.updater.PromoteExperiment(pkg, taskID)
+	err := l.updater.PromoteExperiment(r.Context(), pkg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -201,13 +197,12 @@ func (l *localAPIImpl) bootstrap(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	taskID := uuid.New().String()
 	if request.Version != "" {
 		log.Infof("Received local request to bootstrap package %s version %s", pkg, request.Version)
-		err = l.updater.BootstrapVersion(r.Context(), pkg, request.Version, taskID)
+		err = l.updater.BootstrapVersion(r.Context(), pkg, request.Version)
 	} else {
 		log.Infof("Received local request to bootstrap package %s", pkg)
-		err = l.updater.Bootstrap(r.Context(), pkg, taskID)
+		err = l.updater.BootstrapDefault(r.Context(), pkg)
 
 	}
 	if err != nil {
@@ -230,11 +225,13 @@ type LocalAPIClient interface {
 // LocalAPIClient is a client to interact with the locally exposed updater API.
 type localAPIClientImpl struct {
 	client *http.Client
+	addr   string
 }
 
 // NewLocalAPIClient returns a new LocalAPIClient.
 func NewLocalAPIClient() LocalAPIClient {
 	return &localAPIClientImpl{
+		addr: "updater", // this has no meaning when using a unix socket
 		client: &http.Client{
 			Transport: &http.Transport{
 				Dial: func(_, _ string) (net.Conn, error) {
@@ -248,7 +245,7 @@ func NewLocalAPIClient() LocalAPIClient {
 // Status returns the status of the updater.
 func (c *localAPIClientImpl) Status() (StatusResponse, error) {
 	var response StatusResponse
-	req, err := http.NewRequest(http.MethodGet, "http://updater/status", nil)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s/status", c.addr), nil)
 	if err != nil {
 		return response, err
 	}
@@ -278,7 +275,7 @@ func (c *localAPIClientImpl) StartExperiment(pkg, version string) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://updater/%s/experiment/start", pkg), bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/experiment/start", c.addr, pkg), bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}
@@ -302,7 +299,7 @@ func (c *localAPIClientImpl) StartExperiment(pkg, version string) error {
 
 // StopExperiment stops an experiment for a package.
 func (c *localAPIClientImpl) StopExperiment(pkg string) error {
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://updater/%s/experiment/stop", pkg), nil)
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/experiment/stop", c.addr, pkg), nil)
 	if err != nil {
 		return err
 	}
@@ -326,7 +323,7 @@ func (c *localAPIClientImpl) StopExperiment(pkg string) error {
 
 // PromoteExperiment promotes an experiment for a package.
 func (c *localAPIClientImpl) PromoteExperiment(pkg string) error {
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://updater/%s/experiment/promote", pkg), nil)
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/experiment/promote", c.addr, pkg), nil)
 	if err != nil {
 		return err
 	}
@@ -357,7 +354,7 @@ func (c *localAPIClientImpl) BootstrapVersion(pkg, version string) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://updater/%s/bootstrap", pkg), bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/bootstrap", c.addr, pkg), bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}

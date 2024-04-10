@@ -8,7 +8,6 @@ package awshost
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/activedirectory"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -36,13 +35,12 @@ const (
 type ProvisionerParams struct {
 	name string
 
-	instanceOptions        []ec2.VMOption
-	activeDirectoryOptions []activedirectory.Option
-	agentOptions           []agentparams.Option
-	fakeintakeOptions      []fakeintake.Option
-	extraConfigParams      runner.ConfigMap
-	installDocker          bool
-	installUpdater         bool
+	instanceOptions   []ec2.VMOption
+	agentOptions      []agentparams.Option
+	fakeintakeOptions []fakeintake.Option
+	extraConfigParams runner.ConfigMap
+	installDocker     bool
+	installUpdater    bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -81,14 +79,6 @@ func WithName(name string) ProvisionerOption {
 func WithEC2InstanceOptions(opts ...ec2.VMOption) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.instanceOptions = append(params.instanceOptions, opts...)
-		return nil
-	}
-}
-
-// WithActiveDirectoryOptions adds Active Directory to the EC2 VM.
-func WithActiveDirectoryOptions(opts ...activedirectory.Option) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.activeDirectoryOptions = append(params.activeDirectoryOptions, opts...)
 		return nil
 	}
 }
@@ -189,41 +179,8 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 		return err
 	}
 
-	// Store the list of resources created by the Active Directory component so that
-	// further steps may depend on them. It's not enough to add a dependency to the component alone.
-	var activeDirectoryResources []pulumi.Resource
-	if params.activeDirectoryOptions != nil {
-		activeDirectoryComp, activeDirectoryResources, err := activedirectory.NewActiveDirectory(ctx, awsEnv.CommonEnvironment, host, params.activeDirectoryOptions...)
-		if err != nil {
-			return err
-		}
-		err = activeDirectoryComp.Export(ctx, &env.ActiveDirectory.Output)
-		if err != nil {
-			return err
-		}
-
-		if params.agentOptions != nil {
-			// Agent install needs to happen after ActiveDirectory setup
-			params.agentOptions = append(params.agentOptions,
-				agentparams.WithPulumiResourceOptions(
-					pulumi.DependsOn(activeDirectoryResources)))
-		}
-
-	} else {
-		// Suite inits all fields by default, so we need to explicitly set it to nil
-		env.ActiveDirectory = nil
-	}
-
 	if params.installDocker {
-		var dockerOpts []pulumi.ResourceOption
-		if activeDirectoryResources != nil {
-			// Joining an Active Directory domain on Linux doesn't require a reboot
-			// but on Windows it does. Since there's no easy way to distinguish whether this
-			// machine is going to be Windows or not, it's easier to just wait for the ActiveDirectory component to do its
-			// thing.
-			dockerOpts = append(dockerOpts, pulumi.DependsOn(activeDirectoryResources))
-		}
-		_, dockerRes, err := docker.NewManager(*awsEnv.CommonEnvironment, host, true, dockerOpts...)
+		_, dockerRes, err := docker.NewManager(*awsEnv.CommonEnvironment, host)
 		if err != nil {
 			return err
 		}

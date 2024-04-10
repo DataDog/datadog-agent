@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// team: agent-metrics-logs
+// team: agent-processing-and-routing
 
 const (
 	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
@@ -21,6 +21,9 @@ const (
 
 	// EventTypeNetworkDevicesNetFlow is the event type for network devices NetFlow data
 	EventTypeNetworkDevicesNetFlow = "network-devices-netflow"
+
+	// EventTypeNetworkPath is the event type for network devices Network Path data
+	EventTypeNetworkPath = "network-path"
 
 	// EventTypeContainerLifecycle represents a container lifecycle event
 	EventTypeContainerLifecycle = "container-lifecycle"
@@ -34,11 +37,6 @@ const (
 type Component interface {
 	// Get the forwarder instance if it exists.
 	Get() (Forwarder, bool)
-
-	// TODO: (components): This function is used to know if Stop was already called in AgentDemultiplexer.Stop.
-	// Reset results `Get` methods to return false.
-	// Remove it when Stop is not part of this interface.
-	Reset()
 }
 
 // Forwarder is the interface of the event platform forwarder.
@@ -46,6 +44,4 @@ type Forwarder interface {
 	SendEventPlatformEvent(e *message.Message, eventType string) error
 	SendEventPlatformEventBlocking(e *message.Message, eventType string) error
 	Purge() map[string][]*message.Message
-	Start()
-	Stop()
 }

@@ -29,3 +29,9 @@ jobs:
           label_pattern: "^backport/(?<base>([^ ]+))$"
           labels_template: "<%= JSON.stringify([...labels, 'backport', 'bot']) %>"
           github_token: ${{ steps.app-token.outputs.token }}
+          body_template: |
+            Backport <%= mergeCommitSha %> from #<%= number %>.
+
+            ___
+
+            <%= body %>

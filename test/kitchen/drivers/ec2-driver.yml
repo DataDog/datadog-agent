@@ -56,7 +56,7 @@ driver:
   block_duration_minutes: <%= ENV['KITCHEN_EC2_SPOT_DURATION'] ||= '60' %>
   tags:
     Name: ci-datadog-agent-kitchen
-    Team: agent-platform
+    Team: agent-developer-tools
     PipelineId: <%= ENV['DD_PIPELINE_ID'] %>
     CreatedBy: datadog-agent-kitchen-tests
     Creator: <%= ENV['KITCHEN_EC2_TAG_CREATOR'] || "datadog-agent-kitchen-user" %>

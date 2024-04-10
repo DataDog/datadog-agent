@@ -8,11 +8,14 @@ package updater
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
+
+	"github.com/google/go-containerregistry/pkg/name"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -63,31 +66,11 @@ func (rc *remoteConfig) Close() {
 }
 
 // SetState sets the state of the given package.
-func (rc *remoteConfig) SetState(pkg string, repoState repository.State, taskState TaskState) {
+func (rc *remoteConfig) SetState(packages []*pbgo.PackageState) {
 	if rc.client == nil {
 		return
 	}
-
-	var taskErr *pbgo.TaskError
-	if taskState.Err != nil {
-		taskErr = &pbgo.TaskError{
-			Code:    uint64(taskState.Err.Code()),
-			Message: taskState.Err.Error(),
-		}
-	}
-
-	rc.client.SetUpdaterPackagesState([]*pbgo.PackageState{
-		{
-			Package:           pkg,
-			StableVersion:     repoState.Stable,
-			ExperimentVersion: repoState.Experiment,
-			Task: &pbgo.PackageStateTask{
-				Id:    taskState.ID,
-				State: taskState.State,
-				Error: taskErr,
-			},
-		},
-	})
+	rc.client.SetUpdaterPackagesState(packages)
 }
 
 // Package represents a downloadable package.
@@ -137,6 +120,14 @@ func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate) client.Handler {
 				applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 				return
 			}
+			for _, p := range catalog.Packages {
+				err := validatePackage(p)
+				if err != nil {
+					log.Errorf("invalid package in catalog: %s", err)
+					applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+					return
+				}
+			}
 			mergedCatalog.Packages = append(mergedCatalog.Packages, catalog.Packages...)
 		}
 		err := h(mergedCatalog)
@@ -153,6 +144,32 @@ func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate) client.Handler {
 	}
 }
 
+func validatePackage(pkg Package) error {
+	if pkg.Name == "" {
+		return fmt.Errorf("package name is empty")
+	}
+	if pkg.Version == "" {
+		return fmt.Errorf("package version is empty")
+	}
+	if pkg.URL == "" {
+		return fmt.Errorf("package URL is empty")
+	}
+	url, err := url.Parse(pkg.URL)
+	if err != nil {
+		return fmt.Errorf("could not parse package URL: %w", err)
+	}
+	if url.Scheme == "oci" {
+		ociURL := strings.TrimPrefix(pkg.URL, "oci://")
+		// Check if the URL is a valid *digest* URL.
+		// We do not allow referencing images by tag when sent over RC.
+		_, err := name.NewDigest(ociURL)
+		if err != nil {
+			return fmt.Errorf("could not parse oci digest URL: %w", err)
+		}
+	}
+	return nil
+}
+
 const (
 	methodStartExperiment   = "start_experiment"
 	methodStopExperiment    = "stop_experiment"
@@ -162,7 +179,7 @@ const (
 
 type remoteAPIRequest struct {
 	ID            string          `json:"id"`
-	Package       string          `json:"package"`
+	Package       string          `json:"package_name"`
 	ExpectedState expectedState   `json:"expected_state"`
 	Method        string          `json:"method"`
 	Params        json.RawMessage `json:"params"`

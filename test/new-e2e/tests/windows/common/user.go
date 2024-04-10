@@ -132,3 +132,101 @@ func GetLocalGroupMembers(host *components.RemoteHost, group string) ([]Identity
 	}
 	return members, nil
 }
+
+// GetUserRights returns a map of user rights to a list of users that have them
+//
+// https://learn.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/user-rights-assignment
+func GetUserRights(host *components.RemoteHost) (map[string][]string, error) {
+	outFile, err := GetTemporaryFile(host)
+	if err != nil {
+		return nil, err
+	}
+	cmd := fmt.Sprintf(`secedit /export /areas USER_RIGHTS /cfg %s`, outFile)
+	_, err = host.Execute(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	c, err := host.ReadFile(outFile)
+	if err != nil {
+		return nil, err
+	}
+	c, err = ConvertUTF16ToUTF8(c)
+	if err != nil {
+		return nil, err
+	}
+	content := string(c)
+
+	result := make(map[string][]string)
+
+	// The file is in INI syntax, Go doesn't have a built-in INI parser
+	// but going line by line is sufficient for our needs
+	for _, line := range strings.Split(content, "\r\n") {
+		if strings.HasPrefix(line, "Se") {
+			// example: SeDenyNetworkLogonRight = *S-1-5-18,ddagentuser
+			parts := strings.Split(line, "=")
+			if len(parts) != 2 {
+				return nil, fmt.Errorf("unexpected line format: %s", line)
+			}
+			rightName := strings.TrimSpace(parts[0])
+			users := strings.TrimSpace(parts[1])
+			userList := strings.Split(users, ",")
+			for i, user := range userList {
+				user = strings.TrimSpace(user)
+				// SIDs are given as *S-1-5-32-544
+				user = strings.TrimLeft(user, "*")
+				userList[i] = user
+			}
+			result[rightName] = userList
+		}
+	}
+	return result, nil
+}
+
+// GetUserRightsForUser returns a list of user rights for the given user
+func GetUserRightsForUser(host *components.RemoteHost, user string) ([]string, error) {
+	sid, err := GetSIDForUser(host, user)
+	if err != nil {
+		return nil, err
+	}
+	rights, err := GetUserRights(host)
+	if err != nil {
+		return nil, err
+	}
+	var result []string
+	var sidCache = make(map[string]string)
+	sidCache[user] = sid
+	for right, users := range rights {
+		for _, u := range users {
+			var s string
+			if strings.HasPrefix(u, "S-1-") {
+				s = u
+			} else {
+				// not a SID, look up the SID for the username
+				var ok bool
+				s, ok = sidCache[u]
+				if !ok {
+					s, err = GetSIDForUser(host, u)
+					if err != nil {
+						return nil, err
+					}
+					sidCache[u] = s
+				}
+			}
+			// check if SID or username matches
+			if strings.EqualFold(s, sid) || strings.EqualFold(u, user) {
+				result = append(result, right)
+				break
+			}
+		}
+	}
+	return result, nil
+}
+
+// RemoveLocalUser Removes a local user account
+// NOTE: this does not remove the user profile, which without a reboot is probably locked by the system.
+func RemoveLocalUser(host *components.RemoteHost, user string) error {
+	cmd := fmt.Sprintf(`Remove-LocalUser -Name "%s"`, user)
+	_, err := host.Execute(cmd)
+	return err
+}

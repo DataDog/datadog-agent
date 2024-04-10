@@ -31,10 +31,6 @@ if linux_target?
   dependency 'gstatus'
 end
 
-if redhat_target? && !arm_target?
-  dependency 'pydantic-core-py3'
-end
-
 if linux_target?
   # We need to use cython<3.0.0 to build oracledb
   dependency 'oracledb-py3'
