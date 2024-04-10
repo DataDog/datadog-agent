@@ -64,6 +64,7 @@ func NewProbabilisticSampler(conf *config.AgentConfig, statsd statsd.ClientInter
 	return ps
 }
 
+// Start starts up the ProbabilisticSamler's support routine, which periodically sends stats.
 func (ps *ProbabilisticSampler) Start() {
 	if !ps.enabled {
 		close(ps.stopped)
@@ -86,6 +87,8 @@ func (ps *ProbabilisticSampler) Start() {
 	}()
 
 }
+
+// Stop shuts down the ProbabilisticSampler's support routine.
 func (ps *ProbabilisticSampler) Stop() {
 	ps.stopOnce.Do(func() {
 		close(ps.stop)
