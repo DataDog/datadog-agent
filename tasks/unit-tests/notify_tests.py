@@ -10,6 +10,7 @@ from invoke import MockContext, Result
 from invoke.exceptions import UnexpectedExit
 
 from tasks import notify
+from tasks.libs.types.types import FailedJobs, FailedJobType
 
 
 def get_fake_jobs() -> List[ProjectJob]:
@@ -22,8 +23,78 @@ def get_fake_jobs() -> List[ProjectJob]:
 class TestSendMessage(unittest.TestCase):
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_merge(self, api_mock):
-        list_mock = api_mock.return_value.projects.get.return_value.pipelines.get.return_value.jobs.list
+        repo_mock = api_mock.return_value.projects.get.return_value
+        repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
+        list_mock = repo_mock.pipelines.get.return_value.jobs.list
         list_mock.side_effect = [get_fake_jobs(), []]
+        notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
+        list_mock.assert_called()
+
+    @patch("tasks.notify.get_failed_jobs")
+    def test_merge_without_get_failed_call(self, get_failed_jobs_mock):
+        failed = FailedJobs()
+        failed.add_failed_job(
+            ProjectJob(
+                MagicMock(),
+                attrs={
+                    "name": "job1",
+                    "stage": "stage1",
+                    "retry_summary": [],
+                    "web_url": "http://www.job.com",
+                    "failure_type": FailedJobType.INFRA_FAILURE,
+                    "allow_failure": False,
+                },
+            )
+        )
+        failed.add_failed_job(
+            ProjectJob(
+                MagicMock(),
+                attrs={
+                    "name": "job2",
+                    "stage": "stage2",
+                    "retry_summary": [],
+                    "web_url": "http://www.job.com",
+                    "failure_type": FailedJobType.INFRA_FAILURE,
+                    "allow_failure": True,
+                },
+            )
+        )
+        failed.add_failed_job(
+            ProjectJob(
+                MagicMock(),
+                attrs={
+                    "name": "job3",
+                    "stage": "stage3",
+                    "retry_summary": [],
+                    "web_url": "http://www.job.com",
+                    "failure_type": FailedJobType.JOB_FAILURE,
+                    "allow_failure": False,
+                },
+            )
+        )
+        failed.add_failed_job(
+            ProjectJob(
+                MagicMock(),
+                attrs={
+                    "name": "job4",
+                    "stage": "stage4",
+                    "retry_summary": [],
+                    "web_url": "http://www.job.com",
+                    "failure_type": FailedJobType.JOB_FAILURE,
+                    "allow_failure": True,
+                },
+            )
+        )
+        get_failed_jobs_mock.return_value = failed
+        notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
+        get_failed_jobs_mock.assert_called()
+
+    @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
+    def test_merge_with_get_failed_call(self, api_mock):
+        repo_mock = api_mock.return_value.projects.get.return_value
+        repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
+        list_mock = repo_mock.pipelines.get.return_value.jobs.list
+        list_mock.side_effect = [get_fake_jobs(), [], None]
         notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
         list_mock.assert_called()
 
@@ -59,8 +130,10 @@ class TestSendStats(unittest.TestCase):
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch("tasks.notify.create_count", new=MagicMock())
     def test_nominal(self, api_mock):
-        list_mock = api_mock.return_value.projects.get.return_value.pipelines.get.return_value.jobs.list
-        list_mock.side_effect = [get_fake_jobs(), []]
+        repo_mock = api_mock.return_value.projects.get.return_value
+        repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
+        list_mock = repo_mock.pipelines.get.return_value.jobs.list
+        list_mock.side_effect = [get_fake_jobs(), [], None]
         notify.send_stats(MockContext(), print_to_stdout=True)
         list_mock.assert_called()
 
@@ -69,8 +142,10 @@ class TestCheckConsistentFailures(unittest.TestCase):
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_nominal(self, api_mock):
         os.environ["CI_PIPELINE_ID"] = "456"
-        list_mock = api_mock.return_value.projects.get.return_value.pipelines.get.return_value.jobs.list
-        list_mock.side_effect = [get_fake_jobs(), []]
+        repo_mock = api_mock.return_value.projects.get.return_value
+        repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
+        list_mock = repo_mock.pipelines.get.return_value.jobs.list
+        list_mock.side_effect = [get_fake_jobs(), [], None]
         notify.check_consistent_failures(
             MockContext(run=Result("test")), "tasks/unit-tests/testdata/job_executions.json"
         )
