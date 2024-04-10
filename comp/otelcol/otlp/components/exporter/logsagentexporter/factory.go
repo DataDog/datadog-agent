@@ -33,9 +33,10 @@ type factory struct {
 // NewFactory creates a new logsagentexporter factory.
 func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
 	f := &factory{logsAgentChannel: logsAgentChannel}
+	cfgType, _ := component.NewType(TypeStr)
 
 	return exp.NewFactory(
-		TypeStr,
+		cfgType,
 		func() component.Config { return &struct{}{} },
 		exp.WithLogs(f.createLogsExporter, stability),
 	)
