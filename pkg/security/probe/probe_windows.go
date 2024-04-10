@@ -748,8 +748,8 @@ func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field e
 
 	fileObject := fileObjectPointer(ev.CreateNewFile.File.FileObject)
 	p.filePathResolverLock.Lock()
+	defer p.filePathResolverLock.Unlock()
 	delete(p.filePathResolver, fileObject)
-	p.filePathResolverLock.Unlock()
 }
 
 // NewModel returns a new Model

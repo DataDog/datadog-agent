@@ -158,9 +158,6 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	wp.filePathResolverLock.Lock()
-	defer wp.filePathResolverLock.Unlock()
-
 	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
 		wp.stats.fileCreateSkippedDiscardedPaths++
 		return nil, errDiscardedPath
@@ -173,6 +170,8 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		return nil, errDiscardedPath
 	}
 
+	wp.filePathResolverLock.Lock()
+	defer wp.filePathResolverLock.Unlock()
 	wp.filePathResolver[ca.fileObject] = ca.fileName
 
 	return ca, nil
