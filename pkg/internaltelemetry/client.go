@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -62,6 +63,7 @@ type Event struct {
 	RuntimeID   string      `json:"runtime_id"`
 	SequenceID  uint64      `json:"seq_id"`
 	DebugFlag   bool        `json:"debug"`
+	Origin      string      `json:"origin"`
 	Host        Host        `json:"host"`
 	Application Application `json:"application"`
 	Payload     interface{} `json:"payload"`
@@ -118,6 +120,7 @@ func NewClient(httpClient httpClient, endpoints []*config.Endpoint, service stri
 			APIVersion: "v2",
 			DebugFlag:  debug,
 			RuntimeID:  info.HostID,
+			Origin:     "agent",
 			Host: Host{
 				Hostname:      info.Hostname,
 				OS:            info.OS,
@@ -129,7 +132,7 @@ func NewClient(httpClient httpClient, endpoints []*config.Endpoint, service stri
 			Application: Application{
 				ServiceName:     service,
 				ServiceVersion:  version.AgentVersion,
-				LanguageName:    "agent",
+				LanguageName:    "go",
 				LanguageVersion: runtime.Version(),
 				TracerVersion:   "n/a",
 			},
@@ -174,12 +177,15 @@ func (c *client) sendPayload(requestType RequestType, payload interface{}) {
 			log.Errorf("failed to create request for endpoint %s: %v", url, err)
 			continue
 		}
-		req.Header.Add("DD-Api-Key", endpoint.APIKey)
-		req.Header.Add("Content-Type", "application/json")
-		req.Header.Add("DD-Telemetry-api-version", "v2")
-		req.Header.Add("DD-Telemetry-request-type", string(requestType))
-		req.Header.Add("dd-client-library-language", "agent")
-		req.Header.Add("dd-client-library-version", version.AgentVersion)
+		req.Header.Add("dd-api-key", endpoint.APIKey)
+		req.Header.Add("content-type", "application/json")
+		req.Header.Add("dd-telemetry-api-version", "v2")
+		req.Header.Add("dd-telemetry-request-type", string(event.RequestType))
+		req.Header.Add("dd-telemetry-origin", event.Origin)
+		req.Header.Add("dd-client-library-language", event.Application.LanguageName)
+		req.Header.Add("dd-client-library-version", event.Application.TracerVersion)
+		req.Header.Add("dd-telemetry-debug-enabled", strconv.FormatBool(event.DebugFlag))
+		req.Header.Add("dd-agent-hostname", event.Host.Hostname)
 		resp, err := c.client.Do(req)
 		if err != nil {
 			log.Errorf("failed to send payload to endpoint %s: %v", url, err)
