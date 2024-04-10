@@ -100,8 +100,8 @@ func tracesSampledByProbabilitySampler(t *testing.T, c *assert.CollectT, intake 
 	assert.NotEmpty(c, traces)
 	t.Log("Got traces", traces)
 	for _, p := range traces {
-		for _, t := range p.AgentPayload.TracerPayloads {
-			for _, chunk := range t.Chunks {
+		for _, tp := range p.AgentPayload.TracerPayloads {
+			for _, chunk := range tp.Chunks {
 				dm, ok := chunk.Tags["_dd.p.dm"]
 				if !ok {
 					t.Failf("Expected trace chunk tags to contain _dd.p.dm, but it does not.")
