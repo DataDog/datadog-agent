@@ -266,13 +266,15 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	} else {
 		log.Debug("appsec: missing span tag http.status_code")
 	}
+	if ctx.requestRoute != nil {
+		span.SetMetaTag("http.route", *ctx.requestRoute)
+	} else {
+		log.Debug("appsec: missing span tag http.route")
+	}
 
 	if res := lp.appsec.Monitor(ctx.toAddresses()); res.HasEvents() {
 		setSecurityEventsTags(span, res.Events, reqHeaders, nil)
 		chunk.Priority = int32(sampler.PriorityUserKeep)
-		if ctx.requestRoute != nil {
-			span.SetMetaTag("http.route", *ctx.requestRoute)
-		}
 		setAPISecurityTags(span, res.Derivatives)
 	}
 }

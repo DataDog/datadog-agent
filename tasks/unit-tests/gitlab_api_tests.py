@@ -4,7 +4,7 @@ from unittest import mock
 
 from invoke.exceptions import Exit
 
-from tasks.libs.common.gitlab import Gitlab, generate_gitlab_full_configuration, get_gitlab_token, read_includes
+from tasks.libs.ciproviders.gitlab import Gitlab, generate_gitlab_full_configuration, get_gitlab_token, read_includes
 from tasks.libs.common.remote_api import APIError
 
 

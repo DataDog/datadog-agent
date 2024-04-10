@@ -27,6 +27,9 @@
               Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}<br>
               Last Execution Date : {{formatUnixTime .UpdateTimestamp}}<br>
               Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}<br>
+              {{- if .Cancelling}}
+              Cancelling: True<br>
+              {{- end -}}
 {{- end -}}
 
 {{ with .pythonInit }}

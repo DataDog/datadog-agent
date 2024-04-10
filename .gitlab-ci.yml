@@ -162,19 +162,19 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v30370116-6cfed421
+  DATADOG_AGENT_BUILDIMAGES: v31694071-c6e811e7
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v30370116-6cfed421
+  DATADOG_AGENT_WINBUILDIMAGES: v31694071-c6e811e7
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v30370116-6cfed421
+  DATADOG_AGENT_ARMBUILDIMAGES: v31694071-c6e811e7
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v30370116-6cfed421
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v31694071-c6e811e7
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v30370116-6cfed421
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v31694071-c6e811e7
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v30370116-6cfed421
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v31694071-c6e811e7
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v30370116-6cfed421
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v31694071-c6e811e7
   DATADOG_AGENT_BUILDERS: v28719426-b6a4fd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -394,23 +394,24 @@ workflow:
 # Any job in the pipeline either runs (with when: on_success) in all pipelines, or follows one of the below rule blocks.
 #
 
-.manual:
+.except_mergequeue:
   - <<: *if_mergequeue
     when: never
+
+.manual:
+  - !reference [.except_mergequeue]
   - when: manual
     allow_failure: true
 
 .except_no_a6_or_no_a7:
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.except_mergequeue]
   - <<: *if_not_version_6
     when: never
   - <<: *if_not_version_7
     when: never
 
 .on_dev_branch_manual:
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.except_mergequeue]
   - <<: *if_main_branch
     when: never
   - <<: *if_tagged_commit
@@ -427,8 +428,7 @@ workflow:
     allow_failure: true
 
 .on_tag_or_a7:
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.except_mergequeue]
   - <<: *if_tagged_commit
   - <<: *if_version_7
 
@@ -452,8 +452,7 @@ workflow:
 # rule to trigger job for internal image deployment if deploy is set or
 # manually if not
 .on_deploy_internal_or_manual:
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.except_mergequeue]
   - <<: *if_deploy
     variables:
       RELEASE_PROD: "true"
@@ -598,8 +597,7 @@ workflow:
     when: never
   - <<: *if_release_branch
     when: never
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.except_mergequeue]
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
@@ -633,16 +631,14 @@ workflow:
 # In that case, the target OS versions is a subset of the
 # available versions, stored in DEFAULT_KITCHEN_OSVERS
 .on_default_kitchen_tests:
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.except_mergequeue]
   - <<: *if_installer_tests
   - <<: *if_auto_e2e_tests
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
 
 .on_default_new_e2e_tests:
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.except_mergequeue]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
@@ -651,8 +647,7 @@ workflow:
       E2E_OSVERS: $E2E_BRANCH_OSVERS
 
 .on_default_kitchen_tests_always:
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.except_mergequeue]
   - <<: *if_installer_tests
     when: always
   - <<: *if_auto_e2e_tests
@@ -689,8 +684,7 @@ workflow:
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
     allow_failure: true
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.except_mergequeue]
   - <<: *if_run_all_kmt_tests
   - changes:
       paths: *security_agent_change_paths
@@ -712,8 +706,7 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_main_branch
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.except_mergequeue]
   - <<: *if_windows_installer_changes
     when: on_success
   - when: manual
@@ -747,8 +740,7 @@ workflow:
 
 .on_system_probe_or_e2e_changes_or_manual:
   - <<: *if_main_branch
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.except_mergequeue]
   - <<: *if_run_all_kmt_tests
   - changes:
       paths: *system_probe_change_paths
@@ -758,8 +750,7 @@ workflow:
 
 .on_e2e_changes_or_manual:
   - <<: *if_main_branch
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.except_mergequeue]
   - changes:
       paths:
         - test/new-e2e/pkg/**/*
@@ -776,8 +767,7 @@ workflow:
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
   - <<: *if_disable_e2e_tests
     when: never
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.except_mergequeue]
   - <<: *if_run_all_e2e_tests
     when: on_success
   - <<: *if_main_branch
@@ -930,8 +920,7 @@ workflow:
 .on_updater_or_e2e_changes_or_manual:
   - <<: *if_disable_e2e_tests
     when: never
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.except_mergequeue]
   - <<: *if_main_branch
     when: on_success
   - <<: *if_release_branch
@@ -953,6 +942,7 @@ workflow:
     allow_failure: true
 
 .on_trace_agent_changes_or_manual:
+  - !reference [.except_mergequeue]
   - changes:
       paths:
         - pkg/trace/**/*
@@ -980,10 +970,6 @@ workflow:
     when: on_success
   - <<: *if_main_branch
     when: on_success
-
-.except_mergequeue:
-  - <<: *if_mergequeue
-    when: never
 
 .except_disable_unit_tests:
   - <<: *if_disable_unit_tests

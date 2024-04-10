@@ -6,9 +6,13 @@
 package api
 
 import (
+	"errors"
+	"fmt"
 	"net"
+	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -23,7 +27,7 @@ func (e mockNetError) Temporary() bool { return !e.timeout }
 
 type mockListener struct {
 	mu  sync.RWMutex // guards below fields
-	err net.Error    // returned error, if non-nil
+	err error        // returned error
 }
 
 var _ net.Listener = (*mockListener)(nil)
@@ -50,6 +54,12 @@ func (ml *mockListener) SetTimeoutError() {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
 	ml.err = mockNetError{timeout: true}
+}
+
+func (ml *mockListener) SetArbitraryError(err error) {
+	ml.mu.Lock()
+	defer ml.mu.Unlock()
+	ml.err = err
 }
 
 func (ml *mockListener) Close() error { return nil }
@@ -111,6 +121,30 @@ func TestMockListener(t *testing.T) {
 		_, err = ln.Accept()
 		assert.NoError(err)
 	})
+}
+
+func TestAcceptFailure(t *testing.T) {
+	assert := assert.New(t)
+	stats := &teststatsd.Client{}
+
+	var mockln mockListener
+	mockln.SetError()
+	ln := NewMeasuredListener(&mockln, "test-metric", 5, stats).(*measuredListener)
+
+	srv := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprint(w, "OK")
+		}),
+	}
+
+	expectErr := errors.New("unrecoverable error")
+	go func() {
+		time.Sleep(1 * time.Second)
+		mockln.SetArbitraryError(expectErr)
+	}()
+
+	err := srv.Serve(ln)
+	assert.Equal(expectErr, err)
 }
 
 func TestMeasuredListener(t *testing.T) {
