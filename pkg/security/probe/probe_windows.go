@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
+	lru "github.com/hashicorp/golang-lru/v2"
 
 	"golang.org/x/sys/windows"
 )
@@ -78,8 +78,8 @@ type WindowsProbe struct {
 	// stats
 	stats stats
 	// discarders
-	discardedPaths     *simplelru.LRU[string, struct{}]
-	discardedBasenames *simplelru.LRU[string, struct{}]
+	discardedPaths     *lru.Cache[string, struct{}]
+	discardedBasenames *lru.Cache[string, struct{}]
 }
 
 type etwNotification struct {
@@ -672,12 +672,12 @@ func (p *WindowsProbe) SendStats() error {
 
 // NewWindowsProbe instantiates a new runtime security agent probe
 func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
-	discardedPaths, err := simplelru.NewLRU[string, struct{}](1<<10, nil)
+	discardedPaths, err := lru.New[string, struct{}](1 << 10)
 	if err != nil {
 		return nil, err
 	}
 
-	discardedBasenames, err := simplelru.NewLRU[string, struct{}](1<<10, nil)
+	discardedBasenames, err := lru.New[string, struct{}](1 << 10)
 	if err != nil {
 		return nil, err
 	}
