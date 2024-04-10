@@ -42,9 +42,8 @@ medianMs=$(calculate_median "${startupTimes[@]}")
 
 log "Median=$medianMs | Threshold=$STARTUP_TIME_THRESHOLD"
 
-# Log raw startup time data in a CSV-like format for plotting a histogram
-# & exploratory data analysis.
-IFS=$',' log "RawData=${startupTimes[*]}"
+# Log raw startup time data to a single line for exploratory data analysis
+log "RawData=${startupTimes[*]}"
 
 # check whether or not the median duration exceeds the threshold
 if (( medianMs > STARTUP_TIME_THRESHOLD )); then
