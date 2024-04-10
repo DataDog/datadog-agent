@@ -51,7 +51,7 @@ build do
     # Packages
     mkdir "/opt/datadog-packages"
 
-    copy 'bin/updater', "#{install_dir}/bin/"
+    copy 'bin/installer', "#{install_dir}/bin/"
 
     # Add installer units
     systemdPath = "/lib/systemd/system/"
