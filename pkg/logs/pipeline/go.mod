@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/logs/pipeline
 
-go 1.21.8
+go 1.21.9
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
@@ -21,6 +21,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../metrics
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../processor
+	github.com/DataDog/datadog-agent/pkg/logs/sds => ../sds
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../status/statusinterface
@@ -56,9 +57,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/sds v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/status/health v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.53.0-rc.2
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/atomic v1.11.0
@@ -82,7 +85,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2 // indirect
@@ -91,6 +93,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2 // indirect
+	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240318112024-de26033b606a // indirect
 	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect

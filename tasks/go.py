@@ -368,7 +368,11 @@ def check_go_mod_replaces(_ctx):
                     errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
 
     if errors_found:
-        message = "\nErrors found:\n" + "\n".join("  - " + error for error in sorted(errors_found))
+        message = "\nErrors found:\n"
+        message += "\n".join("  - " + error for error in sorted(errors_found))
+        message += (
+            "\n\nThis task operates on go.sum files, so make sure to run `inv -e tidy-all` before re-running this task."
+        )
         raise Exit(message=message)
 
 
@@ -418,7 +422,7 @@ def tidy_all(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.21.8 linux/amd64"
+    # result is like "go version go1.21.9 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

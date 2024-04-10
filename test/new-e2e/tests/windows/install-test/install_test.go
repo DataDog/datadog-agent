@@ -216,6 +216,33 @@ func (is *agentMSISuite) TestInstall() {
 	is.uninstallAgentAndRunUninstallTests(t)
 }
 
+func (is *agentMSISuite) TestInstallAltDir() {
+	vm := is.Env().RemoteHost
+	is.prepareHost()
+
+	installPath := `C:\altdir`
+	configRoot := `C:\altconfroot`
+
+	// initialize test helper
+	t := is.newTester(vm,
+		WithExpectedInstallPath(installPath),
+		WithExpectedConfigRoot(configRoot),
+	)
+
+	// install the agent
+	_ = is.installAgentPackage(vm, is.AgentPackage,
+		windowsAgent.WithProjectLocation(installPath),
+		windowsAgent.WithApplicationDataDirectory(configRoot),
+	)
+
+	// run tests
+	if !t.TestInstallExpectations(is.T()) {
+		is.T().FailNow()
+	}
+
+	is.uninstallAgentAndRunUninstallTests(t)
+}
+
 func (is *agentMSISuite) TestUpgrade() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
@@ -549,6 +576,31 @@ func (is *agentMSISuite) TestSubServicesOpts() {
 		// clean the host between test runs
 		is.cleanupOnSuccessInDevMode()
 	}
+}
+
+// TC-INS-007
+//
+// Runs the installer with WIXFAILWHENDEFERRED=1 to trigger a failure at the very end of the installer.
+func (is *agentMSISuite) TestInstallFail() {
+	vm := is.Env().RemoteHost
+	is.prepareHost()
+
+	// run installer with failure flag
+	if !is.Run(fmt.Sprintf("install %s", is.AgentPackage.AgentVersion()), func() {
+		_, err := is.InstallAgent(vm,
+			windowsAgent.WithPackage(is.AgentPackage),
+			windowsAgent.WithValidAPIKey(),
+			windowsAgent.WithWixFailWhenDeferred(),
+			windowsAgent.WithInstallLogFile(filepath.Join(is.OutputDir, "install.log")),
+		)
+		is.Require().Error(err, "should fail to install agent %s", is.AgentPackage.AgentVersion())
+	}) {
+		is.T().FailNow()
+	}
+
+	// currently the install failure tests are the same as the uninstall tests
+	t := is.newTester(vm)
+	t.TestUninstallExpectations(is.T())
 }
 
 func (is *agentMSISuite) readYamlConfig(host *components.RemoteHost, path string) (map[string]any, error) {

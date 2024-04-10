@@ -20,6 +20,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
@@ -92,6 +94,9 @@ func TestClientEnabled(t *testing.T) {
 			func(t *testing.T) {
 				deps := fxutil.Test[dependencies](t, fx.Options(
 					config.MockModule(),
+					fx.Provide(func() optional.Option[secrets.Component] {
+						return optional.NewOption[secrets.Component](secretsimpl.NewMock().Comp)
+					}),
 					fx.Replace(config.MockParams{Overrides: map[string]interface{}{
 						"language_detection.enabled":           testCase.languageDetectionEnabled,
 						"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,

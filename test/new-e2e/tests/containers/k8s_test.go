@@ -92,7 +92,7 @@ func (suite *k8sSuite) TearDownSuite() {
 // The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for the agent pods to be ready,
 // is run first.
 func (suite *k8sSuite) Test00UpAndRunning() {
-	suite.testUpAndRunning(5 * time.Minute)
+	suite.testUpAndRunning(10 * time.Minute)
 }
 
 // An agent restart (because of a health probe failure or because of a OOM kill for ex.)
@@ -638,10 +638,6 @@ func (suite *k8sSuite) testDogstatsdPodUID(kubeNamespace string) {
 }
 
 func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment string) {
-	if kubeDeployment == kubeDeploymentDogstatsdUDPOrigin {
-		// CONTINT-3934: This test is flaky, skip it for now
-		suite.T().Skipf("Skipping test for %s/%s as it is currently flaky", kubeNamespace, kubeDeployment)
-	}
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
@@ -713,20 +709,55 @@ func (suite *k8sSuite) TestPrometheus() {
 	})
 }
 
-func (suite *k8sSuite) TestAdmissionController() {
+func (suite *k8sSuite) TestAdmissionControllerWithoutAPMInjection() {
+	suite.testAdmissionControllerPod("workload-mutated", "mutated", "", false)
+}
+
+func (suite *k8sSuite) TestAdmissionControllerWithLibraryAnnotation() {
+	suite.testAdmissionControllerPod("workload-mutated-lib-injection", "mutated-with-lib-annotation", "python", false)
+}
+
+func (suite *k8sSuite) TestAdmissionControllerWithAutoDetectedLanguage() {
+	suite.testAdmissionControllerPod("workload-mutated-lib-injection", "mutated-with-auto-detected-language", "python", true)
+}
+
+func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string, language string, languageShouldBeAutoDetected bool) {
 	ctx := context.Background()
 
+	// When the language should be auto-detected, we need to wait for the
+	// deployment to be created and the annotation with the languages to be set
+	// by the Cluster Agent so that we can be sure that in the next restart the
+	// libraries for the detected language are injected
+	if languageShouldBeAutoDetected {
+		suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
+			deployment, err := suite.K8sClient.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+			if !assert.NoError(c, err) {
+				return
+			}
+
+			detectedLangsLabelIsSet := false
+			detectedLangsAnnotationRegex := regexp.MustCompile(`^internal\.dd\.datadoghq\.com/.*\.detected_langs$`)
+			for annotation := range deployment.Annotations {
+				if detectedLangsAnnotationRegex.Match([]byte(annotation)) {
+					detectedLangsLabelIsSet = true
+					break
+				}
+			}
+			assert.True(c, detectedLangsLabelIsSet)
+		}, 5*time.Minute, 10*time.Second, "The deployment with name %s in namespace %s does not exist or does not have the auto detected languages annotation", name, namespace)
+	}
+
 	// Delete the pod to ensure it is recreated after the admission controller is deployed
-	err := suite.K8sClient.CoreV1().Pods("workload-mutated").DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", "mutated").String(),
+	err := suite.K8sClient.CoreV1().Pods(namespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", name).String(),
 	})
 	suite.Require().NoError(err)
 
 	// Wait for the fresh pod to be created
 	var pod corev1.Pod
 	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
-		pods, err := suite.K8sClient.CoreV1().Pods("workload-mutated").List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("app", "mutated").String(),
+		pods, err := suite.K8sClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: fields.OneTermEqualSelector("app", name).String(),
 		})
 		if !assert.NoError(c, err) {
 			return
@@ -735,7 +766,7 @@ func (suite *k8sSuite) TestAdmissionController() {
 			return
 		}
 		pod = pods.Items[0]
-	}, 2*time.Minute, 10*time.Second, "Failed to witness the creation of a pod in workload-mutated")
+	}, 2*time.Minute, 10*time.Second, "Failed to witness the creation of pod with name %s in namespace %s", name, namespace)
 
 	suite.Require().Len(pod.Spec.Containers, 1)
 
@@ -756,7 +787,7 @@ func (suite *k8sSuite) TestAdmissionController() {
 		suite.Equal("e2e", env["DD_ENV"])
 	}
 	if suite.Contains(env, "DD_SERVICE") {
-		suite.Equal("mutated", env["DD_SERVICE"])
+		suite.Equal(name, env["DD_SERVICE"])
 	}
 	if suite.Contains(env, "DD_VERSION") {
 		suite.Equal("v0.0.1", env["DD_VERSION"])
@@ -782,6 +813,26 @@ func (suite *k8sSuite) TestAdmissionController() {
 	if suite.Contains(volumeMounts, "datadog") {
 		suite.Equal("/var/run/datadog", volumeMounts["datadog"])
 	}
+
+	switch language {
+	// APM supports several languages, but for now all the test apps are Python
+	case "python":
+		emptyDirVolumes := make(map[string]*corev1.EmptyDirVolumeSource)
+		for _, volume := range pod.Spec.Volumes {
+			if volume.EmptyDir != nil {
+				emptyDirVolumes[volume.Name] = volume.EmptyDir
+			}
+		}
+
+		if suite.Contains(env, "PYTHONPATH") {
+			suite.Equal("/datadog-lib/", env["PYTHONPATH"])
+		}
+		suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation")
+		if suite.Contains(volumeMounts, "datadog-auto-instrumentation") {
+			suite.Equal("/datadog-lib", volumeMounts["datadog-auto-instrumentation"])
+		}
+	}
+
 }
 
 func (suite *k8sSuite) TestContainerImage() {

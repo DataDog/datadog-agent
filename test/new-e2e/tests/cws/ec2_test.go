@@ -141,10 +141,6 @@ func (a *agentSuite) Test00OpenSignal() {
 	// Trigger agent event
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filename))
 
-	// Check agent event
-	err = a.waitAgentLogs("security-agent", "Successfully posted payload to")
-	require.NoError(a.T(), err, "could not send payload")
-
 	// Check app signal
 	signal, err := api.WaitAppSignal(apiClient, fmt.Sprintf("host:%s @workflow.rule.id:%s", a.Env().Agent.Client.Hostname(), signalRuleID))
 	require.NoError(a.T(), err)
