@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -48,7 +49,7 @@ func TestTelemetry(t *testing.T) {
 	originalFlavor := flavor.GetFlavor()
 	defer flavor.SetFlavor(originalFlavor)
 	flavor.SetFlavor("process_agent")
-	
+
 	_ = fxutil.Test[expvars.Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
 		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
