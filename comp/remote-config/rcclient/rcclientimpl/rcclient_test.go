@@ -10,12 +10,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -62,6 +63,7 @@ func TestRCClientCreate(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			logimpl.MockModule(),
+			settingsimpl.MockModule(),
 		),
 	)
 	// Missing params
@@ -77,6 +79,7 @@ func TestRCClientCreate(t *testing.T) {
 					AgentVersion: "7.0.0",
 				},
 			),
+			settingsimpl.MockModule(),
 		),
 	)
 	assert.NoError(t, err)
@@ -87,18 +90,23 @@ func TestRCClientCreate(t *testing.T) {
 func TestAgentConfigCallback(t *testing.T) {
 	pkglog.SetupLogger(seelog.Default, "info")
 	_ = config.Mock(t)
-	mockSettings := &mockLogLevelRuntimeSettings{logLevel: "info"}
-	err := settings.RegisterRuntimeSetting(mockSettings)
-	assert.NoError(t, err)
 
-	rc := fxutil.Test[rcclient.Component](t, fx.Options(
-		Module(),
-		logimpl.MockModule()),
-		fx.Supply(
-			rcclient.Params{
-				AgentName:    "test-agent",
-				AgentVersion: "7.0.0",
-			},
+	rc := fxutil.Test[rcclient.Component](t,
+		fx.Options(
+			Module(),
+			logimpl.MockModule(),
+			fx.Supply(
+				rcclient.Params{
+					AgentName:    "test-agent",
+					AgentVersion: "7.0.0",
+				},
+			),
+			fx.Supply(
+				settings.Settings{
+					"log_level": &mockLogLevelRuntimeSettings{logLevel: "info"},
+				},
+			),
+			settingsimpl.Module(),
 		),
 	)
 

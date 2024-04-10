@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
+	systemprobeconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
@@ -36,6 +37,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -45,7 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	processstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -59,6 +62,8 @@ import (
 
 // ErrNotEnabled represents the case in which system-probe is not enabled
 var ErrNotEnabled = errors.New("system-probe not enabled")
+
+const configPrefix = systemprobeconfig.Namespace + "."
 
 type cliParams struct {
 	*command.GlobalParams
@@ -102,6 +107,21 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 				pidimpl.Module(),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
+				fx.Provide(func() settings.Settings {
+					profilingGoRoutines := commonsettings.NewProfilingGoroutines()
+					profilingGoRoutines.Config = ddconfig.SystemProbe
+					profilingGoRoutines.ConfigPrefix = configPrefix
+
+					return settings.Settings{
+						"log_level":                       &commonsettings.LogLevelRuntimeSetting{ConfigKey: configPrefix + "log_level", Config: ddconfig.SystemProbe},
+						"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix, Config: ddconfig.SystemProbe},
+						"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix, Config: ddconfig.SystemProbe},
+						"internal_profiling_goroutines":   profilingGoRoutines,
+						commonsettings.MaxDumpSizeConfKey: &commonsettings.ActivityDumpRuntimeSetting{ConfigKey: commonsettings.MaxDumpSizeConfKey},
+						"internal_profiling":              &commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix, Config: ddconfig.SystemProbe},
+					}
+				}),
+				settingsimpl.Module(),
 			)
 		},
 	}
@@ -111,7 +131,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ pid.Component, _ healthprobe.Component) error {
+func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ pid.Component, _ healthprobe.Component, settings settings.Component) error {
 	defer func() {
 		stopSystemProbe()
 	}()
@@ -153,7 +173,7 @@ func run(log log.Component, _ config.Component, statsd compstatsd.Component, tel
 		}
 	}()
 
-	if err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta); err != nil {
+	if err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta, settings); err != nil {
 		if errors.Is(err, ErrNotEnabled) {
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
@@ -197,9 +217,9 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 
 func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
-		func(log log.Component, config config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component) error {
+		func(log log.Component, config config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component, settings settings.Component) error {
 			defer StopSystemProbeWithDefaults()
-			err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta)
+			err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta, settings)
 			if err != nil {
 				return err
 			}
@@ -244,6 +264,21 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
 			return logimpl.NewLogger(lc, params, sysprobeconfig)
 		}),
+		fx.Provide(func() settings.Settings {
+			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
+			profilingGoRoutines.Config = ddconfig.SystemProbe
+			profilingGoRoutines.ConfigPrefix = configPrefix
+
+			return settings.Settings{
+				"log_level":                       &commonsettings.LogLevelRuntimeSetting{ConfigKey: configPrefix + "log_level", Config: ddconfig.SystemProbe},
+				"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix, Config: ddconfig.SystemProbe},
+				"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix, Config: ddconfig.SystemProbe},
+				"internal_profiling_goroutines":   profilingGoRoutines,
+				commonsettings.MaxDumpSizeConfKey: &commonsettings.ActivityDumpRuntimeSetting{ConfigKey: commonsettings.MaxDumpSizeConfKey},
+				"internal_profiling":              &commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix, Config: ddconfig.SystemProbe},
+			}
+		}),
+		settingsimpl.Module(),
 	)
 }
 
@@ -253,7 +288,7 @@ func StopSystemProbeWithDefaults() {
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, wmeta optional.Option[workloadmeta.Component]) error {
+func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, wmeta optional.Option[workloadmeta.Component], settings settings.Component) error {
 	var err error
 	var ctx context.Context
 	ctx, common.MainCtxCancel = context.WithCancel(context.Background())
@@ -284,11 +319,7 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 		}
 	}
 
-	if err := initRuntimeSettings(); err != nil {
-		log.Warnf("cannot initialize the runtime settings: %s", err)
-	}
-
-	setupInternalProfiling(sysprobeconfig, configPrefix, log)
+	setupInternalProfiling(settings, sysprobeconfig, configPrefix, log)
 
 	err = manager.ConfigureAutoExit(ctx, sysprobeconfig)
 	if err != nil {
@@ -318,7 +349,7 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 		}()
 	}
 
-	if err = api.StartServer(cfg, telemetry, wmeta); err != nil {
+	if err = api.StartServer(cfg, telemetry, wmeta, settings); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
 	}
 	return nil
@@ -343,7 +374,7 @@ func stopSystemProbe() {
 }
 
 // setupInternalProfiling is a common helper to configure runtime settings for internal profiling.
-func setupInternalProfiling(cfg ddconfig.Reader, configPrefix string, log log.Component) {
+func setupInternalProfiling(settings settings.Component, cfg ddconfig.Reader, configPrefix string, log log.Component) {
 	if v := cfg.GetInt(configPrefix + "internal_profiling.block_profile_rate"); v > 0 {
 		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, model.SourceAgentRuntime); err != nil {
 			log.Errorf("Error setting block profile rate: %v", err)
