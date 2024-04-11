@@ -12,5 +12,4 @@ extensions:
         disable_bia: true
       env:
         - name: "staging"
-          branch: "chouquette/conductor"
           ci_pipeline: "//fake_placeholder:fake_placeholder"
