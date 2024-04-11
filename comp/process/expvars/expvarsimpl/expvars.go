@@ -54,7 +54,7 @@ type dependencies struct {
 
 func newExpvarServer(deps dependencies) (expvars.Component, error) {
 	// Initialize status
-	err := initProcessStatus(deps)
+	err := initStatus(deps)
 	if err != nil {
 		_ = deps.Log.Critical("Failed to initialize status server:", err)
 		return nil, err
@@ -98,7 +98,7 @@ func getExpvarPort(deps dependencies) int {
 	return expVarPort
 }
 
-func initProcessStatus(deps dependencies) error {
+func initStatus(deps dependencies) error {
 	// update docker socket path in info
 	dockerSock, err := util.GetDockerSocketPath()
 	if err != nil {
