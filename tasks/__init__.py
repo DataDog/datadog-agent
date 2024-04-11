@@ -30,6 +30,7 @@ from tasks import (
     msi,
     new_e2e_tests,
     notify,
+    omnibus,
     owners,
     package,
     pipeline,
@@ -163,6 +164,7 @@ ns.add_collection(owners)
 ns.add_collection(modules)
 ns.add_collection(pre_commit)
 ns.add_collection(devcontainer)
+ns.add_collection(omnibus)
 ns.configure(
     {
         'run': {
