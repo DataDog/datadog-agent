@@ -7,6 +7,7 @@ package http
 
 import (
 	"errors"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -207,6 +208,16 @@ func TestDestinationSendsTimestampHeaders(t *testing.T) {
 	ddCurrentTimestamp, err := strconv.ParseInt(server.request.Header.Get("dd-current-timestamp"), 10, 64)
 	assert.Nil(t, err)
 	assert.GreaterOrEqual(t, ddCurrentTimestamp, currentTimestamp)
+}
+
+func TestDestinationSendsUserAgent(t *testing.T) {
+	cfg := getNewConfig()
+	server := NewTestServer(200, cfg)
+	defer server.httpServer.Close()
+
+	err := server.Destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
+	assert.Nil(t, err)
+	assert.Regexp(t, regexp.MustCompile("datadog-agent/.*"), server.request.Header.Values("user-agent"))
 }
 
 func TestDestinationConcurrentSends(t *testing.T) {

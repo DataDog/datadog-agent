@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,24 +29,33 @@ const UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {
-	inputChan                 chan message.TimedMessage[*message.Message]
-	outputChan                chan message.TimedMessage[*message.Message] // strategy input
+	inputChan  chan message.TimedMessage[*message.Message]
+	outputChan chan message.TimedMessage[*message.Message] // strategy input
+	// ReconfigChan transports rules to use in order to reconfigure
+	// the processing rules of the SDS Scanner.
+	ReconfigChan              chan sds.ReconfigureOrder
 	processingRules           []*config.ProcessingRule
 	encoder                   Encoder
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
 	hostname                  hostnameinterface.Component
+
+	sds *sds.Scanner // configured through RC
 }
 
 // New returns an initialized Processor.
-func New(inputChan chan message.TimedMessage[*message.Message], outputChan chan message.TimedMessage[*message.Message], processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component) *Processor {
+func New(inputChan, outputChan chan message.TimedMessage[*message.Message], processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component) *Processor {
+	sdsScanner := sds.CreateScanner()
+
 	return &Processor{
 		inputChan:                 inputChan,
 		outputChan:                outputChan, // strategy input
+		ReconfigChan:              make(chan sds.ReconfigureOrder),
 		processingRules:           processingRules,
 		encoder:                   encoder,
 		done:                      make(chan struct{}),
+		sds:                       sdsScanner,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		hostname:                  hostname,
 	}
@@ -59,6 +69,10 @@ func (p *Processor) Start() {
 // Stop stops the Processor,
 // this call blocks until inputChan is flushed
 func (p *Processor) Stop() {
+	if p.sds != nil {
+		p.sds.Delete()
+		p.sds = nil
+	}
 	close(p.inputChan)
 	<-p.done
 }
@@ -95,31 +109,43 @@ func (p *Processor) run() {
 	defer func() {
 		p.done <- struct{}{}
 	}()
-	startIdle := time.Now()
+	for {
+		startIdle := time.Now()
 
-	for msg := range p.inputChan {
-		metrics.TlmChanTime.Observe(float64(msg.SendDuration().Nanoseconds()), "processing")
-		metrics.TlmChanTimeSkew.Set(telemetry.GetSkew(metrics.TlmChanTime, "processing"), "processing")
+		select {
+		case msg, ok := <-p.inputChan:
+			if !ok { // channel has been closed
+				return
+			}
 
-		idle := float64(time.Since(startIdle) / time.Millisecond)
-		tlmIdle.Add(idle)
+			metrics.TlmChanTime.Observe(float64(msg.SendDuration().Nanoseconds()), "processing")
+			metrics.TlmChanTimeSkew.Set(telemetry.GetSkew(metrics.TlmChanTime, "processing"), "processing")
 
-		var startInUse = time.Now()
-		p.processMessage(msg.Inner)
-
-		p.mu.Lock() // block here if we're trying to flush synchronously
-		//nolint:staticcheck
-		p.mu.Unlock()
-
-		inUse := float64(time.Since(startInUse) / time.Millisecond)
-		tlmInUse.Add(inUse)
-		startIdle = time.Now()
+			var startInUse = time.Now()
+			p.processMessage(msg.Inner)
+			p.mu.Lock() // block here if we're trying to flush synchronously
+			//nolint:staticcheck
+			p.mu.Unlock()
+			inUse := float64(time.Since(startInUse) / time.Millisecond)
+			tlmInUse.Add(inUse)
+			startIdle = time.Now()
+		case order := <-p.ReconfigChan:
+			p.mu.Lock()
+			if err := p.sds.Reconfigure(order); err != nil {
+				log.Errorf("Error while reconfiguring the SDS scanner: %v", err)
+				order.ResponseChan <- err
+			} else {
+				order.ResponseChan <- nil
+			}
+			p.mu.Unlock()
+		}
 	}
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
+
 	if toSend := p.applyRedactingRules(msg); toSend {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
@@ -154,6 +180,9 @@ var tlmBiggestPrime = telemetry.NewGauge("processing", "biggest_prime", nil, "Bi
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	var content []byte = msg.GetContent()
 
+	// Use the internal scrubbing implementation of the Agent
+	// ---------------------------
+
 	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
 	for _, rule := range rules {
 		switch rule.Type {
@@ -172,33 +201,17 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 		}
 	}
 
-	// TODO(remy): this is most likely where we want to plug in SDS
-	isPrime := func(n int) bool {
-		if n <= 1 {
-			return false
-		}
-		for i := 2; i*i <= n; i++ {
-			if n%i == 0 {
-				return false
-			}
-		}
-		return true
-	}
+	// Use the SDS implementation
+	// --------------------------
 
-	if strings.Contains(string(content), "chill") {
-		// Sleep for a second to simulate slow processing
-		delay := rand.Int63n(100)
-		start := time.Now()
-		biggest := 0
-		for num := 2; time.Since(start) < time.Duration(delay)*time.Microsecond; num++ {
-			if isPrime(num) {
-				if num > biggest {
-					biggest = num
-				}
-			}
+	// Global SDS scanner, applied on all log sources
+	if p.sds.IsReady() {
+		matched, processed, err := p.sds.Scan(content, msg)
+		if err != nil {
+			log.Error("while using SDS to scan the log:", err)
+		} else if matched {
+			content = processed
 		}
-
-		tlmBiggestPrime.Set(float64(biggest))
 	}
 
 	msg.SetContent(content)

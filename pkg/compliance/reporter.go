@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,7 +31,7 @@ import (
 type LogReporter struct {
 	hostname         string
 	pipelineProvider pipeline.Provider
-	auditor          *auditor.RegistryAuditor
+	auditor          auditor.Auditor
 	logSource        *sources.LogSource
 	logChan          chan message.TimedMessage[*message.Message]
 	endpoints        *config.Endpoints
@@ -40,11 +39,9 @@ type LogReporter struct {
 }
 
 // NewLogReporter instantiates a new log LogReporter
-func NewLogReporter(hostname string, sourceName, sourceType, runPath string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) *LogReporter {
-	health := health.RegisterLiveness(sourceType)
-
+func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) *LogReporter {
 	// setup the auditor
-	auditor := auditor.New(runPath, sourceType+"-registry.json", coreconfig.DefaultAuditorTTL, health)
+	auditor := auditor.NewNullAuditor()
 	auditor.Start()
 
 	// setup the pipeline provider that provides pairs of processor and sender

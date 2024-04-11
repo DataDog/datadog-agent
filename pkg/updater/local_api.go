@@ -202,7 +202,7 @@ func (l *localAPIImpl) bootstrap(w http.ResponseWriter, r *http.Request) {
 		err = l.updater.BootstrapVersion(r.Context(), pkg, request.Version)
 	} else {
 		log.Infof("Received local request to bootstrap package %s", pkg)
-		err = l.updater.Bootstrap(r.Context(), pkg)
+		err = l.updater.BootstrapDefault(r.Context(), pkg)
 
 	}
 	if err != nil {

@@ -9,6 +9,7 @@ security_go_generate_check:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - source /root/.bashrc
+    - pip3 install wheel
     - pip3 install -r docs/cloud-workload-security/scripts/requirements-docs.txt
     - inv -e install-tools
   script:
