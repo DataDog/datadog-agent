@@ -85,3 +85,11 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
     )
     ctx.run(f"cp \"/tmp/shellcheck-v{version}/shellcheck\" {destination}")
     ctx.run(f"rm -rf \"/tmp/shellcheck-v{version}\"")
+
+
+@task
+def install_devcontainer_cli(ctx):
+    """
+    Install the devcontainer CLI
+    """
+    ctx.run("npm install -g @devcontainers/cli")
