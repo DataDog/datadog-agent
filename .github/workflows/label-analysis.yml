@@ -14,7 +14,23 @@ env:
   GH_REPO: ${{ github.repository }}
 
 jobs:
-  assign-team-and-release-note-check:
+  assign-team-label:
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+          cache: 'pip'
+          cache-dependency-path: '**/requirements*.txt'
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r tasks/requirements.txt
+      - name: Auto assign team label
+        run: inv -e github.assign-team-label --pr-id='${{ github.event.pull_request.number }}'
+  release-note-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
@@ -30,15 +46,13 @@ jobs:
           cache-dependency-path: '**/requirements*.txt'
       - name: Install dependencies
         run: pip install -r requirements.txt -r tasks/requirements.txt
-      - name: Auto assign team label
-        run: inv -e github.assign-team-label --pr-id='${{ github.event.pull_request.number }}'
       - name: Check release note
         env:
           BRANCH_NAME: ${{ github.head_ref }}
           PR_ID: ${{ github.event.pull_request.number }}
         run: inv -e linter.releasenote
   fetch-labels:
-    needs: assign-team-and-release-note-check
+    needs: assign-team-label
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     outputs:

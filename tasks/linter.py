@@ -17,7 +17,6 @@ from tasks.libs.ciproviders.gitlab import (
     load_context,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
-from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME, color_message, is_pr_context
 from tasks.libs.types.copyright import CopyrightLinter
 from tasks.modules import GoModule
