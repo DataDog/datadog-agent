@@ -65,6 +65,7 @@ X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
 ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
 DEFAULT_VCPU = "4"
 DEFAULT_MEMORY = "8192"
+DEFAULT_CONFIG_PATH = "tasks/kernel_matrix_testing/default-system-probe.yaml"
 
 
 @task
@@ -706,6 +707,7 @@ def build(
     full_rebuild=False,
     verbose=True,
     arch: Optional[ArchOrLocal] = None,
+    system_probe_yaml: Optional[str] = DEFAULT_CONFIG_PATH,
 ):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
@@ -735,20 +737,28 @@ def build(
             target_instances.append(d.instance)
 
         for instance in target_instances:
-            instance.copy_to_all_vms(ctx, f"kmt-deps/{stack}/dependencies-{full_arch(instance.arch)}.tar.gz")
+            instance.copy_to_all_vms(ctx, paths.dependencies_archive)
 
         for d in domains:
             d.run_cmd(ctx, f"/root/fetch_dependencies.sh {arch_mapping[platform.machine()]}")
             info(f"[+] Dependencies shared with target VM {d}")
 
+    shared_archive = os.path.join(CONTAINER_AGENT_PATH, os.path.relpath(paths.arch_dir / "shared.tar", paths.repo_root))
     cc.exec(
         f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e system-probe.build --no-bundle",
     )
-    cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/shared.tar {EMBEDDED_SHARE_DIR}")
+    cc.exec(f"tar cf {shared_archive} {EMBEDDED_SHARE_DIR}")
+
+    if not os.path.exists(system_probe_yaml):
+        raise Exit(f"file {system_probe_yaml} not found")
+
     for d in domains:
         d.copy(ctx, "./bin/system-probe", "/root")
-        d.copy(ctx, f"kmt-deps/{stack}/shared.tar", "/")
+        d.copy(ctx, shared_archive, "/")
         d.run_cmd(ctx, "tar xf /shared.tar -C /", verbose=verbose)
+        d.run_cmd(ctx, "mkdir /opt/datadog-agent/run")
+        d.run_cmd(ctx, "mkdir /etc/datadog-agent")
+        d.copy(ctx, DEFAULT_CONFIG_PATH, "/etc/datadog-agent/system-probe.yaml")
         info(f"[+] system-probe built for {d.name} @ /root")
 
 
