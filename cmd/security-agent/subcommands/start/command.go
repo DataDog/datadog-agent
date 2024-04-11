@@ -21,19 +21,28 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/manager"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/pid"
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -42,19 +51,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	"github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	pkgCompliance "github.com/DataDog/datadog-agent/pkg/compliance"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
-	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -76,42 +85,29 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "start",
 		Short: "Start the Security Agent",
 		Long:  `Runs Datadog Security agent in the foreground`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			// TODO: Similar to the agent itself, once the security agent is represented as a component, and not a function (start),
 			// this will use `fxutil.Run` instead of `fxutil.OneShot`.
 
 			// note that any changes to the arguments to OneShot need to be reflected into
 			// the service initialization in ../../main_windows.go
 			return fxutil.OneShot(start,
-				fx.Supply(params),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewSecurityAgentParams(params.ConfigFilePaths),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					SecretParams:         secrets.NewEnabledParams(),
-					LogParams:            logimpl.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
+					LogParams:            logimpl.ForDaemon(command.LoggerName, "security_agent.log_file", setup.DefaultSecurityAgentLogFile),
 				}),
 				core.Bundle(),
 				dogstatsd.ClientBundle,
-				forwarder.Bundle(),
-				fx.Provide(defaultforwarder.NewParamsWithResolvers),
-				demultiplexerimpl.Module(),
-				orchestratorForwarderImpl.Module(),
-				fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
-				eventplatformimpl.Module(),
-				fx.Supply(eventplatformimpl.NewDisabledParams()),
-				eventplatformreceiverimpl.Module(),
-				fx.Supply(demultiplexerimpl.NewDefaultParams()),
 				// workloadmeta setup
 				collectors.GetCatalog(),
 				workloadmeta.Module(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {
-
 					catalog := workloadmeta.NodeAgent
-
 					if config.GetBool("security_agent.remote_workloadmeta") {
 						catalog = workloadmeta.Remote
 					}
-
 					return workloadmeta.Params{
 						AgentType: catalog,
 					}
@@ -123,11 +119,77 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 					return tagger.NewTaggerParams()
 				}),
+				fx.Provide(func() startstop.Stopper {
+					return startstop.NewSerialStopper()
+				}),
+				fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
+					return statsd.CreateForHostPort(setup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+				}),
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, wmeta workloadmeta.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
+					hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
+					if err != nil {
+						return status.NewInformationProvider(nil), nil, err
+					}
+
+					runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, wmeta)
+					if err != nil {
+						return status.NewInformationProvider(nil), nil, err
+					}
+
+					if runtimeAgent == nil {
+						return status.NewInformationProvider(nil), nil, nil
+					}
+
+					// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
+					return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
+				}),
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component) (status.InformationProvider, *pkgCompliance.Agent, error) {
+					hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
+					if err != nil {
+						return status.NewInformationProvider(nil), nil, err
+					}
+
+					// start compliance security agent
+					complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, wmeta)
+					if err != nil {
+						return status.NewInformationProvider(nil), nil, err
+					}
+
+					if complianceAgent == nil {
+						return status.NewInformationProvider(nil), nil, nil
+					}
+
+					// TODO - components: Do not remove complianceAgent ref until "github.com/DataDog/datadog-agent/pkg/compliance" is a component so they're not GCed
+					return status.NewInformationProvider(complianceAgent.StatusProvider()), complianceAgent, nil
+				}),
+				fx.Supply(
+					status.Params{
+						PythonVersionGetFunc: python.GetPythonVersion,
+					},
+				),
+				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
+					return status.NewHeaderInformationProvider(hostimpl.StatusProvider{
+						Config: config,
+					})
+				}),
+				statusimpl.Module(),
+				fetchonlyimpl.Module(),
+				configsyncimpl.OptionalModule(),
+				// Force the instantiation of the component
+				fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
+				autoexitimpl.Module(),
+				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
+				fx.Supply(
+					settings.Settings{
+						"log_level": commonsettings.NewLogLevelRuntimeSetting(),
+					},
+				),
+				settingsimpl.Module(),
 			)
 		},
 	}
 
-	startCmd.Flags().StringVarP(&params.pidfilePath, flags.PidFile, "p", "", "path to the pidfile")
+	startCmd.Flags().StringVarP(&params.pidfilePath, "pidfile", "p", "", "path to the pidfile")
 
 	return []*cobra.Command{startCmd}
 }
@@ -137,11 +199,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // TODO(components): note how workloadmeta is passed anonymously, it is still required as it is used
 // as a global. This should eventually be fixed and all workloadmeta interactions should be via the
 // injected instance.
-func start(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, _ workloadmeta.Component, demultiplexer demultiplexer.Component, params *cliParams) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer StopAgent(cancel, log)
+func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component, _ autoexit.Component, settings settings.Component) error {
+	defer StopAgent(log)
 
-	err := RunAgent(ctx, log, config, statsd, sysprobeconfig, telemetry, params.pidfilePath, demultiplexer)
+	err := RunAgent(log, config, telemetry, statusComponent, settings)
 	if errors.Is(err, errAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
@@ -192,18 +253,9 @@ var errAllComponentsDisabled = errors.New("all security-agent component are disa
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(ctx context.Context, log log.Component, config config.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, pidfilePath string, demultiplexer demultiplexer.Component) (err error) {
+func RunAgent(log log.Component, config config.Component, telemetry telemetry.Component, statusComponent status.Component, settings settings.Component) (err error) {
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
-	}
-
-	if pidfilePath != "" {
-		err = pidfile.WritePID(pidfilePath)
-		if err != nil {
-			return log.Errorf("Error while writing PID file, exiting: %v", err)
-		}
-		defer os.Remove(pidfilePath)
-		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
 	}
 
 	// Check if we have at least one component to start based on config
@@ -227,12 +279,6 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 		return errNoAPIKeyConfigured
 	}
 
-	err = manager.ConfigureAutoExit(ctx, config)
-	if err != nil {
-		log.Criticalf("Unable to configure auto-exit, err: %w", err)
-		return nil
-	}
-
 	// Setup expvar server
 	port := config.GetString("security_agent.expvar_port")
 	pkgconfig.Datadog.Set("expvar_port", port, model.SourceAgentRuntime)
@@ -250,35 +296,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 		}
 	}()
 
-	hostnameDetected, err := utils.GetHostnameWithContextAndFallback(ctx)
-	if err != nil {
-		return log.Errorf("Error while getting hostname, exiting: %v", err)
-	}
-	demultiplexer.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
-
-	stopper = startstop.NewSerialStopper()
-
-	statsdClient, err := statsd.CreateForHostPort(pkgconfig.GetBindHost(), config.GetInt("dogstatsd_port"))
-	if err != nil {
-		return log.Criticalf("Error creating statsd Client: %s", err)
-	}
-
-	complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, demultiplexer)
-	if err != nil {
-		return err
-	}
-
-	if err = initRuntimeSettings(); err != nil {
-		return err
-	}
-
-	// start runtime security agent
-	runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer)
-	if err != nil {
-		return err
-	}
-
-	srv, err = api.NewServer(runtimeAgent, complianceAgent)
+	srv, err = api.NewServer(statusComponent, settings)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}
@@ -296,12 +314,8 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 	return
 }
 
-func initRuntimeSettings() error {
-	return settings.RegisterRuntimeSetting(settings.NewLogLevelRuntimeSetting())
-}
-
 // StopAgent stops the API server and clean up resources
-func StopAgent(cancel context.CancelFunc, log log.Component) {
+func StopAgent(log log.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	healthStatus, err := health.GetReadyNonBlocking()
@@ -310,9 +324,6 @@ func StopAgent(cancel context.CancelFunc, log log.Component) {
 	} else if len(healthStatus.Unhealthy) > 0 {
 		log.Warnf("Some components were unhealthy: %v", healthStatus.Unhealthy)
 	}
-
-	// gracefully shut down any component
-	cancel()
 
 	// stop metaScheduler and statsd if they are instantiated
 	if stopper != nil {
@@ -336,7 +347,7 @@ func setupInternalProfiling(config config.Component) error {
 		v, _ := version.Agent()
 
 		cfgSite := config.GetString(secAgentKey("internal_profiling.site"))
-		cfgURL := config.GetString(secAgentKey("security_agent.internal_profiling.profile_dd_url"))
+		cfgURL := config.GetString(secAgentKey("internal_profiling.profile_dd_url"))
 
 		// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
 		var site string

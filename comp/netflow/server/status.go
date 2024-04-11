@@ -7,17 +7,36 @@ package server
 
 import (
 	"embed"
-	"encoding/json"
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 )
 
 //go:embed status_templates
 var templatesFS embed.FS
 
+// netflowServerStatus represents the status of the server including details about
+// listeners which are working and those which have closed.
+type netflowServerStatus struct {
+	TotalListeners         int
+	OpenListeners          int
+	ClosedListeners        int
+	WorkingListenerDetails []netflowListenerStatus
+	ClosedListenerDetails  []netflowListenerStatus
+}
+
+// netflowListenerStatus handles logic related to pulling config information and associating it to an error.
+type netflowListenerStatus struct {
+	Config    nfconfig.ListenerConfig
+	Error     string
+	FlowCount int64
+}
+
 // Provider provides the functionality to populate the status output
-type Provider struct{}
+type Provider struct {
+	server *Server
+}
 
 // Name returns the name
 func (Provider) Name() string {
@@ -31,62 +50,55 @@ func (Provider) Section() string {
 
 // JSON populates the status map
 func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
-	err := p.getStatus(stats)
-
-	if err != nil {
-		return err
-	}
+	p.getStatus(stats)
 
 	return nil
 }
 
 // Text renders the text output
 func (p Provider) Text(_ bool, buffer io.Writer) error {
-	data, err := p.populateStatus()
-
-	if err != nil {
-		return err
-	}
-
-	return status.RenderText(templatesFS, "netflow.tmpl", buffer, data)
+	return status.RenderText(templatesFS, "netflow.tmpl", buffer, p.populateStatus())
 }
 
 // HTML renders the html output
 func (p Provider) HTML(_ bool, buffer io.Writer) error {
-	data, err := p.populateStatus()
-
-	if err != nil {
-		return err
-	}
-
-	return status.RenderHTML(templatesFS, "netflowHTML.tmpl", buffer, data)
+	return status.RenderHTML(templatesFS, "netflowHTML.tmpl", buffer, p.populateStatus())
 }
 
-func (p Provider) getStatus(stats map[string]interface{}) error {
-	status := GetStatus()
+func (p Provider) getStatus(stats map[string]interface{}) {
+	workingListeners := []netflowListenerStatus{}
+	closedListenersList := []netflowListenerStatus{}
 
-	var statusMap map[string]interface{}
-	statusBytes, err := json.Marshal(status)
-
-	if err != nil {
-		return err
+	for _, listener := range p.server.listeners {
+		errorString := listener.error.Load()
+		if errorString != "" {
+			closedListenersList = append(closedListenersList, netflowListenerStatus{
+				Config: listener.config,
+				Error:  errorString,
+			})
+		} else {
+			workingListeners = append(workingListeners, netflowListenerStatus{
+				Config:    listener.config,
+				FlowCount: listener.flowCount.Load(),
+			})
+		}
 	}
 
-	err = json.Unmarshal(statusBytes, &statusMap)
-
-	if err != nil {
-		return err
+	status := netflowServerStatus{
+		TotalListeners:         int(len(p.server.listeners)),
+		OpenListeners:          int(len(workingListeners)),
+		ClosedListeners:        int(len(closedListenersList)),
+		WorkingListenerDetails: workingListeners,
+		ClosedListenerDetails:  closedListenersList,
 	}
 
-	stats["netflowStats"] = statusMap
-
-	return nil
+	stats["netflowStats"] = status
 }
 
-func (p Provider) populateStatus() (map[string]interface{}, error) {
+func (p Provider) populateStatus() map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	err := p.getStatus(stats)
+	p.getStatus(stats)
 
-	return stats, err
+	return stats
 }

@@ -235,7 +235,9 @@ func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSeria
 		ProcessContextSerializer: newProcessContextSerializer(pc, event),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 	}
-	s.ProcessContextSerializer.Variables = newVariablesContext(event, opts, "process.")
+	if s.ProcessContextSerializer != nil {
+		s.ProcessContextSerializer.Variables = newVariablesContext(event, opts, "process.")
+	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {
 		s.EventContextSerializer.MatchedRules = make([]MatchedRuleSerializer, 0, len(event.Rules))

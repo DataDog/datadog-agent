@@ -1,14 +1,14 @@
 module github.com/DataDog/datadog-agent/comp/core/telemetry
 
-go 1.21.7
+go 1.21.9
 
 replace github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2
 	github.com/prometheus/client_golang v1.17.0
 	github.com/prometheus/client_model v0.5.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.42.0
 	go.opentelemetry.io/otel/metric v1.20.0
 	go.opentelemetry.io/otel/sdk/metric v1.20.0

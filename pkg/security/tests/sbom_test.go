@@ -13,15 +13,21 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/avast/retry-go/v4"
-
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+
+	"github.com/avast/retry-go/v4"
 )
 
 func TestSBOM(t *testing.T) {
 	SkipIfNotAvailable(t)
+	originalFlavor := flavor.GetFlavor()
+	flavor.SetFlavor(flavor.SecurityAgent)
+	defer func() {
+		flavor.SetFlavor(originalFlavor)
+	}()
 
 	ruleDefs := []*rules.RuleDefinition{
 		{

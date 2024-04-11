@@ -30,11 +30,13 @@ type testOpts struct {
 	activityDumpLoadControllerTimeout          time.Duration
 	activityDumpTracedCgroupsCount             int
 	activityDumpCgroupDifferentiateArgs        bool
+	activityDumpAutoSuppressionEnabled         bool
 	activityDumpTracedEventTypes               []string
 	activityDumpLocalStorageDirectory          string
 	activityDumpLocalStorageCompression        bool
 	activityDumpLocalStorageFormats            []string
 	enableSecurityProfile                      bool
+	securityProfileMaxImageTags                int
 	securityProfileDir                         string
 	securityProfileWatchDir                    bool
 	enableAutoSuppression                      bool
@@ -89,12 +91,14 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.activityDumpLoadControllerPeriod == opts.activityDumpLoadControllerPeriod &&
 		to.activityDumpTracedCgroupsCount == opts.activityDumpTracedCgroupsCount &&
 		to.activityDumpCgroupDifferentiateArgs == opts.activityDumpCgroupDifferentiateArgs &&
+		to.activityDumpAutoSuppressionEnabled == opts.activityDumpAutoSuppressionEnabled &&
 		to.activityDumpLoadControllerTimeout == opts.activityDumpLoadControllerTimeout &&
 		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
 		to.activityDumpLocalStorageDirectory == opts.activityDumpLocalStorageDirectory &&
 		to.activityDumpLocalStorageCompression == opts.activityDumpLocalStorageCompression &&
 		reflect.DeepEqual(to.activityDumpLocalStorageFormats, opts.activityDumpLocalStorageFormats) &&
 		to.enableSecurityProfile == opts.enableSecurityProfile &&
+		to.securityProfileMaxImageTags == opts.securityProfileMaxImageTags &&
 		to.securityProfileDir == opts.securityProfileDir &&
 		to.securityProfileWatchDir == opts.securityProfileWatchDir &&
 		to.enableAutoSuppression == opts.enableAutoSuppression &&

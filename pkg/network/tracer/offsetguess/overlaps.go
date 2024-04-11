@@ -8,9 +8,8 @@
 package offsetguess
 
 import (
+	"slices"
 	"unsafe"
-
-	"golang.org/x/exp/slices"
 )
 
 type offsetRange struct {

@@ -3,8 +3,8 @@
 # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
-#   - /.gitlab/kitchen_testing/testing.yml
-#   - /.gitlab/functional_test/common.yml
+#   - .gitlab/kitchen_testing/testing.yml
+#   - .gitlab/functional_test/common.yml
 
 .kitchen_test_system_probe_linux:
   extends:
@@ -17,19 +17,18 @@
     - echo "CI_JOB_STAGE=${CI_JOB_STAGE}" >> $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/job_env.txt
     - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/minimized-btfs.tar.xz
     - inv system-probe.test-docker-image-list > $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/docker-images.txt
-    - |
-      get_docker_secrets() {
-        if [ -o xtrace ]; then set +x; trap 'set -x' RETURN; fi
-        export DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-        export DOCKER_REGISTRY_PASSWORD=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-      }
-      get_docker_secrets
+    - export DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN_SSM_KEY)
+    - export DOCKER_REGISTRY_PASSWORD=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD_SSM_KEY)
     - pushd $DD_AGENT_TESTING_DIR
     - tasks/kitchen_setup.sh
   script:
     - tasks/run-test-kitchen.sh system-probe-test $AGENT_MAJOR_VERSION
     - popd
     - inv system-probe.print-failed-tests --output-dir $DD_AGENT_TESTING_DIR/testjson
+  after_script:
+    # Upload generated junit files
+    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - ss=0; for f in $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz; do [[ -e "$f" ]] || continue; inv -e junit-upload --tgz-path $f || ((ss++)); done; exit $ss
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -50,17 +49,21 @@ kitchen_test_dummy_job_tmp:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   needs: []
   tags: ["arch:amd64"]
-  rules:
-    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
+  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   script:
-    - 'true'
+    - "true"
 
 kitchen_test_system_probe_linux_x64_ec2:
   extends:
     - .kitchen_test_system_probe_linux
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
-  needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64", "generate_minimized_btfs_x64" ]
+  needs:
+    [
+      "tests_ebpf_x64",
+      "prepare_ebpf_functional_tests_x64",
+      "generate_minimized_btfs_x64",
+    ]
   variables:
     ARCH: amd64
     KITCHEN_ARCH: x86_64
@@ -118,7 +121,12 @@ kitchen_test_system_probe_linux_arm64:
     - .kitchen_test_system_probe_linux
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
-  needs: [ "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64", "generate_minimized_btfs_arm64" ]
+  needs:
+    [
+      "tests_ebpf_arm64",
+      "prepare_ebpf_functional_tests_arm64",
+      "generate_minimized_btfs_arm64",
+    ]
   variables:
     ARCH: arm64
     KITCHEN_ARCH: arm64

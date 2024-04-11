@@ -3,18 +3,17 @@ cancel-prev-pipelines:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules: # this should only run on dev branches
-  - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
-    when: never
-  - if: $CI_COMMIT_TAG
-    when: never
-  - !reference [.except_main_or_release_branch]
-  - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
-    when: never
-  - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
-    when: never
-  - when: on_success
+    - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
+      when: never
+    - if: $CI_COMMIT_TAG
+      when: never
+    - !reference [.except_main_or_release_branch]
+    - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
+      when: never
+    - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
+      when: never
+    - when: on_success
   script:
     - source /root/.bashrc
-    - set +x
-    - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_pipelines_scheduler_token --with-decryption --query "Parameter.Value" --out text)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
     - inv pipeline.auto-cancel-previous-pipelines

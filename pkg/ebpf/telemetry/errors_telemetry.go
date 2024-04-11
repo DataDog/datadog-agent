@@ -8,16 +8,19 @@
 package telemetry
 
 import (
+	"bytes"
+	"debug/elf"
 	"errors"
 	"fmt"
 	"hash"
 	"hash/fnv"
+	"io"
+	"slices"
 	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -256,4 +259,34 @@ func ebpfTelemetrySupported() (bool, error) {
 		return false, err
 	}
 	return kversion >= kernel.VersionCode(4, 14, 0), nil
+}
+
+func elfBuildWithInstrumentation(bytecode io.ReaderAt) (bool, error) {
+	objFile, err := elf.NewFile(bytecode)
+	if err != nil {
+		return false, fmt.Errorf("failed to open elf file: %w", err)
+	}
+	defer objFile.Close()
+
+	const instrumentationSectionName = ".build.instrumentation"
+	sec := objFile.Section(instrumentationSectionName)
+	// if the section is not present then it was not added during compilation.
+	// This means that programs in this ELF are not instrumented.
+	if sec == nil {
+		return false, nil
+	}
+
+	data, err := sec.Data()
+	if err != nil {
+		return false, fmt.Errorf("failed to get data for section %q: %w", instrumentationSectionName, err)
+	}
+
+	if i := bytes.IndexByte(data, 0); i != -1 {
+		data = data[:i]
+	}
+	if string(data[:]) != "enabled" {
+		return false, nil
+	}
+
+	return true, nil
 }

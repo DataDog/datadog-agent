@@ -9,6 +9,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
@@ -17,13 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/updater"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -31,26 +27,38 @@ import (
 
 type cliParams struct {
 	command.GlobalParams
+	url     string
+	pkg     string
+	version string
 }
 
 // Commands returns the bootstrap command
 func Commands(global *command.GlobalParams) []*cobra.Command {
 	var timeout time.Duration
+	var url string
+	var pkg string
+	var version string
 	bootstrapCmd := &cobra.Command{
 		Use:   "bootstrap",
 		Short: "Bootstraps the package with the first version.",
 		Long: `Installs the first version of the package managed by this updater.
 		This first version is sent remotely to the agent and can be configured from the UI.
 		This command will exit after the first version is installed.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 			return boostrapFxWrapper(ctx, &cliParams{
 				GlobalParams: *global,
+				url:          url,
+				pkg:          pkg,
+				version:      version,
 			})
 		},
 	}
 	bootstrapCmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
+	bootstrapCmd.Flags().StringVarP(&url, "url", "u", "", "URL to fetch the package from")
+	bootstrapCmd.Flags().StringVarP(&pkg, "package", "P", "", "Package name to bootstrap")
+	bootstrapCmd.Flags().StringVarP(&version, "version", "V", "latest", "Version to bootstrap")
 	return []*cobra.Command{bootstrapCmd}
 }
 
@@ -65,24 +73,28 @@ func boostrapFxWrapper(ctx context.Context, params *cliParams) error {
 			LogParams:            logimpl.ForOneShot("UPDATER", "info", true),
 		}),
 		core.Bundle(),
-		fx.Supply(&rcservice.Params{
-			Options: []service.Option{
-				service.WithDatabaseFileName("remote-config-updater.db"),
-			},
-		}),
-		rctelemetryreporterimpl.Module(),
-		rcserviceimpl.Module(),
 	)
 }
 
-func bootstrap(ctx context.Context, params *cliParams, rc optional.Option[rcservice.Component]) error {
-	rcService, ok := rc.Get()
-	if !ok {
-		return fmt.Errorf("remote config service is required for the updater")
+func bootstrap(ctx context.Context, params *cliParams, config config.Component) error {
+	url := packageURL(config.GetString("site"), params.pkg, params.version)
+	if params.url != "" {
+		url = params.url
 	}
-	err := updater.Install(ctx, rcService, params.Package)
-	if err != nil {
-		return fmt.Errorf("could not install package: %w", err)
+	return updater.BootstrapURL(ctx, url, config)
+}
+
+func packageURL(site string, pkg string, version string) string {
+	if site == "datad0g.com" {
+		return stagingPackageURL(pkg, version)
 	}
-	return nil
+	return prodPackageURL(pkg, version)
+}
+
+func stagingPackageURL(pkg string, version string) string {
+	return fmt.Sprintf("oci://docker.io/datadog/%s-package-dev:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+}
+
+func prodPackageURL(pkg string, version string) string {
+	return fmt.Sprintf("oci://public.ecr.aws/datadoghq/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 }

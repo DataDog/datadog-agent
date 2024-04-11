@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 )
 
 // MacroID represents the ID of a macro
@@ -115,6 +116,7 @@ type RuleDefinition struct {
 	Actions                []*ActionDefinition `yaml:"actions"`
 	Every                  time.Duration       `yaml:"every"`
 	Silent                 bool                `yaml:"silent"`
+	GroupID                string              `yaml:"group_id"`
 	Policy                 *Policy
 }
 
@@ -135,7 +137,11 @@ func applyOverride(rd1, rd2 *RuleDefinition) {
 	if len(rd2.OverrideOptions.Fields) == 0 {
 		rd1.Expression = rd2.Expression
 	} else if slices.Contains(rd2.OverrideOptions.Fields, OverrideAllFields) {
+		// keep the original policy
+		policy := rd1.Policy
+
 		*rd1 = *rd2
+		rd1.Policy = policy
 	} else {
 		if slices.Contains(rd2.OverrideOptions.Fields, OverrideExpressionField) {
 			rd1.Expression = rd2.Expression
@@ -626,6 +632,10 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 
 func (rs *RuleSet) runRuleActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
 	for _, action := range rule.Definition.Actions {
+		if !action.IsAccepted(ctx) {
+			continue
+		}
+
 		switch {
 		// action.Kill has to handled by a ruleset listener
 		case action.Set != nil:
@@ -683,20 +693,23 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	}
 
 	result := false
+
 	for _, rule := range bucket.rules {
-		if rule.GetEvaluator().Eval(ctx) {
+		utils.PprofDoWithoutContext(rule.GetPprofLabels(), func() {
+			if rule.GetEvaluator().Eval(ctx) {
 
-			if rs.logger.IsTracing() {
-				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+				if rs.logger.IsTracing() {
+					rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+				}
+
+				if err := rs.runRuleActions(event, ctx, rule); err != nil {
+					rs.logger.Errorf("Error while executing rule actions: %s", err)
+				}
+
+				rs.NotifyRuleMatch(rule, event)
+				result = true
 			}
-
-			if err := rs.runRuleActions(event, ctx, rule); err != nil {
-				rs.logger.Errorf("Error while executing rule actions: %s", err)
-			}
-
-			rs.NotifyRuleMatch(rule, event)
-			result = true
-		}
+		})
 	}
 
 	// no-op in the general case, only used to collect events in functional tests

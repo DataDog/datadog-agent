@@ -22,11 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	//nolint:revive // TODO(AML) Fix revive linter
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
@@ -50,7 +53,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -115,6 +117,9 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			config.WithConfigMissingOK(true),
 			config.WithConfigName("dogstatsd")),
 		),
+		fx.Provide(func(comp secrets.Component) optional.Option[secrets.Component] {
+			return optional.NewOption[secrets.Component](comp)
+		}),
 		fx.Supply(secrets.NewEnabledParams()),
 		fx.Supply(logComponent.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
 		config.Module(),
@@ -137,7 +142,8 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 				NoInstance: !instantiate,
 			}
 		}),
-		workloadmeta.OptionalModule(),
+		workloadmeta.Module(),
+		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		secretsimpl.Module(),
 		orchestratorForwarderImpl.Module(),
@@ -167,6 +173,13 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		// sysprobeconfig is optionally required by inventoryagent
 		sysprobeconfig.NoneModule(),
 		inventoryhostimpl.Module(),
+		fx.Provide(func(config config.Component) healthprobe.Options {
+			return healthprobe.Options{
+				Port:           config.GetInt("health_port"),
+				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
+			}
+		}),
+		healthprobeimpl.Module(),
 	)
 }
 
@@ -185,6 +198,7 @@ func start(
 	_ host.Component,
 	_ inventoryagent.Component,
 	_ inventoryhost.Component,
+	_ healthprobe.Component,
 ) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
@@ -263,24 +277,8 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 		return
 	}
 
-	// Setup healthcheck port
-	var healthPort = config.GetInt("health_port")
-	if healthPort > 0 {
-		err = healthprobe.Serve(ctx, config, healthPort)
-		if err != nil {
-			err = log.Errorf("Error starting health port, exiting: %v", err)
-			return
-		}
-		log.Debugf("Health check listening on port %d", healthPort)
-	}
-
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
-	err = components.DogstatsdServer.Start(demultiplexer)
-	if err != nil {
-		log.Criticalf("Unable to start dogstatsd: %s", err)
-		return
-	}
 	return
 }
 
@@ -324,8 +322,6 @@ func StopAgent(cancel context.CancelFunc, components *DogstatsdComponents) {
 			pkglog.Errorf("Error shutting down dogstatsd stats server: %s", err)
 		}
 	}
-
-	components.DogstatsdServer.Stop()
 
 	pkglog.Info("See ya!")
 	pkglog.Flush()

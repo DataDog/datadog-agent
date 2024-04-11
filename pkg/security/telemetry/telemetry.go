@@ -10,28 +10,22 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ContainersTelemetry represents the objects necessary to send metrics listing containers
 type ContainersTelemetry struct {
-	Sender        sender.Sender
-	MetadataStore workloadmeta.Component
-	IgnoreDDAgent bool
+	TelemetrySender SimpleTelemetrySender
+	MetadataStore   workloadmeta.Component
+	IgnoreDDAgent   bool
 }
 
 // NewContainersTelemetry returns a new ContainersTelemetry based on default/global objects
-func NewContainersTelemetry(senderManager sender.SenderManager) (*ContainersTelemetry, error) {
-	sender, err := senderManager.GetDefaultSender()
-	if err != nil {
-		return nil, err
-	}
-
+func NewContainersTelemetry(telemetrySender SimpleTelemetrySender, wmeta workloadmeta.Component) (*ContainersTelemetry, error) {
 	return &ContainersTelemetry{
-		Sender: sender,
-		// TODO(components): stop using globals and rely on injected workloadmeta component
-		MetadataStore: workloadmeta.GetGlobalStore(),
+		TelemetrySender: telemetrySender,
+		MetadataStore:   wmeta,
 	}, nil
 }
 
@@ -55,8 +49,33 @@ func (c *ContainersTelemetry) ReportContainers(metricName string) {
 			}
 		}
 
-		c.Sender.Gauge(metricName, 1.0, "", []string{"container_id:" + container.ID})
+		c.TelemetrySender.Gauge(metricName, 1.0, []string{"container_id:" + container.ID})
 	}
+	c.TelemetrySender.Commit()
+}
 
-	c.Sender.Commit()
+// SimpleTelemetrySender is an abstraction over what is needed for the container telemetry
+// the main goal is to be able to use it with a dogstatsd client or a SenderManager's default sender
+type SimpleTelemetrySender interface {
+	Gauge(name string, value float64, tags []string)
+	Commit()
+}
+
+type statsdSTS struct {
+	sci statsd.ClientInterface
+}
+
+func (s *statsdSTS) Gauge(name string, value float64, tags []string) {
+	_ = s.sci.Gauge(name, value, tags, 1.0)
+}
+
+func (s *statsdSTS) Commit() {
+	// nothing to do here
+}
+
+// NewSimpleTelemetrySenderFromStatsd returns a new SimpleTelemetrySender from a statsd client
+func NewSimpleTelemetrySenderFromStatsd(sci statsd.ClientInterface) SimpleTelemetrySender {
+	return &statsdSTS{
+		sci: sci,
+	}
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	cebpf "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -51,6 +52,10 @@ func newPerfBatchManager(batchMap *maps.GenericMap[uint32, netebpf.Batch], numCP
 	state := make([]percpuState, numCPUs)
 	for cpu := uint32(0); cpu < numCPUs; cpu++ {
 		b := new(netebpf.Batch)
+		// Ring buffer events don't have CPU information, so we associate each
+		// batch entry with a CPU during startup. This information is used by
+		// the code that does the batch offset tracking.
+		b.Cpu = cpu
 		if err := batchMap.Put(&cpu, b); err != nil {
 			return nil, fmt.Errorf("error initializing perf batch manager maps: %w", err)
 		}
@@ -68,7 +73,8 @@ func newPerfBatchManager(batchMap *maps.GenericMap[uint32, netebpf.Batch], numCP
 }
 
 // ExtractBatchInto extracts from the given batch all connections that haven't been processed yet.
-func (p *perfBatchManager) ExtractBatchInto(buffer *network.ConnectionBuffer, b *netebpf.Batch, cpu int) {
+func (p *perfBatchManager) ExtractBatchInto(buffer *network.ConnectionBuffer, b *netebpf.Batch) {
+	cpu := int(b.Cpu)
 	if cpu >= len(p.stateByCPU) {
 		return
 	}
@@ -139,20 +145,12 @@ func (p *perfBatchManager) extractBatchInto(buffer *network.ConnectionBuffer, b 
 		switch i {
 		case 0:
 			ct = b.C0
-			//nolint:gosimple // TODO(NET) Fix gosimple linter
-			break
 		case 1:
 			ct = b.C1
-			//nolint:gosimple // TODO(NET) Fix gosimple linter
-			break
 		case 2:
 			ct = b.C2
-			//nolint:gosimple // TODO(NET) Fix gosimple linter
-			break
 		case 3:
 			ct = b.C3
-			//nolint:gosimple // TODO(NET) Fix gosimple linter
-			break
 		default:
 			panic("batch size is out of sync")
 		}
@@ -175,21 +173,18 @@ func (p *perfBatchManager) cleanupExpiredState(now time.Time) {
 }
 
 func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
-	connCloseEventMap, _, err := mgr.GetMap(probes.ConnCloseEventMap)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get map %s: %s", probes.ConnCloseEventMap, err)
-	}
-	if connCloseEventMap == nil {
-		return nil, fmt.Errorf("unable to get map %s: cannot find a map with that name", probes.ConnCloseEventMap)
-	}
-
 	connCloseMap, err := maps.GetMap[uint32, netebpf.Batch](mgr, probes.ConnCloseBatchMap)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get map %s: %s", probes.ConnCloseBatchMap, err)
 	}
-
-	numCPUs := connCloseEventMap.MaxEntries()
-	batchMgr, err := newPerfBatchManager(connCloseMap, numCPUs)
+	numCPUs, err := cebpf.PossibleCPU()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get number of CPUs: %s", err)
+	}
+	if err != nil {
+		return nil, err
+	}
+	batchMgr, err := newPerfBatchManager(connCloseMap, uint32(numCPUs))
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,2 @@
+fixes:
+  - Empty UDS payloads no longer cause the DogStatsD server to close the socket.

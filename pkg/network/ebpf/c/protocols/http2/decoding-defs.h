@@ -168,11 +168,12 @@ typedef struct {
 typedef struct {
     __u64 response_last_seen;
     __u64 request_started;
+    __u8 tags;
 
     status_code_t status_code;
     method_t request_method;
     path_t path;
-    bool request_end_of_stream;
+    bool end_of_stream_seen;
 } http2_stream_t;
 
 typedef struct {
@@ -243,7 +244,10 @@ typedef struct {
     __u64 exceeding_max_interesting_frames;
     __u64 exceeding_max_frames_to_filter;
     __u64 path_size_bucket[HTTP2_TELEMETRY_PATH_BUCKETS+1];
-    __u64 fragmented_frame_count;
+    __u64 fragmented_frame_count_headers;
+    __u64 fragmented_frame_count_rst;
+    __u64 fragmented_frame_count_data_eos;
+    __u64 fragmented_frame_count_headers_eos;
 } http2_telemetry_t;
 
 typedef struct {

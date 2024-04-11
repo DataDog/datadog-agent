@@ -17,16 +17,22 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/scheme"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+const commonRegistry = "gcr.io/datadoghq"
 
 func TestInjectAutoInstruConfig(t *testing.T) {
 	tests := []struct {
@@ -234,9 +240,10 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			wantErr: true,
 		},
 	}
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			webhook, err := GetWebhook()
+			webhook, err := GetWebhook(wmeta)
 			require.NoError(t, err)
 
 			err = webhook.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
@@ -307,6 +314,17 @@ func TestExtractLibInfo(t *testing.T) {
 				{
 					lang:  "java",
 					image: "registry/dd-lib-java-init:v1",
+				},
+			},
+		},
+		{
+			name:              "java from common registry",
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
+			containerRegistry: "",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: fmt.Sprintf("%s/dd-lib-java-init:v1", commonRegistry),
 				},
 			},
 		},
@@ -568,18 +586,23 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 	}
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig = config.Mock(t)
 			mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true)
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", tt.containerRegistry)
+			mockConfig.SetWithoutSource("admission_controller.container_registry", commonRegistry)
+			if tt.containerRegistry != "" {
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", tt.containerRegistry)
+			}
+
 			if tt.setupConfig != nil {
 				tt.setupConfig()
 			}
 
 			// Need to create a new instance of the webhook to take into account
 			// the config changes.
-			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook()
+			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook(wmeta)
 			require.NoError(t, errInitAPMInstrumentation)
 
 			libsToInject, _ := apmInstrumentationWebhook.extractLibInfo(tt.pod)
@@ -1838,7 +1861,122 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"ruby": "v1.2.3"})
 			},
 		},
+		{
+			name: "Single Step Instrumentation: enable ASM",
+			pod: common.FakePodWithParent(
+				"ns",
+				map[string]string{},
+				map[string]string{},
+				[]corev1.EnvVar{},
+				"replicaset", "test-app-123",
+			),
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE",
+					Value: "test-app",
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+				corev1.EnvVar{
+					Name:  "DD_APPSEC_ENABLED",
+					Value: "true",
+				},
+			),
+			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			wantErr:                   false,
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.asm.enabled", true)
+			},
+		},
+		{
+			name: "Single Step Instrumentation: enable iast",
+			pod: common.FakePodWithParent(
+				"ns",
+				map[string]string{},
+				map[string]string{},
+				[]corev1.EnvVar{},
+				"replicaset", "test-app-123",
+			),
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE",
+					Value: "test-app",
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+				corev1.EnvVar{
+					Name:  "DD_IAST_ENABLED",
+					Value: "true",
+				},
+			),
+			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			wantErr:                   false,
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.iast.enabled", true)
+			},
+		},
+		{
+			name: "Single Step Instrumentation: disable sca",
+			pod: common.FakePodWithParent(
+				"ns",
+				map[string]string{},
+				map[string]string{},
+				[]corev1.EnvVar{},
+				"replicaset", "test-app-123",
+			),
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE",
+					Value: "test-app",
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+				corev1.EnvVar{
+					Name:  "DD_APPSEC_SCA_ENABLED",
+					Value: "false",
+				},
+			),
+			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			wantErr:                   false,
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.asm_sca.enabled", false)
+			},
+		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig = config.Mock(t)
@@ -1846,14 +1984,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				tt.setupConfig()
 			}
 
-			common.FakeStoreWithDeployment(t, tt.langDetectionDeployments)
+			wmeta := common.FakeStoreWithDeployment(t, tt.langDetectionDeployments)
 
 			// Need to create a new instance of the webhook to take into account
 			// the config changes.
-			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook()
+			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook(wmeta)
 			require.NoError(t, errInitAPMInstrumentation)
 
-			err := apmInstrumentationWebhook.inject(tt.pod, "", fake.NewSimpleDynamicClient(scheme.Scheme))
+			_, err := apmInstrumentationWebhook.inject(tt.pod, "", fake.NewSimpleDynamicClient(scheme.Scheme))
 			require.False(t, (err != nil) != tt.wantErr)
 
 			container := tt.pod.Spec.Containers[0]
@@ -2088,7 +2226,7 @@ func TestShouldInject(t *testing.T) {
 			want:        false,
 		},
 	}
-
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig = config.Mock(nil)
@@ -2096,10 +2234,10 @@ func TestShouldInject(t *testing.T) {
 
 			// Need to create a new instance of the webhook to take into account
 			// the config changes.
-			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook()
+			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook(wmeta)
 			require.NoError(t, errInitAPMInstrumentation)
 
-			if got := ShouldInject(tt.pod); got != tt.want {
+			if got := ShouldInject(tt.pod, wmeta); got != tt.want {
 				t.Errorf("shouldInject() = %v, want %v", got, tt.want)
 			}
 		})

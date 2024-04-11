@@ -18,10 +18,10 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	compsysconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
@@ -168,7 +168,7 @@ func (wcd *AgentCrashDetect) Run() error {
 	}
 
 	log.Infof("Sending crash: %v", formatText(crash))
-	lts := internaltelemetry.NewLogTelemetrySender(wcd.tconfig, "ddnpm", "go")
+	lts := internaltelemetry.NewClient(wcd.tconfig.NewHTTPClient(), wcd.tconfig.TelemetryConfig.Endpoints, "ddnpm", true)
 	lts.SendLog("WARN", formatText(crash))
 	return nil
 }

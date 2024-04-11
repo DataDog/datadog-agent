@@ -57,7 +57,8 @@ func TestDNSNameEncoding(t *testing.T) {
 	}
 	serviceExtractorEnabled := false
 	useWindowsServiceName := false
-	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
+	useImprovedAlgorithm := false
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	maxConnsPerMessage := 10
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex)
 	assert.Equal(t, len(chunks), 1)
@@ -125,7 +126,8 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		coretm := map[string]model.COREResult{}
 		serviceExtractorEnabled := false
 		useWindowsServiceName := false
-		ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
+		useImprovedAlgorithm := false
+		ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 		chunks := batchConnections(&HostInfo{}, tc.maxSize, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, khfr, coretm, nil, nil, nil, nil, nil, ex)
 
 		assert.Len(t, chunks, tc.expectedChunks, "len %d", i)
@@ -167,7 +169,8 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	maxConnsPerMessage := 1
 	serviceExtractorEnabled := false
 	useWindowsServiceName := false
-	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
+	useImprovedAlgorithm := false
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 4)
@@ -209,7 +212,8 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	maxConnsPerMessage := 2
 	serviceExtractorEnabled := false
 	useWindowsServiceName := false
-	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
+	useImprovedAlgorithm := false
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 3)
@@ -295,7 +299,8 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 	maxConnsPerMessage := 1
 	serviceExtractorEnabled := false
 	useWindowsServiceName := false
-	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
+	useImprovedAlgorithm := false
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, domains, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 4)
@@ -415,7 +420,8 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	maxConnsPerMessage := 1
 	serviceExtractorEnabled := false
 	useWindowsServiceName := false
-	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
+	useImprovedAlgorithm := false
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, domains, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 4)
@@ -526,7 +532,8 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 	maxConnsPerMessage := 4
 	serviceExtractorEnabled := false
 	useWindowsServiceName := false
-	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
+	useImprovedAlgorithm := false
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, routes, nil, nil, ex)
 
 	assert.Len(t, chunks, 2)
@@ -596,7 +603,8 @@ func TestNetworkConnectionTags(t *testing.T) {
 	maxConnsPerMessage := 4
 	serviceExtractorEnabled := false
 	useWindowsServiceName := false
-	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
+	useImprovedAlgorithm := false
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, tags, nil, ex)
 
 	assert.Len(t, chunks, 2)
@@ -635,7 +643,8 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	maxConnsPerMessage := 1
 	serviceExtractorEnabled := mockConfig.GetBool("system_probe_config.process_service_inference.enabled")
 	useWindowsServiceName := mockConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
+	useImprovedAlgorithm := mockConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
+	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	ex.Extract(procsByPid)
 
 	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, tags, nil, ex)

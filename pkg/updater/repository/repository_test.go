@@ -13,18 +13,20 @@ import (
 	"path"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/updater/service"
 	"github.com/stretchr/testify/assert"
 )
 
 func createTestRepository(t *testing.T, dir string, stablePackageName string) *Repository {
 	repositoryPath := path.Join(dir, "repository")
+	assert.Nil(t, service.BuildHelperForTests(repositoryPath, t.TempDir(), true))
 	locksPath := path.Join(dir, "run")
 	os.MkdirAll(repositoryPath, 0755)
 	os.MkdirAll(locksPath, 0777)
 	stablePackagePath := createTestDownloadedPackage(t, dir, stablePackageName)
 	r := Repository{
-		RootPath:  repositoryPath,
-		LocksPath: locksPath,
+		rootPath:  repositoryPath,
+		locksPath: locksPath,
 	}
 	err := r.Create(stablePackageName, stablePackagePath)
 	assert.NoError(t, err)
@@ -42,8 +44,8 @@ func TestCreateFresh(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1")
 
-	assert.DirExists(t, repository.RootPath)
-	assert.DirExists(t, path.Join(repository.RootPath, "v1"))
+	assert.DirExists(t, repository.rootPath)
+	assert.DirExists(t, path.Join(repository.rootPath, "v1"))
 }
 
 func TestCreateOverwrite(t *testing.T) {
@@ -52,23 +54,23 @@ func TestCreateOverwrite(t *testing.T) {
 
 	repository := createTestRepository(t, dir, "v1")
 
-	assert.Equal(t, oldRepository.RootPath, repository.RootPath)
-	assert.DirExists(t, repository.RootPath)
-	assert.DirExists(t, path.Join(repository.RootPath, "v1"))
-	assert.NoDirExists(t, path.Join(oldRepository.RootPath, "old"))
+	assert.Equal(t, oldRepository.rootPath, repository.rootPath)
+	assert.DirExists(t, repository.rootPath)
+	assert.DirExists(t, path.Join(repository.rootPath, "v1"))
+	assert.NoDirExists(t, path.Join(oldRepository.rootPath, "old"))
 }
 
 func TestCreateOverwriteWithLockedPackage(t *testing.T) {
 	dir := t.TempDir()
 	oldRepository := createTestRepository(t, dir, "old")
-	err := os.MkdirAll(path.Join(oldRepository.LocksPath, "garbagetocollect"), 0777)
+	err := os.MkdirAll(path.Join(oldRepository.locksPath, "garbagetocollect"), 0777)
 	assert.NoError(t, err)
 
 	// Add a running process... our own! So we're sure it's running.
-	err = os.MkdirAll(path.Join(oldRepository.LocksPath, "old"), 0777)
+	err = os.MkdirAll(path.Join(oldRepository.locksPath, "old"), 0777)
 	assert.NoError(t, err)
 	err = os.WriteFile(
-		path.Join(oldRepository.LocksPath, "old", fmt.Sprint(os.Getpid())),
+		path.Join(oldRepository.locksPath, "old", fmt.Sprint(os.Getpid())),
 		nil,
 		0644,
 	)
@@ -76,11 +78,11 @@ func TestCreateOverwriteWithLockedPackage(t *testing.T) {
 
 	repository := createTestRepository(t, dir, "v1")
 
-	assert.Equal(t, oldRepository.RootPath, repository.RootPath)
-	assert.DirExists(t, repository.RootPath)
-	assert.DirExists(t, path.Join(repository.RootPath, "v1"))
-	assert.DirExists(t, path.Join(repository.RootPath, "old"))
-	assert.NoDirExists(t, path.Join(oldRepository.LocksPath, "garbagetocollect"))
+	assert.Equal(t, oldRepository.rootPath, repository.rootPath)
+	assert.DirExists(t, repository.rootPath)
+	assert.DirExists(t, path.Join(repository.rootPath, "v1"))
+	assert.DirExists(t, path.Join(repository.rootPath, "old"))
+	assert.NoDirExists(t, path.Join(oldRepository.locksPath, "garbagetocollect"))
 }
 
 func TestSetExperiment(t *testing.T) {
@@ -90,7 +92,7 @@ func TestSetExperiment(t *testing.T) {
 
 	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
-	assert.DirExists(t, path.Join(repository.RootPath, "v2"))
+	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
 }
 
 func TestSetExperimentTwice(t *testing.T) {
@@ -103,13 +105,13 @@ func TestSetExperimentTwice(t *testing.T) {
 	assert.NoError(t, err)
 	err = repository.SetExperiment("v3", experiment2DownloadPackagePath)
 	assert.NoError(t, err)
-	assert.DirExists(t, path.Join(repository.RootPath, "v2"))
+	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
 }
 
 func TestSetExperimentBeforeStable(t *testing.T) {
 	dir := t.TempDir()
 	repository := Repository{
-		RootPath: dir,
+		rootPath: dir,
 	}
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
@@ -126,8 +128,8 @@ func TestPromoteExperiment(t *testing.T) {
 	assert.NoError(t, err)
 	err = repository.PromoteExperiment()
 	assert.NoError(t, err)
-	assert.NoDirExists(t, path.Join(repository.RootPath, "v1"))
-	assert.DirExists(t, path.Join(repository.RootPath, "v2"))
+	assert.NoDirExists(t, path.Join(repository.rootPath, "v1"))
+	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
 }
 
 func TestPromoteExperimentWithoutExperiment(t *testing.T) {
@@ -147,7 +149,7 @@ func TestDeleteExperiment(t *testing.T) {
 	assert.NoError(t, err)
 	err = repository.DeleteExperiment()
 	assert.NoError(t, err)
-	assert.NoDirExists(t, path.Join(repository.RootPath, "v2"))
+	assert.NoDirExists(t, path.Join(repository.rootPath, "v2"))
 }
 
 func TestDeleteExperimentWithoutExperiment(t *testing.T) {
@@ -167,20 +169,20 @@ func TestDeleteExperimentWithLockedPackage(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Add a running process... our own! So we're sure it's running.
-	err = os.MkdirAll(path.Join(repository.LocksPath, "v2"), 0766)
+	err = os.MkdirAll(path.Join(repository.locksPath, "v2"), 0766)
 	assert.NoError(t, err)
 	err = os.WriteFile(
-		path.Join(repository.LocksPath, "v2", fmt.Sprint(os.Getpid())),
+		path.Join(repository.locksPath, "v2", fmt.Sprint(os.Getpid())),
 		nil,
 		0644,
 	)
 	assert.NoError(t, err)
 
 	// Add a running process that's not running to check its deletion
-	err = os.MkdirAll(path.Join(repository.LocksPath, "v2"), 0766)
+	err = os.MkdirAll(path.Join(repository.locksPath, "v2"), 0766)
 	assert.NoError(t, err)
 	err = os.WriteFile(
-		path.Join(repository.LocksPath, "v2", "-1"), // We're sure not to hit a running process
+		path.Join(repository.locksPath, "v2", "-1"), // We're sure not to hit a running process
 		nil,
 		0644,
 	)
@@ -188,8 +190,8 @@ func TestDeleteExperimentWithLockedPackage(t *testing.T) {
 
 	err = repository.DeleteExperiment()
 	assert.NoError(t, err)
-	assert.DirExists(t, path.Join(repository.RootPath, "v2"))
-	assert.DirExists(t, path.Join(repository.LocksPath, "v2"))
-	assert.NoFileExists(t, path.Join(repository.LocksPath, "v2", "-1"))
-	assert.FileExists(t, path.Join(repository.LocksPath, "v2", fmt.Sprint(os.Getpid())))
+	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
+	assert.DirExists(t, path.Join(repository.locksPath, "v2"))
+	assert.NoFileExists(t, path.Join(repository.locksPath, "v2", "-1"))
+	assert.FileExists(t, path.Join(repository.locksPath, "v2", fmt.Sprint(os.Getpid())))
 }

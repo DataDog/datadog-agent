@@ -14,26 +14,28 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v4"
+	lru "github.com/hashicorp/golang-lru/v2"
 
 	"golang.org/x/sys/windows"
 )
-
-var parseUnicodeString = etwutil.ParseUnicodeString
 
 // WindowsProbe defines a Windows probe
 type WindowsProbe struct {
@@ -45,16 +47,21 @@ type WindowsProbe struct {
 	statsdClient statsd.ClientInterface
 
 	// internals
-	event         *model.Event
-	ctx           context.Context
-	cancelFnc     context.CancelFunc
-	wg            sync.WaitGroup
-	probe         *Probe
-	fieldHandlers *FieldHandlers
-	pm            *procmon.WinProcmon
-	onStart       chan *procmon.ProcessStartNotification
-	onStop        chan *procmon.ProcessStopNotification
-	onError       chan bool
+
+	// note that these events are zeroed out and reused on every notification
+	// what that means is that they're not thread safe; there needs to be one
+	// event for each goroutine that's doing event processing.
+	event             *model.Event
+	ctx               context.Context
+	cancelFnc         context.CancelFunc
+	wg                sync.WaitGroup
+	probe             *Probe
+	fieldHandlers     *FieldHandlers
+	pm                *procmon.WinProcmon
+	onStart           chan *procmon.ProcessStartNotification
+	onStop            chan *procmon.ProcessStopNotification
+	onError           chan bool
+	onETWNotification chan etwNotification
 
 	// ETW component for FIM
 	fileguid windows.GUID
@@ -62,6 +69,54 @@ type WindowsProbe struct {
 	//etwcomp    etw.Component
 	fimSession etw.Session
 	fimwg      sync.WaitGroup
+
+	// path caches
+	filePathResolverLock sync.Mutex
+	filePathResolver     map[fileObjectPointer]string
+	regPathResolver      map[regObjectPointer]string
+
+	// stats
+	stats stats
+	// discarders
+	discardedPaths     *lru.Cache[string, struct{}]
+	discardedBasenames *lru.Cache[string, struct{}]
+}
+
+type etwNotification struct {
+	arg any
+	pid uint32
+}
+
+type stats struct {
+	// driver notifications
+	procStart uint64
+	procStop  uint64
+
+	// etw file notifications
+	fileCreate    uint64
+	fileCreateNew uint64
+	fileCleanup   uint64
+	fileClose     uint64
+	fileFlush     uint64
+
+	fileSetInformation     uint64
+	fileSetDelete          uint64
+	fileidRename           uint64
+	fileidQueryInformation uint64
+	fileidFSCTL            uint64
+	fileidRename29         uint64
+
+	// etw registry notifications
+	regCreateKey   uint64
+	regOpenKey     uint64
+	regDeleteKey   uint64
+	regFlushKey    uint64
+	regCloseKey    uint64
+	regSetValueKey uint64
+
+	//filePathResolver status
+	fileCreateSkippedDiscardedPaths     uint64
+	fileCreateSkippedDiscardedBasenames uint64
 }
 
 /*
@@ -69,7 +124,7 @@ type WindowsProbe struct {
  * pid is provided for testing purposes, to allow filtering on pid.  it is
  * not expected to be used at runtime
  */
-type etwCallback func(n interface{}, pid uint32, eventType model.EventType)
+type etwCallback func(n interface{}, pid uint32)
 
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
@@ -91,7 +146,6 @@ func (p *WindowsProbe) initEtwFIM() error {
 	}
 	// log at Warning right now because it's not expected to be enabled
 	log.Warnf("Enabling FIM processing")
-
 	etwSessionName := "SystemProbeFIM_ETW"
 	etwcomp, err := etwimpl.NewEtw()
 	if err != nil {
@@ -202,95 +256,107 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 	log.Info("Starting tracing...")
 	err := p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
-		//log.Infof("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
 			case idCreate:
-				if ca, err := parseCreateHandleArgs(e); err == nil {
-					log.Tracef("Received idCreate event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					ecb(ca, e.EventHeader.ProcessID, model.UnknownEventType)
+				if ca, err := p.parseCreateHandleArgs(e); err == nil {
+					log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					ecb(ca, e.EventHeader.ProcessID)
 				}
-
+				p.stats.fileCreate++
 			case idCreateNewFile:
-				if ca, err := parseCreateNewFileArgs(e); err == nil {
-					ecb(ca, e.EventHeader.ProcessID, model.CreateNewFileEventType)
+				if ca, err := p.parseCreateNewFileArgs(e); err == nil {
+					ecb(ca, e.EventHeader.ProcessID)
 				}
+				p.stats.fileCreateNew++
 			case idCleanup:
-				if ca, err := parseCleanupArgs(e); err == nil {
-					ecb(ca, e.EventHeader.ProcessID, model.UnknownEventType)
+				if ca, err := p.parseCleanupArgs(e); err == nil {
+					ecb(ca, e.EventHeader.ProcessID)
 				}
-
+				p.stats.fileCleanup++
 			case idClose:
-				if ca, err := parseCloseArgs(e); err == nil {
-					//fmt.Printf("Received Close event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					ecb(ca, e.EventHeader.ProcessID, model.UnknownEventType)
+				if ca, err := p.parseCloseArgs(e); err == nil {
+					//fmt.Printf("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					ecb(ca, e.EventHeader.ProcessID)
 					if e.EventHeader.EventDescriptor.ID == idClose {
-						delete(filePathResolver, ca.fileObject)
+						p.filePathResolverLock.Lock()
+						delete(p.filePathResolver, ca.fileObject)
+						p.filePathResolverLock.Unlock()
 					}
 				}
+				p.stats.fileClose++
 			case idFlush:
-				if fa, err := parseFlushArgs(e); err == nil {
-					ecb(fa, e.EventHeader.ProcessID, model.UnknownEventType)
+				if fa, err := p.parseFlushArgs(e); err == nil {
+					ecb(fa, e.EventHeader.ProcessID)
 				}
+				p.stats.fileFlush++
+
+			// cases below here are file id events we're not currently processing.
+			// for now, just count them so that we can get an idea of frequency/voluem
 			case idSetInformation:
-				fallthrough
+				p.stats.fileSetInformation++
+
 			case idSetDelete:
-				fallthrough
+				p.stats.fileSetDelete++
+
 			case idRename:
-				fallthrough
+				p.stats.fileidRename++
 			case idQueryInformation:
-				fallthrough
+				p.stats.fileidQueryInformation++
 			case idFSCTL:
-				fallthrough
+				p.stats.fileidFSCTL++
+
 			case idRename29:
-				if sia, err := parseInformationArgs(e); err == nil {
-					log.Tracef("got id %v args %s", e.EventHeader.EventDescriptor.ID, sia.string())
-				}
+				p.stats.fileidRename29++
 			}
 
 		case etw.DDGUID(p.regguid):
 			switch e.EventHeader.EventDescriptor.ID {
 			case idRegCreateKey:
-				if cka, err := parseCreateRegistryKey(e); err == nil {
-					log.Tracef("Got idRegCreateKey %s", cka.string())
-					ecb(cka, e.EventHeader.ProcessID, model.CreateRegistryKeyEventType)
+				if cka, err := p.parseCreateRegistryKey(e); err == nil {
+					log.Tracef("Got idRegCreateKey %s", cka)
+					ecb(cka, e.EventHeader.ProcessID)
 				}
+				p.stats.regCreateKey++
 			case idRegOpenKey:
-				if cka, err := parseCreateRegistryKey(e); err == nil {
-					log.Debugf("Got idRegOpenKey %s", cka.string())
-					ecb(cka, e.EventHeader.ProcessID, model.OpenRegistryKeyEventType)
+				if cka, err := p.parseOpenRegistryKey(e); err == nil {
+					log.Tracef("Got idRegOpenKey %s", cka)
+					ecb(cka, e.EventHeader.ProcessID)
 				}
-
+				p.stats.regOpenKey++
 			case idRegDeleteKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Tracef("Got idRegDeleteKey %v", dka.string())
-					ecb(dka, e.EventHeader.ProcessID, model.DeleteRegistryKeyEventType)
-
+				if dka, err := p.parseDeleteRegistryKey(e); err == nil {
+					log.Tracef("Got idRegDeleteKey %v", dka)
+					ecb(dka, e.EventHeader.ProcessID)
 				}
+				p.stats.regDeleteKey++
 			case idRegFlushKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Tracef("Got idRegFlushKey %v", dka.string())
+				if dka, err := p.parseFlushKey(e); err == nil {
+					log.Tracef("Got idRegFlushKey %v", dka)
 				}
+				p.stats.regFlushKey++
 			case idRegCloseKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Debugf("Got idRegCloseKey %s", dka.string())
-					delete(regPathResolver, dka.keyObject)
+				if dka, err := p.parseCloseKeyArgs(e); err == nil {
+					log.Tracef("Got idRegCloseKey %s", dka)
+					delete(p.regPathResolver, dka.keyObject)
 				}
+				p.stats.regCloseKey++
 			case idQuerySecurityKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
+				if dka, err := p.parseQuerySecurityKeyArgs(e); err == nil {
 					log.Tracef("Got idQuerySecurityKey %v", dka.keyName)
 				}
 			case idSetSecurityKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
+				if dka, err := p.parseSetSecurityKeyArgs(e); err == nil {
 					log.Tracef("Got idSetSecurityKey %v", dka.keyName)
 				}
 			case idRegSetValueKey:
-				if svk, err := parseSetValueKey(e); err == nil {
-					log.Tracef("Got idRegSetValueKey %s", svk.string())
-					ecb(svk, e.EventHeader.ProcessID, model.SetRegistryKeyValueEventType)
+				if svk, err := p.parseSetValueKey(e); err == nil {
+					log.Tracef("Got idRegSetValueKey %s", svk)
+					ecb(svk, e.EventHeader.ProcessID)
 
 				}
+				p.stats.regSetValueKey++
 
 			}
 		}
@@ -310,70 +376,8 @@ func (p *WindowsProbe) Start() error {
 
 		go func() {
 			defer p.fimwg.Done()
-			err := p.setupEtw(func(n interface{}, pid uint32, eventType model.EventType) {
-				// resolve process context
-				ev := p.zeroEvent()
-
-				// handle incoming events here
-				// each event will come in as a different type
-				// parse it with
-				switch eventType {
-				case model.CreateNewFileEventType:
-					cnfa := n.(*createNewFileArgs)
-					ev.Type = uint32(model.CreateNewFileEventType)
-					ev.CreateNewFile = model.CreateNewFileEvent{
-						File: model.FileEvent{
-							PathnameStr: cnfa.fileName,
-							BasenameStr: filepath.Base(cnfa.fileName),
-						},
-					}
-				case model.CreateRegistryKeyEventType:
-					cka := n.(*createKeyArgs)
-					ev.Type = uint32(model.CreateRegistryKeyEventType)
-					ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
-						Registry: model.RegistryEvent{
-							KeyPath: cka.computedFullPath,
-							KeyName: filepath.Base(cka.computedFullPath),
-						},
-					}
-				case model.OpenRegistryKeyEventType:
-					cka := n.(*createKeyArgs)
-					ev.Type = uint32(model.OpenRegistryKeyEventType)
-					ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
-						Registry: model.RegistryEvent{
-							KeyPath: cka.computedFullPath,
-							KeyName: filepath.Base(cka.computedFullPath),
-						},
-					}
-				case model.DeleteRegistryKeyEventType:
-					dka := n.(*deleteKeyArgs)
-					ev.Type = uint32(model.DeleteRegistryKeyEventType)
-					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
-						Registry: model.RegistryEvent{
-							KeyName: filepath.Base(dka.computedFullPath),
-							KeyPath: dka.computedFullPath,
-						},
-					}
-				case model.SetRegistryKeyValueEventType:
-					svka := n.(*setValueKeyArgs)
-					ev.Type = uint32(model.SetRegistryKeyValueEventType)
-					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
-						Registry: model.RegistryEvent{
-							KeyName:   filepath.Base(svka.computedFullPath),
-							KeyPath:   svka.computedFullPath,
-							ValueName: svka.valueName,
-						},
-					}
-				}
-				if ev.Type != uint32(model.UnknownEventType) {
-					errRes := p.setProcessContext(pid, ev)
-					if errRes != nil {
-						log.Debugf("%v", errRes)
-					}
-					// Dispatch event
-					p.DispatchEvent(ev)
-				}
-
+			err := p.setupEtw(func(n interface{}, pid uint32) {
+				p.onETWNotification <- etwNotification{n, pid}
 			})
 			log.Infof("Done StartTracing %v", err)
 		}()
@@ -386,8 +390,6 @@ func (p *WindowsProbe) Start() error {
 		defer p.wg.Done()
 
 		for {
-			var pce *model.ProcessCacheEntry
-			var err error
 			ev := p.zeroEvent()
 
 			select {
@@ -399,70 +401,146 @@ func (p *WindowsProbe) Start() error {
 				// subsystem can't recover from.  Need to initiate some sort of cleanup
 
 			case start := <-p.onStart:
-				pid := process.Pid(start.Pid)
-				if pid == 0 {
-					// TODO this shouldn't happen
+				if !p.handleProcessStart(ev, start) {
 					continue
 				}
-
-				log.Debugf("Received start %v", start)
-
-				// TODO
-				// handle new fields
-				// CreatingPRocessId
-				// CreatingThreadId
-				if start.RequiredSize != 0 {
-					// in this case, the command line and/or the image file might not be filled in
-					// depending upon how much space was needed.
-
-					// potential actions
-					// - just log/count the error and keep going
-					// - restart underlying procmon with larger buffer size, at least if error keeps occurring
-					log.Warnf("insufficient buffer size %v", start.RequiredSize)
-
-				}
-
-				pce, err = p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.CmdLine, start.OwnerSidString)
-				if err != nil {
-					log.Errorf("error in resolver %v", err)
-					continue
-				}
-				ev.Type = uint32(model.ExecEventType)
-				ev.Exec.Process = &pce.Process
 			case stop := <-p.onStop:
-				pid := process.Pid(stop.Pid)
-				if pid == 0 {
-					// TODO this shouldn't happen
+				if !p.handleProcessStop(ev, stop) {
 					continue
 				}
-				log.Debugf("Received stop %v", stop)
-
-				pce = p.Resolvers.ProcessResolver.GetEntry(pid)
-				p.Resolvers.ProcessResolver.AddToExitedQueue(pid)
-
-				ev.Type = uint32(model.ExitEventType)
-				if pce == nil {
-					log.Errorf("unable to resolve pid %d", pid)
+			case notif := <-p.onETWNotification:
+				if !p.handleETWNotification(ev, notif) {
 					continue
 				}
-				ev.Exit.Process = &pce.Process
 			}
-
-			if pce == nil {
-				continue
-			}
-
-			// use ProcessCacheEntry process context as process context
-			ev.ProcessCacheEntry = pce
-			ev.ProcessContext = &pce.ProcessContext
-
-			p.Resolvers.ProcessResolver.DequeueExited()
 
 			p.DispatchEvent(ev)
-
 		}
 	}()
 	return p.pm.Start()
+}
+
+func (p *WindowsProbe) handleProcessStart(ev *model.Event, start *procmon.ProcessStartNotification) bool {
+	pid := process.Pid(start.Pid)
+	if pid == 0 {
+		return false
+	}
+	p.stats.procStart++
+
+	log.Debugf("Received start %v", start)
+
+	// TODO
+	// handle new fields
+	// CreatingPRocessId
+	// CreatingThreadId
+	if start.RequiredSize != 0 {
+		// in this case, the command line and/or the image file might not be filled in
+		// depending upon how much space was needed.
+
+		// potential actions
+		// - just log/count the error and keep going
+		// - restart underlying procmon with larger buffer size, at least if error keeps occurring
+		log.Warnf("insufficient buffer size %v", start.RequiredSize)
+
+	}
+
+	pce, err := p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.CmdLine, start.OwnerSidString)
+	if err != nil {
+		log.Errorf("error in resolver %v", err)
+		return false
+	}
+	ev.Type = uint32(model.ExecEventType)
+	ev.Exec.Process = &pce.Process
+
+	// use ProcessCacheEntry process context as process context
+	ev.ProcessCacheEntry = pce
+	ev.ProcessContext = &pce.ProcessContext
+
+	p.Resolvers.ProcessResolver.DequeueExited()
+	return true
+}
+
+func (p *WindowsProbe) handleProcessStop(ev *model.Event, stop *procmon.ProcessStopNotification) bool {
+	pid := process.Pid(stop.Pid)
+	if pid == 0 {
+		// TODO this shouldn't happen
+		return false
+	}
+	log.Debugf("Received stop %v", stop)
+	p.stats.procStop++
+	pce := p.Resolvers.ProcessResolver.GetEntry(pid)
+	p.Resolvers.ProcessResolver.AddToExitedQueue(pid)
+
+	ev.Type = uint32(model.ExitEventType)
+	if pce == nil {
+		log.Errorf("unable to resolve pid %d", pid)
+		return false
+	}
+	ev.Exit.Process = &pce.Process
+	// use ProcessCacheEntry process context as process context
+	ev.ProcessCacheEntry = pce
+	ev.ProcessContext = &pce.ProcessContext
+
+	p.Resolvers.ProcessResolver.DequeueExited()
+	return true
+}
+
+func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotification) bool {
+	// handle incoming events here
+	// each event will come in as a different type
+	// parse it with
+	switch arg := notif.arg.(type) {
+	case *createNewFileArgs:
+		ev.Type = uint32(model.CreateNewFileEventType)
+		ev.CreateNewFile = model.CreateNewFileEvent{
+			File: model.FileEvent{
+				FileObject:  uint64(arg.fileObject),
+				PathnameStr: arg.fileName,
+				BasenameStr: filepath.Base(arg.fileName),
+			},
+		}
+
+	case *createKeyArgs:
+		ev.Type = uint32(model.CreateRegistryKeyEventType)
+		ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
+			Registry: model.RegistryEvent{
+				KeyPath: arg.computedFullPath,
+				KeyName: filepath.Base(arg.computedFullPath),
+			},
+		}
+	case *openKeyArgs:
+		ev.Type = uint32(model.OpenRegistryKeyEventType)
+		ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
+			Registry: model.RegistryEvent{
+				KeyPath: arg.computedFullPath,
+				KeyName: filepath.Base(arg.computedFullPath),
+			},
+		}
+	case *deleteKeyArgs:
+		ev.Type = uint32(model.DeleteRegistryKeyEventType)
+		ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
+			Registry: model.RegistryEvent{
+				KeyName: filepath.Base(arg.computedFullPath),
+				KeyPath: arg.computedFullPath,
+			},
+		}
+	case *setValueKeyArgs:
+		ev.Type = uint32(model.SetRegistryKeyValueEventType)
+		ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
+			Registry: model.RegistryEvent{
+				KeyName: filepath.Base(arg.computedFullPath),
+				KeyPath: arg.computedFullPath,
+			},
+			ValueName: arg.valueName,
+		}
+	}
+	if ev.Type != uint32(model.UnknownEventType) {
+		errRes := p.setProcessContext(notif.pid, ev)
+		if errRes != nil {
+			log.Debugf("%v", errRes)
+		}
+	}
+	return true
 }
 
 func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
@@ -514,26 +592,117 @@ func (p *WindowsProbe) Close() error {
 
 // SendStats sends statistics about the probe to Datadog
 func (p *WindowsProbe) SendStats() error {
+	p.filePathResolverLock.Lock()
+	fprLen := len(p.filePathResolver)
+	p.filePathResolverLock.Unlock()
+
+	// may need to lock here
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsProcessStart, float64(p.stats.procStart), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsProcessStop, float64(p.stats.procStop), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileCreate, float64(p.stats.fileCreate), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileCreateNew, float64(p.stats.fileCreateNew), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileCleanup, float64(p.stats.fileCleanup), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileClose, float64(p.stats.fileClose), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileFlush, float64(p.stats.fileFlush), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileSetInformation, float64(p.stats.fileSetInformation), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileSetDelete, float64(p.stats.fileSetDelete), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIDRename, float64(p.stats.fileidRename), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIDQueryInformation, float64(p.stats.fileidQueryInformation), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIDFSCTL, float64(p.stats.fileidFSCTL), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIDRename29, float64(p.stats.fileidRename29), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileCreateSkippedDiscardedPaths, float64(p.stats.fileCreateSkippedDiscardedPaths), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileCreateSkippedDiscardedBasenames, float64(p.stats.fileCreateSkippedDiscardedBasenames), nil, 1); err != nil {
+		return err
+	}
+
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegCreateKey, float64(p.stats.regCreateKey), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegOpenKey, float64(p.stats.regOpenKey), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegDeleteKey, float64(p.stats.regDeleteKey), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegFlushKey, float64(p.stats.regFlushKey), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegCloseKey, float64(p.stats.regCloseKey), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegSetValue, float64(p.stats.regSetValueKey), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfFilePathResolver, float64(fprLen), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfRegistryPathResolver, float64(len(p.regPathResolver)), nil, 1); err != nil {
+		return err
+	}
 	return nil
 }
 
 // NewWindowsProbe instantiates a new runtime security agent probe
 func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
+	discardedPaths, err := lru.New[string, struct{}](1 << 10)
+	if err != nil {
+		return nil, err
+	}
+
+	discardedBasenames, err := lru.New[string, struct{}](1 << 10)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
-		probe:        probe,
-		config:       config,
-		opts:         opts,
-		statsdClient: opts.StatsdClient,
-		ctx:          ctx,
-		cancelFnc:    cancelFnc,
-		onStart:      make(chan *procmon.ProcessStartNotification),
-		onStop:       make(chan *procmon.ProcessStopNotification),
-		onError:      make(chan bool),
+		probe:             probe,
+		config:            config,
+		opts:              opts,
+		statsdClient:      opts.StatsdClient,
+		ctx:               ctx,
+		cancelFnc:         cancelFnc,
+		onStart:           make(chan *procmon.ProcessStartNotification),
+		onStop:            make(chan *procmon.ProcessStopNotification),
+		onError:           make(chan bool),
+		onETWNotification: make(chan etwNotification),
+
+		filePathResolver: make(map[fileObjectPointer]string, 0),
+		regPathResolver:  make(map[regObjectPointer]string, 0),
+
+		discardedPaths:     discardedPaths,
+		discardedBasenames: discardedBasenames,
 	}
 
-	var err error
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)
 	if err != nil {
 		return nil, err
@@ -556,11 +725,31 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 
 // FlushDiscarders invalidates all the discarders
 func (p *WindowsProbe) FlushDiscarders() error {
+	p.discardedPaths.Purge()
+	p.discardedBasenames.Purge()
 	return nil
 }
 
 // OnNewDiscarder handles discarders
-func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
+func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field eval.Field, evalType eval.EventType) {
+	if evalType != "create" {
+		return
+	}
+
+	if field == "create.file.path" {
+		path := ev.CreateNewFile.File.PathnameStr
+		seclog.Debugf("new discarder for `%s` -> `%v`", field, path)
+		p.discardedPaths.Add(path, struct{}{})
+	} else if field == "create.file.name" {
+		basename := ev.CreateNewFile.File.BasenameStr
+		seclog.Debugf("new discarder for `%s` -> `%v`", field, basename)
+		p.discardedBasenames.Add(basename, struct{}{})
+	}
+
+	fileObject := fileObjectPointer(ev.CreateNewFile.File.FileObject)
+	p.filePathResolverLock.Lock()
+	defer p.filePathResolverLock.Unlock()
+	delete(p.filePathResolver, fileObject)
 }
 
 // NewModel returns a new Model
@@ -611,7 +800,7 @@ func (p *Probe) Origin() string {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts, _ optional.Option[workloadmeta.Component]) (*Probe, error) {
 	opts.normalize()
 
 	p := &Probe{

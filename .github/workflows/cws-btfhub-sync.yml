@@ -3,7 +3,7 @@ name: "CWS BTFHub constants sync"
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 4 * * 1-5' # at 4:30 UTC every week-day
+    - cron: '30 4 * * 5' # at 4:30 UTC on Friday
 
 jobs:
   sync:
@@ -20,18 +20,19 @@ jobs:
       - name: Checkout btfhub-archive repository
         uses: actions/checkout@v4
         with:
+          ref: no-kmod
           repository: DataDog/btfhub-archive
           path: dev/dist/archive
 
       - name: Install python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
           cache: 'pip'
       - run: pip install -r requirements.txt
 
       - name: Install go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version-file: '.go-version'
 
@@ -48,7 +49,7 @@ jobs:
         run: |
           inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive
 
-      - uses: stefanzweifel/git-auto-commit-action@v4
+      - uses: stefanzweifel/git-auto-commit-action@v5
         id: commit-creator
         with:
           commit_message: "CWS: sync BTFhub constants"

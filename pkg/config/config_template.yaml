@@ -478,16 +478,21 @@ api_key:
 #
 # azure_hostname_style: "os"
 
-## @param flare_stripped_keys - list of strings - optional
-## @env DD_FLARE_STRIPPED_KEYS - space separated list of strings - optional
-## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
-## including them in the flare.
-## Use this parameter to define additional sensitive keys that the Agent should scrub from
-## the yaml files included in the flare.
+## @param scrubber - custom object - optional
+## Configuration for scrubbing sensitive information from the Agent's logs, configuration and flares.
 #
-# flare_stripped_keys:
-#   - "sensitive_key_1"
-#   - "sensitive_key_2"
+# scrubber:
+#
+  ## @param scrubber.additional_keys - list of strings - optional
+  ## @env DD_SCRUBBER_ADDITIONAL_KEYS - space-separated list of strings - optional
+  ## By default, the Agent removes known sensitive keys from Agent and integrations YAML configs before
+  ## including them in the flare.
+  ## Use this parameter to define additional sensitive keys that the Agent should scrub from
+  ## the YAML files included in the flare.
+  #
+  # additional_keys:
+  #   - "sensitive_key_1"
+  #   - "sensitive_key_2"
 
 ## @param no_proxy_nonexact_match - boolean - optional - default: false
 ## @env DD_NO_PROXY_NONEXACT_MATCH - boolean - optional - default: false
@@ -571,6 +576,8 @@ api_key:
   ## - database_monitoring.metrics.dd_url
   ## - database_monitoring.activity.dd_url
   ## - database_monitoring.samples.dd_url
+  ## - compliance_config.endpoints.dd_url
+  ## - runtime_security_config.endpoints.dd_url
   ## - network_devices.metadata.dd_url
   #
   ## The agent will also ignore 'proxy.*' settings and environment variables related to proxy (HTTP_PROXY, HTTPS_PROXY,
@@ -734,7 +741,7 @@ api_key:
 # enable_gohai: true
 
 ## @param enable_signing_metadata_collection - boolean - optional - default: true
-## @env DD_ENABLE_SIGNING_METADATA - boolean - optional - default: true
+## @env DD_ENABLE_SIGNING_METADATA_COLLECTION - boolean - optional - default: true
 ## Enable the Linux package signing medatada collection.
 #
 # enable_signing_metadata_collection: true
@@ -1378,8 +1385,8 @@ api_key:
   # obfuscation:
   #     credit_cards:
   ##        @param DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED - boolean - optional
-  ##        Enables obfuscation rules for credit cards. Disabled by default.
-  #         enabled: false
+  ##        Enables obfuscation rules for credit cards. Enabled by default.
+  #         enabled: true
   ##        @param DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN - boolean - optional
   ##        Enables a Luhn checksum check in order to eliminate false negatives. Disabled by default.
   #         luhn: false
@@ -1387,7 +1394,7 @@ api_key:
   #     elasticsearch:
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED - boolean - optional
   ##        Enables obfuscation rules for spans of type "elasticsearch". Enabled by default.
-  #         enabled: false
+  #         enabled: true
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
   #         keep_values:
@@ -1408,7 +1415,7 @@ api_key:
   #     memcached:
   ##        @param DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional
   ##        Enables obfuscation rules for spans of type "memcached". Enabled by default.
-  #         enabled: false
+  #         enabled: true
   ##        @param DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND - boolean - optional
   ##        If enabled, the full command for the query will be kept, including any lookup
   ##        keys that could be present. The value for storage commands will still be
@@ -1418,7 +1425,7 @@ api_key:
   #     mongodb:
   ##        @param DD_APM_OBFUSCATION_MONGODB_ENABLED - boolean - optional
   ##        Enables obfuscation rules for spans of type "mongodb". Enabled by default.
-  #         enabled: false
+  #         enabled: true
   ##        @param DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
   #         keep_values:
@@ -1431,7 +1438,7 @@ api_key:
   #     redis:
   ##        @param DD_APM_OBFUSCATION_REDIS_ENABLED - boolean - optional
   ##        Enables obfuscation rules for spans of type "redis". Enabled by default.
-  #         enabled: false
+  #         enabled: true
   ##        @param DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS - boolean - optional
   ##        When true, replaces all arguments of a redis command with a single "?". Disabled by default.
   #         remove_all_args: false
@@ -1468,8 +1475,8 @@ api_key:
   #             - val1
 
   ## @param filter_tags - object - optional
-  ## @env DD_APM_FILTER_TAG_REQUIRE - object - optional
-  ## @env DD_APM_FILTER_TAG_REJECT - object - optional
+  ## @env DD_APM_FILTER_TAGS_REQUIRE - object - optional
+  ## @env DD_APM_FILTER_TAGS_REJECT - object - optional
   ## Defines rules by which to filter traces based on tags.
   ##  * require - list of key or key/value strings - traces must have those tags in order to be sent to Datadog
   ##  * reject - list of key or key/value strings - traces with these tags are dropped by the Agent
@@ -1534,12 +1541,6 @@ api_key:
   #
   # log_file: <APM_LOG_FILE_PATH>
 
-  ## @param log_throttling - boolean - default: true
-  ## @env DD_APM_LOG_THROTTLING - boolean - default: true
-  ## Limits the total number of warnings and errors to 10 for every 10 second interval.
-  #
-  # log_throttling: true
-
   ## @param connection_limit - integer - default: 2000
   ## @env DD_APM_CONNECTION_LIMIT - integer - default: 2000
   ## The APM connection limit for the Agent.
@@ -1553,12 +1554,8 @@ api_key:
   ## If enabled, a span with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed.
   ## NOTE: For stats computed from OTel traces, only top-level spans are considered when this option is off.
   ## If you are sending OTel traces and want stats on non-top-level spans, this flag will need to be enabled.
+  ## If you are sending OTel traces and do not want stats computed by span kind, you need to disable this flag and remove the "enable_otlp_compute_top_level_by_span_kind" APM feature if present.
   # compute_stats_by_span_kind: false
-
-  ## @param peer_service_aggregation - bool - default: false
-  ## @env DD_APM_PEER_SERVICE_AGGREGATION - bool - default: false
-  ## DEPRECATED - please use `peer_tags_aggregation` instead.
-  # peer_service_aggregation: false
 
   ## @param peer_tags_aggregation - bool - default: false
   ## @env DD_APM_PEER_TAGS_AGGREGATION - bool - default: false
@@ -1585,7 +1582,7 @@ api_key:
   ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
-  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache"]
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","enable_otlp_compute_top_level_by_span_kind"]
 
   ## @param additional_endpoints - object - optional
   ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
@@ -3828,10 +3825,8 @@ api_key:
 
     ## @param users - list of custom objects - optional
     ## List of SNMPv3 users that can be used to listen for traps.
-    ## NOTE: Currently the Datadog Agent only supports having a
-    ## single user in this list.
     ## Each user can contain:
-    ##  * username     - string - The username used by devices when sending Traps to the Agent.
+    ##  * user         - string - The username used by devices when sending Traps to the Agent.
     ##  * authKey      - string - (Optional) The passphrase to use with the given user and authProtocol
     ##  * authProtocol - string - (Optional) The authentication protocol to use when listening for traps from this user.
     ##                            Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512.
@@ -3842,7 +3837,7 @@ api_key:
     ##                            Defaults to DES when privKey is set.
     #
     # users:
-    # - username: <USERNAME>
+    # - user: <USERNAME>
     #   authKey: <AUTHENTICATION_KEY>
     #   authProtocol: <AUTHENTICATION_PROTOCOL>
     #   privKey: <PRIVACY_KEY>

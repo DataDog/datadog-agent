@@ -105,17 +105,17 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: baseline.log
-          path: baseline.log
+          path: baseline
       - name: Download current artifact
         uses: actions/download-artifact@v4
         with:
           name: current.log
-          path: current.log
+          path: current
 
       - name: Analyze results
         id: analyze
         run: |
-          benchstat -row /event baseline.log current.log | tee analyze.txt
+          benchstat -row /event baseline/benchmark.log current/benchmark.log | tee analyze.txt
           echo "analyze<<EOF" >> $GITHUB_OUTPUT
           cat analyze.txt >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT

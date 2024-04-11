@@ -13,13 +13,14 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -183,8 +184,11 @@ func (c *Check) Run() error {
 	// if the processor is not ready to receive the result yet. This channel should not be closed,
 	// it is sent as part of every scan request. When the main context terminates, both references will
 	// be dropped and the scanner will be garbage collected.
-	hostSbomChan := make(chan sbom.ScanResult, 1)
-	c.processor.triggerHostScan(hostSbomChan)
+	hostSbomChan := make(chan sbom.ScanResult) // default value to listen to nothing
+	if collectors.GetHostScanner() != nil && collectors.GetHostScanner().Channel() != nil {
+		hostSbomChan = collectors.GetHostScanner().Channel()
+	}
+	c.processor.triggerHostScan()
 
 	c.sendUsageMetrics()
 
@@ -205,12 +209,15 @@ func (c *Check) Run() error {
 				return nil
 			}
 			c.processor.processContainerImagesEvents(eventBundle)
+		case scanResult, ok := <-hostSbomChan:
+			if !ok {
+				return nil
+			}
+			c.processor.processHostScanResult(scanResult)
 		case <-containerPeriodicRefreshTicker.C:
 			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
 		case <-hostPeriodicRefreshTicker.C:
-			c.processor.triggerHostScan(hostSbomChan)
-		case scanResult := <-hostSbomChan:
-			c.processor.processHostScanResult(scanResult)
+			c.processor.triggerHostScan()
 		case <-metricTicker.C:
 			c.sendUsageMetrics()
 		case <-c.stopCh:
@@ -229,8 +236,8 @@ func (c *Check) sendUsageMetrics() {
 	c.sender.Commit()
 }
 
-// Stop stops the sbom check
-func (c *Check) Stop() {
+// Cancel stops the sbom check
+func (c *Check) Cancel() {
 	close(c.stopCh)
 }
 

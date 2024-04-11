@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
@@ -81,7 +83,7 @@ type Tracer struct {
 	reverseDNS         dns.ReverseDNS
 	usmMonitor         *usm.Monitor
 	ebpfTracer         connection.Tracer
-	bpfErrorsCollector *ebpftelemetry.EBPFErrorsCollector
+	bpfErrorsCollector prometheus.Collector
 	lastCheck          *atomic.Int64
 
 	bufferLock sync.Mutex
@@ -158,29 +160,20 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		}
 	}()
 
-	// pointer to embedded ebpfTelemetry struct within the bpfErrorsCollector,
-	// to avoid possible nil pointer dereference when accessing it via the bpfErrorsCollector pointer
-	var bpfTelemetry *ebpftelemetry.EBPFTelemetry
+	if tr.bpfErrorsCollector = ebpftelemetry.NewEBPFErrorsCollector(); tr.bpfErrorsCollector != nil {
+		coretelemetry.GetCompatComponent().RegisterCollector(tr.bpfErrorsCollector)
 
-	if eec := ebpftelemetry.NewEBPFErrorsCollector(); eec != nil {
-		coretelemetry.GetCompatComponent().RegisterCollector(eec)
-
-		//this is a patch for now, until ebpfTelemetry is fully encapsulated in the ebpf/telemetry pkg
-		if errorsCollector, ok := eec.(*ebpftelemetry.EBPFErrorsCollector); ok {
-			tr.bpfErrorsCollector = errorsCollector
-			bpfTelemetry = tr.bpfErrorsCollector.T
-		}
 	} else {
 		log.Debug("eBPF telemetry not supported")
 	}
 
-	tr.ebpfTracer, err = connection.NewTracer(cfg, bpfTelemetry)
+	tr.ebpfTracer, err = connection.NewTracer(cfg)
 	if err != nil {
 		return nil, err
 	}
 	coretelemetry.GetCompatComponent().RegisterCollector(tr.ebpfTracer)
 
-	tr.conntracker, err = newConntracker(cfg, bpfTelemetry)
+	tr.conntracker, err = newConntracker(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +185,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	}
 
 	tr.reverseDNS = newReverseDNS(cfg)
-	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer, bpfTelemetry)
+	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer)
 
 	if cfg.EnableProcessEventMonitoring {
 		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
@@ -220,6 +213,8 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		cfg.MaxDNSStatsBuffered,
 		cfg.MaxHTTPStatsBuffered,
 		cfg.MaxKafkaStatsBuffered,
+		cfg.EnableNPMConnectionRollup,
+		cfg.EnableProcessEventMonitoring,
 	)
 
 	return tr, nil
@@ -231,7 +226,7 @@ func (tr *Tracer) start() error {
 	err := tr.ebpfTracer.Start(tr.storeClosedConnections)
 	if err != nil {
 		tr.Stop()
-		return fmt.Errorf("could not start ebpf manager: %s", err)
+		return fmt.Errorf("could not start ebpf tracer: %s", err)
 	}
 
 	if err = tr.reverseDNS.Start(); err != nil {
@@ -242,7 +237,7 @@ func (tr *Tracer) start() error {
 	return nil
 }
 
-func newConntracker(cfg *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
@@ -259,16 +254,18 @@ func newConntracker(cfg *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetr
 			log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
 		}
 	}
-
-	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
-		return c, nil
-	}
-
-	if cfg.AllowNetlinkConntrackerFallback {
-		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
-		if c, err = netlink.NewConntracker(cfg); err == nil {
+	if cfg.EnableEbpfConntracker {
+		if c, err = NewEBPFConntracker(cfg); err == nil {
 			return c, nil
 		}
+		log.Warnf("error initializing ebpf conntracker: %s", err)
+	} else {
+		log.Info("ebpf conntracker disabled")
+	}
+
+	log.Info("falling back to netlink conntracker")
+	if c, err = netlink.NewConntracker(cfg); err == nil {
+		return c, nil
 	}
 
 	if cfg.IgnoreConntrackInitFailure {
@@ -299,6 +296,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
 	for i := range connections {
 		cs := &connections[i]
+		cs.IsClosed = true
 		if t.shouldSkipConnection(cs) {
 			connections[rejected], connections[i] = connections[i], connections[rejected]
 			rejected++
@@ -327,7 +325,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		return
 	}
 
-	c.ContainerID = nil
+	c.ContainerID.Source, c.ContainerID.Dest = nil, nil
 
 	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
 	p, ok := t.processCache.Get(c.Pid, ts.UnixNano())
@@ -354,9 +352,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	addTag("version", p.Env("DD_VERSION"))
 	addTag("service", p.Env("DD_SERVICE"))
 
-	if containerID := p.ContainerID.Get().(string); containerID != "" {
-		c.ContainerID = &containerID
-	}
+	c.ContainerID.Source = p.ContainerID
 }
 
 // Stop stops the tracer
@@ -687,6 +683,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"tracer": map[string]interface{}{
 			"last_check": t.lastCheck.Load(),
 		},
+		"universal_service_monitoring": t.usmMonitor.GetUSMStats(),
 	}, nil
 }
 
@@ -848,11 +845,11 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 	return nil, nil
 }
 
-func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *ebpftelemetry.EBPFTelemetry) *usm.Monitor {
+func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
 	// Shared with the USM program
 	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
 
-	monitor, err := usm.NewMonitor(c, connectionProtocolMap, bpfTelemetry)
+	monitor, err := usm.NewMonitor(c, connectionProtocolMap)
 	if err != nil {
 		log.Errorf("usm initialization failed: %s", err)
 		return nil

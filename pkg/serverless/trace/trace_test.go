@@ -9,12 +9,14 @@ package trace
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -160,8 +162,16 @@ func TestFilterSpanFromLambdaLibraryOrRuntimeDnsSpan(t *testing.T) {
 			"dns.address": "0.0.0.0",
 		},
 	}
+
+	dnsSpanFromXrayDaemonAddress := pb.Span{
+		Meta: map[string]string{
+			"dns.address": "169.254.79.129",
+		},
+	}
 	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&dnsSpanFromLocalhostAddress))
 	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&dnsSpanFromNonRoutableAddress))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&dnsSpanFromXrayDaemonAddress))
+
 }
 
 func TestFilterSpanFromLambdaLibraryOrRuntimeLegitimateSpan(t *testing.T) {
@@ -178,4 +188,18 @@ func TestFilterServerlessSpanFromTracer(t *testing.T) {
 		Resource: invocationSpanResource,
 	}
 	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&span))
+}
+
+func TestGetDDOriginCloudServices(t *testing.T) {
+	serviceToEnvVar := map[string]string{
+		"cloudrun":     cloudservice.ServiceNameEnvVar,
+		"appservice":   cloudservice.RunZip,
+		"containerapp": cloudservice.ContainerAppNameEnvVar,
+		"lambda":       functionNameEnvVar,
+	}
+	for service, envVar := range serviceToEnvVar {
+		t.Setenv(envVar, "myService")
+		assert.Equal(t, service, getDDOrigin())
+		os.Unsetenv(envVar)
+	}
 }

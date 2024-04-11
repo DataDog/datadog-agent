@@ -1,10 +1,12 @@
 ---
 build_dogstatsd_static-binary_x64:
   stage: binary_build
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["lint_linux-x64", "tests_deb-x64-py3", "go_deps"]
+  needs: ["lint_linux-x64", "go_deps"]
   variables:
     ARCH: amd64
   before_script:
@@ -17,10 +19,12 @@ build_dogstatsd_static-binary_x64:
 
 build_dogstatsd_static-binary_arm64:
   stage: binary_build
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["lint_linux-arm64", "tests_deb-arm64-py3", "go_deps"]
+  needs: ["lint_linux-arm64", "go_deps"]
   variables:
     ARCH: arm64
   before_script:
@@ -33,10 +37,12 @@ build_dogstatsd_static-binary_arm64:
 
 build_dogstatsd-binary_x64:
   stage: binary_build
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["lint_linux-x64", "tests_deb-x64-py3", "go_deps"]
+  needs: ["lint_linux-x64", "go_deps"]
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
@@ -47,13 +53,13 @@ build_dogstatsd-binary_x64:
 
 build_dogstatsd-binary_arm64:
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["lint_linux-arm64", "tests_deb-arm64-py3", "go_deps"]
+  needs: ["lint_linux-arm64", "go_deps"]
   variables:
     ARCH: arm64
   before_script:
@@ -67,10 +73,12 @@ build_dogstatsd-binary_arm64:
 # IoT Agent builds to make sure the build is not broken because of build flags
 build_iot_agent-binary_x64:
   stage: binary_build
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["lint_linux-x64", "tests_deb-x64-py3", "go_deps"]
+  needs: ["lint_linux-x64", "go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
@@ -80,11 +88,11 @@ build_iot_agent-binary_x64:
     - $S3_CP_CMD $CI_PROJECT_DIR/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
 
 build_iot_agent-binary_arm64:
-  rules: !reference [.on_all_builds_a7]
+  rules: !reference [.on_all_builds]
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["lint_linux-arm64", "tests_deb-arm64-py3", "go_deps"]
+  needs: ["lint_linux-arm64", "go_deps"]
   variables:
     ARCH: arm64
   before_script:
@@ -93,3 +101,37 @@ build_iot_agent-binary_arm64:
     - source /root/.bashrc
     - inv check-go-version
     - inv -e agent.build --flavor iot --major-version 7
+
+build_agentless_scanner-binary_x64:
+  stage: binary_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["lint_linux-x64", "go_deps"]
+  before_script:
+    - source /root/.bashrc
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - inv check-go-version
+    - inv -e agentless-scanner.build --major-version 7
+    - $S3_CP_CMD $CI_PROJECT_DIR/$AGENTLESS_SCANNER_BINARIES_DIR/agentless-scanner $S3_ARTIFACTS_URI/agentless-scanner/agentless-scanner
+
+build_agentless_scanner-binary_arm64:
+  stage: binary_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["lint_linux-arm64", "go_deps"]
+  variables:
+    ARCH: arm64
+  before_script:
+    - source /root/.bashrc
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - inv check-go-version
+    - inv -e agentless-scanner.build --major-version 7
+    - $S3_CP_CMD $CI_PROJECT_DIR/$AGENTLESS_SCANNER_BINARIES_DIR/agentless-scanner $S3_ARTIFACTS_URI/agentless-scanner/agentless-scanner.$ARCH

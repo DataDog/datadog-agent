@@ -6,225 +6,128 @@
 package updater
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"io"
-	"io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
+	"net/url"
+	"runtime"
 	"strings"
+
+	"github.com/google/go-containerregistry/pkg/name"
+	oci "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
+	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	archiveName                = "package.tar.gz"
-	maxArchiveSize             = 5 << 30  // 5GiB
-	maxArchiveDecompressedSize = 10 << 30 // 10GiB
+	ociLayoutArchiveName          = "oci-layout.tar"
+	ociLayoutName                 = "oci-layout"
+	ociLayoutArchiveMaxSize int64 = 1 << 30 // 1GiB
+	ociLayoutMaxSize        int64 = 1 << 30 // 1GiB
+
+	annotationPackage = "com.datadoghq.package.name"
+	annotationVersion = "com.datadoghq.package.version"
 )
+
+type downloadedPackage struct {
+	Image   oci.Image
+	Name    string
+	Version string
+}
 
 // downloader is the downloader used by the updater to download packages.
 type downloader struct {
-	client *http.Client
+	client        *http.Client
+	remoteBaseURL string
 }
 
 // newDownloader returns a new Downloader.
-func newDownloader(client *http.Client) *downloader {
+func newDownloader(client *http.Client, remoteBaseURL string) *downloader {
 	return &downloader{
-		client: client,
+		client:        client,
+		remoteBaseURL: remoteBaseURL,
 	}
 }
 
-// Download downloads the package at the given URL in temporary directory,
-// verifies its SHA256 hash and extracts it to the given destination path.
-// It currently assumes the package is a tar.gz archive.
-func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath string) error {
-	log.Debugf("Downloading package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
-
-	// Create temporary directory to download the archive
-	tmpDir, err := os.MkdirTemp("", "")
+// Download downloads the Datadog Package referenced in the given Package struct.
+func (d *downloader) Download(ctx context.Context, packageURL string) (*downloadedPackage, error) {
+	log.Debugf("Downloading package from %s", packageURL)
+	url, err := url.Parse(packageURL)
 	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
+		return nil, fmt.Errorf("could not parse package URL: %w", err)
 	}
-	defer func() {
-		err := os.RemoveAll(tmpDir)
-		if err != nil {
-			log.Errorf("could not cleanup temporary directory: %v", err)
-		}
-	}()
-
-	// Download archive
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pkg.URL, nil)
+	var image oci.Image
+	switch url.Scheme {
+	case "oci":
+		image, err = d.downloadRegistry(ctx, d.getRegistryURL(packageURL))
+	default:
+		return nil, fmt.Errorf("unsupported package URL scheme: %s", url.Scheme)
+	}
 	if err != nil {
-		return fmt.Errorf("could not create download request: %w", err)
+		return nil, fmt.Errorf("could not download package from %s: %w", packageURL, err)
 	}
-	resp, err := d.client.Do(req)
+	manifest, err := image.Manifest()
 	if err != nil {
-		return fmt.Errorf("could not download package: %w", err)
+		return nil, fmt.Errorf("could not get image manifest: %w", err)
 	}
-	defer resp.Body.Close()
-	if resp.ContentLength != pkg.Size {
-		return fmt.Errorf("invalid size for %s: expected %d, got %d", pkg.URL, pkg.Size, resp.ContentLength)
+	name, ok := manifest.Annotations[annotationPackage]
+	if !ok {
+		return nil, fmt.Errorf("package manifest is missing package annotation")
 	}
-
-	// Write archive on disk & check its hash while doing so
-	hashWriter := sha256.New()
-	reader := io.TeeReader(
-		io.LimitReader(resp.Body, maxArchiveSize),
-		hashWriter,
-	)
-	archivePath := filepath.Join(tmpDir, archiveName)
-	archiveFile, err := os.Create(archivePath)
-	if err != nil {
-		return fmt.Errorf("could not create archive file: %w", err)
+	version, ok := manifest.Annotations[annotationVersion]
+	if !ok {
+		return nil, fmt.Errorf("package manifest is missing version annotation")
 	}
-	defer archiveFile.Close()
-	_, err = io.Copy(archiveFile, reader)
-	if err != nil {
-		return fmt.Errorf("could not write archive file: %w", err)
-	}
-	sha256 := hashWriter.Sum(nil)
-	expectedHash, err := hex.DecodeString(pkg.SHA256)
-	if err != nil {
-		return fmt.Errorf("could not decode hash: %w", err)
-	}
-	if !bytes.Equal(expectedHash, sha256) {
-		return fmt.Errorf("invalid hash for %s: expected %s, got %x", pkg.URL, pkg.SHA256, sha256)
-	}
-
-	// Extract the OCI archive
-	extractedArchivePath := filepath.Join(tmpDir, "archive")
-	if err := os.Mkdir(extractedArchivePath, 0755); err != nil {
-		return fmt.Errorf("could not create archive extraction directory: %w", err)
-	}
-	extractedOCIPath := filepath.Join(tmpDir, "oci")
-	if err := os.Mkdir(extractedOCIPath, 0755); err != nil {
-		return fmt.Errorf("could not create OCI extraction directory: %w", err)
-	}
-	err = extractTarArchive(archivePath, extractedArchivePath, compressionNone)
-	if err != nil {
-		return fmt.Errorf("could not extract archive: %w", err)
-	}
-	err = extractOCI(extractedArchivePath, extractedOCIPath)
-	if err != nil {
-		return fmt.Errorf("could not extract OCI archive: %w", err)
-	}
-
-	// Only keep the package directory /opt/datadog-packages/<package-name>/<package-version>
-	// Other files and directory in the archive are ignored
-	packageDir := filepath.Join(extractedOCIPath, defaultRepositoryPath, pkg.Name, pkg.Version)
-	err = os.Rename(packageDir, destinationPath)
-	if err != nil {
-		return fmt.Errorf("could not move package directory: %w", err)
-	}
-
-	log.Debugf("Successfully downloaded package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
-	return nil
+	log.Debugf("Successfully downloaded package from %s", packageURL)
+	return &downloadedPackage{
+		Image:   image,
+		Name:    name,
+		Version: version,
+	}, nil
 }
 
-type compression int
+func (d *downloader) getRegistryURL(url string) string {
+	downloadURL := strings.TrimPrefix(url, "oci://")
+	if d.remoteBaseURL != "" {
+		remoteBaseURL := d.remoteBaseURL
+		if !strings.HasSuffix(d.remoteBaseURL, "/") {
+			remoteBaseURL += "/"
+		}
+		split := strings.Split(url, "/")
+		downloadURL = remoteBaseURL + split[len(split)-1]
+	}
+	return downloadURL
+}
 
-const (
-	compressionNone compression = iota
-	compressionGzip
-)
-
-// extractTarArchive extracts a tar archive to the given destination path
-//
-// Note on security: This function does not currently attempt to fully mitigate zip-slip attacks.
-// This is purposeful as the archive is extracted only after its SHA256 hash has been validated
-// against its reference in the package catalog. This catalog is itself sent over Remote Config
-// which guarantees its integrity.
-func extractTarArchive(archivePath string, destinationPath string, compression compression) error {
-	log.Debugf("Extracting archive %s to %s", archivePath, destinationPath)
-
-	f, err := os.Open(archivePath)
+func (d *downloader) downloadRegistry(ctx context.Context, url string) (oci.Image, error) {
+	// the image URL is parsed as a digest to ensure we use the <repository>/<image>@<digest> format
+	ref, err := name.ParseReference(url, name.StrictValidation)
 	if err != nil {
-		return fmt.Errorf("could not open archive: %w", err)
+		return nil, fmt.Errorf("could not parse ref: %w", err)
 	}
-	defer f.Close()
-
-	var r io.Reader = f
-	switch compression {
-	case compressionGzip:
-		gzr, err := gzip.NewReader(f)
-		if err != nil {
-			return fmt.Errorf("could not create gzip reader: %w", err)
-		}
-		defer gzr.Close()
-		r = gzr
+	platform := oci.Platform{
+		OS:           runtime.GOOS,
+		Architecture: runtime.GOARCH,
 	}
-
-	tr := tar.NewReader(io.LimitReader(r, maxArchiveDecompressedSize))
-	for {
-		header, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("could not read tar header: %w", err)
-		}
-		if header.Name == "./" {
+	index, err := remote.Index(ref, remote.WithContext(ctx), remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)))
+	if err != nil {
+		return nil, fmt.Errorf("could not download image: %w", err)
+	}
+	indexManifest, err := index.IndexManifest()
+	if err != nil {
+		return nil, fmt.Errorf("could not get index manifest: %w", err)
+	}
+	for _, manifest := range indexManifest.Manifests {
+		if manifest.Platform != nil && !manifest.Platform.Satisfies(platform) {
 			continue
 		}
-
-		target := filepath.Join(destinationPath, header.Name)
-
-		// Check for directory traversal. Note that this is more of a sanity check than a security measure.
-		if !strings.HasPrefix(target, filepath.Clean(destinationPath)+string(os.PathSeparator)) {
-			return fmt.Errorf("tar entry %s is trying to escape the destination directory", header.Name)
+		image, err := index.Image(manifest.Digest)
+		if err != nil {
+			return nil, fmt.Errorf("could not get image: %w", err)
 		}
-
-		// Extract element depending on its type
-		switch header.Typeflag {
-		case tar.TypeDir:
-			err = os.MkdirAll(target, 0755)
-			if err != nil {
-				return fmt.Errorf("could not create directory: %w", err)
-			}
-		case tar.TypeReg:
-			err = extractTarFile(target, tr, os.FileMode(header.Mode))
-			if err != nil {
-				return err // already wrapped
-			}
-		case tar.TypeSymlink:
-			err = os.Symlink(header.Linkname, target)
-			if err != nil {
-				return fmt.Errorf("could not create symlink: %w", err)
-			}
-		case tar.TypeLink:
-			// we currently don't support hard links in the updater
-		default:
-			log.Warnf("Unsupported tar entry type %d for %s", header.Typeflag, header.Name)
-		}
+		return image, nil
 	}
-
-	log.Debugf("Successfully extracted archive %s to %s", archivePath, destinationPath)
-	return nil
-}
-
-// extractTarFile extracts a file from a tar archive.
-// It is separated from extractTarGz to ensure `defer f.Close()` is called right after the file is written.
-func extractTarFile(targetPath string, reader io.Reader, mode fs.FileMode) error {
-	err := os.MkdirAll(filepath.Dir(targetPath), 0755)
-	if err != nil {
-		return fmt.Errorf("could not create directory: %w", err)
-	}
-	f, err := os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.FileMode(mode))
-	if err != nil {
-		return fmt.Errorf("could not create file: %w", err)
-	}
-	defer f.Close()
-
-	_, err = io.Copy(f, reader)
-	if err != nil {
-		return fmt.Errorf("could not write file: %w", err)
-	}
-	return nil
+	return nil, fmt.Errorf("no matching image found in the index")
 }

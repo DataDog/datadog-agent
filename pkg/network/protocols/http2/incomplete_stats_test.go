@@ -24,7 +24,7 @@ func TestIncompleteBuffer(t *testing.T) {
 		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
 		request := &EbpfTx{
-			Tuple: connTuple{
+			Tuple: ConnTuple{
 				Sport: 6000,
 			},
 			Stream: HTTP2Stream{
@@ -61,7 +61,7 @@ func TestIncompleteBuffer(t *testing.T) {
 		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
 		request := &EbpfTx{
-			Tuple: connTuple{
+			Tuple: ConnTuple{
 				Sport: 6000,
 			},
 			Stream: HTTP2Stream{

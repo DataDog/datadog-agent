@@ -43,7 +43,7 @@ type reverseDNSCache struct {
 
 	// maxDomainsPerIP is the maximum number of domains mapped to a single IP
 	maxDomainsPerIP   int
-	oversizedLogLimit *util.LogLimit
+	oversizedLogLimit *log.Limit
 }
 
 func newReverseDNSCache(size int, expirationPeriod time.Duration) *reverseDNSCache {
@@ -51,7 +51,7 @@ func newReverseDNSCache(size int, expirationPeriod time.Duration) *reverseDNSCac
 		data:              make(map[util.Address]*dnsCacheVal),
 		exit:              make(chan struct{}),
 		size:              size,
-		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
+		oversizedLogLimit: log.NewLogLimit(10, time.Minute*10),
 		maxDomainsPerIP:   1000,
 	}
 

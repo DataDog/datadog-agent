@@ -6,7 +6,7 @@ test_install_script:
   script:
     - source /root/.bashrc
     - set +x
-    - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_pipelines_scheduler_token --with-decryption --query "Parameter.Value" --out text)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
     - export TESTING_APT_URL=$DEB_TESTING_S3_BUCKET
     - export TESTING_YUM_URL=$RPM_TESTING_S3_BUCKET
     - export TEST_PIPELINE_ID=$CI_PIPELINE_ID
@@ -14,6 +14,8 @@ test_install_script:
       --variable TESTING_APT_URL
       --variable TESTING_YUM_URL
       --variable TEST_PIPELINE_ID"
-  needs: ["deploy_deb_testing-a6_x64", "deploy_rpm_testing-a6_x64", "deploy_deb_testing-a7_x64", "deploy_rpm_testing-a7_x64"]
+  needs: ["deploy_deb_testing-a6_x64", "deploy_rpm_testing-a6_x64", "deploy_suse_rpm_testing_x64-a6", "deploy_deb_testing-a7_x64", "deploy_rpm_testing-a7_x64", "deploy_suse_rpm_testing_x64-a7"]
   rules:
-    !reference [.on_deploy]
+    - !reference [.except_no_a6_or_no_a7]
+    - !reference [.on_deploy]
+

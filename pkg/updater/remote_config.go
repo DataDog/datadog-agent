@@ -8,16 +8,26 @@ package updater
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
+
+	"github.com/google/go-containerregistry/pkg/name"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type remoteConfigClient interface {
+	Start()
+	Close()
+	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
+	SetUpdaterPackagesState(packages []*pbgo.PackageState)
+}
+
 type remoteConfig struct {
-	client *client.Client
+	client remoteConfigClient
 }
 
 func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
@@ -33,8 +43,15 @@ func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
 	return &remoteConfig{client: client}, nil
 }
 
+func newNoopRemoteConfig() *remoteConfig {
+	return &remoteConfig{}
+}
+
 // Start starts the remote config client.
 func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRemoteAPIRequest handleRemoteAPIRequest) {
+	if rc.client == nil {
+		return
+	}
 	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate))
 	rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
 	rc.client.Start()
@@ -42,18 +59,18 @@ func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRem
 
 // Close closes the remote config client.
 func (rc *remoteConfig) Close() {
+	if rc.client == nil {
+		return
+	}
 	rc.client.Close()
 }
 
 // SetState sets the state of the given package.
-func (rc *remoteConfig) SetState(pkg string, state *repository.State) {
-	rc.client.SetUpdaterPackagesState([]*pbgo.PackageState{
-		{
-			Package:           pkg,
-			StableVersion:     state.Stable,
-			ExperimentVersion: state.Experiment,
-		},
-	})
+func (rc *remoteConfig) SetState(packages []*pbgo.PackageState) {
+	if rc.client == nil {
+		return
+	}
+	rc.client.SetUpdaterPackagesState(packages)
 }
 
 // Package represents a downloadable package.
@@ -103,6 +120,14 @@ func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate) client.Handler {
 				applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 				return
 			}
+			for _, p := range catalog.Packages {
+				err := validatePackage(p)
+				if err != nil {
+					log.Errorf("invalid package in catalog: %s", err)
+					applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+					return
+				}
+			}
 			mergedCatalog.Packages = append(mergedCatalog.Packages, catalog.Packages...)
 		}
 		err := h(mergedCatalog)
@@ -119,14 +144,42 @@ func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate) client.Handler {
 	}
 }
 
+func validatePackage(pkg Package) error {
+	if pkg.Name == "" {
+		return fmt.Errorf("package name is empty")
+	}
+	if pkg.Version == "" {
+		return fmt.Errorf("package version is empty")
+	}
+	if pkg.URL == "" {
+		return fmt.Errorf("package URL is empty")
+	}
+	url, err := url.Parse(pkg.URL)
+	if err != nil {
+		return fmt.Errorf("could not parse package URL: %w", err)
+	}
+	if url.Scheme == "oci" {
+		ociURL := strings.TrimPrefix(pkg.URL, "oci://")
+		// Check if the URL is a valid *digest* URL.
+		// We do not allow referencing images by tag when sent over RC.
+		_, err := name.NewDigest(ociURL)
+		if err != nil {
+			return fmt.Errorf("could not parse oci digest URL: %w", err)
+		}
+	}
+	return nil
+}
+
 const (
 	methodStartExperiment   = "start_experiment"
 	methodStopExperiment    = "stop_experiment"
 	methodPromoteExperiment = "promote_experiment"
+	methodBootstrap         = "bootstrap"
 )
 
 type remoteAPIRequest struct {
 	ID            string          `json:"id"`
+	Package       string          `json:"package_name"`
 	ExpectedState expectedState   `json:"expected_state"`
 	Method        string          `json:"method"`
 	Params        json.RawMessage `json:"params"`
@@ -137,7 +190,7 @@ type expectedState struct {
 	Experiment string `json:"experiment"`
 }
 
-type startExperimentParams struct {
+type taskWithVersionParams struct {
 	Version string `json:"version"`
 }
 
