@@ -228,7 +228,7 @@ func NewTracer(config *config.Config) (Tracer, error) {
 		//failedConnsHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
 	} else {
 		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
-		failedConnsHandler = ddebpf.NewPerfHandler(closedChannelSize)
+		//failedConnsHandler = ddebpf.NewPerfHandler(closedChannelSize)
 	}
 
 	var m *manager.Manager
