@@ -110,6 +110,25 @@ func testAutoVersionStats(t *testing.T, c *assert.CollectT, intake *components.F
 	}
 }
 
+func testIsTraceRootTag(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
+	t.Helper()
+	stats, err := intake.Client().GetAPMStats()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, stats)
+	t.Log("Got apm stats:", spew.Sdump(stats))
+	for _, p := range stats {
+		for _, s := range p.StatsPayload.Stats {
+			t.Log("Client Payload:", spew.Sdump(s))
+			for _, b := range s.Stats {
+				for _, cs := range b.Stats {
+					t.Logf("Got IsTraceRoot: %v", cs.GetIsTraceRoot())
+					assert.Equal(t, "true", cs.GetIsTraceRoot())
+				}
+			}
+		}
+	}
+}
+
 func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {
 	ctags, ok := tp.Tags["_dd.tags.container"]
 	if !ok {
