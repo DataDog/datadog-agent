@@ -92,10 +92,15 @@ class TestSendMessage(unittest.TestCase):
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_merge_with_get_failed_call(self, api_mock):
         repo_mock = api_mock.return_value.projects.get.return_value
-        repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
+        trace_mock = repo_mock.jobs.get.return_value.trace
         list_mock = repo_mock.pipelines.get.return_value.jobs.list
-        list_mock.side_effect = [get_fake_jobs(), [], None]
+
+        trace_mock.return_value = b"no basic auth credentials"
+        list_mock.return_value = get_fake_jobs()
+
         notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
+
+        trace_mock.assert_called()
         list_mock.assert_called()
 
     def test_post_to_channel1(self):
@@ -131,10 +136,15 @@ class TestSendStats(unittest.TestCase):
     @patch("tasks.notify.create_count", new=MagicMock())
     def test_nominal(self, api_mock):
         repo_mock = api_mock.return_value.projects.get.return_value
-        repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
+        trace_mock = repo_mock.jobs.get.return_value.trace
         list_mock = repo_mock.pipelines.get.return_value.jobs.list
-        list_mock.side_effect = [get_fake_jobs(), [], None]
+
+        trace_mock.return_value = b"E2E INTERNAL ERROR"
+        list_mock.return_value = get_fake_jobs()
+
         notify.send_stats(MockContext(), print_to_stdout=True)
+
+        trace_mock.assert_called()
         list_mock.assert_called()
 
 
@@ -142,13 +152,19 @@ class TestCheckConsistentFailures(unittest.TestCase):
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_nominal(self, api_mock):
         os.environ["CI_PIPELINE_ID"] = "456"
+
         repo_mock = api_mock.return_value.projects.get.return_value
-        repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
+        trace_mock = repo_mock.jobs.get.return_value.trace
         list_mock = repo_mock.pipelines.get.return_value.jobs.list
-        list_mock.side_effect = [get_fake_jobs(), [], None]
+
+        trace_mock.return_value = b"net/http: TLS handshake timeout"
+        list_mock.return_value = get_fake_jobs()
+
         notify.check_consistent_failures(
             MockContext(run=Result("test")), "tasks/unit-tests/testdata/job_executions.json"
         )
+
+        trace_mock.assert_called()
         list_mock.assert_called()
 
 
