@@ -129,9 +129,9 @@ require (
 	github.com/DataDog/ebpf-manager v0.5.1
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.4
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.13.3
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.13.3
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.13.3
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.14.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.14.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.14.0
 	github.com/DataDog/sketches-go v1.4.4
 	github.com/DataDog/viper v1.13.0
 	github.com/DataDog/watermarkpodautoscaler v0.6.1
@@ -710,7 +710,7 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240318112024-de26033b606a // indirect
 	github.com/DataDog/go-sqllexer v0.0.9 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.13.3 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.14.0 // indirect
 	github.com/Intevation/gval v1.3.0 // indirect
 	github.com/Intevation/jsonpath v0.2.1 // indirect
 	github.com/VividCortex/ewma v1.2.0 // indirect

@@ -7,8 +7,8 @@ github.com/DataDog/go-sqllexer v0.0.9 h1:Cx2Cu1S0hfj4coCCA8hzjM9+UNFRkcu1avIV//R
 github.com/DataDog/go-sqllexer v0.0.9/go.mod h1:nB4Ea2YNsqMwtbWMc4Fm/oP98IIrSPapqwOwPioMspY=
 github.com/DataDog/go-tuf v1.1.0-0.5.2 h1:4CagiIekonLSfL8GMHRHcHudo1fQnxELS9g4tiAupQ4=
 github.com/DataDog/go-tuf v1.1.0-0.5.2/go.mod h1:zBcq6f654iVqmkk8n2Cx81E1JnNTMOAx1UEO/wZR+P0=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.13.3 h1:hcYZMgGDMUz8Dz6PcOhgk6FF0yG4N7KErS5J3O/MpeU=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.13.3/go.mod h1:Z2FPxYhi8GIFkS4WLC7RrRaGolyB9TqS2RMSwNcmczk=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.14.0 h1:10TPqpTlIkmDPFWVIEZ4ZX3rWrCrx3rEoeoAooZr6LM=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.14.0/go.mod h1:dvIWN9pA2zWNTw5rhDWZgzZnhcfpH++d+8d1SWW6xkY=
 github.com/DataDog/viper v1.13.0 h1:XE5cJiXeXkyijwgspwZiH6iroWYLgAPXTOhcBnDBOMs=
 github.com/DataDog/viper v1.13.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/Microsoft/go-winio v0.5.0/go.mod h1:JPGBdM1cNvN/6ISo+n8V5iA4v8pBzdOpzfwIujj1a84=

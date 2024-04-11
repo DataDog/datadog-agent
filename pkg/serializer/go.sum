@@ -4,10 +4,10 @@ github.com/DataDog/agent-payload/v5 v5.0.106 h1:A3dGX+JYoL7OJe2crpxznW7hWxLxhOk/
 github.com/DataDog/agent-payload/v5 v5.0.106/go.mod h1:COngtbYYCncpIPiE5D93QlXDH/3VAKk10jDNwGHcMRE=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
-github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.13.3 h1:hnzEiqocvnt6U1QGxfeDFf5xhE77jt4LOjZAXW9ueWo=
-github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.13.3/go.mod h1:Tk2wwdBgWeSvDPtrGGyym8CdVWSuphiToGc/tRvFoNQ=
-github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.13.3 h1:9fdt/9NeSUtypPT4du2/5TTQic9nL1YqDSIaq5Ttsi4=
-github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.13.3/go.mod h1:P8Tr/1BSm0vQ0UXVOtIKmJKXCgb84jdFe9HuBKJPwkc=
+github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.14.0 h1:J0IEqkrB8BjtuDHofR8Q3J+Z8829Ja1Mlix9cyG8wJI=
+github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.14.0/go.mod h1:66XlN7QpQKqIvw8e2UbCXV5X8wGnEw851nT9BjJ75dY=
+github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.14.0 h1:QHx6B/VUx3rZQqrQNZI5BfypbhhGSRzCz05viyJEQmM=
+github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.14.0/go.mod h1:q4c7zbmdnIdSJNZuBsveTk5ZeRkSkS2g6b8zzFF1mE4=
 github.com/DataDog/sketches-go v1.4.4 h1:dF52vzXRFSPOj2IjXSWLvXq3jubL4CI69kwYjJ1w5Z8=
 github.com/DataDog/sketches-go v1.4.4/go.mod h1:XR0ns2RtEEF09mDKXiKZiQg+nfZStrq1ZuL1eezeZe0=
 github.com/DataDog/viper v1.13.0 h1:XE5cJiXeXkyijwgspwZiH6iroWYLgAPXTOhcBnDBOMs=

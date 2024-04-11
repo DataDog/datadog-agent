@@ -40,8 +40,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.13.3
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.13.3
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.14.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.14.0
 	github.com/stormcat24/protodep v0.1.8
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/component v0.97.0
