@@ -11,47 +11,47 @@ import "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transac
 
 var (
 	// V1SeriesEndpoint is a v1 endpoint used to send series
-	V1SeriesEndpoint = transaction.Endpoint{Route: "/api/v1/series", Name: "series_v1"} // works
+	V1SeriesEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v1/series", Name: "series_v1"} // works
 	// V1CheckRunsEndpoint is a v1 endpoint used to send checks results
-	V1CheckRunsEndpoint = transaction.Endpoint{Route: "/api/v1/check_run", Name: "check_run_v1"} // works
+	V1CheckRunsEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v1/check_run", Name: "check_run_v1"} // works
 	// V1IntakeEndpoint is a v1 endpoint, used by Agent v.5, still used for metadata
-	V1IntakeEndpoint = transaction.Endpoint{Route: "/intake/", Name: "intake"} // works
+	V1IntakeEndpoint = transaction.Endpoint{Subdomain: "", Route: "/intake/", Name: "intake"} // works
 	// V1SketchSeriesEndpoint is a v1 endpoint used to send sketches
-	V1SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/v1/sketches", Name: "sketches_v1"} //nolint unused for now
+	V1SketchSeriesEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v1/sketches", Name: "sketches_v1"} //nolint unused for now
 	// V1ValidateEndpoint is a v1 endpoint used to validate API keys
-	V1ValidateEndpoint = transaction.Endpoint{Route: "/api/v1/validate", Name: "validate_v1"} // works
+	V1ValidateEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v1/validate", Name: "validate_v1"} // works
 	// V1MetadataEndpoint is a v1 endpoint used for metadata (only used for inventory metadata for now)
-	V1MetadataEndpoint = transaction.Endpoint{Route: "/api/v1/metadata", Name: "metadata_v1"} // works
+	V1MetadataEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v1/metadata", Name: "metadata_v1"} // works
 
 	// SeriesEndpoint is the v2 endpoint used to send series
-	SeriesEndpoint = transaction.Endpoint{Route: "/api/v2/series", Name: "series_v2"} // works
+	SeriesEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v2/series", Name: "series_v2"} // works
 	// EventsEndpoint is the v2 endpoint used to send events
-	EventsEndpoint = transaction.Endpoint{Route: "/api/v2/events", Name: "events_v2"}
+	EventsEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v2/events", Name: "events_v2"}
 	// ServiceChecksEndpoint is the v2 endpoint used to send service checks
-	ServiceChecksEndpoint = transaction.Endpoint{Route: "/api/v2/service_checks", Name: "services_checks_v2"}
+	ServiceChecksEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v2/service_checks", Name: "services_checks_v2"}
 	// SketchSeriesEndpoint is the v2 endpoint used to send sketches
-	SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/beta/sketches", Name: "sketches_v2"} // works
+	SketchSeriesEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/beta/sketches", Name: "sketches_v2"} // works
 	// HostMetadataEndpoint is the v2 endpoint used to send host medatada
-	HostMetadataEndpoint = transaction.Endpoint{Route: "/api/v2/host_metadata", Name: "host_metadata_v2"}
+	HostMetadataEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v2/host_metadata", Name: "host_metadata_v2"}
 
 	// ProcessesEndpoint is a v1 endpoint used to send processes checks
-	ProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"} // work with processes subdomain (get 403)
+	ProcessesEndpoint = transaction.Endpoint{Subdomain: "https://process.datadoghq.com/", Route: "/api/v1/collector", Name: "process"} // work with processes subdomain (get 403)
 	// ProcessDiscoveryEndpoint is a v1 endpoint used to sends process discovery checks
-	ProcessDiscoveryEndpoint = transaction.Endpoint{Route: "/api/v1/discovery", Name: "process_discovery"} // work with processes subdomain (get 403)
+	ProcessDiscoveryEndpoint = transaction.Endpoint{Subdomain: "https://process.datadoghq.com/", Route: "/api/v1/discovery", Name: "process_discovery"} // work with processes subdomain (get 403)
 	// ProcessLifecycleEndpoint is a v2 endpoint used to send process lifecycle events
-	ProcessLifecycleEndpoint = transaction.Endpoint{Route: "/api/v2/proclcycle", Name: "process_lifecycle"} // 404 not found
+	ProcessLifecycleEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v2/proclcycle", Name: "process_lifecycle"} // 404 not found
 	// RtProcessesEndpoint is a v1 endpoint used to send real time process checks
-	RtProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "rtprocess"} // work with processes subdomain (get 403)
+	RtProcessesEndpoint = transaction.Endpoint{Subdomain: "https://process.datadoghq.com/", Route: "/api/v1/collector", Name: "rtprocess"} // work with processes subdomain (get 403)
 	// ContainerEndpoint is a v1 endpoint used to send container checks
-	ContainerEndpoint = transaction.Endpoint{Route: "/api/v1/container", Name: "container"} // work with processes subdomain (get 403)
+	ContainerEndpoint = transaction.Endpoint{Subdomain: "https://process.datadoghq.com/", Route: "/api/v1/container", Name: "container"} // work with processes subdomain (get 403)
 	// RtContainerEndpoint is a v1 endpoint used to send real time container checks
-	RtContainerEndpoint = transaction.Endpoint{Route: "/api/v1/container", Name: "rtcontainer"}
+	RtContainerEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v1/container", Name: "rtcontainer"}
 	// ConnectionsEndpoint is a v1 endpoint used to send connection checks
-	ConnectionsEndpoint = transaction.Endpoint{Route: "/api/v1/connections", Name: "connections"}
+	ConnectionsEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v1/connections", Name: "connections"}
 	// LegacyOrchestratorEndpoint is a v1 endpoint used to send orchestrator checks
-	LegacyOrchestratorEndpoint = transaction.Endpoint{Route: "/api/v1/orchestrator", Name: "orchestrator"}
+	LegacyOrchestratorEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v1/orchestrator", Name: "orchestrator"}
 	// OrchestratorEndpoint is a v2 endpoint used to send orchestrator checks
-	OrchestratorEndpoint = transaction.Endpoint{Route: "/api/v2/orch", Name: "orchestrator"}
+	OrchestratorEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v2/orch", Name: "orchestrator"}
 	// OrchestratorManifestEndpoint is a v2 endpoint used to send orchestrator manifests
-	OrchestratorManifestEndpoint = transaction.Endpoint{Route: "/api/v2/orchmanif", Name: "orchmanifest"}
+	OrchestratorManifestEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v2/orchmanif", Name: "orchmanifest"}
 )

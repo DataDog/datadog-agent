@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -46,16 +47,19 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 	}))
 	defer ts1.Close()
 
+	// Create a copy of endpointInfoTest with the correct URL
+	endpointInfoTestCopy := endpointInfo{Endpoint: transaction.Endpoint{Subdomain: ts1.URL, Route: "/api/v1/validate", Name: "validate_v1"}}
+
 	client := defaultforwarder.NewHTTPClient(config.Datadog)
 
 	// With the correct API Key, it should be a 200
-	statusCodeWithKey, responseBodyWithKey, _, errWithKey := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoTest, apiKey1)
+	statusCodeWithKey, responseBodyWithKey, _, errWithKey := sendHTTPRequestToEndpoint(context.Background(), client, endpointInfoTestCopy, apiKey1)
 	assert.NoError(t, errWithKey)
 	assert.Equal(t, statusCodeWithKey, 200)
 	assert.Equal(t, string(responseBodyWithKey), "OK")
 
 	// With the wrong API Key, it should be a 400
-	statusCode, responseBody, _, err := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoTest, apiKey2)
+	statusCode, responseBody, _, err := sendHTTPRequestToEndpoint(context.Background(), client, endpointInfoTestCopy, apiKey2)
 	assert.NoError(t, err)
 	assert.Equal(t, statusCode, 400)
 	assert.Equal(t, string(responseBody), "Bad Request")
