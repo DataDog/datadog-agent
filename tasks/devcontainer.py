@@ -9,7 +9,9 @@ from collections import OrderedDict
 from pathlib import Path
 
 from invoke import task
+from invoke.exceptions import Exit
 
+from libs.common.color import color_message
 from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
 
@@ -154,12 +156,12 @@ def start(ctx, path="."):
     Start the devcontainer
     """
     if not file().exists():
-        print("No devcontainer settings found.  Run `invoke devcontainer.setup` first.")
-        exit(1)
+        print(color_message("No devcontainer settings found.  Run `invoke devcontainer.setup` first.", "red"))
+        raise Exit(code=1)
 
     if not is_installed(ctx):
-        print("Devcontainer CLI is not installed.  Run `invoke install-devcontainer-cli` first.")
-        exit(1)
+        print(color_message("Devcontainer CLI is not installed.  Run `invoke install-devcontainer-cli` first.", "red"))
+        raise Exit(code=1)
 
     ctx.run(f"devcontainer up --workspace-folder {path}")
 
@@ -170,12 +172,12 @@ def stop(ctx):
     Stop the running devcontainer
     """
     if not file().exists():
-        print("No devcontainer settings found.  Run `inv devcontainer.setup` first and start it.")
-        exit(1)
+        print(color_message("No devcontainer settings found. Run `inv devcontainer.setup` first and start it.", "red"))
+        raise Exit(code=1)
 
     if not is_up(ctx):
-        print("Devcontainer is not running.")
-        exit(1)
+        print(color_message("Devcontainer is not running.", "red"))
+        raise Exit(code=1)
 
     ctx.run(f"docker kill {DEVCONTAINER_NAME}")
 

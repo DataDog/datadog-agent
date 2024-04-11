@@ -5,6 +5,7 @@ Helpers for getting vscode set up nicely
 """
 from invoke import task
 
+from libs.common.color import color_message
 from tasks.flavor import AgentFlavor
 
 
@@ -22,7 +23,8 @@ def set_buildtags(
     """
     from tasks.devcontainer import set_buildtags
 
-    print('This command is deprecated, please use `devcontainer.set_buildtags` instead')
+    print(color_message('This command is deprecated, please use `devcontainer.set_buildtags` instead', "orange"))
+    print("Running `devcontainer.set_buildtags`...")
     set_buildtags(
         _,
         target=target,
@@ -48,7 +50,8 @@ def setup_devcontainer(
     """
     from tasks.devcontainer import setup
 
-    print('This command is deprecated, please use `devcontainer.setup` instead')
+    print(color_message('This command is deprecated, please use `devcontainer.setup` instead', "orange"))
+    print("Running `devcontainer.set_buildtags`...")
     setup(
         _,
         target=target,
