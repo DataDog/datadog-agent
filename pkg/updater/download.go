@@ -51,7 +51,7 @@ type downloader struct {
 // newDownloader returns a new Downloader.
 func newDownloader(config config.Reader, client *http.Client, remoteBaseURL string) *downloader {
 	var keychain authn.Keychain
-	switch config.GetString("updater.registry.auth") {
+	switch config.GetString("updater.registry_auth") {
 	case "gcr":
 		keychain = google.Keychain
 	case "ecr":
