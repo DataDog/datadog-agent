@@ -46,26 +46,19 @@ build do
 
     # Packages
     mkdir "/opt/datadog-packages"
-
     copy 'bin/installer', "#{install_dir}/bin/"
 
-    # Add installer units
-    systemdPath = "/lib/systemd/system/"
-    if not debian_target?
-      mkdir "/usr/lib/systemd/system/"
-      systemdPath = "/usr/lib/systemd/system/"
-    end
+    systemdPath = "#{install_dir}/systemd/"
     erb source: "datadog-installer.service.erb",
        dest: systemdPath + "datadog-installer.service",
        mode: 0644,
-       vars: { install_dir: "/opt/datadog-packages/datadog-updater/stable", etc_dir: etc_dir}
+       vars: { installer_dir: "/opt/datadog-packages/datadog-installer/stable", etc_dir: etc_dir}
 
     erb source: "datadog-installer-exp.service.erb",
        dest: systemdPath + "datadog-installer-exp.service",
        mode: 0644,
-       vars: { install_dir: "/opt/datadog-packages/datadog-updater/experiment", etc_dir: etc_dir}
+       vars: { installer_dir: "/opt/datadog-packages/datadog-installer/experiment", etc_dir: etc_dir}
 
-    systemdPath = "#{install_dir}/systemd/"
     # Add stable agent units
     templateToFile = {
       "datadog-agent.service.erb" => "datadog-agent.service",

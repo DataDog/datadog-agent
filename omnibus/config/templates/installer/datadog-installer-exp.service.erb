@@ -7,12 +7,12 @@ JobTimeoutSec=3000 #50 minutes
 
 [Service]
 Type=oneshot
-PIDFile=<%= install_dir %>/run/installer.pid
+PIDFile=<%= installer_dir %>/run/installer.pid
 User=dd-installer
 EnvironmentFile=-<%= etc_dir %>/environment
-ExecStart=<%= install_dir %>/bin/installer/installer run -p <%= install_dir %>/run/installer.pid
-ExecStart=<%= install_dir %>/bin/installer/installer run -p <%= install_dir %>/run/installer.pid
-ExecStart=<%= install_dir %>/bin/installer/installer run -p <%= install_dir %>/run/installer.pid
+ExecStart=<%= installer_dir %>/bin/installer/installer run -p <%= installer_dir %>/run/installer.pid
+ExecStart=<%= installer_dir %>/bin/installer/installer run -p <%= installer_dir %>/run/installer.pid
+ExecStart=<%= installer_dir %>/bin/installer/installer run -p <%= installer_dir %>/run/installer.pid
 ExecStart=/bin/false
 ExecStop=/bin/false
 
