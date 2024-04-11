@@ -74,7 +74,7 @@ func checkHelperPath(path string) (err error) {
 	if version == "stable" || version == "experiment" {
 		return fmt.Errorf("installer-helper should be a concrete version")
 	}
-	if helperPath != "bin/installer/installer-helper" {
+	if helperPath != "bin/installer/helper" {
 		return fmt.Errorf("installer-helper not a the expected path")
 	}
 	info, err := os.Stat(path)
