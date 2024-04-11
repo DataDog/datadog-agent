@@ -56,13 +56,13 @@ func installDocker(distro os.Descriptor, t *testing.T, host *components.RemoteHo
 }
 
 // launchJavaDockerContainer launches a small Java HTTP server in a docker container
+// and make a call to it
 func launchJavaDockerContainer(t *testing.T, host *components.RemoteHost) {
 	host.MustExecute(`sudo docker run -d -p8887:8888 baptistefoy702/message-server:latest`)
 	assert.Eventually(t,
 		func() bool {
-			_, err := host.Execute(`curl -m 1 localhost:8887/messages`) // Generate a trace
+			_, err := host.Execute(`curl -m 1 localhost:8887/messages`)
 			return err == nil
 		}, 10*time.Second, 100*time.Millisecond,
 	)
-
 }

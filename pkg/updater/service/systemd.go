@@ -34,7 +34,7 @@ const (
 	addInstallerToAgentGroup unitCommand = "add-installer-to-agent-group"
 	backupCommand            unitCommand = `backup-file`
 	restoreCommand           unitCommand = `restore-file`
-	reloadDockerCommand                  = `{"command":"reload-docker"}`
+	restartDockerCommand                 = `{"command":"restart-docker"}`
 	setupLdPreloadCommand                = `{"command":"setup-ldpreload"}`
 	removeLdPreloadCommand               = `{"command":"remove-ldpreload"}`
 	systemdReloadCommand                 = `{"command":"systemd-reload"}`

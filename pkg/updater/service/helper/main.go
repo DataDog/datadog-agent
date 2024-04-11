@@ -8,6 +8,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -73,8 +74,8 @@ func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("/bin/sh", "-c", "echo /opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so >> /etc/ld.so.preload"), nil
 	case "remove-ldpreload":
 		return exec.Command("/bin/sh", "-c", "sed -ze 's/\\/opt\\/datadog-packages\\/datadog-apm-inject\\/stable\\/inject\\/launcher.preload.so\\n//g' /etc/ld.so.preload > /etc/ld.so.preload.tmp && mv /etc/ld.so.preload.tmp /etc/ld.so.preload"), nil
-	case "reload-docker":
-		return exec.Command("systemctl", "reload", "docker"), nil
+	case "restart-docker":
+		return exec.Command("systemctl", "restart", "docker"), nil
 	case "add-installer-to-agent-group":
 		return exec.Command("usermod", "-aG", "dd-agent", "dd-installer"), nil
 	case "restart-agents":
@@ -123,9 +124,9 @@ func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 	case "link-docker-daemon":
 		return exec.Command("ln", "-sf", path, "/etc/docker/daemon.json"), nil
 	case "cleanup-docker-daemon":
-		return exec.Command("cp", path, "/etc/docker/daemon.json"), nil
+		return exec.Command("cp", "-f", path, "/etc/docker/daemon.json"), nil
 	case "backup-file":
-		return exec.Command("cp", path, path+".bak"), nil
+		return exec.Command("cp", "-f", path, path+".bak"), nil
 	case "restore-file":
 		return exec.Command("mv", path+".bak", path), nil
 	default:
@@ -171,8 +172,14 @@ func executeCommand() error {
 		}()
 	}
 
+	commandErr := new(bytes.Buffer)
+	command.Stderr = commandErr
 	log.Printf("Running command: %s", command.String())
-	return command.Run()
+	err = command.Run()
+	if err != nil {
+		return fmt.Errorf("running command (%s): %s", err.Error(), commandErr.String())
+	}
+	return nil
 }
 
 func main() {

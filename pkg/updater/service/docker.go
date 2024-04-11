@@ -115,5 +115,5 @@ func cleanupDockerDaemon(path string) error {
 
 // reloadDocker reloads the docker daemon
 func reloadDocker() error {
-	return executeCommand(reloadDockerCommand)
+	return executeCommand(restartDockerCommand)
 }

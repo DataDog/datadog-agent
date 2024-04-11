@@ -202,7 +202,11 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 		host.Execute(`sudo docker ps -aq | xargs sudo docker stop | xargs sudo docker rm`)
 	}()
 	// setup to make sure we backup the file later on
-	host.MustExecute("echo 1 | sudo tee /etc/docker/daemon.json")
+	host.WriteFile("/etc/docker/daemon.json", []byte(`1`))
+
+	// write non empty api_key to datadog.yaml
+	// TODO: remove with next revision of test-infra-definitions
+	host.WriteFile("/etc/datadog-agent/datadog.yaml", []byte(`api_key: 000000000000`))
 
 	/////////////////////////
 	// Check initial state //
@@ -259,6 +263,15 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	require.Nil(v.T(), err)
 	require.True(v.T(), strings.Contains(string(raw), "# BEGIN LD PRELOAD CONFIG"), "missing LD_PRELOAD config, config:\n%s", string(raw))
 
+	// assert agent is running
+	host.MustExecute("sudo systemctl status datadog-agent.service")
+
+	// TODO: remove agent config read, it is here for debug purposes
+	content, err := host.ReadFile("/etc/datadog-agent/datadog.yaml")
+	require.Nil(v.T(), err)
+	_, err = host.Execute("sudo systemctl status datadog-agent-trace.service")
+	require.Nil(v.T(), err, "trace agent should be running, content of datadog.yaml are\n%s", content)
+
 	// assert required files exist
 	requiredFiles := []string{
 		"auto_inject_runc",
@@ -288,7 +301,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	require.Eventually(v.T(), func() bool {
 		_, err := host.Execute(`cat /var/log/datadog/trace-agent.log | grep "Flushed traces to the API"`)
 		return err == nil
-	}, 10*time.Second, 100*time.Millisecond)
+	}, 10*time.Second, 100*time.Millisecond, "expected trace-agent to flush traces to the API, result of method:\n%s", host.MustExecute(`cat /var/log/datadog/trace-agent.log`)) // TODO remove message
 
 	///////////////////////
 	// Check purge state //
