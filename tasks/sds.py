@@ -16,7 +16,7 @@ def build_library(ctx):
     Build the SDS shared library
     """
     if is_windows:
-        print("not supported")
+        print("Not building the SDS library: unsupported on Windows.", file=sys.stderr)
         return
     with tempfile.TemporaryDirectory() as temp_dir:
         with ctx.cd(temp_dir):
