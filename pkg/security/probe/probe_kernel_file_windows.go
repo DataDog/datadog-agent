@@ -7,7 +7,9 @@
 package probe
 
 import (
+	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -40,6 +42,10 @@ const (
 )
 
 type fileObjectPointer uint64
+
+var (
+	errDiscardedPath = errors.New("discarded path")
+)
 
 /*
 		<template tid="CreateArgs">
@@ -152,17 +158,21 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	if ca.fileName != "" {
-		wp.filePathResolverLock.Lock()
-		defer wp.filePathResolverLock.Unlock()
-
-		if _, ok := wp.filePathResolver[ca.fileObject]; ok {
-			wp.stats.filePathOverwrites++
-		} else {
-			wp.stats.filePathNewWrites++
-		}
-		wp.filePathResolver[ca.fileObject] = ca.fileName
+	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
+		wp.stats.fileCreateSkippedDiscardedPaths++
+		return nil, errDiscardedPath
 	}
+
+	// not amazing to double compute the basename..
+	basename := filepath.Base(ca.fileName)
+	if _, ok := wp.discardedBasenames.Get(basename); ok {
+		wp.stats.fileCreateSkippedDiscardedBasenames++
+		return nil, errDiscardedPath
+	}
+
+	wp.filePathResolverLock.Lock()
+	defer wp.filePathResolverLock.Unlock()
+	wp.filePathResolver[ca.fileObject] = ca.fileName
 
 	return ca, nil
 }

@@ -478,16 +478,21 @@ api_key:
 #
 # azure_hostname_style: "os"
 
-## @param flare_stripped_keys - list of strings - optional
-## @env DD_FLARE_STRIPPED_KEYS - space separated list of strings - optional
-## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
-## including them in the flare.
-## Use this parameter to define additional sensitive keys that the Agent should scrub from
-## the yaml files included in the flare.
+## @param scrubber - custom object - optional
+## Configuration for scrubbing sensitive information from the Agent's logs, configuration and flares.
 #
-# flare_stripped_keys:
-#   - "sensitive_key_1"
-#   - "sensitive_key_2"
+# scrubber:
+#
+  ## @param scrubber.additional_keys - list of strings - optional
+  ## @env DD_SCRUBBER_ADDITIONAL_KEYS - space-separated list of strings - optional
+  ## By default, the Agent removes known sensitive keys from Agent and integrations YAML configs before
+  ## including them in the flare.
+  ## Use this parameter to define additional sensitive keys that the Agent should scrub from
+  ## the YAML files included in the flare.
+  #
+  # additional_keys:
+  #   - "sensitive_key_1"
+  #   - "sensitive_key_2"
 
 ## @param no_proxy_nonexact_match - boolean - optional - default: false
 ## @env DD_NO_PROXY_NONEXACT_MATCH - boolean - optional - default: false

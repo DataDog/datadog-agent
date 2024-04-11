@@ -109,3 +109,11 @@ repos:
       require_serial: true
       files: (\.yaml|\.yml|\.sh|Dockerfile)$
       pass_filenames: false
+    - id: gitlab-configuration
+      name: gitlab-configuration
+      description: test the gitlab configuration on main
+      entry: 'inv linter.gitlab-ci -t main'
+      language: system
+      require_serial: true
+      files: .*gitlab.*\.yml$
+      pass_filenames: false

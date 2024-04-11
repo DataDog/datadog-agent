@@ -3,14 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build python
+package probe
 
-package gui
-
-import (
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
-)
-
-func getPythonChecks() ([]string, error) {
-	return python.GetPythonIntegrationList()
+func init() {
+	SupportedDiscarders["create.file.path"] = true
+	SupportedDiscarders["create.file.name"] = true
 }
