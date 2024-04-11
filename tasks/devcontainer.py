@@ -10,8 +10,8 @@ from pathlib import Path
 
 from invoke import task
 from invoke.exceptions import Exit
-
 from libs.common.color import color_message
+
 from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
 
@@ -114,7 +114,13 @@ def setup(
         }
         if devcontainer.get("image"):
             del devcontainer["image"]
-    devcontainer["runArgs"] = ["--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined"]
+    devcontainer["runArgs"] = [
+        "--cap-add=SYS_PTRACE",
+        "--security-opt",
+        "seccomp=unconfined",
+        "--name",
+        "datadog_agent_devcontainer",
+    ]
     devcontainer["remoteUser"] = "datadog"
     devcontainer["mounts"] = ["source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind,consistency=cached"]
     devcontainer["customizations"] = {

@@ -4,8 +4,8 @@ vscode namespaced tags
 Helpers for getting vscode set up nicely
 """
 from invoke import task
-
 from libs.common.color import color_message
+
 from tasks.flavor import AgentFlavor
 
 
