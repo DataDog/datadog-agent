@@ -22,10 +22,11 @@ import (
 )
 
 var (
-	installPath string
-	systemdPath = "/lib/systemd/system" // todo load it at build time from omnibus
-	pkgDir      = "/opt/datadog-packages"
-	testSkipUID = ""
+	installPath   string
+	systemdPath   = "/lib/systemd/system" // todo load it at build time from omnibus
+	pkgDir        = "/opt/datadog-packages/"
+	testSkipUID   = ""
+	installerUser = "dd-installer"
 )
 
 func enforceUID() bool {
@@ -36,7 +37,6 @@ type privilegeCommand struct {
 	Command string `json:"command,omitempty"`
 	Unit    string `json:"unit,omitempty"`
 	Path    string `json:"path,omitempty"`
-	Target  string `json:"target,omitempty"`
 }
 
 func isValidUnitChar(c rune) bool {
@@ -52,37 +52,55 @@ func isValidUnitString(s string) bool {
 	return true
 }
 
-func buildHelperPath(target string) (path string, err error) {
-	updaterHelperPath := filepath.Join(pkgDir, "updater", target, "bin/updater/updater-helper")
-	info, err := os.Stat(updaterHelperPath)
+func splitPathPrefix(path string) (first string, rest string) {
+	for i := 0; i < len(path); i++ {
+		if os.IsPathSeparator(path[i]) {
+			return path[:i], path[i+1:]
+		}
+	}
+	return first, rest
+}
+
+func checkHelperPath(path string) (err error) {
+	target, found := strings.CutPrefix(path, pkgDir)
+	if !found {
+		return fmt.Errorf("installer-helper should be in packages directory")
+	}
+	helperPackage, rest := splitPathPrefix(target)
+	if helperPackage != "datadog-installer" {
+		return fmt.Errorf("installer-helper should be in datadog-installer package")
+	}
+	version, helperPath := splitPathPrefix(rest)
+	if version == "stable" || version == "experiment" {
+		return fmt.Errorf("installer-helper should be a concrete version")
+	}
+	if helperPath != "bin/installer/installer-helper" {
+		return fmt.Errorf("installer-helper not a the expected path")
+	}
+	info, err := os.Stat(path)
 	if err != nil {
-		return "", err
+		return err
 	}
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok {
-		return "", fmt.Errorf("couldn't get update helper stats: %w", err)
+		return fmt.Errorf("couldn't get update helper stats: %w", err)
 	}
-	ddUpdaterUser, err := user.Lookup("dd-updater")
+	ddUpdaterUser, err := user.Lookup(installerUser)
 	if err != nil {
-		return "", fmt.Errorf("failed to lookup dd-agent user: %s", err)
+		return fmt.Errorf("failed to lookup dd-installer user: %w", err)
 	}
 	if ddUpdaterUser.Uid != strconv.Itoa(int(stat.Uid)) {
-		return "", fmt.Errorf("updater-helper should be owned by dd-agent")
+		return fmt.Errorf("installer-helper should be owned by dd-installer")
 	}
-
 	if stat.Mode != 750 {
-		return "", fmt.Errorf("updater-helper should only be executable by the user")
+		return fmt.Errorf("installer-helper should only be executable by the user")
 	}
-	return updaterHelperPath, nil
+	return nil
 }
 
 func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 	if inputCommand.Unit != "" {
 		return buildUnitCommand(inputCommand)
-	}
-
-	if inputCommand.Target != "" {
-
 	}
 
 	if inputCommand.Path != "" {
@@ -136,20 +154,12 @@ func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("chown", "-R", "dd-agent:dd-agent", path), nil
 	case "rm":
 		return exec.Command("rm", "-rf", path), nil
-	default:
-		return nil, fmt.Errorf("invalid command")
-	}
-}
-
-func buildTargetCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
-	target := inputCommand.Target
-	switch inputCommand.Command {
 	case "setcap cap_setuid+ep":
-		helperPath, err := buildHelperPath(target)
+		err := checkHelperPath(path)
 		if err != nil {
 			return nil, err
 		}
-		return exec.Command("setcap", "cap_setuid+ep", helperPath), nil
+		return exec.Command("setcap", "cap_setuid+ep", path), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}
@@ -175,7 +185,7 @@ func executeCommand() error {
 
 	// only root or dd-installer can execute this command
 	if currentUser != 0 && enforceUID() {
-		ddUpdaterUser, err := user.Lookup("dd-installer")
+		ddUpdaterUser, err := user.Lookup(installerUser)
 		if err != nil {
 			return fmt.Errorf("failed to lookup dd-installer user: %s", err)
 		}
