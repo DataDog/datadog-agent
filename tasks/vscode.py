@@ -51,7 +51,7 @@ def setup_devcontainer(
     from tasks.devcontainer import setup
 
     print(color_message('This command is deprecated, please use `devcontainer.setup` instead', "orange"))
-    print("Running `devcontainer.set_buildtags`...")
+    print("Running `devcontainer.setup`...")
     setup(
         _,
         target=target,
