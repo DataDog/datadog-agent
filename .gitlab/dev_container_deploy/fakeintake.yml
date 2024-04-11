@@ -4,7 +4,7 @@ publish_fakeintake:
   stage: dev_container_deploy
   rules:
     - !reference [.except_mergequeue]
-    - !reference [.on_fakeintake_changes]
+    - !reference [.on_fakeintake_changes_on_main_or_manual]
   needs:
     - job: docker_build_fakeintake
       optional: false
