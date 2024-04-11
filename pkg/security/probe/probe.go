@@ -161,9 +161,7 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 
 // HandleActions executes the actions of a triggered rule
 func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
-	ctx := &eval.Context{
-		Event: event.(*model.Event),
-	}
+	ctx := eval.NewContext(event.(*model.Event))
 
 	p.PlatformProbe.HandleActions(ctx, rule)
 }
@@ -241,8 +239,10 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 	}
 
 	// send specific event
-	for _, handler := range p.customEventHandlers[event.GetEventType()] {
-		handler.HandleCustomEvent(rule, event)
+	if event.GetEventType() != model.UnknownEventType {
+		for _, handler := range p.customEventHandlers[event.GetEventType()] {
+			handler.HandleCustomEvent(rule, event)
+		}
 	}
 }
 
@@ -258,7 +258,7 @@ func (p *Probe) GetEventTags(containerID string) []string {
 
 // GetService returns the service name from the process tree
 func (p *Probe) GetService(ev *model.Event) string {
-	if service := ev.FieldHandlers.GetProcessService(ev); service != "" {
+	if service := ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent); service != "" {
 		return service
 	}
 	return p.Config.RuntimeSecurity.HostServiceName

@@ -174,7 +174,11 @@ func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 	// assert that the other connections sharing the same (source,destination)
 	// addresses but different PIDs *won't* be associated with the Kafka stats
 	// object
-	assert.Nil(encoder.GetKafkaAggregations(in.Conns[1]))
+	streamer := NewProtoTestStreamer[*model.Connection]()
+	encoder.WriteKafkaAggregations(in.Conns[1], model.NewConnectionBuilder(streamer))
+	var conn model.Connection
+	streamer.Unwrap(t, &conn)
+	assert.Empty(conn.DataStreamsAggregations)
 }
 
 func (s *KafkaSuite) TestKafkaLocalhostScenario() {
@@ -231,14 +235,17 @@ func (s *KafkaSuite) TestKafkaLocalhostScenario() {
 }
 
 func getKafkaAggregations(t *testing.T, encoder *kafkaEncoder, c network.ConnectionStats) *model.DataStreamsAggregations {
-	kafkaBlob := encoder.GetKafkaAggregations(c)
-	require.NotNil(t, kafkaBlob)
+	streamer := NewProtoTestStreamer[*model.Connection]()
+	encoder.WriteKafkaAggregations(c, model.NewConnectionBuilder(streamer))
 
-	aggregations := new(model.DataStreamsAggregations)
-	err := proto.Unmarshal(kafkaBlob, aggregations)
+	var conn model.Connection
+	streamer.Unwrap(t, &conn)
+
+	var aggregations model.DataStreamsAggregations
+	err := proto.Unmarshal(conn.DataStreamsAggregations, &aggregations)
 	require.NoError(t, err)
 
-	return aggregations
+	return &aggregations
 }
 
 func generateBenchMarkPayloadKafka(entries uint16) network.Connections {
@@ -275,12 +282,15 @@ func generateBenchMarkPayloadKafka(entries uint16) network.Connections {
 
 func commonBenchmarkKafkaEncoder(b *testing.B, entries uint16) {
 	payload := generateBenchMarkPayloadKafka(entries)
+	streamer := NewProtoTestStreamer[*model.Connection]()
+	a := model.NewConnectionBuilder(streamer)
 	b.ResetTimer()
 	b.ReportAllocs()
 	var h *kafkaEncoder
 	for i := 0; i < b.N; i++ {
 		h = newKafkaEncoder(payload.Kafka)
-		h.GetKafkaAggregations(payload.Conns[0])
+		streamer.Reset()
+		h.WriteKafkaAggregations(payload.Conns[0], a)
 		h.Close()
 	}
 }

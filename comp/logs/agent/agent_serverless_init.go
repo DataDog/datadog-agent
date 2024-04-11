@@ -8,6 +8,7 @@
 package agent
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Note: Building the logs-agent for serverless separately removes the
@@ -29,6 +31,7 @@ import (
 // It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
 func (a *agent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
+	_ optional.Option[workloadmeta.Component],
 ) {
 	health := health.RegisterLiveness("logs-agent")
 
@@ -39,7 +42,7 @@ func (a *agent) SetupPipeline(
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, a.auditor, processingRules, a.endpoints, destinationsCtx, a.hostname)
+	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, a.auditor, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
 
 	// setup the sole launcher for this agent
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)

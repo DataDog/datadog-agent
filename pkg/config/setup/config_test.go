@@ -16,13 +16,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -443,6 +444,109 @@ func TestProxy(t *testing.T) {
 	}
 }
 
+func TestDatabaseMonitoringAurora(t *testing.T) {
+	testCases := []struct {
+		name  string
+		setup func(t *testing.T, config pkgconfigmodel.Config)
+		tests func(t *testing.T, config pkgconfigmodel.Config)
+	}{
+		{
+			name:  "auto discovery is disabled by default",
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {},
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
+				assert.False(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
+			},
+		},
+		{
+			name: "default auto discovery configuration is enabled from DD env vars",
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_ENABLED", "true")
+			},
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
+				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
+				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 300)
+				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
+				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
+			},
+		},
+		{
+			name: "auto discovery query timeout and discovery interval are set from DD env vars",
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_ENABLED", "true")
+				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_DISCOVERY_INTERVAL", "15")
+				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_QUERY_TIMEOUT", "1")
+			},
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
+				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
+				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 15)
+				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 1)
+				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
+			},
+		},
+		{
+			name: "auto discovery tag configuration set through DD env vars",
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_ENABLED", "true")
+				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_TAGS", "foo:bar other:tag")
+			},
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
+				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
+				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 300)
+				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
+				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"foo:bar", "other:tag"})
+			},
+		},
+		{
+			name: "default auto discovery is enabled from configuration",
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.enabled", true)
+			},
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
+				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
+				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 300)
+				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
+				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
+			},
+		},
+		{
+			name: "auto discovery interval and tags are set from configuration",
+			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.enabled", true)
+				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.discovery_interval", 10)
+				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.query_timeout", 4)
+				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.tags", []string{"foo:bar"})
+			},
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
+				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
+				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 10)
+				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 4)
+				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"foo:bar"})
+			},
+		},
+	}
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			config := Conf()
+
+			path := t.TempDir()
+			configPath := filepath.Join(path, "empty_conf.yaml")
+			os.WriteFile(configPath, nil, 0600)
+			config.SetConfigFile(configPath)
+
+			resolver := secretsimpl.NewMock()
+			if c.setup != nil {
+				c.setup(t, config)
+			}
+
+			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			require.NoError(t, err)
+
+			c.tests(t, config)
+		})
+	}
+
+}
+
 func TestSanitizeAPIKeyConfig(t *testing.T) {
 	config := Conf()
 
@@ -672,7 +776,7 @@ logs_config:
 	config := ConfFromYAML(datadogYaml)
 	err := checkConflictingOptions(config)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestSetupFipsEndpoints(t *testing.T) {
@@ -852,26 +956,6 @@ fips:
 	require.Error(t, err)
 }
 
-func TestEnablePeerServiceStatsAggregationYAML(t *testing.T) {
-	datadogYaml := `
-apm_config:
-  peer_service_aggregation: true
-`
-	testConfig := ConfFromYAML(datadogYaml)
-	err := setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
-	require.True(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
-
-	datadogYaml = `
-apm_config:
-  peer_service_aggregation: false
-`
-	testConfig = ConfFromYAML(datadogYaml)
-	err = setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
-	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
-}
-
 func TestEnablePeerTagsAggregationYAML(t *testing.T) {
 	datadogYaml := `
 apm_config:
@@ -890,15 +974,6 @@ apm_config:
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
-}
-
-func TestEnablePeerServiceStatsAggregationEnv(t *testing.T) {
-	t.Setenv("DD_APM_PEER_SERVICE_AGGREGATION", "true")
-	testConfig := ConfFromYAML("")
-	require.True(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
-	t.Setenv("DD_APM_PEER_SERVICE_AGGREGATION", "false")
-	testConfig = ConfFromYAML("")
-	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
 }
 
 func TestEnablePeerTagsAggregationEnv(t *testing.T) {

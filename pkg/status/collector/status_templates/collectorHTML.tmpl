@@ -1,3 +1,37 @@
+{{- define "longRunningCheckStats" -}}
+              Instance ID: {{.CheckID}} {{status .}}<br>
+              Long Running Check: true<br>
+              Total Metrics Samples: {{humanize .TotalMetricSamples}}<br>
+              Total Events: {{humanize .TotalEvents}}<br>
+              {{- range $k, $v := .TotalEventPlatformEvents }}
+              Total {{ $k }}: {{humanize $v}}<br>
+              {{- end -}}
+              Total Service Checks: {{humanize .TotalServiceChecks}}<br>
+              {{- if .TotalHistogramBuckets}}
+              Histogram Buckets: {{humanize .HistogramBuckets}}, Total: {{humanize .TotalHistogramBuckets}}<br>
+              {{- end -}}
+{{- end -}}
+{{- define "checkStats" -}}
+              Instance ID: {{.CheckID}} {{status .}}<br>
+              Total Runs: {{humanize .TotalRuns}}<br>
+              Metric Samples: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
+              Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}<br>
+              {{- $instance := . }}
+              {{- range $k, $v := .TotalEventPlatformEvents }}
+              {{ $k }}: Last Run: {{humanize (index $instance.EventPlatformEvents $k) }}, Total: {{humanize $v}}<br>
+              {{- end -}}
+              Service Checks: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}<br>
+              {{- if .TotalHistogramBuckets}}
+              Histogram Buckets: {{humanize .HistogramBuckets}}, Total: {{humanize .TotalHistogramBuckets}}<br>
+              {{- end -}}
+              Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}<br>
+              Last Execution Date : {{formatUnixTime .UpdateTimestamp}}<br>
+              Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}<br>
+              {{- if .Cancelling}}
+              Cancelling: True<br>
+              {{- end -}}
+{{- end -}}
+
 {{ with .pythonInit }}
   {{- if .Errors }}
   <div class="stat">
@@ -25,20 +59,11 @@
         <span class="stat_subtitle">{{$CheckName}}{{ if $version }} ({{$version}}){{ end }}</span>
         {{- range $instance := $CheckInstances }}
           <span class="stat_subdata">
-              Instance ID: {{.CheckID}} {{status .}}<br>
-              Total Runs: {{humanize .TotalRuns}}<br>
-              Metric Samples: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
-              Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}<br>
-              {{- range $k, $v := .TotalEventPlatformEvents }}
-              {{ $k }}: Last Run: {{humanize (index $instance.EventPlatformEvents $k) }}, Total: {{humanize $v}}<br>
-              {{- end -}}
-              Service Checks: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}<br>
-              {{- if .TotalHistogramBuckets}}
-              Histogram Buckets: {{humanize .HistogramBuckets}}, Total: {{humanize .TotalHistogramBuckets}}<br>
-              {{- end -}}
-              Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}<br>
-              Last Execution Date : {{formatUnixTime .UpdateTimestamp}}<br>
-              Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}<br>
+              {{ if .LongRunning -}}
+              {{ template "longRunningCheckStats" . }}
+              {{- else -}}
+              {{ template "checkStats" . }}
+              {{- end }}
               {{- if index $.inventories .CheckID }}
               Metadata:<br>
               <span class="stat_subdata">

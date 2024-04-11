@@ -60,13 +60,20 @@ type kernelTelemetry struct {
 	endOfStreamRST *tlsAwareCounter
 	// pathSizeBucket Count of path sizes divided into buckets.
 	pathSizeBucket [http2PathBuckets + 1]*tlsAwareCounter
-	// pathExceedsFrame Count of times we couldn't retrieve the path due to reaching the end of the frame.
-	pathExceedsFrame *tlsAwareCounter
+	// literalValueExceedsFrame Count of times we couldn't retrieve the literal value due to reaching the end of the frame.
+	literalValueExceedsFrame *tlsAwareCounter
 	// exceedingMaxInterestingFrames Count of times we reached the max number of frames per iteration.
 	exceedingMaxInterestingFrames *tlsAwareCounter
 	// exceedingMaxFramesToFilter Count of times we have left with more frames to filter than the max number of frames to filter.
 	exceedingMaxFramesToFilter *tlsAwareCounter
-
+	// fragmentedFrameCountRST Count of times we have seen a fragmented RST frame.
+	fragmentedFrameCountRST *tlsAwareCounter
+	// fragmentedHeadersFrameEOSCount Count of times we have seen a fragmented headers frame with EOS.
+	fragmentedHeadersFrameEOSCount *tlsAwareCounter
+	// fragmentedHeadersFrameCount Count of times we have seen a fragmented headers frame.
+	fragmentedHeadersFrameCount *tlsAwareCounter
+	// fragmentedDataFrameEOSCount Count of times we have seen a fragmented data frame with EOS.
+	fragmentedDataFrameEOSCount *tlsAwareCounter
 	// telemetryLastState represents the latest HTTP2 eBPF Kernel telemetry observed from the kernel
 	telemetryLastState HTTP2Telemetry
 }
@@ -75,14 +82,19 @@ type kernelTelemetry struct {
 func newHTTP2KernelTelemetry() *kernelTelemetry {
 	metricGroup := libtelemetry.NewMetricGroup("usm.http2", libtelemetry.OptPrometheus)
 	http2KernelTel := &kernelTelemetry{
-		metricGroup:                   metricGroup,
-		http2requests:                 newTLSAwareCounter(metricGroup, "requests"),
-		http2responses:                newTLSAwareCounter(metricGroup, "responses"),
-		endOfStream:                   newTLSAwareCounter(metricGroup, "eos"),
-		endOfStreamRST:                newTLSAwareCounter(metricGroup, "rst"),
-		pathExceedsFrame:              newTLSAwareCounter(metricGroup, "path_exceeds_frame"),
-		exceedingMaxInterestingFrames: newTLSAwareCounter(metricGroup, "exceeding_max_interesting_frames"),
-		exceedingMaxFramesToFilter:    newTLSAwareCounter(metricGroup, "exceeding_max_frames_to_filter")}
+		metricGroup:                    metricGroup,
+		http2requests:                  newTLSAwareCounter(metricGroup, "requests"),
+		http2responses:                 newTLSAwareCounter(metricGroup, "responses"),
+		endOfStream:                    newTLSAwareCounter(metricGroup, "eos"),
+		endOfStreamRST:                 newTLSAwareCounter(metricGroup, "rst"),
+		literalValueExceedsFrame:       newTLSAwareCounter(metricGroup, "literal_value_exceeds_frame"),
+		exceedingMaxInterestingFrames:  newTLSAwareCounter(metricGroup, "exceeding_max_interesting_frames"),
+		exceedingMaxFramesToFilter:     newTLSAwareCounter(metricGroup, "exceeding_max_frames_to_filter"),
+		fragmentedDataFrameEOSCount:    newTLSAwareCounter(metricGroup, "exceeding_data_end_data_eos"),
+		fragmentedHeadersFrameCount:    newTLSAwareCounter(metricGroup, "exceeding_data_end_headers"),
+		fragmentedHeadersFrameEOSCount: newTLSAwareCounter(metricGroup, "exceeding_data_end_headers_eos"),
+		fragmentedFrameCountRST:        newTLSAwareCounter(metricGroup, "exceeding_data_end_rst")}
+
 	for bucketIndex := range http2KernelTel.pathSizeBucket {
 		http2KernelTel.pathSizeBucket[bucketIndex] = newTLSAwareCounter(metricGroup, "path_size_bucket_"+(strconv.Itoa(bucketIndex+1)))
 	}
@@ -98,9 +110,13 @@ func (t *kernelTelemetry) update(tel *HTTP2Telemetry, isTLS bool) {
 	t.http2responses.add(int64(telemetryDelta.Response_seen), isTLS)
 	t.endOfStream.add(int64(telemetryDelta.End_of_stream), isTLS)
 	t.endOfStreamRST.add(int64(telemetryDelta.End_of_stream_rst), isTLS)
-	t.pathExceedsFrame.add(int64(telemetryDelta.Path_exceeds_frame), isTLS)
+	t.literalValueExceedsFrame.add(int64(telemetryDelta.Literal_value_exceeds_frame), isTLS)
 	t.exceedingMaxInterestingFrames.add(int64(telemetryDelta.Exceeding_max_interesting_frames), isTLS)
 	t.exceedingMaxFramesToFilter.add(int64(telemetryDelta.Exceeding_max_frames_to_filter), isTLS)
+	t.fragmentedFrameCountRST.add(int64(telemetryDelta.Fragmented_frame_count_rst), isTLS)
+	t.fragmentedHeadersFrameEOSCount.add(int64(telemetryDelta.Fragmented_frame_count_headers_eos), isTLS)
+	t.fragmentedHeadersFrameCount.add(int64(telemetryDelta.Fragmented_frame_count_headers), isTLS)
+	t.fragmentedDataFrameEOSCount.add(int64(telemetryDelta.Fragmented_frame_count_data_eos), isTLS)
 	for bucketIndex := range t.pathSizeBucket {
 		t.pathSizeBucket[bucketIndex].add(int64(telemetryDelta.Path_size_bucket[bucketIndex]), isTLS)
 	}
@@ -115,14 +131,18 @@ func (t *kernelTelemetry) Log() {
 // Sub generates a new HTTP2Telemetry object by subtracting the values of this HTTP2Telemetry object from the other
 func (t *HTTP2Telemetry) Sub(other HTTP2Telemetry) *HTTP2Telemetry {
 	return &HTTP2Telemetry{
-		Request_seen:                     t.Request_seen - other.Request_seen,
-		Response_seen:                    t.Response_seen - other.Response_seen,
-		End_of_stream:                    t.End_of_stream - other.End_of_stream,
-		End_of_stream_rst:                t.End_of_stream_rst - other.End_of_stream_rst,
-		Path_exceeds_frame:               t.Path_exceeds_frame - other.Path_exceeds_frame,
-		Exceeding_max_interesting_frames: t.Exceeding_max_interesting_frames - other.Exceeding_max_interesting_frames,
-		Exceeding_max_frames_to_filter:   t.Exceeding_max_frames_to_filter - other.Exceeding_max_frames_to_filter,
-		Path_size_bucket:                 computePathSizeBucketDifferences(t.Path_size_bucket, other.Path_size_bucket),
+		Request_seen:                       t.Request_seen - other.Request_seen,
+		Response_seen:                      t.Response_seen - other.Response_seen,
+		End_of_stream:                      t.End_of_stream - other.End_of_stream,
+		End_of_stream_rst:                  t.End_of_stream_rst - other.End_of_stream_rst,
+		Literal_value_exceeds_frame:        t.Literal_value_exceeds_frame - other.Literal_value_exceeds_frame,
+		Exceeding_max_interesting_frames:   t.Exceeding_max_interesting_frames - other.Exceeding_max_interesting_frames,
+		Exceeding_max_frames_to_filter:     t.Exceeding_max_frames_to_filter - other.Exceeding_max_frames_to_filter,
+		Fragmented_frame_count_headers:     t.Fragmented_frame_count_headers - other.Fragmented_frame_count_headers,
+		Fragmented_frame_count_data_eos:    t.Fragmented_frame_count_data_eos - other.Fragmented_frame_count_data_eos,
+		Fragmented_frame_count_rst:         t.Fragmented_frame_count_rst - other.Fragmented_frame_count_rst,
+		Fragmented_frame_count_headers_eos: t.Fragmented_frame_count_headers_eos - other.Fragmented_frame_count_headers_eos,
+		Path_size_bucket:                   computePathSizeBucketDifferences(t.Path_size_bucket, other.Path_size_bucket),
 	}
 }
 

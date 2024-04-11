@@ -6,13 +6,14 @@ from unittest import mock
 from invoke.exceptions import Exit
 
 from tasks import release
-from tasks.libs.version import Version
+from tasks.libs.types.version import Version
+
+
+def fake_tag(value):
+    return SimpleNamespace(name=value)
 
 
 def mocked_github_requests_get(*args, **_kwargs):
-    def fake_tag(value):
-        return SimpleNamespace(name=value)
-
     if args[0][-1] == "6":
         return [
             fake_tag("6.28.0-rc.1"),
@@ -49,7 +50,29 @@ def mocked_github_requests_get(*args, **_kwargs):
     ]
 
 
+def mocked_github_requests_incorrect_get(*_args, **_kwargs):
+    return [
+        fake_tag("7.28.0-test"),
+        fake_tag("7.28.0-rc.1"),
+        fake_tag("7.28.0-rc.2"),
+        fake_tag("7.28.0-beta"),
+    ]
+
+
 class TestGetHighestRepoVersion(unittest.TestCase):
+    @mock.patch('tasks.release.GithubAPI')
+    def test_ignore_incorrect_tag(self, gh_mock):
+        gh_instance = mock.MagicMock()
+        gh_instance.get_tags.side_effect = mocked_github_requests_incorrect_get
+        gh_mock.return_value = gh_instance
+        version = release._get_highest_repo_version(
+            "target-repo",
+            "",
+            release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 28),
+            release.COMPATIBLE_MAJOR_VERSIONS[7],
+        )
+        self.assertEqual(version, Version(major=7, minor=28, patch=0, rc=2))
+
     @mock.patch('tasks.release.GithubAPI')
     def test_one_allowed_major_multiple_entries(self, gh_mock):
         gh_instance = mock.MagicMock()
@@ -146,6 +169,9 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
                     "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                     "SECURITY_AGENT_POLICIES_VERSION": "master",
+                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
+                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
+                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                 },
                 release.nightly_entry_for(7): {
                     "INTEGRATIONS_CORE_VERSION": "master",
@@ -158,6 +184,9 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
                     "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                     "SECURITY_AGENT_POLICIES_VERSION": "master",
+                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
+                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
+                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                 },
                 release.release_entry_for(6): {
                     "INTEGRATIONS_CORE_VERSION": "master",
@@ -170,6 +199,9 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
                     "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                     "SECURITY_AGENT_POLICIES_VERSION": "master",
+                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
+                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
+                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                 },
                 release.release_entry_for(7): {
                     "INTEGRATIONS_CORE_VERSION": "master",
@@ -182,6 +214,9 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
                     "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                     "SECURITY_AGENT_POLICIES_VERSION": "master",
+                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
+                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
+                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                 },
             }
         )
@@ -196,6 +231,9 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
         windows_ddnpm_driver = "release-signed"
         windows_ddnpm_version = "1.2.1"
         windows_ddnpm_shasum = "windowsddnpmshasum"
+        windows_ddprocmon_driver = "release-signed"
+        windows_ddprocmon_version = "1.2.1"
+        windows_ddprocmon_shasum = "windowsddprocmonshasum"
 
         release_json = release._update_release_json_entry(
             release_json=initial_release_json,
@@ -210,6 +248,9 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
             windows_ddnpm_driver=windows_ddnpm_driver,
             windows_ddnpm_version=windows_ddnpm_version,
             windows_ddnpm_shasum=windows_ddnpm_shasum,
+            windows_ddprocmon_driver=windows_ddprocmon_driver,
+            windows_ddprocmon_version=windows_ddprocmon_version,
+            windows_ddprocmon_shasum=windows_ddprocmon_shasum,
         )
 
         expected_release_json = OrderedDict(
@@ -225,6 +266,9 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
                     "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                     "SECURITY_AGENT_POLICIES_VERSION": "master",
+                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
+                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
+                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                 },
                 release.nightly_entry_for(7): {
                     "INTEGRATIONS_CORE_VERSION": "master",
@@ -237,6 +281,9 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
                     "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                     "SECURITY_AGENT_POLICIES_VERSION": "master",
+                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
+                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
+                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                 },
                 release.release_entry_for(6): {
                     "INTEGRATIONS_CORE_VERSION": "master",
@@ -249,6 +296,9 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
                     "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                     "SECURITY_AGENT_POLICIES_VERSION": "master",
+                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
+                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
+                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                 },
                 release.release_entry_for(7): {
                     "INTEGRATIONS_CORE_VERSION": str(integrations_version),
@@ -261,6 +311,9 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDNPM_VERSION": str(windows_ddnpm_version),
                     "WINDOWS_DDNPM_SHASUM": str(windows_ddnpm_shasum),
                     "SECURITY_AGENT_POLICIES_VERSION": str(security_agent_policies_version),
+                    "WINDOWS_DDPROCMON_DRIVER": str(windows_ddprocmon_driver),
+                    "WINDOWS_DDPROCMON_VERSION": str(windows_ddprocmon_version),
+                    "WINDOWS_DDPROCMON_SHASUM": str(windows_ddprocmon_shasum),
                 },
             }
         )
@@ -315,37 +368,69 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
             "WINDOWS_DDNPM_DRIVER": "attestation-signed",
             "WINDOWS_DDNPM_VERSION": "nightly-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "nightly-ddnpm-sha",
+            "WINDOWS_DDPROCMON_DRIVER": "attestation-signed",
+            "WINDOWS_DDPROCMON_VERSION": "nightly-ddprocmon-version",
+            "WINDOWS_DDPROCMON_SHASUM": "nightly-ddprocmon-sha",
         },
         release.nightly_entry_for(7): {
             "WINDOWS_DDNPM_DRIVER": "attestation-signed",
             "WINDOWS_DDNPM_VERSION": "nightly-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "nightly-ddnpm-sha",
+            "WINDOWS_DDPROCMON_DRIVER": "attestation-signed",
+            "WINDOWS_DDPROCMON_VERSION": "nightly-ddprocmon-version",
+            "WINDOWS_DDPROCMON_SHASUM": "nightly-ddprocmon-sha",
         },
         release.release_entry_for(6): {
             "WINDOWS_DDNPM_DRIVER": "release-signed",
             "WINDOWS_DDNPM_VERSION": "rc3-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "rc3-ddnpm-sha",
+            "WINDOWS_DDPROCMON_DRIVER": "release-signed",
+            "WINDOWS_DDPROCMON_VERSION": "rc3-ddprocmon-version",
+            "WINDOWS_DDPROCMON_SHASUM": "rc3-ddprocmon-sha",
         },
         release.release_entry_for(7): {
             "WINDOWS_DDNPM_DRIVER": "release-signed",
             "WINDOWS_DDNPM_VERSION": "rc3-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "rc3-ddnpm-sha",
+            "WINDOWS_DDPROCMON_DRIVER": "release-signed",
+            "WINDOWS_DDPROCMON_VERSION": "rc3-ddprocmon-version",
+            "WINDOWS_DDPROCMON_SHASUM": "rc3-ddprocmon-sha",
         },
     }
 
     def test_ddnpm_info_is_taken_from_nightly_on_first_rc(self):
-        driver, version, shasum = release._get_windows_ddnpm_release_json_info(self.test_release_json, 7, True)
+        (
+            ddnpm_driver,
+            ddnpm_version,
+            ddnpm_shasum,
+            ddprocmon_driver,
+            ddprocmon_version,
+            ddprocmon_shasum,
+        ) = release._get_windows_release_json_info(self.test_release_json, 7, True)
 
-        self.assertEqual(driver, 'attestation-signed')
-        self.assertEqual(version, 'nightly-ddnpm-version')
-        self.assertEqual(shasum, 'nightly-ddnpm-sha')
+        self.assertEqual(ddnpm_driver, 'attestation-signed')
+        self.assertEqual(ddnpm_version, 'nightly-ddnpm-version')
+        self.assertEqual(ddnpm_shasum, 'nightly-ddnpm-sha')
+        self.assertEqual(ddprocmon_driver, 'attestation-signed')
+        self.assertEqual(ddprocmon_version, 'nightly-ddprocmon-version')
+        self.assertEqual(ddprocmon_shasum, 'nightly-ddprocmon-sha')
 
     def test_ddnpm_info_is_taken_from_previous_rc_on_subsequent_rcs(self):
-        driver, version, shasum = release._get_windows_ddnpm_release_json_info(self.test_release_json, 7, False)
+        (
+            ddnpm_driver,
+            ddnpm_version,
+            ddnpm_shasum,
+            ddprocmon_driver,
+            ddprocmon_version,
+            ddprocmon_shasum,
+        ) = release._get_windows_release_json_info(self.test_release_json, 7, False)
 
-        self.assertEqual(driver, 'release-signed')
-        self.assertEqual(version, 'rc3-ddnpm-version')
-        self.assertEqual(shasum, 'rc3-ddnpm-sha')
+        self.assertEqual(ddnpm_driver, 'release-signed')
+        self.assertEqual(ddnpm_version, 'rc3-ddnpm-version')
+        self.assertEqual(ddnpm_shasum, 'rc3-ddnpm-sha')
+        self.assertEqual(ddprocmon_driver, 'release-signed')
+        self.assertEqual(ddprocmon_version, 'rc3-ddprocmon-version')
+        self.assertEqual(ddprocmon_shasum, 'rc3-ddprocmon-sha')
 
 
 class TestGetReleaseJsonInfoForNextRC(unittest.TestCase):

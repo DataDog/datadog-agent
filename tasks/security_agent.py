@@ -15,6 +15,7 @@ from tasks.agent import build as agent_build
 from tasks.agent import generate_config
 from tasks.build_tags import get_default_build_tags
 from tasks.go import run_golangci_lint
+from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -26,7 +27,6 @@ from tasks.libs.common.utils import (
     get_gopath,
     get_version,
 )
-from tasks.libs.ninja_syntax import NinjaWriter
 from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,
@@ -361,6 +361,7 @@ def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
 def build_functional_tests(
     ctx,
     output='pkg/security/tests/testsuite',
+    srcpath='pkg/security/tests',
     arch=CURRENT_ARCH,
     major_version='7',
     build_tags='functionaltests',
@@ -370,10 +371,9 @@ def build_functional_tests(
     skip_linters=False,
     race=False,
     kernel_release=None,
-    windows=False,
     debug=False,
 ):
-    if not windows:
+    if not is_windows:
         build_cws_object_files(
             ctx,
             major_version=major_version,
@@ -390,7 +390,7 @@ def build_functional_tests(
         env["GOARCH"] = "386"
 
     build_tags = build_tags.split(",")
-    if not windows:
+    if not is_windows:
         build_tags.append("linux_bpf")
         build_tags.append("trivy")
         build_tags.append("containerd")
@@ -402,7 +402,7 @@ def build_functional_tests(
         build_tags.extend(["osusergo", "netgo"])
 
     if not skip_linters:
-        targets = ['./pkg/security/tests']
+        targets = [srcpath]
         results = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags, arch=arch)
         for result in results:
             # golangci exits with status 1 when it finds an issue
@@ -415,7 +415,7 @@ def build_functional_tests(
 
     build_tags = ",".join(build_tags)
     cmd = 'go test -mod=mod -tags {build_tags} -gcflags="{gcflags}" -ldflags="{ldflags}" -c -o {output} '
-    cmd += '{build_flags} {repo_path}/pkg/security/tests'
+    cmd += '{build_flags} {repo_path}/{src_path}'
 
     args = {
         "output": output,
@@ -424,6 +424,7 @@ def build_functional_tests(
         "build_flags": build_flags,
         "build_tags": build_tags,
         "repo_path": REPO_PATH,
+        "src_path": srcpath,
     }
 
     ctx.run(cmd.format(**args), env=env)
@@ -722,7 +723,7 @@ def generate_syscall_table(ctx):
             f"go run github.com/DataDog/datadog-agent/pkg/security/secl/model/syscall_table_generator -table-url {table_url} -output {output_file} -output-string {output_string_file} {abis}"
         )
 
-    linux_version = "v6.1"
+    linux_version = "v6.8"
     single_run(
         ctx,
         f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl",
@@ -751,8 +752,8 @@ def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
 def generate_cws_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.31.0")
-            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.5.0")
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.32.0")
+            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.6.0")
             ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0")
 
             plugin_opts = " ".join(
@@ -829,22 +830,23 @@ def go_generate_check(ctx):
 
 
 @task
-def kitchen_prepare(ctx, windows=is_windows, skip_linters=False):
+def kitchen_prepare(ctx, skip_linters=False):
     """
     Compile test suite for kitchen
     """
 
-    # Clean up previous build
-    if os.path.exists(KITCHEN_ARTIFACT_DIR):
-        shutil.rmtree(KITCHEN_ARTIFACT_DIR)
-
     out_binary = "testsuite"
     race = True
-    if windows:
+    if is_windows:
         out_binary = "testsuite.exe"
         race = False
 
-    testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", out_binary)
+    testsuite_out_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "tests")
+    # Clean up previous build
+    if os.path.exists(testsuite_out_dir):
+        shutil.rmtree(testsuite_out_dir)
+
+    testsuite_out_path = os.path.join(testsuite_out_dir, out_binary)
     build_functional_tests(
         ctx,
         bundle_ebpf=False,
@@ -852,10 +854,23 @@ def kitchen_prepare(ctx, windows=is_windows, skip_linters=False):
         debug=True,
         output=testsuite_out_path,
         skip_linters=skip_linters,
-        windows=windows,
     )
-    if windows:
+    if is_windows:
+        # build the ETW tests binary also
+        testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "etw", out_binary)
+        srcpath = 'pkg/security/probe'
+        build_functional_tests(
+            ctx,
+            output=testsuite_out_path,
+            srcpath=srcpath,
+            bundle_ebpf=False,
+            race=race,
+            debug=True,
+            skip_linters=skip_linters,
+        )
+
         return
+
     stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", STRESS_TEST_SUITE)
     build_stress_tests(ctx, output=stresssuite_out_path, skip_linters=skip_linters)
 
@@ -906,3 +921,29 @@ def print_fentry_stats(ctx):
 
     for kind in ["kprobe", "kretprobe", "fentry", "fexit"]:
         ctx.run(f"readelf -W -S {fentry_o_path} 2> /dev/null | grep PROGBITS | grep {kind} | wc -l")
+
+
+@task
+def sync_secl_win_pkg(ctx):
+    files_to_copy = [
+        ("model.go", None),
+        ("events.go", None),
+        ("args_envs.go", None),
+        ("consts_common.go", None),
+        ("consts_other.go", None),
+        ("consts_map_names.go", None),
+        ("model_windows.go", "model_win.go"),
+        ("field_handlers_windows.go", "field_handlers_win.go"),
+        ("accessors_windows.go", "accessors_win.go"),
+    ]
+
+    ctx.run("rm -r pkg/security/seclwin/model")
+    ctx.run("mkdir -p pkg/security/seclwin/model")
+
+    for (ffrom, fto) in files_to_copy:
+        if not fto:
+            fto = ffrom
+
+        ctx.run(f"cp pkg/security/secl/model/{ffrom} pkg/security/seclwin/model/{fto}")
+        ctx.run(f"sed -i '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
+        ctx.run(f"gofmt -s -w pkg/security/seclwin/model/{fto}")

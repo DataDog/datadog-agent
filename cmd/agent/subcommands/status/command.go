@@ -23,8 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -139,10 +138,6 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	if !cliParams.prettyPrintJSON && !cliParams.jsonStatus {
 		fmt.Printf("Getting the status from the agent.\n\n")
 	}
-	ipcAddress, err := pkgconfig.GetIPCAddress()
-	if err != nil {
-		return err
-	}
 
 	v := url.Values{}
 	if cliParams.verbose {
@@ -155,14 +150,12 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 		v.Set("format", "text")
 	}
 
-	url := url.URL{
-		Scheme:   "https",
-		Host:     fmt.Sprintf("%v:%v", ipcAddress, config.GetInt("cmd_port")),
-		Path:     "/agent/status",
-		RawQuery: v.Encode(),
+	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status")
+	if err != nil {
+		return err
 	}
 
-	r, err := makeRequest(url.String())
+	res, err := endpoint.DoGet(apiutil.WithValues(v))
 	if err != nil {
 		return err
 	}
@@ -170,12 +163,12 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	// The rendering is done in the client so that the agent has less work to do
 	if cliParams.prettyPrintJSON {
 		var prettyJSON bytes.Buffer
-		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
+		json.Indent(&prettyJSON, res, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
 	} else if cliParams.jsonStatus {
-		s = string(r)
+		s = string(res)
 	} else {
-		s = scrubMessage(string(r))
+		s = scrubMessage(string(res))
 	}
 
 	if cliParams.statusFilePath != "" {
@@ -198,9 +191,11 @@ func componentStatusCmd(_ log.Component, config config.Component, cliParams *cli
 func componentStatus(config config.Component, cliParams *cliParams, component string) error {
 	var s string
 
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/%s/status", config.GetInt("cmd_port"), component)
-
-	r, err := makeRequest(urlstr)
+	endpoint, err := apiutil.NewIPCEndpoint(config, fmt.Sprintf("/agent/%s/status", component))
+	if err != nil {
+		return err
+	}
+	res, err := endpoint.DoGet()
 	if err != nil {
 		return err
 	}
@@ -208,10 +203,10 @@ func componentStatus(config config.Component, cliParams *cliParams, component st
 	// The rendering is done in the client so that the agent has less work to do
 	if cliParams.prettyPrintJSON {
 		var prettyJSON bytes.Buffer
-		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
+		json.Indent(&prettyJSON, res, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
 	} else {
-		s = scrubMessage(string(r))
+		s = scrubMessage(string(res))
 	}
 
 	if cliParams.statusFilePath != "" {
@@ -221,31 +216,4 @@ func componentStatus(config config.Component, cliParams *cliParams, component st
 	}
 
 	return nil
-}
-
-func makeRequest(url string) ([]byte, error) {
-	var e error
-	c := util.GetClient(false) // FIX: get certificates right then make this true
-
-	// Set session token
-	e = util.SetAuthToken()
-	if e != nil {
-		return nil, e
-	}
-
-	r, e := util.DoGet(c, url, util.LeaveConnectionOpen)
-	if e != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(r, &errMap) //nolint:errcheck
-		// If the error has been marshalled into a json object, check it and return it properly
-		if err, found := errMap["error"]; found {
-			e = fmt.Errorf(err)
-		}
-
-		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", e)
-		return nil, e
-	}
-
-	return r, nil
-
 }

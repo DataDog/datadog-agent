@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -19,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	seccommon "github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -41,20 +41,18 @@ func (r *RuntimeReporter) ReportRaw(content []byte, service string, tags ...stri
 }
 
 // NewCWSReporter returns a new CWS reported based on the fields necessary to communicate with the intake
-func NewCWSReporter(hostname string, runPath string, stopper startstop.Stopper, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
-	return newReporter(hostname, runPath, stopper, "runtime-security-agent", "runtime-security", endpoints, context)
+func NewCWSReporter(hostname string, stopper startstop.Stopper, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
+	return newReporter(hostname, stopper, "runtime-security-agent", "runtime-security", endpoints, context)
 }
 
-func newReporter(hostname string, runPath string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
-	health := health.RegisterLiveness("runtime-security")
-
+func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
 	// setup the auditor
-	auditor := auditor.New(runPath, "runtime-security-registry.json", pkgconfig.DefaultAuditorTTL, health)
+	auditor := auditor.NewNullAuditor()
 	auditor.Start()
 	stopper.Add(auditor)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(logsconfig.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, context, hostnameimpl.NewHostnameService())
+	pipelineProvider := pipeline.NewProvider(logsconfig.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, context, agent.NewStatusProvider(), hostnameimpl.NewHostnameService(), pkgconfig.Datadog)
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
 

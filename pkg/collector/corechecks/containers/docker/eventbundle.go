@@ -13,15 +13,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	//nolint:revive // TODO(CINT) Fix revive linter
-	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/docker/docker/api/types/events"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // dockerEventBundle holds a list of ContainerEvent
@@ -31,7 +30,7 @@ type dockerEventBundle struct {
 	imageName     string
 	events        []*docker.ContainerEvent
 	maxTimestamp  time.Time
-	countByAction map[string]int
+	countByAction map[events.Action]int
 	alertType     event.EventAlertType
 }
 
@@ -39,25 +38,25 @@ func newDockerEventBundler(imageName string) *dockerEventBundle {
 	return &dockerEventBundle{
 		imageName:     imageName,
 		events:        []*docker.ContainerEvent{},
-		countByAction: make(map[string]int),
+		countByAction: make(map[events.Action]int),
 		alertType:     event.EventAlertTypeInfo,
 	}
 }
 
-func (b *dockerEventBundle) addEvent(event *docker.ContainerEvent) error {
-	if event.ImageName != b.imageName {
-		return fmt.Errorf("mismatching image name: %s != %s", event.ImageName, b.imageName)
+func (b *dockerEventBundle) addEvent(ev *docker.ContainerEvent) error {
+	if ev.ImageName != b.imageName {
+		return fmt.Errorf("mismatching image name: %s != %s", ev.ImageName, b.imageName)
 	}
 
-	b.events = append(b.events, event)
-	b.countByAction[event.Action]++
+	b.events = append(b.events, ev)
+	b.countByAction[ev.Action]++
 
-	if event.Timestamp.After(b.maxTimestamp) {
-		b.maxTimestamp = event.Timestamp
+	if ev.Timestamp.After(b.maxTimestamp) {
+		b.maxTimestamp = ev.Timestamp
 	}
 
-	if isAlertTypeError(event.Action) {
-		b.alertType = metricsevent.EventAlertTypeError
+	if isAlertTypeError(ev.Action) {
+		b.alertType = event.EventAlertTypeError
 	}
 
 	return nil
@@ -71,7 +70,7 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (event.Event, error)
 	output := event.Event{
 		Title: fmt.Sprintf("%s %s on %s",
 			b.imageName,
-			formatStringIntMap(b.countByAction),
+			formatActionMap(b.countByAction),
 			hostname,
 		),
 		Priority:       event.EventPriorityNormal,
@@ -87,7 +86,7 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (event.Event, error)
 	textLines := []string{"%%% ", output.Title, "```"}
 
 	for _, ev := range b.events {
-		textLines = append(textLines, fmt.Sprintf("%s\t%s", strings.ToUpper(ev.Action), ev.ContainerName))
+		textLines = append(textLines, fmt.Sprintf("%s\t%s", strings.ToUpper(string(ev.Action)), ev.ContainerName))
 		seenContainers[ev.ContainerID] = true // Emulating a set with a map
 	}
 	textLines = append(textLines, "```", " %%%")
@@ -105,7 +104,7 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (event.Event, error)
 	return output, nil
 }
 
-func formatStringIntMap(input map[string]int) string {
+func formatActionMap(input map[events.Action]int) string {
 	var parts []string
 	for k, v := range input {
 		parts = append(parts, fmt.Sprintf("%d %s", v, k))

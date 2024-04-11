@@ -16,16 +16,21 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pkgdiagnose "github.com/DataDog/datadog-agent/pkg/diagnose"
+	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -95,8 +100,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						NoInstance: !cliParams.runLocal,
 					}
 				}),
+				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				workloadmeta.OptionalModule(),
 				tagger.OptionalModule(),
+				autodiscoveryimpl.OptionalModule(),
+				compressionimpl.Module(),
 				diagnosesendermanagerimpl.Module(),
 			)
 		},
@@ -227,8 +235,11 @@ This command print the package-signing metadata payload. This payload is used by
 
 func cmdDiagnose(cliParams *cliParams,
 	senderManager diagnosesendermanager.Component,
-	_ optional.Option[workloadmeta.Component],
-	_ optional.Option[tagger.Component]) error {
+	wmeta optional.Option[workloadmeta.Component],
+	_ optional.Option[tagger.Component],
+	ac optional.Option[autodiscovery.Component],
+	collector optional.Option[collector.Component],
+	secretResolver secrets.Component) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
 		RunLocal: cliParams.runLocal,
@@ -236,19 +247,20 @@ func cmdDiagnose(cliParams *cliParams,
 		Exclude:  cliParams.exclude,
 	}
 
+	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, wmeta, ac)
 	// Is it List command
 	if cliParams.listSuites {
-		pkgdiagnose.ListStdOut(color.Output, diagCfg)
+		diagnose.ListStdOut(color.Output, diagCfg, diagnoseDeps)
 		return nil
 	}
 
 	// Run command
-	return pkgdiagnose.RunStdOut(color.Output, diagCfg, senderManager)
+	return diagnose.RunStdOut(color.Output, diagCfg, diagnoseDeps)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
 func printPayload(name payloadName, _ log.Component, config config.Component) error {
-	if err := util.SetAuthToken(); err != nil {
+	if err := util.SetAuthToken(config); err != nil {
 		fmt.Println(err)
 		return nil
 	}

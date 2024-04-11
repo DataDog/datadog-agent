@@ -1,6 +1,6 @@
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux -output_filename serializers_base_linux_easyjson.go serializers_base.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/probe/doc_generator -output ../../../docs/cloud-workload-security/backend.schema.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/doc_generator -output ../../../docs/cloud-workload-security/backend.schema.json
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -236,8 +236,8 @@ type ProcessSerializer struct {
 	IsThread bool `json:"is_thread,omitempty"`
 	// Indicates whether the process is a kworker
 	IsKworker bool `json:"is_kworker,omitempty"`
-	// Indicates wether the process is an exec child of its parent
-	IsExecChild bool `json:"is_exec_child,omitempty"`
+	// Indicates whether the process is an exec following another exec
+	IsExecExec bool `json:"is_exec_child,omitempty"`
 	// Process source
 	Source string `json:"source,omitempty"`
 }
@@ -451,6 +451,8 @@ type SecurityProfileContextSerializer struct {
 	Version string `json:"version"`
 	// List of tags associated to this profile
 	Tags []string `json:"tags"`
+	// True if the corresponding event is part of this profile
+	EventInProfile bool `json:"event_in_profile"`
 }
 
 // AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event
@@ -517,8 +519,8 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 		GID:                 int64(fe.GID),
 		User:                e.FieldHandlers.ResolveFileFieldsUser(e, &fe.FileFields),
 		Group:               e.FieldHandlers.ResolveFileFieldsGroup(e, &fe.FileFields),
-		Mtime:               getTimeIfNotZero(time.Unix(0, int64(fe.MTime))),
-		Ctime:               getTimeIfNotZero(time.Unix(0, int64(fe.CTime))),
+		Mtime:               utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(fe.MTime))),
+		Ctime:               utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(fe.CTime))),
 		InUpperLayer:        getInUpperLayer(&fe.FileFields),
 		PackageName:         e.FieldHandlers.ResolvePackageName(e, fe),
 		PackageVersion:      e.FieldHandlers.ResolvePackageVersion(e, fe),
@@ -563,9 +565,9 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 		argv0, _ := sprocess.GetProcessArgv0(ps)
 
 		psSerializer := &ProcessSerializer{
-			ForkTime: getTimeIfNotZero(ps.ForkTime),
-			ExecTime: getTimeIfNotZero(ps.ExecTime),
-			ExitTime: getTimeIfNotZero(ps.ExitTime),
+			ForkTime: utils.NewEasyjsonTimeIfNotZero(ps.ForkTime),
+			ExecTime: utils.NewEasyjsonTimeIfNotZero(ps.ExecTime),
+			ExitTime: utils.NewEasyjsonTimeIfNotZero(ps.ExitTime),
 
 			Pid:           ps.Pid,
 			Tid:           ps.Tid,
@@ -580,7 +582,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			EnvsTruncated: envsTruncated,
 			IsThread:      ps.IsThread,
 			IsKworker:     ps.IsKworker,
-			IsExecChild:   ps.IsExecChild,
+			IsExecExec:    ps.IsExecExec,
 			Source:        model.ProcessSourceToString(ps.Source),
 		}
 
@@ -605,17 +607,18 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 		if len(ps.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        ps.ContainerID,
-				CreatedAt: getTimeIfNotZero(time.Unix(0, int64(e.GetContainerCreatedAt()))),
+				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.GetContainerCreatedAt()))),
 			}
 		}
+
 		return psSerializer
 	}
 	return &ProcessSerializer{
-		Pid:         ps.Pid,
-		Tid:         ps.Tid,
-		IsKworker:   ps.IsKworker,
-		IsExecChild: ps.IsExecChild,
-		Source:      model.ProcessSourceToString(ps.Source),
+		Pid:        ps.Pid,
+		Tid:        ps.Tid,
+		IsKworker:  ps.IsKworker,
+		IsExecExec: ps.IsExecExec,
+		Source:     model.ProcessSourceToString(ps.Source),
 		Credentials: &ProcessCredentialsSerializer{
 			CredentialsSerializer: &CredentialsSerializer{},
 		},
@@ -913,13 +916,14 @@ func newNetworkContextSerializer(e *model.Event) *NetworkContextSerializer {
 	}
 }
 
-func newSecurityProfileContextSerializer(e *model.SecurityProfileContext) *SecurityProfileContextSerializer {
+func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityProfileContext) *SecurityProfileContextSerializer {
 	tags := make([]string, len(e.Tags))
 	copy(tags, e.Tags)
 	return &SecurityProfileContextSerializer{
-		Name:    e.Name,
-		Version: e.Version,
-		Tags:    tags,
+		Name:           e.Name,
+		Version:        e.Version,
+		Tags:           tags,
+		EventInProfile: event.IsInProfile(),
 	}
 }
 
@@ -934,8 +938,8 @@ func (e *EventSerializer) MarshalJSON() ([]byte, error) {
 }
 
 // MarshalEvent marshal the event
-func MarshalEvent(event *model.Event) ([]byte, error) {
-	s := NewEventSerializer(event)
+func MarshalEvent(event *model.Event, opts *eval.Opts) ([]byte, error) {
+	s := NewEventSerializer(event, opts)
 	return utils.MarshalEasyJSON(s)
 }
 
@@ -945,9 +949,9 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
-func NewEventSerializer(event *model.Event) *EventSerializer {
+func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	s := &EventSerializer{
-		BaseEventSerializer:   NewBaseEventSerializer(event),
+		BaseEventSerializer:   NewBaseEventSerializer(event, opts),
 		UserContextSerializer: newUserContextSerializer(event),
 		DDContextSerializer:   newDDContextSerializer(event),
 	}
@@ -958,13 +962,14 @@ func NewEventSerializer(event *model.Event) *EventSerializer {
 	}
 
 	if event.SecurityProfileContext.Name != "" {
-		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(&event.SecurityProfileContext)
+		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(event, &event.SecurityProfileContext)
 	}
 
 	if ctx, exists := event.FieldHandlers.ResolveContainerContext(event); exists {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        ctx.ID,
-			CreatedAt: getTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
+			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
+			Variables: newVariablesContext(event, opts, "container."),
 		}
 	}
 
@@ -1021,6 +1026,12 @@ func NewEventSerializer(event *model.Event) *EventSerializer {
 			FileSerializer: *newFileSerializer(&event.Rmdir.File, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Rmdir.Retval)
+
+	case model.FileChdirEventType:
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.Chdir.File, event),
+		}
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Mkdir.Retval)
 	case model.FileUnlinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Unlink.File, event),
@@ -1056,8 +1067,8 @@ func NewEventSerializer(event *model.Event) *EventSerializer {
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Utimes.File, event),
 			Destination: &FileSerializer{
-				Atime: getTimeIfNotZero(event.Utimes.Atime),
-				Mtime: getTimeIfNotZero(event.Utimes.Mtime),
+				Atime: utils.NewEasyjsonTimeIfNotZero(event.Utimes.Atime),
+				Mtime: utils.NewEasyjsonTimeIfNotZero(event.Utimes.Mtime),
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Utimes.Retval)

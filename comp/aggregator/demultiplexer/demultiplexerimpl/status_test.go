@@ -13,11 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -53,10 +54,11 @@ func TestStatusOutPut(t *testing.T) {
 	}
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
-		logimpl.MockModule(),
+		core.MockBundle(),
+		compressionimpl.MockModule(),
 		defaultforwarder.MockModule(),
 		orchestratorimpl.MockModule(),
+		eventplatformimpl.MockModule(),
 		fx.Supply(
 			Params{
 				ContinueOnMissingHostname: true,

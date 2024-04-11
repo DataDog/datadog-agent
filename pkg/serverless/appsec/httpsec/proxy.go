@@ -70,6 +70,7 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 		log.Debugf("appsec: proxy-lifecycle: Extracted event type: %v", eventType)
 	}
 
+	lp.invocationEvent = nil
 	var event interface{}
 	switch eventType {
 	default:
@@ -90,17 +91,14 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 	case trigger.LambdaFunctionURLEvent:
 		event = &events.LambdaFunctionURLRequest{}
 	}
-	if lp.demux != nil {
-		serverlessMetrics.SendASMInvocationEnhancedMetric(nil, lp.demux)
-	}
 
 	if err := json.Unmarshal(payloadBytes, event); err != nil {
 		log.Errorf("appsec: proxy-lifecycle: unexpected lambda event parsing error: %v", err)
 		return
 	}
 
-	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
 	lp.invocationEvent = event
+	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
 }
 
 // OnInvokeEnd is the hook triggered when an invocation has ended
@@ -136,12 +134,21 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	}
 	log.Debugf("appsec: found service entry span of the currently monitored request id `%s`", currentReqId)
 
+	span := (*spanWrapper)(s)
+
 	if lp.invocationEvent == nil {
 		log.Debug("appsec: ignoring unsupported lamdba event")
+		// Add a span tag so we can tell if this was an unsupported event type.
+		// _dd.appsec.enabled:1 covers the supported case, which can only be set
+		// in this case because it involves ASM billing.
+		span.SetMetricsTag("_dd.appsec.unsupported_event_type", 1)
 		return // skip: unsupported event
 	}
 
-	span := (*spanWrapper)(s)
+	// Count ASM-supported invocations
+	if lp.demux != nil {
+		serverlessMetrics.SendASMInvocationEnhancedMetric(nil, lp.demux)
+	}
 
 	var ctx context
 	switch event := lp.invocationEvent.(type) {
@@ -259,13 +266,15 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	} else {
 		log.Debug("appsec: missing span tag http.status_code")
 	}
+	if ctx.requestRoute != nil {
+		span.SetMetaTag("http.route", *ctx.requestRoute)
+	} else {
+		log.Debug("appsec: missing span tag http.route")
+	}
 
 	if res := lp.appsec.Monitor(ctx.toAddresses()); res.HasEvents() {
 		setSecurityEventsTags(span, res.Events, reqHeaders, nil)
 		chunk.Priority = int32(sampler.PriorityUserKeep)
-		if ctx.requestRoute != nil {
-			span.SetMetaTag("http.route", *ctx.requestRoute)
-		}
 		setAPISecurityTags(span, res.Derivatives)
 	}
 }

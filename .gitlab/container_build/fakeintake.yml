@@ -1,0 +1,21 @@
+---
+docker_build_fakeintake:
+  stage: container_build
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.on_fakeintake_changes]
+  needs: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:20.10-py3
+  tags: ["arch:amd64"]
+  variables:
+    CI_ENABLE_CONTAINER_IMAGE_BUILDS: "true"
+    TARGET: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/fakeintake:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+    DOCKERFILE: test/fakeintake/Dockerfile
+    PLATFORMS: linux/amd64,linux/arm64
+    BUILD_CONTEXT: .
+  script:
+    # DockerHub login for build to limit rate limit when pulling base images
+    - DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN_SSM_KEY)
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD_SSM_KEY | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    - docker buildx build --push --pull --platform ${PLATFORMS} --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
+  retry: 2

@@ -7,7 +7,7 @@
 package tailers
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 // Tailer is the base interface for a tailer.

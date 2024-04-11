@@ -102,12 +102,11 @@ func (g *HashGenerator) Hash(tb *HashingTagsAccumulator) uint64 {
 					hashes[i] = hashes[ntags-1]
 					ntags--
 					break
-				} else {
-					// move 'right' in the hashset because there is already a value,
-					// in this bucket, which is not the one we're dealing with right now,
-					// we may have already seen this tag
-					j = (j + 1) & mask
 				}
+				// move 'right' in the hashset because there is already a value,
+				// in this bucket, which is not the one we're dealing with right now,
+				// we may have already seen this tag
+				j = (j + 1) & mask
 			}
 		}
 		tb.Truncate(ntags)

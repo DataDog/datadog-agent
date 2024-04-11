@@ -17,7 +17,7 @@ jobs:
                 fetch-depth: 0
 
             - name: Install python
-              uses: actions/setup-python@v4
+              uses: actions/setup-python@v5
               with:
                 python-version: 3.11
                 cache: "pip"
@@ -37,10 +37,24 @@ jobs:
               with:
                 ref: ${{ env.RELEASE_BRANCH }}
                 fetch-depth: 0
-              
-            - name: Create RC PR
+
+            - name: Check for changes since last RC
+              id: check_for_changes
               run: |
-                git config user.name "GitHub Actions"
+                last_rc_commit=$(git log -1 --format=%H --grep="Update release.json and Go modules")
+                count=$(git rev-list --count HEAD ^"$last_rc_commit")
+                echo COUNT=$count >> $GITHUB_OUTPUT
+                  
+                if [ $count -eq '0' ]; then
+                    echo "No changes since last RC. Quitting workflow."
+                else
+                    echo "$count new commits found since last RC. Proceeding with the RC PR creation."
+                fi
+                  
+            - name: Create RC PR
+              if: ${{ steps.check_for_changes.outputs.COUNT != '0'}}
+              run: |
+                git config user.name "github-actions[bot]"
                 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
                 git fetch
                 inv -e release.create-rc

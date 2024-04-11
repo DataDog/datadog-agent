@@ -17,7 +17,6 @@
 #include "tracer/port.h"
 #include "tracer/tcp_recv.h"
 #include "protocols/classification/protocol-classification.h"
-#include "protocols/sockfd.h"
 
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
@@ -199,8 +198,6 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
         increment_telemetry_count(tcp_failed_connect);
     }
 
-    clear_sockfd_maps(sk);
-
     // Get network namespace id
     log_debug("kprobe/tcp_close: tgid: %u, pid: %u", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -292,8 +289,12 @@ static __always_inline u16 _fl6_dport(struct flowi6 *fl6) {
 }
 
 static __always_inline int handle_ip6_skb(struct sock *sk, size_t size, struct flowi6 *fl6) {
+    if (size <= sizeof(struct udphdr)) {
+        return 0;
+    }
+
+    size -= sizeof(struct udphdr);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    size = size - sizeof(struct udphdr);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
@@ -485,6 +486,10 @@ static __always_inline u16 _fl4_dport(struct flowi4 *fl4) {
 }
 
 static __always_inline int handle_ip_skb(struct sock *sk, size_t size, struct flowi4 *fl4) {
+    if (size <= sizeof(struct udphdr)) {
+        return 0;
+    }
+
     size -= sizeof(struct udphdr);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_tuple_t t = {};
@@ -529,9 +534,37 @@ static __always_inline int handle_ip_skb(struct sock *sk, size_t size, struct fl
     return 0;
 }
 
+__maybe_unused static __always_inline bool udp_send_page_enabled() {
+    __u64 val = 0;
+    LOAD_CONSTANT("udp_send_page_enabled", val);
+    return val > 0;
+}
+
 // Note: This is used only in the UDP send path.
 SEC("kprobe/ip_make_skb")
 int kprobe__ip_make_skb(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    size_t len = (size_t)PT_REGS_PARM5(ctx);
+    struct flowi4 *fl4 = (struct flowi4 *)PT_REGS_PARM2(ctx);
+#if defined(COMPILE_PREBUILT) || defined(COMPILE_CORE) || (defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0))
+    unsigned int flags = PT_REGS_PARM10(ctx);
+    if (flags&MSG_SPLICE_PAGES && udp_send_page_enabled()) {
+        return 0;
+    }
+#endif
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    ip_make_skb_args_t args = {};
+    bpf_probe_read_kernel_with_telemetry(&args.sk, sizeof(args.sk), &sk);
+    bpf_probe_read_kernel_with_telemetry(&args.len, sizeof(args.len), &len);
+    bpf_probe_read_kernel_with_telemetry(&args.fl4, sizeof(args.fl4), &fl4);
+    bpf_map_update_with_telemetry(ip_make_skb_args, &pid_tgid, &args, BPF_ANY);
+
+    return 0;
+}
+
+SEC("kprobe/ip_make_skb")
+int kprobe__ip_make_skb__pre_4_18_0(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     size_t len = (size_t)PT_REGS_PARM5(ctx);
     struct flowi4 *fl4 = (struct flowi4 *)PT_REGS_PARM2(ctx);
@@ -981,6 +1014,7 @@ int kretprobe__udp_destroy_sock(struct pt_regs *ctx) {
     flush_conn_close_if_full(ctx);
     return 0;
 }
+
 SEC("kretprobe/udpv6_destroy_sock")
 int kretprobe__udpv6_destroy_sock(struct pt_regs *ctx) {
     flush_conn_close_if_full(ctx);

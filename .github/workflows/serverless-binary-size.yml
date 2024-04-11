@@ -31,7 +31,7 @@ jobs:
           path: go/src/github.com/DataDog/datadog-lambda-extension
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Previous binary size and dependencies
         id: previous
@@ -109,7 +109,7 @@ jobs:
           done
 
       - name: Archive dependency graphs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
         with:
           name: dependency-graphs

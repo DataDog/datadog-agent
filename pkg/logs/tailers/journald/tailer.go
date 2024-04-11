@@ -20,10 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/processor"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -50,6 +51,10 @@ type Tailer struct {
 	// processRawMessage indicates if we want to process and send the whole structured log message
 	// instead of on the logs content.
 	processRawMessage bool
+
+	// tagProvider provides additional tags to be attached to each log message.  It
+	// is called once for each log message.
+	tagProvider tag.Provider
 }
 
 // NewTailer returns a new tailer.
@@ -69,6 +74,7 @@ func NewTailer(source *sources.LogSource, outputChan chan *message.Message, jour
 		stop:              make(chan struct{}, 1),
 		done:              make(chan struct{}, 1),
 		processRawMessage: processRawMessage,
+		tagProvider:       tag.NewLocalProvider([]string{}),
 	}
 }
 
@@ -394,7 +400,7 @@ func (t *Tailer) getOrigin(entry *sdjournal.JournalEntry) *message.Origin {
 	applicationName := t.getApplicationName(entry, tags)
 	origin.SetSource(applicationName)
 	origin.SetService(applicationName)
-	origin.SetTags(tags)
+	origin.SetTags(append(tags, t.tagProvider.GetTags()...))
 	return origin
 }
 

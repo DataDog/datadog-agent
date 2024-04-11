@@ -11,10 +11,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 )
 
 type Item struct {

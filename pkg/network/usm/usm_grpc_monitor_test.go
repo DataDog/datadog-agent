@@ -56,8 +56,6 @@ func TestGRPCScenarios(t *testing.T) {
 		t.Skipf("HTTP2 monitoring can not run on kernel before %v", http2.MinimumKernelVersion)
 	}
 
-	rand.Seed(time.Now().UnixNano())
-
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		for _, tc := range []struct {
 			name  string
@@ -72,10 +70,10 @@ func TestGRPCScenarios(t *testing.T) {
 				isTLS: true,
 			},
 		} {
-			if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
-				t.Skip("GoTLS not supported for this setup")
-			}
 			t.Run(tc.name, func(t *testing.T) {
+				if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
+					t.Skip("GoTLS not supported for this setup")
+				}
 				suite.Run(t, &usmGRPCSuite{isTLS: tc.isTLS})
 			})
 		}
@@ -91,6 +89,8 @@ func getGRPCClientsArray(t *testing.T, size int, withTLS bool) ([]*grpc.Client, 
 	}
 
 	return res, func() {
+		// Temporary workaround to prevent tests failure due to races in the eBPF probes.
+		time.Sleep(time.Second * 2)
 		for i := 0; i < size; i++ {
 			res[i].Close()
 		}
@@ -559,5 +559,6 @@ func (s *usmGRPCSuite) testGRPCScenarios(t *testing.T, srvPID int, runClientCall
 	}, time.Second*5, time.Millisecond*100, "%v != %v", res, expectedEndpoints)
 	if t.Failed() {
 		ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
+		dumpTelemetry(t, usmMonitor, s.isTLS)
 	}
 }

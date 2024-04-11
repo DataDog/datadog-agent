@@ -56,5 +56,3 @@ An example command may look like this:
 ```
 smp local-run --experiment-dir ~/dev/datadog-agent/test/regression/ --case uds_to_blackhole --target-image datadog/agent-dev:nightly-main-1bf80594-py3 --lading-path ~/lading/target/release/lading --target-command "/bin/entrypoint.sh" --target datadog-agent
 ```
-
-

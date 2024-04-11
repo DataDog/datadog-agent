@@ -49,10 +49,11 @@ func newAgentRunner(ddAddr string, verbose bool) (*agentRunner, error) {
 	}
 	// TODO(gbbr): find a way to re-use the same binary within a whole run
 	// instead of creating new ones on each test creating a new runner.
-	err = exec.Command("go", "build", "-tags", "otlp", "-o", binpath, "github.com/DataDog/datadog-agent/cmd/trace-agent").Run()
+	o, err := exec.Command("go", "build", "-tags", "otlp", "-o", binpath, "github.com/DataDog/datadog-agent/cmd/trace-agent").CombinedOutput()
 	if err != nil {
 		if verbose {
 			log.Printf("error installing trace-agent: %v", err)
+			log.Print(string(o))
 		}
 		return nil, ErrNotInstalled
 	}

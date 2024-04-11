@@ -8,16 +8,14 @@ package diagnose
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDiagnoseAllBasicRegAndRunNoDiagnoses(t *testing.T) {
-
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunNoDiagnoses", func(cfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
+	catalog := diagnosis.NewCatalog()
+	catalog.Register("TestDiagnoseAllBasicRegAndRunNoDiagnoses", func() []diagnosis.Diagnosis {
 		return nil
 	})
 
@@ -25,8 +23,7 @@ func TestDiagnoseAllBasicRegAndRunNoDiagnoses(t *testing.T) {
 		Include:  []string{"TestDiagnoseAllBasicRegAndRunNoDiagnoses"},
 		RunLocal: true,
 	}
-	senderManager := aggregator.NewNoOpSenderManager()
-	diagnoses, err := Run(diagCfg, senderManager)
+	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg, catalog.GetSuites())
 	assert.NoError(t, err)
 	assert.Len(t, diagnoses, 0)
 }
@@ -52,11 +49,12 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 		},
 	}
 
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a", func(cfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
+	catalog := diagnosis.NewCatalog()
+	catalog.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a", func() []diagnosis.Diagnosis {
 		return inDiagnoses
 	})
 
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b", func(cfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
+	catalog.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b", func() []diagnosis.Diagnosis {
 		return inDiagnoses
 	})
 
@@ -65,8 +63,7 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 		Include:  []string{"TestDiagnoseAllBasicRegAndRunSomeDiagnosis"},
 		RunLocal: true,
 	}
-	senderManager := aggregator.NewNoOpSenderManager()
-	outSuitesDiagnosesInclude, err := Run(diagCfgInclude, senderManager)
+	outSuitesDiagnosesInclude, err := getDiagnosesFromCurrentProcess(diagCfgInclude, catalog.GetSuites())
 	assert.NoError(t, err)
 	assert.Len(t, outSuitesDiagnosesInclude, 2)
 	assert.Equal(t, outSuitesDiagnosesInclude[0].SuiteDiagnoses, inDiagnoses)
@@ -78,7 +75,7 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 		Exclude:  []string{"TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a"},
 		RunLocal: true,
 	}
-	outSuitesDiagnosesIncludeExclude, err := Run(diagCfgIncludeExclude, senderManager)
+	outSuitesDiagnosesIncludeExclude, err := getDiagnosesFromCurrentProcess(diagCfgIncludeExclude, catalog.GetSuites())
 	assert.NoError(t, err)
 	assert.Len(t, outSuitesDiagnosesIncludeExclude, 1)
 	assert.Equal(t, outSuitesDiagnosesIncludeExclude[0].SuiteDiagnoses, inDiagnoses)

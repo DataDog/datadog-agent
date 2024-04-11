@@ -32,8 +32,6 @@ type Config struct {
 
 	StatsdHost string
 	StatsdPort int
-
-	GRPCServerEnabled bool
 }
 
 // ModuleIsEnabled returns a bool indicating if the given module name is enabled.

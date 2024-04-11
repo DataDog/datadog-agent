@@ -1,0 +1,18 @@
+---
+# functional_test_cleanup stage
+# Contains a job which cleans up kitchen resources created for functional tests.
+
+# FIXME: our current Gitlab version doesn't support importing a file more than once
+# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
+# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+# include:
+#   - .gitlab/kitchen_common/cleanup.yml
+
+cleanup_kitchen_functional_test:
+  extends: .kitchen_cleanup_azure_common
+  rules:
+    !reference [.manual]
+  stage: functional_test_cleanup
+  needs: ["tests_ebpf_x64", "prepare_ebpf_functional_tests_x64"]
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct

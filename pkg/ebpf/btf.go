@@ -15,13 +15,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/cilium/ebpf/btf"
 	"github.com/mholt/archiver/v3"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
@@ -30,6 +29,49 @@ import (
 )
 
 const btfFlushDelay = 1 * time.Minute
+
+type btfPlatform string
+
+const (
+	platformAmazon       btfPlatform = "amzn"
+	platformCentOS       btfPlatform = "centos"
+	platformDebian       btfPlatform = "debian"
+	platformFedora       btfPlatform = "fedora"
+	platformOpenSUSELeap btfPlatform = "opensuse-leap"
+	platformOracle       btfPlatform = "ol"
+	platformRedhat       btfPlatform = "rhel"
+	platformSUSE         btfPlatform = "sles"
+	platformUbuntu       btfPlatform = "ubuntu"
+)
+
+func (p btfPlatform) String() string {
+	return string(p)
+}
+
+func btfPlatformFromString(platform string) (btfPlatform, error) {
+	switch platform {
+	case "amzn", "amazon":
+		return platformAmazon, nil
+	case "suse", "sles":
+		return platformSUSE, nil
+	case "opensuse", "opensuse-leap":
+		return platformOpenSUSELeap, nil
+	case "redhat", "rhel":
+		return platformRedhat, nil
+	case "oracle", "ol":
+		return platformOracle, nil
+	case "ubuntu":
+		return platformUbuntu, nil
+	case "centos":
+		return platformCentOS, nil
+	case "debian":
+		return platformDebian, nil
+	case "fedora":
+		return platformFedora, nil
+	default:
+		return "", fmt.Errorf("%s unsupported", platform)
+	}
+}
 
 // FlushBTF deletes any cache of loaded BTF data, regardless of how it was sourced.
 func FlushBTF() {
@@ -174,20 +216,22 @@ func (b *orderedBTFLoader) embeddedPath() (string, error) {
 
 var kernelVersionPatterns = []struct {
 	pattern   *regexp.Regexp
-	platforms []string
+	platforms []btfPlatform
 }{
-	{regexp.MustCompile(`\.amzn[1-2]\.`), []string{"amazon"}},
-	{regexp.MustCompile(`\.el7\.`), []string{"redhat", "centos", "oracle"}},
-	{regexp.MustCompile(`\.el8(_\d)?\.`), []string{"redhat", "centos", "oracle"}},
-	{regexp.MustCompile(`\.el[7-8]uek\.`), []string{"oracle"}},
-	{regexp.MustCompile(`\.deb10\.`), []string{"debian"}},
-	{regexp.MustCompile(`\.fc\d{2}\.`), []string{"fedora"}},
+	{regexp.MustCompile(`\.amzn[1-2]\.`), []btfPlatform{platformAmazon}},
+	{regexp.MustCompile(`\.el7\.`), []btfPlatform{platformRedhat, platformCentOS, platformOracle}},
+	{regexp.MustCompile(`\.el8(_\d)?\.`), []btfPlatform{platformRedhat, platformCentOS, platformOracle}},
+	{regexp.MustCompile(`\.el[7-8]uek\.`), []btfPlatform{platformOracle}},
+	{regexp.MustCompile(`\.deb10\.`), []btfPlatform{platformDebian}},
+	{regexp.MustCompile(`\.fc\d{2}\.`), []btfPlatform{platformFedora}},
+	{regexp.MustCompile(`-lp15\d\.`), []btfPlatform{platformOpenSUSELeap}},
+	{regexp.MustCompile(`-150300\.`), []btfPlatform{platformOpenSUSELeap}},
 }
 
 var errIncorrectOSReleaseMount = errors.New("please mount the /etc/os-release file as /host/etc/os-release in the system-probe container to resolve this")
 
 // getEmbeddedBTF returns the relative path to the BTF *tarball* file
-func (b *orderedBTFLoader) getEmbeddedBTF(platform, platformVersion, kernelVersion string) (string, error) {
+func (b *orderedBTFLoader) getEmbeddedBTF(platform btfPlatform, platformVersion, kernelVersion string) (string, error) {
 	btfFilename := kernelVersion + ".btf"
 	btfTarball := btfFilename + ".tar.xz"
 	possiblePaths := b.searchEmbeddedCollection(btfTarball)
@@ -195,12 +239,12 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform, platformVersion, kernelVersi
 		return "", fmt.Errorf("no BTF file in embedded collection matching kernel version `%s`", kernelVersion)
 	}
 
-	btfRelativePath := filepath.Join(platform, btfTarball)
-	if platform == "ubuntu" {
+	btfRelativePath := filepath.Join(platform.String(), btfTarball)
+	if platform == platformUbuntu {
 		// Ubuntu BTFs are stored in subdirectories corresponding to platform version.
 		// This is because we have BTFs for different versions of ubuntu with the exact same
 		// kernel name, so kernel name alone is not a unique identifier.
-		btfRelativePath = filepath.Join(platform, platformVersion, btfTarball)
+		btfRelativePath = filepath.Join(platform.String(), platformVersion, btfTarball)
 	}
 	if slices.Contains(possiblePaths, btfRelativePath) {
 		return btfRelativePath, nil
@@ -216,10 +260,10 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform, platformVersion, kernelVersi
 	if len(possiblePaths) == 1 {
 		pathParts := strings.Split(possiblePaths[0], string(os.PathSeparator))
 		if len(pathParts) > 0 {
-			if pathParts[0] != platform {
+			if pathParts[0] != platform.String() {
 				log.Warnf("BTF platform incorrectly detected as `%s`, using `%s` instead. Mount the /etc/os-release file as /host/etc/os-release in the system-probe container to resolve this warning", platform, pathParts[0])
 			}
-			if pathParts[0] == "ubuntu" && len(pathParts) > 2 && pathParts[1] != platformVersion {
+			if pathParts[0] == platformUbuntu.String() && len(pathParts) > 2 && pathParts[1] != platformVersion {
 				log.Warnf("ubuntu platform version incorrectly detected as `%s`, using `%s` instead. Mount the /etc/os-release file as /host/etc/os-release in the system-probe container to resolve this warning", platformVersion, pathParts[1])
 			}
 			return possiblePaths[0], nil
@@ -233,7 +277,11 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform, platformVersion, kernelVersi
 			// remove possible paths that do not match possible platforms
 			possiblePaths = slices.DeleteFunc(possiblePaths, func(s string) bool {
 				pform := strings.Split(s, string(os.PathSeparator))[0]
-				return !slices.Contains(kvp.platforms, pform)
+				btfp, err := btfPlatformFromString(pform)
+				if err != nil {
+					return true
+				}
+				return !slices.Contains(kvp.platforms, btfp)
 			})
 			if len(possiblePaths) == 1 {
 				// eliminated down to one matching
@@ -244,16 +292,22 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform, platformVersion, kernelVersi
 	}
 
 	// still unsure between multiple possible paths, log all unique platforms
-	possiblePlatforms := make(map[string]bool)
+	possiblePlatforms := make(map[btfPlatform]bool)
 	for _, p := range possiblePaths {
 		pform := strings.Split(p, string(os.PathSeparator))[0]
-		possiblePlatforms[pform] = true
+		if btfp, err := btfPlatformFromString(pform); err == nil {
+			possiblePlatforms[btfp] = true
+		}
 	}
 	// handle case where ubuntu is actually correct
-	if len(possiblePlatforms) == 1 && platform == "ubuntu" && possiblePlatforms[platform] {
+	if len(possiblePlatforms) == 1 && platform == platformUbuntu && possiblePlatforms[platform] {
 		return "", fmt.Errorf("ubuntu platform version incorrectly detected as `%s`. %w", platformVersion, errIncorrectOSReleaseMount)
 	}
-	return "", fmt.Errorf("BTF platform incorrectly detected as `%s`. It is likely one of `%s`, but we are unable to automatically decide. %w", platform, strings.Join(maps.Keys(possiblePlatforms), ","), errIncorrectOSReleaseMount)
+	platformStrings := make([]string, 0, len(possiblePlatforms))
+	for pp := range possiblePlatforms {
+		platformStrings = append(platformStrings, pp.String())
+	}
+	return "", fmt.Errorf("BTF platform incorrectly detected as `%s`. It is likely one of `%s`, but we are unable to automatically decide. %w", platform, strings.Join(platformStrings, ","), errIncorrectOSReleaseMount)
 }
 
 func (b *orderedBTFLoader) searchEmbeddedCollection(filename string) []string {
@@ -267,7 +321,11 @@ func (b *orderedBTFLoader) searchEmbeddedCollection(filename string) []string {
 
 		if !f.IsDir() {
 			if filepath.Base(th.Name) == filename {
-				matchingPaths = append(matchingPaths, th.Name)
+				pform := strings.Split(th.Name, string(os.PathSeparator))[0]
+				// must be a recognized platform
+				if _, err := btfPlatformFromString(pform); err == nil {
+					matchingPaths = append(matchingPaths, th.Name)
+				}
 			}
 		}
 		return nil
@@ -279,27 +337,12 @@ func (b *orderedBTFLoader) searchEmbeddedCollection(filename string) []string {
 	return matchingPaths
 }
 
-var getBTFPlatform = funcs.Memoize(func() (string, error) {
+var getBTFPlatform = funcs.Memoize(func() (btfPlatform, error) {
 	platform, err := kernel.Platform()
 	if err != nil {
 		return "", fmt.Errorf("kernel platform: %s", err)
 	}
-
-	// using directory names from .gitlab/deps_build.yml
-	switch platform {
-	case "amzn", "amazon":
-		return "amazon", nil
-	case "suse", "sles": //opensuse treated differently on purpose
-		return "sles", nil
-	case "redhat", "rhel":
-		return "redhat", nil
-	case "oracle", "ol":
-		return "oracle", nil
-	case "ubuntu", "centos", "debian", "fedora":
-		return platform, nil
-	default:
-		return "", fmt.Errorf("%s unsupported", platform)
-	}
+	return btfPlatformFromString(platform)
 })
 
 func loadBTFFrom(path string) (*btf.Spec, error) {

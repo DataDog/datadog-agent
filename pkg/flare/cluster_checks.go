@@ -14,8 +14,8 @@ import (
 
 	"github.com/fatih/color"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -36,7 +36,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config.Datadog)
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	if err := util.SetAuthToken(); err != nil {
+	if err := util.SetAuthToken(config.Datadog); err != nil {
 		return err
 	}
 

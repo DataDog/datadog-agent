@@ -19,7 +19,7 @@ import (
 
 	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 )
 
 func TestDiffAutoscalter(t *testing.T) {
@@ -478,7 +478,6 @@ func TestDiffExternalMetrics(t *testing.T) {
 		expected      []custommetrics.ExternalMetricValue
 	}{
 		"delete invalid metric": {
-
 			[]metav1.Object{
 				&autoscalingv2.HorizontalPodAutoscaler{
 					ObjectMeta: metav1.ObjectMeta{

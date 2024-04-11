@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/config
 
-go 1.21
+go 1.21.9
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../cmd/agent/common/path
@@ -22,36 +22,37 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber/
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../../pkg/util/system
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../pkg/util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 )
 
 require (
-	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/config/env v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/config/model v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.51.0-rc.2
-	github.com/DataDog/viper v1.12.0
-	github.com/stretchr/testify v1.8.4
+	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/env v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2
+	github.com/DataDog/viper v1.13.0
+	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.50.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.51.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
@@ -97,11 +98,11 @@ require (
 	go.uber.org/dig v1.17.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.23.0 // indirect
-	golang.org/x/exp v0.0.0-20231214170342-aacd6d4b4611 // indirect
-	golang.org/x/mod v0.14.0 // indirect
-	golang.org/x/sys v0.16.0 // indirect
+	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
+	golang.org/x/mod v0.15.0 // indirect
+	golang.org/x/sys v0.17.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
-	golang.org/x/tools v0.16.0 // indirect
+	golang.org/x/tools v0.18.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

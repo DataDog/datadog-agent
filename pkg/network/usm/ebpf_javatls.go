@@ -99,7 +99,6 @@ var javaTLSSpec = &protocols.ProtocolSpec{
 				EBPFFuncName: doVfsIoctlKprobeName,
 				UID:          probeUID,
 			},
-			KProbeMaxActive: maxActive,
 		},
 	},
 	TailCalls: []manager.TailCallRoute{

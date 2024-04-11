@@ -87,8 +87,7 @@ func (w *TrapsServer) Error() error {
 func newServer(lc fx.Lifecycle, deps dependencies) provides {
 	if !trapsconfig.IsEnabled(deps.Conf) {
 		return provides{
-			Comp:           &TrapsServer{running: false},
-			StatusProvider: coreStatus.NoopInformationProvider(),
+			Comp: &TrapsServer{running: false},
 		}
 	}
 	stat := statusimpl.New()
@@ -96,6 +95,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 	// careful never to double-instantiate anything. Do not use this solution
 	// elsewhere if possible.
 	app := fx.New(
+		fxutil.FxLoggingOption(),
 		fx.Supply(injections{
 			Conf:      deps.Conf,
 			HNService: deps.HNService,
@@ -116,8 +116,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 		deps.Logger.Errorf("Failed to initialize snmp-traps server: %s", err)
 		server.stat.SetStartError(err)
 		return provides{
-			Comp:           server,
-			StatusProvider: coreStatus.NoopInformationProvider(),
+			Comp: server,
 		}
 	}
 

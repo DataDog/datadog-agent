@@ -22,6 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
+const (
+	upstreamEventSchema = "https://raw.githubusercontent.com/DataDog/datadog-agent/main/docs/cloud-workload-security/backend.schema.json"
+)
+
 //nolint:deadcode,unused
 //go:embed schemas
 var schemaAssetFS embed.FS
@@ -53,6 +57,23 @@ func (v ValidInodeFormatChecker) IsFormat(input interface{}) bool {
 	return !dentry.IsFakeInode(inode)
 }
 
+func validateSchema(t *testing.T, schemaLoader gojsonschema.JSONLoader, documentLoader gojsonschema.JSONLoader) bool {
+	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
+	if err != nil {
+		t.Error(err)
+		return false
+	}
+
+	if !result.Valid() {
+		for _, desc := range result.Errors() {
+			t.Error(desc)
+		}
+		return false
+	}
+
+	return true
+}
+
 //nolint:deadcode,unused
 func validateStringSchema(t *testing.T, json string, path string) bool {
 	t.Helper()
@@ -63,16 +84,22 @@ func validateStringSchema(t *testing.T, json string, path string) bool {
 	documentLoader := gojsonschema.NewStringLoader(json)
 	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem(path, fs)
 
-	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
-	if err != nil {
-		t.Error(err)
+	if !validateSchema(t, schemaLoader, documentLoader) {
+		t.Error(json)
 		return false
 	}
 
-	if !result.Valid() {
-		for _, desc := range result.Errors() {
-			t.Errorf("%s", desc)
-		}
+	return true
+}
+
+//nolint:deadcode,unused
+func validateUrlSchema(t *testing.T, json string, url string) bool {
+	t.Helper()
+
+	documentLoader := gojsonschema.NewStringLoader(json)
+	schemaLoader := gojsonschema.NewReferenceLoader(url)
+
+	if !validateSchema(t, schemaLoader, documentLoader) {
 		t.Error(json)
 		return false
 	}
@@ -131,12 +158,20 @@ func (tm *testModule) validateRenameSchema(t *testing.T, event *model.Event) boo
 
 //nolint:deadcode,unused
 func (tm *testModule) validateChmodSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/chmod.schema.json")
 }
 
 //nolint:deadcode,unused
 func (tm *testModule) validateChownSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/chown.schema.json")
 }
@@ -149,6 +184,10 @@ func (tm *testModule) validateSELinuxSchema(t *testing.T, event *model.Event) bo
 
 //nolint:deadcode,unused
 func (tm *testModule) validateLinkSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/link.schema.json")
 }
@@ -191,18 +230,30 @@ func (tm *testModule) validatePTraceSchema(t *testing.T, event *model.Event) boo
 
 //nolint:deadcode,unused
 func (tm *testModule) validateLoadModuleSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/load_module.schema.json")
 }
 
 //nolint:deadcode,unused
 func (tm *testModule) validateLoadModuleNoFileSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/load_module_no_file.schema.json")
 }
 
 //nolint:deadcode,unused
 func (tm *testModule) validateUnloadModuleSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/unload_module.schema.json")
 }
@@ -267,4 +318,13 @@ func validateHeartbeatSchema(t *testing.T, event *events.CustomEvent) bool {
 func validateActivityDumpProtoSchema(t *testing.T, ad string) bool {
 	t.Helper()
 	return validateStringSchema(t, ad, "file:///schemas/activity_dump_proto.schema.json")
+}
+
+//nolint:deadcode,unused
+func validateMessageSchema(t *testing.T, msg string) bool {
+	t.Helper()
+	if !validateStringSchema(t, msg, "file:///schemas/message.schema.json") {
+		return false
+	}
+	return validateUrlSchema(t, msg, upstreamEventSchema)
 }

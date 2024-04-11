@@ -30,6 +30,8 @@ else
   COMPRESSION_LEVEL = 5
 end
 
+BUILD_OCIRU = Omnibus::Config.host_distribution == "ociru"
+
 if windows_target?
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
@@ -65,6 +67,7 @@ else
     if redhat_target?
       runtime_script_dependency :pre, "glibc-common"
       runtime_script_dependency :pre, "shadow-utils"
+      conflict "glibc-common < 2.17"
     else
       runtime_script_dependency :pre, "glibc"
       runtime_script_dependency :pre, "shadow"
@@ -111,6 +114,7 @@ description 'Datadog Monitoring Agent
 
 # .deb specific flags
 package :deb do
+  skip_packager BUILD_OCIRU
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   license 'Apache License Version 2.0'
@@ -129,6 +133,7 @@ end
 
 # .rpm specific flags
 package :rpm do
+  skip_packager BUILD_OCIRU
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   dist_tag ''
@@ -148,6 +153,7 @@ end
 
 # OSX .pkg specific flags
 package :pkg do
+  skip_packager BUILD_OCIRU
   identifier 'com.datadoghq.agent'
   unless ENV['SKIP_SIGN_MAC'] == 'true'
     signing_identity 'Developer ID Installer: Datadog, Inc. (JKFCB4CN7C)'
@@ -174,6 +180,12 @@ end
 
 package :msi do
   skip_packager true
+end
+
+package :xz do
+  skip_packager !BUILD_OCIRU
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
 end
 
 # ------------------------------------

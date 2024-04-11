@@ -10,11 +10,18 @@ package clientimpl
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
@@ -22,9 +29,6 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 )
@@ -45,17 +49,15 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"language_detection.enabled":       "true",
-			"cluster_agent.enabled":            "true",
-			"language_detection.client_period": "50ms",
+			"language_detection.reporting.enabled":       "true",
+			"language_detection.enabled":                 "true",
+			"cluster_agent.enabled":                      "true",
+			"language_detection.reporting.buffer_period": "50ms",
 		}}),
 		telemetry.MockModule(),
 		logimpl.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
-		fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
-			return m.(workloadmeta.Component)
-		}),
 	))
 
 	optComponent := newClient(deps).(optional.Option[clientComp.Component])
@@ -68,57 +70,71 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 
 func TestClientEnabled(t *testing.T) {
 	testCases := []struct {
-		languageEnabled     string
-		clusterAgentEnabled string
-		isSet               bool
+		languageDetectionEnabled          string
+		languageDetectionReportingEnabled string
+		clusterAgentEnabled               string
+		isSet                             bool
 	}{
-		{"true", "true", true},
-		{"true", "false", false},
-		{"false", "true", false},
-		{"false", "false", false},
+		{"true", "true", "true", true},
+		{"true", "true", "false", false},
+		{"false", "true", "true", false},
+		{"false", "true", "false", false},
+		{"true", "false", "true", false},
+		{"true", "false", "false", false},
+		{"false", "false", "true", false},
+		{"false", "false", "false", false},
 	}
 
 	for _, testCase := range testCases {
-		t.Run(fmt.Sprintf("language_enabled=%s, cluster_agent_enabled=%s", testCase.languageEnabled, testCase.clusterAgentEnabled), func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				config.MockModule(),
-				fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-					"language_detection.enabled": testCase.languageEnabled,
-					"cluster_agent.enabled":      testCase.clusterAgentEnabled,
-				}}),
-				telemetry.MockModule(),
-				logimpl.MockModule(),
-				fx.Supply(workloadmeta.NewParams()),
-				workloadmeta.MockModuleV2(),
-				fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
-					return m.(workloadmeta.Component)
-				}),
-			))
+		t.Run(fmt.Sprintf(
+			"language_enabled=%s, language_detection_reporting_enabled=%s, cluster_agent_enabled=%s",
+			testCase.languageDetectionEnabled,
+			testCase.languageDetectionReportingEnabled,
+			testCase.clusterAgentEnabled),
+			func(t *testing.T) {
+				deps := fxutil.Test[dependencies](t, fx.Options(
+					config.MockModule(),
+					fx.Provide(func() optional.Option[secrets.Component] {
+						return optional.NewOption[secrets.Component](secretsimpl.NewMock())
+					}),
+					fx.Replace(config.MockParams{Overrides: map[string]interface{}{
+						"language_detection.enabled":           testCase.languageDetectionEnabled,
+						"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,
+						"cluster_agent.enabled":                testCase.clusterAgentEnabled,
+					}}),
+					telemetry.MockModule(),
+					logimpl.MockModule(),
+					fx.Supply(workloadmeta.NewParams()),
+					workloadmeta.MockModuleV2(),
+				))
 
-			optionalCl := newClient(deps).(optional.Option[clientComp.Component])
-			assert.Equal(t, testCase.isSet, optionalCl.IsSet())
-		})
+				optionalCl := newClient(deps).(optional.Option[clientComp.Component])
+				_, ok := optionalCl.Get()
+				assert.Equal(t, testCase.isSet, ok)
+			})
 	}
 }
 
 func TestClientSend(t *testing.T) {
 	client, respCh := newTestClient(t)
-	container := langUtil.ContainersLanguages{
-		"java-cont": {
+	containers := langUtil.ContainersLanguages{
+		langUtil.Container{
+			Name: "java-cont",
+			Init: false,
+		}: {
 			"java": {},
 		},
-	}
-
-	initContainer := langUtil.ContainersLanguages{
-		"go-cont": {
+		langUtil.Container{
+			Name: "go-cont",
+			Init: true,
+		}: {
 			"go": {},
 		},
 	}
 
 	podInfo := &podInfo{
-		namespace:         "default",
-		containerInfo:     container,
-		initContainerInfo: initContainer,
+		namespace:     "default",
+		containerInfo: containers,
 		ownerRef: &workloadmeta.KubernetesPodOwner{
 			Name: "dummyrs",
 			Kind: "replicaset",
@@ -132,13 +148,15 @@ func TestClientSend(t *testing.T) {
 
 	// wait that the mock dca client processes the message
 	req := <-respCh
+
+	containerDetails, initContainerDetails := podInfo.containerInfo.ToProto()
 	assert.Equal(t, &pbgo.ParentLanguageAnnotationRequest{
 		PodDetails: []*pbgo.PodLanguageDetails{
 			{
 				Name:                 podName,
 				Namespace:            podInfo.namespace,
-				InitContainerDetails: podInfo.initContainerInfo.ToProto(),
-				ContainerDetails:     podInfo.containerInfo.ToProto(),
+				ContainerDetails:     containerDetails,
+				InitContainerDetails: initContainerDetails,
 				Ownerref: &pbgo.KubeOwnerInfo{
 					Name: "dummyrs",
 					Kind: "replicaset",
@@ -153,22 +171,24 @@ func TestClientSend(t *testing.T) {
 
 func TestClientSendFreshPods(t *testing.T) {
 	client, _ := newTestClient(t)
-	container := langUtil.ContainersLanguages{
-		"java-cont": {
+	containers := langUtil.ContainersLanguages{
+		langUtil.Container{
+			Name: "java-cont",
+			Init: false,
+		}: {
 			"java": {},
 		},
-	}
-
-	initContainer := langUtil.ContainersLanguages{
-		"go-cont": {
+		langUtil.Container{
+			Name: "go-cont",
+			Init: true,
+		}: {
 			"go": {},
 		},
 	}
 
 	podInfo := &podInfo{
-		namespace:         "default",
-		containerInfo:     container,
-		initContainerInfo: initContainer,
+		namespace:     "default",
+		containerInfo: containers,
 		ownerRef: &workloadmeta.KubernetesPodOwner{
 			Name: "dummyrs",
 			Kind: "replicaset",
@@ -185,13 +205,15 @@ func TestClientSendFreshPods(t *testing.T) {
 	client.freshlyUpdatedPods = map[string]struct{}{"nginx": {}}
 
 	freshData = client.getFreshBatchProto()
-	assert.Equal(t, &pbgo.ParentLanguageAnnotationRequest{
+
+	containerDetails, initContainerDetails := podInfo.containerInfo.ToProto()
+	expectedFreshData := &pbgo.ParentLanguageAnnotationRequest{
 		PodDetails: []*pbgo.PodLanguageDetails{
 			{
 				Name:                 podName,
 				Namespace:            podInfo.namespace,
-				InitContainerDetails: podInfo.initContainerInfo.ToProto(),
-				ContainerDetails:     podInfo.containerInfo.ToProto(),
+				ContainerDetails:     containerDetails,
+				InitContainerDetails: initContainerDetails,
 				Ownerref: &pbgo.KubeOwnerInfo{
 					Name: "dummyrs",
 					Kind: "replicaset",
@@ -199,7 +221,9 @@ func TestClientSendFreshPods(t *testing.T) {
 				},
 			},
 		},
-	}, freshData)
+	}
+
+	assert.Equal(t, expectedFreshData, freshData)
 	// make sure we didn't touch the current batch
 	assert.Equal(t, client.currentBatch, batch{podName: podInfo})
 }
@@ -339,12 +363,17 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 			"nginx-pod-name": {
 				namespace: "nginx-pod-namespace",
 				containerInfo: langUtil.ContainersLanguages{
-					"nginx-cont-name": {
+					langUtil.Container{
+						Name: "nginx-cont-name",
+						Init: false,
+					}: {
 						"java": {},
 					},
-				},
-				initContainerInfo: langUtil.ContainersLanguages{
-					"nginx-cont-name": {
+
+					langUtil.Container{
+						Name: "nginx-cont-name",
+						Init: true,
+					}: {
 						"go": {},
 					},
 				},
@@ -524,12 +553,16 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 			"nginx-pod-name": {
 				namespace: "nginx-pod-namespace",
 				containerInfo: langUtil.ContainersLanguages{
-					"nginx-cont-name": {
+					langUtil.Container{
+						Name: "nginx-cont-name",
+						Init: false,
+					}: {
 						"java": {},
 					},
-				},
-				initContainerInfo: langUtil.ContainersLanguages{
-					"nginx-cont-name": {
+					langUtil.Container{
+						Name: "nginx-cont-name",
+						Init: true,
+					}: {
 						"go": {},
 					},
 				},
@@ -939,9 +972,10 @@ func TestRun(t *testing.T) {
 		"nginx-pod-name1": {
 			namespace: "nginx-pod-namespace1",
 			containerInfo: langUtil.ContainersLanguages{
-				"nginx-cont-name1": {
-					"java": {},
-				},
+				langUtil.Container{
+					Name: "nginx-cont-name1",
+					Init: false,
+				}: {"java": {}},
 			},
 			ownerRef: &workloadmeta.KubernetesPodOwner{
 				ID:   "nginx-replicaset-id1",
@@ -991,9 +1025,10 @@ func TestRun(t *testing.T) {
 		"nginx-pod-name2": {
 			namespace: "nginx-pod-namespace2",
 			containerInfo: langUtil.ContainersLanguages{
-				"nginx-cont-name2": {
-					"go": {},
-				},
+				langUtil.Container{
+					Name: "nginx-cont-name2",
+					Init: false,
+				}: {"go": {}},
 			},
 			ownerRef: &workloadmeta.KubernetesPodOwner{
 				ID:   "nginx-replicaset-id2",
@@ -1004,9 +1039,10 @@ func TestRun(t *testing.T) {
 		"nginx-pod-name1": {
 			namespace: "nginx-pod-namespace1",
 			containerInfo: langUtil.ContainersLanguages{
-				"nginx-cont-name1": {
-					"java": {},
-				},
+				langUtil.Container{
+					Name: "nginx-cont-name1",
+					Init: false,
+				}: {"java": {}},
 			},
 			ownerRef: &workloadmeta.KubernetesPodOwner{
 				ID:   "nginx-replicaset-id1",
@@ -1017,9 +1053,10 @@ func TestRun(t *testing.T) {
 		"python-pod-name3": {
 			namespace: "python-pod-namespace3",
 			containerInfo: langUtil.ContainersLanguages{
-				"python-cont-name3": {
-					"python": {},
-				},
+				langUtil.Container{
+					Name: "python-cont-name3",
+					Init: false,
+				}: {"python": {}},
 			},
 			ownerRef: &workloadmeta.KubernetesPodOwner{
 				ID:   "python-replicaset-id3",
@@ -1059,9 +1096,10 @@ func TestRun(t *testing.T) {
 		"nginx-pod-name1": {
 			namespace: "nginx-pod-namespace1",
 			containerInfo: langUtil.ContainersLanguages{
-				"nginx-cont-name1": {
-					"java": {},
-				},
+				langUtil.Container{
+					Name: "nginx-cont-name1",
+					Init: false,
+				}: {"java": {}},
 			},
 			ownerRef: &workloadmeta.KubernetesPodOwner{
 				ID:   "nginx-replicaset-id1",
@@ -1087,24 +1125,22 @@ func protoToBatch(protoMessage *pbgo.ParentLanguageAnnotationRequest) batch {
 	res := make(batch)
 
 	for _, podDetail := range protoMessage.PodDetails {
-		cInfo := langUtil.NewContainersLanguages()
+		cInfo := make(langUtil.ContainersLanguages)
 
 		for _, container := range podDetail.ContainerDetails {
-			languageSet := langUtil.NewLanguageSet()
+			languageSet := make(langUtil.LanguageSet)
 			for _, lang := range container.Languages {
-				languageSet.Add(lang.Name)
+				languageSet.Add(langUtil.Language(lang.Name))
 			}
-			cInfo[container.ContainerName] = languageSet
+			cInfo[*langUtil.NewContainer(container.ContainerName)] = languageSet
 		}
 
-		initContainerInfo := langUtil.NewContainersLanguages()
-
 		for _, container := range podDetail.InitContainerDetails {
-			languageSet := langUtil.NewLanguageSet()
+			languageSet := make(langUtil.LanguageSet)
 			for _, lang := range container.Languages {
-				languageSet.Add(lang.Name)
+				languageSet.Add(langUtil.Language(lang.Name))
 			}
-			initContainerInfo[container.ContainerName] = languageSet
+			cInfo[*langUtil.NewContainer(container.ContainerName)] = languageSet
 		}
 
 		podInfo := podInfo{
@@ -1114,8 +1150,7 @@ func protoToBatch(protoMessage *pbgo.ParentLanguageAnnotationRequest) batch {
 				ID:   podDetail.Ownerref.Id,
 				Name: podDetail.Ownerref.Name,
 			},
-			containerInfo:     cInfo,
-			initContainerInfo: initContainerInfo,
+			containerInfo: cInfo,
 		}
 
 		res[podDetail.Name] = &podInfo
@@ -1147,7 +1182,7 @@ func (p *podInfo) equals(other *podInfo) bool {
 	if p == nil || other == nil {
 		return false
 	}
-	if p.namespace != other.namespace || !(*p.ownerRef == *other.ownerRef) || !p.containerInfo.Equals(other.containerInfo) || !p.initContainerInfo.Equals(other.initContainerInfo) {
+	if p.namespace != other.namespace || !(*p.ownerRef == *other.ownerRef) || !reflect.DeepEqual(p.containerInfo, other.containerInfo) {
 		return false
 	}
 	return true

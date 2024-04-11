@@ -2,16 +2,18 @@
 Agent namespaced tasks
 """
 
-
 import ast
 import glob
+import json
 import os
 import platform
 import re
 import shutil
 import sys
 import tempfile
+from datetime import datetime
 
+import requests
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
@@ -65,6 +67,7 @@ AGENT_CORECHECKS = [
     "memory",
     "ntp",
     "oom_kill",
+    "oracle",
     "oracle-dbm",
     "sbom",
     "systemd",
@@ -74,6 +77,7 @@ AGENT_CORECHECKS = [
     "jetson",
     "telemetry",
     "orchestrator_pod",
+    "orchestrator_ecs",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -126,6 +130,7 @@ def build(
     cmake_options='',
     bundle=None,
     bundle_ebpf=False,
+    agent_bin=None,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -197,7 +202,9 @@ def build(
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
-    agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+    if not agent_bin:
+        agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
     args = {
         "go_mod": go_mod,
@@ -332,7 +339,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
-    shutil.copytree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
+    shutil.copytree("./comp/core/gui/guiimpl/views", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
     if development:
         shutil.copytree("./dev/dist/", dist_folder, dirs_exist_ok=True)
 
@@ -436,8 +443,6 @@ def hacky_dev_image_build(
     base_image=None,
     target_image="agent",
     target_tag="latest",
-    process_agent=False,
-    trace_agent=False,
     push=False,
     signed_pull=False,
 ):
@@ -475,16 +480,6 @@ def hacky_dev_image_build(
         ctx.run(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
         )
-        if process_agent:
-            ctx.run("inv process-agent.build")
-        if trace_agent:
-            ctx.run("inv trace-agent.build")
-
-    copy_extra_agents = ""
-    if process_agent:
-        copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
-    if trace_agent:
-        copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
@@ -527,8 +522,11 @@ COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
-{copy_extra_agents}
-RUN agent completion bash > /usr/share/bash-completion/completions/agent
+RUN agent          completion bash > /usr/share/bash-completion/completions/agent
+RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
+RUN security-agent completion bash > /usr/share/bash-completion/completions/security-agent
+RUN system-probe   completion bash > /usr/share/bash-completion/completions/system-probe
+RUN trace-agent    completion bash > /usr/share/bash-completion/completions/trace-agent
 
 ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 '''
@@ -586,7 +584,7 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
         {
             # Run eventlog check tests with the Windows API, which depend on the EventLog service
             "dir": ".",
-            'prefix': './pkg/collector/corechecks/windows_event_log/...',
+            'prefix': './comp/checks/windowseventlog/windowseventlogimpl/check/...',
             'extra_args': '-evtapi Windows',
         },
     ]
@@ -763,6 +761,104 @@ def should_retry_bundle_install(res):
     return False
 
 
+def _send_build_metrics(ctx, overall_duration):
+    # We only want to generate those metrics from the CI
+    if sys.platform == 'win32':
+        src_dir = "C:/buildroot/datadog-agent"
+        aws_cmd = "aws.cmd"
+    else:
+        src_dir = os.environ.get('CI_PROJECT_DIR')
+        aws_cmd = "aws"
+    job_name = os.environ.get('CI_JOB_NAME_SLUG')
+    branch = os.environ.get('CI_COMMIT_REF_NAME')
+    pipeline_id = os.environ.get('CI_PIPELINE_ID')
+    if not job_name or not branch or not src_dir or not pipeline_id:
+        print(
+            '''Missing required environment variables, this is probably not a CI job.
+                  skipping sending build metrics'''
+        )
+        return
+
+    series = []
+    timestamp = int(datetime.now().timestamp())
+    with open(f'{src_dir}/omnibus/pkg/build-summary.json') as summary_json:
+        j = json.load(summary_json)
+        # Various software build durations are all sent as the `datadog.agent.build.duration` metric
+        # with a specific tag for each software.
+        for software, metrics in j['build'].items():
+            series.append(
+                {
+                    'metric': 'datadog.agent.build.duration',
+                    'points': [{'timestamp': timestamp, 'value': metrics['build_duration']}],
+                    'tags': [
+                        f'software:{software}',
+                        f'cached:{metrics["cached"]}',
+                        f'job:{job_name}',
+                        f'branch:{branch}',
+                        f'pipeline:{pipeline_id}',
+                    ],
+                    'unit': 'seconds',
+                    'type': 0,
+                }
+            )
+        # We also provide the total duration for the omnibus build as a separate metric
+        series.append(
+            {
+                'metric': 'datadog.agent.build.total',
+                'points': [{'timestamp': timestamp, 'value': overall_duration}],
+                'tags': [
+                    f'job:{job_name}',
+                    f'branch:{branch}',
+                    f'pipeline:{pipeline_id}',
+                ],
+                'unit': 'seconds',
+                'type': 0,
+            }
+        )
+        # Stripping might not always be enabled so we conditionally read the metric
+        if "strip" in j:
+            series.append(
+                {
+                    'metric': 'datadog.agent.build.strip',
+                    'points': [{'timestamp': timestamp, 'value': j['strip']}],
+                    'tags': [
+                        f'job:{job_name}',
+                        f'branch:{branch}',
+                        f'pipeline:{pipeline_id}',
+                    ],
+                    'unit': 'seconds',
+                    'type': 0,
+                }
+            )
+        # And all packagers duration as another separated metric
+        for packager, duration in j['packaging'].items():
+            series.append(
+                {
+                    'metric': 'datadog.agent.package.duration',
+                    'points': [{'timestamp': timestamp, 'value': duration}],
+                    'tags': [
+                        f'job:{job_name}',
+                        f'branch:{branch}',
+                        f'packager:{packager}',
+                        f'pipeline:{pipeline_id}',
+                    ],
+                    'unit': 'seconds',
+                    'type': 0,
+                }
+            )
+    dd_api_key = ctx.run(
+        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2_SSM_NAME"]} --with-decryption --query "Parameter.Value" --out text',
+        hide=True,
+    ).stdout.strip()
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
+    r = requests.post("https://api.datadoghq.com/api/v2/series", json={'series': series}, headers=headers)
+    if r.ok:
+        print('Successfully sent build metrics to DataDog')
+    else:
+        print(f'Failed to send build metrics to DataDog: {r.status_code}')
+        print(r.text)
+
+
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
 @task(
     help={
@@ -859,6 +955,7 @@ def omnibus_build(
         print(f"Deps:    {deps_elapsed.duration}")
     print(f"Bundle:  {bundle_elapsed.duration}")
     print(f"Omnibus: {omnibus_elapsed.duration}")
+    _send_build_metrics(ctx, omnibus_elapsed.duration)
 
 
 @task

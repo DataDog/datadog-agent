@@ -2,7 +2,7 @@ import os
 
 from invoke import Exit, task
 
-from tasks.libs.common.github_api import GithubAPI
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME
 
 
@@ -32,6 +32,7 @@ def lint_releasenote(ctx):
             if not github.contains_release_note(pr_id):
                 print(
                     "Error: No releasenote was found for this PR. Please add one using 'reno'"
+                    ", see https://github.com/DataDog/datadog-agent/blob/main/docs/dev/contributing.md#reno"
                     ", or apply the label 'changelog/no-changelog' to the PR."
                 )
                 raise Exit(code=1)

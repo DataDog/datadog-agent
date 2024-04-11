@@ -11,6 +11,7 @@ package ptracer
 import (
 	"bufio"
 	"bytes"
+	"debug/elf"
 	"errors"
 	"fmt"
 	"io"
@@ -27,6 +28,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
+	usergrouputils "github.com/DataDog/datadog-agent/pkg/security/common/usergrouputils"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -192,7 +194,96 @@ func getFullPathFromFilename(process *Process, filename string) (string, error) 
 	return filename, nil
 }
 
-func fillFileMetadata(filepath string, openMsg *ebpfless.OpenSyscallMsg, disableStats bool) error {
+func refreshUserCache(tracer *Tracer) error {
+	file, err := os.Open(passwdPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	cache, err := usergrouputils.ParsePasswdFile(file)
+	if err != nil {
+		return err
+	}
+	tracer.userCache = cache
+	return nil
+}
+
+func refreshGroupCache(tracer *Tracer) error {
+	file, err := os.Open(groupPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	cache, err := usergrouputils.ParseGroupFile(file)
+	if err != nil {
+		return err
+	}
+	tracer.groupCache = cache
+	return nil
+}
+
+func getFileMTime(filepath string) uint64 {
+	fileInfo, err := os.Lstat(filepath)
+	if err != nil {
+		return 0
+	}
+	stat := fileInfo.Sys().(*syscall.Stat_t)
+	return uint64(stat.Mtim.Nano())
+}
+
+func getUserFromUID(tracer *Tracer, uid int32) string {
+	if uid < 0 {
+		return ""
+	}
+	// if it's the first time, or if passwd was updated, load/refresh the user cache
+	if tracer.userCache == nil {
+		tracer.lastPasswdMTime = getFileMTime(passwdPath)
+		if err := refreshUserCache(tracer); err != nil {
+			return ""
+		}
+	} else if tracer.userCacheRefreshLimiter.Allow() {
+		// refresh the cache only if the file has changed
+		mtime := getFileMTime(passwdPath)
+		if mtime != tracer.lastPasswdMTime {
+			if err := refreshUserCache(tracer); err != nil {
+				return ""
+			}
+			tracer.lastPasswdMTime = mtime
+		}
+	}
+	if user, found := tracer.userCache[int(uid)]; found {
+		return user
+	}
+	return ""
+}
+
+func getGroupFromGID(tracer *Tracer, gid int32) string {
+	if gid < 0 {
+		return ""
+	}
+	// if it's the first time, or if group was updated, load/refresh the group cache
+	if tracer.groupCache == nil {
+		tracer.lastGroupMTime = getFileMTime("/etc/group")
+		if err := refreshGroupCache(tracer); err != nil {
+			return ""
+		}
+	} else if tracer.groupCacheRefreshLimiter.Allow() {
+		// refresh the cache only if the file has changed
+		mtime := getFileMTime("/etc/group")
+		if mtime != tracer.lastGroupMTime {
+			if err := refreshGroupCache(tracer); err != nil {
+				return ""
+			}
+			tracer.lastGroupMTime = mtime
+		}
+	}
+	if group, found := tracer.groupCache[int(gid)]; found {
+		return group
+	}
+	return ""
+}
+
+func fillFileMetadata(tracer *Tracer, filepath string, fileMsg *ebpfless.FileSyscallMsg, disableStats bool) error {
 	if disableStats || strings.HasPrefix(filepath, "memfd:") {
 		return nil
 	}
@@ -204,27 +295,38 @@ func fillFileMetadata(filepath string, openMsg *ebpfless.OpenSyscallMsg, disable
 		return nil
 	}
 	stat := fileInfo.Sys().(*syscall.Stat_t)
-	openMsg.MTime = uint64(stat.Mtim.Nano())
-	openMsg.CTime = uint64(stat.Ctim.Nano())
-	openMsg.Credentials = &ebpfless.Credentials{
-		UID: stat.Uid,
-		GID: stat.Gid,
+	fileMsg.MTime = uint64(stat.Mtim.Nano())
+	fileMsg.CTime = uint64(stat.Ctim.Nano())
+	fileMsg.Credentials = &ebpfless.Credentials{
+		UID:   stat.Uid,
+		User:  getUserFromUID(tracer, int32(stat.Uid)),
+		GID:   stat.Gid,
+		Group: getGroupFromGID(tracer, int32(stat.Gid)),
 	}
-	if openMsg.Mode == 0 { // here, mode can be already set by handler of open syscalls
-		openMsg.Mode = stat.Mode // useful for exec handlers
+	if fileMsg.Mode == 0 { // here, mode can be already set by handler of open syscalls
+		fileMsg.Mode = stat.Mode // useful for exec handlers
 	}
 	return nil
 }
 
 func getPidTTY(pid int) string {
-	tty, err := os.Readlink(fmt.Sprintf("/proc/%d/fd/0", pid))
+	ttyPath, err := os.Readlink(fmt.Sprintf("/proc/%d/fd/0", pid))
 	if err != nil {
 		return ""
 	}
-	if !strings.HasPrefix(tty, "/dev/pts") {
+	if ttyPath == "/dev/null" {
 		return ""
 	}
-	return "pts" + path.Base(tty)
+
+	if strings.HasPrefix(ttyPath, "/dev/pts") {
+		return "pts" + path.Base(ttyPath)
+	}
+
+	if strings.HasPrefix(ttyPath, "/dev") {
+		return path.Base(ttyPath)
+	}
+
+	return ""
 }
 
 func truncateArgs(list []string) ([]string, bool) {
@@ -243,38 +345,100 @@ func truncateArgs(list []string) ([]string, bool) {
 }
 
 // list copied from default value of env_with_value system-probe config
-var priorityEnvs = []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES"}
+var priorityEnvsPrefixes = []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES"}
 
-func truncateEnvs(list []string) ([]string, bool) {
-	truncated := false
-	if len(list) > model.MaxArgsEnvsSize {
-		// walk over all envs and put priority ones asides
-		var priorityList []string
-		var secondaryList []string
-		for _, l := range list {
-			found := false
-			for _, prio := range priorityEnvs {
-				if strings.HasPrefix(l, prio) {
-					priorityList = append(priorityList, l)
-					found = true
-					break
+// StringIterator defines a string iterator
+type StringIterator interface {
+	Next() bool
+	Text() string
+	Reset()
+}
+
+// StringArrayIterator defines a string array iterator
+type StringArrayIterator struct {
+	array []string
+	curr  int
+	next  int
+}
+
+// NewStringArrayIterator returns a new string array iterator
+func NewStringArrayIterator(array []string) *StringArrayIterator {
+	return &StringArrayIterator{
+		array: array,
+	}
+}
+
+// Next returns true if there is a next element
+func (s *StringArrayIterator) Next() bool {
+	if s.next >= len(s.array) {
+		return false
+	}
+	s.curr = s.next
+	s.next++
+
+	return true
+}
+
+// Text return the current element
+func (s *StringArrayIterator) Text() string {
+	return s.array[s.curr]
+}
+
+// Reset reset the iterator
+func (s *StringArrayIterator) Reset() {
+	s.curr, s.next = 0, 0
+}
+
+func truncateEnvs(it StringIterator) ([]string, bool) {
+	var (
+		priorityEnvs []string
+		envCounter   int
+		truncated    bool
+	)
+
+	for it.Next() {
+		text := it.Text()
+		if len(text) > 0 {
+			envCounter++
+			if matchesOnePrefix(text, priorityEnvsPrefixes) {
+				if len(text) > model.MaxArgEnvSize {
+					text = text[:model.MaxArgEnvSize-4] + "..."
+					truncated = true
 				}
-			}
-			if !found {
-				secondaryList = append(secondaryList, l)
+				priorityEnvs = append(priorityEnvs, text)
 			}
 		}
-		// build the result by first taking the priority envs if found
-		list = append(priorityList, secondaryList[:model.MaxArgsEnvsSize-len(priorityList)]...)
-		truncated = true
 	}
-	for i, l := range list {
-		if len(l) > model.MaxArgEnvSize {
-			list[i] = l[:model.MaxArgEnvSize-4] + "..."
-			truncated = true
+
+	it.Reset()
+
+	if envCounter > model.MaxArgsEnvsSize {
+		envCounter = model.MaxArgsEnvsSize
+	}
+
+	// second pass collecting
+	envs := make([]string, 0, envCounter)
+	envs = append(envs, priorityEnvs...)
+
+	for it.Next() {
+		if len(envs) >= model.MaxArgsEnvsSize {
+			return envs, true
+		}
+
+		text := it.Text()
+		if len(text) > 0 {
+			// if it matches one prefix, it's already in the envs through priority envs
+			if !matchesOnePrefix(text, priorityEnvsPrefixes) {
+				if len(text) > model.MaxArgEnvSize {
+					text = text[:model.MaxArgEnvSize-4] + "..."
+					truncated = true
+				}
+				envs = append(envs, text)
+			}
 		}
 	}
-	return list, truncated
+
+	return envs, truncated
 }
 
 func secsToNanosecs(secs uint64) uint64 {
@@ -283,4 +447,35 @@ func secsToNanosecs(secs uint64) uint64 {
 
 func microsecsToNanosecs(secs uint64) uint64 {
 	return secs * 1000
+}
+
+func getModuleName(reader io.ReaderAt) (string, error) {
+	elf, err := elf.NewFile(reader)
+	if err != nil {
+		return "", err
+	}
+	defer elf.Close()
+	section := elf.Section(".gnu.linkonce.this_module")
+	if section == nil {
+		return "", errors.New("found no '.gnu.linkonce.this_module' section")
+	}
+	data, err := section.Data()
+	if err != nil {
+		return "", err
+	} else if len(data) < 25 {
+		return "", errors.New("section data too short")
+	}
+	index := bytes.IndexByte(data[24:], 0) // 24 is the offset on 64bits
+	if index == -1 {
+		return "", errors.New("no string found")
+	}
+	return string(data[24 : 24+index]), nil
+}
+
+func getModuleNameFromFile(filename string) (string, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	return getModuleName(file)
 }

@@ -49,9 +49,8 @@ func IsEnabled() (enabled bool, set bool, err error) {
 		return false, set, nil
 	} else if enabled, err = strconv.ParseBool(enabledStr); err != nil {
 		return false, set, fmt.Errorf("could not parse %s value `%s` as a boolean value", enabledEnvVar, enabledStr)
-	} else {
-		return enabled, set, nil
 	}
+	return enabled, set, nil
 }
 
 // IsStandalone returns whether appsec is used as a standalone product (without APM tracing) or not
