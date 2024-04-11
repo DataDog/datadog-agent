@@ -126,7 +126,6 @@ func preTestsHook() {
 		opts := ptracer.Opts{
 			Async:          true,
 			DisableSeccomp: disableSeccomp,
-			Verbose:        true,
 		}
 
 		err := ptracer.StartCWSPtracer(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
