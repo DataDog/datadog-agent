@@ -756,7 +756,7 @@ def build(
         d.copy(ctx, shared_archive, "/")
         d.run_cmd(ctx, "tar xf /shared.tar -C /", verbose=verbose)
         d.run_cmd(ctx, "mkdir /opt/datadog-agent/run")
-        d.run_cmd(ctx, "mkdir /etc/datadog-agent/")
+        d.run_cmd(ctx, "mkdir /etc/datadog-agent")
         d.copy(ctx, DEFAULT_CONFIG_PATH, "/etc/datadog-agent/system-probe.yaml")
         info(f"[+] system-probe built for {d.name} @ /root")
 
