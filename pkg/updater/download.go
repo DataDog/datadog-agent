@@ -21,6 +21,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -48,13 +49,18 @@ type downloader struct {
 }
 
 // newDownloader returns a new Downloader.
-func newDownloader(client *http.Client, remoteBaseURL string) *downloader {
+func newDownloader(config config.Reader, client *http.Client, remoteBaseURL string) *downloader {
+	var keychain authn.Keychain
+	switch config.GetString("updater.registry.auth") {
+	case "gcr":
+		keychain = google.Keychain
+	case "ecr":
+		keychain = authn.NewKeychainFromHelper(ecr.NewECRHelper())
+	default:
+		keychain = authn.DefaultKeychain
+	}
 	return &downloader{
-		keychain: authn.NewMultiKeychain(
-			authn.DefaultKeychain,
-			google.Keychain,
-			authn.NewKeychainFromHelper(ecr.NewECRHelper()),
-		),
+		keychain:      keychain,
 		client:        client,
 		remoteBaseURL: remoteBaseURL,
 	}
