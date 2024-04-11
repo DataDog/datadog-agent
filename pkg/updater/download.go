@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	oci "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -110,7 +111,7 @@ func (d *downloader) downloadRegistry(ctx context.Context, url string) (oci.Imag
 		OS:           runtime.GOOS,
 		Architecture: runtime.GOARCH,
 	}
-	index, err := remote.Index(ref, remote.WithContext(ctx))
+	index, err := remote.Index(ref, remote.WithContext(ctx), remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)))
 	if err != nil {
 		return nil, fmt.Errorf("could not download image: %w", err)
 	}

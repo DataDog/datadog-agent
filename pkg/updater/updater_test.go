@@ -89,7 +89,8 @@ func newTestUpdaterWithPaths(t *testing.T, s *testFixturesServer, rcc *testRemot
 	rc := &remoteConfig{client: rcc}
 	rootPath := t.TempDir()
 	locksPath := t.TempDir()
-	u := newUpdater(rc, rootPath, locksPath, cfg)
+	u, err := newUpdater(rc, rootPath, locksPath, cfg)
+	assert.NoError(t, err)
 	u.installer.configsDir = t.TempDir()
 	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
 	u.catalog = s.Catalog()
