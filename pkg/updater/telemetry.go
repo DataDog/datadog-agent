@@ -36,6 +36,8 @@ type telemetry struct {
 }
 
 func newTelemetry(config config.Reader, socketDirectory string) (*telemetry, error) {
+	// HACK: we use a unix socket to receive traces from the local tracer
+	// this isn't ideal and could be replaced by an in-memory transport in the future
 	socketPath := filepath.Join(socketDirectory, "telemetry.sock")
 	err := os.RemoveAll(socketPath)
 	if err != nil {

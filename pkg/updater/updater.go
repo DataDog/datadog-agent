@@ -211,7 +211,7 @@ func (u *updaterImpl) Stop(ctx context.Context) error {
 
 // Bootstrap installs the stable version of the package.
 func (u *updaterImpl) BootstrapDefault(ctx context.Context, pkg string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "BootstrapDefault")
+	span, ctx := tracer.StartSpanFromContext(ctx, "bootrap_default")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
@@ -227,7 +227,7 @@ func (u *updaterImpl) BootstrapDefault(ctx context.Context, pkg string) (err err
 
 // BootstrapVersion installs the stable version of the package.
 func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "BootstrapVersion")
+	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap_version")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
@@ -243,7 +243,7 @@ func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version 
 
 // BootstrapURL installs the stable version of the package.
 func (u *updaterImpl) BootstrapURL(ctx context.Context, url string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "BootstrapURL")
+	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap_url")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
@@ -279,7 +279,7 @@ func (u *updaterImpl) boostrapPackage(ctx context.Context, url string, expectedP
 
 // StartExperiment starts an experiment with the given package.
 func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "StartExperiment")
+	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap_version")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
@@ -314,7 +314,7 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version s
 
 // PromoteExperiment promotes the experiment to stable.
 func (u *updaterImpl) PromoteExperiment(ctx context.Context, pkg string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "PromoteExperiment")
+	span, ctx := tracer.StartSpanFromContext(ctx, "promote_experiment")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
@@ -332,7 +332,7 @@ func (u *updaterImpl) PromoteExperiment(ctx context.Context, pkg string) (err er
 
 // StopExperiment stops the experiment.
 func (u *updaterImpl) StopExperiment(ctx context.Context, pkg string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "StopExperiment")
+	span, ctx := tracer.StartSpanFromContext(ctx, "stop_experiment")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
