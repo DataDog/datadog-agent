@@ -237,8 +237,7 @@ func cmdDiagnose(cliParams *cliParams,
 	senderManager diagnosesendermanager.Component,
 	wmeta optional.Option[workloadmeta.Component],
 	_ optional.Option[tagger.Component],
-	ac optional.Option[autodiscovery.Component],
-	collector optional.Option[collector.Component],
+	ac autodiscovery.Component,
 	secretResolver secrets.Component) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
@@ -247,15 +246,15 @@ func cmdDiagnose(cliParams *cliParams,
 		Exclude:  cliParams.exclude,
 	}
 
-	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, wmeta, ac)
 	// Is it List command
 	if cliParams.listSuites {
 		diagnose.ListStdOut(color.Output, diagCfg)
 		return nil
 	}
 
+	diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(senderManager, secretResolver, wmeta, ac)
 	// Run command
-	return diagnose.RunStdOut(color.Output, diagCfg, diagnoseDeps)
+	return diagnose.RunStdOutInCLIProcess(color.Output, diagCfg, diagnoseDeps)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
