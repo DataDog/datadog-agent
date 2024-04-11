@@ -147,6 +147,9 @@ min_collection_interval: 180
 	sender.AssertMetric(t, "MonotonicCount", "cisco_sdwan.crash.count", 0, "", []string{"system_ip:10.10.1.12"})
 	sender.AssertMetric(t, "MonotonicCount", "cisco_sdwan.reboot.count", 3, "", []string{"system_ip:10.10.1.12"})
 
+	// Assert device status metrics
+	sender.AssertMetric(t, "Gauge", "cisco_sdwan.device.reachable", 1, "", []string{"device_vendor:cisco", "device_namespace:test", "hostname:Manager", "system_ip:10.10.1.1", "site_id:101", "type:vmanage"})
+
 	// Assert metadata
 	// language=json
 	event := []byte(`

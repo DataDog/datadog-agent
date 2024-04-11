@@ -226,6 +226,14 @@ func (ms *SDWanSender) SendDeviceCountersMetrics(deviceCounters []client.DeviceC
 	}
 }
 
+// SendDeviceStatusMetrics sends device status metrics
+func (ms *SDWanSender) SendDeviceStatusMetrics(deviceStatus map[string]float64) {
+	for device, status := range deviceStatus {
+		tags := ms.getDeviceTags(device)
+		ms.sender.Gauge(ciscoSDWANMetricPrefix+"device.reachable", status, "", tags)
+	}
+}
+
 // Commit commits to the sender
 func (ms *SDWanSender) Commit() {
 	ms.sender.Commit()

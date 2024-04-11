@@ -47,6 +47,19 @@ func GetDevicesUptime(devices []client.Device) map[string]float64 {
 	return uptimes
 }
 
+// GetDevicesStatus process devices API payloads to get status
+func GetDevicesStatus(devices []client.Device) map[string]float64 {
+	states := make(map[string]float64)
+	for _, device := range devices {
+		status := 0.0
+		if device.Reachability == "reachable" {
+			status = 1.0
+		}
+		states[device.SystemIP] = status
+	}
+	return states
+}
+
 func buildDeviceMetadata(namespace string, device client.Device) devicemetadata.DeviceMetadata {
 	id := fmt.Sprintf("%s:%s", namespace, device.SystemIP)
 
