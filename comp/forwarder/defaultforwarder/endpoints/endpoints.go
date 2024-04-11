@@ -25,26 +25,28 @@ var (
 	// SketchSeriesEndpoint is the v2 endpoint used to send sketches
 	SketchSeriesEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/beta/sketches", Name: "sketches_v2"}
 
+	// ProcessesStatusEndpoint is a v1 endpoint used to send processes checks
+	ProcessesStatusEndpoint = transaction.Endpoint{Subdomain: "https://process.datadoghq.com/", Route: "/intake/status", Name: "process_status"}
 	// ProcessesEndpoint is a v1 endpoint used to send processes checks
 	ProcessesEndpoint = transaction.Endpoint{Subdomain: "https://process.datadoghq.com/", Route: "/api/v1/collector", Name: "process"} // work with processes subdomain (get 403)
 	// ProcessDiscoveryEndpoint is a v1 endpoint used to sends process discovery checks
 	ProcessDiscoveryEndpoint = transaction.Endpoint{Subdomain: "https://process.datadoghq.com/", Route: "/api/v1/discovery", Name: "process_discovery"} // work with processes subdomain (get 403)
 	// ProcessLifecycleEndpoint is a v2 endpoint used to send process lifecycle events
-	ProcessLifecycleEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v2/proclcycle", Name: "process_lifecycle"} // 404 not found
+	ProcessLifecycleEndpoint = transaction.Endpoint{Subdomain: "https://orchestrator.datadoghq.com", Route: "/api/v2/proclcycle", Name: "process_lifecycle"} // 404 not found
 	// RtProcessesEndpoint is a v1 endpoint used to send real time process checks
 	RtProcessesEndpoint = transaction.Endpoint{Subdomain: "https://process.datadoghq.com/", Route: "/api/v1/collector", Name: "rtprocess"} // work with processes subdomain (get 403)
 	// ContainerEndpoint is a v1 endpoint used to send container checks
 	ContainerEndpoint = transaction.Endpoint{Subdomain: "https://process.datadoghq.com/", Route: "/api/v1/container", Name: "container"} // work with processes subdomain (get 403)
 	// RtContainerEndpoint is a v1 endpoint used to send real time container checks
-	RtContainerEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v1/container", Name: "rtcontainer"}
+	RtContainerEndpoint = transaction.Endpoint{Subdomain: "https://process.datadoghq.com/", Route: "/api/v1/container", Name: "rtcontainer"}
 	// ConnectionsEndpoint is a v1 endpoint used to send connection checks
-	ConnectionsEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v1/connections", Name: "connections"}
+	ConnectionsEndpoint = transaction.Endpoint{Subdomain: "https://process.datadoghq.com/", Route: "/api/v1/connections", Name: "connections"}
 	// LegacyOrchestratorEndpoint is a v1 endpoint used to send orchestrator checks
-	LegacyOrchestratorEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v1/orchestrator", Name: "orchestrator"}
+	LegacyOrchestratorEndpoint = transaction.Endpoint{Subdomain: "https://orchestrator.datadoghq.com", Route: "/api/v1/orchestrator", Name: "orchestrator"}
 	// OrchestratorEndpoint is a v2 endpoint used to send orchestrator checks
-	OrchestratorEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v2/orch", Name: "orchestrator"}
+	OrchestratorEndpoint = transaction.Endpoint{Subdomain: "https://orchestrator.datadoghq.com", Route: "/api/v2/orch", Name: "orchestrator"}
 	// OrchestratorManifestEndpoint is a v2 endpoint used to send orchestrator manifests
-	OrchestratorManifestEndpoint = transaction.Endpoint{Subdomain: "", Route: "/api/v2/orchmanif", Name: "orchmanifest"}
+	OrchestratorManifestEndpoint = transaction.Endpoint{Subdomain: "https://orchestrator.datadoghq.com", Route: "/api/v2/orchmanif", Name: "orchmanifest"} // work with POST but got 401
 
 	/////////////// Unused Endpoints ///////////////
 
