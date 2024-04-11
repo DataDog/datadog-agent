@@ -25,12 +25,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cenkalti/backoff/v4"
+	lru "github.com/hashicorp/golang-lru/v2"
 
 	"golang.org/x/sys/windows"
 )
@@ -69,11 +71,15 @@ type WindowsProbe struct {
 	fimwg      sync.WaitGroup
 
 	// path caches
-	filePathResolver map[fileObjectPointer]string
-	regPathResolver  map[regObjectPointer]string
+	filePathResolverLock sync.Mutex
+	filePathResolver     map[fileObjectPointer]string
+	regPathResolver      map[regObjectPointer]string
 
 	// stats
 	stats stats
+	// discarders
+	discardedPaths     *lru.Cache[string, struct{}]
+	discardedBasenames *lru.Cache[string, struct{}]
 }
 
 type etwNotification struct {
@@ -109,8 +115,8 @@ type stats struct {
 	regSetValueKey uint64
 
 	//filePathResolver status
-	filePathNewWrites  uint64
-	filePathOverwrites uint64
+	fileCreateSkippedDiscardedPaths     uint64
+	fileCreateSkippedDiscardedBasenames uint64
 }
 
 /*
@@ -274,7 +280,9 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					//fmt.Printf("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 					if e.EventHeader.EventDescriptor.ID == idClose {
+						p.filePathResolverLock.Lock()
 						delete(p.filePathResolver, ca.fileObject)
+						p.filePathResolverLock.Unlock()
 					}
 				}
 				p.stats.fileClose++
@@ -486,6 +494,7 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 		ev.Type = uint32(model.CreateNewFileEventType)
 		ev.CreateNewFile = model.CreateNewFileEvent{
 			File: model.FileEvent{
+				FileObject:  uint64(arg.fileObject),
 				PathnameStr: arg.fileName,
 				BasenameStr: filepath.Base(arg.fileName),
 			},
@@ -583,6 +592,10 @@ func (p *WindowsProbe) Close() error {
 
 // SendStats sends statistics about the probe to Datadog
 func (p *WindowsProbe) SendStats() error {
+	p.filePathResolverLock.Lock()
+	fprLen := len(p.filePathResolver)
+	p.filePathResolverLock.Unlock()
+
 	// may need to lock here
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsProcessStart, float64(p.stats.procStart), nil, 1); err != nil {
 		return err
@@ -623,6 +636,13 @@ func (p *WindowsProbe) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIDRename29, float64(p.stats.fileidRename29), nil, 1); err != nil {
 		return err
 	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileCreateSkippedDiscardedPaths, float64(p.stats.fileCreateSkippedDiscardedPaths), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileCreateSkippedDiscardedBasenames, float64(p.stats.fileCreateSkippedDiscardedBasenames), nil, 1); err != nil {
+		return err
+	}
+
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegCreateKey, float64(p.stats.regCreateKey), nil, 1); err != nil {
 		return err
 	}
@@ -641,16 +661,10 @@ func (p *WindowsProbe) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegSetValue, float64(p.stats.regSetValueKey), nil, 1); err != nil {
 		return err
 	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfFilePathResolver, float64(len(p.filePathResolver)), nil, 1); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfFilePathResolver, float64(fprLen), nil, 1); err != nil {
 		return err
 	}
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfRegistryPathResolver, float64(len(p.regPathResolver)), nil, 1); err != nil {
-		return err
-	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileResolverNew, float64(p.stats.filePathNewWrites), nil, 1); err != nil {
-		return err
-	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileResolverOverwrite, float64(p.stats.filePathOverwrites), nil, 1); err != nil {
 		return err
 	}
 	return nil
@@ -658,6 +672,16 @@ func (p *WindowsProbe) SendStats() error {
 
 // NewWindowsProbe instantiates a new runtime security agent probe
 func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
+	discardedPaths, err := lru.New[string, struct{}](1 << 10)
+	if err != nil {
+		return nil, err
+	}
+
+	discardedBasenames, err := lru.New[string, struct{}](1 << 10)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
@@ -671,11 +695,14 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		onStop:            make(chan *procmon.ProcessStopNotification),
 		onError:           make(chan bool),
 		onETWNotification: make(chan etwNotification),
-		filePathResolver:  make(map[fileObjectPointer]string, 0),
-		regPathResolver:   make(map[regObjectPointer]string, 0),
+
+		filePathResolver: make(map[fileObjectPointer]string, 0),
+		regPathResolver:  make(map[regObjectPointer]string, 0),
+
+		discardedPaths:     discardedPaths,
+		discardedBasenames: discardedBasenames,
 	}
 
-	var err error
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)
 	if err != nil {
 		return nil, err
@@ -698,11 +725,31 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 
 // FlushDiscarders invalidates all the discarders
 func (p *WindowsProbe) FlushDiscarders() error {
+	p.discardedPaths.Purge()
+	p.discardedBasenames.Purge()
 	return nil
 }
 
 // OnNewDiscarder handles discarders
-func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
+func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field eval.Field, evalType eval.EventType) {
+	if evalType != "create" {
+		return
+	}
+
+	if field == "create.file.path" {
+		path := ev.CreateNewFile.File.PathnameStr
+		seclog.Debugf("new discarder for `%s` -> `%v`", field, path)
+		p.discardedPaths.Add(path, struct{}{})
+	} else if field == "create.file.name" {
+		basename := ev.CreateNewFile.File.BasenameStr
+		seclog.Debugf("new discarder for `%s` -> `%v`", field, basename)
+		p.discardedBasenames.Add(basename, struct{}{})
+	}
+
+	fileObject := fileObjectPointer(ev.CreateNewFile.File.FileObject)
+	p.filePathResolverLock.Lock()
+	defer p.filePathResolverLock.Unlock()
+	delete(p.filePathResolver, fileObject)
 }
 
 // NewModel returns a new Model
