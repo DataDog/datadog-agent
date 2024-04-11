@@ -350,7 +350,12 @@ def test(
 
     unit_tests_tags = {
         f: compute_build_tags_for_flavor(
-            flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
+            flavor=f,
+            build="unit-tests",
+            arch=arch,
+            build_include=build_include,
+            build_exclude=build_exclude,
+            include_sds=include_sds,
         )
         for f in flavors
     }
@@ -413,9 +418,6 @@ def test(
 
     # Test
     for flavor, build_tags in unit_tests_tags.items():
-        if include_sds:
-            build_tags.append("sds")
-
         if build_stdlib:
             build_standard_lib(
                 ctx,
@@ -932,6 +934,7 @@ def lint_go(
     timeout: int = None,
     golangci_lint_kwargs="",
     headless_mode=False,
+    include_sds=False,
 ):
     _lint_go(
         ctx,
@@ -948,4 +951,5 @@ def lint_go(
         timeout,
         golangci_lint_kwargs,
         headless_mode,
+        include_sds,
     )
