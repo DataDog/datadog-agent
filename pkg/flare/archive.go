@@ -280,8 +280,9 @@ func getDiagnoses(isFlareLocal bool, deps diagnose.SuitesDeps) func() ([]byte, e
 
 		// ... but when running within Agent some diagnose suites need to know
 		// that to run more optimally/differently by using existing in-memory objects
-		if !isFlareLocal {
-			diagCfg.RunningInAgentProcess = true
+		collector, ok := deps.Collector.Get()
+		if !isFlareLocal && ok {
+			return diagnose.RunStdOutInAgentProcess(w, diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
 		}
 
 		return diagnose.RunStdOut(w, diagCfg, deps)

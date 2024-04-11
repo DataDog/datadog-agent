@@ -385,6 +385,14 @@ func RunStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
 	})
 }
 
+// RunStdOutInAgentProcess enumerates registered Diagnose suites and get their diagnoses
+// for human consumption
+func RunStdOutInAgentProcess(w io.Writer, diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) error {
+	return runStdOut(w, diagCfg, func(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+		return RunInAgentProcess(diagCfg, deps)
+	})
+}
+
 // RunStdOutInCLIProcess enumerates registered Diagnose suites and get their diagnoses
 // for human consumption
 func RunStdOutInCLIProcess(w io.Writer, diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) error {
@@ -515,7 +523,7 @@ func NewSuitesDeps(
 
 func getSuites(diagCfg diagnosis.Config, deps SuitesDeps) []diagnosis.Suite {
 	return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
-		return getDiagnose(diagCfg, deps.SenderManager, deps.Collector, deps.SecretResolver, deps.WMeta, deps.AC)
+		return getDiagnose(diagCfg, deps.SenderManager, deps.SecretResolver, deps.WMeta, deps.AC)
 	})
 }
 

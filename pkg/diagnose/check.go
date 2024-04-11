@@ -25,10 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func getDiagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], acOpt optional.Option[autodiscovery.Component]) []diagnosis.Diagnosis {
-	if coll, ok := collector.Get(); diagCfg.RunningInAgentProcess && ok {
-		return diagnoseChecksInAgentProcess(coll)
-	}
+func getDiagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], acOpt optional.Option[autodiscovery.Component]) []diagnosis.Diagnosis {
 	if ac, ok := acOpt.Get(); ok {
 		return diagnoseChecksInCLIProcess(diagCfg, senderManager, secretResolver, wmeta, ac)
 	}
