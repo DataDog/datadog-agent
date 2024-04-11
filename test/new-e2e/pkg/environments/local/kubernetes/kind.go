@@ -140,7 +140,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	if params.fakeintakeOptions != nil {
 		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
 		params.fakeintakeOptions = append(fakeintakeOpts, params.fakeintakeOptions...)
-		fakeIntake, err := fakeintakeComp.NewLocalKubernetesFakeintake(localEnv, "fakeintake", kubeProvider)
+		fakeIntake, err := fakeintakeComp.NewLocalDockerFakeintake(localEnv, "fakeintake")
 		if err != nil {
 			return err
 		}
@@ -150,10 +150,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		}
 
 		if params.agentOptions != nil {
-			excludeFakeintakeEnvVars := map[string]string{
-				"DD_CONTAINER_EXCLUDE": "name:fakeintake*",
-			}
-			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake), kubernetesagentparams.WithEnvironmentVariables(excludeFakeintakeEnvVars)}
+			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
 			params.agentOptions = append(newOpts, params.agentOptions...)
 		}
 	} else {
