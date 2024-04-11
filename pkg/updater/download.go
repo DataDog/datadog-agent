@@ -13,8 +13,11 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/awslabs/amazon-ecr-credential-helper/ecr-login"
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	oci "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/google"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 
@@ -39,6 +42,7 @@ type downloadedPackage struct {
 
 // downloader is the downloader used by the updater to download packages.
 type downloader struct {
+	keychain      authn.Keychain
 	client        *http.Client
 	remoteBaseURL string
 }
@@ -46,6 +50,11 @@ type downloader struct {
 // newDownloader returns a new Downloader.
 func newDownloader(client *http.Client, remoteBaseURL string) *downloader {
 	return &downloader{
+		keychain: authn.NewMultiKeychain(
+			authn.DefaultKeychain,
+			google.Keychain,
+			authn.NewKeychainFromHelper(ecr.NewECRHelper()),
+		),
 		client:        client,
 		remoteBaseURL: remoteBaseURL,
 	}
@@ -111,7 +120,7 @@ func (d *downloader) downloadRegistry(ctx context.Context, url string) (oci.Imag
 		OS:           runtime.GOOS,
 		Architecture: runtime.GOARCH,
 	}
-	index, err := remote.Index(ref, remote.WithContext(ctx), remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)))
+	index, err := remote.Index(ref, remote.WithContext(ctx), remote.WithAuthFromKeychain(d.keychain), remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)))
 	if err != nil {
 		return nil, fmt.Errorf("could not download image: %w", err)
 	}
