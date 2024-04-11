@@ -30,7 +30,7 @@ func DisableDefender(host *components.RemoteHost) error {
 		return fmt.Errorf("Windows Defender is tamper protected, unable to modify settings")
 	}
 
-	_, err = powershell.PsHost().DisableWindowsDefender().Execute(host)
+	_, err = host.Execute(powershell.PsHost().DisableWindowsDefender().Compile())
 	if err != nil {
 		return fmt.Errorf("error disabling Windows Defender: %w", err)
 	}
