@@ -204,7 +204,7 @@ func TestRuntimeSettings(t *testing.T) {
 				fx.Supply(
 					settings.Params{
 						Config: fxutil.Test[config.Component](t, config.MockModule()),
-						Settings: settings.Settings{
+						Settings: map[string]settings.RuntimeSetting{
 							"foo": &runtimeTestSetting{
 								hidden:      false,
 								description: "foo settings",

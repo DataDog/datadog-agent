@@ -181,7 +181,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				healthprobeimpl.Module(),
 				fx.Provide(func(c config.Component) settings.Params {
 					return settings.Params{
-						Settings: settings.Settings{
+						Settings: map[string]settings.RuntimeSetting{
 							"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
 							"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
 							"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),

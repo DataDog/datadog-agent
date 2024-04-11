@@ -45,16 +45,16 @@ type dependencies struct {
 
 type settingsRegistry struct {
 	rwMutex  sync.RWMutex
-	settings settings.Settings
+	settings map[string]settings.RuntimeSetting
 	log      log.Component
 	config   config.Component
 }
 
 // RuntimeSettings returns all runtime configurable settings
-func (s *settingsRegistry) RuntimeSettings() settings.Settings {
+func (s *settingsRegistry) RuntimeSettings() map[string]settings.RuntimeSetting {
 	s.rwMutex.RLock()
 	defer s.rwMutex.RUnlock()
-	settingsCopy := settings.Settings{}
+	settingsCopy := map[string]settings.RuntimeSetting{}
 	for k, v := range s.settings {
 		settingsCopy[k] = v
 	}

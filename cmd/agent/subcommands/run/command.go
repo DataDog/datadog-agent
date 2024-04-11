@@ -429,7 +429,7 @@ func getSharedFxOption() fx.Option {
 		healthprobeimpl.Module(),
 		fx.Provide(func(serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
 			return settings.Params{
-				Settings: settings.Settings{
+				Settings: map[string]settings.RuntimeSetting{
 					"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
 					"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
 					"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),

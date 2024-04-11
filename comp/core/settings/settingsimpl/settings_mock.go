@@ -31,8 +31,8 @@ func newMock() settings.Component {
 }
 
 // RuntimeSettings returns all runtime configurable settings
-func (m mock) RuntimeSettings() settings.Settings {
-	return settings.Settings{}
+func (m mock) RuntimeSettings() map[string]settings.RuntimeSetting {
+	return map[string]settings.RuntimeSetting{}
 }
 
 // GetRuntimeSetting returns the value of a runtime configurable setting
