@@ -333,8 +333,7 @@ func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, 
 	}
 
 	var (
-		regs   syscall.PtraceRegs
-		prevNr int
+		regs syscall.PtraceRegs
 	)
 
 	for {
@@ -375,10 +374,6 @@ func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, 
 			}
 
 			nr := GetSyscallNr(regs)
-			if nr == 0 {
-				nr = prevNr
-			}
-			prevNr = nr
 
 			switch waitStatus.TrapCause() {
 			case syscall.PTRACE_EVENT_CLONE, syscall.PTRACE_EVENT_FORK, syscall.PTRACE_EVENT_VFORK:
