@@ -15,9 +15,10 @@ import (
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -69,7 +70,6 @@ func stopServer(listener net.Listener, name string) {
 func StartServers(
 	configService optional.Option[rcservice.Component],
 	configServiceHA optional.Option[rcserviceha.Component],
-	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
 	pidMap pidmap.Component,
@@ -89,7 +89,9 @@ func StartServers(
 	collector optional.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
+	gui optional.Option[gui.Component],
 	settings settings.Component,
+	providers []api.EndpointProvider,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
@@ -121,7 +123,6 @@ func StartServers(
 		tlsCertPool,
 		configService,
 		configServiceHA,
-		flare,
 		dogstatsdServer,
 		capture,
 		pidMap,
@@ -141,7 +142,9 @@ func StartServers(
 		collector,
 		eventPlatformReceiver,
 		ac,
+		gui,
 		settings,
+		providers,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}

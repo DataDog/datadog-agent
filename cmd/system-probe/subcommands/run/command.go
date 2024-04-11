@@ -22,13 +22,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
 	systemprobeconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
@@ -81,7 +82,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "run",
 		Short: "Run the System Probe",
 		Long:  `Runs the system-probe in the foreground`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
@@ -105,6 +106,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return logimpl.NewLogger(lc, params, sysprobeconfig)
 				}),
 				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
+				autoexitimpl.Module(),
 				pidimpl.Module(),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 				fx.Provide(func() settings.Settings {
@@ -131,7 +133,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ pid.Component, _ healthprobe.Component, settings settings.Component) error {
+func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component) error {
 	defer func() {
 		stopSystemProbe()
 	}()
@@ -290,8 +292,6 @@ func StopSystemProbeWithDefaults() {
 // startSystemProbe Initializes the system-probe process
 func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, wmeta optional.Option[workloadmeta.Component], settings settings.Component) error {
 	var err error
-	var ctx context.Context
-	ctx, common.MainCtxCancel = context.WithCancel(context.Background())
 	cfg := sysprobeconfig.SysProbeObject()
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
@@ -320,11 +320,6 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 	}
 
 	setupInternalProfiling(settings, sysprobeconfig, configPrefix, log)
-
-	err = manager.ConfigureAutoExit(ctx, sysprobeconfig)
-	if err != nil {
-		return log.Criticalf("unable to configure auto-exit: %s", err)
-	}
 
 	if err := processstatsd.Configure(cfg.StatsdHost, cfg.StatsdPort, statsd.CreateForHostPort); err != nil {
 		return log.Criticalf("error configuring statsd: %s", err)
@@ -368,8 +363,6 @@ func stopSystemProbe() {
 		common.MemoryMonitor.Stop()
 	}
 
-	// gracefully shut down any component
-	common.MainCtxCancel()
 	pkglog.Flush()
 }
 
