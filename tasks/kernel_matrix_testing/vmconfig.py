@@ -121,7 +121,7 @@ def get_image_list(distro: bool, custom: bool) -> List[List[str]]:
     headers = [
         "VM name",
         "OS Name",
-        "Version",
+        "OS Version",
         "Kernel",
         "x86_64",
         "arm64",
@@ -129,7 +129,7 @@ def get_image_list(distro: bool, custom: bool) -> List[List[str]]:
         "Example VM tags to use with --vms (fuzzy matching)",
     ]
     custom_kernels: List[List[str]] = list()
-    for k in kernels:
+    for k in sorted(kernels, key=lambda x: tuple(map(int, x.split('.')))):
         if lte_414(k):
             custom_kernels.append([f"custom-{k}", "Debian", "Custom", k, TICK, CROSS, "", f"custom-{k}-x86_64"])
         else:
@@ -158,7 +158,7 @@ def get_image_list(distro: bool, custom: bool) -> List[List[str]]:
                 entry = [
                     name,
                     platinfo.get("os_name"),
-                    platinfo.get("version"),
+                    platinfo.get("os_version"),
                     platinfo.get("kernel"),
                     CROSS,
                     CROSS,
