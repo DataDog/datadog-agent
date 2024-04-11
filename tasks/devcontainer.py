@@ -32,7 +32,7 @@ def set_buildtags(
     arch='x64',
 ):
     """
-    Modifies vscode settings file for this project to include correct build tags
+    Modifies devcontainer settings file for this project to include correct build tags
     """
     flavor = AgentFlavor[flavor]
 
