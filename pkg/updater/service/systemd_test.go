@@ -26,8 +26,8 @@ func TestInvalidCommands(t *testing.T) {
 	// assert wrong commands
 	for input, expected := range map[string]string{
 		// fail assert_command characters assertion
-		";": "error: decoding command\n",
-		"&": "error: decoding command\n",
+		";": "error: decoding command ;\n",
+		"&": "error: decoding command &\n",
 		`{"command":"start", "unit":"does-not-exist"}`:                       "error: invalid unit\n",
 		`{"command":"start", "unit":"datadog-//"}`:                           "error: invalid unit\n",
 		`{"command":"does-not-exist", "unit":"datadog-"}`:                    "error: invalid command\n",

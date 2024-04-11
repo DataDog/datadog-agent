@@ -31,6 +31,7 @@ use_dogstatsd: true
 dogstatsd_socket: %s
 `
 	datadogConfigPath = "/etc/datadog-agent/datadog.yaml"
+	ldSoPreloadPath   = "/etc/ld.so.preload"
 )
 
 // SetupAPMInjector sets up the injector at bootstrap
@@ -90,7 +91,6 @@ func (a *apmInjectorInstaller) Remove() error {
 	}
 	if err := a.deleteLDPreloadConfig(); err != nil {
 		return err
-
 	}
 	if err := a.deleteDockerConfig(); err != nil {
 		return err
@@ -103,12 +103,12 @@ func (a *apmInjectorInstaller) setRunPermissions() error {
 }
 
 // setLDPreloadConfig adds preload options on /etc/ld.so.preload, overriding existing ones
-// TODO: do it programmatically on a temp file then move it to /etc/ld.so.preload, with permissions
 func (a *apmInjectorInstaller) setLDPreloadConfig() error {
 	launcherPreloadPath := path.Join(a.installPath, "inject", "launcher.preload.so")
-	ldSoPreloadPath := "/etc/ld.so.preload"
+
 	var ldSoPreload []byte
-	if _, err := os.Stat(ldSoPreloadPath); err == nil {
+	stat, err := os.Stat(ldSoPreloadPath)
+	if err == nil {
 		ldSoPreload, err = os.ReadFile(ldSoPreloadPath)
 		if err != nil {
 			return err
@@ -120,19 +120,59 @@ func (a *apmInjectorInstaller) setLDPreloadConfig() error {
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	return writeLDPreload()
+
+	// Append the launcher preload path to the file
+	if len(ldSoPreload) > 0 && ldSoPreload[len(ldSoPreload)-1] != '\n' {
+		ldSoPreload = append(ldSoPreload, '\n')
+	}
+	ldSoPreload = append(ldSoPreload, []byte(launcherPreloadPath+"\n")...)
+
+	perms := os.FileMode(0644)
+	if stat != nil {
+		perms = stat.Mode()
+	}
+	err = os.WriteFile("/tmp/ld.so.preload.tmp", ldSoPreload, perms)
+	if err != nil {
+		return err
+	}
+
+	return executeCommand(string(replaceLDPreloadCommand))
 }
 
 // deleteLDPreloadConfig removes the preload options from /etc/ld.so.preload
-// TODO: do it programmatically on a temp file then move it to /etc/ld.so.preload, with permissions
-// OR delete /etc/ld.so.preload if empty (?)
 func (a *apmInjectorInstaller) deleteLDPreloadConfig() error {
-	return executeCommand(string(removeLdPreloadCommand))
-}
+	launcherPreloadPath := path.Join(a.installPath, "inject", "launcher.preload.so")
 
-// writeLDPreload writes the content to /etc/ld.so.preload
-func writeLDPreload() error {
-	return executeCommand(string(setupLdPreloadCommand))
+	var ldSoPreload []byte
+	stat, err := os.Stat(ldSoPreloadPath)
+	if err == nil {
+		ldSoPreload, err = os.ReadFile(ldSoPreloadPath)
+		if err != nil {
+			return err
+		}
+		if !strings.Contains(string(ldSoPreload), launcherPreloadPath) {
+			// If the line of interest isn't in /etc/ld.so.preload, return fast
+			return nil
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	} else {
+		return nil
+	}
+
+	// Remove the launcher preload path from the file
+	ldSoPreload = bytes.Replace(ldSoPreload, []byte(launcherPreloadPath+"\n"), []byte{}, -1)
+
+	perms := os.FileMode(0644)
+	if stat != nil {
+		perms = stat.Mode()
+	}
+	err = os.WriteFile("/tmp/ld.so.preload.tmp", ldSoPreload, perms)
+	if err != nil {
+		return err
+	}
+
+	return executeCommand(string(replaceLDPreloadCommand))
 }
 
 // setAgentConfig adds the agent configuration for the APM injector if it is not there already

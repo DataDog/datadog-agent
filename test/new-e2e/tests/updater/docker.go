@@ -21,17 +21,17 @@ func installDocker(distro os.Descriptor, t *testing.T, host *components.RemoteHo
 	switch distro {
 	case os.UbuntuDefault:
 		_, err := host.WriteFile("/tmp/install-docker.sh", []byte(`
-			sudo apt-get update
-			sudo apt-get install ca-certificates curl
-			sudo install -m 0755 -d /etc/apt/keyrings
-			sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-			sudo chmod a+r /etc/apt/keyrings/docker.asc
-			echo \
-			  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-			  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-			  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-			sudo apt-get update
-			sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo apt-get update
+sudo apt-get install ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo \
+	"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+	$(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+	sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 		`))
 		require.Nil(t, err)
 		host.MustExecute(`sudo chmod +x /tmp/install-docker.sh`)
@@ -40,10 +40,10 @@ func installDocker(distro os.Descriptor, t *testing.T, host *components.RemoteHo
 		require.Nil(t, err)
 	case os.CentOSDefault:
 		_, err := host.WriteFile("/tmp/install-docker.sh", []byte(`
-			sudo yum install -y yum-utils
-			sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-			sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-			sudo systemctl start docker
+sudo yum install -y yum-utils
+sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl start docker
 		`))
 		require.Nil(t, err)
 		host.MustExecute(`sudo chmod +x /tmp/install-docker.sh`)

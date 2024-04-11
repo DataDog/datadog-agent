@@ -29,14 +29,13 @@ const (
 	disableCommand           unitCommand = "disable"
 	loadCommand              unitCommand = "load-unit"
 	removeCommand            unitCommand = "remove-unit"
-	linkDockerCommand        unitCommand = "link-docker-daemon"
-	cleanupDockerCommand     unitCommand = "cleanup-docker-daemon"
 	addInstallerToAgentGroup unitCommand = "add-installer-to-agent-group"
 	backupCommand            unitCommand = `backup-file`
 	restoreCommand           unitCommand = `restore-file`
+	replaceDockerCommand                 = `{"command":"replace-docker"}`
 	restartDockerCommand                 = `{"command":"restart-docker"}`
-	setupLdPreloadCommand                = `{"command":"setup-ldpreload"}`
-	removeLdPreloadCommand               = `{"command":"remove-ldpreload"}`
+	createDockerDirCommand               = `{"command":"create-docker-dir"}`
+	replaceLDPreloadCommand              = `{"command":"replace-ld-preload"}`
 	systemdReloadCommand                 = `{"command":"systemd-reload"}`
 	adminExecutor                        = "datadog-updater-admin.service"
 )

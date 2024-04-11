@@ -10,6 +10,7 @@ package service
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path"
@@ -17,55 +18,131 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type dockerDaemonConfig map[string]interface{}
+type dockerRuntimesConfig map[string]map[string]interface{}
+
+const (
+	tmpDockerDaemonPath = "/tmp/daemon.json.tmp"
+	dockerDaemonPath    = "/etc/docker/daemon.json"
+)
+
 // setDockerConfig sets up the docker daemon to use the APM injector
-// if docker is detected on the system
-// TODO: do it programmatically on a temp file then move it to /etc/ld.so.preload, with permissions
-// and by editing json
+// even if docker isn't installed, to prepare for if it is installed
+// later
 func (a *apmInjectorInstaller) setDockerConfig() error {
-	if !isDockerInstalled() {
-		return nil
-	}
-
-	// Backup the docker daemon configuration
-	err := backupDockerDaemon()
+	// Create docker dir if it doesn't exist
+	err := executeCommand(createDockerDirCommand)
 	if err != nil {
 		return err
 	}
 
-	// Link the docker daemon configuration to the APM injector's
-	err = linkDockerDaemon(path.Join(a.installPath, "daemon.json"))
+	dockerConfig := dockerDaemonConfig{}
+	stat, err := os.Stat(dockerDaemonPath)
+	if err == nil {
+		// Read the existing configuration
+		file, err := os.ReadFile(dockerDaemonPath)
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal(file, &dockerConfig)
+		if err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	dockerConfig["default-runtime"] = "dd-shim"
+	runtimes, ok := dockerConfig["runtimes"].(dockerRuntimesConfig)
+	if !ok {
+		runtimes = dockerRuntimesConfig{}
+	}
+	runtimes["dd-shim"] = map[string]interface{}{
+		"path": path.Join(a.installPath, "inject", "auto_inject_runc"),
+	}
+	dockerConfig["runtimes"] = runtimes
+
+	dockerConfigJSON, err := json.MarshalIndent(dockerConfig, "", "    ")
 	if err != nil {
 		return err
 	}
 
-	return reloadDocker()
+	// Write the new configuration to a temporary file
+	perms := os.FileMode(0644)
+	if stat != nil {
+		perms = stat.Mode()
+	}
+	err = os.WriteFile(tmpDockerDaemonPath, dockerConfigJSON, perms)
+	if err != nil {
+		return err
+	}
+
+	// Move the temporary file to the final location
+	err = executeCommand(string(replaceDockerCommand))
+	if err != nil {
+		return err
+	}
+
+	return restartDocker()
 }
 
 // deleteDockerConfig restores the docker daemon configuration
-// TODO: do it programmatically on a temp file then move it to /etc/ld.so.preload, with permissions
-// and by editing json
 func (a *apmInjectorInstaller) deleteDockerConfig() error {
-	if !isDockerInstalled() {
+	dockerConfig := dockerDaemonConfig{}
+	stat, err := os.Stat(dockerDaemonPath)
+	if err == nil {
+		// Read the existing configuration
+		file, err := os.ReadFile(dockerDaemonPath)
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal(file, &dockerConfig)
+		if err != nil {
+			return err
+		}
+	} else if os.IsNotExist(err) {
+		// If the file doesn't exist, there's nothing to do
 		return nil
 	}
 
-	// Check backup exists if yes uses it, else use default configuration
-	_, err := os.Stat("/etc/docker/daemon.json.bak")
-	if err != nil && os.IsNotExist(err) {
-		err = cleanupDockerDaemon(path.Join(a.installPath, "daemon-cleanup.json"))
-		if err != nil {
-			return err
-		}
-	} else if err != nil {
+	dockerConfig["default-runtime"] = "runc"
+	runtimes, ok := dockerConfig["runtimes"].(dockerRuntimesConfig)
+	if !ok {
+		runtimes = dockerRuntimesConfig{}
+	}
+	delete(runtimes, "dd-shim")
+	dockerConfig["runtimes"] = runtimes
+
+	dockerConfigJSON, err := json.MarshalIndent(dockerConfig, "", "    ")
+	if err != nil {
 		return err
-	} else {
-		err := restoreDockerDaemon()
-		if err != nil {
-			return err
-		}
 	}
 
-	return reloadDocker()
+	// Write the new configuration to a temporary file
+	perms := os.FileMode(0644)
+	if stat != nil {
+		perms = stat.Mode()
+	}
+	err = os.WriteFile(tmpDockerDaemonPath, dockerConfigJSON, perms)
+	if err != nil {
+		return err
+	}
+
+	// Move the temporary file to the final location
+	err = executeCommand(string(replaceDockerCommand))
+	if err != nil {
+		return err
+	}
+	return restartDocker()
+}
+
+// restartDocker reloads the docker daemon if it exists
+func restartDocker() error {
+	if !isDockerInstalled() {
+		log.Info("updater: docker is not installed, skipping reload")
+		return nil
+	}
+	return executeCommand(restartDockerCommand)
 }
 
 // isDockerInstalled checks if docker is installed on the system
@@ -79,45 +156,4 @@ func isDockerInstalled() bool {
 		return false
 	}
 	return len(outb.String()) != 0
-}
-
-// backupDockerDaemon backs up the docker daemon configuration
-func backupDockerDaemon() error {
-	_, err := os.Stat("/etc/docker/daemon.json.bak")
-	if err == nil {
-		return nil // Already backed up, fail fast
-	}
-	return executeCommandStruct(privilegeCommand{
-		Command: string(backupCommand),
-		Path:    "/etc/docker/daemon.json",
-	})
-}
-
-// restoreDockerDaemon restores the docker daemon configuration
-func restoreDockerDaemon() error {
-	return executeCommandStruct(privilegeCommand{
-		Command: string(restoreCommand),
-		Path:    "/etc/docker/daemon.json",
-	})
-}
-
-// linkDockerDaemon links the docker daemon configuration to the APM injector's
-func linkDockerDaemon(path string) error {
-	return executeCommandStruct(privilegeCommand{
-		Command: string(linkDockerCommand),
-		Path:    path,
-	})
-}
-
-// cleanupDockerDaemon cleans up the docker daemon configuration using the default
-func cleanupDockerDaemon(path string) error {
-	return executeCommandStruct(privilegeCommand{
-		Command: string(cleanupDockerCommand),
-		Path:    path,
-	})
-}
-
-// reloadDocker reloads the docker daemon
-func reloadDocker() error {
-	return executeCommand(restartDockerCommand)
 }

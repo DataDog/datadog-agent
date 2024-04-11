@@ -70,12 +70,14 @@ func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("ln", "-sf", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", "/usr/bin/datadog-agent"), nil
 	case "rm-agent-symlink":
 		return exec.Command("rm", "-f", "/usr/bin/datadog-agent"), nil
-	case "setup-ldpreload":
-		return exec.Command("/bin/sh", "-c", "echo /opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so >> /etc/ld.so.preload"), nil
-	case "remove-ldpreload":
-		return exec.Command("/bin/sh", "-c", "sed -ze 's/\\/opt\\/datadog-packages\\/datadog-apm-inject\\/stable\\/inject\\/launcher.preload.so\\n//g' /etc/ld.so.preload > /etc/ld.so.preload.tmp && mv /etc/ld.so.preload.tmp /etc/ld.so.preload"), nil
+	case "create-docker-dir":
+		return exec.Command("mkdir", "-p", "/etc/docker"), nil
+	case "replace-docker":
+		return exec.Command("mv", "/tmp/daemon.json.tmp", "/etc/docker/daemon.json"), nil
 	case "restart-docker":
 		return exec.Command("systemctl", "restart", "docker"), nil
+	case "replace-ld-preload":
+		return exec.Command("mv", "/tmp/ld.so.preload.tmp", "/etc/ld.so.preload"), nil
 	case "add-installer-to-agent-group":
 		return exec.Command("usermod", "-aG", "dd-agent", "dd-installer"), nil
 	case "restart-agents":
@@ -113,7 +115,7 @@ func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 	if absPath != path || err != nil {
 		return nil, fmt.Errorf("invalid path")
 	}
-	if !strings.HasPrefix(path, pkgDir) && !strings.HasPrefix(path, agentDir) && !strings.HasPrefix(path, dockerDir) {
+	if !strings.HasPrefix(path, pkgDir) && !strings.HasPrefix(path, agentDir) {
 		return nil, fmt.Errorf("invalid path")
 	}
 	switch inputCommand.Command {
@@ -121,10 +123,6 @@ func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("chown", "-R", "dd-agent:dd-agent", path), nil
 	case "rm":
 		return exec.Command("rm", "-rf", path), nil
-	case "link-docker-daemon":
-		return exec.Command("ln", "-sf", path, "/etc/docker/daemon.json"), nil
-	case "cleanup-docker-daemon":
-		return exec.Command("cp", "-f", path, "/etc/docker/daemon.json"), nil
 	case "backup-file":
 		return exec.Command("cp", "-f", path, path+".bak"), nil
 	case "restore-file":
@@ -143,7 +141,7 @@ func executeCommand() error {
 	var pc privilegeCommand
 	err := json.Unmarshal([]byte(inputCommand), &pc)
 	if err != nil {
-		return fmt.Errorf("decoding command")
+		return fmt.Errorf("decoding command %s", inputCommand)
 	}
 
 	currentUser := syscall.Getuid()
