@@ -7,6 +7,7 @@ package checks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"runtime"
 	"sort"
@@ -180,6 +181,12 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	}
 	// Resolve the Raddr side of connections for local containers
 	c.localresolver.Resolve(conns)
+
+	connsJson, err := json.Marshal(conns)
+	if err != nil {
+		log.Errorf("Json Error: %s", err)
+	}
+	log.Warnf("connsJson: %s", connsJson)
 
 	c.notifyProcessConnRates(c.config, conns)
 
