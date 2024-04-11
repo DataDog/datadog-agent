@@ -58,6 +58,12 @@ func computeDefaultClosedConnPerfBufferSize() int {
 	return 8 * os.Getpagesize()
 }
 
+// computeDefaultFailedConnPerfBufferSize is the default buffer size of the perf buffer for closed connection events.
+// Must be a multiple of the page size
+func computeDefaultFailedConnPerfBufferSize() int {
+	return 8 * os.Getpagesize()
+}
+
 // EnableRingbuffersViaMapEditor sets up the ring buffer for closed connection events via a map editor
 func EnableRingbuffersViaMapEditor(mgrOpts *manager.Options) {
 	mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{
@@ -121,79 +127,12 @@ func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config
 
 // SetupFailedConnHandler sets up the closed connection event handler
 func SetupFailedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config) {
-	switch handler := connCloseEventHandler.(type) {
-	case *ebpf.RingBufferHandler:
-		log.Info("Setting up failed connection handler with ring buffer")
-		rb := &manager.RingBuffer{
-			Map: manager.Map{Name: probes.FailedConnEventMap},
-			RingBufferOptions: manager.RingBufferOptions{
-				RecordGetter:     handler.RecordGetter,
-				RecordHandler:    handler.RecordHandler,
-				TelemetryEnabled: cfg.InternalTelemetryEnabled,
-				// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
-				RingBufferSize: computeDefaultFailedConnectionsRingBufferSize(),
-			},
-		}
-		mgr.RingBuffers = append(mgr.RingBuffers, rb)
-		ebpftelemetry.ReportRingBufferTelemetry(rb)
-	case *ebpf.PerfHandler:
-		log.Info("Setting up connection handler with perf handler")
-		pm := &manager.PerfMap{
-			Map: manager.Map{Name: probes.FailedConnEventMap},
-			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: computeDefaultClosedConnPerfBufferSize(),
-				Watermark:          1,
-				RecordHandler:      handler.RecordHandler,
-				LostHandler:        handler.LostHandler,
-				RecordGetter:       handler.RecordGetter,
-				TelemetryEnabled:   cfg.InternalTelemetryEnabled,
-			},
-		}
-		mgr.PerfMaps = append(mgr.PerfMaps, pm)
-		ebpftelemetry.ReportPerfMapTelemetry(pm)
-	default:
-		log.Warn("Failed to set up failed connection handler: unknown event handler type")
-	}
+	SetupHandler(connCloseEventHandler, mgr, cfg, computeDefaultFailedConnectionsRingBufferSize(), computeDefaultFailedConnPerfBufferSize(), probes.FailedConnEventMap)
 }
 
 // SetupClosedConnHandler sets up the closed connection event handler
 func SetupClosedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config) {
-	switch handler := connCloseEventHandler.(type) {
-	case *ebpf.RingBufferHandler:
-		options := manager.RingBufferOptions{
-			RecordGetter:     handler.RecordGetter,
-			RecordHandler:    handler.RecordHandler,
-			TelemetryEnabled: cfg.InternalTelemetryEnabled,
-			// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
-			RingBufferSize: computeDefaultClosedConnRingBufferSize(),
-		}
-		rb := &manager.RingBuffer{
-			Map:               manager.Map{Name: probes.ConnCloseEventMap},
-			RingBufferOptions: options,
-		}
-
-		mgr.RingBuffers = append(mgr.RingBuffers, rb)
-		ebpftelemetry.ReportRingBufferTelemetry(rb)
-	case *ebpf.PerfHandler:
-		pm := &manager.PerfMap{
-			Map: manager.Map{Name: probes.ConnCloseEventMap},
-			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: computeDefaultClosedConnPerfBufferSize(),
-				Watermark:          1,
-				RecordHandler:      handler.RecordHandler,
-				LostHandler:        handler.LostHandler,
-				RecordGetter:       handler.RecordGetter,
-				TelemetryEnabled:   cfg.InternalTelemetryEnabled,
-			},
-		}
-		mgr.PerfMaps = append(mgr.PerfMaps, pm)
-		ebpftelemetry.ReportPerfMapTelemetry(pm)
-		helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
-		err := helperCallRemover.BeforeInit(mgr.Manager, nil)
-		if err != nil {
-			log.Error("Failed to remove helper calls from eBPF programs: ", err)
-		}
-	}
+	SetupHandler(connCloseEventHandler, mgr, cfg, computeDefaultClosedConnRingBufferSize(), computeDefaultClosedConnPerfBufferSize(), probes.ConnCloseEventMap)
 }
 
 // AddBoolConst modifies the options to include a constant editor for a boolean value
