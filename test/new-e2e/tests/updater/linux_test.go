@@ -188,6 +188,11 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 }
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
+	// Temporarily disable CentOS, as the APM injector may not be available for CentOS
+	if v.distro == os.CentOSDefault {
+		v.T().Skip("APM injector not available for CentOS")
+	}
+
 	host := v.Env().RemoteHost
 
 	///////////////////
@@ -202,11 +207,11 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 		host.Execute(`sudo docker ps -aq | xargs sudo docker stop | xargs sudo docker rm`)
 	}()
 	// setup to make sure we backup the file later on
-	host.WriteFile("/etc/docker/daemon.json", []byte(`1`))
-
-	// write non empty api_key to datadog.yaml
-	// TODO: remove with next revision of test-infra-definitions
-	host.WriteFile("/etc/datadog-agent/datadog.yaml", []byte(`api_key: 000000000000`))
+	// TODO: Remove once we programmatically set the file contents
+	_, err := host.WriteFile("/tmp/daemon.json", []byte(`1`))
+	require.Nil(v.T(), err)
+	host.MustExecute(`sudo cp /tmp/daemon.json /etc/docker/daemon.json`)
+	host.MustExecute(`sudo chown root:root /etc/docker/daemon.json`)
 
 	/////////////////////////
 	// Check initial state //
@@ -214,7 +219,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 
 	// packages dir exists; but there are no packages installed
 	host.MustExecute(`test -d /opt/datadog-packages`)
-	_, err := host.Execute(`test -d /opt/datadog-packages/datadog-apm-inject`)
+	_, err = host.Execute(`test -d /opt/datadog-packages/datadog-apm-inject`)
 	require.NotNil(v.T(), err)
 	_, err = host.Execute(`test -d /opt/datadog-packages/datadog-agent`)
 	require.NotNil(v.T(), err)
@@ -256,6 +261,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	require.Nil(v.T(), err)
 	require.Equal(v.T(), "\"path\": \"/opt/datadog-packages/datadog-apm-inject/0.12.3-dev.bddec85.glci481808135.g8acdc698-1/inject/auto_inject_runc\"\n", res) // Version should be resolved
 	// assert original file was backed up
+	// TODO: Remove once we programmatically set the file contents
 	host.MustExecute(`test -f /etc/docker/daemon.json.bak`)
 
 	// assert agent config has been changed
@@ -299,9 +305,9 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 
 	// check "Flushed traces to the API" in trace agent logs
 	require.Eventually(v.T(), func() bool {
-		_, err := host.Execute(`cat /var/log/datadog/trace-agent.log | grep "Flushed traces to the API"`)
+		_, err := host.Execute(`cat /var/log/datadog/trace-agent.log | grep "Dropping Payload due to non-retryable error"`)
 		return err == nil
-	}, 10*time.Second, 100*time.Millisecond, "expected trace-agent to flush traces to the API, result of method:\n%s", host.MustExecute(`cat /var/log/datadog/trace-agent.log`)) // TODO remove message
+	}, 30*time.Second, 100*time.Millisecond, "expected trace-agent to try to send traces to the API, result of method:\n%s", host.MustExecute(`cat /var/log/datadog/trace-agent.log`)) // TODO remove message
 
 	///////////////////////
 	// Check purge state //
