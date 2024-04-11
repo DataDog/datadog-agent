@@ -65,6 +65,8 @@ fi
 chmod 750 ${HELPER}
 setcap cap_setuid+ep ${HELPER}
 
+$BOOTSTRAP_INSTALLER boostrap datadog-installer
+
 # start updater
 SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-installer || true
 SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-installer || true
