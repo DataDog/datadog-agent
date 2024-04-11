@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -580,11 +581,23 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	_ = conn.SetDeadline(time.Time{})
 
 	// Indicate that we are already running in Agent process (and flip RunLocal)
-	diagCfg.RunningInAgentProcess = true
 	diagCfg.RunLocal = true
 
+	var diagnoses []diagnosis.Diagnoses
+	var err error
+
 	// Get diagnoses via API
-	diagnoses, err := diagnose.Run(diagCfg, diagnoseDeps)
+	collector, ok := diagnoseDeps.Collector.Get()
+	if ok {
+		diagnoses, err = diagnose.RunInAgentProcess(diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
+	} else {
+		ac, ok := diagnoseDeps.AC.Get()
+		if ok {
+			diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnose.NewSuitesDepsInCLIProcess(diagnoseDeps.SenderManager, diagnoseDeps.SecretResolver, diagnoseDeps.WMeta, ac))
+		} else {
+			err = errors.New("collector or autoDiscovery not found")
+		}
+	}
 	if err != nil {
 		setJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
 		return

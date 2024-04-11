@@ -339,15 +339,29 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	return diagnoses, nil
 }
 
+// RunInCLIProcess run diagnoses in the CLI process.
+func RunInCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) ([]diagnosis.Diagnoses, error) {
+	return run(diagCfg, func() []diagnosis.Suite {
+		return getSuitesForCLIProcess(diagCfg, deps)
+	})
+}
+
 // Run runs diagnoses.
 func Run(diagCfg diagnosis.Config, deps SuitesDeps) ([]diagnosis.Diagnoses, error) {
+	return run(diagCfg, func() []diagnosis.Suite {
+		return getSuites(diagCfg, deps)
+	})
+}
+
+// Run runs diagnoses.
+func run(diagCfg diagnosis.Config, getSuites func() []diagnosis.Suite) ([]diagnosis.Diagnoses, error) {
 	// Make remote call to get diagnoses
 	if !diagCfg.RunLocal {
 		return requestDiagnosesFromAgentProcess(diagCfg)
 	}
 
 	// Collect local diagnoses
-	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg, getSuites(diagCfg, deps))
+	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg, getSuites())
 	if err != nil {
 		return nil, err
 	}
@@ -355,25 +369,45 @@ func Run(diagCfg diagnosis.Config, deps SuitesDeps) ([]diagnosis.Diagnoses, erro
 	return diagnoses, nil
 }
 
+// RunInAgentProcess runs diagnoses in the Agent process.
+func RunInAgentProcess(diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) ([]diagnosis.Diagnoses, error) {
+	// Collect local diagnoses
+	return getDiagnosesFromCurrentProcess(diagCfg, getSuitesForAgentProcess(diagCfg, deps))
+}
+
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
 //
 //nolint:revive // TODO(CINT) Fix revive linter
 func RunStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
+	return runStdOut(w, diagCfg, func(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+		return Run(diagCfg, deps)
+	})
+}
+
+// RunStdOutInCLIProcess enumerates registered Diagnose suites and get their diagnoses
+// for human consumption
+func RunStdOutInCLIProcess(w io.Writer, diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) error {
+	return runStdOut(w, diagCfg, func(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+		return RunInCLIProcess(diagCfg, deps)
+	})
+}
+
+func runStdOut(w io.Writer, diagCfg diagnosis.Config, run func(diagnosis.Config) ([]diagnosis.Diagnoses, error)) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
 
-	diagnoses, err := Run(diagCfg, deps)
+	diagnoses, err := run(diagCfg)
 	if err != nil && !diagCfg.RunLocal {
 		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
 		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 
 		// attempt to do so locally
 		diagCfg.RunLocal = true
-		diagnoses, err = Run(diagCfg, deps)
+		diagnoses, err = run(diagCfg)
 	}
 
 	if err != nil {
@@ -409,16 +443,50 @@ func RunStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
 
 // SuitesDeps stores the dependencies for the diagnose suites.
 type SuitesDeps struct {
+	SenderManager  sender.DiagnoseSenderManager
+	Collector      optional.Option[collector.Component]
+	SecretResolver secrets.Component
+	WMeta          optional.Option[workloadmeta.Component]
+	AC             optional.Option[autodiscovery.Component]
+}
+
+// SuitesDepsInCLIProcess stores the dependencies for the diagnose suites when running the CLI Process.
+type SuitesDepsInCLIProcess struct {
 	senderManager  sender.DiagnoseSenderManager
-	collector      optional.Option[collector.Component]
 	secretResolver secrets.Component
 	wmeta          optional.Option[workloadmeta.Component]
-	AC             optional.Option[autodiscovery.Component]
+	AC             autodiscovery.Component
+}
+
+// NewSuitesDepsInCLIProcess returns a new instance of SuitesDepsInCLIProcess.
+func NewSuitesDepsInCLIProcess(
+	senderManager sender.DiagnoseSenderManager,
+	secretResolver secrets.Component,
+	wmeta optional.Option[workloadmeta.Component],
+	ac autodiscovery.Component) SuitesDepsInCLIProcess {
+	return SuitesDepsInCLIProcess{
+		senderManager:  senderManager,
+		secretResolver: secretResolver,
+		wmeta:          wmeta,
+		AC:             ac,
+	}
+}
+
+// SuitesDepsInAgentProcess stores the dependencies for the diagnose suites when running the Agent Process.
+type SuitesDepsInAgentProcess struct {
+	collector collector.Component
+}
+
+// NewSuitesDepsInAgentProcess returns a new instance of SuitesDepsInAgentProcess.
+func NewSuitesDepsInAgentProcess(collector collector.Component) SuitesDepsInAgentProcess {
+	return SuitesDepsInAgentProcess{
+		collector: collector,
+	}
 }
 
 // GetWMeta returns the workload metadata instance
 func (s *SuitesDeps) GetWMeta() optional.Option[workloadmeta.Component] {
-	return s.wmeta
+	return s.WMeta
 }
 
 // NewSuitesDeps returns a new SuitesDeps.
@@ -428,17 +496,29 @@ func NewSuitesDeps(
 	secretResolver secrets.Component,
 	wmeta optional.Option[workloadmeta.Component], ac optional.Option[autodiscovery.Component]) SuitesDeps {
 	return SuitesDeps{
-		senderManager:  senderManager,
-		collector:      collector,
-		secretResolver: secretResolver,
-		wmeta:          wmeta,
+		SenderManager:  senderManager,
+		Collector:      collector,
+		SecretResolver: secretResolver,
+		WMeta:          wmeta,
 		AC:             ac,
 	}
 }
 
 func getSuites(diagCfg diagnosis.Config, deps SuitesDeps) []diagnosis.Suite {
 	return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
-		return getDiagnose(diagCfg, deps.senderManager, deps.collector, deps.secretResolver, deps.wmeta, deps.AC)
+		return getDiagnose(diagCfg, deps.SenderManager, deps.Collector, deps.SecretResolver, deps.WMeta, deps.AC)
+	})
+}
+
+func getSuitesForAgentProcess(diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) []diagnosis.Suite {
+	return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
+		return diagnoseChecksInAgentProcess(deps.collector)
+	})
+}
+
+func getSuitesForCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) []diagnosis.Suite {
+	return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
+		return diagnoseChecksInCLIProcess(diagCfg, deps.senderManager, deps.secretResolver, deps.wmeta, deps.AC)
 	})
 }
 
