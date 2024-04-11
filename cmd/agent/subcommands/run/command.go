@@ -29,11 +29,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
-	"github.com/DataDog/datadog-agent/cmd/manager"
 
 	// checks implemented as components
 
 	// core components
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
@@ -232,6 +232,7 @@ func run(log log.Component,
 	metadatascheduler metadatascheduler.Component,
 	jmxlogger jmxlogger.Component,
 	_ healthprobe.Component,
+	_ autoexit.Component,
 	settings settings.Component,
 ) error {
 	defer func() {
@@ -497,11 +498,6 @@ func startAgent(
 	http.Handle("/telemetry", telemetryHandler)
 
 	ctx, _ := pkgcommon.GetMainCtxCancel()
-
-	err = manager.ConfigureAutoExit(ctx, pkgconfig.Datadog)
-	if err != nil {
-		return log.Errorf("Unable to configure auto-exit, err: %v", err)
-	}
 
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
