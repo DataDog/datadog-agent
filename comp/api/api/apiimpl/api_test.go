@@ -12,15 +12,17 @@ import (
 	// component dependencies
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -58,7 +60,10 @@ import (
 type testdeps struct {
 	fx.In
 
-	Flare                 flare.Component
+	// additional StartServer arguments
+	//
+	// TODO: remove these in the next PR once StartServer component arguments
+	//       are part of the api component dependency struct
 	DogstatsdServer       dogstatsdServer.Component
 	Capture               replay.Component
 	ServerDebug           dogstatsddebug.Component
@@ -79,9 +84,12 @@ type testdeps struct {
 	Autodiscovery         autodiscovery.Mock
 	Logs                  optional.Option[logsAgent.Component]
 	Collector             optional.Option[collector.Component]
+	Settings              settings.Component
+	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 func getComponentDependencies(t *testing.T) testdeps {
+	// TODO: this fxutil.Test[T] can take a component and return the component
 	return fxutil.Test[testdeps](
 		t,
 		flareimpl.MockModule(),
@@ -118,12 +126,12 @@ func getComponentDependencies(t *testing.T) testdeps {
 		fx.Provide(func() optional.Option[collector.Component] {
 			return optional.NewNoneOption[collector.Component]()
 		}),
+		settingsimpl.MockModule(),
 	)
 }
 
-func getTestAPIServer(deps testdeps) *apiServer {
+func getTestAPIServer(deps testdeps) api.Component {
 	apideps := dependencies{
-		Flare:                 deps.Flare,
 		DogstatsdServer:       deps.DogstatsdServer,
 		Capture:               deps.Capture,
 		ServerDebug:           deps.ServerDebug,
@@ -139,9 +147,10 @@ func getTestAPIServer(deps testdeps) *apiServer {
 		RcService:             deps.RcService,
 		RcServiceHA:           deps.RcServiceHA,
 		AuthToken:             deps.AuthToken,
+		Settings:              deps.Settings,
+		EndpointProviders:     deps.EndpointProviders,
 	}
-	api := newAPIServer(apideps)
-	return api.(*apiServer)
+	return newAPIServer(apideps)
 }
 
 func TestStartServer(t *testing.T) {

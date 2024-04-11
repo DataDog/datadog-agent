@@ -39,8 +39,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -151,6 +153,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() inventoryagent.Component { return nil }),
 			fx.Provide(func() inventoryhost.Component { return nil }),
 			fx.Provide(func() demultiplexer.Component { return nil }),
+			fx.Provide(func() settings.Component { return nil }),
 			fx.Provide(func() inventorychecks.Component { return nil }),
 			fx.Provide(func() packagesigning.Component { return nil }),
 			fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewNoneOption[rcservice.Component]() }),
@@ -161,6 +164,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			tagger.Module(),
 			autodiscoveryimpl.Module(),
+			fx.Supply(optional.NewNoneOption[gui.Component]()),
 			agent.Bundle(),
 			fx.Supply(jmxloggerimpl.NewCliParams(cliParams.logFile)),
 		)
