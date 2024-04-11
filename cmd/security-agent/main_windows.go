@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -87,12 +89,10 @@ func (s *service) Run(svcctx context.Context) error {
 	params := &cliParams{}
 	err := fxutil.OneShot(
 		func(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component,
-			telemetry telemetry.Component, _ workloadmeta.Component, params *cliParams, statusComponent status.Component, settings settings.Component) error {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer start.StopAgent(cancel, log)
+			telemetry telemetry.Component, _ workloadmeta.Component, params *cliParams, statusComponent status.Component, _ autoexit.Component, settings settings.Component) error {
+			defer start.StopAgent(log)
 
-			err := start.RunAgent(ctx, log, config, telemetry, statusComponent, settings)
-
+			err := start.RunAgent(log, config, telemetry, statusComponent, settings)
 			if err != nil {
 				return err
 			}
@@ -171,6 +171,7 @@ func (s *service) Run(svcctx context.Context) error {
 		configsyncimpl.OptionalModule(),
 		// Force the instantiation of the component
 		fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
+		autoexitimpl.Module(),
 		fx.Supply(
 			settings.Settings{
 				"log_level": commonsettings.NewLogLevelRuntimeSetting(),

@@ -72,7 +72,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 	globalParams := GlobalParams{}
 
 	rootCmd := &cobra.Command{
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(_ *cobra.Command, _ []string) {
 			rootCmdRun(&globalParams)
 		},
 		SilenceUsage: true,
