@@ -272,7 +272,7 @@ func start(log log.Component,
 	}
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver, settings); err != nil {
+	if err := api.StartServer(wmeta, taggerComp, ac, statusComponent, settings); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
