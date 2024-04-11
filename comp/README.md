@@ -10,6 +10,10 @@ Click the links for more documentation.
 
 Package agent implements the "agent" bundle,
 
+### [comp/agent/autoexit](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/autoexit)
+
+Package autoexit lets setup automatic shutdown mechanism if necessary
+
 ### [comp/agent/expvarserver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/expvarserver)
 
 Package expvarserver contains the component type for the expVar server.
@@ -115,6 +119,10 @@ Package configsync implements synchronizing the configuration using the core age
 ### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare)
 
 Package flare implements a component to generate flares from the agent.
+
+### [comp/core/gui](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/gui)
+
+Package gui provides the GUI server component for the Datadog Agent.
 
 ### [comp/core/healthprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/healthprobe)
 
