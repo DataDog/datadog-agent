@@ -110,7 +110,13 @@ def setup_devcontainer(
         }
         if devcontainer.get("image"):
             del devcontainer["image"]
-    devcontainer["runArgs"] = ["--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined"]
+    devcontainer["runArgs"] = [
+        "--cap-add=SYS_PTRACE",
+        "--security-opt",
+        "seccomp=unconfined",
+        "--name",
+        "datadog_agent_devcontainer",
+    ]
     devcontainer["remoteUser"] = "datadog"
     devcontainer["mounts"] = ["source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind,consistency=cached"]
     devcontainer["customizations"] = {
