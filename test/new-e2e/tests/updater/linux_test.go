@@ -89,6 +89,8 @@ func (v *vmUpdaterSuite) TestInstallerUnitLoaded() {
 }
 
 func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
+	t := v.T()
+	t.Skip("FIXME(Arthur): dockerhub rate limits make this test flaky")
 	stableUnits := []string{
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -98,12 +100,13 @@ func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
 	}
 	v.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://docker.io/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootUpdaterDir))
 	for _, unit := range stableUnits {
-		require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, unit)))
+		require.Equal(t, "enabled\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, unit)))
 	}
 }
 
 func (v *vmUpdaterSuite) TestExperimentCrash() {
 	t := v.T()
+	t.Skip("FIXME(Arthur): dockerhub rate limits make this test flaky")
 	host := v.Env().RemoteHost
 	startTime := getMonotonicTimestamp(t, host)
 	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://docker.io/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootUpdaterDir))
@@ -121,6 +124,8 @@ func (v *vmUpdaterSuite) TestExperimentCrash() {
 }
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
+	t := v.T()
+	t.Skip("FIXME(Arthur): dockerhub rate limits make this test flaky")
 	host := v.Env().RemoteHost
 	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootUpdaterDir))
 	stableUnits := []string{
