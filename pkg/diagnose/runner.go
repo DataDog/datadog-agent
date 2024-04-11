@@ -393,6 +393,15 @@ func RunStdOutInCLIProcess(w io.Writer, diagCfg diagnosis.Config, deps SuitesDep
 	})
 }
 
+// RunStdOutAutodiscovery run the check "connectivity-datadog-autodiscovery"
+func RunStdOutAutodiscovery(w io.Writer, diagCfg diagnosis.Config) error {
+	return runStdOut(w, diagCfg, func(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+		return run(diagCfg, func() []diagnosis.Suite {
+			return getSuitesAutodiscovery()
+		})
+	})
+}
+
 func runStdOut(w io.Writer, diagCfg diagnosis.Config, run func(diagnosis.Config) ([]diagnosis.Diagnoses, error)) error {
 	if w != color.Output {
 		color.NoColor = true
@@ -522,6 +531,12 @@ func getSuitesForCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProces
 	})
 }
 
+func getSuitesAutodiscovery() []diagnosis.Suite {
+	catalog := diagnosis.NewCatalog()
+	registerConnectivityAutodiscovery(catalog)
+	return catalog.GetSuites()
+}
+
 func getCheckNames(diagCfg diagnosis.Config) []string {
 	suites := buildSuites(diagCfg, func() []diagnosis.Diagnosis { return nil })
 	names := make([]string, len(suites))
@@ -536,8 +551,12 @@ func buildSuites(diagCfg diagnosis.Config, checkDatadog func() []diagnosis.Diagn
 
 	catalog.Register("check-datadog", checkDatadog)
 	catalog.Register("connectivity-datadog-core-endpoints", func() []diagnosis.Diagnosis { return connectivity.Diagnose(diagCfg) })
-	catalog.Register("connectivity-datadog-autodiscovery", connectivity.DiagnoseMetadataAutodiscoveryConnectivity)
+	registerConnectivityAutodiscovery(catalog)
 	catalog.Register("connectivity-datadog-event-platform", eventplatformimpl.Diagnose)
 
 	return catalog.GetSuites()
+}
+
+func registerConnectivityAutodiscovery(catalog *diagnosis.Catalog) {
+	catalog.Register("connectivity-datadog-autodiscovery", connectivity.DiagnoseMetadataAutodiscoveryConnectivity)
 }
