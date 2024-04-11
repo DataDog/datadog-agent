@@ -8,6 +8,7 @@
 package oracle
 
 import (
+	"fmt"
 	"testing"
 
 	//"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -19,15 +20,19 @@ import (
 /*
  * Prerequisites:
  * create tablespace tbs_test datafile '/opt/oracle/oradata/XE/tbs_test01.dbf' size 100M ;
- * alter session set container=xepdb1 ;
- * create tablespace tbs_test datafile '/opt/oracle/oradata/XE/XEPDB1/tbs_test01.dbf' size 200M;
  */
 
 func TestTablespaces(t *testing.T) {
-	tags := []string{"pdb:cdb$root", "tablespace:TBS_TEST"}
-	c, s := newRealCheck(t, "")
+	c, s := newDefaultCheck(t, "", "")
 	err := c.Run()
 	require.NoError(t, err)
 	s.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	var expectedPdb string
+	if c.connectedToPdb {
+		expectedPdb = c.cdbName
+	} else {
+		expectedPdb = "cdb$root"
+	}
+	tags := []string{fmt.Sprintf("pdb:%s", expectedPdb), "tablespace:TBS_TEST"}
 	s.AssertMetricOnce(t, "Gauge", "oracle.tablespace.size", 104857600, c.dbHostname, tags)
 }

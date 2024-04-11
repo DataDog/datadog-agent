@@ -14,10 +14,16 @@ import (
 )
 
 func TestSysmetrics(t *testing.T) {
-	chk, _ := newRealCheck(t, "dbm: true")
-	chk.Run()
-	assert.True(t, chk.dbmEnabled, "dbm should be enabled")
-	n, err := chk.sysMetrics()
+	c, _ := newDefaultCheck(t, "dbm: true", "")
+	c.Run()
+	assert.True(t, c.dbmEnabled, "dbm should be enabled")
+	n, err := c.sysMetrics()
 	assert.NoError(t, err, "failed to run sys metrics")
-	assert.Equal(t, int64(92), n)
+	var expected int64
+	if c.connectedToPdb {
+		expected = 66
+	} else {
+		expected = 92
+	}
+	assert.Equal(t, expected, n)
 }
