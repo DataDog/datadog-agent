@@ -5,7 +5,7 @@
 
 //go:build jmx
 
-package jmx
+package jmxfetch
 
 import (
 	"time"
@@ -14,17 +14,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 )
 
 type runner struct {
-	jmxfetch *jmxfetch.JMXFetch
+	jmxfetch *JMXFetch
 	started  bool
 }
 
 func (r *runner) initRunner(server dogstatsdServer.Component, logger jmxlogger.Component) {
-	r.jmxfetch = jmxfetch.NewJMXFetch(logger)
+	r.jmxfetch = NewJMXFetch(logger)
 	r.jmxfetch.LogLevel = config.Datadog.GetString("log_level")
 	r.jmxfetch.DSD = server
 }
