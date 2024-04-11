@@ -56,16 +56,12 @@ func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) 
 	switch ti.eventType {
 	case model.ExecEventType:
 		event.Exec.Process = &event.ProcessCacheEntry.ProcessContext.Process
-		//nolint:gosimple // TODO(SEC) Fix gosimple linter
-		break
 	case model.DNSEventType:
 		event.DNS.Name = ti.eventDNSReq
 		event.DNS.Type = 1  // A
 		event.DNS.Class = 1 // INET
 		event.DNS.Size = uint16(len(ti.eventDNSReq))
 		event.DNS.Count = 1
-		//nolint:gosimple // TODO(SEC) Fix gosimple linter
-		break
 	}
 
 	// setting process ancestor
@@ -842,7 +838,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 	for _, ti := range tests {
 		t.Run(ti.name, func(t *testing.T) {
 			if ti.newProfile || profile == nil {
-				profile = NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType})
+				profile = NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType}, nil)
 				profile.ActivityTree = activity_tree.NewActivityTree(profile, nil, "security_profile")
 				profile.Instances = append(profile.Instances, &cgroupModel.CacheEntry{
 					ContainerContext: model.ContainerContext{

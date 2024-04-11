@@ -218,7 +218,7 @@ func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
-	scanRequest := host.ScanRequest{Path: root}
+	scanRequest := host.NewScanRequest(root)
 	ch := collectors.GetHostScanner().Channel()
 	if ch == nil {
 		return fmt.Errorf("couldn't retrieve global host scanner result channel")
@@ -434,8 +434,6 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(cgroup *cgroupModel.CacheEntr
 		}
 		r.queueWorkload(sbom)
 	}
-	//nolint:gosimple // TODO(SEC) Fix gosimple linter
-	return
 }
 
 // GetWorkload returns the sbom of a provided ID

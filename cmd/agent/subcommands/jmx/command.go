@@ -9,7 +9,6 @@ package jmx
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -22,12 +21,16 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/agent"
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -36,8 +39,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -126,6 +131,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(cliParams),
 			fx.Supply(params),
 			core.Bundle(),
+			compressionimpl.Module(),
 			diagnosesendermanagerimpl.Module(),
 			// workloadmeta setup
 			collectors.GetCatalog(),
@@ -147,6 +153,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() inventoryagent.Component { return nil }),
 			fx.Provide(func() inventoryhost.Component { return nil }),
 			fx.Provide(func() demultiplexer.Component { return nil }),
+			fx.Provide(func() settings.Component { return nil }),
 			fx.Provide(func() inventorychecks.Component { return nil }),
 			fx.Provide(func() packagesigning.Component { return nil }),
 			fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewNoneOption[rcservice.Component]() }),
@@ -157,6 +164,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			tagger.Module(),
 			autodiscoveryimpl.Module(),
+			fx.Supply(optional.NewNoneOption[gui.Component]()),
+			agent.Bundle(),
+			fx.Supply(jmxloggerimpl.NewCliParams(cliParams.logFile)),
 		)
 	}
 
@@ -293,16 +303,12 @@ func runJmxCommandConsole(config config.Component,
 	diagnoseSendermanager diagnosesendermanager.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
-	collector optional.Option[collector.Component]) error {
+	collector optional.Option[collector.Component],
+	jmxLogger jmxlogger.Component) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
 	pkgconfig.Datadog.Set("language_detection.enabled", "false", model.SourceAgentRuntime)
-
-	err := pkgconfig.SetupJMXLogger(cliParams.logFile, "", false, true, false)
-	if err != nil {
-		return fmt.Errorf("Unable to set up JMX logger: %v", err)
-	}
 
 	senderManager, err := diagnoseSendermanager.LazyGetSenderManager()
 	if err != nil {
@@ -332,7 +338,7 @@ func runJmxCommandConsole(config config.Component,
 		return err
 	}
 
-	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, wmeta, taggerComp, ac, diagnoseSendermanager, agentAPI, collector)
+	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, wmeta, taggerComp, ac, diagnoseSendermanager, agentAPI, collector, jmxLogger)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")

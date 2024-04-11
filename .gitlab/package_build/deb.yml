@@ -34,7 +34,8 @@
 agent_deb-x64-a6:
   extends: .agent_build_common_deb
   rules:
-    - !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -57,7 +58,8 @@ agent_deb-x64-a6:
 agent_deb-x64-a7:
   extends: .agent_build_common_deb
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -80,7 +82,7 @@ agent_deb-x64-a7:
 agent_deb-arm64-a6:
   extends: .agent_build_common_deb
   rules:
-    - !reference [.on_all_builds_a6]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -105,7 +107,8 @@ agent_deb-arm64-a6:
 agent_deb-arm64-a7:
   extends: .agent_build_common_deb
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
@@ -157,7 +160,8 @@ agent_deb-arm64-a7:
 iot_agent_deb-x64:
   extends: .iot_agent_build_common_deb
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -169,7 +173,7 @@ iot_agent_deb-x64:
 iot_agent_deb-arm64:
   extends: .iot_agent_build_common_deb
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -183,7 +187,7 @@ iot_agent_deb-arm64:
 iot_agent_deb-armhf:
   extends: .iot_agent_build_common_deb
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -197,12 +201,12 @@ iot_agent_deb-armhf:
 
 dogstatsd_deb-x64:
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
-  variables:
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
@@ -225,7 +229,7 @@ dogstatsd_deb-x64:
 
 dogstatsd_deb-arm64:
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -254,12 +258,12 @@ dogstatsd_deb-arm64:
 
 agentless_scanner_deb-x64:
   rules:
-    !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_agentless_scanner-binary_x64", "go_deps"]
-  variables:
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
@@ -282,7 +286,7 @@ agentless_scanner_deb-x64:
 
 agentless_scanner_deb-arm64:
   rules:
-    !reference [.on_all_builds_a7]
+    !reference [.on_all_builds]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]

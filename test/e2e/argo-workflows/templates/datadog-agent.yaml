@@ -208,7 +208,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           until kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent; do
             sleep 1
@@ -234,7 +233,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           until kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent; do
             sleep 1
@@ -255,7 +253,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           until kubectl --namespace {{inputs.parameters.namespace}} get cm datadog-agent-leader-election -o jsonpath={.metadata.annotations."control-plane\.alpha\.kubernetes\.io/leader"}; do
             sleep 1
@@ -501,7 +498,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} describe pod $po
@@ -517,7 +513,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-cluster-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} describe pod $po
@@ -533,7 +528,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} logs $po -c agent
@@ -549,7 +543,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} logs $po -c process-agent
@@ -565,7 +558,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} logs $po -c trace-agent
@@ -581,7 +573,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} logs $po -c system-probe
@@ -597,7 +588,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} logs $po -c security-agent
@@ -613,7 +603,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-cluster-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} logs $po
@@ -629,7 +618,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} exec $po -c agent -- agent status
@@ -645,7 +633,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} exec $po -c agent -- agent config
@@ -661,7 +648,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} exec $po -c agent -- agent configcheck
@@ -677,7 +663,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} exec $po -c agent -- agent tagger-list

@@ -29,7 +29,7 @@ class KubernetesHelper(LogGetter):
 
     def get_log(self, agent_name):
         log = self.api_client.read_namespaced_pod_log(
-            name=self.pod_name, namespace=self.namespace, container=agent_name, follow=False, tail_lines=5000
+            name=self.pod_name, namespace=self.namespace, container=agent_name, follow=False, tail_lines=10000
         )
 
         return log.splitlines()

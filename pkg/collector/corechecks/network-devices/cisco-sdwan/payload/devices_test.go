@@ -35,7 +35,7 @@ var testDevices = []client.Device{
 		BoardSerial:  "test-serial",
 		DeviceType:   "vmanage",
 		SiteName:     "test-site",
-		UptimeDate:   float64(TimeNow().Add(-time.Hour).UnixMilli()),
+		UptimeDate:   float64(mockTimeNow().Add(-time.Hour).UnixMilli()),
 	},
 	{
 		SystemIP:     "10.0.0.2",
@@ -48,7 +48,7 @@ var testDevices = []client.Device{
 		BoardSerial:  "test-serial-2",
 		DeviceType:   "vbond",
 		SiteName:     "test-site-2",
-		UptimeDate:   float64(TimeNow().Add(-2 * time.Hour).UnixMilli()),
+		UptimeDate:   float64(mockTimeNow().Add(-2 * time.Hour).UnixMilli()),
 	},
 }
 
@@ -117,6 +117,8 @@ func TestProcessDevicesTags(t *testing.T) {
 }
 
 func TestProcessDevicesUptime(t *testing.T) {
+	TimeNow = mockTimeNow
+
 	uptimes := GetDevicesUptime(testDevices)
 	require.Len(t, uptimes, 2)
 	require.Equal(t, map[string]float64{
@@ -393,6 +395,73 @@ func TestComputeUptime(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			uptimes := computeUptime(tt.devices)
 			require.Equal(t, tt.expectedUptime, uptimes)
+		})
+	}
+}
+
+func TestGetDeviceStatus(t *testing.T) {
+	tests := []struct {
+		name           string
+		devices        []client.Device
+		expectedStatus map[string]float64
+	}{
+		{
+			name: "Reachable",
+			devices: []client.Device{
+				{
+					SystemIP:     "10.0.0.1",
+					Reachability: "reachable",
+				},
+				{
+					SystemIP:     "10.0.0.2",
+					Reachability: "reachable",
+				},
+			},
+			expectedStatus: map[string]float64{
+				"10.0.0.1": 1,
+				"10.0.0.2": 1,
+			},
+		},
+		{
+			name: "Unreachable",
+			devices: []client.Device{
+				{
+					SystemIP:     "10.0.0.1",
+					Reachability: "unreachable",
+				},
+				{
+					SystemIP:     "10.0.0.2",
+					Reachability: "unreachable",
+				},
+			},
+			expectedStatus: map[string]float64{
+				"10.0.0.1": 0,
+				"10.0.0.2": 0,
+			},
+		},
+		{
+			name: "Both",
+			devices: []client.Device{
+				{
+					SystemIP:     "10.0.0.1",
+					Reachability: "reachable",
+				},
+				{
+					SystemIP:     "10.0.0.2",
+					Reachability: "unreachable",
+				},
+			},
+			expectedStatus: map[string]float64{
+				"10.0.0.1": 1,
+				"10.0.0.2": 0,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uptimes := GetDevicesStatus(tt.devices)
+			require.Equal(t, tt.expectedStatus, uptimes)
 		})
 	}
 }

@@ -34,7 +34,8 @@
 agent_rpm-x64-a6:
   extends: .agent_build_common_rpm
   rules:
-    - !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -57,7 +58,8 @@ agent_rpm-x64-a6:
 agent_rpm-x64-a7:
   extends: .agent_build_common_rpm
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -80,7 +82,7 @@ agent_rpm-x64-a7:
 agent_rpm-arm64-a6:
   extends: .agent_build_common_rpm
   rules:
-    - !reference [.on_all_builds_a6]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -105,7 +107,7 @@ agent_rpm-arm64-a6:
 agent_rpm-arm64-a7:
   extends: .agent_build_common_rpm
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -159,7 +161,8 @@ agent_rpm-arm64-a7:
 iot_agent_rpm-x64:
   extends: .iot_agent_build_common_rpm
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -168,7 +171,7 @@ iot_agent_rpm-x64:
 iot_agent_rpm-arm64:
   extends: .iot_agent_build_common_rpm
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -179,7 +182,7 @@ iot_agent_rpm-arm64:
 iot_agent_rpm-armhf:
   extends: .iot_agent_build_common_rpm
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -192,9 +195,10 @@ iot_agent_rpm-armhf:
     - export LD_PRELOAD="/usr/local/lib/libfakearmv7l.so"
 
 dogstatsd_rpm-x64:
-  rules:
-    - !reference [.on_a7]
   stage: package_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
@@ -221,13 +225,13 @@ dogstatsd_rpm-x64:
       - $OMNIBUS_PACKAGE_DIR
 
 agentless_scanner_rpm-x64:
-  rules:
-    !reference [.on_a7]
   stage: package_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_agentless_scanner-binary_x64", "go_deps"]
-  variables:
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
@@ -252,13 +256,13 @@ agentless_scanner_rpm-x64:
       - $OMNIBUS_PACKAGE_DIR
 
 agentless_scanner_rpm-arm64:
-  rules:
-    !reference [.on_a7]
   stage: package_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "build_agentless_scanner-binary_arm64", "go_deps"]
-  variables:
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]

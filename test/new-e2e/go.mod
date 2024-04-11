@@ -1,12 +1,13 @@
 module github.com/DataDog/datadog-agent/test/new-e2e
 
-go 1.21.8
+go 1.21.9
 
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
 // TODO: Implement hard check in CI
 
 replace (
+	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../comp/netflow/payload
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil
@@ -23,11 +24,11 @@ require (
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.19.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
-	// You should bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` in `.gitlab-ci.yml`
+	// You should bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` in `.gitlab/common/test_infra_version.yml`
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240402111756-e9cf37ed9d96
+	github.com/DataDog/test-infra-definitions v0.0.0-20240411084208-e2e7d263e05c
 	github.com/aws/aws-sdk-go-v2 v1.25.2
 	github.com/aws/aws-sdk-go-v2/config v1.27.6
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
@@ -243,6 +244,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.53.0-rc.2 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.1 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.2.1 // indirect
