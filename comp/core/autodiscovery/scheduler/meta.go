@@ -133,7 +133,6 @@ func (ms *MetaScheduler) worker() {
 
 func (ms *MetaScheduler) processNextWorkItem() bool {
 	item, quit := ms.queue.Get()
-
 	if quit {
 		return false
 	}
@@ -189,4 +188,13 @@ func (ms *MetaScheduler) Stop() {
 	close(ms.stopChannel)
 	ms.queue.ShutDown()
 	ms.started = false
+}
+
+func (ms *MetaScheduler) Purge() {
+	ms.queue.ShutDown()
+	ms.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "MetaScheduler")
+	ms.m.Lock()
+	defer ms.m.Unlock()
+	ms.scheduledConfigs = make(map[string]*integration.Config)
+	ms.configStateStore.PurgeConfigStates()
 }

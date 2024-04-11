@@ -58,15 +58,18 @@ func TestMetaScheduler(t *testing.T) {
 	s1 := &scheduler{}
 	ms.Register("s1", s1, true)
 	require.ElementsMatch(t, []event{{true, "one"}, {true, "two"}}, s1.events)
+	time.Sleep(2 * time.Second)
 	s1.reset()
-
+	ms.Purge()
 	// remove one of those configs and add another
+	ms.Schedule([]integration.Config{c1})
+	ms.Schedule([]integration.Config{c2})
 	ms.Unschedule([]integration.Config{c1})
 	c3 := makeConfig("three")
 	ms.Schedule([]integration.Config{c3})
 	// check s1 was informed about those in order
-	time.Sleep(10 * time.Millisecond)
-	require.Equal(t, []event{{false, "one"}, {true, "three"}}, s1.events)
+	time.Sleep(2 * time.Second)
+	require.Equal(t, []event{{true, "two"}, {true, "three"}}, s1.events)
 	s1.reset()
 
 	// subscribe a new scheduler and see that it does not get c1
