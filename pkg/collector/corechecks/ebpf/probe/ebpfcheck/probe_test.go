@@ -240,9 +240,9 @@ func TestHashMapNumberOfEntries(t *testing.T) {
 		for _, mapType := range mapTypes {
 			t.Run(mapType.String(), func(t *testing.T) {
 				t.Run("EmptyMap", func(t *testing.T) { testWithEntryCount(t, mapType, 0) })
-				t.Run("HalfFullMap", func(t *testing.T) { testWithEntryCount(t, mapType, maxEntries/2) })
 
-				if mapType != ebpf.LRUHash { // LRUHash starts vacating entries even when it's not 100% full, cannot test this case
+				if mapType != ebpf.LRUHash { // LRUHash starts vacating entries even when it's not 100% full, cannot test this case as it's too flakey
+					t.Run("HalfFullMap", func(t *testing.T) { testWithEntryCount(t, mapType, maxEntries/2) })
 					t.Run("FullMap", func(t *testing.T) { testWithEntryCount(t, mapType, maxEntries) })
 				}
 			})
