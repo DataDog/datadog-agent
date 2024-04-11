@@ -10,20 +10,20 @@ package service
 import "github.com/DataDog/datadog-agent/pkg/util/log"
 
 const (
-	updaterUnit    = "datadog-updater.service"
-	updaterUnitExp = "datadog-updater-exp.service"
+	installerUnit    = "datadog-installer.service"
+	installerUnitExp = "datadog-installer-exp.service"
 )
 
-var updaterUnits = []string{updaterUnit, updaterUnitExp}
+var installerUnits = []string{installerUnit, installerUnitExp}
 
-func SetupUpdaterUnit() (err error) {
+func SetupInstallerUnit() (err error) {
 	defer func() {
 		if err != nil {
-			log.Errorf("Failed to setup updater units: %s, reverting", err)
+			log.Errorf("Failed to setup installer units: %s, reverting", err)
 		}
 	}()
 
-	for _, unit := range updaterUnits {
+	for _, unit := range installerUnits {
 		if err = loadUnit(unit); err != nil {
 			return err
 		}
@@ -34,16 +34,16 @@ func SetupUpdaterUnit() (err error) {
 	}
 
 	// Should we kill ourselves after that? Otherwise I believe the systemd spawned
-	// updater won't be able to bind to the sockets it needs if we are still alive.
-	if err = startUnit(updaterUnit); err != nil {
+	// installer won't be able to bind to the sockets it needs if we are still alive.
+	if err = startUnit(installerUnit); err != nil {
 		return err
 	}
 	return nil
 }
 
-func RemoveUpdaterUnit() {
+func RemoveInstallerUnit() {
 	var err error
-	for _, unit := range updaterUnits {
+	for _, unit := range installerUnits {
 		if err = disableUnit(unit); err != nil {
 			log.Warnf("Failed to disable %s: %s", unit, err)
 		}
@@ -53,14 +53,10 @@ func RemoveUpdaterUnit() {
 	}
 }
 
-func SetUpdaterHelperCapabilities(target string) error {
-	return executeCommand("set-updater-helper-capabilities " + target)
+func StartInstallerExperiment() error {
+	return startUnit(installerUnitExp)
 }
 
-func StartUpdaterExperiment() error {
-	return startUnit(updaterUnitExp)
-}
-
-func StopUpdaterExperiment() error {
-	return startUnit(updaterUnit)
+func StopInstallerExperiment() error {
+	return startUnit(installerUnit)
 }

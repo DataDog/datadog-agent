@@ -60,7 +60,7 @@ func (i *installer) installStable(pkg string, version string, image oci.Image) e
 	case "datadog-agent":
 		return service.SetupAgentUnits()
 	case "datadog-updater":
-		return service.SetupUpdaterUnit()
+		return service.SetupInstallerUnit()
 	}
 	return nil
 }
@@ -107,7 +107,7 @@ func (i *installer) startExperiment(pkg string) error {
 	case "datadog-agent":
 		return service.StartAgentExperiment()
 	case "datadog-updater":
-		return service.StartUpdaterExperiment()
+		return service.StartInstallerExperiment()
 	default:
 		// TODO: currently we don't support arbitrary experiments
 		return nil
@@ -119,7 +119,7 @@ func (i *installer) stopExperiment(pkg string) error {
 	case "datadog-agent":
 		return service.StopAgentExperiment()
 	case "datadog-updater":
-		return service.StopUpdaterExperiment()
+		return service.StopInstallerExperiment()
 	default:
 		// TODO: currently we don't support arbitrary experiments
 		return nil

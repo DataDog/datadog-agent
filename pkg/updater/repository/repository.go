@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/DataDog/gopsutil/process"
 
@@ -366,15 +365,15 @@ func movePackageFromSource(packageName string, rootPath string, lockedPackages m
 	if err := os.Chmod(targetPath, 0755); err != nil {
 		return "", fmt.Errorf("could not set permissions on package: %w", err)
 	}
-	if strings.HasSuffix(rootPath, "datadog-agent") {
+	switch filepath.Base(rootPath) {
+	case "datadog-agent":
 		if err := service.ChownDDAgent(targetPath); err != nil {
 			return "", err
 		}
-	}
-
-	if filepath.Base(rootPath) == "datadog-updater" {
-		if err = service.SetUpdaterHelperCapabilities(packageName); err != nil {
-			return "", fmt.Errorf("failed to set updater-helper cap: %w", err)
+	case "datadog-installer":
+		helperPath := filepath.Join(rootPath, packageName, "bin/installer/helper")
+		if err := service.SetCapHelper(helperPath); err != nil {
+			return "", err
 		}
 	}
 
