@@ -36,7 +36,7 @@ type baseAgentMSISuite struct {
 	beforeInstall *windowsCommon.FileSystemSnapshot
 }
 
-// TODO: this isn't called before tabular tests (e.g. TestAgentUser/...)
+// NOTE: BeforeTest is not called before subtests
 func (s *baseAgentMSISuite) BeforeTest(suiteName, testName string) {
 	if beforeTest, ok := any(&s.BaseAgentInstallerSuite).(suite.BeforeTest); ok {
 		beforeTest.BeforeTest(suiteName, testName)
@@ -56,7 +56,7 @@ func (s *baseAgentMSISuite) BeforeTest(suiteName, testName string) {
 	}
 }
 
-// TODO: this isn't called after tabular tests (e.g. TestAgentUser/...)
+// NOTE: AfterTest is not called after subtests
 func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
 	if afterTest, ok := any(&s.BaseAgentInstallerSuite).(suite.AfterTest); ok {
 		afterTest.AfterTest(suiteName, testName)
