@@ -236,7 +236,6 @@ This command print the package-signing metadata payload. This payload is used by
 func cmdDiagnose(cliParams *cliParams,
 	senderManager diagnosesendermanager.Component,
 	wmeta optional.Option[workloadmeta.Component],
-	_ optional.Option[tagger.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component) error {
 	diagCfg := diagnosis.Config{
