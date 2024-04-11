@@ -1025,7 +1025,7 @@ workflow:
 
 .on_fakeintake_changes_on_main:
   - <<: *fakeintake_changes
-  - <<: *if_main_branch
+    <<: *if_main_branch
 
 .fast_on_dev_branch_only:
   - <<: *if_main_branch
