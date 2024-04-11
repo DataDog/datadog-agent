@@ -33,8 +33,6 @@ func SetupInstallerUnit() (err error) {
 		return err
 	}
 
-	// Should we kill ourselves after that? Otherwise I believe the systemd spawned
-	// installer won't be able to bind to the sockets it needs if we are still alive.
 	if err = startUnit(installerUnit); err != nil {
 		return err
 	}
