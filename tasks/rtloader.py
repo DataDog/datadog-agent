@@ -1,6 +1,7 @@
 """
 RtLoader namespaced tasks
 """
+
 import errno
 import os
 import shutil
@@ -160,7 +161,8 @@ def generate_doc(ctx):
 
     # doxygen puts both errors and warnings in stderr
     result = ctx.run(
-        "doxygen '{0}/doxygen/Doxyfile' 2>'{0}/doxygen/errors.log'".format(rtloader_path), warn=True  # noqa: FS002
+        f"doxygen '{rtloader_path}/doxygen/Doxyfile' 2>'{rtloader_path}/doxygen/errors.log'",
+        warn=True,  # noqa: FS002
     )
 
     if result.exited != 0:

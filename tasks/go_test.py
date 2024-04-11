@@ -625,7 +625,6 @@ def get_modified_files(ctx):
 
 @task(iterable=["extra_tag"])
 def send_unit_tests_stats(_, job_name, extra_tag=None):
-
     if extra_tag is None:
         extra_tag = []
 
@@ -732,7 +731,7 @@ def send_unit_tests_stats(_, job_name, extra_tag=None):
 def parse_test_log(log_file):
     failed_tests = []
     n_test_executed = 0
-    with open(log_file, "r") as f:
+    with open(log_file) as f:
         for line in f:
             json_line = json.loads(line)
             if (

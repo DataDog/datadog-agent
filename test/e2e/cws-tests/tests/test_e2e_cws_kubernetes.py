@@ -174,7 +174,7 @@ class TestE2EKubernetes(unittest.TestCase):
             jsonSchemaValidator = JsonSchemaValidator()
             jsonSchemaValidator.validate_json_data("self_test.json", attributes)
 
-        with Step(msg="wait for datadog.security_agent.runtime.running metric", emoji="\N{beer mug}"):
+        with Step(msg="wait for datadog.security_agent.runtime.running metric", emoji="\N{beer mug}"):  # noqa
             self.app.wait_for_metric("datadog.security_agent.runtime.running", host=TestE2EKubernetes.hostname)
 
         with Step(msg="check agent event", emoji=":check_mark_button:"):
@@ -205,7 +205,7 @@ class TestE2EKubernetes(unittest.TestCase):
                 "unable to find rule_id tag attribute",
             )
 
-        with Step(msg="wait for datadog.security_agent.runtime.containers_running metric", emoji="\N{beer mug}"):
+        with Step(msg="wait for datadog.security_agent.runtime.containers_running metric", emoji="\N{beer mug}"):  # noqa
             self.app.wait_for_metric(
                 "datadog.security_agent.runtime.containers_running", host=TestE2EKubernetes.hostname
             )
