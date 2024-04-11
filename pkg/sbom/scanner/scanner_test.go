@@ -100,9 +100,8 @@ func TestRetryLogic_Error(t *testing.T) {
 	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(errorResult).Twice()
 	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(expectedResult).Once()
 	mockCollector.On("Channel").Return(resultCh)
-	mockCollector.On("Shutdown")
+	shutdown := mockCollector.On("Shutdown")
 	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
-	collectors.RegisterCollector(collName, mockCollector)
 
 	// Set up the configuration as the default one is too slow
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
@@ -110,7 +109,7 @@ func TestRetryLogic_Error(t *testing.T) {
 	cfg.Set("sbom.scan_queue.max_backoff", "3s", model.SourceAgentRuntime)
 
 	// Create a scanner and start it
-	scanner := NewScanner(cfg, optional.NewOption[workloadmeta.Component](workloadmetaStore))
+	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
 	ctx, cancel := context.WithCancel(context.Background())
 	scanner.Start(ctx)
 
@@ -135,6 +134,8 @@ func TestRetryLogic_Error(t *testing.T) {
 	}
 
 	cancel()
+	// Ensure the collector is stopped
+	shutdown.WaitUntil(time.After(2 * time.Second))
 }
 
 func TestRetryLogic_ImageDeleted(t *testing.T) {
@@ -165,9 +166,8 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	mockCollector.On("Options").Return(sbom.ScanOptions{})
 	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(errorResult).Twice()
 	mockCollector.On("Channel").Return(resultCh)
-	mockCollector.On("Shutdown")
+	shutdown := mockCollector.On("Shutdown")
 	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
-	collectors.RegisterCollector(collName, mockCollector)
 
 	// Set up the configuration as the default one is too slow
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
@@ -175,7 +175,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	cfg.Set("sbom.scan_queue.max_backoff", "3s", model.SourceAgentRuntime)
 
 	// Create a scanner and start it
-	scanner := NewScanner(cfg, optional.NewOption[workloadmeta.Component](workloadmetaStore))
+	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
 	ctx, cancel := context.WithCancel(context.Background())
 	scanner.Start(ctx)
 
@@ -199,6 +199,8 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 		}
 	}, 15*time.Second, 1*time.Second)
 	cancel()
+	// Ensure the collector is stopped
+	shutdown.WaitUntil(time.After(2 * time.Second))
 }
 
 func TestRetryLogic_Host(t *testing.T) {
@@ -210,9 +212,8 @@ func TestRetryLogic_Host(t *testing.T) {
 	mockCollector.On("Options").Return(sbom.ScanOptions{})
 	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(errorResult).Twice()
 	mockCollector.On("Channel").Return(resultCh)
-	mockCollector.On("Shutdown")
+	shutdown := mockCollector.On("Shutdown")
 	mockCollector.On("Type").Return(collectors.HostScanType)
-	collectors.RegisterCollector(collName, mockCollector)
 
 	// Set up the configuration as the default one is too slow
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
@@ -220,7 +221,7 @@ func TestRetryLogic_Host(t *testing.T) {
 	cfg.Set("sbom.scan_queue.max_backoff", "3s", model.SourceAgentRuntime)
 
 	// Create a scanner and start it
-	scanner := NewScanner(cfg, optional.NewNoneOption[workloadmeta.Component]())
+	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewNoneOption[workloadmeta.Component]())
 	ctx, cancel := context.WithCancel(context.Background())
 	scanner.Start(ctx)
 
@@ -239,4 +240,6 @@ func TestRetryLogic_Host(t *testing.T) {
 	case <-time.After(4 * time.Second):
 	}
 	cancel()
+	// Ensure the collector is stopped
+	shutdown.WaitUntil(time.After(2 * time.Second))
 }
