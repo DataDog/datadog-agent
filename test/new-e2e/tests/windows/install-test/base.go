@@ -8,6 +8,7 @@ package installtest
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -21,6 +22,7 @@ import (
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
+	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 
 	"testing"
@@ -243,6 +245,10 @@ func isDevMode(t *testing.T) bool {
 	return devMode
 }
 
+func isCI() bool {
+	return os.Getenv("CI") != ""
+}
+
 func run[Env any](t *testing.T, s e2e.Suite[Env]) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake())}
 
@@ -259,6 +265,11 @@ func run[Env any](t *testing.T, s e2e.Suite[Env]) {
 	if isDevMode(t) {
 		// if running in dev mode, set a stack name so we can re-use the same resource for each test.
 		opts = append(opts, e2e.WithStackName("windows-msi-test"))
+	} else if !isCI() {
+		// if running locally and not in dev mode, run tests in parallel
+		t.Parallel()
+		// use a UUID to generate a unique name for the stack
+		opts = append(opts, e2e.WithStackName(fmt.Sprintf("windows-msi-test-%s", uuid.NewString())))
 	}
 
 	// Include the agent major version in the test name so junit reports will differentiate the tests
