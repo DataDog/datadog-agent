@@ -13,9 +13,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
@@ -38,14 +38,14 @@ func (t *runtimeTestSetting) Description() string {
 	return t.description
 }
 
-func (t *runtimeTestSetting) Get() (interface{}, error) {
+func (t *runtimeTestSetting) Get(_ config.Component) (interface{}, error) {
 	return returnValue{
 		Value:  t.value,
 		Source: t.source,
 	}, nil
 }
 
-func (t *runtimeTestSetting) Set(v interface{}, source model.Source) error {
+func (t *runtimeTestSetting) Set(_ config.Component, v interface{}, source model.Source) error {
 	t.value = v.(string)
 	t.source = source
 	return nil
@@ -102,7 +102,7 @@ func TestRuntimeSettings(t *testing.T) {
 				responseRecorder := httptest.NewRecorder()
 				request := httptest.NewRequest("GET", "http://agent.host/test/", nil)
 
-				comp.GetFullConfig(config.Datadog, "")(responseRecorder, request)
+				comp.GetFullConfig("")(responseRecorder, request)
 				resp := responseRecorder.Result()
 				defer resp.Body.Close()
 				body, _ := io.ReadAll(resp.Body)
@@ -202,18 +202,21 @@ func TestRuntimeSettings(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				logimpl.MockModule(),
 				fx.Supply(
-					settings.Settings{
-						"foo": &runtimeTestSetting{
-							hidden:      false,
-							description: "foo settings",
-						},
-						"hidden setting": &runtimeTestSetting{
-							hidden:      true,
-							description: "hidden setting",
-						},
-						"bar": &runtimeTestSetting{
-							hidden:      false,
-							description: "bar settings",
+					settings.Params{
+						Config: fxutil.Test[config.Component](t, config.MockModule()),
+						Settings: settings.Settings{
+							"foo": &runtimeTestSetting{
+								hidden:      false,
+								description: "foo settings",
+							},
+							"hidden setting": &runtimeTestSetting{
+								hidden:      true,
+								description: "hidden setting",
+							},
+							"bar": &runtimeTestSetting{
+								hidden:      false,
+								description: "bar settings",
+							},
 						},
 					},
 				),

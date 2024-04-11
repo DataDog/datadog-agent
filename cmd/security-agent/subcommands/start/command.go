@@ -177,11 +177,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// Force the instantiation of the component
 				fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
-				fx.Supply(
-					settings.Settings{
-						"log_level": commonsettings.NewLogLevelRuntimeSetting(),
-					},
-				),
+				fx.Provide(func(c config.Component) settings.Params {
+					return settings.Params{
+						Settings: settings.Settings{
+							"log_level": commonsettings.NewLogLevelRuntimeSetting(),
+						},
+						Config: c,
+					}
+				}),
 				settingsimpl.Module(),
 			)
 		},

@@ -15,9 +15,9 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -39,14 +39,15 @@ type provides struct {
 type dependencies struct {
 	fx.In
 
-	Log      log.Component
-	Settings settings.Settings
+	Log    log.Component
+	Params settings.Params
 }
 
 type settingsRegistry struct {
 	rwMutex  sync.RWMutex
 	settings settings.Settings
 	log      log.Component
+	config   config.Component
 }
 
 // RuntimeSettings returns all runtime configurable settings
@@ -67,7 +68,7 @@ func (s *settingsRegistry) GetRuntimeSetting(setting string) (interface{}, error
 	if _, ok := s.settings[setting]; !ok {
 		return nil, &settings.SettingNotFoundError{Name: setting}
 	}
-	return s.settings[setting].Get()
+	return s.settings[setting].Get(s.config)
 }
 
 // SetRuntimeSetting changes the value of a runtime configurable setting
@@ -77,10 +78,10 @@ func (s *settingsRegistry) SetRuntimeSetting(setting string, value interface{}, 
 	if _, ok := s.settings[setting]; !ok {
 		return &settings.SettingNotFoundError{Name: setting}
 	}
-	return s.settings[setting].Set(value, source)
+	return s.settings[setting].Set(s.config, value, source)
 }
 
-func (s *settingsRegistry) GetFullConfig(cfg config.Config, namespaces ...string) http.HandlerFunc {
+func (s *settingsRegistry) GetFullConfig(namespaces ...string) http.HandlerFunc {
 	requiresUniqueNs := len(namespaces) == 1 && namespaces[0] != ""
 	requiresAllNamespaces := len(namespaces) == 0
 
@@ -95,7 +96,7 @@ func (s *settingsRegistry) GetFullConfig(cfg config.Config, namespaces ...string
 	}
 	return func(w http.ResponseWriter, _ *http.Request) {
 		nsSettings := map[string]interface{}{}
-		allSettings := cfg.AllSettings()
+		allSettings := s.config.AllSettings()
 		if !requiresAllNamespaces {
 			for ns := range uniqueNamespaces {
 				if val, ok := allSettings[ns]; ok {
@@ -169,7 +170,7 @@ func (s *settingsRegistry) GetValue(setting string, w http.ResponseWriter, r *ht
 
 	resp := map[string]interface{}{"value": val}
 	if r.URL.Query().Get("sources") == "true" {
-		resp["sources_value"] = config.Datadog.GetAllSources(setting)
+		resp["sources_value"] = s.config.GetAllSources(setting)
 	}
 
 	body, err := json.Marshal(resp)
@@ -204,8 +205,9 @@ func (s *settingsRegistry) SetValue(setting string, w http.ResponseWriter, r *ht
 func newSettings(deps dependencies) provides {
 	return provides{
 		Comp: &settingsRegistry{
-			settings: deps.Settings,
+			settings: deps.Params.Settings,
 			log:      deps.Log,
+			config:   deps.Params.Config,
 		},
 	}
 }
