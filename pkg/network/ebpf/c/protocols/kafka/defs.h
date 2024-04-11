@@ -18,4 +18,7 @@
 // The amount of buckets we have for the kafka topic name length telemetry.
 #define KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS 10
 
+// The size of each kafka telemetry topic name bucket
+#define KAFKA_TELEMETRY_TOPIC_NAME_BUCKET_SIZE 10
+
 #endif
