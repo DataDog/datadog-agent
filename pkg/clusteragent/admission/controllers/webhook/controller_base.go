@@ -79,6 +79,8 @@ func mutatingWebhooks(wmeta workloadmeta.Component) []MutatingWebhook {
 		config.NewWebhook(wmeta),
 		tagsfromlabels.NewWebhook(wmeta),
 		agentsidecar.NewWebhook(),
+		// TODO: initialize the autoscaling webhook when the autoscaling controller
+		// is made as a component
 	}
 
 	apm, err := autoinstrumentation.GetWebhook(wmeta)
