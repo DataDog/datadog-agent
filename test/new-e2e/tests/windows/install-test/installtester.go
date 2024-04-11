@@ -58,7 +58,7 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 	if err != nil {
 		return nil, err
 	}
-	t.expectedUserName = "ddagentuser"
+	t.expectedUserName = windowsAgent.DefaultAgentUserName
 	t.expectedUserDomain = windows.NameToNetBIOSName(t.hostInfo.Hostname)
 	t.expectedInstallPath = windowsAgent.DefaultInstallPath
 	t.expectedConfigRoot = windowsAgent.DefaultConfigRoot
@@ -226,6 +226,20 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 		windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
 	)
 	assert.NoError(tt, err, "uninstall should not remove agent user")
+
+	for _, serviceName := range servicetest.ExpectedInstalledServices() {
+		conf, err := windows.GetServiceConfig(t.host, serviceName)
+		if err == nil && windows.IsKernelModeServiceType(conf.ServiceType) {
+			// TODO WKINT-410: kernel mode services are not removed on install rollback
+			tt.Logf("WKINT-410: Skipping known failure, kernel mode service not removed: %s", serviceName)
+			continue
+		}
+		assert.Errorf(tt, err, "uninstall should remove service %s", serviceName)
+	}
+
+	registryKeyExists, err := windows.RegistryKeyExists(t.host, windowsAgent.RegistryKeyPath)
+	assert.NoError(tt, err, "should check registry key exists")
+	assert.False(tt, registryKeyExists, "uninstall should remove registry key")
 }
 
 // Only do some basic checks on the agent since it's a previous version
@@ -283,9 +297,17 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 
 	serviceTester, err := servicetest.NewTester(t.host,
 		servicetest.WithExpectedAgentUser(t.expectedUserDomain, t.expectedUserName),
+		servicetest.WithExpectedInstallPath(t.expectedInstallPath),
+		servicetest.WithExpectedConfigRoot(t.expectedConfigRoot),
 	)
 	require.NoError(tt, err)
-	serviceTester.TestInstall(tt)
+	tt.Run("service config", func(tt *testing.T) {
+		actual, err := windows.GetServiceConfigMap(t.host, servicetest.ExpectedInstalledServices())
+		require.NoError(tt, err)
+		expected, err := serviceTester.ExpectedServiceConfig()
+		require.NoError(tt, err)
+		servicetest.AssertEqualServiceConfigValues(tt, expected, actual)
+	})
 
 	tt.Run("user is a member of expected groups", func(tt *testing.T) {
 		AssertAgentUserGroupMembership(tt, t.host,

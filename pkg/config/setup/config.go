@@ -382,6 +382,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Yaml keys which values are stripped from flare
 	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
+	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
@@ -1334,6 +1335,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	setupHighAvailability(config)
 
 	// Updater configuration
+	config.BindEnvAndSetDefault("updater.remote_updates", false)
 	config.BindEnv("updater.registry")
 }
 

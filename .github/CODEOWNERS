@@ -326,7 +326,6 @@
 /pkg/collector/corechecks/ebpf/probe/ebpfcheck/       @DataDog/ebpf-platform
 /pkg/collector/corechecks/ebpf/c/runtime/ebpf*        @DataDog/ebpf-platform
 /pkg/collector/corechecks/embed/        @Datadog/agent-ci-experience
-/pkg/collector/corechecks/embed/jmx/    @Datadog/agent-metrics-logs
 /pkg/collector/corechecks/embed/apm/            @Datadog/agent-ci-experience @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/  @Datadog/agent-ci-experience @DataDog/processes
 /pkg/collector/corechecks/network-devices/         @DataDog/network-device-monitoring
@@ -490,7 +489,7 @@
 /pkg/windowsdriver/                     @DataDog/windows-kernel-integrations
 /comp/core/workloadmeta/collectors/internal/cloudfoundry @DataDog/platform-integrations
 /pkg/sbom/                              @DataDog/container-integrations @DataDog/agent-security
-/pkg/internaltelemetry                  @DataDog/windows-kernel-integrations
+/pkg/internaltelemetry                  @DataDog/windows-kernel-integrations @DataDog/fleet
 /pkg-config/                            @DataDog/agent-build-and-releases
 /pkg/networkpath/                       @DataDog/network-device-monitoring @DataDog/Networks
 /pkg/collector/corechecks/networkpath/  @DataDog/network-device-monitoring @DataDog/Networks

@@ -43,9 +43,10 @@ func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter 
 		enricher:   enricher,
 		hostGetter: hostGetter,
 	}
+	cfgType, _ := component.NewType(TypeStr)
 
 	return exp.NewFactory(
-		TypeStr,
+		cfgType,
 		newDefaultConfig,
 		exp.WithMetrics(f.createMetricExporter, stability),
 	)

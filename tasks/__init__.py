@@ -32,6 +32,7 @@ from tasks import (
     owners,
     package,
     pipeline,
+    pre_commit,
     process_agent,
     release,
     rtloader,
@@ -160,6 +161,7 @@ ns.add_collection(diff)
 ns.add_collection(installer)
 ns.add_collection(owners)
 ns.add_collection(modules)
+ns.add_collection(pre_commit)
 ns.configure(
     {
         'run': {
