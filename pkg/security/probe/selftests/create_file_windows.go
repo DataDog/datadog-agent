@@ -9,6 +9,7 @@ package selftests
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -26,9 +27,11 @@ type WindowsCreateFileSelfTest struct {
 func (o *WindowsCreateFileSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 	o.ruleID = fmt.Sprintf("%s_windows_create_file", ruleIDPrefix)
 
+	basename := filepath.Base(o.filename)
+
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
-		Expression: fmt.Sprintf(`create.file.path == "%s"`, o.filename),
+		Expression: fmt.Sprintf(`create.file.name == "%s" && create.file.path == "%s"`, basename, o.filename),
 	}
 }
 

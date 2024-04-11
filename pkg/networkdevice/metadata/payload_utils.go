@@ -5,7 +5,12 @@
 
 package metadata
 
-import "time"
+import (
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/gosnmp/gosnmp"
+)
 
 // BatchPayloads batch NDM metadata payloads
 func BatchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, devices []DeviceMetadata, interfaces []InterfaceMetadata, ipAddresses []IPAddressMetadata, topologyLinks []TopologyLinkMetadata, netflowExporters []NetflowExporter, diagnoses []DiagnosisMetadata) []NetworkDevicesMetadata {
@@ -48,6 +53,21 @@ func BatchPayloads(namespace string, subnet string, collectTime time.Time, batch
 	return payloads
 }
 
+// BatchDeviceScan batches a bunch of DeviceOID entries across multiple NetworkDevicesMetadata payloads.
+func BatchDeviceScan(namespace string, collectTime time.Time, batchSize int, deviceOIDs []*DeviceOID) []NetworkDevicesMetadata {
+	var payloads []NetworkDevicesMetadata
+	var resourceCount int
+
+	curPayload := newNetworkDevicesMetadata(namespace, "", collectTime)
+
+	for _, oid := range deviceOIDs {
+		payloads, curPayload, resourceCount = appendToPayloads(namespace, "", collectTime, batchSize, resourceCount, payloads, curPayload)
+		curPayload.DeviceOIDs = append(curPayload.DeviceOIDs, *oid)
+	}
+	payloads = append(payloads, curPayload)
+	return payloads
+}
+
 func newNetworkDevicesMetadata(namespace string, subnet string, collectTime time.Time) NetworkDevicesMetadata {
 	return NetworkDevicesMetadata{
 		Subnet:           subnet,
@@ -64,4 +84,16 @@ func appendToPayloads(namespace string, subnet string, collectTime time.Time, ba
 	}
 	resourceCount++
 	return payloads, payload, resourceCount
+}
+
+// DeviceOIDFromPDU packages a gosnmp PDU as a DeviceOID
+func DeviceOIDFromPDU(deviceID string, snmpPDU *gosnmp.SnmpPDU) (*DeviceOID, error) {
+	pdu, err := gosnmplib.PDUFromSNMP(snmpPDU)
+	if err != nil {
+		return nil, err
+	}
+	return &DeviceOID{
+		DeviceID: deviceID,
+		PDU:      pdu,
+	}, nil
 }

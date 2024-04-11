@@ -8,9 +8,16 @@ from invoke import Exit, task
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
+from tasks.libs.ciproviders.gitlab import (
+    Gitlab,
+    generate_gitlab_full_configuration,
+    get_gitlab_token,
+    get_preset_contexts,
+    load_context,
+)
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.utils import DEFAULT_BRANCH, color_message
-from tasks.libs.copyright import CopyrightLinter
+from tasks.libs.types.copyright import CopyrightLinter
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
 
@@ -351,3 +358,28 @@ def is_get_parameter_call(file):
                         return SSMParameterCall(file, nb, with_wrapper=True, with_env_var=False)
         except UnicodeDecodeError:
             pass
+
+
+@task
+def gitlab_ci(_, test="all", custom_context=None):
+    """
+    Lint Gitlab CI files in the datadog-agent repository.
+    """
+    all_contexts = []
+    if custom_context:
+        all_contexts = load_context(custom_context)
+    else:
+        all_contexts = get_preset_contexts(test)
+    print(f"We will tests {len(all_contexts)} contexts.")
+    for context in all_contexts:
+        print("Test gitlab configuration with context: ", context)
+        config = generate_gitlab_full_configuration(".gitlab-ci.yml", dict(context))
+        gitlab = Gitlab(api_token=get_gitlab_token())
+        res = gitlab.lint(config)
+        status = color_message("valid", "green") if res["valid"] else color_message("invalid", "red")
+        print(f"Config is {status}")
+        if len(res["warnings"]) > 0:
+            print(color_message(f"Warnings: {res['warnings']}", "orange"), file=sys.stderr)
+        if not res["valid"]:
+            print(color_message(f"Errors: {res['errors']}", "red"), file=sys.stderr)
+            raise Exit(code=1)

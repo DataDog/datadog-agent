@@ -6,10 +6,7 @@ parameter_name="$1"
 
 source /root/.bashrc > /dev/null 2>&1
 
-if [[ -o xtrace ]]; then
-    set +x
-    trap 'set -x' EXIT
-fi
+set +x
 
 while [[ $retry_count -lt $max_retries ]]; do
     result=$(aws ssm get-parameter --region us-east-1 --name $parameter_name --with-decryption --query "Parameter.Value" --output text)
