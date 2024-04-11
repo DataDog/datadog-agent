@@ -3,7 +3,7 @@ schema-version: v1
 kind: mergequeue
 enable: true
 merge_method: squash
-workflow_type: speculative
+workflow_type: speculative_parallel_impact
 speculative_max_depth: 5
 wait_for_check_timeout_in_minutes: 240
 gitlab_jobs_retry_enable: true

@@ -22,6 +22,7 @@ from tasks import (
     epforwarder,
     fakeintake,
     github_tasks,
+    installer,
     kmt,
     linter,
     modules,
@@ -31,6 +32,7 @@ from tasks import (
     owners,
     package,
     pipeline,
+    pre_commit,
     process_agent,
     release,
     rtloader,
@@ -39,7 +41,6 @@ from tasks import (
     system_probe,
     systray,
     trace_agent,
-    updater,
     vscode,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
@@ -155,9 +156,10 @@ ns.add_collection(new_e2e_tests)
 ns.add_collection(fakeintake)
 ns.add_collection(kmt)
 ns.add_collection(diff)
-ns.add_collection(updater)
+ns.add_collection(installer)
 ns.add_collection(owners)
 ns.add_collection(modules)
+ns.add_collection(pre_commit)
 ns.configure(
     {
         'run': {
