@@ -243,6 +243,7 @@ def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
         v6_tag = _find_v6_tag(ctx, new_version)
         if v6_tag:
             ctx.run(f"sed {sed_i_arg} -E 's#^{new_version}#{new_version} / {v6_tag}#' /tmp/new_changelog.rst")
+            ctx.run(f"sed {sed_i_arg} -E 's#^======$#================#' /tmp/new_changelog.rst")
     # remove the old header from the existing changelog
     ctx.run(f"sed {sed_i_arg} -e '1,4d' {changelog_file}")
 
