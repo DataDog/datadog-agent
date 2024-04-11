@@ -27,8 +27,9 @@ import (
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
@@ -83,6 +84,8 @@ func startCMDServer(
 	collector optional.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
+	gui optional.Option[gui.Component],
+	settings settings.Component,
 	providers []api.EndpointProvider,
 ) (err error) {
 	// get the transport we're going to use under HTTP
@@ -166,6 +169,8 @@ func startCMDServer(
 				collector,
 				eventPlatformReceiver,
 				ac,
+				gui,
+				settings,
 				providers,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))

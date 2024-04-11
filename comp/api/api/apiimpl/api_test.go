@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -60,6 +62,9 @@ type testdeps struct {
 	fx.In
 
 	// additional StartServer arguments
+	//
+	// TODO: remove these in the next PR once StartServer component arguments
+	//       are part of the api component dependency struct
 	DogstatsdServer       dogstatsdServer.Component
 	Capture               replay.Component
 	ServerDebug           dogstatsddebug.Component
@@ -80,10 +85,12 @@ type testdeps struct {
 	Autodiscovery         autodiscovery.Mock
 	Logs                  optional.Option[logsAgent.Component]
 	Collector             optional.Option[collector.Component]
+	Settings              settings.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 func getComponentDependencies(t *testing.T) testdeps {
+	// TODO: this fxutil.Test[T] can take a component and return the component
 	return fxutil.Test[testdeps](
 		t,
 		hostnameimpl.MockModule(),
@@ -121,10 +128,11 @@ func getComponentDependencies(t *testing.T) testdeps {
 		fx.Provide(func() optional.Option[collector.Component] {
 			return optional.NewNoneOption[collector.Component]()
 		}),
+		settingsimpl.MockModule(),
 	)
 }
 
-func getTestAPIServer(deps testdeps) *apiServer {
+func getTestAPIServer(deps testdeps) api.Component {
 	apideps := dependencies{
 		DogstatsdServer:       deps.DogstatsdServer,
 		Capture:               deps.Capture,
@@ -145,10 +153,10 @@ func getTestAPIServer(deps testdeps) *apiServer {
 		LogsAgentComp:         deps.Logs,
 		WorkloadMeta:          deps.WorkloadMeta,
 		Collector:             deps.Collector,
+		Settings:              deps.Settings,
 		EndpointProviders:     deps.EndpointProviders,
 	}
-	api := newAPIServer(apideps)
-	return api.(*apiServer)
+	return newAPIServer(apideps)
 }
 
 func TestStartServer(t *testing.T) {

@@ -3,12 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !jmx
+package guiimpl
 
-//nolint:revive // TODO(APL) Fix revive linter
-package jmx
+import (
+	"fmt"
+)
 
-// StopJmxfetch does nothing when the agent does not ship jmx
-func StopJmxfetch() {
+func restartEnabled() bool {
+	return false
+}
 
+func restart() error {
+	return fmt.Errorf("restarting the agent is not implemented on non-windows platforms")
 }

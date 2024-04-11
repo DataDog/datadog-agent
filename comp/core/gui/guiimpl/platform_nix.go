@@ -5,7 +5,7 @@
 
 //go:build freebsd || netbsd || openbsd || solaris || dragonfly || linux
 
-package gui
+package guiimpl
 
 import (
 	"fmt"

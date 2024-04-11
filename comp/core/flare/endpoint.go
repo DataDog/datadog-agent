@@ -23,17 +23,15 @@ type EndpointProvider struct {
 func (e EndpointProvider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var profile ProfileData
 
-	log := e.flareComp.log
-
 	if r.Body != http.NoBody {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+			http.Error(w, e.flareComp.log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
 			return
 		}
 
 		if err := json.Unmarshal(body, &profile); err != nil {
-			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
+			http.Error(w, e.flareComp.log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
 			return
 		}
 	}
@@ -44,14 +42,14 @@ func (e EndpointProvider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var filePath string
 	var err error
-	log.Infof("Making a flare")
+	e.flareComp.log.Infof("Making a flare")
 	filePath, err = e.flareComp.Create(profile, nil)
 
 	if err != nil || filePath == "" {
 		if err != nil {
-			log.Errorf("The flare failed to be created: %s", err)
+			e.flareComp.log.Errorf("The flare failed to be created: %s", err)
 		} else {
-			log.Warnf("The flare failed to be created")
+			e.flareComp.log.Warnf("The flare failed to be created")
 		}
 		http.Error(w, err.Error(), 500)
 	}
