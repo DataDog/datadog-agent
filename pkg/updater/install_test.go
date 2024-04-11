@@ -125,7 +125,7 @@ func TestInstallExperiment(t *testing.T) {
 	assertEqualFS(t, s.ConfigFS(fixtureSimpleV2), installer.ConfigFS(fixtureSimpleV2))
 }
 
-func TestPromoteExperiment(t *testing.T) {
+func TestInstallPromoteExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	installer := newTestInstaller(t)
