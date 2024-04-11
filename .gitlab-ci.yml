@@ -1110,3 +1110,12 @@ workflow:
       paths:
         - test/kitchen/tasks/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_powershell_module_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/windows/powershell-module-test/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+  - when: manual
+    allow_failure: true
