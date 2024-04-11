@@ -50,12 +50,24 @@ func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.De
 	)
 }
 
-func TestCentOS(t *testing.T) {
+func TestCentOSARM(t *testing.T) {
+	t.Parallel()
 	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault)
 }
 
-func TestUbuntu(t *testing.T) {
+func TestRedHatARM(t *testing.T) {
+	t.Parallel()
+	runTest(t, "rpm", os.ARM64Arch, os.RedHatDefault)
+}
+
+func TestUbuntuARM(t *testing.T) {
+	t.Parallel()
 	runTest(t, "dpkg", os.ARM64Arch, os.UbuntuDefault)
+}
+
+func TestDebianX86(t *testing.T) {
+	t.Parallel()
+	runTest(t, "dpkg", os.AMD64Arch, os.UbuntuDefault)
 }
 
 func (v *vmUpdaterSuite) TestUserGroupsCreation() {
