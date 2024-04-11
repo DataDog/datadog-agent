@@ -1041,7 +1041,6 @@ workflow:
     
 .on_invoke_tasks_changes:
   - <<: *if_main_branch
-  - !reference [.except_mergequeue]
   - changes:
       paths:
         - tasks/**/*
@@ -1049,7 +1048,6 @@ workflow:
 
 .on_kitchen_invoke_tasks_changes:
   - <<: *if_main_branch
-  - !reference [.except_mergequeue]
   - changes:
       paths:
         - test/kitchen/tasks/**/*
