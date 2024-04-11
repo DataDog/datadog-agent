@@ -1,6 +1,6 @@
 do-not-merge:
   stage: check_merge
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64_VERSION
   tags: ["arch:amd64"]
   rules: # this should only run on dev branches
   - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
@@ -12,7 +12,22 @@ do-not-merge:
   needs: []
   script:
       - |
-          if [ ! -z "$DATADOG_AGENT_BUILDIMAGES_SUFFIX" ] ||
+          if [ ! -z "$CI_IMAGE_BTF_GEN_SUFFIX" ] ||
+             [ ! -z "$CI_IMAGE_DDA_TESTING_SUFFIX" ] ||
+             [ ! -z "$CI_IMAGE_DEB_ARM64_SUFFIX" ] ||
+             [ ! -z "$CI_IMAGE_DEB_X64_SUFFIX" ] ||
+             [ ! -z "$CI_IMAGE_DOCKER_X64_SUFFIX" ] ||
+             [ ! -z "$CI_IMAGE_DOCKER_ARM64_SUFFIX" ] ||
+             [ ! -z "$CI_IMAGE_KMT_X64_SUFFIX" ] ||
+             [ ! -z "$CI_IMAGE_KMT_ARM64_SUFFIX" ] ||
+             [ ! -z "$CI_IMAGE_RPM_ARM64_SUFFIX" ] ||
+             [ ! -z "$CI_IMAGE_RPM_ARMHF_SUFFIX" ] ||
+             [ ! -z "$CI_IMAGE_RPM_X64_SUFFIX" ] ||
+             [ ! -z "$CI_IMAGE_SUSE_X64_SUFFIX" ] ||
+             [ ! -z "$CI_IMAGE_SYSPROBE_X64_SUFFIX" ] ||
+             [ ! -z "$CI_IMAGE_SYSPROBE_ARM_SUFFIX" ] ||
+             [ ! -z "$CI_IMAGE_WINDOWS_SUFFIX" ] ||
+             [ ! -z "$DATADOG_AGENT_BUILDIMAGES_SUFFIX" ] ||
              [ ! -z "$DATADOG_AGENT_WINBUILDIMAGES_SUFFIX" ] ||
              [ ! -z "$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX" ] ||
              [ ! -z "$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX" ] ||
