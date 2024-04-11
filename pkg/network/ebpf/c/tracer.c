@@ -221,30 +221,30 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     return 0;
 }
 
-// SEC("kprobe/tcp_done")
-// int kprobe__tcp_done(struct pt_regs *ctx) {
-//     struct sock *sk;
-//     conn_tuple_t t = {};
-//     u64 pid_tgid = bpf_get_current_pid_tgid();
-//     sk = (struct sock *)PT_REGS_PARM1(ctx);
+SEC("kprobe/tcp_done")
+int kprobe__tcp_done(struct pt_regs *ctx) {
+    struct sock *sk;
+    conn_tuple_t t = {};
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    sk = (struct sock *)PT_REGS_PARM1(ctx);
 
-//     // Get network namespace id
-//     log_debug("kprobe/tcp_done: tgid: %u, pid: %u", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
-//     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-//         log_debug("adamk kprobe/tcp_done: conn_tuple not found");
-//         return 0;
-//     }
-//     log_debug("kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+    // Get network namespace id
+    log_debug("kprobe/tcp_done: tgid: %u, pid: %u", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        log_debug("adamk kprobe/tcp_done: conn_tuple not found");
+        return 0;
+    }
+    log_debug("kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
-//     int err = 0;
-//     bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
-//     if (err != 0 && tcp_failed_connections_enabled()) {
-//         log_debug("adamk kprobe/tcp_done err  %d", err); 
-//         flush_tcp_failure(ctx, &t, err);
-//         return 0;
-//     }
-//     return 0;
-// }
+    int err = 0;
+    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
+    if (err != 0 && tcp_failed_connections_enabled()) {
+        log_debug("adamk kprobe/tcp_done err  %d", err); 
+        flush_tcp_failure(ctx, &t, err);
+        return 0;
+    }
+    return 0;
+}
 
 SEC("kretprobe/tcp_close")
 int kretprobe__tcp_close_clean_protocols(struct pt_regs *ctx) {

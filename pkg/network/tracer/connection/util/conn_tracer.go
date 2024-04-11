@@ -11,6 +11,7 @@ package util
 import (
 	"math"
 	"os"
+	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
 	cebpf "github.com/cilium/ebpf"
@@ -22,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var once sync.Once
 
 // toPowerOf2 converts a number to its nearest power of 2
 func toPowerOf2(x int) int {
@@ -73,6 +76,49 @@ func EnableRingbuffersViaMapEditor(mgrOpts *manager.Options) {
 	}
 }
 
+// SetupHandler sets up the closed connection event handler
+func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config, ringSize int, perfSize int, mapName probes.BPFMapName) {
+	switch handler := eventHandler.(type) {
+	case *ebpf.RingBufferHandler:
+		log.Info("Setting up connection handler for map %v with ring buffer", mapName)
+		rb := &manager.RingBuffer{
+			Map: manager.Map{Name: mapName},
+			RingBufferOptions: manager.RingBufferOptions{
+				RecordGetter:     handler.RecordGetter,
+				RecordHandler:    handler.RecordHandler,
+				TelemetryEnabled: cfg.InternalTelemetryEnabled,
+				// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
+				RingBufferSize: ringSize,
+			},
+		}
+		mgr.RingBuffers = append(mgr.RingBuffers, rb)
+		ebpftelemetry.ReportRingBufferTelemetry(rb)
+	case *ebpf.PerfHandler:
+		log.Info("Setting up connection handler for map %v with perf buffer", mapName)
+		pm := &manager.PerfMap{
+			Map: manager.Map{Name: mapName},
+			PerfMapOptions: manager.PerfMapOptions{
+				PerfRingBufferSize: perfSize,
+				Watermark:          1,
+				RecordHandler:      handler.RecordHandler,
+				LostHandler:        handler.LostHandler,
+				RecordGetter:       handler.RecordGetter,
+				TelemetryEnabled:   cfg.InternalTelemetryEnabled,
+			},
+		}
+		mgr.PerfMaps = append(mgr.PerfMaps, pm)
+		once.Do(func() {
+			helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
+			err := helperCallRemover.BeforeInit(mgr.Manager, nil)
+			if err != nil {
+				log.Error("Failed to remove helper calls from eBPF programs: ", err)
+			}
+		})
+	default:
+		log.Errorf("Failed to set up connection handler for map %v: unknown event handler type", mapName)
+	}
+}
+
 // SetupFailedConnHandler sets up the closed connection event handler
 func SetupFailedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config) {
 	switch handler := connCloseEventHandler.(type) {
@@ -85,13 +131,13 @@ func SetupFailedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.M
 				RecordHandler:    handler.RecordHandler,
 				TelemetryEnabled: cfg.InternalTelemetryEnabled,
 				// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
-				RingBufferSize: computeDefaultClosedConnRingBufferSize(),
+				RingBufferSize: computeDefaultFailedConnectionsRingBufferSize(),
 			},
 		}
-		mgr.RingBuffers = []*manager.RingBuffer{rb}
+		mgr.RingBuffers = append(mgr.RingBuffers, rb)
 		ebpftelemetry.ReportRingBufferTelemetry(rb)
 	case *ebpf.PerfHandler:
-		log.Info("Setting up failed connection handler with perf handler")
+		log.Info("Setting up connection handler with perf handler")
 		pm := &manager.PerfMap{
 			Map: manager.Map{Name: probes.FailedConnEventMap},
 			PerfMapOptions: manager.PerfMapOptions{
@@ -103,13 +149,8 @@ func SetupFailedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.M
 				TelemetryEnabled:   cfg.InternalTelemetryEnabled,
 			},
 		}
-		mgr.PerfMaps = []*manager.PerfMap{pm}
+		mgr.PerfMaps = append(mgr.PerfMaps, pm)
 		ebpftelemetry.ReportPerfMapTelemetry(pm)
-		//helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
-		//err := helperCallRemover.BeforeInit(mgr.Manager, nil)
-		//if err != nil {
-		//	log.Error("Failed to remove helper calls from eBPF programs: ", err)
-		//}
 	default:
 		log.Warn("Failed to set up failed connection handler: unknown event handler type")
 	}
@@ -131,7 +172,7 @@ func SetupClosedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.M
 			RingBufferOptions: options,
 		}
 
-		mgr.RingBuffers = []*manager.RingBuffer{rb}
+		mgr.RingBuffers = append(mgr.RingBuffers, rb)
 		ebpftelemetry.ReportRingBufferTelemetry(rb)
 	case *ebpf.PerfHandler:
 		pm := &manager.PerfMap{
@@ -145,7 +186,7 @@ func SetupClosedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.M
 				TelemetryEnabled:   cfg.InternalTelemetryEnabled,
 			},
 		}
-		mgr.PerfMaps = []*manager.PerfMap{pm}
+		mgr.PerfMaps = append(mgr.PerfMaps, pm)
 		ebpftelemetry.ReportPerfMapTelemetry(pm)
 		helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
 		err := helperCallRemover.BeforeInit(mgr.Manager, nil)

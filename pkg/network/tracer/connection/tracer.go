@@ -95,6 +95,7 @@ type Tracer interface {
 
 const (
 	defaultClosedChannelSize = 500
+	defaultFailedChannelSize = 500
 	connTracerModuleName     = "network_tracer__ebpf"
 )
 
@@ -225,10 +226,10 @@ func NewTracer(config *config.Config) (Tracer, error) {
 	var failedConnsHandler ddebpf.EventHandler
 	if config.RingBufferSupportedNPM() {
 		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
-		//failedConnsHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
+		failedConnsHandler = ddebpf.NewRingBufferHandler(defaultFailedChannelSize)
 	} else {
 		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
-		//failedConnsHandler = ddebpf.NewPerfHandler(closedChannelSize)
+		failedConnsHandler = ddebpf.NewPerfHandler(defaultFailedChannelSize)
 	}
 
 	var m *manager.Manager
@@ -325,7 +326,7 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 
 	t.closeConsumer.Start(callback)
 	log.Info("starting failed connection consumer")
-	//t.failedConnConsumer.Start(callback)
+	t.failedConnConsumer.Start(callback)
 	return nil
 }
 
@@ -344,7 +345,7 @@ func (t *tracer) Resume() error {
 
 func (t *tracer) FlushPending() {
 	t.closeConsumer.FlushPending()
-	//t.failedConnConsumer.FlushPending()
+	t.failedConnConsumer.FlushPending()
 }
 
 func (t *tracer) Stop() {
