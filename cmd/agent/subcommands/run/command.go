@@ -60,7 +60,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/agent"
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
-	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -142,9 +141,6 @@ import (
 
 	// runtime init routines
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
-
-	// register metadata providers
-	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
 )
 
 type cliParams struct {
@@ -229,7 +225,6 @@ func run(log log.Component,
 	cloudfoundrycontainer cloudfoundrycontainer.Component,
 	_ expvarserver.Component,
 	_ pid.Component,
-	metadatascheduler metadatascheduler.Component,
 	jmxlogger jmxlogger.Component,
 	_ healthprobe.Component,
 	_ autoexit.Component,
@@ -297,7 +292,6 @@ func run(log log.Component,
 		statusComponent,
 		collector,
 		cloudfoundrycontainer,
-		metadatascheduler,
 		jmxlogger,
 		settings,
 	); err != nil {
@@ -476,11 +470,9 @@ func startAgent(
 	_ status.Component,
 	collector collector.Component,
 	_ cloudfoundrycontainer.Component,
-	_ metadatascheduler.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
 ) error {
-
 	var err error
 
 	if flavor.GetFlavor() == flavor.IotAgent {
