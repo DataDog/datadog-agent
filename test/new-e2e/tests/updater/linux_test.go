@@ -213,6 +213,12 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	host.MustExecute(`sudo cp /tmp/daemon.json /etc/docker/daemon.json`)
 	host.MustExecute(`sudo chown root:root /etc/docker/daemon.json`)
 
+	// write non empty api_key to datadog.yaml
+	// TODO: remove with next revision of test-infra-definitions
+	_, err = host.WriteFile("/tmp/datadog.yaml", []byte(`api_key: 000000000000`))
+	require.Nil(v.T(), err)
+	host.MustExecute(`sudo cp /tmp/datadog.yaml /etc/datadog-agent/datadog.yaml`)
+
 	/////////////////////////
 	// Check initial state //
 	/////////////////////////

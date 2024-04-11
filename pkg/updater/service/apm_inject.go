@@ -35,69 +35,77 @@ dogstatsd_socket: %s
 
 // SetupAPMInjector sets up the injector at bootstrap
 func SetupAPMInjector() error {
+	// Enforce dd-installer is in the dd-agent group
+	if err := setInstallerAgentGroup(); err != nil {
+		return err
+	}
+
+	installer := &apmInjectorInstaller{
+		installPath: "/opt/datadog-packages/datadog-apm-inject/stable",
+	}
+	return installer.Setup()
+}
+
+// RemoveAPMInjector removes the APM injector
+func RemoveAPMInjector() error {
+	installer := &apmInjectorInstaller{
+		installPath: "/opt/datadog-packages/datadog-apm-inject/stable",
+	}
+	return installer.Remove()
+}
+
+type apmInjectorInstaller struct {
+	installPath string
+}
+
+// Setup sets up the APM injector
+func (a *apmInjectorInstaller) Setup() error {
 	var err error
 	defer func() {
 		if err != nil {
-			removeErr := RemoveAPMInjector()
+			removeErr := a.Remove()
 			if removeErr != nil {
 				log.Warnf("Failed to remove APM injector: %v", removeErr)
 			}
 		}
 	}()
-
-	injectorPath := "/opt/datadog-packages/datadog-apm-inject/stable"
-
-	if err = setInstallerAgentGroup(); err != nil {
+	if err := a.setAgentConfig(); err != nil {
 		return err
 	}
-
-	err = addAgentConfig(injectorPath)
-	if err != nil {
+	if err := a.setRunPermissions(); err != nil {
 		return err
 	}
-
-	err = os.Chmod(path.Join(injectorPath, "inject", "run"), 0777)
-	if err != nil {
+	if err := a.setLDPreloadConfig(); err != nil {
 		return err
 	}
-
-	err = setupLDPreload(injectorPath)
-	if err != nil {
-		return err
-	}
-
-	err = setupDockerDaemon(injectorPath)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// RemoveAPMInjector removes the APM injector
-func RemoveAPMInjector() error {
-	injectorPath := "/opt/datadog-packages/datadog-apm-inject/stable"
-
-	err := removeAgentConfig()
-	if err != nil {
-		return err
-	}
-
-	err = removeLDPreload()
-	if err != nil {
-		return err
-	}
-
-	err = removeDockerDaemon(injectorPath)
-	if err != nil {
+	if err := a.setDockerConfig(); err != nil {
 		return err
 	}
 	return nil
 }
 
-// setupLDPreload adds preload options on /etc/ld.so.preload, overriding existing ones
-func setupLDPreload(basePath string) error {
-	launcherPreloadPath := path.Join(basePath, "inject", "launcher.preload.so")
+func (a *apmInjectorInstaller) Remove() error {
+	if err := a.deleteAgentConfig(); err != nil {
+		return err
+	}
+	if err := a.deleteLDPreloadConfig(); err != nil {
+		return err
+
+	}
+	if err := a.deleteDockerConfig(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (a *apmInjectorInstaller) setRunPermissions() error {
+	return os.Chmod(path.Join(a.installPath, "inject", "run"), 0777)
+}
+
+// setLDPreloadConfig adds preload options on /etc/ld.so.preload, overriding existing ones
+// TODO: do it programmatically on a temp file then move it to /etc/ld.so.preload, with permissions
+func (a *apmInjectorInstaller) setLDPreloadConfig() error {
+	launcherPreloadPath := path.Join(a.installPath, "inject", "launcher.preload.so")
 	ldSoPreloadPath := "/etc/ld.so.preload"
 	var ldSoPreload []byte
 	if _, err := os.Stat(ldSoPreloadPath); err == nil {
@@ -115,8 +123,10 @@ func setupLDPreload(basePath string) error {
 	return writeLDPreload()
 }
 
-// removeLDPreload removes the preload options from /etc/ld.so.preload
-func removeLDPreload() error {
+// deleteLDPreloadConfig removes the preload options from /etc/ld.so.preload
+// TODO: do it programmatically on a temp file then move it to /etc/ld.so.preload, with permissions
+// OR delete /etc/ld.so.preload if empty (?)
+func (a *apmInjectorInstaller) deleteLDPreloadConfig() error {
 	return executeCommand(string(removeLdPreloadCommand))
 }
 
@@ -125,7 +135,7 @@ func writeLDPreload() error {
 	return executeCommand(string(setupLdPreloadCommand))
 }
 
-// addAgentConfig adds the agent configuration for the APM injector if it is not there already
+// setAgentConfig adds the agent configuration for the APM injector if it is not there already
 // We assume that the agent file has been created by the installer's postinst script
 //
 // Note: This is not safe, as it assumes there were no changes to the agent configuration made without
@@ -133,8 +143,8 @@ func writeLDPreload() error {
 // installer system and this will be replaced by a proper experiment when available. This is a temporary
 // solution to allow the APM injector to be installed, and if the agent crashes, we try to detect it and
 // restore the previous configuration
-func addAgentConfig(basePath string) (err error) {
-	runPath := path.Join(basePath, "inject", "run")
+func (a *apmInjectorInstaller) setAgentConfig() (err error) {
+	runPath := path.Join(a.installPath, "inject", "run")
 	apmSocketPath := path.Join(runPath, "apm.socket")
 	dsdSocketPath := path.Join(runPath, "dsd.socket")
 
@@ -171,8 +181,8 @@ func addAgentConfig(basePath string) (err error) {
 	return
 }
 
-// removeAgentConfig removes the agent configuration for the APM injector
-func removeAgentConfig() (err error) {
+// deleteAgentConfig removes the agent configuration for the APM injector
+func (a *apmInjectorInstaller) deleteAgentConfig() (err error) {
 	err = backupAgentConfig()
 	if err != nil {
 		return err

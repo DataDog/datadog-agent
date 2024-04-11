@@ -17,9 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// setupDockerDaemon sets up the docker daemon to use the APM injector
+// setDockerConfig sets up the docker daemon to use the APM injector
 // if docker is detected on the system
-func setupDockerDaemon(basePath string) error {
+// TODO: do it programmatically on a temp file then move it to /etc/ld.so.preload, with permissions
+// and by editing json
+func (a *apmInjectorInstaller) setDockerConfig() error {
 	if !isDockerInstalled() {
 		return nil
 	}
@@ -31,7 +33,7 @@ func setupDockerDaemon(basePath string) error {
 	}
 
 	// Link the docker daemon configuration to the APM injector's
-	err = linkDockerDaemon(path.Join(basePath, "daemon.json"))
+	err = linkDockerDaemon(path.Join(a.installPath, "daemon.json"))
 	if err != nil {
 		return err
 	}
@@ -39,8 +41,10 @@ func setupDockerDaemon(basePath string) error {
 	return reloadDocker()
 }
 
-// removeDockerDaemon restores the docker daemon configuration
-func removeDockerDaemon(basePath string) error {
+// deleteDockerConfig restores the docker daemon configuration
+// TODO: do it programmatically on a temp file then move it to /etc/ld.so.preload, with permissions
+// and by editing json
+func (a *apmInjectorInstaller) deleteDockerConfig() error {
 	if !isDockerInstalled() {
 		return nil
 	}
@@ -48,7 +52,7 @@ func removeDockerDaemon(basePath string) error {
 	// Check backup exists if yes uses it, else use default configuration
 	_, err := os.Stat("/etc/docker/daemon.json.bak")
 	if err != nil && os.IsNotExist(err) {
-		err = cleanupDockerDaemon(path.Join(basePath, "daemon-cleanup.json"))
+		err = cleanupDockerDaemon(path.Join(a.installPath, "daemon-cleanup.json"))
 		if err != nil {
 			return err
 		}
