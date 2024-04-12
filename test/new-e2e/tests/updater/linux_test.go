@@ -308,7 +308,9 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 
 	launchJavaDockerContainer(v.T(), host)
 
-	// check "Flushed traces to the API" in trace agent logs
+	// check "Dropping Payload due to non-retryable error" in trace agent logs
+	// as we don't have an API key the payloads can't be flushed successfully,
+	// but this log indicates that the trace agent managed to receive the payload
 	require.Eventually(v.T(), func() bool {
 		_, err := host.Execute(`cat /var/log/datadog/trace-agent.log | grep "Dropping Payload due to non-retryable error"`)
 		return err == nil

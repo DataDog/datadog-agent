@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"strings"
 
@@ -218,7 +217,7 @@ func (a *apmInjectorInstaller) setAgentConfig() (err error) {
 			return err
 		}
 	}
-	err = restartInjectorAgents()
+	err = restartTraceAgent()
 	return
 }
 
@@ -255,7 +254,7 @@ func (a *apmInjectorInstaller) deleteAgentConfig() (err error) {
 		return err
 	}
 
-	return restartInjectorAgents()
+	return restartTraceAgent()
 }
 
 // backupAgentConfig backs up the agent configuration
@@ -275,44 +274,16 @@ func restoreAgentConfig() error {
 	if err != nil {
 		return err
 	}
-	return restartInjectorAgents()
+	return restartTraceAgent()
 }
 
-// restartInjectorAgents restarts the agent units, both stable and experimental
-func restartInjectorAgents() error {
-	// Check that the agent is installed first
-	if !isDatadogAgentInstalled() {
-		log.Info("updater: datadog-agent is not installed, skipping restart")
-		return nil
-	}
-
-	// Restart stable units
-	if err := restartUnit("datadog-agent.service"); err != nil {
-		return err
-	}
+// restartTraceAgent restarts the trace agent, both stable and experimental
+func restartTraceAgent() error {
 	if err := restartUnit("datadog-agent-trace.service"); err != nil {
-		return err
-	}
-
-	// Restart experimental units
-	if err := restartUnit("datadog-agent-exp.service"); err != nil {
 		return err
 	}
 	if err := restartUnit("datadog-agent-trace-exp.service"); err != nil {
 		return err
 	}
 	return nil
-}
-
-// isDatadogAgentInstalled checks if the datadog agent is installed on the system
-func isDatadogAgentInstalled() bool {
-	cmd := exec.Command("which", "datadog-agent")
-	var outb bytes.Buffer
-	cmd.Stdout = &outb
-	err := cmd.Run()
-	if err != nil {
-		log.Warn("updater: failed to check if datadog-agent is installed, assuming it isn't: ", err)
-		return false
-	}
-	return len(outb.String()) != 0
 }

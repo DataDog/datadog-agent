@@ -80,8 +80,6 @@ func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("mv", "/tmp/ld.so.preload.tmp", "/etc/ld.so.preload"), nil
 	case "add-installer-to-agent-group":
 		return exec.Command("usermod", "-aG", "dd-agent", "dd-installer"), nil
-	case "restart-agents":
-		return exec.Command("systemctl", "restart", "datadog-agent.service"), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}
