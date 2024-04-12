@@ -18,6 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -66,6 +68,7 @@ type updaterImpl struct {
 	repositories *repository.Repositories
 	downloader   *downloader
 	installer    *installer
+	telemetry    *telemetry
 
 	remoteUpdates     bool
 	rc                *remoteConfig
@@ -82,7 +85,20 @@ type disk interface {
 // BootstrapURL bootstraps the updater with the given package.
 func BootstrapURL(ctx context.Context, url string, config config.Reader) error {
 	rc := newNoopRemoteConfig()
-	u := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config)
+	u, err := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config)
+	if err != nil {
+		return fmt.Errorf("could not create updater: %w", err)
+	}
+	err = u.Start(ctx)
+	if err != nil {
+		return fmt.Errorf("could not start updater: %w", err)
+	}
+	defer func() {
+		err := u.Stop(ctx)
+		if err != nil {
+			log.Errorf("could not stop updater: %v", err)
+		}
+	}()
 	return u.BootstrapURL(ctx, url)
 }
 
@@ -93,6 +109,9 @@ func Purge() {
 
 func purge(locksPath, repositoryPath string) {
 	service.RemoveAgentUnits()
+	if err := service.RemoveAPMInjector(); err != nil {
+		log.Warnf("updater: could not remove APM injector: %v", err)
+	}
 	cleanDir(locksPath, os.RemoveAll)
 	cleanDir(repositoryPath, service.RemoveAll)
 }
@@ -118,27 +137,33 @@ func NewUpdater(rcFetcher client.ConfigFetcher, config config.Reader) (Updater, 
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config), nil
+	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config)
 }
 
-func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, config config.Reader) *updaterImpl {
+func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, config config.Reader) (*updaterImpl, error) {
 	repositories := repository.NewRepositories(repositoriesPath, locksPath)
 	remoteRegistryOverride := config.GetString("updater.registry")
 	rcClient := rc
+
+	telemetry, err := newTelemetry(config, repositoriesPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not create telemetry: %w", err)
+	}
 
 	u := &updaterImpl{
 		remoteUpdates:     config.GetBool("updater.remote_updates"),
 		rc:                rcClient,
 		repositories:      repositories,
-		downloader:        newDownloader(http.DefaultClient, remoteRegistryOverride),
+		downloader:        newDownloader(config, http.DefaultClient, remoteRegistryOverride),
 		installer:         newInstaller(repositories),
+		telemetry:         telemetry,
 		requests:          make(chan remoteAPIRequest, 32),
 		catalog:           catalog{},
 		bootstrapVersions: bootstrapVersions{},
 		stopChan:          make(chan struct{}),
 	}
 	u.refreshState(context.Background())
-	return u
+	return u, nil
 }
 
 // GetState returns the state.
@@ -147,7 +172,8 @@ func (u *updaterImpl) GetState() (map[string]repository.State, error) {
 }
 
 // Start starts remote config and the garbage collector.
-func (u *updaterImpl) Start(_ context.Context) error {
+func (u *updaterImpl) Start(ctx context.Context) error {
+	u.telemetry.Start(ctx)
 	go func() {
 		for {
 			select {
@@ -177,8 +203,9 @@ func (u *updaterImpl) Start(_ context.Context) error {
 }
 
 // Stop stops the garbage collector.
-func (u *updaterImpl) Stop(_ context.Context) error {
+func (u *updaterImpl) Stop(ctx context.Context) error {
 	u.rc.Close()
+	u.telemetry.Stop(ctx)
 	close(u.stopChan)
 	u.requestsWG.Wait()
 	close(u.requests)
@@ -186,7 +213,9 @@ func (u *updaterImpl) Stop(_ context.Context) error {
 }
 
 // Bootstrap installs the stable version of the package.
-func (u *updaterImpl) BootstrapDefault(ctx context.Context, pkg string) error {
+func (u *updaterImpl) BootstrapDefault(ctx context.Context, pkg string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "bootrap_default")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
 	u.refreshState(ctx)
@@ -194,13 +223,15 @@ func (u *updaterImpl) BootstrapDefault(ctx context.Context, pkg string) error {
 
 	stablePackage, ok := u.catalog.getDefaultPackage(u.bootstrapVersions, pkg, runtime.GOARCH, runtime.GOOS)
 	if !ok {
-		return fmt.Errorf("could not get default package %s for %s, %s", pkg, runtime.GOARCH, runtime.GOOS)
+		return fmt.Errorf("could not get default package '%s' for arch '%s' and platform '%s'", pkg, runtime.GOARCH, runtime.GOOS)
 	}
 	return u.bootstrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
 }
 
 // BootstrapVersion installs the stable version of the package.
-func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version string) error {
+func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap_version")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
 	u.refreshState(ctx)
@@ -208,13 +239,15 @@ func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version 
 
 	stablePackage, ok := u.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
 	if !ok {
-		return fmt.Errorf("could not get package %s version %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
+		return fmt.Errorf("could not get package '%s' version '%s' for arch '%s' and platform '%s'", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
 	return u.bootstrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
 }
 
 // BootstrapURL installs the stable version of the package.
-func (u *updaterImpl) BootstrapURL(ctx context.Context, url string) error {
+func (u *updaterImpl) BootstrapURL(ctx context.Context, url string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap_url")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
 	u.refreshState(ctx)
@@ -248,7 +281,9 @@ func (u *updaterImpl) bootstrapPackage(ctx context.Context, url string, expected
 }
 
 // StartExperiment starts an experiment with the given package.
-func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version string) error {
+func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap_version")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
 	u.refreshState(ctx)
@@ -256,7 +291,7 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version s
 
 	log.Infof("Updater: Starting experiment for package %s version %s", pkg, version)
 	// both tmp and repository paths are checked for available disk space in case they are on different partitions
-	err := checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
+	err = checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
 	if err != nil {
 		return fmt.Errorf("not enough disk space to install package: %w", err)
 	}
@@ -281,14 +316,16 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version s
 }
 
 // PromoteExperiment promotes the experiment to stable.
-func (u *updaterImpl) PromoteExperiment(ctx context.Context, pkg string) error {
+func (u *updaterImpl) PromoteExperiment(ctx context.Context, pkg string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "promote_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
 	u.refreshState(ctx)
 	defer u.refreshState(ctx)
 
 	log.Infof("Updater: Promoting experiment for package %s", pkg)
-	err := u.installer.promoteExperiment(pkg)
+	err = u.installer.promoteExperiment(pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -297,14 +334,16 @@ func (u *updaterImpl) PromoteExperiment(ctx context.Context, pkg string) error {
 }
 
 // StopExperiment stops the experiment.
-func (u *updaterImpl) StopExperiment(ctx context.Context, pkg string) error {
+func (u *updaterImpl) StopExperiment(ctx context.Context, pkg string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "stop_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
 	u.refreshState(ctx)
 	defer u.refreshState(ctx)
 
 	defer log.Infof("Updater: Stopping experiment for package %s", pkg)
-	err := u.installer.uninstallExperiment(pkg)
+	err = u.installer.uninstallExperiment(pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}

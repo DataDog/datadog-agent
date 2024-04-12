@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	oci "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/types"
@@ -27,11 +28,16 @@ const (
 	datadogPackageConfigLayerMediaType types.MediaType = "application/vnd.datadog.package.config.layer.v1.tar+zstd"
 	datadogPackageMaxSize                              = 3 << 30 // 3GiB
 	defaultConfigsDir                                  = "/etc"
+
+	packageDatadogAgent     = "datadog-agent"
+	packageAPMInjector      = "datadog-apm-inject"
+	packageDatadogInstaller = "datadog-installer"
 )
 
 type installer struct {
 	repositories *repository.Repositories
 	configsDir   string
+	installLock  sync.Mutex
 }
 
 func newInstaller(repositories *repository.Repositories) *installer {
@@ -56,13 +62,19 @@ func (i *installer) installStable(pkg string, version string, image oci.Image) e
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
+
+	i.installLock.Lock()
+	defer i.installLock.Unlock()
 	switch pkg {
-	case "datadog-agent":
+	case packageDatadogAgent:
 		return service.SetupAgentUnits()
-	case "datadog-updater":
+	case packageAPMInjector:
+		return service.SetupAPMInjector()
+	case packageDatadogInstaller:
 		return service.SetupInstallerUnit()
+	default:
+		return nil
 	}
-	return nil
 }
 
 func (i *installer) installExperiment(pkg string, version string, image oci.Image) error {
@@ -103,25 +115,27 @@ func (i *installer) uninstallExperiment(pkg string) error {
 }
 
 func (i *installer) startExperiment(pkg string) error {
+	i.installLock.Lock()
+	defer i.installLock.Unlock()
 	switch pkg {
-	case "datadog-agent":
+	case packageDatadogAgent:
 		return service.StartAgentExperiment()
-	case "datadog-updater":
+	case packageDatadogInstaller:
 		return service.StartInstallerExperiment()
 	default:
-		// TODO: currently we don't support arbitrary experiments
 		return nil
 	}
 }
 
 func (i *installer) stopExperiment(pkg string) error {
+	i.installLock.Lock()
+	defer i.installLock.Unlock()
 	switch pkg {
-	case "datadog-agent":
+	case packageDatadogAgent:
 		return service.StopAgentExperiment()
-	case "datadog-updater":
+	case packageAPMInjector:
 		return service.StopInstallerExperiment()
 	default:
-		// TODO: currently we don't support arbitrary experiments
 		return nil
 	}
 }
