@@ -288,7 +288,7 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 					return net.Dial(netType, path)
 				},
 				TLSHandshakeTimeout:   1 * time.Second,
-				ResponseHeaderTimeout: 5 * time.Second,
+				ResponseHeaderTimeout: 20 * time.Second,
 				ExpectContinueTimeout: 50 * time.Millisecond,
 			},
 		},
