@@ -1,5 +1,4 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
+// Unless explicitly stated otherwise all files in this repository are licensed // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
@@ -171,35 +170,4 @@ func (v *myKindSuite) TestContainerExclude() {
 		assert.NoError(c, err, "Error starting job")
 		assert.NotContains(c, logsServiceNames, "alpine", "Alpine service found after excluded")
 	}, 1*time.Minute, 10*time.Second)
-}
-
-func (v *myKindSuite) TestADAnnotations() {
-	v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	var backOffLimit int32 = 4
-	testLogMessage := "Annotations pod"
-
-	jobSpcec := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "annotations-job",
-			Namespace: "default",
-						Annotations: map[string]string{
-										"ad.datadoghq.com/annotations-job.logs": "[{"source": "redis","service": "<YOUR_APP_NAME>","tags": ["env:prod"]}]",
-						},
-		},
-		Spec: batchv1.JobSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:    "annotations-job",
-							Image:   "ubuntu",
-							Command: []string{"echo", testLogMessage},
-						},
-					},
-					RestartPolicy: corev1.RestartPolicyNever,
-				},
-			},
-			BackoffLimit: &backOffLimit,
-		},
-	}
 }
