@@ -206,7 +206,7 @@ def pipeline_status(pipeline: ProjectPipeline, job_status):
     """
     Checks the pipeline status and updates job statuses.
     """
-    # pipeline.refresh()
+    # TODO : pipeline.refresh()
     jobs = pipeline.jobs.list(per_page=100, all=True)
 
     job_status = update_job_status(jobs, job_status)
