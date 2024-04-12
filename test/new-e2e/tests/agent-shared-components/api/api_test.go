@@ -51,17 +51,15 @@ func (endpointInfo *agentEndpointInfo) url() *url.URL {
 }
 
 func (endpointInfo *agentEndpointInfo) fetchCommand(authtoken string) string {
-	var data string
+	data := endpointInfo.data
 	if len(endpointInfo.data) > 0 {
-		data = endpointInfo.data
-	} else {
 		data = "{}"
 	}
 
-	// -L: follow redirects
-	// -s: silent
-	// -k: allow insecure server connections
-	// -H: add a header
+	// -s: silent so we don't show auth token in output
+	// -k: allow insecure server connections since we self-sign the TLS cert
+	// -H: add a header with the auth token
+	// -X: http request method
 	// -d: request data (json)
 	return fmt.Sprintf(
 		`curl -s -k -H "authorization: Bearer %s" -X %s "%s" -d "%s"`,
@@ -74,11 +72,11 @@ func (endpointInfo *agentEndpointInfo) fetchCommand(authtoken string) string {
 
 func (v *apiSuite) TestInternalAgentAPIEndpoints() {
 	testcases := []struct {
-		endpoint agentEndpointInfo
-		want     string
+		agentEndpointInfo
+		want string
 	}{
 		{
-			endpoint: agentEndpointInfo{
+			agentEndpointInfo: agentEndpointInfo{
 				name:     "version",
 				scheme:   "https",
 				port:     agentCmdPort,
@@ -89,7 +87,7 @@ func (v *apiSuite) TestInternalAgentAPIEndpoints() {
 			want: `"Major":7,"Minor":5`,
 		},
 		{
-			endpoint: agentEndpointInfo{
+			agentEndpointInfo: agentEndpointInfo{
 				name:     "flare",
 				scheme:   "https",
 				port:     agentCmdPort,
@@ -106,12 +104,12 @@ func (v *apiSuite) TestInternalAgentAPIEndpoints() {
 	authtoken := strings.TrimSpace(authtokenContent)
 
 	for _, tc := range testcases {
-		cmd := tc.endpoint.fetchCommand(authtoken)
+		cmd := tc.fetchCommand(authtoken)
 		host := v.Env().RemoteHost
 		require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 			resp, err := host.Execute(cmd)
 			require.NoError(t, err)
-			assert.Contains(t, resp, tc.want, "%s %s returned: %s, wanted: %s", tc.endpoint.method, tc.endpoint.endpoint, resp, tc.want)
+			assert.Contains(t, resp, tc.want, "%s %s returned: %s, wanted: %s", tc.method, tc.endpoint, resp, tc.want)
 		}, 2*time.Minute, 10*time.Second)
 	}
 }
