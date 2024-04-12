@@ -315,7 +315,7 @@ def print_job_status(job):
 
     # A None duration is set by Gitlab when the job gets canceled before it was started.
     # In that case, set a duration of 0s.
-    if job.finished_at is None:
+    if job.duration is None:
         duration = 0
 
     if job.status == 'success':
