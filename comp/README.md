@@ -256,6 +256,10 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 
 
+### [comp/logs/adscheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/adscheduler)
+
+Package adscheduler contains the AD scheduler component.
+
 ### [comp/logs/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/agent)
 
 Package agent contains logs agent component.
