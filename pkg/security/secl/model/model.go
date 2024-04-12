@@ -50,30 +50,21 @@ func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
 
 // Releasable represents an object than can be released
 type Releasable struct {
-	onReleaseCallback func() `field:"-"`
+	onReleaseCallbacks []func() `field:"-"`
 }
 
 // CallReleaseCallback calls the on-release callback
 func (r *Releasable) CallReleaseCallback() {
-	if r.onReleaseCallback != nil {
-		r.onReleaseCallback()
-	}
-}
-
-// SetReleaseCallback sets a callback to be called when the cache entry is released
-func (r *Releasable) SetReleaseCallback(callback func()) {
-	previousCallback := r.onReleaseCallback
-	r.onReleaseCallback = func() {
-		callback()
-		if previousCallback != nil {
-			previousCallback()
+	for _, cb := range r.onReleaseCallbacks {
+		if cb != nil {
+			cb()
 		}
 	}
 }
 
-// OnRelease triggers the callback
-func (r *Releasable) OnRelease() {
-	r.onReleaseCallback()
+// AppendReleaseCallback sets a callback to be called when the cache entry is released
+func (r *Releasable) AppendReleaseCallback(callback func()) {
+	r.onReleaseCallbacks = append(r.onReleaseCallbacks, callback)
 }
 
 // ContainerContext holds the container context of an event
