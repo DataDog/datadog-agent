@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"strings"
 
@@ -279,6 +280,12 @@ func restoreAgentConfig() error {
 
 // restartInjectorAgents restarts the agent units, both stable and experimental
 func restartInjectorAgents() error {
+	// Check that the agent is installed first
+	if !isDatadogAgentInstalled() {
+		log.Info("updater: datadog-agent is not installed, skipping restart")
+		return nil
+	}
+
 	// Restart stable units
 	if err := restartUnit("datadog-agent.service"); err != nil {
 		return err
@@ -295,4 +302,17 @@ func restartInjectorAgents() error {
 		return err
 	}
 	return nil
+}
+
+// isDatadogAgentInstalled checks if the datadog agent is installed on the system
+func isDatadogAgentInstalled() bool {
+	cmd := exec.Command("which", "datadog-agent")
+	var outb bytes.Buffer
+	cmd.Stdout = &outb
+	err := cmd.Run()
+	if err != nil {
+		log.Warn("updater: failed to check if datadog-agent is installed, assuming it isn't: ", err)
+		return false
+	}
+	return len(outb.String()) != 0
 }
