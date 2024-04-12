@@ -170,7 +170,14 @@ func deleteEtwSession(name string) error {
 }
 
 func createEtwSession(name string) (*etwSession, error) {
-	_ = deleteEtwSession(name)
+	isaudit := false
+
+	if name == "EventLog-Security" {
+		isaudit = true
+	}
+	if !isaudit {
+		_ = deleteEtwSession(name)
+	}
 
 	utf16SessionName, err := windows.UTF16FromString(name)
 	s := &etwSession{
@@ -201,6 +208,10 @@ func createEtwSession(name string) (*etwSession, error) {
 
 	// Should never happen given we start by deleting any session with the same name
 	if ret == windows.ERROR_ALREADY_EXISTS {
+		if isaudit {
+			s.propertiesBuf = propertiesBuf
+			return s, nil
+		}
 		return nil, fmt.Errorf("session %s already exists; %w", s.Name, err)
 	}
 
