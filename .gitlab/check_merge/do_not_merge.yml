@@ -18,8 +18,6 @@ do-not-merge:
              [ ! -z "$CI_IMAGE_DEB_X64_SUFFIX" ] ||
              [ ! -z "$CI_IMAGE_DOCKER_X64_SUFFIX" ] ||
              [ ! -z "$CI_IMAGE_DOCKER_ARM64_SUFFIX" ] ||
-             [ ! -z "$CI_IMAGE_KMT_X64_SUFFIX" ] ||
-             [ ! -z "$CI_IMAGE_KMT_ARM64_SUFFIX" ] ||
              [ ! -z "$CI_IMAGE_RPM_ARM64_SUFFIX" ] ||
              [ ! -z "$CI_IMAGE_RPM_ARMHF_SUFFIX" ] ||
              [ ! -z "$CI_IMAGE_RPM_X64_SUFFIX" ] ||
@@ -27,13 +25,8 @@ do-not-merge:
              [ ! -z "$CI_IMAGE_SYSPROBE_X64_SUFFIX" ] ||
              [ ! -z "$CI_IMAGE_SYSPROBE_ARM_SUFFIX" ] ||
              [ ! -z "$CI_IMAGE_WINDOWS_SUFFIX" ] ||
-             [ ! -z "$DATADOG_AGENT_BUILDIMAGES_SUFFIX" ] ||
-             [ ! -z "$DATADOG_AGENT_WINBUILDIMAGES_SUFFIX" ] ||
-             [ ! -z "$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX" ] ||
-             [ ! -z "$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX" ] ||
-             [ ! -z "$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX" ] ||
              [ ! -z "$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX" ]; then
-            echo "Pull request uses non-empty BUILDIMAGES_SUFFIX variable"
+            echo "Pull request uses non-empty *_SUFFIX variable"
             echo "This workflow fails so that the pull request cannot be merged"
             exit 1
           fi
