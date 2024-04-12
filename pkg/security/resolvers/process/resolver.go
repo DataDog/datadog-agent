@@ -7,42 +7,28 @@
 package process
 
 import (
-	"sync"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // Pool defines a pool for process entry allocations
 type Pool struct {
-	pool *sync.Pool
+	onRelease func()
 }
 
 // Get returns a cache entry
 func (p *Pool) Get() *model.ProcessCacheEntry {
-	return p.pool.Get().(*model.ProcessCacheEntry)
-}
+	return model.NewProcessCacheEntry(func(pce *model.ProcessCacheEntry) {
+		if pce.Ancestor != nil {
+			pce.Ancestor.Release()
+		}
 
-// Put returns a cache entry
-func (p *Pool) Put(pce *model.ProcessCacheEntry) {
-	pce.Reset()
-	p.pool.Put(pce)
+		if p.onRelease != nil {
+			p.onRelease()
+		}
+	})
 }
 
 // NewProcessCacheEntryPool returns a new Pool
 func NewProcessCacheEntryPool(onRelease func()) *Pool {
-	pcep := Pool{pool: &sync.Pool{}}
-
-	pcep.pool.New = func() interface{} {
-		return model.NewProcessCacheEntry(func(pce *model.ProcessCacheEntry) {
-			if pce.Ancestor != nil {
-				pce.Ancestor.Release()
-			}
-
-			onRelease()
-
-			pcep.Put(pce)
-		})
-	}
-
-	return &pcep
+	return &Pool{onRelease: onRelease}
 }
