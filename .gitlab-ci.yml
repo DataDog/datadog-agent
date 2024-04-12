@@ -170,10 +170,6 @@ variables:
   DATADOG_AGENT_ARMBUILDIMAGES: v31802788-2dee8fe9
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v31802788-2dee8fe9
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v31802788-2dee8fe9
-  DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v31802788-2dee8fe9
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v31802788-2dee8fe9
   DATADOG_AGENT_BUILDERS: v28719426-b6a4fd9
@@ -367,7 +363,7 @@ variables:
       - .gitlab/container_build/fakeintake.yml
       - .gitlab/dev_container_deploy/fakeintake.yml
     compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  
+
 #
 # Workflow rules
 # Rules used to define whether a pipeline should run, and with which variables
