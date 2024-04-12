@@ -111,6 +111,12 @@ func (w *wh) updateResources(pod *corev1.Pod, _ string, _ dynamic.Interface) (bo
 			if cont.Name != reco.Name {
 				continue
 			}
+			if cont.Resources.Limits == nil {
+				cont.Resources.Limits = corev1.ResourceList{}
+			}
+			if cont.Resources.Requests == nil {
+				cont.Resources.Requests = corev1.ResourceList{}
+			}
 			for resource, limit := range reco.Limits {
 				if limit != cont.Resources.Limits[resource] {
 					cont.Resources.Limits[resource] = limit

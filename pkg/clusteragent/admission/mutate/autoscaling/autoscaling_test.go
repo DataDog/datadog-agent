@@ -87,6 +87,45 @@ func TestUpdateResources(t *testing.T) {
 			},
 		},
 		{
+			name: "update resources when there are none",
+			wh: &wh{
+				recommender: &fakeRecommender{
+					recommendations: map[string][]datadoghq.DatadogPodAutoscalerContainerResources{
+						"test-deployment": {
+							{Name: "container1", Limits: corev1.ResourceList{"cpu": resource.MustParse("500m")}, Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")}},
+						},
+					},
+				},
+			},
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
+					Kind: "ReplicaSet",
+					Name: "test-deployment-968f49d86",
+				}}},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "container1",
+					}},
+				},
+			},
+			wantInjected: true,
+			wantPod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
+					Kind: "ReplicaSet",
+					Name: "test-deployment-968f49d86",
+				}}},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "container1",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
+						},
+					}},
+				},
+			},
+		},
+		{
 			name: "no update when recommendations match",
 			wh: &wh{
 				recommender: &fakeRecommender{
