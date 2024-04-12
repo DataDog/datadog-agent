@@ -52,7 +52,7 @@ func (endpointInfo *agentEndpointInfo) url() *url.URL {
 
 func (endpointInfo *agentEndpointInfo) fetchCommand(authtoken string) string {
 	data := endpointInfo.data
-	if len(endpointInfo.data) > 0 {
+	if len(endpointInfo.data) == 0 {
 		data = "{}"
 	}
 
