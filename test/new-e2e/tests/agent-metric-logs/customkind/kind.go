@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/logger"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -159,9 +158,6 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	// INSTANTIATE THE APP HERE
-	logger.K8sAppDefinition(*awsEnv.GetCommonEnvironment(), kubeProvider, "logger")
-
 	if params.fakeintakeOptions != nil {
 		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
 		params.fakeintakeOptions = append(fakeintakeOpts, params.fakeintakeOptions...)
@@ -189,11 +185,8 @@ datadog:
   kubelet:
     tlsVerify: false
   clusterName: "%s"
-  env:
-    - name: DD_LOGS_ENABLED
-      value: "true"
-    - name: DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL
-      value: "true"
+  envDict:
+    DD_CONTAINER_EXCLUDE: "kube_namespace:^exclude-namespace$"
 agents:
   useHostNetwork: true
 `, kindClusterName)
