@@ -46,6 +46,7 @@ repos:
       description: checks that the commit isn't created on a protected branch
       entry: 'python3 tasks/git-hooks/protected-branches.py'
       language: system
+      pass_filenames: false
     - id: revive
       name: revive
       description: revive
@@ -103,8 +104,17 @@ repos:
     - id: shell-check-no-set-x
       name: shell-check-no-set-x
       description: check that no `set -x` is set within github / gitlab workflows
-      entry: bash ./tools/pre-commit/shell_check_no_set_x.sh
+      entry: inv pre-commit.shell-check-no-set-x
       language: system
       require_serial: true
       files: (\.yaml|\.yml|\.sh|Dockerfile)$
       pass_filenames: false
+    - id: gitlab-configuration
+      name: gitlab-configuration
+      description: test the gitlab configuration on main
+      entry: 'inv linter.gitlab-ci -t main'
+      language: system
+      require_serial: true
+      files: .*gitlab.*\.yml$
+      pass_filenames: false
+      stages: [pre-push]

@@ -11,11 +11,12 @@ from collections import OrderedDict
 from datetime import date
 from time import sleep
 
+from gitlab import GitlabError
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import (
@@ -39,6 +40,9 @@ VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
 
 # Regex matching rc version tag format like 7.50.0-rc.1
 RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]\d+-rc\.\d+')
+
+# Regex matching minor release rc version tag like x.y.0-rc.1 (semver PATCH == 0), but not x.y.1-rc.1 (semver PATCH > 0)
+MINOR_RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]0-rc\.\d+')
 
 UNFREEZE_REPO_AGENT = "datadog-agent"
 UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
@@ -240,6 +244,7 @@ def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
         v6_tag = _find_v6_tag(ctx, new_version)
         if v6_tag:
             ctx.run(f"sed {sed_i_arg} -E 's#^{new_version}#{new_version} / {v6_tag}#' /tmp/new_changelog.rst")
+            ctx.run(f"sed {sed_i_arg} -E 's#^======$#================#' /tmp/new_changelog.rst")
     # remove the old header from the existing changelog
     ctx.run(f"sed {sed_i_arg} -e '1,4d' {changelog_file}")
 
@@ -1328,7 +1333,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     if sys.version_info[0] < 3:
         return Exit(message="Must use Python 3 for this task", code=1)
 
-    gitlab = Gitlab(project_name=GITHUB_REPO_NAME, api_token=get_gitlab_token())
+    datadog_agent = get_gitlab_repo()
     list_major_versions = parse_major_versions(major_versions)
 
     # Get the version of the highest major: needed for tag_version and to know
@@ -1377,7 +1382,11 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
     gitlab_tag = None
     while not gitlab_tag:
-        gitlab_tag = gitlab.find_tag(str(new_version)).get("name", None)
+        try:
+            gitlab_tag = datadog_agent.tags.get(str(new_version))
+        except GitlabError:
+            continue
+
         sleep(5)
 
     print(color_message("Creating RC pipeline", "bold"))
@@ -1605,11 +1614,12 @@ def check_omnibus_branches(ctx):
 
 
 @task
-def update_build_links(_ctx, new_version):
+def update_build_links(_ctx, new_version, patch_version=False):
     """
     Updates Agent release candidates build links on https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2889876360/Build+links
 
-    new_version - should be given as an Agent 7 RC version, ie. '7.50.0-rc.1' format.
+    new_version - should be given as an Agent 7 RC version, ie. '7.50.0-rc.1' format. Does not support patch version unless patch_version is set to True.
+    patch_version - if set to True, then task can be used for patch releases (3 digits), ie. '7.50.1-rc.1' format. Otherwise patch release number will be considered as invalid.
 
     Notes:
     Attlasian credentials are required to be available as ATLASSIAN_USERNAME and ATLASSIAN_PASSWORD as environment variables.
@@ -1621,11 +1631,11 @@ def update_build_links(_ctx, new_version):
 
     BUILD_LINKS_PAGE_ID = 2889876360
 
-    match = RC_VERSION_RE.match(new_version)
+    match = RC_VERSION_RE.match(new_version) if patch_version else MINOR_RC_VERSION_RE.match(new_version)
     if not match:
         raise Exit(
             color_message(
-                f"{new_version} is not a valid Agent RC version number/tag. \nCorrect example: 7.50.0-rc.1",
+                f"{new_version} is not a valid {'patch' if patch_version else 'minor'} Agent RC version number/tag.\nCorrect example: 7.50{'.1' if patch_version else '.0'}-rc.1",
                 "red",
             ),
             code=1,
