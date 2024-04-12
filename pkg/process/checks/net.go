@@ -224,8 +224,8 @@ func (c *ConnectionsCheck) pathForConn(conn *model.Connection) {
 	cfg := traceroute.Config{
 		DestHostname: remoteAddr.Ip,
 		DestPort:     uint16(remoteAddr.Port),
-		MaxTTL:       10,
-		TimeoutMs:    3000,
+		MaxTTL:       30,
+		TimeoutMs:    5000,
 	}
 
 	tr := traceroute.New(cfg)
@@ -242,6 +242,7 @@ func (c *ConnectionsCheck) pathForConn(conn *model.Connection) {
 			log.Errorf("SendEventPlatformEventBlocking error: %s", err)
 		} else {
 
+			log.Warnf("Network Path MSG: %s", string(payloadBytes))
 			m := message.NewMessage(payloadBytes, nil, "", 0)
 			err = epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkPath)
 			if err != nil {
