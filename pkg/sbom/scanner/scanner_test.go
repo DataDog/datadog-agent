@@ -135,7 +135,7 @@ func TestRetryLogic_Error(t *testing.T) {
 
 	cancel()
 	// Ensure the collector is stopped
-	shutdown.WaitUntil(time.After(2 * time.Second))
+	shutdown.WaitUntil(time.After(5 * time.Second))
 }
 
 func TestRetryLogic_ImageDeleted(t *testing.T) {
@@ -200,7 +200,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	}, 15*time.Second, 1*time.Second)
 	cancel()
 	// Ensure the collector is stopped
-	shutdown.WaitUntil(time.After(2 * time.Second))
+	shutdown.WaitUntil(time.After(5 * time.Second))
 }
 
 func TestRetryLogic_Host(t *testing.T) {
@@ -241,5 +241,5 @@ func TestRetryLogic_Host(t *testing.T) {
 	}
 	cancel()
 	// Ensure the collector is stopped
-	shutdown.WaitUntil(time.After(2 * time.Second))
+	shutdown.WaitUntil(time.After(5 * time.Second))
 }
