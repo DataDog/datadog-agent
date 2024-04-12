@@ -271,7 +271,7 @@ func TestRetryChannelFull(t *testing.T) {
 	mockCollector.On("Options").Return(sbom.ScanOptions{})
 	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(expectedResult)
 	mockCollector.On("Channel").Return(resultCh)
-	mockCollector.On("Shutdown")
+	shutdown := mockCollector.On("Shutdown")
 	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
 
 	// Set up the configuration
@@ -303,4 +303,5 @@ func TestRetryChannelFull(t *testing.T) {
 	}
 
 	cancel()
+	shutdown.WaitUntil(time.After(5 * time.Second))
 }
