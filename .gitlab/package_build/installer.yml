@@ -94,7 +94,7 @@ datadog-agent-oci-arm64-a7:
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="installer" --install-directory="$INSTALL_DIR"
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="installer" ${INSTALL_DIR_PARAM}
     - ls -la $OMNIBUS_PACKAGE_DIR
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-installer-*-${PACKAGE_ARCH}.tar.xz $S3_ARTIFACTS_URI/$DESTINATION_FILE
     - !reference [.upload_sbom_artifacts]
@@ -143,6 +143,8 @@ installer-amd64-oci:
   before_script:
     - source /root/.bashrc
     - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/$(inv agent.version -u)-1
+    - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR
+
 
 installer-arm64-oci:
   extends: installer-arm64
@@ -151,3 +153,4 @@ installer-arm64-oci:
   before_script:
     - source /root/.bashrc
     - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/$(inv agent.version -u)-1
+    - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR
