@@ -5,31 +5,48 @@
 
 package helper
 
+import (
+	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+)
+
 // Windows implement helper function for Windows distributions
-type Windows struct{}
+type Windows struct {
+	installFolder string
+	configFolder  string
+}
 
 var _ Helper = &Windows{}
 
 // NewWindowsHelper create a new instance of Windows helper
-func NewWindowsHelper() *Windows { return &Windows{} }
+func NewWindowsHelper() *Windows {
+	return NewWindowsHelperWithCustomPaths(windowsAgent.DefaultInstallPath, windowsAgent.DefaultConfigRoot)
+}
+
+// NewWindowsHelperWithCustomPaths create a new instance of Windows helper with custom paths
+func NewWindowsHelperWithCustomPaths(installFolder, configFolder string) *Windows {
+	return &Windows{
+		installFolder: installFolder,
+		configFolder:  configFolder,
+	}
+}
 
 // GetInstallFolder return the install folder path
-func (u *Windows) GetInstallFolder() string { return `C:\Program Files\Datadog\Datadog Agent\` }
+func (w *Windows) GetInstallFolder() string { return w.installFolder + "\\" }
 
 // GetConfigFolder return the config folder path
-func (u *Windows) GetConfigFolder() string { return `C:\ProgramData\Datadog\` }
+func (w *Windows) GetConfigFolder() string { return w.configFolder + "\\" }
 
 // GetBinaryPath return the datadog-agent binary path
-func (u *Windows) GetBinaryPath() string { return u.GetInstallFolder() + `bin\agent.exe` }
+func (w *Windows) GetBinaryPath() string { return w.GetInstallFolder() + `bin\agent.exe` }
 
 // GetConfigFileName return the config file name
-func (u *Windows) GetConfigFileName() string { return "datadog.yaml" }
+func (w *Windows) GetConfigFileName() string { return "datadog.yaml" }
 
 // GetServiceName return the service name
-func (u *Windows) GetServiceName() string { return "datadogagent" }
+func (w *Windows) GetServiceName() string { return "datadogagent" }
 
 // AgentProcesses return the list of agent processes
-func (u *Windows) AgentProcesses() []string {
+func (w *Windows) AgentProcesses() []string {
 	return []string{
 		"agent.exe",
 		"process-agent.exe",

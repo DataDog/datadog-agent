@@ -260,7 +260,7 @@ func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 	suite.Nil(err)
 
 	msg := <-suite.outputChan
-	tags := msg.Origin.Tags()
+	tags := msg.Tags()
 	suite.ElementsMatch([]string{
 		"filename:" + filepath.Base(suite.testFile.Name()),
 		"dirname:" + filepath.Dir(suite.testFile.Name()),
@@ -291,7 +291,7 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 	suite.Nil(err)
 
 	msg := <-suite.outputChan
-	tags := msg.Origin.Tags()
+	tags := msg.Tags()
 	suite.ElementsMatch([]string{
 		"filename:" + filepath.Base(suite.testFile.Name()),
 		"dirname:" + filepath.Dir(suite.testFile.Name()),

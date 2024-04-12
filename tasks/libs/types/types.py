@@ -3,6 +3,8 @@ import subprocess
 from collections import defaultdict
 from enum import Enum
 
+from gitlab.v4.objects import ProjectJob
+
 
 class Test:
     PACKAGE_PREFIX = "github.com/DataDog/datadog-agent/"
@@ -50,6 +52,7 @@ class FailedJobReason(Enum):
     GITLAB = 6
     KITCHEN = 7
     EC2_SPOT = 8
+    E2E_INFRA_FAILURE = 9
 
 
 class FailedJobs:
@@ -59,12 +62,12 @@ class FailedJobs:
         self.mandatory_infra_job_failures = []
         self.optional_infra_job_failures = []
 
-    def add_failed_job(self, job):
-        if job["failure_type"] == FailedJobType.INFRA_FAILURE and job["allow_failure"]:
+    def add_failed_job(self, job: ProjectJob):
+        if job.failure_type == FailedJobType.INFRA_FAILURE and job.allow_failure:
             self.optional_infra_job_failures.append(job)
-        elif job["failure_type"] == FailedJobType.INFRA_FAILURE and not job["allow_failure"]:
+        elif job.failure_type == FailedJobType.INFRA_FAILURE and not job.allow_failure:
             self.mandatory_infra_job_failures.append(job)
-        elif job["allow_failure"]:
+        elif job.allow_failure:
             self.optional_job_failures.append(job)
         else:
             self.mandatory_job_failures.append(job)
@@ -110,13 +113,13 @@ class SlackMessage:
 
         jobs_per_stage = defaultdict(list)
         for job in jobs:
-            jobs_per_stage[job["stage"]].append(job)
+            jobs_per_stage[job.stage].append(job)
 
         for stage, jobs in jobs_per_stage.items():
             jobs_info = []
             for job in jobs:
-                num_retries = len(job["retry_summary"]) - 1
-                job_info = f"<{job['url']}|{job['name']}>"
+                num_retries = len(job.retry_summary) - 1
+                job_info = f"<{job.web_url}|{job.name}>"
                 if num_retries > 0:
                     job_info += f" ({num_retries} retries)"
 
@@ -130,7 +133,7 @@ class SlackMessage:
     def __render_tests_section(self, buffer):
         print(self.TEST_SECTION_HEADER, file=buffer)
         for (test_name, test_package), jobs in self.failed_tests.items():
-            job_list = ", ".join(f"<{job['url']}|{job['name']}>" for job in jobs[: self.MAX_JOBS_PER_TEST])
+            job_list = ", ".join(f"<{job.web_url}|{job.name}>" for job in jobs[: self.MAX_JOBS_PER_TEST])
             if len(jobs) > self.MAX_JOBS_PER_TEST:
                 job_list += f" and {len(jobs) - self.MAX_JOBS_PER_TEST} more"
             print(f"- `{test_name}` from package `{test_package}` (in {job_list})", file=buffer)

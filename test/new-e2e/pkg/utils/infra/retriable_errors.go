@@ -43,5 +43,10 @@ func getKnownRetriableErrors() []retriableError {
 			errorMessage: "failed attempts: dial tcp :22: connect: connection refused",
 			retryType:    reCreate,
 		},
+		{
+			// https://datadoghq.atlassian.net/browse/ADXT-163
+			errorMessage: "couldn't find resource",
+			retryType:    reUp,
+		},
 	}
 }
