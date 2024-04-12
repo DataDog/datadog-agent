@@ -104,6 +104,7 @@ def go(
     timeout: int = None,
     golangci_lint_kwargs="",
     headless_mode=False,
+    include_sds=False,
 ):
     """
     Run go linters on the given module and targets.
@@ -137,6 +138,7 @@ def go(
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
+        include_sds=include_sds,
     )
 
 
@@ -156,6 +158,7 @@ def _lint_go(
     timeout,
     golangci_lint_kwargs,
     headless_mode,
+    include_sds,
 ):
     if not check_tools_version(ctx, ['go', 'golangci-lint']):
         print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
@@ -184,6 +187,7 @@ def _lint_go(
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
+        include_sds=include_sds,
     )
 
     success = process_module_results(modules_results_per_phase)
@@ -211,13 +215,19 @@ def run_lint_go(
     timeout=None,
     golangci_lint_kwargs="",
     headless_mode=False,
+    include_sds=False,
 ):
     modules, flavors = process_input_args(module, targets, flavors, headless_mode)
 
     linter_tags = {
         f: build_tags
         or compute_build_tags_for_flavor(
-            flavor=f, build=build, arch=arch, build_include=build_include, build_exclude=build_exclude
+            flavor=f,
+            build=build,
+            arch=arch,
+            build_include=build_include,
+            build_exclude=build_exclude,
+            include_sds=include_sds,
         )
         for f in flavors
     }

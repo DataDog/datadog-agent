@@ -233,11 +233,11 @@ def compute_build_tags_for_flavor(
     build_include: List[str],
     build_exclude: List[str],
     flavor: AgentFlavor = AgentFlavor.base,
+    include_sds: bool = False,
 ):
     """
     Given a flavor, an architecture, a list of tags to include and exclude, get the final list
     of tags that should be applied.
-
     If the list of build tags to include is empty, take the default list of build tags for
     the flavor or arch. Otherwise, use the list of build tags to include, minus incompatible tags
     for the given architecture.
@@ -249,8 +249,15 @@ def compute_build_tags_for_flavor(
         if build_include is None
         else filter_incompatible_tags(build_include.split(","), arch=arch)
     )
+
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    return get_build_tags(build_include, build_exclude)
+
+    list = get_build_tags(build_include, build_exclude)
+
+    if include_sds:
+        list.append("sds")
+
+    return list
 
 
 @task

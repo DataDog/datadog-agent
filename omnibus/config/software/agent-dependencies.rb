@@ -12,6 +12,10 @@ dependency 'cacerts'
 # External agents
 dependency 'jmxfetch'
 
+if linux_target? || osx_target?
+  dependency 'sds'
+end
+
 # version manifest file
 dependency 'version-manifest'
 
