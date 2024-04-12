@@ -21,7 +21,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Install Python dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
+        run: pip install -r tasks/requirements.txt
       - name: Auto assign team label
         run: inv -e github.assign-team-label --pr-id='${{ github.event.pull_request.number }}'
   fetch-labels:
