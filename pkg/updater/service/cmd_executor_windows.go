@@ -24,6 +24,6 @@ func BuildHelperForTests(_, _ string, _ bool) error {
 }
 
 // SetCapHelper sets cap setuid on the newly installed helper
-func SetCapHelper(path string) error {
+func SetCapHelper(_ string) error {
 	return nil
 }
