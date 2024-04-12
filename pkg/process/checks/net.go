@@ -224,7 +224,7 @@ func (c *ConnectionsCheck) pathForConn(conn *model.Connection) {
 	cfg := traceroute.Config{
 		DestHostname: remoteAddr.Ip,
 		DestPort:     uint16(remoteAddr.Port),
-		MaxTTL:       30,
+		MaxTTL:       24,
 		TimeoutMs:    5000,
 	}
 
