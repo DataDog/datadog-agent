@@ -110,7 +110,7 @@ func checkHelperPath(path string) (err error) {
 	if ddUpdaterUser.Uid != strconv.Itoa(int(stat.Uid)) {
 		return fmt.Errorf("installer-helper should be owned by dd-installer")
 	}
-	if stat.Mode != 0750 {
+	if info.Mode() != 0750 {
 		return fmt.Errorf("installer-helper should only be executable by the user. Expected permssions %O, got permissions %O", 0750, stat.Mode)
 	}
 	return nil
