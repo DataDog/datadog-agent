@@ -148,9 +148,10 @@ func (a *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &apiserver.Config{
+	a.config = &apiserver.Config{
 		GenericConfig: serverConfig,
-	}, nil
+	}
+	return a.config, nil
 }
 
 // clearServerResources closes the connection and the server
