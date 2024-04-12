@@ -373,10 +373,10 @@ func movePackageFromSource(packageName string, rootPath string, lockedPackages m
 	case "datadog-installer":
 		helperPath := filepath.Join(rootPath, packageName, "bin/installer/helper")
 		if err := os.Chmod(helperPath, 0750); err != nil {
-			return "", err
+			return "", fmt.Errorf("could not set permissions on installer-helper: %w", err)
 		}
 		if err := service.SetCapHelper(helperPath); err != nil {
-			return "", err
+			return "", fmt.Errorf("could not set capabilities on installer-helper: %w", err)
 		}
 	}
 
