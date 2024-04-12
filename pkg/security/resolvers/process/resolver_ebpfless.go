@@ -17,8 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -41,9 +39,6 @@ type EBPFLessResolver struct {
 	scrubber     *procutil.DataScrubber
 	statsdClient statsd.ClientInterface
 
-	// stats
-	cacheSize *atomic.Int64
-
 	processCacheEntryPool *Pool
 }
 
@@ -53,11 +48,10 @@ func NewEBPFLessResolver(_ *config.Config, statsdClient statsd.ClientInterface, 
 		entryCache:   make(map[CacheResolverKey]*model.ProcessCacheEntry),
 		opts:         *opts,
 		scrubber:     scrubber,
-		cacheSize:    atomic.NewInt64(0),
 		statsdClient: statsdClient,
 	}
 
-	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.cacheSize.Dec() })
+	p.processCacheEntryPool = NewProcessCacheEntryPool()
 
 	return p, nil
 }
@@ -151,8 +145,6 @@ func (p *EBPFLessResolver) insertEntry(key CacheResolverKey, entry, prev *model.
 	if prev != nil {
 		prev.Release()
 	}
-
-	p.cacheSize.Inc()
 }
 
 func (p *EBPFLessResolver) insertForkEntry(key CacheResolverKey, entry *model.ProcessCacheEntry) {
