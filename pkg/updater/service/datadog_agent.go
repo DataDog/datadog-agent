@@ -9,6 +9,9 @@
 package service
 
 import (
+	"os/exec"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -51,6 +54,10 @@ func SetupAgentUnits() (err error) {
 			RemoveAgentUnits()
 		}
 	}()
+
+	if err = setInstallerAgentGroup(); err != nil {
+		return
+	}
 
 	for _, unit := range stableUnits {
 		if err = loadUnit(unit); err != nil {
@@ -131,4 +138,17 @@ func StartAgentExperiment() error {
 // StopAgentExperiment stops the agent experiment
 func StopAgentExperiment() error {
 	return startUnit(agentUnit)
+}
+
+// setInstallerAgentGroup adds the dd-installer to the dd-agent group if it's not already in it
+func setInstallerAgentGroup() error {
+	// Get groups of dd-installer
+	out, err := exec.Command("id", "-Gn", "dd-installer").Output()
+	if err != nil {
+		return err
+	}
+	if strings.Contains(string(out), "dd-agent") {
+		return nil
+	}
+	return executeCommand(string(addInstallerToAgentGroup))
 }

@@ -109,6 +109,9 @@ func Purge() {
 
 func purge(locksPath, repositoryPath string) {
 	service.RemoveAgentUnits()
+	if err := service.RemoveAPMInjector(); err != nil {
+		log.Warnf("updater: could not remove APM injector: %v", err)
+	}
 	cleanDir(locksPath, os.RemoveAll)
 	cleanDir(repositoryPath, service.RemoveAll)
 }
@@ -220,7 +223,7 @@ func (u *updaterImpl) BootstrapDefault(ctx context.Context, pkg string) (err err
 
 	stablePackage, ok := u.catalog.getDefaultPackage(u.bootstrapVersions, pkg, runtime.GOARCH, runtime.GOOS)
 	if !ok {
-		return fmt.Errorf("could not get default package %s for %s, %s", pkg, runtime.GOARCH, runtime.GOOS)
+		return fmt.Errorf("could not get default package '%s' for arch '%s' and platform '%s'", pkg, runtime.GOARCH, runtime.GOOS)
 	}
 	return u.boostrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
 }
@@ -236,7 +239,7 @@ func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version 
 
 	stablePackage, ok := u.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
 	if !ok {
-		return fmt.Errorf("could not get package %s version %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
+		return fmt.Errorf("could not get package '%s' version '%s' for arch '%s' and platform '%s'", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
 	return u.boostrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
 }
