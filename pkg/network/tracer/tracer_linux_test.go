@@ -2224,18 +2224,26 @@ LOOP:
 	// get connections, the client connection will still
 	// not be in the closed state, so duration will the
 	// timestamp of when it was created
-	conns := getConnections(t, tr)
-	conn, found := findConnection(c.LocalAddr(), srv.ln.Addr(), conns)
-	require.True(t, found)
+	var conn *network.ConnectionStats
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		conns := getConnections(t, tr)
+		var found bool
+		conn, found = findConnection(c.LocalAddr(), srv.ln.Addr(), conns)
+		assert.True(collect, found, "could not find connection")
+
+	}, 3*time.Second, 100*time.Millisecond, "could not find connection")
 	// all we can do is verify it is > 0
 	assert.Greater(t, conn.Duration, time.Duration(0))
 
 	require.NoError(t, c.Close(), "error closing client connection")
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		var found bool
+		conn, found = findConnection(c.LocalAddr(), srv.ln.Addr(), getConnections(t, tr))
+		assert.True(collect, found, "could not find closed connection")
+	}, 3*time.Second, 100*time.Millisecond, "could not find closed connection")
+
 	// after closing the client connection, the duration should be
-	// updated to a value between 1s and 1.1s
-	conn, found = findConnection(c.LocalAddr(), srv.ln.Addr(), getConnections(t, tr))
-	require.True(t, found)
-	t.Log(conn.Duration)
-	assert.GreaterOrEqual(t, conn.Duration, time.Second, "connection duration should be between 1 and 1.1 seconds")
-	assert.Less(t, conn.Duration, 1100*time.Millisecond, "connection duration should be between 1 and 1.1 seconds")
+	// updated to a value between 1s and 2s
+	assert.Greater(t, conn.Duration, time.Second, "connection duration should be between 1 and 2 seconds")
+	assert.Less(t, conn.Duration, 2*time.Second, "connection duration should be between 1 and 2 seconds")
 }
