@@ -1,0 +1,7 @@
+  General Memory Usage
+  ==================
+    Top 50 memory user
+    ==================
+    {{- range $k,$v := .Info }}
+      {{ $k }} : {{ $v }}
+    {{ end }}
