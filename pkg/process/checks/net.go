@@ -13,6 +13,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/benbjohnson/clock"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -187,6 +188,36 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 		log.Errorf("Json Error: %s", err)
 	}
 	log.Warnf("connsJson: %s", connsJson)
+
+	for _, conn := range conns.Conns {
+		var remoteAddr *model.Addr
+		if conn.Direction == model.ConnectionDirection_outgoing {
+			remoteAddr = conn.Raddr
+		} else {
+			remoteAddr = conn.Laddr
+		}
+		if remoteAddr.Ip == "127.0.0.1" {
+			// skip local addr
+			continue
+		}
+
+		log.Warnf("Conn: %+v", conn)
+		log.Warnf("remoteAddr: %+v", remoteAddr)
+
+		cfg := traceroute.Config{
+			DestHostname: remoteAddr.Ip,
+			DestPort:     uint16(remoteAddr.Port),
+			MaxTTL:       10,
+			TimeoutMs:    3000,
+		}
+
+		tr := traceroute.New(cfg)
+		path, err := tr.Run()
+		if err != nil {
+			log.Warnf("traceroute error: %+v", err)
+		}
+		log.Warnf("Network Path: %+v", path)
+	}
 
 	c.notifyProcessConnRates(c.config, conns)
 
