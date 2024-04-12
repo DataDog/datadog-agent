@@ -65,7 +65,7 @@ fi
 chmod 750 ${HELPER}
 setcap cap_setuid+ep ${HELPER}
 
-$BOOTSTRAP_INSTALLER boostrap  --url datadog-installer
+$BOOTSTRAP_INSTALLER bootstrap --url "oci://docker.io/datadog/installer-package-dev:latest"
 
 exit 0
 
