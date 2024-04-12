@@ -91,8 +91,8 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (NetworkPath, er
 	dests, err := net.DefaultResolver.LookupIP(ctx, "ip4", rawDest)
 	if err != nil || len(dests) == 0 {
 		// TODO: better tagging
-		//TracerouteRunnerTelemetry.runs.Inc(fmt.Sprintf("hostname:%s", rawDest))
-		//TracerouteRunnerTelemetry.failedRuns.Inc(fmt.Sprintf("hostname:%s", rawDest))
+		tracerouteRunnerTelemetry.runs.Inc()
+		tracerouteRunnerTelemetry.failedRuns.Inc()
 		return NetworkPath{}, fmt.Errorf("cannot resolve %s: %v", rawDest, err)
 	}
 
@@ -132,9 +132,8 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (NetworkPath, er
 	log.Debugf("Traceroute UDPv4 probe config: %+v", dt)
 	results, err := dt.Traceroute()
 	if err != nil {
-		// TODO: better tagging
-		//TracerouteRunnerTelemetry.runs.Add(1, fmt.Sprintf("dest_host:%s", rawDest), fmt.Sprintf("dest_ip:%s", dest.String()), fmt.Sprintf("ttl:%d", maxTTL))
-		//TracerouteRunnerTelemetry.failedRuns.Add(1, fmt.Sprintf("dest_host:%s", rawDest), fmt.Sprintf("dest_ip:%s", dest.String()), fmt.Sprintf("ttl:%d", maxTTL))
+		tracerouteRunnerTelemetry.runs.Inc()
+		tracerouteRunnerTelemetry.failedRuns.Inc()
 		return NetworkPath{}, fmt.Errorf("traceroute run failed: %s", err.Error())
 	}
 	//log.Debugf("Raw results: %+v", results)
@@ -151,7 +150,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (NetworkPath, er
 	log.Debugf("Processed Results: %+v", results)
 
 	// TODO: better tagging
-	//TracerouteRunnerTelemetry.runs.Add(1, fmt.Sprintf("dest_host:%s", rawDest), fmt.Sprintf("dest_ip:%s", dest.String()), fmt.Sprintf("ttl:%d", maxTTL))
+	tracerouteRunnerTelemetry.runs.Inc()
 	return pathResult, nil
 }
 
