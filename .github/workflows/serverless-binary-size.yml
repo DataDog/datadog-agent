@@ -77,7 +77,7 @@ jobs:
       ### Steps below only run if size diff > SIZE_ALLOWANCE ###
 
       - name: Install graphviz
-        uses: ts-graphviz/setup-graphviz@v1
+        uses: ts-graphviz/setup-graphviz@v2
         if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
 
       - name: Install digraph
