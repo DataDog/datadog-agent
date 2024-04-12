@@ -155,8 +155,6 @@ func (dp *DirectoryProvider) UpdateWorkloadSelectors(selectors []cgroupModel.Wor
 }
 
 func (dp *DirectoryProvider) onNewProfileDebouncerCallback() {
-	dp.Lock()
-	defer dp.Unlock()
 	for _, selector := range dp.selectors {
 		for profileSelector, profilePath := range dp.profileMapping {
 			if selector.Match(profileSelector) {
