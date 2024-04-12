@@ -19,8 +19,8 @@ import (
 )
 
 var (
-	injectorConfigPrefix = []byte("\n# BEGIN LD PRELOAD CONFIG")
-	injectorConfigSuffix = []byte("# END LD PRELOAD CONFIG\n")
+	injectorConfigPrefix = []byte("# BEGIN LD PRELOAD CONFIG")
+	injectorConfigSuffix = []byte("# END LD PRELOAD CONFIG")
 )
 
 const (
@@ -104,8 +104,6 @@ func (a *apmInjectorInstaller) setRunPermissions() error {
 
 // setLDPreloadConfig adds preload options on /etc/ld.so.preload, overriding existing ones
 func (a *apmInjectorInstaller) setLDPreloadConfig() error {
-	launcherPreloadPath := path.Join(a.installPath, "inject", "launcher.preload.so")
-
 	var ldSoPreload []byte
 	stat, err := os.Stat(ldSoPreloadPath)
 	if err == nil {
@@ -113,25 +111,24 @@ func (a *apmInjectorInstaller) setLDPreloadConfig() error {
 		if err != nil {
 			return err
 		}
-		if strings.Contains(string(ldSoPreload), launcherPreloadPath) {
-			// If the line of interest is already in /etc/ld.so.preload, return fast
-			return nil
-		}
 	} else if !os.IsNotExist(err) {
 		return err
 	}
 
-	// Append the launcher preload path to the file
-	if len(ldSoPreload) > 0 && ldSoPreload[len(ldSoPreload)-1] != '\n' {
-		ldSoPreload = append(ldSoPreload, '\n')
+	newLdSoPreload, err := a.setLDPreloadConfigContent(ldSoPreload)
+	if err != nil {
+		return err
 	}
-	ldSoPreload = append(ldSoPreload, []byte(launcherPreloadPath+"\n")...)
+	if bytes.Equal(ldSoPreload, newLdSoPreload) {
+		// No changes needed
+		return nil
+	}
 
 	perms := os.FileMode(0644)
 	if stat != nil {
 		perms = stat.Mode()
 	}
-	err = os.WriteFile("/tmp/ld.so.preload.tmp", ldSoPreload, perms)
+	err = os.WriteFile("/tmp/ld.so.preload.tmp", newLdSoPreload, perms)
 	if err != nil {
 		return err
 	}
@@ -139,10 +136,25 @@ func (a *apmInjectorInstaller) setLDPreloadConfig() error {
 	return executeCommand(string(replaceLDPreloadCommand))
 }
 
-// deleteLDPreloadConfig removes the preload options from /etc/ld.so.preload
-func (a *apmInjectorInstaller) deleteLDPreloadConfig() error {
+// setLDPreloadConfigContent sets the content of the LD preload configuration
+func (a *apmInjectorInstaller) setLDPreloadConfigContent(ldSoPreload []byte) ([]byte, error) {
 	launcherPreloadPath := path.Join(a.installPath, "inject", "launcher.preload.so")
 
+	if strings.Contains(string(ldSoPreload), launcherPreloadPath) {
+		// If the line of interest is already in /etc/ld.so.preload, return fast
+		return ldSoPreload, nil
+	}
+
+	// Append the launcher preload path to the file
+	if len(ldSoPreload) > 0 && ldSoPreload[len(ldSoPreload)-1] != '\n' {
+		ldSoPreload = append(ldSoPreload, '\n')
+	}
+	ldSoPreload = append(ldSoPreload, []byte(launcherPreloadPath+"\n")...)
+	return ldSoPreload, nil
+}
+
+// deleteLDPreloadConfig removes the preload options from /etc/ld.so.preload
+func (a *apmInjectorInstaller) deleteLDPreloadConfig() error {
 	var ldSoPreload []byte
 	stat, err := os.Stat(ldSoPreloadPath)
 	if err == nil {
@@ -150,29 +162,61 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfig() error {
 		if err != nil {
 			return err
 		}
-		if !strings.Contains(string(ldSoPreload), launcherPreloadPath) {
-			// If the line of interest isn't in /etc/ld.so.preload, return fast
-			return nil
-		}
 	} else if !os.IsNotExist(err) {
 		return err
 	} else {
 		return nil
 	}
 
-	// Remove the launcher preload path from the file
-	ldSoPreload = bytes.Replace(ldSoPreload, []byte(launcherPreloadPath+"\n"), []byte{}, -1)
+	newLdSoPreload, err := a.deleteLDPreloadConfigContent(ldSoPreload)
+	if err != nil {
+		return err
+	}
+	if bytes.Equal(ldSoPreload, newLdSoPreload) {
+		// No changes needed
+		return nil
+	}
 
 	perms := os.FileMode(0644)
 	if stat != nil {
 		perms = stat.Mode()
 	}
-	err = os.WriteFile("/tmp/ld.so.preload.tmp", ldSoPreload, perms)
+	err = os.WriteFile("/tmp/ld.so.preload.tmp", newLdSoPreload, perms)
 	if err != nil {
 		return err
 	}
 
 	return executeCommand(string(replaceLDPreloadCommand))
+}
+
+// deleteLDPreloadConfigContent deletes the content of the LD preload configuration
+func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(ldSoPreload []byte) ([]byte, error) {
+	launcherPreloadPath := path.Join(a.installPath, "inject", "launcher.preload.so")
+
+	if !strings.Contains(string(ldSoPreload), launcherPreloadPath) {
+		// If the line of interest isn't there, return fast
+		return ldSoPreload, nil
+	}
+
+	// Possible configurations of the preload path, order matters
+	replacementsToTest := [][]byte{
+		[]byte(launcherPreloadPath + "\n"),
+		[]byte("\n" + launcherPreloadPath),
+		[]byte(launcherPreloadPath + " "),
+		[]byte(" " + launcherPreloadPath),
+	}
+	for _, replacement := range replacementsToTest {
+		ldSoPreloadNew := bytes.Replace(ldSoPreload, replacement, []byte{}, 1)
+		if !bytes.Equal(ldSoPreloadNew, ldSoPreload) {
+			return ldSoPreloadNew, nil
+		}
+	}
+	if bytes.Equal(ldSoPreload, []byte(launcherPreloadPath)) {
+		// If the line is the only one in the file without newlines, return an empty file
+		return []byte{}, nil
+	}
+
+	return nil, fmt.Errorf("failed to remove %s from %s", launcherPreloadPath, ldSoPreloadPath)
 }
 
 // setAgentConfig adds the agent configuration for the APM injector if it is not there already
@@ -184,10 +228,6 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfig() error {
 // solution to allow the APM injector to be installed, and if the agent crashes, we try to detect it and
 // restore the previous configuration
 func (a *apmInjectorInstaller) setAgentConfig() (err error) {
-	runPath := path.Join(a.installPath, "inject", "run")
-	apmSocketPath := path.Join(runPath, "apm.socket")
-	dsdSocketPath := path.Join(runPath, "dsd.socket")
-
 	err = backupAgentConfig()
 	if err != nil {
 		return err
@@ -206,19 +246,36 @@ func (a *apmInjectorInstaller) setAgentConfig() (err error) {
 		return err
 	}
 
+	newContent := a.setAgentConfigContent(content)
+	if bytes.Equal(content, newContent) {
+		// No changes needed
+		return nil
+	}
+
+	err = os.WriteFile(datadogConfigPath, newContent, 0644)
+	if err != nil {
+		return err
+	}
+
+	err = restartTraceAgent()
+	return
+}
+
+func (a *apmInjectorInstaller) setAgentConfigContent(content []byte) []byte {
+	runPath := path.Join(a.installPath, "inject", "run")
+	apmSocketPath := path.Join(runPath, "apm.socket")
+	dsdSocketPath := path.Join(runPath, "dsd.socket")
+
 	if !bytes.Contains(content, injectorConfigPrefix) {
+		content = append(content, []byte("\n")...)
 		content = append(content, injectorConfigPrefix...)
 		content = append(content, []byte(
 			fmt.Sprintf(injectorConfigTemplate, apmSocketPath, dsdSocketPath),
 		)...)
 		content = append(content, injectorConfigSuffix...)
-		err = os.WriteFile(datadogConfigPath, content, 0644)
-		if err != nil {
-			return err
-		}
+		content = append(content, []byte("\n")...)
 	}
-	err = restartTraceAgent()
-	return
+	return content
 }
 
 // deleteAgentConfig removes the agent configuration for the APM injector
@@ -241,20 +298,30 @@ func (a *apmInjectorInstaller) deleteAgentConfig() (err error) {
 		return err
 	}
 
-	start := bytes.Index(content, injectorConfigPrefix)
-	end := bytes.Index(content, injectorConfigSuffix) + len(injectorConfigSuffix)
-	if start == -1 || end == -1 || start >= end {
-		// Config not found
+	newContent := a.deleteAgentConfigContent(content)
+	if bytes.Equal(content, newContent) {
+		// No changes needed
 		return nil
 	}
 
-	content = append(content[:start], content[end:]...)
 	err = os.WriteFile(datadogConfigPath, content, 0644)
 	if err != nil {
 		return err
 	}
 
 	return restartTraceAgent()
+}
+
+// deleteAgentConfigContent deletes the agent configuration for the APM injector
+func (a *apmInjectorInstaller) deleteAgentConfigContent(content []byte) []byte {
+	start := bytes.Index(content, injectorConfigPrefix)
+	end := bytes.Index(content, injectorConfigSuffix) + len(injectorConfigSuffix)
+	if start == -1 || end == -1 || start >= end {
+		// Config not found
+		return content
+	}
+
+	return append(content[:start], content[end:]...)
 }
 
 // backupAgentConfig backs up the agent configuration

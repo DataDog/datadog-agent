@@ -19,7 +19,7 @@ import (
 // installDocker installs docker on the host
 func installDocker(distro os.Descriptor, t *testing.T, host *components.RemoteHost) {
 	switch distro {
-	case os.UbuntuDefault:
+	case os.UbuntuDefault, os.DebianDefault:
 		_, err := host.WriteFile("/tmp/install-docker.sh", []byte(`
 sudo apt-get update
 sudo apt-get install ca-certificates curl
@@ -38,7 +38,7 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plug
 		host.MustExecute(`sudo /tmp/install-docker.sh`)
 		err = host.Remove("/tmp/install-docker.sh")
 		require.Nil(t, err)
-	case os.CentOSDefault:
+	case os.CentOSDefault, os.RedHatDefault:
 		_, err := host.WriteFile("/tmp/install-docker.sh", []byte(`
 sudo yum install -y yum-utils
 sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo

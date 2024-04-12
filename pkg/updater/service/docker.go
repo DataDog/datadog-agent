@@ -19,7 +19,6 @@ import (
 )
 
 type dockerDaemonConfig map[string]interface{}
-type dockerRuntimesConfig map[string]map[string]interface{}
 
 const (
 	tmpDockerDaemonPath = "/tmp/daemon.json.tmp"
@@ -36,15 +35,11 @@ func (a *apmInjectorInstaller) setDockerConfig() error {
 		return err
 	}
 
-	dockerConfig := dockerDaemonConfig{}
+	var file []byte
 	stat, err := os.Stat(dockerDaemonPath)
 	if err == nil {
 		// Read the existing configuration
-		file, err := os.ReadFile(dockerDaemonPath)
-		if err != nil {
-			return err
-		}
-		err = json.Unmarshal(file, &dockerConfig)
+		file, err = os.ReadFile(dockerDaemonPath)
 		if err != nil {
 			return err
 		}
@@ -52,17 +47,7 @@ func (a *apmInjectorInstaller) setDockerConfig() error {
 		return err
 	}
 
-	dockerConfig["default-runtime"] = "dd-shim"
-	runtimes, ok := dockerConfig["runtimes"].(dockerRuntimesConfig)
-	if !ok {
-		runtimes = dockerRuntimesConfig{}
-	}
-	runtimes["dd-shim"] = map[string]interface{}{
-		"path": path.Join(a.installPath, "inject", "auto_inject_runc"),
-	}
-	dockerConfig["runtimes"] = runtimes
-
-	dockerConfigJSON, err := json.MarshalIndent(dockerConfig, "", "    ")
+	dockerConfigJSON, err := a.setDockerConfigContent(file)
 	if err != nil {
 		return err
 	}
@@ -86,17 +71,45 @@ func (a *apmInjectorInstaller) setDockerConfig() error {
 	return restartDocker()
 }
 
+// setDockerConfigContent sets the content of the docker daemon configuration
+func (a *apmInjectorInstaller) setDockerConfigContent(previousContent []byte) ([]byte, error) {
+	dockerConfig := dockerDaemonConfig{}
+
+	if len(previousContent) > 0 {
+		err := json.Unmarshal(previousContent, &dockerConfig)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if _, ok := dockerConfig["default-runtime"]; ok {
+		dockerConfig["default-runtime-backup"] = dockerConfig["default-runtime"]
+	}
+	dockerConfig["default-runtime"] = "dd-shim"
+	runtimes, ok := dockerConfig["runtimes"].(map[string]interface{})
+	if !ok {
+		runtimes = map[string]interface{}{}
+	}
+	runtimes["dd-shim"] = map[string]interface{}{
+		"path": path.Join(a.installPath, "inject", "auto_inject_runc"),
+	}
+	dockerConfig["runtimes"] = runtimes
+
+	dockerConfigJSON, err := json.MarshalIndent(dockerConfig, "", "    ")
+	if err != nil {
+		return nil, err
+	}
+
+	return dockerConfigJSON, nil
+}
+
 // deleteDockerConfig restores the docker daemon configuration
 func (a *apmInjectorInstaller) deleteDockerConfig() error {
-	dockerConfig := dockerDaemonConfig{}
+	var file []byte
 	stat, err := os.Stat(dockerDaemonPath)
 	if err == nil {
 		// Read the existing configuration
-		file, err := os.ReadFile(dockerDaemonPath)
-		if err != nil {
-			return err
-		}
-		err = json.Unmarshal(file, &dockerConfig)
+		file, err = os.ReadFile(dockerDaemonPath)
 		if err != nil {
 			return err
 		}
@@ -105,15 +118,7 @@ func (a *apmInjectorInstaller) deleteDockerConfig() error {
 		return nil
 	}
 
-	dockerConfig["default-runtime"] = "runc"
-	runtimes, ok := dockerConfig["runtimes"].(dockerRuntimesConfig)
-	if !ok {
-		runtimes = dockerRuntimesConfig{}
-	}
-	delete(runtimes, "dd-shim")
-	dockerConfig["runtimes"] = runtimes
-
-	dockerConfigJSON, err := json.MarshalIndent(dockerConfig, "", "    ")
+	dockerConfigJSON, err := a.deleteDockerConfigContent(file)
 	if err != nil {
 		return err
 	}
@@ -134,6 +139,38 @@ func (a *apmInjectorInstaller) deleteDockerConfig() error {
 		return err
 	}
 	return restartDocker()
+}
+
+// deleteDockerConfigContent restores the content of the docker daemon configuration
+func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte) ([]byte, error) {
+	dockerConfig := dockerDaemonConfig{}
+
+	if len(previousContent) > 0 {
+		err := json.Unmarshal(previousContent, &dockerConfig)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if _, ok := dockerConfig["default-runtime-backup"]; ok {
+		dockerConfig["default-runtime"] = dockerConfig["default-runtime-backup"]
+		delete(dockerConfig, "default-runtime-backup")
+	} else {
+		dockerConfig["default-runtime"] = "runc"
+	}
+	runtimes, ok := dockerConfig["runtimes"].(map[string]interface{})
+	if !ok {
+		runtimes = map[string]interface{}{}
+	}
+	delete(runtimes, "dd-shim")
+	dockerConfig["runtimes"] = runtimes
+
+	dockerConfigJSON, err := json.MarshalIndent(dockerConfig, "", "    ")
+	if err != nil {
+		return nil, err
+	}
+
+	return dockerConfigJSON, nil
 }
 
 // restartDocker reloads the docker daemon if it exists

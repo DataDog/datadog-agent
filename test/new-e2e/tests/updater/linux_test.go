@@ -206,8 +206,8 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	// Temporarily disable CentOS, as the APM injector may not be available for CentOS
-	if v.distro == os.CentOSDefault {
-		v.T().Skip("APM injector not available for CentOS")
+	if v.distro == os.CentOSDefault || v.distro == os.RedHatDefault {
+		v.T().Skip("APM injector not available for CentOS or RedHat yet")
 	}
 
 	host := v.Env().RemoteHost

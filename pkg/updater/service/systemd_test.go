@@ -55,4 +55,13 @@ func TestAssertWorkingCommands(t *testing.T) {
 	assert.Equal(t, successErr, removeUnit("datadog-agent").Error())
 	assert.Equal(t, successErr, createAgentSymlink().Error())
 	assert.Equal(t, successErr, rmAgentSymlink().Error())
+	assert.Equal(t, successErr, backupAgentConfig().Error())
+	assert.Equal(t, successErr, restoreAgentConfig().Error())
+
+	a := &apmInjectorInstaller{
+		installPath: "/tmp/stable",
+	}
+	assert.Equal(t, successErr, a.setLDPreloadConfig().Error())
+	assert.Equal(t, successErr, a.setAgentConfig().Error())
+	assert.Equal(t, successErr, a.setDockerConfig().Error())
 }
