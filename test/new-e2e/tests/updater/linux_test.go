@@ -253,7 +253,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	// assert docker daemon contains the injector (removing blank spaces for easier comparison)
 	res, err = host.Execute(`grep "/opt/datadog-packages/datadog-apm-inject" /etc/docker/daemon.json | sed -re 's/^[[:blank:]]+|[[:blank:]]+$//g' -e 's/[[:blank:]]+/ /g'`)
 	require.Nil(v.T(), err)
-	require.Equal(v.T(), "\"path\": \"/opt/datadog-packages/datadog-apm-inject/0.12.3-dev.bddec85.glci481808135.g8acdc698-1/inject/auto_inject_runc\"\n", res) // Version should be resolved
+	require.Equal(v.T(), "\"path\": \"/opt/datadog-packages/datadog-apm-inject/stable/inject/auto_inject_runc\"\n", res)
 
 	// assert agent config has been changed
 	raw, err := host.ReadFile("/etc/datadog-agent/datadog.yaml")
