@@ -1930,3 +1930,147 @@ func TestSecurityProfileLifeCycleEvictitonProcessUnstable(t *testing.T) {
 		}
 	})
 }
+
+func TestSecurityProfilePersistence(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNodeForAD() {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	var expectedFormats = []string{"profile"}
+	var testActivityDumpTracedEventTypes = []string{"exec"}
+
+	outputDir := t.TempDir()
+	os.MkdirAll(outputDir, 0755)
+	defer os.RemoveAll(outputDir)
+
+	rulesDef := []*rules.RuleDefinition{
+		{
+			ID:         "test_autosuppression_exec",
+			Expression: `exec.file.name == "getconf"`,
+			Tags:       map[string]string{"allow_autosuppression": "true"},
+		},
+	}
+
+	fakeManualResolver := NewFakeManualResolver()
+
+	test, err := newTestModule(t, nil, rulesDef, withStaticOpts(testOpts{
+		enableActivityDump:                      true,
+		activityDumpRateLimiter:                 200,
+		activityDumpTracedCgroupsCount:          3,
+		activityDumpDuration:                    testActivityDumpDuration,
+		activityDumpLocalStorageDirectory:       outputDir,
+		activityDumpLocalStorageCompression:     false,
+		activityDumpLocalStorageFormats:         expectedFormats,
+		activityDumpTracedEventTypes:            testActivityDumpTracedEventTypes,
+		enableSecurityProfile:                   true,
+		securityProfileDir:                      outputDir,
+		securityProfileWatchDir:                 true,
+		enableAutoSuppression:                   true,
+		autoSuppressionEventTypes:               []string{"exec"},
+		enableAnomalyDetection:                  true,
+		anomalyDetectionEventTypes:              []string{"exec"},
+		anomalyDetectionMinimumStablePeriodExec: 10 * time.Second,
+		anomalyDetectionWarmupPeriod:            1 * time.Second,
+		tagsResolver:                            fakeManualResolver,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	dockerInstance1, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstance1.stop()
+
+	err = test.StopActivityDump("", dockerInstance1.containerID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(6 * time.Second) // a quick sleep to let the profile be loaded (5sec debounce + 1sec spare)
+
+	// add auto-suppression test event during reinsertion period
+	_, err = dockerInstance1.Command("getconf", []string{"-a"}, []string{}).CombinedOutput()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// add anomaly test event during reinsertion period
+	_, err = dockerInstance1.Command("/bin/echo", []string{"aaa"}, []string{}).CombinedOutput()
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(10 * time.Second) // wait for the stable period
+	_, err = dockerInstance1.Command("/bin/echo", []string{"aaa"}, []string{}).CombinedOutput()
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(1 * time.Second) // quick sleep to let the exec event state become stable
+
+	// stop the container so that the profile gets persisted
+	dockerInstance1.stop()
+
+	// make sure the next instance has the same image name as the previous one
+	fakeManualResolver.SpecifyNextSelector(fakeManualResolver.GetContainerSelector(dockerInstance1.containerID))
+	dockerInstance2, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstance2.stop()
+	time.Sleep(10 * time.Second) // sleep to let the profile be loaded (directory provider debouncers)
+
+	// check the profile is still applied, and events can be auto suppressed
+	t.Run("persistence-autosuppression-check", func(t *testing.T) {
+		err = test.GetEventSent(t, func() error {
+			_, err := dockerInstance2.Command("getconf", []string{"-a"}, []string{}).CombinedOutput()
+			return err
+		}, func(rule *rules.Rule, event *model.Event) bool {
+			t.Fatal("Got an event that should have been suppressed")
+			return false
+		}, time.Second*3, "test_autosuppression_exec")
+		if err != nil {
+			if otherErr, ok := err.(ErrTimeout); !ok {
+				t.Fatal(otherErr)
+			}
+		}
+	})
+
+	// check the profile is still applied, and anomaly events can be generated
+	t.Run("persistence-anomaly-check", func(t *testing.T) {
+		err = test.GetCustomEventSent(t, func() error {
+			dockerInstance2.Command("getent", []string{}, []string{}).CombinedOutput()
+			return nil
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			return assert.Equal(t, events.AnomalyDetectionRuleID, r.Rule.ID, "wrong custom event rule ID")
+		}, time.Second*2, model.ExecEventType)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	// check the profile is still applied, and anomalies aren't generated for known events
+	t.Run("persistence-no-anomaly-check", func(t *testing.T) {
+		err = test.GetCustomEventSent(t, func() error {
+			_, err := dockerInstance2.Command("/bin/echo", []string{"aaa"}, []string{}).CombinedOutput()
+			return err
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			assert.NotEqual(t, events.AnomalyDetectionRuleID, r.Rule.ID, "wrong custom event rule ID")
+			return false
+		}, time.Second*2, model.ExecEventType)
+		if err != nil {
+			if otherErr, ok := err.(ErrTimeout); !ok {
+				t.Fatal(otherErr)
+			}
+		}
+	})
+}

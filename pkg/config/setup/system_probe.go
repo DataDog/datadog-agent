@@ -70,7 +70,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 	cfg.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-sysprobe"))
 	cfg.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
-	cfg.BindEnvAndSetDefault("sbom.cache.enabled", true)
 	cfg.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
 	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.base_backoff", "5m")
@@ -231,6 +230,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), false)
+	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled"))
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "debug"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "args"), defaultServiceMonitoringJavaAgentArgs)
@@ -279,6 +279,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "dns_recorded_query_types"), []string{})
 	// (temporary) enable submitting DNS stats by query type.
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_dns_by_querytype"), false)
+	// connection aggregation with port rollups
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_connection_rollup"), false)
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)

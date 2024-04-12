@@ -292,7 +292,6 @@ type AgentConfig struct {
 	// Concentrator
 	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
 	ExtraAggregators       []string      // DEPRECATED
-	PeerServiceAggregation bool          // TO BE DEPRECATED - enables/disables stats aggregation for peer.service, used by Concentrator and ClientStatsAggregator
 	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
 	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
 	PeerTags               []string      // additional tags to use for peer entity stats aggregation
@@ -348,8 +347,7 @@ type AgentConfig struct {
 	StatsdSocket   string // for UDS Sockets
 
 	// logging
-	LogFilePath   string
-	LogThrottling bool
+	LogFilePath string
 
 	// watchdog
 	MaxMemory        float64       // MaxMemory is the threshold (bytes allocated) above which program panics and exits, to be restarted
@@ -501,7 +499,6 @@ func New() *AgentConfig {
 		StatsdPort:    8125,
 		StatsdEnabled: true,
 
-		LogThrottling:      true,
 		LambdaFunctionName: os.Getenv("AWS_LAMBDA_FUNCTION_NAME"),
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb

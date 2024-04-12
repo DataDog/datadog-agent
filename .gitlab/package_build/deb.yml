@@ -17,7 +17,7 @@
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-$CLANG_LLVM_VER.${PACKAGE_ARCH} /tmp/system-probe/llc-bpf
     - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
     - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe ${FLAVOR:+--flavor $FLAVOR}
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe ${FLAVOR:+--flavor $FLAVOR}
     - ls -la $OMNIBUS_PACKAGE_DIR
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
@@ -34,7 +34,8 @@
 agent_deb-x64-a6:
   extends: .agent_build_common_deb
   rules:
-    - !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -57,7 +58,8 @@ agent_deb-x64-a6:
 agent_deb-x64-a7:
   extends: .agent_build_common_deb
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -80,7 +82,7 @@ agent_deb-x64-a7:
 agent_deb-arm64-a6:
   extends: .agent_build_common_deb
   rules:
-    - !reference [.on_all_builds_a6]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -105,7 +107,8 @@ agent_deb-arm64-a6:
 agent_deb-arm64-a7:
   extends: .agent_build_common_deb
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
@@ -141,7 +144,7 @@ agent_deb-arm64-a7:
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - !reference [.setup_deb_signing_key]
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --flavor iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
+    - inv -e omnibus.build --flavor iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-iot-agent*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
     - !reference [.upload_sbom_artifacts]
@@ -157,7 +160,8 @@ agent_deb-arm64-a7:
 iot_agent_deb-x64:
   extends: .iot_agent_build_common_deb
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -169,7 +173,7 @@ iot_agent_deb-x64:
 iot_agent_deb-arm64:
   extends: .iot_agent_build_common_deb
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -183,7 +187,7 @@ iot_agent_deb-arm64:
 iot_agent_deb-armhf:
   extends: .iot_agent_build_common_deb
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -197,12 +201,12 @@ iot_agent_deb-armhf:
 
 dogstatsd_deb-x64:
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
-  variables:
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
@@ -214,7 +218,7 @@ dogstatsd_deb-x64:
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - !reference [.setup_deb_signing_key]
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="dogstatsd"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd*_amd64.deb $S3_ARTIFACTS_URI/datadog-dogstatsd_amd64.deb
     - !reference [.upload_sbom_artifacts]
@@ -225,7 +229,7 @@ dogstatsd_deb-x64:
 
 dogstatsd_deb-arm64:
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -243,7 +247,7 @@ dogstatsd_deb-arm64:
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - !reference [.setup_deb_signing_key]
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="dogstatsd"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd*_arm64.deb $S3_ARTIFACTS_URI/datadog-dogstatsd_arm64.deb
     - !reference [.upload_sbom_artifacts]
@@ -254,12 +258,12 @@ dogstatsd_deb-arm64:
 
 agentless_scanner_deb-x64:
   rules:
-    !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_agentless_scanner-binary_x64", "go_deps"]
-  variables:
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
@@ -271,7 +275,7 @@ agentless_scanner_deb-x64:
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - !reference [.setup_deb_signing_key]
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agentless-scanner.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="agentless-scanner"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agentless-scanner*_amd64.deb $S3_ARTIFACTS_URI/datadog-agentless-scanner_amd64.deb
     - !reference [.upload_sbom_artifacts]
@@ -282,7 +286,7 @@ agentless_scanner_deb-x64:
 
 agentless_scanner_deb-arm64:
   rules:
-    !reference [.on_all_builds_a7]
+    !reference [.on_all_builds]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
@@ -298,7 +302,7 @@ agentless_scanner_deb-arm64:
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - !reference [.setup_deb_signing_key]
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agentless-scanner.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="agentless-scanner"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agentless-scanner*_arm64.deb $S3_ARTIFACTS_URI/datadog-agentless-scanner_arm64.deb
     - !reference [.upload_sbom_artifacts]

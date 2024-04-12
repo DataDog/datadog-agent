@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -46,8 +46,8 @@ func TestReceiveAndForward(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compression.ZlibKind},
-		"zstd": {kind: compression.ZstdKind},
+		"zlib": {kind: compressionimpl.ZlibKind},
+		"zstd": {kind: compressionimpl.ZstdKind},
 	}
 
 	for name, tc := range tests {
@@ -72,7 +72,7 @@ func TestReceiveAndForward(t *testing.T) {
 
 			mockConfig := pkgconfigsetup.Conf()
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			strategy := compression.NewCompressorStrategy(mockConfig)
+			strategy := compressionimpl.NewCompressor(mockConfig)
 
 			sc := []servicecheck.ServiceCheck{}
 			decompressedBody, err := strategy.Decompress([]byte(requests[0]))

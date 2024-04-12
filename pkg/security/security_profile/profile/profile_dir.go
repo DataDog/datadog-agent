@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var (
@@ -44,7 +43,8 @@ var profileExtension = "." + config.Profile.String()
 var _ Provider = (*DirectoryProvider)(nil)
 
 type profileFSEntry struct {
-	path string
+	path     string
+	selector cgroupModel.WorkloadSelector
 }
 
 // DirectoryProvider is a ProfileProvider that fetches Security Profiles from the filesystem
@@ -155,13 +155,15 @@ func (dp *DirectoryProvider) UpdateWorkloadSelectors(selectors []cgroupModel.Wor
 }
 
 func (dp *DirectoryProvider) onNewProfileDebouncerCallback() {
+	dp.Lock()
+	defer dp.Unlock()
 	for _, selector := range dp.selectors {
 		for profileSelector, profilePath := range dp.profileMapping {
 			if selector.Match(profileSelector) {
 				// read and parse profile
-				profile, err := LoadProfileFromFile(profilePath.path)
+				profile, err := LoadProtoFromFile(profilePath.path)
 				if err != nil {
-					seclog.Warnf("couldn't load profile %s: %v", profilePath, err)
+					seclog.Warnf("couldn't load profile %s: %v", profilePath.path, err)
 					continue
 				}
 
@@ -201,25 +203,16 @@ func (dp *DirectoryProvider) listProfiles() ([]string, error) {
 }
 
 func (dp *DirectoryProvider) loadProfile(profilePath string) error {
-	profile, err := LoadProfileFromFile(profilePath)
+	profile, err := LoadProtoFromFile(profilePath)
 	if err != nil {
 		return fmt.Errorf("couldn't load profile %s: %w", profilePath, err)
 	}
 
-	// check if the profile is holding multiple versions or not and grab image name and tag[s]
-	imageTag := ""
-	imageName := ""
 	if len(profile.ProfileContexts) == 0 {
 		return fmt.Errorf("couldn't load profile %s: it did not contains any version", profilePath)
 	}
-	for key, ctx := range profile.ProfileContexts {
-		imageTag = key
-		imageName = utils.GetTagValue("image_name", ctx.Tags)
-		break
-	}
-	if len(profile.ProfileContexts) > 1 {
-		imageTag = "*"
-	}
+
+	imageName, imageTag := profile.Selector.GetImageName(), profile.Selector.GetImageTag()
 	if imageTag == "" || imageName == "" {
 		return fmt.Errorf("couldn't load profile %s: it did not contains any valid image_name (%s) or image_tag (%s)", profilePath, imageName, imageTag)
 	}
@@ -228,14 +221,25 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 	if err != nil {
 		return err
 	}
+	profileManagerSelector := workloadSelector
+	profileManagerSelector.Tag = "*"
 
 	// lock selectors and profiles mapping
 	dp.Lock()
 	defer dp.Unlock()
 
+	// prioritize a persited profile over activity dumps
+	if existingProfile, ok := dp.profileMapping[profileManagerSelector]; ok {
+		if existingProfile.selector.Tag == "*" && profile.Selector.GetImageTag() != "*" {
+			seclog.Debugf("ignoring %s: a persisted profile already exists for workload %s", profilePath, profileManagerSelector.String())
+			return nil
+		}
+	}
+
 	// update profile mapping
-	dp.profileMapping[workloadSelector] = profileFSEntry{
-		path: profilePath,
+	dp.profileMapping[profileManagerSelector] = profileFSEntry{
+		path:     profilePath,
+		selector: workloadSelector,
 	}
 
 	seclog.Debugf("security profile %s loaded from file system", workloadSelector)

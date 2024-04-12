@@ -695,6 +695,22 @@ func TestKubAdmConfigLoader(t *testing.T) {
 	tmpDir := t.TempDir()
 	conf := loadTestConfiguration(t, tmpDir, kubadmProcTable)
 	assert.Empty(t, conf.Errors)
+
+	etcd := conf.Components.Etcd
+	assert.NotNil(t, etcd)
+
+	assert.Equal(t, false, *etcd.AutoTls)
+	assert.Equal(t, "/etc/kubernetes/pki/etcd/server.crt", etcd.CertFile.Path)
+	assert.Equal(t, true, *etcd.ClientCertAuth)
+	assert.Equal(t, "/var/lib/etcd", etcd.DataDir.Path)
+	assert.Equal(t, "/etc/kubernetes/pki/etcd/server.key", etcd.KeyFile.Path)
+	assert.Equal(t, false, *etcd.PeerAutoTls)
+	assert.Equal(t, "/etc/kubernetes/pki/etcd/peer.crt", etcd.PeerCertFile.Path)
+	assert.Equal(t, true, *etcd.PeerClientCertAuth)
+	assert.Equal(t, "/etc/kubernetes/pki/etcd/peer.key", etcd.PeerKeyFile.Path)
+	assert.Equal(t, "/etc/kubernetes/pki/etcd/ca.crt", etcd.PeerTrustedCaFile.Path)
+	assert.Equal(t, "TLS1.2", *etcd.TlsMinVersion)
+	assert.Equal(t, "/etc/kubernetes/pki/etcd/ca.crt", etcd.TrustedCaFile.Path)
 }
 
 func TestKubEksConfigLoader(t *testing.T) {
