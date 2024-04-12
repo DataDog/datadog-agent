@@ -95,14 +95,14 @@ func (s *batchStrategy) Start() {
 		for {
 			select {
 			case m, isOpen := <-s.inputChan:
-
-				metrics.TlmChanTime.Observe(float64(m.SendDuration().Nanoseconds()), "strategy")
-				metrics.TlmChanTimeSkew.Set(telemetry.GetSkew(metrics.TlmChanTime, "strategy"), "strategy")
-
 				if !isOpen {
 					// inputChan has been closed, no more payloads are expected
 					return
 				}
+
+				metrics.TlmChanTime.Observe(float64(m.SendDuration().Nanoseconds()), "strategy")
+				metrics.TlmChanTimeSkew.Set(telemetry.GetSkew(metrics.TlmChanTime, "strategy"), "strategy")
+
 				s.processMessage(m.Inner, s.outputChan)
 			case <-flushTicker.C:
 				// flush the payloads at a regular interval so pending messages don't wait here for too long.
@@ -119,6 +119,8 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 	if m.Origin != nil {
 		m.Origin.LogSource.LatencyStats.Add(m.GetLatency())
 	}
+	metrics.TlmMessageLatency.Observe(float64(m.GetLatency()))
+
 	added := s.buffer.AddMessage(m)
 	if !added || s.buffer.IsFull() {
 		s.flushBuffer(outputChan)

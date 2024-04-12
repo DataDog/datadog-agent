@@ -45,6 +45,8 @@ func (s *streamStrategy) Start() {
 			}
 
 			encodedPayload, err := s.contentEncoding.encode(msg.Inner.GetContent())
+			metrics.TlmMessageLatency.Observe(float64(msg.Inner.GetLatency()))
+
 			if err != nil {
 				log.Warn("Encoding failed - dropping payload", err)
 				return

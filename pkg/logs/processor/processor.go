@@ -7,8 +7,6 @@ package processor
 
 import (
 	"context"
-	"math/rand"
-	"strings"
 	"sync"
 	"time"
 
@@ -120,6 +118,9 @@ func (p *Processor) run() {
 
 			metrics.TlmChanTime.Observe(float64(msg.SendDuration().Nanoseconds()), "processing")
 			metrics.TlmChanTimeSkew.Set(telemetry.GetSkew(metrics.TlmChanTime, "processing"), "processing")
+
+			idle := float64(time.Since(startIdle) / time.Millisecond)
+			tlmIdle.Add(idle)
 
 			var startInUse = time.Now()
 			p.processMessage(msg.Inner)

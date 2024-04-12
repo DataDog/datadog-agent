@@ -83,6 +83,12 @@ var (
 	TlmChanTimeSkew = telemetry.NewGauge("processing", "channel_time_skew", []string{"channel"}, "Skew of the processing channel")
 
 	TlmChanLength = telemetry.NewGauge("processing", "channel_length", []string{"channel"}, "Length of the processing channel")
+
+	TlmMessageLatency = telemetry.NewHistogram("log",
+		"latency",
+		[]string{},
+		"Time between message creation and processing",
+		[]float64{1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000})
 )
 
 func init() {
