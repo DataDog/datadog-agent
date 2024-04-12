@@ -27,6 +27,8 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 type fixture struct {
@@ -107,11 +109,13 @@ func newTestFixturesServer(t *testing.T) *testFixturesServer {
 }
 
 func (s *testFixturesServer) Downloader() *downloader {
-	return newDownloader(s.s.Client(), "")
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	return newDownloader(cfg, s.s.Client(), "")
 }
 
 func (s *testFixturesServer) DownloaderRegistryOverride() *downloader {
-	return newDownloader(s.s.Client(), "my.super/registry")
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	return newDownloader(cfg, s.s.Client(), "my.super/registry")
 }
 
 func (s *testFixturesServer) Package(f fixture) Package {
