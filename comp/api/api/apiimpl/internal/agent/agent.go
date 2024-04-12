@@ -28,13 +28,14 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
@@ -50,7 +51,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
@@ -71,7 +71,6 @@ var mimeTypeMap = map[string]string{
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(
 	r *mux.Router,
-	flareComp flare.Component,
 	server dogstatsdServer.Component,
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
@@ -89,11 +88,16 @@ func SetupHandlers(
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
 	gui optional.Option[gui.Component],
+	settings settings.Component,
+	providers []api.EndpointProvider,
 ) *mux.Router {
 
+	// TODO: move these to a component that is registerable
+	for _, p := range providers {
+		r.Handle(p.Route, p.Handler).Methods(p.Methods...)
+	}
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flareComp) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("GET")
 	r.HandleFunc("/stream-event-platform", streamEventPlatform(eventPlatformReceiver)).Methods("POST")
@@ -105,10 +109,18 @@ func SetupHandlers(
 	r.HandleFunc("/config-check", func(w http.ResponseWriter, r *http.Request) {
 		getConfigCheck(w, r, ac)
 	}).Methods("GET")
-	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")
-	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
+	r.HandleFunc("/config", settings.GetFullConfig(config.Datadog, "")).Methods("GET")
+	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
+	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		setting := vars["setting"]
+		settings.GetValue(setting, w, r)
+	}).Methods("GET")
+	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		setting := vars["setting"]
+		settings.SetValue(setting, w, r)
+	}).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
 		getWorkloadList(w, r, wmeta)
@@ -161,42 +173,6 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	}
 	j, _ := json.Marshal(hname)
 	w.Write(j)
-}
-
-func makeFlare(w http.ResponseWriter, r *http.Request, flareComp flare.Component) {
-	var profile flare.ProfileData
-
-	if r.Body != http.NoBody {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
-			return
-		}
-
-		if err := json.Unmarshal(body, &profile); err != nil {
-			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
-			return
-		}
-	}
-
-	// Reset the `server_timeout` deadline for this connection as creating a flare can take some time
-	conn := GetConnection(r)
-	_ = conn.SetDeadline(time.Time{})
-
-	var filePath string
-	var err error
-	log.Infof("Making a flare")
-	filePath, err = flareComp.Create(profile, nil)
-
-	if err != nil || filePath == "" {
-		if err != nil {
-			log.Errorf("The flare failed to be created: %s", err)
-		} else {
-			log.Warnf("The flare failed to be created")
-		}
-		http.Error(w, err.Error(), 500)
-	}
-	w.Write([]byte(filePath))
 }
 
 func componentConfigHandler(w http.ResponseWriter, r *http.Request) {

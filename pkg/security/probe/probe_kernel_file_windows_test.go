@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,11 +34,25 @@ func createTestProbe() (*WindowsProbe, error) {
 	}
 	cfg.RuntimeSecurity.FIMEnabled = true
 
+	discardedPaths, err := lru.New[string, struct{}](1 << 10)
+	if err != nil {
+		return nil, err
+	}
+
+	discardedBasenames, err := lru.New[string, struct{}](1 << 10)
+	if err != nil {
+		return nil, err
+	}
+
 	// probe and config are provided as null.  During the tests, it is assumed
 	// that we will not access those values.
 	wp := &WindowsProbe{
-		opts:   opts,
-		config: cfg,
+		opts:               opts,
+		config:             cfg,
+		filePathResolver:   make(map[fileObjectPointer]string, 0),
+		regPathResolver:    make(map[regObjectPointer]string, 0),
+		discardedPaths:     discardedPaths,
+		discardedBasenames: discardedBasenames,
 	}
 	err = wp.Init()
 
@@ -163,8 +178,9 @@ func testSimpleCreate(t *testing.T, et *etwTester, testfilename string) {
 		select {
 		case <-et.loopExited:
 			return true
+		default:
+			return false
 		}
-		return false
 	}, 4*time.Second, 250*time.Millisecond, "did not get notification")
 
 	stopLoop(et, &wg)
@@ -232,8 +248,9 @@ func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 		select {
 		case <-et.loopExited:
 			return true
+		default:
+			return false
 		}
-		return false
 	}, 4*time.Second, 250*time.Millisecond, "did not get notification")
 
 	stopLoop(et, &wg)
