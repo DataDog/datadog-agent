@@ -119,6 +119,7 @@ class CompilerImage:
                 f"chown {uid}:{gid} {CONTAINER_AGENT_PATH} && chown -R {uid}:{gid} {CONTAINER_AGENT_PATH}", user="root"
             )
 
+        self.exec("chmod a+rx /root", user="root")  # Some binaries will be in /root and need to be readable
         self.exec("apt install sudo", user="root")
         self.exec("usermod -aG sudo compiler && echo 'compiler ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers", user="root")
         self.exec("echo conda activate ddpy3 >> /home/compiler/.bashrc", user="compiler")

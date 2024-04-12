@@ -4,10 +4,10 @@ github.com/BurntSushi/toml v1.3.2 h1:o7IhLm0Msx3BaB+n3Ag7L8EVlByGnpq14C4YWiu/gL8
 github.com/BurntSushi/toml v1.3.2/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
 github.com/DataDog/datadog-api-client-go/v2 v2.13.0 h1:2c1dXSyUfum2YIVoYlqnBhV5JOG1cLSW+4jB3RrKjLc=
 github.com/DataDog/datadog-api-client-go/v2 v2.13.0/go.mod h1:kntOqXEh1SmjwSDzW/eJkr9kS7EqttvEkelglWtJRbg=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.13.3 h1:hcYZMgGDMUz8Dz6PcOhgk6FF0yG4N7KErS5J3O/MpeU=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.13.3/go.mod h1:Z2FPxYhi8GIFkS4WLC7RrRaGolyB9TqS2RMSwNcmczk=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.13.3 h1:oaYprbAr8/mPEyFNfqnm668bxg8IG000sQ6uNuuffro=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.13.3/go.mod h1:dmNsrdpbegG62b7/ETcRi53OsOmYlfshuTThx9BAiQI=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.14.0 h1:10TPqpTlIkmDPFWVIEZ4ZX3rWrCrx3rEoeoAooZr6LM=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.14.0/go.mod h1:dvIWN9pA2zWNTw5rhDWZgzZnhcfpH++d+8d1SWW6xkY=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.14.0 h1:nma5ZICTbHZ0YoMu18ziWGSLK1ICzMm6rJTv+IatJ0U=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.14.0/go.mod h1:xUiGj13q5uHPboc0xZ754fyusiF5C2RxNzOFdTbdZFA=
 github.com/DataDog/viper v1.13.0 h1:XE5cJiXeXkyijwgspwZiH6iroWYLgAPXTOhcBnDBOMs=
 github.com/DataDog/viper v1.13.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/DataDog/zstd v1.5.2 h1:vUG4lAyuPCXO0TLbXvPv7EB7cNK1QV/luu55UHLrrn8=
