@@ -99,7 +99,9 @@ func SetupHandlers(
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("GET")
+	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		getStatus(w, r, statusComponent, optional.NewNoneOption[string]())
+	}).Methods("GET")
 	r.HandleFunc("/stream-event-platform", streamEventPlatform(eventPlatformReceiver)).Methods("POST")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", func(w http.ResponseWriter, r *http.Request) { componentStatusGetterHandler(w, r, statusComponent) }).Methods("GET")
@@ -193,7 +195,7 @@ func componentStatusGetterHandler(w http.ResponseWriter, r *http.Request, status
 	case "py":
 		getPythonStatus(w, r)
 	default:
-		getComponentStatus(w, r, status, component)
+		getStatus(w, r, status, optional.NewOption(component))
 	}
 }
 
@@ -208,11 +210,13 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {
+func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component, section optional.Option[string]) {
 	log.Info("Got a request for the status. Making status.")
 	verbose := r.URL.Query().Get("verbose") == "true"
 	format := r.URL.Query().Get("format")
 	var contentType string
+	var err error
+	var s []byte
 
 	contentType, ok := mimeTypeMap[format]
 
@@ -223,37 +227,11 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	}
 	w.Header().Set("Content-Type", contentType)
 
-	s, err := statusComponent.GetStatus(format, verbose)
-
-	if err != nil {
-		if format == "text" {
-			http.Error(w, log.Errorf("Error getting status. Error: %v.", err).Error(), 500)
-			return
-		}
-
-		setJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
-		return
+	if section, ok := section.Get(); ok {
+		s, err = statusComponent.GetStatusBySection(section, format, verbose)
+	} else {
+		s, err = statusComponent.GetStatus(format, verbose)
 	}
-
-	w.Write(s)
-}
-
-func getComponentStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component, section string) {
-	log.Info("Got a request for the status. Making status.")
-	verbose := r.URL.Query().Get("verbose") == "true"
-	format := r.URL.Query().Get("format")
-	var contentType string
-
-	contentType, ok := mimeTypeMap[format]
-
-	if !ok {
-		log.Warn("Got a request with invalid format parameter. Defaulting to 'text' format")
-		format = "text"
-		contentType = mimeTypeMap[format]
-	}
-	w.Header().Set("Content-Type", contentType)
-
-	s, err := statusComponent.GetStatusBySection(section, format, verbose)
 
 	if err != nil {
 		if format == "text" {
