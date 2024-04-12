@@ -11,6 +11,7 @@ package sds
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/stretchr/testify/require"
@@ -357,5 +358,98 @@ func TestScan(t *testing.T) {
 		require.False(matched && processed == nil, "incorrect result: nil processed event returned")
 		require.Equal(matched, v.matched, "unexpected match/non-match")
 		require.Equal(string(processed), v.event, "incorrect result")
+	}
+}
+
+// TestCloseCycleScan validates that the close cycle works well (not blocking, not racing).
+// by trying hard to reproduce a possible race on close.
+func TestCloseCycleScan(t *testing.T) {
+	require := require.New(t)
+
+	standardRules := []byte(`
+        {"priority":1,"rules":[
+            {
+                "id":"zero-0",
+                "description":"zero desc",
+                "name":"zero",
+                "pattern":"zero"
+            }
+        ]}
+    `)
+	agentConfig := []byte(`
+        {"is_enabled":true,"rules":[
+            {
+                "id":"random-00000",
+                "definition":{"standard_rule_id":"zero-0"},
+                "name":"zero",
+                "match_action":{"type":"Redact","placeholder":"[redacted]"},
+                "is_enabled":true
+            },{
+                "id":"random-11111",
+                "definition":{"standard_rule_id":"zero-0"},
+                "name":"one",
+                "match_action":{"type":"Redact","placeholder":"[REDACTED]"},
+                "is_enabled":true
+            }
+        ]}
+    `)
+
+	// scanner creation
+	// -----
+
+	for i := 0; i < 10; i++ {
+		s := CreateScanner()
+		require.NotNil(s, "the returned scanner should not be nil")
+
+		_ = s.Reconfigure(ReconfigureOrder{
+			Type:   StandardRules,
+			Config: standardRules,
+		})
+		_ = s.Reconfigure(ReconfigureOrder{
+			Type:   AgentConfig,
+			Config: agentConfig,
+		})
+
+		require.True(s.IsReady(), "at this stage, the scanner should be considered ready")
+		type result struct {
+			matched    bool
+			event      string
+			matchCount int
+		}
+
+		tests := map[string]result{
+			"one two three go!": {
+				matched:    true,
+				event:      "[REDACTED] two three go!",
+				matchCount: 1,
+			},
+			"after zero comes one, after one comes two, and the rest is history": {
+				matched:    true,
+				event:      "after [redacted] comes [REDACTED], after [REDACTED] comes two, and the rest is history",
+				matchCount: 3,
+			},
+			"and so we go": {
+				matched:    false,
+				event:      "",
+				matchCount: 0,
+			},
+		}
+
+		go func() {
+			for {
+				for k, _ := range tests {
+					msg := message.Message{}
+					if s.IsReady() {
+						_, _, err := s.Scan([]byte(k), &msg)
+						require.NoError(err)
+					} else {
+						return
+					}
+				}
+			}
+		}()
+
+		time.Sleep(100 * time.Millisecond)
+		s.Delete()
 	}
 }
