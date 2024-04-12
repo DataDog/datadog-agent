@@ -151,7 +151,7 @@ func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, con
 		remoteUpdates:     config.GetBool("updater.remote_updates"),
 		rc:                rcClient,
 		repositories:      repositories,
-		downloader:        newDownloader(http.DefaultClient, remoteRegistryOverride),
+		downloader:        newDownloader(config, http.DefaultClient, remoteRegistryOverride),
 		installer:         newInstaller(repositories),
 		telemetry:         telemetry,
 		requests:          make(chan remoteAPIRequest, 32),

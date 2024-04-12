@@ -473,6 +473,12 @@ core,github.com/aws/aws-sdk-go-v2/service/ebs/types,Apache-2.0,"Copyright 2014-2
 core,github.com/aws/aws-sdk-go-v2/service/ec2,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/service/ec2/internal/endpoints,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/service/ec2/types,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go-v2/service/ecr,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go-v2/service/ecr/internal/endpoints,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go-v2/service/ecr/types,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go-v2/service/ecrpublic,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go-v2/service/ecrpublic/internal/endpoints,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go-v2/service/ecrpublic/types,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/service/internal/presigned-url,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/service/kms,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
@@ -565,6 +571,11 @@ core,github.com/aws/smithy-go/time,Apache-2.0,"Copyright Amazon.com, Inc. or its
 core,github.com/aws/smithy-go/transport/http,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/transport/http/internal/io,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/waiter,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
+core,github.com/awslabs/amazon-ecr-credential-helper/ecr-login,Apache-2.0,"Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/awslabs/amazon-ecr-credential-helper/ecr-login/api,Apache-2.0,"Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/awslabs/amazon-ecr-credential-helper/ecr-login/cache,Apache-2.0,"Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/awslabs/amazon-ecr-credential-helper/ecr-login/config,Apache-2.0,"Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/awslabs/amazon-ecr-credential-helper/ecr-login/version,Apache-2.0,"Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/bahlo/generic-list-go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/beevik/ntp,BSD-2-Clause,Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers (beevik) | Christopher Batey (chbatey) | Copyright 2015-2017 Brett Vickers. All rights reserved | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB)
 core,github.com/benbjohnson/clock,MIT,Copyright (c) 2014 Ben Johnson
@@ -1017,6 +1028,7 @@ core,github.com/google/go-containerregistry/pkg/logs,Apache-2.0,Copyright 2018 G
 core,github.com/google/go-containerregistry/pkg/name,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/empty,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
+core,github.com/google/go-containerregistry/pkg/v1/google,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/layout,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/match,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/mutate,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
