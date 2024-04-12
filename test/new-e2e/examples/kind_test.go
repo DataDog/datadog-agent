@@ -32,7 +32,7 @@ func TestMyKindSuite(t *testing.T) {
 		awskubernetes.Provisioner(
 			awskubernetes.WithoutFakeIntake(),
 			awskubernetes.WithWorkloadApp(func(e config.CommonEnvironment, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
-				return nginx.K8sAppDefinition(e, kubeProvider, "nginx", nil)
+				return nginx.K8sAppDefinition(e, kubeProvider, "nginx", "", nil)
 			}),
 			awskubernetes.WithWorkloadApp(func(e config.CommonEnvironment, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
 				return dogstatsd.K8sAppDefinition(e, kubeProvider, "dogstatsd", 8125, "/var/run/datadog/dsd.socket")

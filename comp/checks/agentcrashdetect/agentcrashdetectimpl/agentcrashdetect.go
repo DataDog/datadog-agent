@@ -168,7 +168,7 @@ func (wcd *AgentCrashDetect) Run() error {
 	}
 
 	log.Infof("Sending crash: %v", formatText(crash))
-	lts := internaltelemetry.NewLogTelemetrySender(wcd.tconfig, "ddnpm", "go")
+	lts := internaltelemetry.NewClient(wcd.tconfig.NewHTTPClient(), wcd.tconfig.TelemetryConfig.Endpoints, "ddnpm", true)
 	lts.SendLog("WARN", formatText(crash))
 	return nil
 }

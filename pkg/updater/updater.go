@@ -18,6 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -35,10 +37,6 @@ const (
 	defaultLocksPath = "/var/run/datadog-packages"
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
-	// catalogOverridePath is the path to the catalog override file
-	catalogOverridePath = defaultRepositoriesPath + "/catalog.json"
-	// bootstrapVersionsOverridePath is the path to the bootstrap versions override file
-	bootstrapVersionsOverridePath = defaultRepositoriesPath + "/bootstrap.json"
 )
 
 var (
@@ -53,7 +51,8 @@ type Updater interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 
-	Bootstrap(ctx context.Context, pkg string) error
+	BootstrapURL(ctx context.Context, url string) error
+	BootstrapDefault(ctx context.Context, pkg string) error
 	BootstrapVersion(ctx context.Context, pkg string, version string) error
 	StartExperiment(ctx context.Context, pkg string, version string) error
 	StopExperiment(ctx context.Context, pkg string) error
@@ -69,7 +68,9 @@ type updaterImpl struct {
 	repositories *repository.Repositories
 	downloader   *downloader
 	installer    *installer
+	telemetry    *telemetry
 
+	remoteUpdates     bool
 	rc                *remoteConfig
 	catalog           catalog
 	requests          chan remoteAPIRequest
@@ -81,11 +82,24 @@ type disk interface {
 	GetUsage(path string) (*filesystem.DiskUsage, error)
 }
 
-// Bootstrap bootstraps the default version for the given package.
-func Bootstrap(ctx context.Context, pkg string, config config.Reader) error {
+// BootstrapURL bootstraps the updater with the given package.
+func BootstrapURL(ctx context.Context, url string, config config.Reader) error {
 	rc := newNoopRemoteConfig()
-	u := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, catalogOverridePath, bootstrapVersionsOverridePath, config)
-	return u.Bootstrap(ctx, pkg)
+	u, err := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config)
+	if err != nil {
+		return fmt.Errorf("could not create updater: %w", err)
+	}
+	err = u.Start(ctx)
+	if err != nil {
+		return fmt.Errorf("could not start updater: %w", err)
+	}
+	defer func() {
+		err := u.Stop(ctx)
+		if err != nil {
+			log.Errorf("could not stop updater: %v", err)
+		}
+	}()
+	return u.BootstrapURL(ctx, url)
 }
 
 // Purge removes files installed by the updater
@@ -95,6 +109,9 @@ func Purge() {
 
 func purge(locksPath, repositoryPath string) {
 	service.RemoveAgentUnits()
+	if err := service.RemoveAPMInjector(); err != nil {
+		log.Warnf("updater: could not remove APM injector: %v", err)
+	}
 	cleanDir(locksPath, os.RemoveAll)
 	cleanDir(repositoryPath, service.RemoveAll)
 }
@@ -107,69 +124,11 @@ func cleanDir(dir string, cleanFunc func(string) error) {
 
 	for _, entry := range entries {
 		path := filepath.Join(dir, entry.Name())
-		if path == catalogOverridePath || path == bootstrapVersionsOverridePath {
-			continue
-		}
 		err := cleanFunc(path)
 		if err != nil {
 			log.Warnf("updater: could not remove %s: %v", path, err)
 		}
 	}
-}
-
-func getDefaultCatalog(catalogOverridePath string) (catalog, error) {
-	var c catalog
-
-	file, err := os.ReadFile(catalogOverridePath)
-	if err != nil {
-		return catalog{}, fmt.Errorf("could not read provided catalog file: %w", err)
-	}
-
-	err = json.Unmarshal(file, &c)
-	if err != nil {
-		return catalog{}, fmt.Errorf("could not unmarshal provided catalog file: %w", err)
-	}
-
-	return c, err
-}
-
-func getDefaultBootstrapVersions(bootstrapVersionsOverridePath string) (bootstrapVersions, error) {
-	var b bootstrapVersions
-
-	file, err := os.ReadFile(bootstrapVersionsOverridePath)
-	if err != nil {
-		return bootstrapVersions{}, fmt.Errorf("could not read provided catalog file: %w", err)
-	}
-
-	err = json.Unmarshal(file, &b)
-	if err != nil {
-		return bootstrapVersions{}, fmt.Errorf("could not unmarshal provided catalog file: %w", err)
-	}
-
-	return b, err
-}
-
-func getDefaults(catalogOverridePath string, bootstrapVersionsOverridePath string) (catalog catalog, versions bootstrapVersions, overridden bool) {
-	catalog = defaultCatalog
-
-	tmpCatalog, err := getDefaultCatalog(catalogOverridePath)
-	if err != nil {
-		log.Debug(fmt.Sprintf("could not read override catalog file: %s, falling back to default", err))
-	} else {
-		catalog = tmpCatalog
-		overridden = true
-	}
-
-	versions = defaultBootstrapVersions
-	tmpVersions, err := getDefaultBootstrapVersions(bootstrapVersionsOverridePath)
-	if err != nil {
-		log.Debug(fmt.Sprintf("could not read provided catalog file: %s, falling back to default", err))
-	} else {
-		versions = tmpVersions
-		overridden = true
-	}
-
-	return
 }
 
 // NewUpdater returns a new Updater.
@@ -178,32 +137,33 @@ func NewUpdater(rcFetcher client.ConfigFetcher, config config.Reader) (Updater, 
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, catalogOverridePath, bootstrapVersionsOverridePath, config), nil
+	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config)
 }
 
-func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, catalogOverridePath string, bootstrapVersionsOverridePath string, config config.Reader) *updaterImpl {
+func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, config config.Reader) (*updaterImpl, error) {
 	repositories := repository.NewRepositories(repositoriesPath, locksPath)
 	remoteRegistryOverride := config.GetString("updater.registry")
-
 	rcClient := rc
-	catalog, defaultVersions, overridden := getDefaults(catalogOverridePath, bootstrapVersionsOverridePath)
-	if overridden {
-		log.Info("updater: catalog and/or default versions overridden, disabling remote config")
-		rcClient = newNoopRemoteConfig()
+
+	telemetry, err := newTelemetry(config, repositoriesPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not create telemetry: %w", err)
 	}
 
 	u := &updaterImpl{
+		remoteUpdates:     config.GetBool("updater.remote_updates"),
 		rc:                rcClient,
 		repositories:      repositories,
-		downloader:        newDownloader(http.DefaultClient, remoteRegistryOverride),
+		downloader:        newDownloader(config, http.DefaultClient, remoteRegistryOverride),
 		installer:         newInstaller(repositories),
-		catalog:           catalog,
+		telemetry:         telemetry,
 		requests:          make(chan remoteAPIRequest, 32),
-		bootstrapVersions: defaultVersions,
+		catalog:           catalog{},
+		bootstrapVersions: bootstrapVersions{},
 		stopChan:          make(chan struct{}),
 	}
 	u.refreshState(context.Background())
-	return u
+	return u, nil
 }
 
 // GetState returns the state.
@@ -212,8 +172,8 @@ func (u *updaterImpl) GetState() (map[string]repository.State, error) {
 }
 
 // Start starts remote config and the garbage collector.
-func (u *updaterImpl) Start(_ context.Context) error {
-	u.rc.Start(u.handleCatalogUpdate, u.scheduleRemoteAPIRequest)
+func (u *updaterImpl) Start(ctx context.Context) error {
+	u.telemetry.Start(ctx)
 	go func() {
 		for {
 			select {
@@ -234,12 +194,18 @@ func (u *updaterImpl) Start(_ context.Context) error {
 			}
 		}
 	}()
+	if !u.remoteUpdates {
+		log.Infof("updater: Remote updates are disabled")
+		return nil
+	}
+	u.rc.Start(u.handleCatalogUpdate, u.scheduleRemoteAPIRequest)
 	return nil
 }
 
 // Stop stops the garbage collector.
-func (u *updaterImpl) Stop(_ context.Context) error {
+func (u *updaterImpl) Stop(ctx context.Context) error {
 	u.rc.Close()
+	u.telemetry.Stop(ctx)
 	close(u.stopChan)
 	u.requestsWG.Wait()
 	close(u.requests)
@@ -247,7 +213,9 @@ func (u *updaterImpl) Stop(_ context.Context) error {
 }
 
 // Bootstrap installs the stable version of the package.
-func (u *updaterImpl) Bootstrap(ctx context.Context, pkg string) error {
+func (u *updaterImpl) BootstrapDefault(ctx context.Context, pkg string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "bootrap_default")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
 	u.refreshState(ctx)
@@ -255,13 +223,15 @@ func (u *updaterImpl) Bootstrap(ctx context.Context, pkg string) error {
 
 	stablePackage, ok := u.catalog.getDefaultPackage(u.bootstrapVersions, pkg, runtime.GOARCH, runtime.GOOS)
 	if !ok {
-		return fmt.Errorf("could not get default package %s for %s, %s", pkg, runtime.GOARCH, runtime.GOOS)
+		return fmt.Errorf("could not get default package '%s' for arch '%s' and platform '%s'", pkg, runtime.GOARCH, runtime.GOOS)
 	}
-	return u.boostrapPackage(ctx, stablePackage)
+	return u.boostrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
 }
 
-// Bootstrap installs the stable version of the package.
-func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version string) error {
+// BootstrapVersion installs the stable version of the package.
+func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap_version")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
 	u.refreshState(ctx)
@@ -269,37 +239,51 @@ func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version 
 
 	stablePackage, ok := u.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
 	if !ok {
-		return fmt.Errorf("could not get package %s version %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
+		return fmt.Errorf("could not get package '%s' version '%s' for arch '%s' and platform '%s'", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
-	return u.boostrapPackage(ctx, stablePackage)
+	return u.boostrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
 }
 
-func (u *updaterImpl) boostrapPackage(ctx context.Context, stablePackage Package) error {
+// BootstrapURL installs the stable version of the package.
+func (u *updaterImpl) BootstrapURL(ctx context.Context, url string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap_url")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	u.m.Lock()
+	defer u.m.Unlock()
+	u.refreshState(ctx)
+	defer u.refreshState(ctx)
+
+	return u.boostrapPackage(ctx, url, "", "")
+}
+
+func (u *updaterImpl) boostrapPackage(ctx context.Context, url string, expectedPackage string, expectedVersion string) error {
 	// both tmp and repository paths are checked for available disk space in case they are on different partitions
 	err := checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
 	if err != nil {
 		return fmt.Errorf("not enough disk space to install package: %w", err)
 	}
-	log.Infof("Updater: Bootstrapping stable version %s of package %s", stablePackage.Version, stablePackage.Name)
-	tmpDir, err := os.MkdirTemp("", "")
-	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-	image, err := u.downloader.Download(ctx, tmpDir, stablePackage)
+	log.Infof("Updater: Bootstrapping stable package from %s", url)
+	downloadedPackage, err := u.downloader.Download(ctx, url)
 	if err != nil {
 		return fmt.Errorf("could not download: %w", err)
 	}
-	err = u.installer.installStable(stablePackage.Name, stablePackage.Version, image)
+	// check that the downloaded package metadata matches the catalog metadata
+	if (expectedPackage != "" && downloadedPackage.Name != expectedPackage) || (expectedVersion != "" && downloadedPackage.Version != expectedVersion) {
+		return fmt.Errorf("downloaded package does not match expected package: %s, %s != %s, %s", downloadedPackage.Name, downloadedPackage.Version, expectedPackage, expectedVersion)
+	}
+	err = u.installer.installStable(downloadedPackage.Name, downloadedPackage.Version, downloadedPackage.Image)
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}
-	log.Infof("Updater: Successfully installed default version %s of package %s", stablePackage.Version, stablePackage.Name)
+
+	log.Infof("Updater: Successfully installed default version %s of package %s from %s", downloadedPackage.Version, downloadedPackage.Name, url)
 	return nil
 }
 
 // StartExperiment starts an experiment with the given package.
-func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version string) error {
+func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap_version")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
 	u.refreshState(ctx)
@@ -307,7 +291,7 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version s
 
 	log.Infof("Updater: Starting experiment for package %s version %s", pkg, version)
 	// both tmp and repository paths are checked for available disk space in case they are on different partitions
-	err := checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
+	err = checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
 	if err != nil {
 		return fmt.Errorf("not enough disk space to install package: %w", err)
 	}
@@ -315,16 +299,15 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version s
 	if !ok {
 		return fmt.Errorf("could not get package %s, %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
-	tmpDir, err := os.MkdirTemp("", "")
-	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-	image, err := u.downloader.Download(ctx, tmpDir, experimentPackage)
+	downloadedPackage, err := u.downloader.Download(ctx, experimentPackage.URL)
 	if err != nil {
 		return fmt.Errorf("could not download experiment: %w", err)
 	}
-	err = u.installer.installExperiment(pkg, version, image)
+	// check that the downloaded package metadata matches the catalog metadata
+	if downloadedPackage.Name != experimentPackage.Name || downloadedPackage.Version != experimentPackage.Version {
+		return fmt.Errorf("downloaded package does not match requested package: %s, %s != %s, %s", downloadedPackage.Name, downloadedPackage.Version, experimentPackage.Name, experimentPackage.Version)
+	}
+	err = u.installer.installExperiment(pkg, version, downloadedPackage.Image)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
@@ -333,14 +316,16 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version s
 }
 
 // PromoteExperiment promotes the experiment to stable.
-func (u *updaterImpl) PromoteExperiment(ctx context.Context, pkg string) error {
+func (u *updaterImpl) PromoteExperiment(ctx context.Context, pkg string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "promote_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
 	u.refreshState(ctx)
 	defer u.refreshState(ctx)
 
 	log.Infof("Updater: Promoting experiment for package %s", pkg)
-	err := u.installer.promoteExperiment(pkg)
+	err = u.installer.promoteExperiment(pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -349,14 +334,16 @@ func (u *updaterImpl) PromoteExperiment(ctx context.Context, pkg string) error {
 }
 
 // StopExperiment stops the experiment.
-func (u *updaterImpl) StopExperiment(ctx context.Context, pkg string) error {
+func (u *updaterImpl) StopExperiment(ctx context.Context, pkg string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "stop_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	u.m.Lock()
 	defer u.m.Unlock()
 	u.refreshState(ctx)
 	defer u.refreshState(ctx)
 
 	defer log.Infof("Updater: Stopping experiment for package %s", pkg)
-	err := u.installer.uninstallExperiment(pkg)
+	err = u.installer.uninstallExperiment(pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
@@ -419,7 +406,7 @@ func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err erro
 		}
 		log.Infof("Updater: Received remote request %s to bootstrap package %s version %s", request.ID, request.Package, params.Version)
 		if params.Version == "" {
-			return u.Bootstrap(context.Background(), request.Package)
+			return u.BootstrapDefault(context.Background(), request.Package)
 		}
 		return u.BootstrapVersion(context.Background(), request.Package, params.Version)
 	default:

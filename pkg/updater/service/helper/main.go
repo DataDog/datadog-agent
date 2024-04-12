@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package main is a package that allows dd-updater
+// Package main is a package that allows dd-installer
 // to execute a subset of priviledged commands
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -25,6 +26,8 @@ var (
 	installPath string
 	systemdPath = "/lib/systemd/system" // todo load it at build time from omnibus
 	pkgDir      = "/opt/datadog-packages"
+	agentDir    = "/etc/datadog-agent"
+	dockerDir   = "/etc/docker"
 	testSkipUID = ""
 )
 
@@ -36,6 +39,7 @@ type privilegeCommand struct {
 	Command string `json:"command,omitempty"`
 	Unit    string `json:"unit,omitempty"`
 	Path    string `json:"path,omitempty"`
+	Content string `json:"content,omitempty"`
 }
 
 func isValidUnitChar(c rune) bool {
@@ -66,6 +70,16 @@ func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("ln", "-sf", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", "/usr/bin/datadog-agent"), nil
 	case "rm-agent-symlink":
 		return exec.Command("rm", "-f", "/usr/bin/datadog-agent"), nil
+	case "create-docker-dir":
+		return exec.Command("mkdir", "-p", "/etc/docker"), nil
+	case "replace-docker":
+		return exec.Command("mv", "/tmp/daemon.json.tmp", "/etc/docker/daemon.json"), nil
+	case "restart-docker":
+		return exec.Command("systemctl", "restart", "docker"), nil
+	case "replace-ld-preload":
+		return exec.Command("mv", "/tmp/ld.so.preload.tmp", "/etc/ld.so.preload"), nil
+	case "add-installer-to-agent-group":
+		return exec.Command("usermod", "-aG", "dd-agent", "dd-installer"), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}
@@ -99,7 +113,7 @@ func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 	if absPath != path || err != nil {
 		return nil, fmt.Errorf("invalid path")
 	}
-	if !strings.HasPrefix(path, pkgDir) {
+	if !strings.HasPrefix(path, pkgDir) && !strings.HasPrefix(path, agentDir) {
 		return nil, fmt.Errorf("invalid path")
 	}
 	switch inputCommand.Command {
@@ -107,6 +121,10 @@ func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("chown", "-R", "dd-agent:dd-agent", path), nil
 	case "rm":
 		return exec.Command("rm", "-rf", path), nil
+	case "backup-file":
+		return exec.Command("cp", "-f", path, path+".bak"), nil
+	case "restore-file":
+		return exec.Command("mv", path+".bak", path), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}
@@ -121,7 +139,7 @@ func executeCommand() error {
 	var pc privilegeCommand
 	err := json.Unmarshal([]byte(inputCommand), &pc)
 	if err != nil {
-		return fmt.Errorf("decoding command")
+		return fmt.Errorf("decoding command %s", inputCommand)
 	}
 
 	currentUser := syscall.Getuid()
@@ -130,14 +148,14 @@ func executeCommand() error {
 		return err
 	}
 
-	// only root or dd-updater can execute this command
+	// only root or dd-installer can execute this command
 	if currentUser != 0 && enforceUID() {
-		ddUpdaterUser, err := user.Lookup("dd-updater")
+		ddUpdaterUser, err := user.Lookup("dd-installer")
 		if err != nil {
-			return fmt.Errorf("failed to lookup dd-updater user: %s", err)
+			return fmt.Errorf("failed to lookup dd-installer user: %s", err)
 		}
 		if strconv.Itoa(currentUser) != ddUpdaterUser.Uid {
-			return fmt.Errorf("only root or dd-updater can execute this command")
+			return fmt.Errorf("only root or dd-installer can execute this command")
 		}
 		if err := syscall.Setuid(0); err != nil {
 			return fmt.Errorf("failed to setuid: %s", err)
@@ -150,8 +168,14 @@ func executeCommand() error {
 		}()
 	}
 
+	commandErr := new(bytes.Buffer)
+	command.Stderr = commandErr
 	log.Printf("Running command: %s", command.String())
-	return command.Run()
+	err = command.Run()
+	if err != nil {
+		return fmt.Errorf("running command (%s): %s", err.Error(), commandErr.String())
+	}
+	return nil
 }
 
 func main() {

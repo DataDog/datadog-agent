@@ -26,8 +26,8 @@ func TestInvalidCommands(t *testing.T) {
 	// assert wrong commands
 	for input, expected := range map[string]string{
 		// fail assert_command characters assertion
-		";": "error: decoding command\n",
-		"&": "error: decoding command\n",
+		";": "error: decoding command ;\n",
+		"&": "error: decoding command &\n",
 		`{"command":"start", "unit":"does-not-exist"}`:                       "error: invalid unit\n",
 		`{"command":"start", "unit":"datadog-//"}`:                           "error: invalid unit\n",
 		`{"command":"does-not-exist", "unit":"datadog-"}`:                    "error: invalid command\n",
@@ -45,7 +45,7 @@ func TestAssertWorkingCommands(t *testing.T) {
 	testSetup(t)
 
 	// missing permissions on test setup, e2e tests verify the successful commands
-	successErr := "error: failed to lookup dd-updater user: user: unknown user dd-updater\n"
+	successErr := "error: failed to lookup dd-installer user: user: unknown user dd-installer\n"
 
 	require.Equal(t, successErr, startUnit("datadog-agent").Error())
 	assert.Equal(t, successErr, stopUnit("datadog-agent").Error())
@@ -55,4 +55,13 @@ func TestAssertWorkingCommands(t *testing.T) {
 	assert.Equal(t, successErr, removeUnit("datadog-agent").Error())
 	assert.Equal(t, successErr, createAgentSymlink().Error())
 	assert.Equal(t, successErr, rmAgentSymlink().Error())
+	assert.Equal(t, successErr, backupAgentConfig().Error())
+	assert.Equal(t, successErr, restoreAgentConfig().Error())
+
+	a := &apmInjectorInstaller{
+		installPath: "/tmp/stable",
+	}
+	assert.Equal(t, successErr, a.setLDPreloadConfig().Error())
+	assert.Equal(t, successErr, a.setAgentConfig().Error())
+	assert.Equal(t, successErr, a.setDockerConfig().Error())
 }

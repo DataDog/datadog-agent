@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
@@ -114,9 +113,9 @@ const (
 // Agent is the compliance agent that is responsible for running compliance
 // continuously benchmarks and configuration checking.
 type Agent struct {
-	senderManager sender.SenderManager
-	wmeta         workloadmeta.Component
-	opts          AgentOptions
+	telemetrySender telemetry.SimpleTelemetrySender
+	wmeta           workloadmeta.Component
+	opts            AgentOptions
 
 	telemetry  *telemetry.ContainersTelemetry
 	statuses   map[string]*CheckStatus
@@ -170,7 +169,7 @@ func DefaultRuleFilter(r *Rule) bool {
 }
 
 // NewAgent returns a new compliance agent.
-func NewAgent(senderManager sender.SenderManager, wmeta workloadmeta.Component, opts AgentOptions) *Agent {
+func NewAgent(telemetrySender telemetry.SimpleTelemetrySender, wmeta workloadmeta.Component, opts AgentOptions) *Agent {
 	if opts.ConfigDir == "" {
 		panic("compliance: missing agent configuration directory")
 	}
@@ -192,16 +191,16 @@ func NewAgent(senderManager sender.SenderManager, wmeta workloadmeta.Component, 
 		opts.RuleFilter = func(r *Rule) bool { return DefaultRuleFilter(r) }
 	}
 	return &Agent{
-		senderManager: senderManager,
-		wmeta:         wmeta,
-		opts:          opts,
-		statuses:      make(map[string]*CheckStatus),
+		telemetrySender: telemetrySender,
+		wmeta:           wmeta,
+		opts:            opts,
+		statuses:        make(map[string]*CheckStatus),
 	}
 }
 
 // Start starts the compliance agent.
 func (a *Agent) Start() error {
-	telemetry, err := telemetry.NewContainersTelemetry(a.senderManager, a.wmeta)
+	telemetry, err := telemetry.NewContainersTelemetry(a.telemetrySender, a.wmeta)
 	if err != nil {
 		log.Errorf("could not start containers telemetry: %v", err)
 		return err
