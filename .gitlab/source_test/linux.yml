@@ -16,7 +16,6 @@
   stage: source_test
   needs: ["go_deps", "go_tools_deps"]
   rules:
-    - !reference [.except_mergequeue]
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
   variables:
@@ -28,14 +27,10 @@
   script:
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
-    - python3 -m pip install -r tasks/libs/requirements-github.txt
-    - inv -e invoke-unit-tests
-    - pushd test/kitchen
-    - inv -e kitchen.invoke-unit-tests
-    - popd
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
-    - inv -e test $FLAVORS --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG
+    - inv -e sds.build-library
+    - inv -e test $FLAVORS --include-sds --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG
   artifacts:
     expire_in: 2 weeks
     when: always

@@ -26,9 +26,9 @@ from tasks.cluster_agent import integration_tests as dca_integration_tests
 from tasks.dogstatsd import integration_tests as dsd_integration_tests
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
+from tasks.libs.common.datadog_api import create_count, send_metrics
+from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import clean_nested_paths, get_build_flags
-from tasks.libs.datadog_api import create_count, send_metrics
-from tasks.libs.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.linter import _lint_go
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
@@ -324,6 +324,7 @@ def test(
     junit_tar="",
     only_modified_packages=False,
     only_impacted_packages=False,
+    include_sds=False,
     skip_flakes=False,
     build_stdlib=False,
 ):
@@ -349,7 +350,12 @@ def test(
 
     unit_tests_tags = {
         f: compute_build_tags_for_flavor(
-            flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
+            flavor=f,
+            build="unit-tests",
+            arch=arch,
+            build_include=build_include,
+            build_exclude=build_exclude,
+            include_sds=include_sds,
         )
         for f in flavors
     }
@@ -928,6 +934,7 @@ def lint_go(
     timeout: int = None,
     golangci_lint_kwargs="",
     headless_mode=False,
+    include_sds=False,
 ):
     _lint_go(
         ctx,
@@ -944,4 +951,5 @@ def lint_go(
         timeout,
         golangci_lint_kwargs,
         headless_mode,
+        include_sds,
     )

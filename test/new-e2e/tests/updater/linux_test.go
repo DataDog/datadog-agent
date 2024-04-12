@@ -9,47 +9,74 @@ package updater
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"gopkg.in/yaml.v2"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	confDir     = "/etc/datadog-agent"
-	logDir      = "/var/log/datadog"
-	locksDir    = "/var/run/datadog-packages"
-	packagesDir = "/opt/datadog-packages"
-	installDir  = "/opt/datadog/updater"
+	confDir        = "/etc/datadog-agent"
+	logDir         = "/var/log/datadog"
+	locksDir       = "/var/run/datadog-packages"
+	packagesDir    = "/opt/datadog-packages"
+	bootUpdaterDir = "/opt/datadog-installer"
 )
 
 type vmUpdaterSuite struct {
 	e2e.BaseSuite[environments.Host]
+	packageManager string
 }
 
-func TestUpdaterSuite(t *testing.T) {
-	e2e.Run(t, &vmUpdaterSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
+func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.Descriptor) {
+	reg := regexp.MustCompile(`[^a-zA-Z0-9_\-.]`)
+	testName := reg.ReplaceAllString(distro.String()+"-"+string(arch), "_")
+	e2e.Run(t, &vmUpdaterSuite{packageManager: pkgManager}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 		awshost.WithUpdater(),
-		awshost.WithEC2InstanceOptions(ec2.WithOSArch(os.UbuntuDefault, os.ARM64Arch)),
-	)))
+		awshost.WithEC2InstanceOptions(ec2.WithOSArch(distro, arch)),
+	)),
+		e2e.WithStackName(testName),
+	)
+}
+
+func TestCentOSARM(t *testing.T) {
+	t.Parallel()
+	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault)
+}
+
+func TestRedHatARM(t *testing.T) {
+	t.Parallel()
+	runTest(t, "rpm", os.ARM64Arch, os.RedHatDefault)
+}
+
+func TestUbuntuARM(t *testing.T) {
+	t.Parallel()
+	runTest(t, "dpkg", os.ARM64Arch, os.UbuntuDefault)
+}
+
+func TestDebianX86(t *testing.T) {
+	t.Parallel()
+	runTest(t, "dpkg", os.AMD64Arch, os.UbuntuDefault)
 }
 
 func (v *vmUpdaterSuite) TestUserGroupsCreation() {
 	// users exist and is a system user
 	require.Equal(v.T(), "/usr/sbin/nologin\n", v.Env().RemoteHost.MustExecute(`getent passwd dd-agent | cut -d: -f7`), "unexpected: user does not exist or is not a system user")
-	require.Equal(v.T(), "/usr/sbin/nologin\n", v.Env().RemoteHost.MustExecute(`getent passwd dd-updater | cut -d: -f7`), "unexpected: user does not exist or is not a system user")
-	require.Equal(v.T(), "dd-updater\n", v.Env().RemoteHost.MustExecute(`getent group dd-updater | cut -d":" -f1`), "unexpected: group does not exist")
+	require.Equal(v.T(), "/usr/sbin/nologin\n", v.Env().RemoteHost.MustExecute(`getent passwd dd-installer | cut -d: -f7`), "unexpected: user does not exist or is not a system user")
+	require.Equal(v.T(), "dd-installer\n", v.Env().RemoteHost.MustExecute(`getent group dd-installer | cut -d":" -f1`), "unexpected: group does not exist")
 	require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(`getent group dd-agent | cut -d":" -f1`), "unexpected: group does not exist")
-	require.Equal(v.T(), "dd-updater dd-agent\n", v.Env().RemoteHost.MustExecute("id -Gn dd-updater"), "dd-updater not in correct groups")
+	require.Equal(v.T(), "dd-installer dd-agent\n", v.Env().RemoteHost.MustExecute("id -Gn dd-installer"), "dd-installer not in correct groups")
 }
 
 func (v *vmUpdaterSuite) TestSharedAgentDirs() {
@@ -61,16 +88,21 @@ func (v *vmUpdaterSuite) TestSharedAgentDirs() {
 }
 
 func (v *vmUpdaterSuite) TestUpdaterDirs() {
-	for _, dir := range []string{locksDir, packagesDir, installDir} {
-		require.Equal(v.T(), "dd-updater\n", v.Env().RemoteHost.MustExecute(`stat -c "%U" `+dir))
-		require.Equal(v.T(), "dd-updater\n", v.Env().RemoteHost.MustExecute(`stat -c "%G" `+dir))
+	for _, dir := range []string{locksDir, packagesDir, bootUpdaterDir} {
+		require.Equal(v.T(), "dd-installer\n", v.Env().RemoteHost.MustExecute(`stat -c "%U" `+dir))
+		require.Equal(v.T(), "dd-installer\n", v.Env().RemoteHost.MustExecute(`stat -c "%G" `+dir))
 	}
 	require.Equal(v.T(), "drwxrwxrwx\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" `+locksDir))
 	require.Equal(v.T(), "drwxr-xr-x\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" `+packagesDir))
-	require.Equal(v.T(), "drwxr-xr-x\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" `+installDir))
+}
+
+func (v *vmUpdaterSuite) TestInstallerUnitLoaded() {
+	require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(`systemctl is-enabled datadog-installer.service`))
 }
 
 func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
+	t := v.T()
+	t.Skip("FIXME(Arthur): dockerhub rate limits make this test flaky")
 	stableUnits := []string{
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -78,15 +110,18 @@ func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
 		"datadog-agent-sysprobe.service",
 		"datadog-agent-security.service",
 	}
+	v.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://docker.io/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootUpdaterDir))
 	for _, unit := range stableUnits {
-		require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, unit)))
+		require.Equal(t, "enabled\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, unit)))
 	}
 }
 
 func (v *vmUpdaterSuite) TestExperimentCrash() {
-	host := v.Env().RemoteHost
 	t := v.T()
+	t.Skip("FIXME(Arthur): dockerhub rate limits make this test flaky")
+	host := v.Env().RemoteHost
 	startTime := getMonotonicTimestamp(t, host)
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://docker.io/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootUpdaterDir))
 	v.Env().RemoteHost.MustExecute(`sudo systemctl start datadog-agent-exp --no-block`)
 	res := getJournalDOnCondition(t, host, startTime, stopCondition([]JournaldLog{
 		{Unit: "datadog-agent.service", Message: "Started"},
@@ -101,8 +136,10 @@ func (v *vmUpdaterSuite) TestExperimentCrash() {
 }
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
+	t := v.T()
+	t.Skip("FIXME(Arthur): dockerhub rate limits make this test flaky")
 	host := v.Env().RemoteHost
-	host.MustExecute("sudo /opt/datadog/updater/bin/updater/updater purge")
+	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootUpdaterDir))
 	stableUnits := []string{
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -136,7 +173,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	}
 
 	// bootstrap
-	host.MustExecute("sudo /opt/datadog/updater/bin/updater/updater bootstrap -P datadog-agent")
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://docker.io/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootUpdaterDir))
 
 	// assert agent symlink
 	_ = host.MustExecute(`test -L /usr/bin/datadog-agent`)
@@ -150,12 +187,12 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 		exists, _ := host.FileExists(filepath.Join(confDir, file))
 		assert.True(v.T(), exists)
 	}
-	assertInstallMethod(v.T(), host)
+	assertInstallMethod(v, v.T(), host)
 
 	// assert file ownerships
 	agentDir := "/opt/datadog-packages/datadog-agent"
-	require.Equal(v.T(), "dd-updater\n", host.MustExecute(`stat -c "%U" `+agentDir))
-	require.Equal(v.T(), "dd-updater\n", host.MustExecute(`stat -c "%G" `+agentDir))
+	require.Equal(v.T(), "dd-installer\n", host.MustExecute(`stat -c "%U" `+agentDir))
+	require.Equal(v.T(), "dd-installer\n", host.MustExecute(`stat -c "%G" `+agentDir))
 	require.Equal(v.T(), "drwxr-xr-x\n", host.MustExecute(`stat -c "%A" `+agentDir))
 	require.Equal(v.T(), "1\n", host.MustExecute(`sudo ls -l /opt/datadog-packages/datadog-agent | awk '$9 != "stable" && $3 == "dd-agent" && $4 == "dd-agent"' | wc -l`))
 
@@ -165,14 +202,14 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	}
 }
 
-func assertInstallMethod(t *testing.T, host *components.RemoteHost) {
+func assertInstallMethod(v *vmUpdaterSuite, t *testing.T, host *components.RemoteHost) {
 	rawYaml, err := host.ReadFile(filepath.Join(confDir, "install_info"))
 	assert.Nil(t, err)
 	var config Config
 	require.Nil(t, yaml.Unmarshal(rawYaml, &config))
 
 	assert.Equal(t, "updater_package", config.InstallMethod["installer_version"])
-	assert.Equal(t, "dpkg", config.InstallMethod["tool"])
+	assert.Equal(t, v.packageManager, config.InstallMethod["tool"])
 	assert.True(t, "" != config.InstallMethod["tool_version"])
 }
 

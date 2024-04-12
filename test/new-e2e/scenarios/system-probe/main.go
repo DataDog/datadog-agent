@@ -18,7 +18,7 @@ import (
 	systemProbe "github.com/DataDog/datadog-agent/test/new-e2e/system-probe"
 )
 
-var defaultVMConfigPath = filepath.Join(".", "system-probe", "config", "vmconfig.json")
+var defaultVMConfigPath = filepath.Join(".", "system-probe", "config", "vmconfig-system-probe.json")
 
 func run(envName, x86InstanceType, armInstanceType string, destroy bool, opts *systemProbe.EnvOpts) error {
 	if destroy {

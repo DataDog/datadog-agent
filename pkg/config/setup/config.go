@@ -382,6 +382,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Yaml keys which values are stripped from flare
 	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
+	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
@@ -632,7 +633,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 
 	// Podman
-	config.BindEnvAndSetDefault("podman_db_path", "/var/lib/containers/storage/libpod/bolt_state.db")
+	config.BindEnvAndSetDefault("podman_db_path", "")
 
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
@@ -1249,7 +1250,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
-	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
 	config.BindEnv("compliance_config.run_commands_as")
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
 	config.BindEnvAndSetDefault("compliance_config.metrics.enabled", false)
@@ -1335,7 +1335,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	setupHighAvailability(config)
 
 	// Updater configuration
+	config.BindEnvAndSetDefault("updater.remote_updates", false)
 	config.BindEnv("updater.registry")
+	config.BindEnvAndSetDefault("updater.registry_auth", "")
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables

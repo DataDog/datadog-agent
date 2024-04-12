@@ -41,6 +41,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -55,6 +57,7 @@ import (
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
@@ -131,6 +134,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					params.Options.DisableAPIKeyChecking = true
 					return params
 				}),
+				compressionimpl.Module(),
 				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
@@ -175,6 +179,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				healthprobeimpl.Module(),
+				fx.Supply(
+					settings.Settings{
+						"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
+						"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
+						"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
+						"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
+						"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-cluster-agent"),
+					},
+				),
+				settingsimpl.Module(),
 			)
 		},
 	}
@@ -194,6 +208,7 @@ func start(log log.Component,
 	collector collector.Component,
 	rcService optional.Option[rccomp.Component],
 	_ healthprobe.Component,
+	settings settings.Component,
 ) error {
 	stopCh := make(chan struct{})
 
@@ -210,13 +225,8 @@ func start(log log.Component,
 		pkglog.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	// Init settings that can be changed at runtime
-	if err := initRuntimeSettings(); err != nil {
-		pkglog.Warnf("Can't initiliaze the runtime settings: %v", err)
-	}
-
 	// Setup Internal Profiling
-	common.SetupInternalProfiling(config, "")
+	common.SetupInternalProfiling(settings, config, "")
 
 	if !config.IsSet("api_key") {
 		return fmt.Errorf("no API key configured, exiting")
@@ -262,7 +272,7 @@ func start(log log.Component,
 	}
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver); err != nil {
+	if err := api.StartServer(wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver, settings); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
@@ -480,27 +490,6 @@ func start(log log.Component,
 	pkglog.Flush()
 
 	return nil
-}
-
-// initRuntimeSettings builds the map of runtime Cluster Agent settings configurable at runtime.
-func initRuntimeSettings() error {
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewLogLevelRuntimeSetting()); err != nil {
-		return err
-	}
-
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewRuntimeMutexProfileFraction()); err != nil {
-		return err
-	}
-
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewRuntimeBlockProfileRate()); err != nil {
-		return err
-	}
-
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewProfilingGoroutines()); err != nil {
-		return err
-	}
-
-	return commonsettings.RegisterRuntimeSetting(commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-cluster-agent"))
 }
 
 func setupClusterCheck(ctx context.Context, ac autodiscovery.Component) (*clusterchecks.Handler, error) {
