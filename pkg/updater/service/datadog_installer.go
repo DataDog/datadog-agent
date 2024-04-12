@@ -58,7 +58,7 @@ func StartInstallerExperiment() error {
 	return startUnit(installerUnitExp)
 }
 
-// StartInstallerExperiment installs the stable systemd units for the installer
+// StopInstallerExperiment installs the stable systemd units for the installer
 func StopInstallerExperiment() error {
 	return startUnit(installerUnit)
 }
