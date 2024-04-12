@@ -89,7 +89,8 @@ func newTestUpdaterWithPaths(t *testing.T, s *testFixturesServer, rcc *testRemot
 	rc := &remoteConfig{client: rcc}
 	rootPath := t.TempDir()
 	locksPath := t.TempDir()
-	u := newUpdater(rc, rootPath, locksPath, cfg)
+	u, err := newUpdater(rc, rootPath, locksPath, cfg)
+	assert.NoError(t, err)
 	u.installer.configsDir = t.TempDir()
 	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
 	u.catalog = s.Catalog()
@@ -98,7 +99,7 @@ func newTestUpdaterWithPaths(t *testing.T, s *testFixturesServer, rcc *testRemot
 	return u, rootPath, locksPath
 }
 
-func TestUpdaterBootstrapDefault(t *testing.T) {
+func TestBootstrapDefault(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
@@ -115,7 +116,7 @@ func TestUpdaterBootstrapDefault(t *testing.T) {
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
 }
 
-func TestUpdaterBootstrapURL(t *testing.T) {
+func TestBootstrapURL(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
@@ -132,7 +133,7 @@ func TestUpdaterBootstrapURL(t *testing.T) {
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
 }
 
-func TestUpdaterPurge(t *testing.T) {
+func TestPurge(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
@@ -176,7 +177,7 @@ func assertDirExistAndEmpty(t *testing.T, path string) {
 	assert.Len(t, entry, 0)
 }
 
-func TestUpdaterBootstrapWithRC(t *testing.T) {
+func TestBootstrapWithRC(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
@@ -198,7 +199,7 @@ func TestUpdaterBootstrapWithRC(t *testing.T) {
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.StableFS())
 }
 
-func TestUpdaterBootstrapCatalogUpdate(t *testing.T) {
+func TestBootstrapCatalogUpdate(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
@@ -212,7 +213,7 @@ func TestUpdaterBootstrapCatalogUpdate(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestUpdaterStartExperiment(t *testing.T) {
+func TestStartExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
@@ -240,7 +241,7 @@ func TestUpdaterStartExperiment(t *testing.T) {
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.ExperimentFS())
 }
 
-func TestUpdaterPromoteExperiment(t *testing.T) {
+func TestPromoteExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
@@ -277,7 +278,7 @@ func TestUpdaterPromoteExperiment(t *testing.T) {
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.StableFS())
 }
 
-func TestUpdaterStopExperiment(t *testing.T) {
+func TestStopExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()

@@ -101,9 +101,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
-				workloadmeta.OptionalModule(),
-				tagger.OptionalModule(),
-				autodiscoveryimpl.OptionalModule(),
+				workloadmeta.Module(),
+				tagger.Module(),
+				fx.Provide(func(config config.Component) tagger.Params { return tagger.NewTaggerParamsForCoreAgent(config) }),
+				autodiscoveryimpl.Module(),
 				compressionimpl.Module(),
 				diagnosesendermanagerimpl.Module(),
 			)

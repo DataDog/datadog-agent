@@ -117,3 +117,4 @@ repos:
       require_serial: true
       files: .*gitlab.*\.yml$
       pass_filenames: false
+      stages: [pre-push]
