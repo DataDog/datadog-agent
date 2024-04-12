@@ -112,7 +112,7 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
     should be cancelled.
     """
 
-    repo = get_gitlab_repo()
+    agent = get_gitlab_repo()
 
     if here:
         git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
@@ -125,14 +125,14 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
     elif not sha:
         print(f"Git sha not provided, fetching all running pipelines on {git_ref}")
 
-    pipelines = get_running_pipelines_on_same_ref(repo, git_ref, sha)
+    pipelines = get_running_pipelines_on_same_ref(agent, git_ref, sha)
 
     print(
         f"Found {len(pipelines)} running pipeline(s) matching the request.",
         "They are ordered from the newest one to the oldest one.\n",
         sep='\n',
     )
-    cancel_pipelines_with_confirmation(repo, pipelines)
+    cancel_pipelines_with_confirmation(agent, pipelines)
 
 
 def workflow_rules(gitlab_file=".gitlab-ci.yml"):
@@ -926,11 +926,11 @@ def test_merge_queue(ctx):
     pr.create_issue_comment("/merge")
     # Search for the generated pipeline
     print(f"PR {pr.html_url} is waiting for MQ pipeline generation")
-    gitlab = get_gitlab_repo()
+    agent = get_gitlab_repo()
     max_attempts = 5
     for attempt in range(max_attempts):
         time.sleep(30)
-        pipelines = gitlab.pipelines.list(per_page=100)
+        pipelines = agent.pipelines.list(per_page=100)
         try:
             pipeline = next(p for p in pipelines if p.ref.startswith(f"mq-working-branch-{test_main}"))
             print(f"Pipeline found: {pipeline.web_url}")

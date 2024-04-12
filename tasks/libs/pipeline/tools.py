@@ -307,26 +307,22 @@ def print_job_status(job):
     def print_retry(name, date):
         print(color_message(f"[{date}] Job {name} was retried", "grey"))
 
-    name = job.name
-    stage = job.stage
-    allow_failure = job.allow_failure
     duration = job.duration
     date = job.finished_at  # Date that is printed in the console log. In most cases, it's when the job finished.
-    status = job.status  # Gitlab job status
     job_status = None  # Status string printed in the console
     link = ''  # Link to the pipeline. Only filled for failing jobs, to be able to quickly go to the failing job.
     color = 'grey'  # Log output color
 
     # A None duration is set by Gitlab when the job gets canceled before it was started.
     # In that case, set a duration of 0s.
-    if duration is None:
+    if job.finished_at is None:
         duration = 0
 
-    if status == 'success':
+    if job.status == 'success':
         job_status = 'succeeded'
         color = 'green'
-    elif status == 'failed':
-        if allow_failure:
+    elif job.status == 'failed':
+        if job.allow_failure:
             job_status = 'failed (allowed to fail)'
             color = 'orange'
         else:
@@ -337,11 +333,11 @@ def print_job_status(job):
             # Best-effort, as there can be situations where the retried
             # job didn't get created yet
             if getattr(job, 'retried_old', None) is None:
-                notify("Job failure", f"Job {name} failed.")
-    elif status == 'canceled':
+                notify("Job failure", f"Job {job.name} failed.")
+    elif job.status == 'canceled':
         job_status = 'was canceled'
         color = 'grey'
-    elif status == 'running':
+    elif job.status == 'running':
         job_status = 'started running'
         date = job.started_at
         color = 'blue'
@@ -350,10 +346,10 @@ def print_job_status(job):
 
     # Some logic to print the retry message in the correct order (before the new job or after the old job)
     if getattr(job, 'retried_new', None) is not None:
-        print_retry(name, job.created_at)
-    print_job(name, stage, color, date, duration, job_status, link)
+        print_retry(job.name, job.created_at)
+    print_job(job.name, job.stage, color, date, duration, job_status, link)
     if getattr(job, 'retried_old', None) is not None:
-        print_retry(name, job.retried_created_at)
+        print_retry(job.name, job.retried_created_at)
 
 
 def notify(title, info_text, sound=True):
