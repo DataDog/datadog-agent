@@ -233,6 +233,7 @@ def build(
         if install_directory is None:
             install_directory = install_dir_for_product(target_project)
         omnibus_cache_dir = os.path.join(omnibus_cache_dir, install_directory)
+        print('omnibus cache dir: ', omnibus_cache_dir)
         remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
         # We don't want to update the cache when not running on a CI
         # Individual developers are still able to leverage the cache by providing
