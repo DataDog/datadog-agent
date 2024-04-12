@@ -46,6 +46,7 @@ type testConfig struct {
 	verbose           bool
 	packagesRunConfig map[string]packageRunConfiguration
 	testDirRoot       string
+	extraParams       string
 }
 
 const ciVisibility = "/ci-visibility"
@@ -58,7 +59,7 @@ var baseEnv = []string{
 var timeouts = map[*regexp.Regexp]time.Duration{
 	regexp.MustCompile("pkg/network/protocols/http$"): 15 * time.Minute,
 	regexp.MustCompile("pkg/network/tracer$"):         55 * time.Minute,
-	regexp.MustCompile("pkg/network/usm$"):            30 * time.Minute,
+	regexp.MustCompile("pkg/network/usm$"):            55 * time.Minute,
 	regexp.MustCompile("pkg/security/.*"):             30 * time.Minute,
 }
 
@@ -113,6 +114,10 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 		"--rerun-fails-max-failures=100",
 		"--raw-command", "--",
 		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", fmt.Sprintf("-test.count=%d", testConfig.runCount), "-test.timeout=" + getTimeout(pkg).String(),
+	}
+
+	if testConfig.extraParams != "" {
+		args = append(args, strings.Split(testConfig.extraParams, " ")...)
 	}
 
 	packagesRunConfig := testConfig.packagesRunConfig
@@ -232,6 +237,7 @@ func buildTestConfiguration() (*testConfig, error) {
 	verbose := flag.Bool("verbose", false, "if set to true verbosity level is 'standard-verbose', otherwise it is 'testname'")
 	runCount := flag.Int("run-count", 1, "number of times to run the test")
 	testRoot := flag.String("test-root", "/opt/kernel-version-testing/system-probe-tests", "directory containing test packages")
+	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
 
 	flag.Parse()
 
@@ -256,6 +262,7 @@ func buildTestConfiguration() (*testConfig, error) {
 		retryCount:        *retryPtr,
 		packagesRunConfig: breakdown,
 		testDirRoot:       *testRoot,
+		extraParams:       *extraParams,
 	}, nil
 }
 

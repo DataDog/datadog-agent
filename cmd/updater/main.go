@@ -15,5 +15,7 @@ import (
 )
 
 func main() {
+	// root user is changed to dd-installer to avoid permission issues
+	rootToDDInstaller()
 	os.Exit(runcmd.Run(command.MakeCommand(subcommands.UpdaterSubcommands())))
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -95,6 +96,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				}),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				core.Bundle(),
+				compressionimpl.Module(),
 				diagnosesendermanagerimpl.Module(),
 				fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
 			)
@@ -239,7 +241,7 @@ func run(cliParams *cliParams,
 		}
 	}
 
-	response, e := flare.SendFlare(filePath, cliParams.caseID, cliParams.email, helpers.NewLocalFlareSource())
+	response, e := flare.SendFlare(pkgconfig.Datadog, filePath, cliParams.caseID, cliParams.email, helpers.NewLocalFlareSource())
 	fmt.Println(response)
 	if e != nil {
 		return e

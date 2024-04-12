@@ -11,14 +11,19 @@ package updater
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/updater/service"
 )
 
 type testRemoteConfigClient struct {
@@ -73,22 +78,34 @@ func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
 }
 
 func newTestUpdater(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) *updaterImpl {
-	rc := &remoteConfig{client: rcc}
-	u := newUpdater(rc, t.TempDir(), t.TempDir())
-	u.installer.configsDir = t.TempDir()
-	u.catalog = s.Catalog()
-	u.bootstrapVersions[defaultFixture.pkg] = defaultFixture.version
-	u.Start(context.Background())
+	u, _, _ := newTestUpdaterWithPaths(t, s, rcc, defaultFixture)
 	return u
 }
 
-func TestUpdaterBootstrap(t *testing.T) {
+func newTestUpdaterWithPaths(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) (*updaterImpl, string, string) {
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	var b = true
+	cfg.Set("updater.remote_updates", &b, model.SourceDefault)
+	rc := &remoteConfig{client: rcc}
+	rootPath := t.TempDir()
+	locksPath := t.TempDir()
+	u, err := newUpdater(rc, rootPath, locksPath, cfg)
+	assert.NoError(t, err)
+	u.installer.configsDir = t.TempDir()
+	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
+	u.catalog = s.Catalog()
+	u.bootstrapVersions[defaultFixture.pkg] = defaultFixture.version
+	u.Start(context.Background())
+	return u, rootPath, locksPath
+}
+
+func TestBootstrapDefault(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+	err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 
 	r := updater.repositories.Get(fixtureSimpleV1.pkg)
@@ -99,7 +116,68 @@ func TestUpdaterBootstrap(t *testing.T) {
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
 }
 
-func TestUpdaterBootstrapWithRC(t *testing.T) {
+func TestBootstrapURL(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	rc := newTestRemoteConfigClient()
+	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
+
+	err := updater.BootstrapURL(context.Background(), s.Package(fixtureSimpleV1).URL)
+	assert.NoError(t, err)
+
+	r := updater.repositories.Get(fixtureSimpleV1.pkg)
+	state, err := r.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
+	assert.False(t, state.HasExperiment())
+	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
+}
+
+func TestPurge(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	rc := newTestRemoteConfigClient()
+	updater, rootPath, locksPath := newTestUpdaterWithPaths(t, s, rc, fixtureSimpleV1)
+
+	bootstrapAndAssert := func() {
+		err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+		assert.NoError(t, err)
+
+		r := updater.repositories.Get(fixtureSimpleV1.pkg)
+		state, err := r.GetState()
+		assert.NoError(t, err)
+		assert.Equal(t, fixtureSimpleV1.version, state.Stable)
+		assert.False(t, state.HasExperiment())
+		assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
+	}
+	bootstrapAndAssert()
+	assert.Nil(t, os.WriteFile(filepath.Join(locksPath, "not_empty"), []byte("morbier\n"), 0644))
+	assertDirNotEmpty(t, locksPath)
+	assertDirNotEmpty(t, rootPath)
+	purge(locksPath, rootPath)
+	assertDirExistAndEmpty(t, locksPath)
+	assertDirExistAndEmpty(t, rootPath)
+	bootstrapAndAssert()
+	assertDirNotEmpty(t, rootPath)
+}
+
+func assertDirNotEmpty(t *testing.T, path string) {
+	_, err := os.Stat(path)
+	assert.Nil(t, err)
+	entry, err := os.ReadDir(path)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, entry)
+}
+
+func assertDirExistAndEmpty(t *testing.T, path string) {
+	_, err := os.Stat(path)
+	assert.Nil(t, err)
+	entry, err := os.ReadDir(path)
+	assert.Nil(t, err)
+	assert.Len(t, entry, 0)
+}
+
+func TestBootstrapWithRC(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
@@ -121,27 +199,28 @@ func TestUpdaterBootstrapWithRC(t *testing.T) {
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.StableFS())
 }
 
-func TestUpdaterBootstrapCatalogUpdate(t *testing.T) {
+// hacky name to avoid hitting https://github.com/golang/go/issues/62614
+func TestBootUpd(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 	updater.catalog = catalog{}
 
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+	err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.Error(t, err)
 	rc.SubmitCatalog(s.Catalog())
-	err = updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+	err = updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 }
 
-func TestUpdaterStartExperiment(t *testing.T) {
+func TestStartExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+	err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
@@ -163,13 +242,13 @@ func TestUpdaterStartExperiment(t *testing.T) {
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.ExperimentFS())
 }
 
-func TestUpdaterPromoteExperiment(t *testing.T) {
+func TestPromoteExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+	err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
@@ -200,13 +279,13 @@ func TestUpdaterPromoteExperiment(t *testing.T) {
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.StableFS())
 }
 
-func TestUpdaterStopExperiment(t *testing.T) {
+func TestStopExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+	err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),

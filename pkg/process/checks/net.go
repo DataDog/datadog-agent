@@ -18,6 +18,7 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -31,6 +32,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
 
+const (
+	maxResolverPidCacheSize  = 32768
+	maxResolverAddrCacheSize = 4096
+)
+
 var (
 	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
@@ -40,11 +46,12 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysconfigtypes.Config) *ConnectionsCheck {
+func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component) *ConnectionsCheck {
 	return &ConnectionsCheck{
 		config:             config,
 		syscfg:             syscfg,
 		sysprobeYamlConfig: sysprobeYamlConfig,
+		wmeta:              wmeta,
 	}
 }
 
@@ -67,6 +74,7 @@ type ConnectionsCheck struct {
 	processConnRatesTransmitter subscriptions.Transmitter[ProcessConnRates]
 
 	localresolver *resolver.LocalResolver
+	wmeta         workloadmeta.Component
 }
 
 // ProcessConnRates describes connection rates for processes
@@ -110,7 +118,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.serviceExtractor)
 
 	// LocalResolver is a singleton LocalResolver
-	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(), clock.New())
+	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(c.wmeta), clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
 	c.localresolver.Run()
 
 	return nil

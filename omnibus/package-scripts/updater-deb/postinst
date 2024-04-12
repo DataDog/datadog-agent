@@ -4,11 +4,12 @@
 #
 # .deb: STEP 5 of 5
 
-INSTALL_DIR=/opt/datadog
-PACKAGES_DIR=/opt/datadog-packages
-LOG_DIR=/var/log/datadog
-PACKAGES_LOCK_DIR=/var/run/datadog-packages
-CONFIG_DIR=/etc/datadog-agent
+readonly PACKAGES_DIR=/opt/datadog-packages
+readonly INSTALL_DIR=/opt/datadog-installer
+readonly HELPER=${INSTALL_DIR}/bin/installer/helper
+readonly LOG_DIR=/var/log/datadog
+readonly PACKAGES_LOCK_DIR=/var/run/datadog-packages
+readonly CONFIG_DIR=/etc/datadog-agent
 
 add_user_and_group() {
     # Only create group and/or user if they don't already exist
@@ -29,66 +30,32 @@ add_user_and_group() {
     fi
 }
 
-enable_stable_agents() {
-    if command -v systemctl >/dev/null 2>&1; then
-        # Force systemd to ignore the sysvinit scripts. Only cosmetic, remove some irrelevant warnings during upgrade
-        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-process || true
-        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-sysprobe || true
-        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-trace || true
-        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-security || true
-        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent || true
-        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent.path || true
-        # experiment agents are not enabled as we don't systemctl enable them
-        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-exp.path || true
-    fi
-
-
-}
-
 set -e
 case "$1" in
     configure)
+        add_user_and_group 'dd-installer' $PACKAGES_DIR
         add_user_and_group 'dd-agent' $PACKAGES_DIR/datadog-agent
+        usermod -aG dd-agent dd-installer
     ;;
     abort-upgrade|abort-remove|abort-deconfigure)
     ;;
     *)
     ;;
 esac
-#DEBHELPER#
-
-# Set the installation information if not already present;
-# This is done in posttrans for .rpm packages
-if [ ! -f "$CONFIG_DIR/install_info" ]; then
-
-    if command -v dpkg >/dev/null 2>&1 && command -v dpkg-query >/dev/null 2>&1; then
-        tool=dpkg
-        tool_version=dpkg-$(dpkg-query --showformat='${Version}' --show dpkg  | cut -d "." -f 1-3 || echo "unknown")
-    else
-        tool=unknown
-        tool_version=unknown
-    fi
-
-    install_info_content="---
-install_method:
-  tool: $tool
-  tool_version: $tool_version
-  installer_version: deb_package
-  installer: updater
-"
-    echo "$install_info_content" > $CONFIG_DIR/install_info
-fi
 
 # Set proper rights to the dd-agent user
 chown -R dd-agent:dd-agent ${CONFIG_DIR}
+chmod -R g+rw ${CONFIG_DIR}
 chown -R dd-agent:dd-agent ${LOG_DIR}
-chown -R dd-agent:dd-agent ${INSTALL_DIR}
-chown -R dd-agent:dd-agent ${PACKAGES_DIR}
-chown -R dd-agent:dd-agent ${PACKAGES_LOCK_DIR}
+chmod -R g+rw ${LOG_DIR}
+chown -R dd-installer:dd-installer ${PACKAGES_DIR}
+chown -R dd-installer:dd-installer ${PACKAGES_LOCK_DIR}
+chown -R dd-installer:dd-installer ${INSTALL_DIR}
+
 chmod -R 755 ${PACKAGES_DIR}
-# Lock_dir is world writable as any application with a tracer injected
-# needs to write the PID
-chown -R 666 ${PACKAGES_LOCK_DIR}
+# Lock_dir is world read/write/x as any application with a tracer injected
+# needs to write PID files
+chmod -R 777 ${PACKAGES_LOCK_DIR}
 
 # Make system-probe configs read-only
 chmod 0440 ${CONFIG_DIR}/system-probe.yaml.example || true
@@ -110,16 +77,12 @@ if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
     chown -R root:root ${CONFIG_DIR}/runtime-security.d || true
 fi
 
-$INSTALL_DIR/updater/bin/updater/updater bootstrap -P datadog-agent
-# Bootstrap installs first agent with root ownership, overriding to dd-agent
-chown -R dd-agent:dd-agent ${PACKAGES_DIR}
+# Set helper rights
+chmod 750 ${HELPER}
+setcap cap_setuid+ep ${HELPER}
 
-# start udpater
-SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-updater || true
-SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-updater || true
-enable_stable_agents
-SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-agent || true
-SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-agent.path || true
-SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-agent-exp.path || true
+# start updater
+SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-installer || true
+SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-installer || true
 
 exit 0

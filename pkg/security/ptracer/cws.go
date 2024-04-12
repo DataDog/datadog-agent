@@ -21,6 +21,8 @@ import (
 	"syscall"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/avast/retry-go/v4"
 	"github.com/vmihailenco/msgpack/v5"
 	"golang.org/x/sys/unix"
@@ -56,7 +58,7 @@ type Opts struct {
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
 
-type shouldSendFunc func(ret int64) bool
+type shouldSendFunc func(msg *ebpfless.SyscallMsg) bool
 
 type syscallID struct {
 	ID   int
@@ -71,9 +73,10 @@ type syscallHandler struct {
 }
 
 // defaults funcs for ShouldSend:
-func shouldSendAlways(_ int64) bool { return true }
-func isAcceptedRetval(retval int64) bool {
-	return retval >= 0 || retval == -int64(syscall.EACCES) || retval == -int64(syscall.EPERM)
+func shouldSendAlways(_ *ebpfless.SyscallMsg) bool { return true }
+
+func isAcceptedRetval(msg *ebpfless.SyscallMsg) bool {
+	return msg.Retval >= 0 || msg.Retval == -int64(syscall.EACCES) || msg.Retval == -int64(syscall.EPERM)
 }
 
 func checkEntryPoint(path string) (string, error) {
@@ -123,20 +126,15 @@ func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
 	return client, nil
 }
 
-func sendMsg(client net.Conn, msg *ebpfless.Message) error {
-	data, err := msgpack.Marshal(msg)
-	if err != nil {
-		return fmt.Errorf("unable to marshal message: %v", err)
-	}
-
+func sendMsgData(client net.Conn, data []byte) error {
 	// write size
 	var size [4]byte
 	native.Endian.PutUint32(size[:], uint32(len(data)))
-	if _, err = client.Write(size[:]); err != nil {
+	if _, err := client.Write(size[:]); err != nil {
 		return fmt.Errorf("unabled to send size: %v", err)
 	}
 
-	if _, err = client.Write(data); err != nil {
+	if _, err := client.Write(data); err != nil {
 		return fmt.Errorf("unabled to send message: %v", err)
 	}
 	return nil
@@ -217,14 +215,30 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	}
 
 	var (
-		msgChan        = make(chan *ebpfless.Message, 100000)
+		msgDataChan    = make(chan []byte, 100000)
 		traceChan      = make(chan bool)
 		ctx, cancelFnc = context.WithCancel(context.Background())
+		seq            = atomic.NewUint64(0)
 	)
 
 	send := func(msg *ebpfless.Message) {
+		msg.SeqNum = seq.Load()
+		seq.Inc()
+
+		logger.Debugf("sending message: %s", msg)
+
+		if probeAddr == "" {
+			return
+		}
+
+		data, err := msgpack.Marshal(msg)
+		if err != nil {
+			logger.Errorf("unable to marshal message: %v", err)
+			return
+		}
+
 		select {
-		case msgChan <- msg:
+		case msgDataChan <- data:
 		default:
 			logger.Errorf("unable to send message")
 		}
@@ -239,8 +253,6 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-
-		var seq uint64
 
 		// start tracing
 		traceChan <- true
@@ -261,18 +273,10 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 
 		for {
 			select {
-			case msg := <-msgChan:
-				msg.SeqNum = seq
-
-				if probeAddr != "" {
-					logger.Debugf("sending message: %s", msg)
-					if err := sendMsg(client, msg); err != nil {
-						logger.Debugf("%v", err)
-					}
-				} else {
-					logger.Debugf("sending message: %s", msg)
+			case data := <-msgDataChan:
+				if err := sendMsgData(client, data); err != nil {
+					logger.Debugf("%v", err)
 				}
-				seq++
 			case <-ctx.Done():
 				return
 			}
@@ -395,9 +399,8 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 					}
 				}
 				if handler.ShouldSend != nil {
-					ret := tracer.ReadRet(regs)
-					if handler.ShouldSend(ret) && syscallMsg.Type != ebpfless.SyscallTypeUnknown {
-						syscallMsg.Retval = ret
+					syscallMsg.Retval = tracer.ReadRet(regs)
+					if handler.ShouldSend(syscallMsg) && syscallMsg.Type != ebpfless.SyscallTypeUnknown {
 						sendSyscallMsg(syscallMsg)
 					}
 				}
@@ -475,7 +478,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		// stop client and msg chan reader
 		cancelFnc()
 		wg.Wait()
-		close(msgChan)
+		close(msgDataChan)
 	}()
 
 	if err := tracer.Trace(cb); err != nil {

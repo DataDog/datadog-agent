@@ -27,6 +27,7 @@ import (
 type Client struct {
 	sync.Mutex
 
+	site            string
 	orgID           int64
 	orgUUIDProvider OrgUUIDProvider
 
@@ -61,15 +62,17 @@ func WithOrgIDCheck(orgID int64) ClientOption {
 }
 
 // WithDirectorRootOverride overrides director root
-func WithDirectorRootOverride(directorRootOverride string) ClientOption {
+func WithDirectorRootOverride(site string, directorRootOverride string) ClientOption {
 	return func(c *Client) {
+		c.site = site
 		c.directorRootOverride = directorRootOverride
 	}
 }
 
 // WithConfigRootOverride overrides config root
-func WithConfigRootOverride(configRootOverride string) ClientOption {
+func WithConfigRootOverride(site string, configRootOverride string) ClientOption {
 	return func(c *Client) {
+		c.site = site
 		c.configRootOverride = configRootOverride
 	}
 }
@@ -78,10 +81,10 @@ func WithConfigRootOverride(configRootOverride string) ClientOption {
 type OrgUUIDProvider func() (string, error)
 
 // NewClient creates a new uptane client
-func NewClient(cacheDB *bbolt.DB, cacheKey string, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *Client, err error) {
+func NewClient(cacheDB *bbolt.DB, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *Client, err error) {
 	transactionalStore := newTransactionalStore(cacheDB)
-	targetStore := newTargetStore(transactionalStore, cacheKey)
-	orgStore := newOrgStore(transactionalStore, cacheKey)
+	targetStore := newTargetStore(transactionalStore)
+	orgStore := newOrgStore(transactionalStore)
 
 	c = &Client{
 		configRemoteStore:   newRemoteStoreConfig(targetStore),
@@ -96,11 +99,11 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgUUIDProvider OrgUUIDProvid
 		o(c)
 	}
 
-	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, cacheKey, c.configRootOverride); err != nil {
+	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, c.site, c.configRootOverride); err != nil {
 		return nil, err
 	}
 
-	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, cacheKey, c.directorRootOverride); err != nil {
+	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, c.site, c.directorRootOverride); err != nil {
 		return nil, err
 	}
 
@@ -189,7 +192,7 @@ func (c *Client) unsafeTargetFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	buffer := &bufferDestination{}
-	err = c.configTUFClient.Download(path, buffer)
+	err = c.directorTUFClient.Download(path, buffer)
 	if err != nil {
 		return nil, err
 	}
@@ -345,15 +348,27 @@ func (c *Client) verifyUptane() error {
 	if err != nil {
 		return err
 	}
-	for targetPath, targetMeta := range directorTargets {
-		configTargetMeta, err := c.configTUFClient.Target(targetPath)
-		if err != nil {
-			if client.IsNotFound(err) {
-				return fmt.Errorf("failed to find target '%s' in config repository", targetPath)
-			}
-			// Other errors such as expired metadata
-			return err
+	if len(directorTargets) == 0 {
+		return nil
+	}
+
+	targetPathsDestinations := make(map[string]client.Destination)
+	targetPaths := make([]string, 0, len(directorTargets))
+	for targetPath := range directorTargets {
+		targetPaths = append(targetPaths, targetPath)
+		targetPathsDestinations[targetPath] = &bufferDestination{}
+	}
+	configTargetMetas, err := c.configTUFClient.TargetBatch(targetPaths)
+	if err != nil {
+		if client.IsNotFound(err) {
+			return fmt.Errorf("failed to find target in config repository: %w", err)
 		}
+		// Other errors such as expired metadata
+		return err
+	}
+
+	for targetPath, targetMeta := range directorTargets {
+		configTargetMeta := configTargetMetas[targetPath]
 		if configTargetMeta.Length != targetMeta.Length {
 			return fmt.Errorf("target '%s' has size %d in directory repository and %d in config repository", targetPath, configTargetMeta.Length, targetMeta.Length)
 		}
@@ -372,15 +387,15 @@ func (c *Client) verifyUptane() error {
 				return fmt.Errorf("directory hash '%s' does not match config repository '%s'", string(directorHash), string(configHash))
 			}
 		}
-		// Check that the file is valid in the context of the TUF repository (path in targets, hash matching)
-		err = c.configTUFClient.Download(targetPath, &bufferDestination{})
-		if err != nil {
-			return err
-		}
-		err = c.directorTUFClient.Download(targetPath, &bufferDestination{})
-		if err != nil {
-			return err
-		}
+	}
+	// Check that the files are valid in the context of the TUF repository (path in targets, hash matching)
+	err = c.configTUFClient.DownloadBatch(targetPathsDestinations)
+	if err != nil {
+		return err
+	}
+	err = c.directorTUFClient.DownloadBatch(targetPathsDestinations)
+	if err != nil {
+		return err
 	}
 	return nil
 }

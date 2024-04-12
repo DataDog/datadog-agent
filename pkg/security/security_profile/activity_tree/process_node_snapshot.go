@@ -9,6 +9,7 @@
 package activitytree
 
 import (
+	"bufio"
 	"fmt"
 	"math/rand"
 	"net"
@@ -21,10 +22,6 @@ import (
 	"syscall"
 	"time"
 
-	// shirou/gopsutil uses different logic for getting the memory maps Path
-	// it assumes space-separation and the path is last
-	// DD: combines 6th+ fields into the path
-	legacyprocess "github.com/DataDog/gopsutil/process"
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
 	"golang.org/x/sys/unix"
@@ -53,7 +50,9 @@ func (pn *ProcessNode) snapshot(owner Owner, stats *Stats, newEvent func() *mode
 
 	// snapshot files
 	if owner.IsEventTypeValid(model.FileOpenEventType) {
-		pn.snapshotFiles(p, stats, newEvent, reducer)
+		pn.snapshotAllFiles(p, stats, newEvent, reducer)
+	} else {
+		pn.snapshotMemoryMappedFiles(p, stats, newEvent, reducer)
 	}
 
 	// snapshot sockets
@@ -66,7 +65,7 @@ func (pn *ProcessNode) snapshot(owner Owner, stats *Stats, newEvent func() *mode
 // this value was selected because it represents the default upper bound for the number of FDs a linux process can have
 const maxFDsPerProcessSnapshot = 1024
 
-func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
+func (pn *ProcessNode) snapshotAllFiles(p *process.Process, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
 	// list the files opened by the process
 	fileFDs, err := p.OpenFiles()
 	if err != nil {
@@ -98,42 +97,89 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent 
 	}
 
 	// list the mmaped files of the process
-	mmapedFiles, err := snapshotMemoryMappedFiles(p.Pid, pn.Process.FileEvent.PathnameStr)
+	mmapedFiles, err := getMemoryMappedFiles(p.Pid, pn.Process.FileEvent.PathnameStr)
 	if err != nil {
 		seclog.Warnf("error while listing memory maps (pid: %v): %s", p.Pid, err)
 	}
-	// often the mmaped files are already nearly sorted, so we take the quick win and de-duplicate without sorting
-	mmapedFiles = slices.Compact(mmapedFiles)
 
 	files = append(files, mmapedFiles...)
 	if len(files) == 0 {
 		return
 	}
 
+	pn.addFiles(files, stats, newEvent, reducer)
+}
+
+func (pn *ProcessNode) snapshotMemoryMappedFiles(p *process.Process, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
+	// list the mmaped files of the process
+	mmapedFiles, err := getMemoryMappedFiles(p.Pid, pn.Process.FileEvent.PathnameStr)
+	if err != nil {
+		seclog.Warnf("error while listing memory maps (pid: %v): %s", p.Pid, err)
+	}
+
+	pn.addFiles(mmapedFiles, stats, newEvent, reducer)
+}
+
+func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
+	// list the mmaped files of the process
 	slices.Sort(files)
 	files = slices.Compact(files)
 
 	// insert files
-	var fileinfo os.FileInfo
-	var resolvedPath string
+	var (
+		err          error
+		resolvedPath string
+	)
 	for _, f := range files {
 		if len(f) == 0 {
 			continue
 		}
 
-		// fetch the file user, group and mode
+		evt := newEvent()
 		fullPath := filepath.Join(utils.ProcRootPath(pn.Process.Pid), f)
-		fileinfo, err = os.Stat(fullPath)
-		if err != nil {
-			continue
-		}
-		stat, ok := fileinfo.Sys().(*syscall.Stat_t)
-		if !ok {
-			continue
+
+		var fileStats unix.Statx_t
+		if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err != nil {
+			fileinfo, err := os.Stat(fullPath)
+			if err != nil {
+				seclog.Tracef("unable to stat mapped file %s", fullPath)
+				continue
+			}
+
+			stat, ok := fileinfo.Sys().(*syscall.Stat_t)
+			if !ok {
+				continue
+			}
+
+			evt.Open.File.FileFields.Mode = uint16(stat.Mode)
+			evt.Open.File.FileFields.Inode = stat.Ino
+			evt.Open.File.FileFields.UID = stat.Uid
+			evt.Open.File.FileFields.GID = stat.Gid
+
+			if fileinfo.Mode().IsRegular() {
+				evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &pn.Process, &evt.Open.File)
+			}
+		} else {
+			evt.Open.File.FileFields.Mode = uint16(fileStats.Mode)
+			evt.Open.File.FileFields.Inode = fileStats.Ino
+			evt.Open.File.FileFields.UID = fileStats.Uid
+			evt.Open.File.FileFields.GID = fileStats.Gid
+
+			evt.Open.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
+			evt.Open.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
+			evt.Open.File.Mode = fileStats.Mode
+			evt.Open.File.Inode = fileStats.Ino
+			evt.Open.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
+			evt.Open.File.NLink = fileStats.Nlink
+			evt.Open.File.MountID = uint32(fileStats.Mnt_id)
+
+			if (fileStats.Mode & syscall.S_IFREG) != 0 {
+				evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &pn.Process, &evt.Open.File)
+			}
 		}
 
-		evt := newEvent()
 		evt.Type = uint32(model.FileOpenEventType)
+		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
 
 		resolvedPath, err = filepath.EvalSymlinks(f)
 		if err == nil && len(resolvedPath) != 0 {
@@ -142,50 +188,42 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent 
 			evt.Open.File.SetPathnameStr(f)
 		}
 		evt.Open.File.SetBasenameStr(path.Base(evt.Open.File.PathnameStr))
-		evt.Open.File.FileFields.Mode = uint16(stat.Mode)
-		evt.Open.File.FileFields.Inode = stat.Ino
-		evt.Open.File.FileFields.UID = stat.Uid
-		evt.Open.File.FileFields.GID = stat.Gid
-
-		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
-
-		if fileinfo.Mode().IsRegular() {
-			evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &pn.Process, &evt.Open.File)
-		}
 
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
-		_ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false, reducer, nil)
+		_ = pn.InsertFileEvent(&evt.Open.File, evt, "", Snapshot, stats, false, reducer, nil)
 	}
 }
 
 // MaxMmapedFiles defines the max mmaped files
 const MaxMmapedFiles = 128
 
-func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, error) {
-	fakeprocess := legacyprocess.Process{Pid: pid}
-	stats, err := fakeprocess.MemoryMaps(false)
-	if err != nil || stats == nil {
+func getMemoryMappedFiles(pid int32, processEventPath string) (files []string, _ error) {
+	smapsPath := kernel.HostProc(strconv.Itoa(int(pid)), "smaps")
+	smapsFile, err := os.Open(smapsPath)
+	if err != nil {
 		return nil, err
 	}
+	defer smapsFile.Close()
 
-	files := make([]string, 0, MaxMmapedFiles)
-	for _, mm := range *stats {
-		if len(files) >= MaxMmapedFiles {
-			break
-		}
+	files = make([]string, 0, MaxMmapedFiles)
+	scanner := bufio.NewScanner(smapsFile)
 
-		if len(mm.Path) == 0 {
+	for scanner.Scan() && len(files) < MaxMmapedFiles {
+		line := scanner.Text()
+		fields := strings.Fields(line)
+
+		if len(fields) < 6 || strings.HasSuffix(fields[0], ":") {
 			continue
 		}
 
-		if mm.Path != processEventPath {
-			continue
+		path := strings.Join(fields[5:], " ")
+		if len(path) != 0 && path != processEventPath {
+			files = append(files, path)
 		}
-
-		files = append(files, mm.Path)
 	}
-	return files, nil
+
+	return files, scanner.Err()
 }
 
 func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *Stats, newEvent func() *model.Event) {
@@ -283,5 +321,5 @@ func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, port ui
 	}
 	evt.Bind.Addr.Port = port
 
-	_ = pn.InsertBindEvent(evt, Snapshot, stats, false)
+	_ = pn.InsertBindEvent(evt, "", Snapshot, stats, false)
 }

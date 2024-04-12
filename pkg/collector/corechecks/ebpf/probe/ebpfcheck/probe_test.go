@@ -34,9 +34,6 @@ import (
 func TestEBPFPerfBufferLength(t *testing.T) {
 	ebpftest.FailLogLevel(t, "trace")
 
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
-
 	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
 	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
 		cpus, err := kernel.PossibleCPUs()
@@ -91,8 +88,6 @@ func TestEBPFPerfBufferLength(t *testing.T) {
 
 func TestMinMapSize(t *testing.T) {
 	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
 
 	cpus, err := kernel.PossibleCPUs()
 	require.NoError(t, err)
@@ -184,75 +179,75 @@ func testConfig() *ddebpf.Config {
 
 func TestHashMapNumberOfEntries(t *testing.T) {
 	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
-	maxEntries := uint32(50)
+	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
+		maxEntries := uint32(50)
 
-	testWithEntryCount := func(t *testing.T, mapType ebpf.MapType, filledEntries uint32) {
-		var innerMapSpec *ebpf.MapSpec
-		buffers := entryCountBuffers{
-			keysBufferSizeLimit:   0, // No limit
-			valuesBufferSizeLimit: 0, // No limit
-		}
-		if mapType == ebpf.HashOfMaps {
-			innerMapSpec = &ebpf.MapSpec{
-				Type:       ebpf.Hash,
-				MaxEntries: uint32(20),
+		testWithEntryCount := func(t *testing.T, mapType ebpf.MapType, filledEntries uint32) {
+			var innerMapSpec *ebpf.MapSpec
+			buffers := entryCountBuffers{
+				keysBufferSizeLimit:   0, // No limit
+				valuesBufferSizeLimit: 0, // No limit
+			}
+			if mapType == ebpf.HashOfMaps {
+				innerMapSpec = &ebpf.MapSpec{
+					Type:       ebpf.Hash,
+					MaxEntries: uint32(20),
+					KeySize:    4,
+					ValueSize:  4,
+				}
+			}
+
+			m, err := ebpf.NewMap(&ebpf.MapSpec{
+				Type:       mapType,
+				MaxEntries: uint32(maxEntries),
 				KeySize:    4,
 				ValueSize:  4,
+				InnerMap:   innerMapSpec,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = m.Close() })
+
+			for i := uint32(0); i < filledEntries; i++ {
+				if mapType == ebpf.HashOfMaps {
+					innerMap, err := ebpf.NewMap(innerMapSpec)
+					require.NoError(t, err)
+					t.Cleanup(func() { _ = innerMap.Close() })
+					require.NoError(t, m.Put(&i, innerMap))
+				} else {
+					require.NoError(t, m.Put(&i, &i))
+				}
 			}
-		}
 
-		m, err := ebpf.NewMap(&ebpf.MapSpec{
-			Type:       mapType,
-			MaxEntries: uint32(maxEntries),
-			KeySize:    4,
-			ValueSize:  4,
-			InnerMap:   innerMapSpec,
-		})
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = m.Close() })
-
-		for i := uint32(0); i < filledEntries; i++ {
-			if mapType == ebpf.HashOfMaps {
-				innerMap, err := ebpf.NewMap(innerMapSpec)
-				require.NoError(t, err)
-				t.Cleanup(func() { _ = innerMap.Close() })
-				require.NoError(t, m.Put(&i, innerMap))
-			} else {
-				require.NoError(t, m.Put(&i, &i))
+			if maps.BatchAPISupported() && mapType != ebpf.HashOfMaps {
+				t.Run("BatchAPI", func(t *testing.T) {
+					num, err := hashMapNumberOfEntriesWithBatch(m, &buffers, 1)
+					require.NoError(t, err)
+					require.Equal(t, int64(filledEntries), num)
+				})
 			}
-		}
 
-		if maps.BatchAPISupported() && mapType != ebpf.HashOfMaps {
-			t.Run("BatchAPI", func(t *testing.T) {
-				num, err := hashMapNumberOfEntriesWithBatch(m, &buffers, 1)
+			t.Run("Iteration", func(t *testing.T) {
+				num, err := hashMapNumberOfEntriesWithIteration(m, &buffers, 1)
 				require.NoError(t, err)
 				require.Equal(t, int64(filledEntries), num)
 			})
+
+			// Test the complete function just in case
+			require.Equal(t, int64(filledEntries), hashMapNumberOfEntries(m, &buffers, 1))
 		}
 
-		t.Run("Iteration", func(t *testing.T) {
-			num, err := hashMapNumberOfEntriesWithIteration(m, &buffers, 1)
-			require.NoError(t, err)
-			require.Equal(t, int64(filledEntries), num)
-		})
+		mapTypes := []ebpf.MapType{ebpf.Hash, ebpf.LRUHash, ebpf.HashOfMaps}
+		for _, mapType := range mapTypes {
+			t.Run(mapType.String(), func(t *testing.T) {
+				t.Run("EmptyMap", func(t *testing.T) { testWithEntryCount(t, mapType, 0) })
 
-		// Test the complete function just in case
-		require.Equal(t, int64(filledEntries), hashMapNumberOfEntries(m, &buffers, 1))
-	}
-
-	mapTypes := []ebpf.MapType{ebpf.Hash, ebpf.LRUHash, ebpf.HashOfMaps}
-	for _, mapType := range mapTypes {
-		t.Run(mapType.String(), func(t *testing.T) {
-			t.Run("EmptyMap", func(t *testing.T) { testWithEntryCount(t, mapType, 0) })
-			t.Run("HalfFullMap", func(t *testing.T) { testWithEntryCount(t, mapType, maxEntries/2) })
-
-			if mapType != ebpf.LRUHash { // LRUHash starts vacating entries even when it's not 100% full, cannot test this case
-				t.Run("FullMap", func(t *testing.T) { testWithEntryCount(t, mapType, maxEntries) })
-			}
-		})
-	}
+				if mapType != ebpf.LRUHash { // LRUHash starts vacating entries even when it's not 100% full, cannot test this case as it's too flakey
+					t.Run("HalfFullMap", func(t *testing.T) { testWithEntryCount(t, mapType, maxEntries/2) })
+					t.Run("FullMap", func(t *testing.T) { testWithEntryCount(t, mapType, maxEntries) })
+				}
+			})
+		}
+	})
 }
 
 func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
@@ -324,46 +319,45 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 
 func TestHashMapNumberOfEntriesMapTypeSupport(t *testing.T) {
 	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
+	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
+		maxEntries := uint32(1000)
+		testMapType := func(t *testing.T, mapType ebpf.MapType, expectedReturn int64) {
+			buffers := entryCountBuffers{
+				keysBufferSizeLimit:   0, // No limit
+				valuesBufferSizeLimit: 0, // No limit
+			}
+			var innerMap *ebpf.MapSpec
+			if mapType == ebpf.HashOfMaps {
+				innerMap = &ebpf.MapSpec{
+					Type:       ebpf.Hash,
+					MaxEntries: uint32(maxEntries),
+					KeySize:    4,
+					ValueSize:  4,
+				}
+			}
 
-	maxEntries := uint32(1000)
-	testMapType := func(t *testing.T, mapType ebpf.MapType, expectedReturn int64) {
-		buffers := entryCountBuffers{
-			keysBufferSizeLimit:   0, // No limit
-			valuesBufferSizeLimit: 0, // No limit
-		}
-		var innerMap *ebpf.MapSpec
-		if mapType == ebpf.HashOfMaps {
-			innerMap = &ebpf.MapSpec{
-				Type:       ebpf.Hash,
+			m, err := ebpf.NewMap(&ebpf.MapSpec{
+				Type:       mapType,
 				MaxEntries: uint32(maxEntries),
 				KeySize:    4,
 				ValueSize:  4,
-			}
+				InnerMap:   innerMap,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = m.Close() })
+			buffers.tryEnsureSizeForFullBatch(m)
+			require.Equal(t, expectedReturn, hashMapNumberOfEntries(m, &buffers, 1))
 		}
 
-		m, err := ebpf.NewMap(&ebpf.MapSpec{
-			Type:       mapType,
-			MaxEntries: uint32(maxEntries),
-			KeySize:    4,
-			ValueSize:  4,
-			InnerMap:   innerMap,
-		})
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = m.Close() })
-		buffers.tryEnsureSizeForFullBatch(m)
-		require.Equal(t, expectedReturn, hashMapNumberOfEntries(m, &buffers, 1))
-	}
+		// Test supported types first
+		t.Run("Hash", func(t *testing.T) { testMapType(t, ebpf.Hash, 0) })
+		t.Run("LRUHash", func(t *testing.T) { testMapType(t, ebpf.LRUHash, 0) })
+		t.Run("HashOfMaps", func(t *testing.T) { testMapType(t, ebpf.HashOfMaps, 0) })
 
-	// Test supported types first
-	t.Run("Hash", func(t *testing.T) { testMapType(t, ebpf.Hash, 0) })
-	t.Run("LRUHash", func(t *testing.T) { testMapType(t, ebpf.LRUHash, 0) })
-	t.Run("HashOfMaps", func(t *testing.T) { testMapType(t, ebpf.HashOfMaps, 0) })
-
-	// Now unsupported
-	t.Run("PerCPUHash_Unsupported", func(t *testing.T) { testMapType(t, ebpf.PerCPUHash, -1) })
-	t.Run("LRUCPUHash_Unsupported", func(t *testing.T) { testMapType(t, ebpf.LRUCPUHash, -1) })
+		// Now unsupported
+		t.Run("PerCPUHash_Unsupported", func(t *testing.T) { testMapType(t, ebpf.PerCPUHash, -1) })
+		t.Run("LRUCPUHash_Unsupported", func(t *testing.T) { testMapType(t, ebpf.LRUCPUHash, -1) })
+	})
 }
 
 func TestHashMapNumberOfEntriesWithMultipleBatch(t *testing.T) {
@@ -372,42 +366,41 @@ func TestHashMapNumberOfEntriesWithMultipleBatch(t *testing.T) {
 	}
 
 	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
-	maxEntries := uint32(1000)
-	filledEntries := uint32(200)
-	keySize, valueSize := uint32(4), uint32(4)
+	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
+		maxEntries := uint32(1000)
+		filledEntries := uint32(200)
+		keySize, valueSize := uint32(4), uint32(4)
 
-	// Set the limits so that we need two batches
-	buffers := entryCountBuffers{
-		keysBufferSizeLimit:   100 * keySize,
-		valuesBufferSizeLimit: 100 * valueSize,
-	}
+		// Set the limits so that we need two batches
+		buffers := entryCountBuffers{
+			keysBufferSizeLimit:   100 * keySize,
+			valuesBufferSizeLimit: 100 * valueSize,
+		}
 
-	m, err := ebpf.NewMap(&ebpf.MapSpec{
-		Type:       ebpf.Hash,
-		MaxEntries: uint32(maxEntries),
-		KeySize:    keySize,
-		ValueSize:  valueSize,
+		m, err := ebpf.NewMap(&ebpf.MapSpec{
+			Type:       ebpf.Hash,
+			MaxEntries: uint32(maxEntries),
+			KeySize:    keySize,
+			ValueSize:  valueSize,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = m.Close() })
+
+		for i := uint32(0); i < filledEntries; i++ {
+			require.NoError(t, m.Put(&i, &i))
+		}
+
+		num, err := hashMapNumberOfEntriesWithBatch(m, &buffers, 1)
+		require.NoError(t, err)
+		require.Equal(t, int64(filledEntries), num)
+		require.Equal(t, uint32(len(buffers.keys)), buffers.keysBufferSizeLimit)
+		require.Equal(t, uint32(len(buffers.values)), buffers.valuesBufferSizeLimit)
 	})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = m.Close() })
-
-	for i := uint32(0); i < filledEntries; i++ {
-		require.NoError(t, m.Put(&i, &i))
-	}
-
-	num, err := hashMapNumberOfEntriesWithBatch(m, &buffers, 1)
-	require.NoError(t, err)
-	require.Equal(t, int64(filledEntries), num)
-	require.Equal(t, uint32(len(buffers.keys)), buffers.keysBufferSizeLimit)
-	require.Equal(t, uint32(len(buffers.values)), buffers.valuesBufferSizeLimit)
 }
 
 func TestHashMapNumberOfEntriesNoMemoryCorruption(t *testing.T) {
 	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
+	require.NoError(t, rlimit.RemoveMemlock())
 
 	testInner := func(t *testing.T, mapType ebpf.MapType, filledEntries uint32, maxEntries uint32, keySize uint32, valueSize uint32, keysLimit uint32, valuesLimit uint32) {
 		var innerMapSpec *ebpf.MapSpec

@@ -9,7 +9,7 @@ from string import Template
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.copyright import COPYRIGHT_HEADER
+from tasks.libs.types.copyright import COPYRIGHT_HEADER
 
 Component = namedtuple('Component', ['path', 'doc', 'team'])
 Bundle = namedtuple('Bundle', ['path', 'doc', 'team', 'components'])
@@ -327,7 +327,12 @@ def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */
         inv components.new-component /tmp/baz                 # Create the 'baz' component in the '/tmp/' folder. './comp' prefix is not enforced by the task.
     """
     component_name = os.path.basename(comp_path)
-    template_var_mapping = {"COMPONENT_NAME": component_name, "TEAM_NAME": team}
+    template_var_mapping = {
+        "COMPONENT_PATH": comp_path,
+        "COMPONENT_NAME": component_name,
+        "CAPITALIZED_COMPONENT_NAME": component_name.capitalize(),
+        "TEAM_NAME": team,
+    }
     create_components_framework_files(
         comp_path,
         [

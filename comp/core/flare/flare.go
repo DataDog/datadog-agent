@@ -14,6 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -47,6 +48,13 @@ type dependencies struct {
 	AC                    optional.Option[autodiscovery.Component]
 }
 
+type provides struct {
+	fx.Out
+
+	Comp     Component
+	Endpoint api.AgentEndpointProvider
+}
+
 type flare struct {
 	log          log.Component
 	config       config.Component
@@ -55,7 +63,7 @@ type flare struct {
 	diagnoseDeps diagnose.SuitesDeps
 }
 
-func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider) {
+func newFlare(deps dependencies) (provides, rcclienttypes.TaskListenerProvider) {
 	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets, deps.WMeta, deps.AC)
 	f := &flare{
 		log:          deps.Log,
@@ -65,7 +73,14 @@ func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider)
 		diagnoseDeps: diagnoseDeps,
 	}
 
-	return f, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
+	endpoint := EndpointProvider{flareComp: f}
+
+	p := provides{
+		Comp:     f,
+		Endpoint: api.NewAgentEndpointProvider(endpoint, "/flare", "POST"),
+	}
+
+	return p, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
 }
 
 func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
@@ -96,7 +111,7 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 func (f *flare) Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error) {
 	// For now this is a wrapper around helpers.SendFlare since some code hasn't migrated to FX yet.
 	// The `source` is the reason why the flare was created, for now it's either local or remote-config
-	return helpers.SendTo(flarePath, caseID, email, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config), source)
+	return helpers.SendTo(f.config, flarePath, caseID, email, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config), source)
 }
 
 // Create creates a new flare and returns the path to the final archive file.

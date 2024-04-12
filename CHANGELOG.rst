@@ -2,10 +2,242 @@
 Release Notes
 =============
 
+.. _Release Notes_7.52.1:
+
+7.52.1 / 6.52.1
+================
+
+.. _Release Notes_7.52.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-04-04
+
+
+.. _Release Notes_7.52.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add a check to the Windows installer to verify that the caller has the correct membership to install the Agent.
+- Ensure the metadata requests are delayed at Agent startup to reduce host tag delays.
+
+
+.. _Release Notes_7.52.0:
+
+7.52.0 / 6.52.0
+================
+
+.. _Release Notes_7.52.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-03-21
+
+- Please refer to the `7.52.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7520>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.52.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- To prevent misconfigurations, the Windows Datadog Agent installer now raises an error if
+  the user account running the installer MSI is provided as the ``ddagentuser`` (``DDAGENTUSER_NAME``) account.
+  If the account is a service account, such as LocalSystem or a gMSA account, no action is needed.
+  If the account is a regular account, configure a different Datadog Agent service account.
+
+
+.. _Release Notes_7.52.0_New Features:
+
+New Features
+------------
+
+- Add `device_type` to the device metadata.
+
+- Attach host tags to metrics for ``expected_tags_duration`` amount of time.
+
+- APM stats will now include, if present, the Git commit SHA from traces (or container tags) and the image tag from container tags.
+
+- Creation of a new packageSigning component to collect Linux package signature information and improve signature rotation process. More information can be found in DataDog documentation at `2024 linux key rotation <https://docs.datadoghq.com/agent/guide/linux-key-rotation-2024>`_.
+
+- Adds support for `span links <https://docs.datadoghq.com/tracing/trace_collection/span_links/>`_  in the trace agent. This field
+  contains a list of casual relationships between spans and is only
+  populated when v0.4 of the Trace API is used.
+
+- The Windows Agent now supports CWS for process and network threats.
+
+- CWS: Add ``chdir`` event to allow recent container escape detection.
+
+- CWS: [BETA] Add File Integrity Monitoring support on Windows, supporting both files and registry.
+
+- CWS: The Agent now automatically suppresses benign security events if they have already been reported for a particular container image.
+
+- Updating process agent discovery configuration to include a Data Scrubber for obfuscating sensitive information such as passwords, API keys, or tokens.
+
+- Add support for pinging network devices in the SNMP integration.
+
+- [oracle] Add ``oracle.locks.transaction_duration`` metric.
+
+- APM: Add support for Single Step Instrumentation remote configuration
+
+- Headless agent installation support on macOS 14 and later
+
+
+.. _Release Notes_7.52.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- [DBM] Increase the DBM dbm-metrics-intake endpoint's defaultInputChanSize value to 500.
+
+- Add debug level logs when files are evicted from ``registry.json``
+  after their TTL expires.
+
+- Add the instance ID returned by the IMDSv2 metadata endpoint to the list of EC2 host aliases.
+
+- This change adds journald permissions to the flare in the
+  ``logs_file_permissions.log`` file, in the form of either the
+  journald directory or a specific file (if specified by the
+  Agent journald configuration).
+
+- The Logs Agent now creates a file in the flare, called
+  ``logs_file_permissions.log``, which lists every file and
+  that file's permissions that the Logs Agent can detect.
+
+- Add the SBOM check to the output of the Agent status command and the Agent flare.
+
+- Add the Software Bill of Materials (SBOM) for container images to the output of the flare command.
+
+- Add ``repo_digest`` to containerd ContainerImage to remove duplicate images in container images UI.
+
+- Agents are now built with Go ``1.21.7``.
+
+- Agents are now built with Go ``1.21.8``.
+
+- CWS: Improved coverage on platforms with no eBPF support.
+
+- CWS: Send context of variables in events.
+
+- Add DD_APM_DEBUGGER_DIAGNOSTICS_DD_URL, DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY,
+  and DD_APM_DEBUGGER_DIAGNOSTICS_ADDITIONAL_ENDPOINTS to allow sending Live
+  Debugger / Dynamic Instrumentation diagnostic data to multiple intakes.
+
+- Added config that allows user to toggle on and off the collection of zombie processes in the Process Agent.
+
+- [oracle] Add ``ddagenthostname`` tag.
+
+- [oracle]: Add ``oracle.tablespace.maxsize`` metric.
+
+- OTLP ingest supports stable Java runtime metrics introduced in `opentelemetry-java-instrumentation` v2.0.0.
+  OTLP ingest supports Kafka metrics mapping. This allows users of the JMX Receiver/JMX Metrics Gatherer and Kafka metrics receiver to have access to the OOTB Kafka Dashboard.
+
+- Modified the process check to populate process with the newly created field "ProcessContext"
+
+- Rename the ``kubelet_core`` check to ``kubelet`` and change the metrics 
+  prefix from ``kubernetes_core`` to ``kubernetes`` so that it can replace 
+  the Python ``kubelet`` check.
+
+- APM: Adds `msgp_short_bytes` reason for trace payloads dropped to distinguish them from EOF errors.
+
+- When getting resource tags from an ECS task with zero containers, print a warn log instead of error log.
+
+
+.. _Release Notes_7.52.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Removal of the pod check from the process agent. The current check will run from the core agent.
+
+- This release drops support for Red Hat Enterprise Linux 6 and its derivatives.
+
+- [oracle] Deprecate the configuration parameter ``instant_client``. Replacing it with ``oracle_client``.
+
+- Removed the system-probe configuration value `data_streams_config.enabled` and replaced it with `service_monitoring_config.enable_kafka_monitoring`.
+  This also implies that the DsmEnabled field in the AgentConfiguration proto will consistently be set to false.
+
+
+.. _Release Notes_7.52.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Upgrade dependencies for systemd core check. This silences excessive warning logs on systemd v252.
+
+- oracle: Fix wrong tablespace metrics.
+
+- APM: Stop dropping incoming OTel payloads when the processing channel is full
+  and eliminate OOM issues in the trace agent and collector component in high
+  load scenarios, making the OTel pipeline more reliable.
+
+- Fix dogstatsd-capture. Message PID was not set after the 7.50 release.
+
+- Fix a memory exception where the flare controller tries to
+  ``stat`` a file that doesn't exist.
+
+- Fleet Automation filters in the Datadog UI now accurately reflect which products are enabled when deployed with the official DataDog Helm chart on Kubernetes.
+
+- Corrected a problem where the `ignore_autodiscovery_tags` parameter was not functioning correctly with pod
+  annotations or autodiscovery version 2 (adv2) annotations. This fix ensures that when this parameter is set
+  to `true`, autodiscovery tags are ignored as intended.
+  Example:
+  ```yaml
+  ad.datadoghq.com/redis.checks: |
+    {
+      "redisdb": {
+        "ignore_autodiscovery_tags": true,
+        "instances": [
+          {
+            "host": "%%host%%",
+            "port": "6379"
+          }
+        ]
+      }
+    }
+  ```
+  Moving forward, configurations that attempt to use hybrid setups—combining adv2 for check specification
+  while also employing `adv1` for `ignore_autodiscovery_tags`—are no longer supported by default.
+  Users should set the configuration parameter `cluster_checks.support_hybrid_ignore_ad_tags` to `true`
+  to enable this behavior.
+
+- [oracle]: Add support for more Asian character sets.
+
+- Prevention of OOMs when collecting a large number of zombie processes.
+
+- Fixed race conditions caused by concurrent execution of etw.StartEtw()
+  and etw.StopEtw() functions which may concurrently access and modify a
+  global map.
+
+- Fix recent PR #22664 which in turn fixes a race condition in the ETW package.
+  The previous PR introduced a minor error addressed in this PR.
+
+- [oracle] Add ``resource_manager`` configuration to ``conf.yaml.example``.
+
+- [oracle] Fix multi-tagging bug.
+
+- Fixes a bug in OTLP ingest where empty histograms were not being sent to the backend in the distributions mode. Empty histograms are now mapped as if they had a single `(min, max)` bucket.
+
+- Scrub authentication bearer token of any size, even invalid, from integration configuration (when being printed
+  through the `checksconfig` CLI command or other).
+
+- Empty UDS payloads no longer cause the DogStatsD server to close the socket.
+
+
+.. _Release Notes_7.52.0_Other Notes:
+
+Other Notes
+-----------
+
+- The version of Python required for tooling in README matches that which the CI uses.
+
+
 .. _Release Notes_7.51.1:
 
 7.51.1 / 6.51.1
-======
+================
 
 .. _Release Notes_7.51.1_Prelude:
 
@@ -45,7 +277,7 @@ Bug Fixes
 .. _Release Notes_7.51.0:
 
 7.51.0 / 6.51.0
-======
+================
 
 .. _Release Notes_7.51.0_Prelude:
 
@@ -212,7 +444,7 @@ Other Notes
 .. _Release Notes_7.50.3:
 
 7.50.3 / 6.50.3
-======
+================
 
 .. _Release Notes_7.50.3_Prelude:
 
@@ -233,7 +465,7 @@ Bug Fixes
 .. _Release Notes_7.50.2:
 
 7.50.2 / 6.50.2
-======
+================
 
 .. _Release Notes_7.50.2_Prelude:
 
@@ -269,7 +501,7 @@ Bug Fixes
 .. _Release Notes_7.50.1:
 
 7.50.1 / 6.50.1
-======
+================
 
 .. _Release Notes_7.50.1_Prelude:
 
@@ -287,7 +519,7 @@ Bug Fixes
 .. _Release Notes_7.50.0:
 
 7.50.0 / 6.50.0
-======
+================
 
 .. _Release Notes_7.50.0_Prelude:
 
@@ -537,7 +769,7 @@ Bug Fixes
 .. _Release Notes_7.49.1:
 
 7.49.1 / 6.49.1
-======
+================
 
 .. _Release Notes_7.49.1_Prelude:
 
@@ -567,7 +799,7 @@ Bug Fixes
 .. _Release Notes_7.49.0:
 
 7.49.0 / 6.49.0
-======
+================
 
 .. _Release Notes_7.49.0_Prelude:
 
@@ -839,7 +1071,7 @@ Other Notes
 .. _Release Notes_7.48.1:
 
 7.48.1 / 6.48.1
-======
+================
 
 .. _Release Notes_7.48.1_Prelude:
 
@@ -882,7 +1114,7 @@ Bug Fixes
 .. _Release Notes_7.48.0:
 
 7.48.0 / 6.48.0
-======
+================
 
 .. _Release Notes_7.48.0_Prelude:
 
@@ -1182,7 +1414,7 @@ Other Notes
 .. _Release Notes_7.47.1:
 
 7.47.1 / 6.47.1
-======
+================
 
 .. _Release Notes_7.47.1_Prelude:
 
@@ -1208,7 +1440,7 @@ Bug Fixes
 .. _Release Notes_7.47.0:
 
 7.47.0 / 6.47.0
-======
+================
 
 .. _Release Notes_7.47.0_Prelude:
 
@@ -1479,7 +1711,7 @@ Other Notes
 .. _Release Notes_7.46.0:
 
 7.46.0 / 6.46.0
-======
+================
 
 .. _Release Notes_7.46.0_Prelude:
 
@@ -1744,7 +1976,7 @@ Bug Fixes
 .. _Release Notes_7.45.1:
 
 7.45.1 / 6.45.1
-======
+================
 
 .. _Release Notes_7.45.1_Prelude:
 
@@ -1767,7 +1999,7 @@ Security Notes
 .. _Release Notes_7.45.0:
 
 7.45.0 / 6.45.0
-======
+================
 
 .. _Release Notes_7.45.0_Prelude:
 
@@ -1995,7 +2227,7 @@ Bug Fixes
 .. _Release Notes_7.44.1:
 
 7.44.1 / 6.44.1
-======
+================
 
 .. _Release Notes_7.44.1_Prelude:
 
@@ -2027,7 +2259,7 @@ Bug Fixes
 .. _Release Notes_7.44.0:
 
 7.44.0 / 6.44.0
-======
+================
 
 .. _Release Notes_7.44.0_Prelude:
 
@@ -2225,7 +2457,7 @@ Other Notes
 .. _Release Notes_7.43.2:
 
 7.43.2 / 6.43.2
-======
+================
 
 .. _Release Notes_7.43.2_Prelude:
 
@@ -2246,7 +2478,7 @@ Enhancement Notes
 .. _Release Notes_7.43.1:
 
 7.43.1 / 6.43.1
-======
+================
 
 .. _Release Notes_7.43.1_Prelude:
 
@@ -2269,7 +2501,7 @@ Enhancement Notes
 .. _Release Notes_7.43.0:
 
 7.43.0 / 6.43.0
-======
+================
 
 .. _Release Notes_7.43.0_Prelude:
 
@@ -2438,7 +2670,7 @@ Other Notes
 .. _Release Notes_7.42.0:
 
 7.42.0 / 6.42.0
-======
+================
 
 .. _Release Notes_7.42.0_Prelude:
 
@@ -2617,7 +2849,7 @@ Other Notes
 .. _Release Notes_7.41.1:
 
 7.41.1 / 6.41.1
-======
+================
 
 .. _Release Notes_7.41.1_Prelude:
 
@@ -2632,7 +2864,7 @@ Release on: 2022-12-21
 .. _Release Notes_7.41.0:
 
 7.41.0 / 6.41.0
-======
+================
 
 .. _Release Notes_7.41.0_Prelude:
 
@@ -2808,7 +3040,7 @@ Bug Fixes
 .. _Release Notes_7.40.1:
 
 7.40.1
-======
+================
 
 .. _Release Notes_7.40.1_Prelude:
 
@@ -2839,7 +3071,7 @@ Bug Fixes
 .. _Release Notes_7.40.0:
 
 7.40.0 / 6.40.0
-======
+================
 
 .. _Release Notes_7.40.0_Prelude:
 
@@ -3038,7 +3270,7 @@ Other Notes
 .. _Release Notes_7.39.1:
 
 7.39.1 / 6.39.1
-======
+================
 
 .. _Release Notes_7.39.1_Prelude:
 
@@ -3069,7 +3301,7 @@ Other Notes
 .. _Release Notes_7.39.0:
 
 7.39.0 / 6.39.0
-======
+================
 
 .. _Release Notes_7.39.0_Prelude:
 
@@ -3225,7 +3457,7 @@ Bug Fixes
 .. _Release Notes_7.38.2:
 
 7.38.2 / 6.38.2
-======
+================
 
 .. _Release Notes_7.38.2_Prelude:
 
@@ -3249,7 +3481,7 @@ Bug Fixes
 .. _Release Notes_7.38.1:
 
 7.38.1 / 6.38.1
-======
+================
 
 .. _Release Notes_7.38.1_Prelude:
 
@@ -3270,7 +3502,7 @@ Bug Fixes
 .. _Release Notes_7.38.0:
 
 7.38.0 / 6.38.0
-======
+================
 
 .. _Release Notes_7.38.0_Prelude:
 
@@ -3400,7 +3632,7 @@ Bug Fixes
 .. _Release Notes_7.37.1:
 
 7.37.1 / 6.37.1
-======
+================
 
 .. _Release Notes_7.37.1_Prelude:
 
@@ -3421,7 +3653,7 @@ Bug Fixes
 .. _Release Notes_7.37.0:
 
 7.37.0 / 6.37.0
-======
+================
 
 .. _Release Notes_7.37.0_Prelude:
 
@@ -3616,7 +3848,7 @@ Other Notes
 .. _Release Notes_7.36.1:
 
 7.36.1 / 6.36.1
-======
+================
 
 .. _Release Notes_7.36.1_Prelude:
 
@@ -3644,7 +3876,7 @@ Bug Fixes
 .. _Release Notes_7.36.0:
 
 7.36.0 / 6.36.0
-======
+================
 
 .. _Release Notes_7.36.0_Prelude:
 
@@ -3836,7 +4068,7 @@ Other Notes
 .. _Release Notes_7.35.2:
 
 7.35.2 / 6.35.2
-======
+================
 
 .. _Release Notes_7.35.2_Prelude:
 
@@ -3855,7 +4087,7 @@ Bug Fixes
 .. _Release Notes_7.35.1:
 
 7.35.1 / 6.35.1
-======
+================
 
 .. _Release Notes_7.35.1_Prelude:
 
@@ -3878,7 +4110,7 @@ Bug Fixes
 .. _Release Notes_7.35.0:
 
 7.35.0 / 6.35.0
-======
+================
 
 .. _Release Notes_7.35.0_Prelude:
 
@@ -4206,7 +4438,7 @@ Other Notes
 .. _Release Notes_7.34.0:
 
 7.34.0 / 6.34.0
-======
+================
 
 .. _Release Notes_7.34.0_Prelude:
 
@@ -4402,7 +4634,7 @@ Bug Fixes
 .. _Release Notes_7.33.1:
 
 7.33.1 / 6.33.1
-======
+================
 
 .. _Release Notes_7.33.1_Prelude:
 
@@ -4425,7 +4657,7 @@ Bug Fixes
 .. _Release Notes_7.33.0:
 
 7.33.0 / 6.33.0
-======
+================
 
 .. _Release Notes_7.33.0_Prelude:
 
@@ -4644,7 +4876,7 @@ Other Notes
 .. _Release Notes_7.32.4:
 
 7.32.4 / 6.32.4
-======
+================
 
 .. _Release Notes_7.32.4_Prelude:
 
@@ -4659,7 +4891,7 @@ Release on: 2021-12-22
 .. _Release Notes_7.32.3:
 
 7.32.3 / 6.32.3
-======
+================
 
 .. _Release Notes_7.32.3_Prelude:
 
@@ -4675,7 +4907,7 @@ Release on: 2021-12-15
 .. _Release Notes_7.32.2:
 
 7.32.2 / 6.32.2
-======
+================
 
 .. _Release Notes_7.32.2_Prelude:
 
@@ -4696,7 +4928,7 @@ Security Notes
 .. _Release Notes_7.32.1:
 
 7.32.1 / 6.32.1
-======
+================
 
 .. _Release Notes_7.32.1_Prelude:
 
@@ -4724,7 +4956,7 @@ Bug Fixes
 .. _Release Notes_7.32.0:
 
 7.32.0 / 6.32.0
-======
+================
 
 .. _Release Notes_7.32.0_Prelude:
 
@@ -4899,7 +5131,7 @@ Bug Fixes
 .. _Release Notes_7.31.1:
 
 7.31.1
-======
+================
 
 .. _Release Notes_7.31.1_Prelude:
 
@@ -4918,7 +5150,7 @@ Bug Fixes
 .. _Release Notes_7.31.0:
 
 7.31.0 / 6.31.0
-======
+================
 
 .. _Release Notes_7.31.0_Prelude:
 
@@ -5107,7 +5339,7 @@ Other Notes
 .. _Release Notes_7.30.2:
 
 7.30.2
-======
+================
 
 .. _Release Notes_7.30.2_Prelude:
 
@@ -5129,7 +5361,7 @@ Bug Fixes
 .. _Release Notes_7.30.1:
 
 7.30.1
-======
+================
 
 .. _Release Notes_7.30.1_Prelude:
 
@@ -5144,7 +5376,7 @@ Release on: 2021-08-20
 .. _Release Notes_7.30.0:
 
 7.30.0 / 6.30.0
-======
+================
 
 .. _Release Notes_7.30.0_Prelude:
 
@@ -5312,7 +5544,7 @@ Other Notes
 .. _Release Notes_7.29.1:
 
 7.29.1
-======
+================
 
 .. _Release Notes_7.29.1_Prelude:
 
@@ -5343,7 +5575,7 @@ Bug Fixes
 .. _Release Notes_7.29.0:
 
 7.29.0 / 6.29.0
-======
+================
 
 .. _Release Notes_7.29.0_Prelude:
 
@@ -5533,7 +5765,7 @@ Other Notes
 .. _Release Notes_7.28.1:
 
 7.28.1
-======
+================
 
 .. _Release Notes_7.28.1_Prelude:
 
@@ -5548,7 +5780,7 @@ Release on: 2021-05-31
 .. _Release Notes_7.28.0:
 
 7.28.0 / 6.28.0
-======
+================
 
 .. _Release Notes_7.28.0_Prelude:
 
@@ -5723,7 +5955,7 @@ Other Notes
 .. _Release Notes_7.27.1:
 
 7.27.1 / 6.27.1
-======
+================
 
 .. _Release Notes_7.27.1_Prelude:
 
@@ -5746,7 +5978,7 @@ Bug Fixes
 .. _Release Notes_7.27.0:
 
 7.27.0 / 6.27.0
-======
+================
 
 .. _Release Notes_7.27.0_Prelude:
 
@@ -6017,7 +6249,7 @@ Other Notes
 .. _Release Notes_7.26.0:
 
 7.26.0 / 6.26.0
-======
+================
 
 .. _Release Notes_7.26.0_Prelude:
 
@@ -6188,7 +6420,7 @@ Other Notes
 .. _Release Notes_7.25.1:
 
 7.25.1
-======
+================
 
 .. _Release Notes_7.25.1_Prelude:
 
@@ -6225,7 +6457,7 @@ Release Notes
 .. _Release Notes_7.25.0:
 
 7.25.0 / 6.25.0
-======
+================
 
 .. _Release Notes_7.25.0_Prelude:
 
@@ -6396,7 +6628,7 @@ Other Notes
 .. _Release Notes_7.24.1:
 
 7.24.1
-======
+================
 
 .. _Release Notes_7.24.1_Bug Fixes:
 
@@ -6430,7 +6662,7 @@ Other Notes
 .. _Release Notes_7.24.0:
 
 7.24.0 / 6.24.0
-======
+================
 
 .. _Release Notes_7.24.0_Prelude:
 
@@ -6575,7 +6807,7 @@ Other Notes
 .. _Release Notes_7.23.1:
 
 7.23.1 / 6.23.1
-======
+================
 
 .. _Release Notes_7.23.1_Prelude:
 
@@ -6603,7 +6835,7 @@ Bug Fixes
 .. _Release Notes_7.23.0:
 
 7.23.0 / 6.23.0
-======
+================
 
 .. _Release Notes_7.23.0_Prelude:
 
@@ -6799,7 +7031,7 @@ Other Notes
 .. _Release Notes_7.22.1:
 
 7.22.1 / 6.22.1
-======
+================
 
 .. _Release Notes_7.22.1_Prelude:
 
@@ -6825,7 +7057,7 @@ Bug Fixes
 .. _Release Notes_7.22.0:
 
 7.22.0 / 6.22.0
-======
+================
 
 .. _Release Notes_7.22.0_Prelude:
 
@@ -6975,7 +7207,7 @@ Other Notes
 .. _Release Notes_7.21.1:
 
 7.21.1
-======
+================
 
 .. _Release Notes_7.21.1_Prelude:
 
@@ -6995,7 +7227,7 @@ Bug Fixes
 .. _Release Notes_7.21.0:
 
 7.21.0 / 6.21.0
-======
+================
 
 .. _Release Notes_7.21.0_Prelude:
 
@@ -7194,7 +7426,7 @@ Other Notes
 .. _Release Notes_7.20.2:
 
 7.20.2
-======
+=======
 
 .. _Release Notes_7.20.2_Prelude:
 
@@ -7209,7 +7441,7 @@ Release on: 2020-06-17
 .. _Release Notes_7.20.1:
 
 7.20.1
-======
+=======
 
 .. _Release Notes_7.20.1_Prelude:
 
@@ -7224,7 +7456,7 @@ Release on: 2020-06-11
 .. _Release Notes_7.20.0:
 
 7.20.0 / 6.20.0
-======
+================
 
 .. _Release Notes_7.20.0_Prelude:
 
@@ -7398,7 +7630,7 @@ Other Notes
 .. _Release Notes_7.19.2:
 
 7.19.2 / 6.19.2
-======
+================
 
 .. _Release Notes_7.19.2_Prelude:
 
@@ -7413,7 +7645,7 @@ Release on: 2020-05-12
 .. _Release Notes_7.19.1:
 
 7.19.1
-======
+=======
 
 .. _Release Notes_7.19.1_Prelude:
 
@@ -7435,7 +7667,7 @@ Bug Fixes
 .. _Release Notes_7.19.0:
 
 7.19.0 / 6.19.0
-======
+================
 
 .. _Release Notes_7.19.0_Prelude:
 
@@ -7627,7 +7859,7 @@ Bug Fixes
 .. _Release Notes_7.18.0:
 
 7.18.0 / 6.18.0
-======
+================
 
 .. _Release Notes_7.18.0_Prelude:
 
@@ -7839,7 +8071,7 @@ Bug Fixes
 .. _Release Notes_7.17.1:
 
 7.17.1 / 6.17.1
-======
+================
 
 .. _Release Notes_7.17.1_Prelude:
 
@@ -7866,7 +8098,7 @@ Bug Fixes
 .. _Release Notes_7.17.0:
 
 7.17.0 / 6.17.0
-======
+================
 
 .. _Release Notes_7.17.0_Prelude:
 
@@ -7994,7 +8226,7 @@ Other Notes
 .. _Release Notes_7.16.1:
 
 7.16.1 / 6.16.1
-========
+===============
 
 .. _Release Notes_7.16.1_Prelude:
 
@@ -8018,7 +8250,7 @@ Security Issues
 .. _Release Notes_7.16.0:
 
 7.16.0 / 6.16.0
-======
+================
 
 .. _Release Notes_7.16.0_Prelude:
 
