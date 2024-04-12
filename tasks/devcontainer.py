@@ -10,10 +10,10 @@ from pathlib import Path
 
 from invoke import task
 from invoke.exceptions import Exit
-from libs.common.color import color_message
 
 from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import color_message
 
 DEVCONTAINER_DIR = ".devcontainer"
 DEVCONTAINER_FILE = "devcontainer.json"
