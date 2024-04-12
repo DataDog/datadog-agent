@@ -92,7 +92,7 @@ func (i *testInstaller) ConfigFS(f fixture) fs.FS {
 
 func TestInstallStable(t *testing.T) {
 	s := newTestFixturesServer(t)
-	defer s.s.Close()
+	defer s.Close()
 	installer := newTestInstaller(t)
 
 	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
@@ -108,7 +108,7 @@ func TestInstallStable(t *testing.T) {
 
 func TestInstallExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
-	defer s.s.Close()
+	defer s.Close()
 	installer := newTestInstaller(t)
 
 	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
@@ -127,7 +127,7 @@ func TestInstallExperiment(t *testing.T) {
 
 func TestPromoteExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
-	defer s.s.Close()
+	defer s.Close()
 	installer := newTestInstaller(t)
 
 	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
@@ -147,7 +147,7 @@ func TestPromoteExperiment(t *testing.T) {
 
 func TestUninstallExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
-	defer s.s.Close()
+	defer s.Close()
 	installer := newTestInstaller(t)
 
 	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
