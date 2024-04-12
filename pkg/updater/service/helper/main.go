@@ -25,7 +25,7 @@ import (
 var (
 	installPath    string
 	debSystemdPath = "/lib/systemd/system" // todo load it at build time from omnibus
-	rpmSystemdPath = "/usr/lib/systemd"
+	rpmSystemdPath = "/usr/lib/systemd/system"
 	pkgDir         = "/opt/datadog-packages/"
 	agentDir       = "/etc/datadog-agent"
 	dockerDir      = "/etc/docker"
