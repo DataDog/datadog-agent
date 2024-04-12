@@ -9,6 +9,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -41,7 +42,7 @@ type RTContainerCheck struct {
 }
 
 // Init initializes a RTContainerCheck instance.
-func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
+func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo, _ bool, _ eventplatform.Component) error {
 	r.maxBatchSize = getMaxBatchSize(r.config)
 	r.hostInfo = hostInfo
 	r.containerProvider = proccontainers.GetSharedContainerProvider(r.wmeta)

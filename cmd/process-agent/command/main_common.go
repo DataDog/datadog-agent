@@ -11,6 +11,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
@@ -141,6 +144,13 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide tagger module
 		tagger.Module(),
 
+		fx.Provide(func() eventplatformimpl.Params {
+			params := eventplatformimpl.NewDefaultParams()
+			return params
+		}),
+		eventplatformreceiverimpl.Module(),
+		eventplatformimpl.Module(),
+
 		// Provide status modules
 		statusimpl.Module(),
 		coreStatusImpl.Module(),
@@ -201,6 +211,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			// We should ensure the tagger is a dependency when converting to a component.
 			_ tagger.Component,
 			_ pid.Component,
+			_ eventplatform.Component,
 			processAgent agent.Component,
 			_ autoexit.Component,
 		) error {

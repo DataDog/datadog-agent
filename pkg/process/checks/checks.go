@@ -8,6 +8,7 @@ package checks
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -47,7 +48,7 @@ type Check interface {
 	// Realtime indicates if this check only runs in real-time mode
 	Realtime() bool
 	// Init initializes the check
-	Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool) error
+	Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool, forwarder eventplatform.Component) error
 	// SupportsRunOptions returns true if the check supports RunOptions
 	SupportsRunOptions() bool
 	// Run runs the check

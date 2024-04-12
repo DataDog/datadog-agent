@@ -3,6 +3,7 @@
 package mocks
 
 import (
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	checks "github.com/DataDog/datadog-agent/pkg/process/checks"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -18,7 +19,7 @@ func (_m *Check) Cleanup() {
 }
 
 // Init provides a mock function with given fields: syscfg, info, oneShot
-func (_m *Check) Init(syscfg *checks.SysProbeConfig, info *checks.HostInfo, oneShot bool) error {
+func (_m *Check) Init(syscfg *checks.SysProbeConfig, info *checks.HostInfo, oneShot bool, forwarder eventplatform.Component) error {
 	ret := _m.Called(syscfg, info, oneShot)
 
 	if len(ret) == 0 {

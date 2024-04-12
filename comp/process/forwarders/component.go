@@ -8,12 +8,14 @@ package forwarders
 
 import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 )
 
 // team: processes
 
 //nolint:revive // TODO(PROC) Fix revive linter
 type Component interface {
+	GetEventPlatformForwarder() eventplatform.Component
 	GetEventForwarder() defaultforwarder.Component
 	GetProcessForwarder() defaultforwarder.Component
 	GetRTProcessForwarder() defaultforwarder.Component

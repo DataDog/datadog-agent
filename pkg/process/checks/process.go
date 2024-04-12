@@ -13,6 +13,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"go.uber.org/atomic"
 
@@ -125,7 +126,7 @@ type ProcessCheck struct {
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool) error {
+func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool, forwarder eventplatform.Component) error {
 	p.hostInfo = info
 	p.sysProbeConfig = syscfg
 	p.probe = newProcessProbe(p.config,

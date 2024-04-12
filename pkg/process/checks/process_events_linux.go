@@ -16,6 +16,8 @@ import (
 
 	payload "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
@@ -44,7 +46,7 @@ type ProcessEventsCheck struct {
 }
 
 // Init initializes the ProcessEventsCheck.
-func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
+func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool, forwarder eventplatform.Component) error {
 	e.initMutex.Lock()
 	defer e.initMutex.Unlock()
 

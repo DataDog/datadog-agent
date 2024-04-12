@@ -33,16 +33,12 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 	getMaxBatchSize = func(config.Reader) int { return maxBatchSize }
 
 	check := NewProcessDiscoveryCheck(config.Mock(t))
-	check.Init(
-		&SysProbeConfig{},
-		&HostInfo{
-			SystemInfo: &model.SystemInfo{
-				Cpus:        []*model.CPUInfo{{Number: 0}},
-				TotalMemory: 0,
-			},
+	check.Init(&SysProbeConfig{}, &HostInfo{
+		SystemInfo: &model.SystemInfo{
+			Cpus:        []*model.CPUInfo{{Number: 0}},
+			TotalMemory: 0,
 		},
-		true,
-	)
+	}, true, nil)
 
 	// Test check runs without error
 	result, err := check.Run(testGroupId(0), nil)

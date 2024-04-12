@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -85,6 +86,8 @@ type CheckRunner struct {
 
 	// Submits check payloads to datadog
 	Submitter Submitter
+
+	EpForwarder eventplatform.Component
 
 	// listens for when to enable and disable realtime mode
 	rtNotifierChan <-chan types.RTResponse
@@ -290,7 +293,7 @@ func (l *CheckRunner) Run() error {
 	}
 
 	for _, c := range l.enabledChecks {
-		if err := c.Init(l.sysProbeCfg, l.hostInfo, false); err != nil {
+		if err := c.Init(l.sysProbeCfg, l.hostInfo, false, l.EpForwarder); err != nil {
 			return err
 		}
 		runner, err := l.runnerForCheck(c)

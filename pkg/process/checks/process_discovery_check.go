@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,7 +44,7 @@ type ProcessDiscoveryCheck struct {
 }
 
 // Init initializes the ProcessDiscoveryCheck. It is a runtime error to call Run without first having called Init.
-func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ bool) error {
+func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool, forwarder eventplatform.Component) error {
 	d.info = info
 	d.initCalled = true
 	initScrubber(d.config, d.scrubber)

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -51,7 +52,7 @@ type ContainerCheck struct {
 }
 
 // Init initializes a ContainerCheck instance.
-func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
+func (c *ContainerCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool, forwarder eventplatform.Component) error {
 	c.containerProvider = proccontainers.GetSharedContainerProvider(c.wmeta)
 	c.hostInfo = info
 

@@ -13,6 +13,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/benbjohnson/clock"
 
@@ -77,19 +79,21 @@ type ConnectionsCheck struct {
 
 	localresolver *resolver.LocalResolver
 	wmeta         workloadmeta.Component
+	epForwarder   eventplatform.Component
 }
 
 // ProcessConnRates describes connection rates for processes
 type ProcessConnRates map[int32]*model.ProcessNetworks
 
 // Init initializes a ConnectionsCheck instance.
-func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
+func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bool, epForwarder eventplatform.Component) error {
 	c.hostInfo = hostInfo
 	c.maxConnsPerMessage = syscfg.MaxConnsPerMessage
 	c.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 
 	// We use the current process PID as the system-probe client ID
 	c.tracerClientID = ProcessAgentClientID
+	c.epForwarder = epForwarder
 
 	// Calling the remote tracer will cause it to initialize and check connectivity
 	tu, err := net.GetRemoteSystemProbeUtil(syscfg.SystemProbeAddress)
@@ -190,33 +194,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	log.Warnf("connsJson: %s", connsJson)
 
 	for _, conn := range conns.Conns {
-		var remoteAddr *model.Addr
-		if conn.Direction == model.ConnectionDirection_outgoing {
-			remoteAddr = conn.Raddr
-		} else {
-			remoteAddr = conn.Laddr
-		}
-		if remoteAddr.Ip == "127.0.0.1" {
-			// skip local addr
-			continue
-		}
-
-		log.Warnf("Conn: %+v", conn)
-		log.Warnf("remoteAddr: %+v", remoteAddr)
-
-		cfg := traceroute.Config{
-			DestHostname: remoteAddr.Ip,
-			DestPort:     uint16(remoteAddr.Port),
-			MaxTTL:       10,
-			TimeoutMs:    3000,
-		}
-
-		tr := traceroute.New(cfg)
-		path, err := tr.Run()
-		if err != nil {
-			log.Warnf("traceroute error: %+v", err)
-		}
-		log.Warnf("Network Path: %+v", path)
+		c.pathForConn(conn)
 	}
 
 	c.notifyProcessConnRates(c.config, conns)
@@ -226,6 +204,51 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	groupID := nextGroupID()
 	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
+}
+
+func (c *ConnectionsCheck) pathForConn(conn *model.Connection) {
+	var remoteAddr *model.Addr
+	if conn.Direction == model.ConnectionDirection_outgoing {
+		remoteAddr = conn.Raddr
+	} else {
+		remoteAddr = conn.Laddr
+	}
+	if remoteAddr.Ip == "127.0.0.1" {
+		// skip local addr
+		return
+	}
+
+	log.Warnf("Conn: %+v", conn)
+	log.Warnf("remoteAddr: %+v", remoteAddr)
+
+	cfg := traceroute.Config{
+		DestHostname: remoteAddr.Ip,
+		DestPort:     uint16(remoteAddr.Port),
+		MaxTTL:       10,
+		TimeoutMs:    3000,
+	}
+
+	tr := traceroute.New(cfg)
+	path, err := tr.Run()
+	if err != nil {
+		log.Warnf("traceroute error: %+v", err)
+	}
+	log.Warnf("Network Path: %+v", path)
+
+	epForwarder, ok := c.epForwarder.Get()
+	if ok {
+		payloadBytes, err := json.Marshal(path)
+		if err != nil {
+			log.Errorf("SendEventPlatformEventBlocking error: %s", err)
+		} else {
+
+			m := message.NewMessage(payloadBytes, nil, "", 0)
+			err = epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkPath)
+			if err != nil {
+				log.Errorf("SendEventPlatformEventBlocking error: %s", err)
+			}
+		}
+	}
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits

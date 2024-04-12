@@ -10,6 +10,7 @@ package checks
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -26,7 +27,7 @@ type ProcessEventsCheck struct {
 }
 
 // Init initializes the ProcessEventsCheck.
-func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, _ *HostInfo, _ bool) error {
+func (e *ProcessEventsCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool, forwarder eventplatform.Component) error {
 	return nil
 }
 

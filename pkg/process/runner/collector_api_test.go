@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -455,9 +456,9 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	hostInfo := &checks.HostInfo{
 		HostName: testHostName,
 	}
-	c, err := NewRunnerWithChecks(mockConfig, nil, hostInfo, []checks.Check{check}, true, nil)
+	c, err := NewRunnerWithChecks(mockConfig, nil, hostInfo, []checks.Check{check}, true, nil, nil)
 	assert.NoError(t, err)
-	err = check.Init(nil, hostInfo, true)
+	err = check.Init(nil, hostInfo, true, nil)
 	assert.NoError(t, err)
 	deps := newSubmitterDepsWithConfig(t, mockConfig)
 	submitter, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, hostInfo.HostName)
@@ -480,7 +481,7 @@ type testCheck struct {
 	data [][]process.MessageBody
 }
 
-func (t *testCheck) Init(_ *checks.SysProbeConfig, _ *checks.HostInfo, _ bool) error {
+func (t *testCheck) Init(syscfg *checks.SysProbeConfig, info *checks.HostInfo, oneShot bool, forwarder eventplatform.Component) error {
 	return nil
 }
 

@@ -9,6 +9,7 @@ package runnerimpl
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -44,8 +45,9 @@ type dependencies struct {
 	Lc  fx.Lifecycle
 	Log log.Component
 
-	Submitter  submitter.Component
-	RTNotifier <-chan types.RTResponse `optional:"true"`
+	Submitter   submitter.Component
+	EpForwarder eventplatform.Component
+	RTNotifier  <-chan types.RTResponse `optional:"true"`
 
 	Checks   []types.CheckComponent `group:"check"`
 	HostInfo hostinfo.Component
@@ -60,6 +62,7 @@ func newRunner(deps dependencies) (runner.Component, error) {
 		return nil, err
 	}
 	c.Submitter = deps.Submitter
+	c.EpForwarder = deps.EpForwarder
 
 	runnerComponent := &runnerImpl{
 		checkRunner:    c,

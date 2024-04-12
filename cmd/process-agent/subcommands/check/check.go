@@ -164,7 +164,7 @@ func runCheckCmd(deps dependencies) error {
 			continue
 		}
 
-		if err := ch.Init(cfg, deps.Hostinfo.Object(), true); err != nil {
+		if err := ch.Init(cfg, deps.Hostinfo.Object(), true, nil); err != nil {
 			return err
 		}
 

@@ -7,6 +7,7 @@
 package forwardersimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -30,16 +31,18 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 
-	Config config.Component
-	Logger log.Component
-	Lc     fx.Lifecycle
+	Config                 config.Component
+	Logger                 log.Component
+	Lc                     fx.Lifecycle
+	EventPlatformForwarder eventplatform.Component
 }
 
 type forwardersComp struct {
-	eventForwarder       defaultforwarder.Component
-	processForwarder     defaultforwarder.Component
-	rtProcessForwarder   defaultforwarder.Component
-	connectionsForwarder defaultforwarder.Component
+	eventPlatformForwarder eventplatform.Component
+	eventForwarder         defaultforwarder.Component
+	processForwarder       defaultforwarder.Component
+	rtProcessForwarder     defaultforwarder.Component
+	connectionsForwarder   defaultforwarder.Component
 }
 
 func newForwarders(deps dependencies) (forwarders.Component, error) {
@@ -65,10 +68,11 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 	processForwarderOpts := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints)
 
 	return &forwardersComp{
-		eventForwarder:       createForwarder(deps, eventForwarderOpts),
-		processForwarder:     createForwarder(deps, processForwarderOpts),
-		rtProcessForwarder:   createForwarder(deps, processForwarderOpts),
-		connectionsForwarder: createForwarder(deps, processForwarderOpts),
+		eventPlatformForwarder: deps.EventPlatformForwarder,
+		eventForwarder:         createForwarder(deps, eventForwarderOpts),
+		processForwarder:       createForwarder(deps, processForwarderOpts),
+		rtProcessForwarder:     createForwarder(deps, processForwarderOpts),
+		connectionsForwarder:   createForwarder(deps, processForwarderOpts),
 	}, nil
 }
 
@@ -81,6 +85,10 @@ func createParams(config config.Component, log log.Component, queueBytes int, en
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
 	return defaultforwarder.Params{Options: forwarderOpts}
+}
+
+func (f *forwardersComp) GetEventPlatformForwarder() eventplatform.Component {
+	return f.eventPlatformForwarder
 }
 
 func (f *forwardersComp) GetEventForwarder() defaultforwarder.Component {
