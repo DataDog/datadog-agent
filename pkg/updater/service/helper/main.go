@@ -111,7 +111,7 @@ func checkHelperPath(path string) (err error) {
 		return fmt.Errorf("installer-helper should be owned by dd-installer")
 	}
 	if info.Mode() != 0750 {
-		return fmt.Errorf("installer-helper should only be executable by the user. Expected permssions %O, got permissions %O", 0750, stat.Mode)
+		return fmt.Errorf("installer-helper should only be executable by the user. Expected permssions %O, got permissions %O", 0750, info.Mode())
 	}
 	return nil
 }
