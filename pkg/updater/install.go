@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	oci "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/types"
@@ -35,6 +36,7 @@ const (
 type installer struct {
 	repositories *repository.Repositories
 	configsDir   string
+	installLock  sync.Mutex
 }
 
 func newInstaller(repositories *repository.Repositories) *installer {
@@ -60,6 +62,8 @@ func (i *installer) installStable(pkg string, version string, image oci.Image) e
 		return fmt.Errorf("could not create repository: %w", err)
 	}
 
+	i.installLock.Lock()
+	defer i.installLock.Unlock()
 	switch pkg {
 	case packageDatadogAgent:
 		return service.SetupAgentUnits()
@@ -108,6 +112,8 @@ func (i *installer) uninstallExperiment(pkg string) error {
 }
 
 func (i *installer) startExperiment(pkg string) error {
+	i.installLock.Lock()
+	defer i.installLock.Unlock()
 	switch pkg {
 	case packageDatadogAgent:
 		return service.StartAgentExperiment()
@@ -117,6 +123,8 @@ func (i *installer) startExperiment(pkg string) error {
 }
 
 func (i *installer) stopExperiment(pkg string) error {
+	i.installLock.Lock()
+	defer i.installLock.Unlock()
 	switch pkg {
 	case packageDatadogAgent:
 		return service.StopAgentExperiment()
