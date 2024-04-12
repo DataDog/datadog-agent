@@ -34,6 +34,10 @@ func SetupInstallerUnit() (err error) {
 		return err
 	}
 
+	if err = enableUnit(installerUnit); err != nil {
+		return err
+	}
+
 	if err = startUnit(installerUnit); err != nil {
 		return err
 	}
