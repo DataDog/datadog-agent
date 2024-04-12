@@ -143,7 +143,7 @@ installer-amd64-oci:
   before_script:
     - source /root/.bashrc
     - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/$(inv agent.version -u)-1
-    - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR
+    - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
 
 
 installer-arm64-oci:
@@ -153,4 +153,4 @@ installer-arm64-oci:
   before_script:
     - source /root/.bashrc
     - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/$(inv agent.version -u)-1
-    - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR
+    - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
