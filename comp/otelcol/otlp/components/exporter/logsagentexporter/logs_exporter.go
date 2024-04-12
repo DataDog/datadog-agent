@@ -77,7 +77,7 @@ func (e *exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 		origin := message.NewOrigin(e.logSource)
 		origin.SetTags(tags)
 		origin.SetService(service)
-		origin.SetSource(logSourceName)
+		origin.SetSource(e.logSource.Name)
 
 		content, err := ddLog.MarshalJSON()
 		if err != nil {

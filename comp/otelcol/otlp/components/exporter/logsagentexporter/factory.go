@@ -47,7 +47,7 @@ func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
 	return exp.NewFactory(
 		cfgType,
 		func() component.Config {
-			return Config{
+			return &Config{
 				otelSource:    otelSource,
 				logSourceName: logSourceName,
 			}
