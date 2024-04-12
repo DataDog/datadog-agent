@@ -1,0 +1,27 @@
+---
+# Unit test of internal python code
+invoke_unit_tests:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: []
+  rules:
+    - !reference [.on_invoke_tasks_changes]
+  script:
+    - source /root/.bashrc
+    - python3 -m pip install -r tasks/libs/requirements-github.txt
+    - inv -e invoke-unit-tests
+
+kitchen_invoke_unit_tests:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: []
+  rules:
+    - !reference [.on_kitchen_invoke_tasks_changes]
+  script:
+    - source /root/.bashrc
+    - python3 -m pip install -r tasks/libs/requirements-github.txt
+    - pushd test/kitchen
+    - inv -e kitchen.invoke-unit-tests
+    - popd
