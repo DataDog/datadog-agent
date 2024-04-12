@@ -42,7 +42,7 @@ int kprobe_handle_sync_payload(struct pt_regs *ctx) {
 #ifdef DEBUG
         u64 pid_tgid = bpf_get_current_pid_tgid();
         u64 pid = pid_tgid >> 32;
-        log_debug("[handle_sync_payload] failed reading message length location for pid %d", pid);
+        log_debug("[handle_sync_payload] failed reading message length location for pid %lld", pid);
 #endif
         return 1;
     }

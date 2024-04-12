@@ -248,7 +248,7 @@ static __always_inline tls_offsets_data_t* get_offsets_data() {
     key.device_id_major = MAJOR(dev_id);
     key.device_id_minor = MINOR(dev_id);
 
-    log_debug("get_offsets_data: task binary inode number: %ld; device ID %x:%x", key.ino, key.device_id_major, key.device_id_minor);
+    log_debug("get_offsets_data: task binary inode number: %llu; device ID %x:%x", key.ino, key.device_id_major, key.device_id_minor);
 
     return bpf_map_lookup_elem(&offsets_data, &key);
 }

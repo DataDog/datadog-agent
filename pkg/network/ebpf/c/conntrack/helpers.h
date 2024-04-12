@@ -67,7 +67,7 @@ static __always_inline int nf_conntrack_tuple_to_conntrack_tuple(conntrack_tuple
         t->daddr_l = ct->dst.u3.ip;
 
         if (!t->saddr_l || !t->daddr_l) {
-            log_debug("ERR(to_conn_tuple.v4): src/dst addr not set src:%u, dst:%u", t->saddr_l, t->daddr_l);
+            log_debug("ERR(to_conn_tuple.v4): src/dst addr not set src:%llu, dst:%llu", t->saddr_l, t->daddr_l);
             return 0;
         }
     } else if (ct->src.l3num == AF_INET6 && (is_tcpv6_enabled() || is_udpv6_enabled())) {
