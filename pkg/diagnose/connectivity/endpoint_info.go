@@ -48,6 +48,22 @@ func getEndpointsInfo(cfg config.Reader) []endpointInfo {
 		{endpoints.SeriesEndpoint, "POST", emptyPayload},
 		{endpoints.SketchSeriesEndpoint, "POST", emptyPayload},
 
+		// Process endpoints
+		{endpoints.ProcessStatusEndpoint, "GET", nil},
+		{endpoints.ProcessesIntakeStatusEndpoint, "GET", nil},
+		//{endpoints.ProcessesEndpoint, "POST", emptyPayload},
+		//{endpoints.ProcessDiscoveryEndpoint, "POST", emptyPayload},
+		//{endpoints.RtProcessesEndpoint, "POST", emptyPayload},
+		//{endpoints.ContainerEndpoint, "POST", emptyPayload},
+		//{endpoints.RtContainerEndpoint, "POST", emptyPayload},
+		//{endpoints.ConnectionsEndpoint, "POST", emptyPayload},
+
+		// Orchestrator endpoints
+		//{endpoints.ProcessLifecycleEndpoint, "POST", emptyPayload},
+		//{endpoints.LegacyOrchestratorEndpoint, "POST", emptyPayload},
+		//{endpoints.OrchestratorEndpoint, "POST", emptyPayload},
+		//{endpoints.OrchestratorManifestEndpoint, "POST", emptyPayload},
+
 		// Flare endpoint
 		{transaction.Endpoint{Route: helpers.GetFlareEndpoint(cfg), Name: "flare"}, "HEAD", nil},
 	}

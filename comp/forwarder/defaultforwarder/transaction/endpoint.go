@@ -25,11 +25,21 @@ func (e Endpoint) String() string {
 // GetEndpoint returns the full endpoint URL
 func (e Endpoint) GetEndpoint(domain string) string {
 	if e.Subdomain == "" {
-		return domain + e.Route
+		e.Subdomain = "app"
 	}
+
 	e.Subdomain = strings.TrimSuffix(e.Subdomain, "/")
+	e.Subdomain = strings.TrimPrefix(e.Subdomain, "/")
+
+	domain = strings.TrimSuffix(domain, "/")
 	e.Route = strings.TrimPrefix(e.Route, "/")
-	url := e.Subdomain + "/" + e.Route
-	
+
+	url := domain + "/" + e.Route
+
+	url = strings.TrimPrefix(url, "https://")
+	url = "https://" + url
+
+	url = strings.Replace(url, "app", e.Subdomain, 1)
+
 	return url
 }

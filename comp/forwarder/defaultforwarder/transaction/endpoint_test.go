@@ -13,41 +13,49 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestEndpoint_GetEndpointWithSubdomain(t *testing.T) {
-	// Create a test endpoint with a subdomain
-	endpoint := Endpoint{
-		Subdomain: "https://example",
-		Route:     "/api/v1/data",
-		Name:      "TestEndpoint",
+func TestGetEndpoint(t *testing.T) {
+	tests := []struct {
+		name      string
+		endpoint  Endpoint
+		domain    string
+		want      string
+	}{
+		{
+			name:      "default subdomain applied when empty",
+			endpoint:  Endpoint{Route: "docs"},
+			domain:    "https://dev.example.com",
+			want:      "https://dev.example.com/docs",
+		},
+		{
+			name:      "explicit subdomain replacement",
+			endpoint:  Endpoint{Subdomain: "admin", Route: "docs"},
+			domain:    "app.example.com",
+			want:      "https://admin.example.com/docs",
+		},
+		{
+			name:      "no subdomain, app not in domain",
+			endpoint:  Endpoint{Subdomain: "app/", Route: "docs"},
+			domain:    "myappsite.com",
+			want:      "https://myappsite.com/docs",
+		},
+		{
+			name:      "subdomain app with app in domain",
+			endpoint:  Endpoint{Subdomain: "app", Route: "support"},
+			domain:    "https://app.company.com",
+			want:      "https://app.company.com/support",
+		},
+		{
+			name:      "complex route and domain",
+			endpoint:  Endpoint{Subdomain: "api", Route: "/v1/users"},
+			domain:    "https://app.service.com",
+			want:      "https://api.service.com/v1/users",
+		},
 	}
-	result := endpoint.GetEndpoint()
-	expected := "https://example/api/v1/data"
-	assert.Equal(t, expected, result, "Expected endpoint URL %s, but got %s", expected, result)
 
-	endpoint = Endpoint{
-		Subdomain: "https://example/",
-		Route:     "/api/v1/data",
-		Name:      "TestEndpoint",
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.endpoint.GetEndpoint(tt.domain)
+			assert.Equal(t, tt.want, got)
+		})
 	}
-	result = endpoint.GetEndpoint()
-	assert.Equal(t, expected, result, "Expected endpoint URL %s, but got %s", expected, result)
-
-	endpoint = Endpoint{
-		Subdomain: "https://example",
-		Route:     "api/v1/data",
-		Name:      "TestEndpoint",
-	}
-	result = endpoint.GetEndpoint()
-	assert.Equal(t, expected, result, "Expected endpoint URL %s, but got %s", expected, result)
-}
-
-func TestEndpoint_GetEndpointWithoutSubdomain(t *testing.T) {
-	// Create a test endpoint without a subdomain
-	endpoint := Endpoint{
-		Route: "/api/v1/data",
-		Name:  "TestEndpoint",
-	}
-	result := endpoint.GetEndpoint()
-	expected := "https://app.datadoghq.com/api/v1/data"
-	assert.Equal(t, expected, result, "Expected endpoint URL %s, but got %s", expected, result)
 }
