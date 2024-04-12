@@ -6,7 +6,7 @@ from invoke import task
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
 from tasks.libs.common.omnibus import (
-    install_dir_for_product,
+    install_dir_for_project,
     omnibus_compute_cache_key,
     send_build_metrics,
     should_retry_bundle_install,
@@ -231,8 +231,9 @@ def build(
     use_omnibus_git_cache = omnibus_cache_dir is not None
     if use_omnibus_git_cache:
         if install_directory is None:
-            install_directory = install_dir_for_product(target_project)
+            install_directory = install_dir_for_project(target_project)
         omnibus_cache_dir = os.path.join(omnibus_cache_dir, install_directory)
+        print('install dir:', install_directory)
         print('omnibus cache dir: ', omnibus_cache_dir)
         remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
         # We don't want to update the cache when not running on a CI

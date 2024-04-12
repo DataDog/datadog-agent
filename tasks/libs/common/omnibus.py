@@ -239,15 +239,13 @@ def send_build_metrics(ctx, overall_duration):
         print(r.text)
 
 
-def install_dir_for_product(product):
-    if product == "agent":
+def install_dir_for_project(project):
+    if project == "agent" or project == "iot-agent":
         folder = 'datadog-agent'
-    elif product == 'dogstatsd':
+    elif project == 'dogstatsd':
         folder = 'datadog-dogstatsd'
-    elif product == 'agentless-scanner':
+    elif project == 'agentless-scanner':
         folder = os.path.join('datadog', 'agentless-scanner')
     else:
-        raise NotImplementedError(f'Unknown product {product}')
-    if sys.platform == 'win32':
-        return os.path.join('C:', 'opt', folder)
-    return os.path.join('/opt', folder)
+        raise NotImplementedError(f'Unknown project {project}')
+    return os.path.join('opt', folder)
