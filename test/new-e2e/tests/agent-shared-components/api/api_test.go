@@ -73,6 +73,8 @@ func (endpointInfo *agentEndpointInfo) fetchCommand(authtoken string) string {
 func (v *apiSuite) TestInternalAgentAPIEndpoints() {
 	testcases := []struct {
 		agentEndpointInfo
+		// additional_setup func(*apiSuite)
+		// filter string
 		want string
 	}{
 		{
@@ -84,6 +86,8 @@ func (v *apiSuite) TestInternalAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
+			// filter: `jq -r '. | [.Major, .Minor, .Patch] | join(".")'`,
+			// want: `7.54.0`,
 			want: `"Major":7,"Minor":5`,
 		},
 		{
@@ -95,7 +99,56 @@ func (v *apiSuite) TestInternalAgentAPIEndpoints() {
 				method:   "POST",
 				data:     "{}",
 			},
-			want: `Z-info.zip`,
+			want: `/tmp/datadog-agent-`,
+		},
+		{
+			agentEndpointInfo: agentEndpointInfo{
+				name:     "secrets",
+				scheme:   "https",
+				port:     agentCmdPort,
+				endpoint: "/agent/secrets",
+				method:   "GET",
+				data:     "",
+			},
+			// additional_setup:
+			// TODO: this requires the secrets_backend to be enabled
+			want: `secrets feature is not enabled`,
+		},
+		{
+			agentEndpointInfo: agentEndpointInfo{
+				name:     "secrets",
+				scheme:   "https",
+				port:     agentCmdPort,
+				endpoint: "/agent/secrets",
+				method:   "GET",
+				data:     "",
+			},
+			// TODO: this requires the secrets_backend to be enabled
+			want: `secrets feature is not enabled`,
+		},
+		{
+			agentEndpointInfo: agentEndpointInfo{
+				name:     "tagger",
+				scheme:   "https",
+				port:     agentCmdPort,
+				endpoint: "/agent/tagger-list",
+				method:   "GET",
+				data:     "",
+			},
+			// TODO: extend this with better tagger settings
+			want: `{"entities":{}}`,
+		},
+		{
+			agentEndpointInfo: agentEndpointInfo{
+				name:     "workloadmeta",
+				scheme:   "https",
+				port:     agentCmdPort,
+				endpoint: "/agent/workload-list",
+				method:   "GET",
+				data:     "",
+			},
+			// TODO: extend this with better workloadmeta settings
+			want: `{"entities":{}}`,
 		},
 	}
 
@@ -106,10 +159,12 @@ func (v *apiSuite) TestInternalAgentAPIEndpoints() {
 	for _, tc := range testcases {
 		cmd := tc.fetchCommand(authtoken)
 		host := v.Env().RemoteHost
-		require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-			resp, err := host.Execute(cmd)
-			require.NoError(t, err)
-			assert.Contains(t, resp, tc.want, "%s %s returned: %s, wanted: %s", tc.method, tc.endpoint, resp, tc.want)
-		}, 2*time.Minute, 10*time.Second)
+		v.T().Run(fmt.Sprintf("API - %s test", tc.name), func(t *testing.T) {
+			require.EventuallyWithT(t, func(ct *assert.CollectT) {
+				resp, err := host.Execute(cmd)
+				require.NoError(ct, err)
+				assert.Contains(ct, resp, tc.want, "%s %s returned: %s, wanted: %s", tc.method, tc.endpoint, resp, tc.want)
+			}, 2*time.Minute, 10*time.Second)
+		})
 	}
 }
