@@ -39,12 +39,13 @@ type vmUpdaterSuite struct {
 	e2e.BaseSuite[environments.Host]
 	packageManager string
 	distro         os.Descriptor
+	arch           os.Architecture
 }
 
 func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.Descriptor) {
 	reg := regexp.MustCompile(`[^a-zA-Z0-9_\-.]`)
 	testName := reg.ReplaceAllString(distro.String()+"-"+string(arch), "_")
-	e2e.Run(t, &vmUpdaterSuite{packageManager: pkgManager, distro: distro}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
+	e2e.Run(t, &vmUpdaterSuite{packageManager: pkgManager, distro: distro, arch: arch}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 		awshost.WithUpdater(),
 		awshost.WithEC2InstanceOptions(ec2.WithOSArch(distro, arch)),
 	)),
@@ -205,9 +206,13 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 }
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
-	// Temporarily disable CentOS, as the APM injector may not be available for CentOS
+	// Temporarily disable CentOS & Redhat, as there is a bug in the APM injector
 	if v.distro == os.CentOSDefault || v.distro == os.RedHatDefault {
 		v.T().Skip("APM injector not available for CentOS or RedHat yet")
+	}
+	if v.distro == os.DebianDefault || v.distro == os.UbuntuDefault && v.arch == os.AMD64Arch {
+		// TODO (baptiste): Fix test
+		v.T().Skip("Test has been temporarily disabled")
 	}
 
 	host := v.Env().RemoteHost

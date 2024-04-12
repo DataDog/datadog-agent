@@ -43,7 +43,7 @@ func TestSetDockerConfig(t *testing.T) {
         }
     }
 }`,
-		// File has already overriden the default runtime
+		// File has already overridden the default runtime
 		`{
     "default-runtime": "containerd",
     "runtimes": {
@@ -109,7 +109,7 @@ func TestRemoveDockerConfig(t *testing.T) {
     "raw-logs": false,
     "runtimes": {}
 }`,
-		// File had already overriden the default runtime
+		// File had already overridden the default runtime
 		`{
     "default-runtime": "dd-shim",
 	"default-runtime-backup": "containerd",
