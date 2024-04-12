@@ -342,7 +342,9 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 // RunInCLIProcess run diagnoses in the CLI process.
 func RunInCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) ([]diagnosis.Diagnoses, error) {
 	return run(diagCfg, func() []diagnosis.Suite {
-		return getSuitesForCLIProcess(diagCfg, deps)
+		return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
+			return diagnoseChecksInCLIProcess(diagCfg, deps.senderManager, deps.secretResolver, deps.wmeta, deps.AC)
+		})
 	})
 }
 
@@ -365,7 +367,11 @@ func run(diagCfg diagnosis.Config, getSuites func() []diagnosis.Suite) ([]diagno
 // RunInAgentProcess runs diagnoses in the Agent process.
 func RunInAgentProcess(diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) ([]diagnosis.Diagnoses, error) {
 	// Collect local diagnoses
-	return getDiagnosesFromCurrentProcess(diagCfg, getSuitesForAgentProcess(diagCfg, deps))
+	suites := buildSuites(diagCfg, func() []diagnosis.Diagnosis {
+		return diagnoseChecksInAgentProcess(deps.collector)
+	})
+
+	return getDiagnosesFromCurrentProcess(diagCfg, suites)
 }
 
 // RunStdOutInAgentProcess enumerates registered Diagnose suites and get their diagnoses
@@ -502,18 +508,6 @@ func NewSuitesDeps(
 		WMeta:          wmeta,
 		AC:             ac,
 	}
-}
-
-func getSuitesForAgentProcess(diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) []diagnosis.Suite {
-	return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
-		return diagnoseChecksInAgentProcess(deps.collector)
-	})
-}
-
-func getSuitesForCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) []diagnosis.Suite {
-	return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
-		return diagnoseChecksInCLIProcess(diagCfg, deps.senderManager, deps.secretResolver, deps.wmeta, deps.AC)
-	})
 }
 
 func getSuitesAutodiscovery() []diagnosis.Suite {
