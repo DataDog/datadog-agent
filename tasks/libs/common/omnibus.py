@@ -45,6 +45,7 @@ def _get_environment_for_cache() -> dict:
             'RELEASE_VERSION',
             'RPM_',
             'S3_',
+            'SSH_',
             'TEST_INFRA_',
             'USE_',
             'VAULT_',
