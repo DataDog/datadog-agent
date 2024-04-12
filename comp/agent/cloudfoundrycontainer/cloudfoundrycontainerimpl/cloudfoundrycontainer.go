@@ -7,6 +7,8 @@
 package cloudfoundrycontainerimpl
 
 import (
+	"context"
+
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
@@ -30,6 +32,7 @@ type dependencies struct {
 	fx.In
 	Config config.Component // Don't remove Config as it must be loaded before using IsFeaturePresent
 	WMeta  workloadmeta.Component
+	LC     fx.Lifecycle
 }
 
 func newCloudfoundryContainer(deps dependencies) cloudfoundrycontainer.Component {
@@ -39,8 +42,17 @@ func newCloudfoundryContainer(deps dependencies) cloudfoundrycontainer.Component
 		if err != nil {
 			log.Errorf("Failed to create Cloud Foundry container tagger: %v", err)
 		} else {
-			ctx, _ := pkgcommon.GetMainCtxCancel()
-			containerTagger.Start(ctx)
+			ctx, cancel := pkgcommon.GetMainCtxCancel()
+			deps.LC.Append(fx.Hook{
+				OnStart: func(_ context.Context) error {
+					containerTagger.Start(ctx)
+					return nil
+				},
+				OnStop: func(_ context.Context) error {
+					cancel()
+					return nil
+				},
+			})
 		}
 	}
 	return struct{}{}
