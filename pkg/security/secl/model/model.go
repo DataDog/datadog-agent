@@ -443,8 +443,8 @@ func (pc *ProcessCacheEntry) Retain() {
 	pc.refCount++
 }
 
-// SetReleaseCallback set the callback called when the entry is released
-func (pc *ProcessCacheEntry) SetReleaseCallback(callback func()) {
+// AppendReleaseCallback set the callback called when the entry is released
+func (pc *ProcessCacheEntry) AppendReleaseCallback(callback func()) {
 	previousCallback := pc.releaseCb
 	pc.releaseCb = func() {
 		callback()
