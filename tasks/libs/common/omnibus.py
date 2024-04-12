@@ -237,3 +237,17 @@ def send_build_metrics(ctx, overall_duration):
     else:
         print(f'Failed to send build metrics to DataDog: {r.status_code}')
         print(r.text)
+
+
+def install_dir_for_product(product):
+    if product == "agent":
+        folder = 'datadog-agent'
+    elif product == 'dogstatsd':
+        folder = 'datadog-dogstatsd'
+    elif product == 'agentless-scanner':
+        folder = os.path.join('datadog', 'agentless-scanner')
+    else:
+        raise NotImplementedError(f'Unknown product {product}')
+    if sys.platform == 'win32':
+        return os.path.join('C:', 'opt', folder)
+    return os.path.join('/opt', folder)

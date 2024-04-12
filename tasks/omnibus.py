@@ -5,7 +5,12 @@ from invoke import task
 
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
-from tasks.libs.common.omnibus import omnibus_compute_cache_key, send_build_metrics, should_retry_bundle_install
+from tasks.libs.common.omnibus import (
+    install_dir_for_product,
+    omnibus_compute_cache_key,
+    send_build_metrics,
+    should_retry_bundle_install,
+)
 from tasks.libs.common.utils import get_version, load_release_versions, timed
 from tasks.ssm import get_pfx_pass, get_signing_cert
 
@@ -167,7 +172,7 @@ def build(
     python_mirror=None,
     pip_config_file="pip.conf",
     host_distribution=None,
-    install_directory="/opt/datadog-agent",
+    install_directory=None,
     target_project=None,
 ):
     """
@@ -225,6 +230,8 @@ def build(
     omnibus_cache_dir = os.environ.get('OMNIBUS_GIT_CACHE_DIR')
     use_omnibus_git_cache = omnibus_cache_dir is not None
     if use_omnibus_git_cache:
+        if install_directory is None:
+            install_directory = install_dir_for_product(target_project)
         if install_directory[0] == "/":
             install_directory = install_directory[1:]
         omnibus_cache_dir = os.path.join(omnibus_cache_dir, install_directory)
