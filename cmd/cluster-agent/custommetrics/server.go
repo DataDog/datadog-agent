@@ -14,7 +14,6 @@ import (
 	"net"
 
 	"github.com/spf13/pflag"
-	"k8s.io/apimachinery/pkg/util/errors"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/apiserver"
@@ -139,19 +138,7 @@ func (a *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 		log.Errorf("Failed to create self signed AuthN/Z configuration %#v", err)
 		return nil, fmt.Errorf("error creating self-signed certificates: %v", err)
 	}
-	if errList := a.CustomMetricsAdapterServerOptions.Validate(); len(errList) > 0 {
-		return nil, errors.NewAggregate(errList)
-	}
-
-	serverConfig := genericapiserver.NewConfig(apiserver.Codecs)
-	err := a.CustomMetricsAdapterServerOptions.ApplyTo(serverConfig)
-	if err != nil {
-		return nil, err
-	}
-	a.config = &apiserver.Config{
-		GenericConfig: serverConfig,
-	}
-	return a.config, nil
+	return a.CustomMetricsAdapterServerOptions.Config()
 }
 
 // clearServerResources closes the connection and the server
