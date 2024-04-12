@@ -1,4 +1,4 @@
 ---
 variables: 
   DD_AGENT_IMAGE_SUFFIX: ''
-  DD_AGENT_IMAGE: 42
+  DD_AGENT_IMAGE_VERSION: 42

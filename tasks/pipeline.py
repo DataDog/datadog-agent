@@ -759,7 +759,7 @@ def update_gitlab_config(file_path, image_tag, test_version):
         for name in gitlab_ci["variables"]
         if name.endswith("SUFFIX") and not name.startswith("TEST_INFRA_DEFINITION")
     ]
-    images = [name.replace("_SUFFIX", "") for name in suffixes]
+    images = [name.replace("_SUFFIX", "_VERSION") for name in suffixes]
     with open(file_path, "w") as gl:
         for line in file_content:
             if any(re.search(rf"{suffix}:", line) for suffix in suffixes):
