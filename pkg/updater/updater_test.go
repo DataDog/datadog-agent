@@ -199,7 +199,8 @@ func TestBootstrapWithRC(t *testing.T) {
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.StableFS())
 }
 
-func TestBootstrapCatalogUpdate(t *testing.T) {
+// hacky name to avoid hitting https://github.com/golang/go/issues/62614
+func TestBootUpd(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
