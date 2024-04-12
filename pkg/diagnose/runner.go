@@ -347,13 +347,6 @@ func RunInCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) ([]d
 }
 
 // Run runs diagnoses.
-func Run(diagCfg diagnosis.Config, deps SuitesDeps) ([]diagnosis.Diagnoses, error) {
-	return run(diagCfg, func() []diagnosis.Suite {
-		return getSuites(diagCfg, deps)
-	})
-}
-
-// Run runs diagnoses.
 func run(diagCfg diagnosis.Config, getSuites func() []diagnosis.Suite) ([]diagnosis.Diagnoses, error) {
 	// Make remote call to get diagnoses
 	if !diagCfg.RunLocal {
@@ -373,16 +366,6 @@ func run(diagCfg diagnosis.Config, getSuites func() []diagnosis.Suite) ([]diagno
 func RunInAgentProcess(diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) ([]diagnosis.Diagnoses, error) {
 	// Collect local diagnoses
 	return getDiagnosesFromCurrentProcess(diagCfg, getSuitesForAgentProcess(diagCfg, deps))
-}
-
-// Enumerate registered Diagnose suites and get their diagnoses
-// for human consumption
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func RunStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
-	return runStdOut(w, diagCfg, func(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
-		return Run(diagCfg, deps)
-	})
 }
 
 // RunStdOutInAgentProcess enumerates registered Diagnose suites and get their diagnoses
@@ -519,12 +502,6 @@ func NewSuitesDeps(
 		WMeta:          wmeta,
 		AC:             ac,
 	}
-}
-
-func getSuites(diagCfg diagnosis.Config, deps SuitesDeps) []diagnosis.Suite {
-	return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
-		return getDiagnose(diagCfg, deps.SenderManager, deps.SecretResolver, deps.WMeta, deps.AC)
-	})
 }
 
 func getSuitesForAgentProcess(diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) []diagnosis.Suite {

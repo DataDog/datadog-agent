@@ -284,8 +284,10 @@ func getDiagnoses(isFlareLocal bool, deps diagnose.SuitesDeps) func() ([]byte, e
 		if !isFlareLocal && ok {
 			return diagnose.RunStdOutInAgentProcess(w, diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
 		}
-
-		return diagnose.RunStdOut(w, diagCfg, deps)
+		if ac, ok := deps.AC.Get(); ok {
+			return diagnose.RunStdOutInCLIProcess(w, diagCfg, diagnose.NewSuitesDepsInCLIProcess(deps.SenderManager, deps.SecretResolver, deps.WMeta, ac))
+		}
+		return fmt.Errorf("collector or autoDiscovery not found")
 	}
 
 	return func() ([]byte, error) { return functionOutputToBytes(fct), nil }

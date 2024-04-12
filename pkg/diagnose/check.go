@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -24,20 +23,6 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
-
-func getDiagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], acOpt optional.Option[autodiscovery.Component]) []diagnosis.Diagnosis {
-	if ac, ok := acOpt.Get(); ok {
-		return diagnoseChecksInCLIProcess(diagCfg, senderManager, secretResolver, wmeta, ac)
-	}
-	return []diagnosis.Diagnosis{
-		{
-			Result:    diagnosis.DiagnosisUnexpectedError,
-			Name:      "Collector or AutoDiscovery not found",
-			Diagnosis: "Collector or AutoDiscovery not found",
-			RawError:  "Collector or AutoDiscovery not found",
-		},
-	}
-}
 
 func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
 
