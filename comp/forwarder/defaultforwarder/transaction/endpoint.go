@@ -23,11 +23,13 @@ func (e Endpoint) String() string {
 }
 
 // GetEndpoint returns the full endpoint URL
-func (e Endpoint) GetEndpoint() string {
+func (e Endpoint) GetEndpoint(domain string) string {
 	if e.Subdomain == "" {
-		e.Subdomain = "https://app.datadoghq.com"
+		return domain + e.Route
 	}
 	e.Subdomain = strings.TrimSuffix(e.Subdomain, "/")
 	e.Route = strings.TrimPrefix(e.Route, "/")
-	return e.Subdomain + "/" + e.Route
+	url := e.Subdomain + "/" + e.Route
+	
+	return url
 }

@@ -96,10 +96,11 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 					logURL = endpointInfo.Endpoint.Route
 					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, clientWithOneRedirects())
 				} else {
+					domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
 					httpTraces = []string{}
 					ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces))
 
-					statusCode, responseBody, logURL, err = sendHTTPRequestToEndpoint(ctx, client, endpointInfo, apiKey)
+					statusCode, responseBody, logURL, err = sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
 				}
 
 				// Check if there is a response and if it's valid
@@ -148,8 +149,8 @@ func createDiagnosisString(diagnosis string, report string) string {
 
 // sendHTTPRequestToEndpoint creates an URL based on the domain and the endpoint information
 // then sends an HTTP Request with the method and payload inside the endpoint information
-func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, endpointInfo endpointInfo, apiKey string) (int, []byte, string, error) {
-	url := endpointInfo.Endpoint.GetEndpoint()
+func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain string, endpointInfo endpointInfo, apiKey string) (int, []byte, string, error) {
+	url := endpointInfo.Endpoint.GetEndpoint(domain)
 	logURL := scrubber.ScrubLine(url)
 
 	// Create a request for the backend
