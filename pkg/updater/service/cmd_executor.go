@@ -44,6 +44,7 @@ func rmAgentSymlink() error {
 	return executeCommand(`{"command":"rm-agent-symlink"}`)
 }
 
+// SetCapHelper sets cap setuid on the newly installed helper
 func SetCapHelper(path string) error {
 	return executeCommand(`{"command":"setcap cap_setuid+ep", "path":"` + path + `"}`)
 }

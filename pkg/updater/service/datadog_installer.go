@@ -16,6 +16,7 @@ const (
 
 var installerUnits = []string{installerUnit, installerUnitExp}
 
+// SetupInstallerUnit installs and starts the installer systemd units
 func SetupInstallerUnit() (err error) {
 	defer func() {
 		if err != nil {
@@ -39,6 +40,7 @@ func SetupInstallerUnit() (err error) {
 	return nil
 }
 
+// RemoveInstallerUnit removes the installer systemd units
 func RemoveInstallerUnit() {
 	var err error
 	for _, unit := range installerUnits {
@@ -51,10 +53,12 @@ func RemoveInstallerUnit() {
 	}
 }
 
+// StartInstallerExperiment installs the experimental systemd units for the installer
 func StartInstallerExperiment() error {
 	return startUnit(installerUnitExp)
 }
 
+// StartInstallerExperiment installs the stable systemd units for the installer
 func StopInstallerExperiment() error {
 	return startUnit(installerUnit)
 }
