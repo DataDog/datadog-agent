@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
+	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
@@ -34,7 +34,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 		ts, _ = strconv.Atoi(timestamps[0])
 	}
 
-	if int64(ts) > jmx.GetScheduledConfigsModificationTimestamp() {
+	if int64(ts) > jmxfetch.GetScheduledConfigsModificationTimestamp() {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -45,7 +45,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 	j := map[string]interface{}{}
 	configs := map[string]integration.JSONMap{}
 
-	for name, config := range jmx.GetScheduledConfigs() {
+	for name, config := range jmxfetch.GetScheduledConfigs() {
 		var rawInitConfig integration.RawMap
 		err := yaml.Unmarshal(config.InitConfig, &rawInitConfig)
 		if err != nil {

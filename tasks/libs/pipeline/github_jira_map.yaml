@@ -7,7 +7,7 @@
 '@datadog/container-ecosystems': CECO
 '@datadog/platform-integrations': PLINT
 '@datadog/agent-security': CWS
-'@datadog/agent-apm': AIT
+'@datadog/agent-apm': APMSP
 '@datadog/network-device-monitoring': NDMII
 '@datadog/processes': PROCS
 '@datadog/agent-metrics-logs': AMLII

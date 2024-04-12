@@ -6,9 +6,14 @@
 package updater
 
 import (
+	"archive/tar"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 
 	oci "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/types"
@@ -23,11 +28,15 @@ const (
 	datadogPackageConfigLayerMediaType types.MediaType = "application/vnd.datadog.package.config.layer.v1.tar+zstd"
 	datadogPackageMaxSize                              = 3 << 30 // 3GiB
 	defaultConfigsDir                                  = "/etc"
+
+	packageDatadogAgent = "datadog-agent"
+	packageAPMInjector  = "datadog-apm-inject"
 )
 
 type installer struct {
 	repositories *repository.Repositories
 	configsDir   string
+	installLock  sync.Mutex
 }
 
 func newInstaller(repositories *repository.Repositories) *installer {
@@ -52,10 +61,17 @@ func (i *installer) installStable(pkg string, version string, image oci.Image) e
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	if pkg == "datadog-agent" {
+
+	i.installLock.Lock()
+	defer i.installLock.Unlock()
+	switch pkg {
+	case packageDatadogAgent:
 		return service.SetupAgentUnits()
+	case packageAPMInjector:
+		return service.SetupAPMInjector()
+	default:
+		return nil
 	}
-	return nil
 }
 
 func (i *installer) installExperiment(pkg string, version string, image oci.Image) error {
@@ -96,19 +112,25 @@ func (i *installer) uninstallExperiment(pkg string) error {
 }
 
 func (i *installer) startExperiment(pkg string) error {
-	// TODO(arthur): currently we only support the datadog-agent package
-	if pkg != "datadog-agent" {
+	i.installLock.Lock()
+	defer i.installLock.Unlock()
+	switch pkg {
+	case packageDatadogAgent:
+		return service.StartAgentExperiment()
+	default:
 		return nil
 	}
-	return service.StartAgentExperiment()
 }
 
 func (i *installer) stopExperiment(pkg string) error {
-	// TODO(arthur): currently we only support the datadog-agent package
-	if pkg != "datadog-agent" {
+	i.installLock.Lock()
+	defer i.installLock.Unlock()
+	switch pkg {
+	case packageDatadogAgent:
+		return service.StopAgentExperiment()
+	default:
 		return nil
 	}
-	return service.StopAgentExperiment()
 }
 
 func extractPackageLayers(image oci.Image, configDir string, packageDir string) error {
@@ -143,6 +165,82 @@ func extractPackageLayers(image oci.Image, configDir string, packageDir string) 
 		default:
 			log.Warnf("can't install unsupported layer media type: %s", mediaType)
 		}
+	}
+	return nil
+}
+
+// extractTarArchive extracts a tar archive to the given destination path
+//
+// Note on security: This function does not currently attempt to fully mitigate zip-slip attacks.
+// This is purposeful as the archive is extracted only after its SHA256 hash has been validated
+// against its reference in the package catalog. This catalog is itself sent over Remote Config
+// which guarantees its integrity.
+func extractTarArchive(reader io.Reader, destinationPath string, maxSize int64) error {
+	log.Debugf("Extracting archive to %s", destinationPath)
+	tr := tar.NewReader(io.LimitReader(reader, maxSize))
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("could not read tar header: %w", err)
+		}
+		if header.Name == "./" {
+			continue
+		}
+
+		target := filepath.Join(destinationPath, header.Name)
+
+		// Check for directory traversal. Note that this is more of a sanity check than a security measure.
+		if !strings.HasPrefix(target, filepath.Clean(destinationPath)+string(os.PathSeparator)) {
+			return fmt.Errorf("tar entry %s is trying to escape the destination directory", header.Name)
+		}
+
+		// Extract element depending on its type
+		switch header.Typeflag {
+		case tar.TypeDir:
+			err = os.MkdirAll(target, os.FileMode(header.Mode))
+			if err != nil {
+				return fmt.Errorf("could not create directory: %w", err)
+			}
+		case tar.TypeReg:
+			err = extractTarFile(target, tr, os.FileMode(header.Mode))
+			if err != nil {
+				return err // already wrapped
+			}
+		case tar.TypeSymlink:
+			err = os.Symlink(header.Linkname, target)
+			if err != nil {
+				return fmt.Errorf("could not create symlink: %w", err)
+			}
+		case tar.TypeLink:
+			// we currently don't support hard links in the updater
+		default:
+			log.Warnf("Unsupported tar entry type %d for %s", header.Typeflag, header.Name)
+		}
+	}
+
+	log.Debugf("Successfully extracted archive to %s", destinationPath)
+	return nil
+}
+
+// extractTarFile extracts a file from a tar archive.
+// It is separated from extractTarGz to ensure `defer f.Close()` is called right after the file is written.
+func extractTarFile(targetPath string, reader io.Reader, mode fs.FileMode) error {
+	err := os.MkdirAll(filepath.Dir(targetPath), 0755)
+	if err != nil {
+		return fmt.Errorf("could not create directory: %w", err)
+	}
+	f, err := os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.FileMode(mode))
+	if err != nil {
+		return fmt.Errorf("could not create file: %w", err)
+	}
+	defer f.Close()
+
+	_, err = io.Copy(f, reader)
+	if err != nil {
+		return fmt.Errorf("could not write file: %w", err)
 	}
 	return nil
 }

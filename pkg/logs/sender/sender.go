@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	tlmPayloadsDropped = telemetry.NewCounter("logs_sender", "payloads_dropped", []string{"reliable", "destination"}, "Payloads dropped")
-	tlmMessagesDropped = telemetry.NewCounter("logs_sender", "messages_dropped", []string{"reliable", "destination"}, "Messages dropped")
+	tlmPayloadsDropped = telemetry.NewCounterWithOpts("logs_sender", "payloads_dropped", []string{"reliable", "destination"}, "Payloads dropped", telemetry.Options{DefaultMetric: true})
+	tlmMessagesDropped = telemetry.NewCounterWithOpts("logs_sender", "messages_dropped", []string{"reliable", "destination"}, "Messages dropped", telemetry.Options{DefaultMetric: true})
 	tlmSendWaitTime    = telemetry.NewCounter("logs_sender", "send_wait", []string{}, "Time spent waiting for all sends to finish")
 )
 
