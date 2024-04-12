@@ -8,8 +8,6 @@ package scheduler
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
@@ -25,17 +23,8 @@ type Digest string
 const (
 	// Scheduled config should be scheduled or is scheduled
 	Scheduled ConfigState = 1 << iota
-	// UnScheduled config is unscheduled or should be unscheduled
+	// Unscheduled config is unscheduled or should be unscheduled
 	Unscheduled
-)
-
-const (
-	// TaskSuccess handleEvents is successful
-	TaskSuccess TaskStatus = 1 << iota
-	// TaskFailed handleEvents is failed
-	TaskFailed
-	// ConfigNotFound config is not found in configStateMap
-	ConfigNotFound
 )
 
 // ConfigStateData contains
@@ -43,6 +32,17 @@ const (
 type ConfigStateData struct {
 	desiredState ConfigState
 	config       *integration.Config
+}
+
+// copy returns a copy of ConfigStateData
+func (c ConfigStateData) copy() ConfigStateData {
+	var configCopy *integration.Config
+	originalConfig := *c.config
+	configCopy = &originalConfig
+	return ConfigStateData{
+		desiredState: c.desiredState,
+		config:       configCopy,
+	}
 }
 
 // ConfigStateStore is in charge of storing
@@ -53,7 +53,7 @@ type ConfigStateData struct {
 type ConfigStateStore struct {
 	configsLock sync.Mutex
 
-	// Events to MetaScheduler would update immediately configStatusMap
+	// Events to SchedulerController would update immediately configStatusMap
 	configStateMap map[Digest]ConfigStateData
 }
 
@@ -65,16 +65,31 @@ func NewConfigStateStore() *ConfigStateStore {
 }
 
 // UpdateDesiredState update the desiredState of the config immediately
-func (store *ConfigStateStore) UpdateDesiredState(configs []integration.Config, desireState ConfigState) {
+func (store *ConfigStateStore) UpdateDesiredState(changes integration.ConfigChanges) []Digest {
 	store.configsLock.Lock()
 	defer store.configsLock.Unlock()
-	for idx, config := range configs {
-		configDigest := Digest(config.Digest())
-		store.configStateMap[configDigest] = ConfigStateData{
-			desiredState: desireState,
-			config:       &configs[idx],
+	digests := make([]Digest, 0, len(changes.Unschedule)+len(changes.Schedule))
+	if len(changes.Unschedule) > 0 {
+		for idx, config := range changes.Unschedule {
+			configDigest := Digest(config.Digest())
+			store.configStateMap[configDigest] = ConfigStateData{
+				desiredState: Unscheduled,
+				config:       &changes.Unschedule[idx],
+			}
+			digests = append(digests, configDigest)
 		}
 	}
+	if len(changes.Schedule) > 0 {
+		for idx, config := range changes.Schedule {
+			configDigest := Digest(config.Digest())
+			store.configStateMap[configDigest] = ConfigStateData{
+				desiredState: Scheduled,
+				config:       &changes.Schedule[idx],
+			}
+			digests = append(digests, configDigest)
+		}
+	}
+	return digests
 }
 
 // List returns the list of all configs states
@@ -83,47 +98,18 @@ func (store *ConfigStateStore) List() []ConfigStateData {
 	defer store.configsLock.Unlock()
 	v := make([]ConfigStateData, 0, len(store.configStateMap))
 	for _, value := range store.configStateMap {
-		v = append(v, value)
+		v = append(v, value.copy())
 	}
 	return v
 }
 
-// HandleEvents processes the task queue
-// Return execute status and attempt count
-// Action type will be calculated as following:
-// Current State,   Desired State     Action
-// Unscheduled,     Schedule,         Schedule
-// Unscheduled,     Unschedule,       None
-// Scheduled,       Schedule,         None
-// Scheduled,       Unschedule,       Unschedule
-func (store *ConfigStateStore) HandleEvents(configDigest Digest,
-	configName string,
-	currentState ConfigState,
-	scheduleCB func(configs []integration.Config),
-	unscheduleCB func(configs []integration.Config)) (TaskStatus, ConfigState) {
-
+// GetConfigState returns the config state
+func (store *ConfigStateStore) GetConfigState(configDigest Digest) (ConfigStateData, bool) {
 	store.configsLock.Lock()
+	defer store.configsLock.Unlock()
 	configStateData, found := store.configStateMap[configDigest]
-	if !found {
-		log.Warnf("config %s not found in configStatusMap", configName)
-		return ConfigNotFound, currentState
-	}
-	store.configStateMap[configDigest] = configStateData
-	store.configsLock.Unlock()
-
-	if configStateData.desiredState == currentState {
-		//desired state has been achieved
-		return TaskSuccess, configStateData.desiredState
-	}
-
-	if configStateData.desiredState == Scheduled {
-		//to be scheduled
-		scheduleCB([]integration.Config{*configStateData.config}) // TODO: check status of action
-	} else {
-		//to be unscheduled
-		unscheduleCB([]integration.Config{*configStateData.config})
-	}
-	return TaskSuccess, configStateData.desiredState
+	configStateDataCopy := configStateData.copy()
+	return configStateDataCopy, found
 }
 
 // PurgeConfigStates purges all config desired states
