@@ -45,6 +45,18 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
+    struct bpf_sock *sk = skb->sk;
+    log_debug("skb %p sk %p", skb, sk);
+    log_debug("skb %p sport %u dport %u", skb, kafka->tup.sport, kafka->tup.dport);
+    if (sk) {
+        int ret = bpf_map_update_elem(&kafka_sockmap, &zero, sk, BPF_ANY);
+        log_debug("map update ret %d", ret);
+        if (ret == 1000) {
+            return 0;
+        }
+    }
+
+
     if (!kafka_allow_packet(kafka, skb, &skb_info)) {
         return 0;
     }
@@ -60,6 +72,7 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
     /*
         We perform Kafka request validation as we can get kafka traffic that is not relevant for parsing (unsupported requests, responses, etc)
     */
+
 
     kafka_header_t kafka_header;
     bpf_memset(&kafka_header, 0, sizeof(kafka_header));
@@ -194,6 +207,12 @@ static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struc
     }
 
     return true;
+}
+
+SEC("sk_skb/kafka_stream_parser")
+int sk_skb__kafka_stream_parser(struct __sk_buff* skb) {
+    log_debug("%s: skb %p", __func__, skb);
+    return 0;
 }
 
 #endif

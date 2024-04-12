@@ -872,3 +872,5 @@ replace (
 
 // Prevent a false-positive detection by the Google and Ikarus security vendors on VirusTotal
 exclude go.opentelemetry.io/proto/otlp v1.1.0
+
+replace github.com/DataDog/ebpf-manager => /home/vincent/dd/ebpf-manager

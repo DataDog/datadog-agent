@@ -18,7 +18,7 @@ typedef struct {
 
 #define KAFKA_MIN_LENGTH (sizeof(kafka_header_t))
 
-typedef struct {
+typedef struct kafka_transaction_t {
     conn_tuple_t tup;
     __u16 request_api_key;
     __u16 request_api_version;
