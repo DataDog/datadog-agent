@@ -27,6 +27,7 @@ type InvocationStartDetails struct {
 type InvocationEndDetails struct {
 	EndTime            time.Time
 	IsError            bool
+	IsTimeout          bool
 	RequestID          string
 	ResponseRawPayload []byte
 	ColdStart          bool
