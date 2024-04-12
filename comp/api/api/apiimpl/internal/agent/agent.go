@@ -587,6 +587,7 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	var err error
 
 	// Get diagnoses via API
+	// TODO: Once API component will be refactored, clean these dependencies
 	collector, ok := diagnoseDeps.Collector.Get()
 	if ok {
 		diagnoses, err = diagnose.RunInAgentProcess(diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
