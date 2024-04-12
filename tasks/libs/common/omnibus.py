@@ -246,6 +246,8 @@ def install_dir_for_project(project):
         folder = 'datadog-dogstatsd'
     elif project == 'agentless-scanner':
         folder = os.path.join('datadog', 'agentless-scanner')
+    elif project == 'installer':
+        folder = 'datadog-installer'
     else:
         raise NotImplementedError(f'Unknown project {project}')
     return os.path.join('opt', folder)
