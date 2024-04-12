@@ -22,12 +22,26 @@ import (
 )
 
 var (
-	installPath   string
-	systemdPath   = "/lib/systemd/system" // todo load it at build time from omnibus
-	pkgDir        = "/opt/datadog-packages/"
-	testSkipUID   = ""
-	installerUser = "dd-installer"
+	installPath    string
+	debSystemdPath = "/lib/systemd/system" // todo load it at build time from omnibus
+	rpmSystemdPath = "/usr/lib/systemd"
+	pkgDir         = "/opt/datadog-packages/"
+	testSkipUID    = ""
+	installerUser  = "dd-installer"
 )
+
+// findSystemdPath todo: this is a hacky way to detect on which os family we are currently
+// running and finding the correct systemd path.
+// We should probably provide the correct path when we build the package
+func findSystemdPath() (systemdPath string, err error) {
+	if _, err = os.Stat(debSystemdPath); err == nil {
+		return debSystemdPath, nil
+	}
+	if _, err = os.Stat(rpmSystemdPath); err == nil {
+		return rpmSystemdPath, nil
+	}
+	return "", fmt.Errorf("systemd unit path error: %w", err)
+}
 
 func enforceUID() bool {
 	return testSkipUID != "true"
@@ -92,7 +106,7 @@ func checkHelperPath(path string) (err error) {
 	if ddUpdaterUser.Uid != strconv.Itoa(int(stat.Uid)) {
 		return fmt.Errorf("installer-helper should be owned by dd-installer")
 	}
-	if stat.Mode != 750 {
+	if stat.Mode != 0750 {
 		return fmt.Errorf("installer-helper should only be executable by the user")
 	}
 	return nil
@@ -131,8 +145,16 @@ func buildUnitCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		// --no-block is used to avoid waiting on oneshot executions
 		return exec.Command("systemctl", command, unit, "--no-block"), nil
 	case "load-unit":
+		systemdPath, err := findSystemdPath()
+		if err != nil {
+			return nil, err
+		}
 		return exec.Command("cp", filepath.Join(installPath, "systemd", unit), filepath.Join(systemdPath, unit)), nil
 	case "remove-unit":
+		systemdPath, err := findSystemdPath()
+		if err != nil {
+			return nil, err
+		}
 		return exec.Command("rm", filepath.Join(systemdPath, unit)), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
