@@ -113,6 +113,18 @@ func (s *DockerFakeintakeSuite) TestAutoVersionStats() {
 	}, 2*time.Minute, 10*time.Second, "Failed finding version tags")
 }
 
+func (s *DockerFakeintakeSuite) TestIsTraceRootTag() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-auto-is-trace-root-tag-%s", s.transport)
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testIsTraceRootTag(s.T(), c, s.Env().FakeIntake)
+	}, 2*time.Minute, 10*time.Second, "Failed finding is_trace_root tag")
+}
+
 func (s *DockerFakeintakeSuite) TestStatsForService() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
