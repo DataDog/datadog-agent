@@ -1,16 +1,13 @@
 package checks
 
 import (
-	"encoding/json"
-
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func pathForConn(conn *model.Connection, epForwarderComp eventplatform.Component) {
+func pathForConn(conn *model.Connection, npSchedulerComp npscheduler.Component) {
 	var remoteAddr *model.Addr
 	remoteAddr = conn.Raddr
 	if remoteAddr.Ip == "127.0.0.1" {
@@ -35,19 +32,21 @@ func pathForConn(conn *model.Connection, epForwarderComp eventplatform.Component
 	}
 	log.Warnf("Network Path: %+v", path)
 
-	epForwarder, ok := epForwarderComp.Get()
-	if ok {
-		payloadBytes, err := json.Marshal(path)
-		if err != nil {
-			log.Errorf("SendEventPlatformEventBlocking error: %s", err)
-		} else {
+	npSchedulerComp.Schedule()
 
-			log.Warnf("Network Path MSG: %s", string(payloadBytes))
-			m := message.NewMessage(payloadBytes, nil, "", 0)
-			err = epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkPath)
-			if err != nil {
-				log.Errorf("SendEventPlatformEventBlocking error: %s", err)
-			}
-		}
-	}
+	//npScheduler, ok := npSchedulerComp.Schedule()
+	//if ok {
+	//	payloadBytes, err := json.Marshal(path)
+	//	if err != nil {
+	//		log.Errorf("SendEventPlatformEventBlocking error: %s", err)
+	//	} else {
+	//
+	//		log.Warnf("Network Path MSG: %s", string(payloadBytes))
+	//		m := message.NewMessage(payloadBytes, nil, "", 0)
+	//		err = npScheduler.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkPath)
+	//		if err != nil {
+	//			log.Errorf("SendEventPlatformEventBlocking error: %s", err)
+	//		}
+	//	}
+	//}
 }

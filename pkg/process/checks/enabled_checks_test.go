@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -33,12 +34,12 @@ func assertNotContainsCheck(t *testing.T, checks []string, name string) {
 	assert.NotContains(t, checks, name)
 }
 
-func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig config.ReaderWriter, wmeta workloadmeta.Component, epForwarder eventplatform.Component) []string {
+func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig config.ReaderWriter, wmeta workloadmeta.Component, npScheduler npscheduler.Component) []string {
 	sysprobeConfigStruct, err := sysconfig.New("")
 	require.NoError(t, err)
 
 	var enabledChecks []string
-	for _, check := range All(cfg, sysprobeYamlConfig, sysprobeConfigStruct, wmeta, epForwarder) {
+	for _, check := range All(cfg, sysprobeYamlConfig, sysprobeConfigStruct, wmeta, npScheduler) {
 		if check.IsEnabled() {
 			enabledChecks = append(enabledChecks, check.Name())
 		}
@@ -53,7 +54,7 @@ func TestProcessDiscovery(t *testing.T) {
 	t.Run("enabled", func(t *testing.T) {
 		cfg, sysprobeCfg := config.Mock(t), config.MockSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
-		enabledChecks := getEnabledChecks(t, cfg, sysprobeCfg, deps.WMeta, deps.EpForwarder)
+		enabledChecks := getEnabledChecks(t, cfg, sysprobeCfg, deps.WMeta, deps.NpScheduler)
 		assertContainsCheck(t, enabledChecks, DiscoveryCheckName)
 	})
 
@@ -61,7 +62,7 @@ func TestProcessDiscovery(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", false)
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.EpForwarder)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpScheduler)
 		assertNotContainsCheck(t, enabledChecks, DiscoveryCheckName)
 	})
 
@@ -70,7 +71,7 @@ func TestProcessDiscovery(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.EpForwarder)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpScheduler)
 		assertNotContainsCheck(t, enabledChecks, DiscoveryCheckName)
 	})
 }
@@ -80,7 +81,7 @@ func TestProcessCheck(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.EpForwarder)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpScheduler)
 		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
 	})
 
@@ -88,7 +89,7 @@ func TestProcessCheck(t *testing.T) {
 	t.Run("enabled", func(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.EpForwarder)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpScheduler)
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 	})
 }
@@ -104,7 +105,7 @@ func TestConnectionsCheck(t *testing.T) {
 		scfg.SetWithoutSource("system_probe_config.enabled", true)
 		flavor.SetFlavor("process_agent")
 
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.EpForwarder)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpScheduler)
 		if runtime.GOOS == "darwin" {
 			assertNotContainsCheck(t, enabledChecks, ConnectionsCheckName)
 		} else {
@@ -116,7 +117,7 @@ func TestConnectionsCheck(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
 		scfg.SetWithoutSource("network_config.enabled", false)
 
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.EpForwarder)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpScheduler)
 		assertNotContainsCheck(t, enabledChecks, ConnectionsCheckName)
 	})
 }
