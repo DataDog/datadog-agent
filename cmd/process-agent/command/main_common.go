@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
@@ -131,6 +133,13 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide process agent bundle so fx knows where to find components
 		process.Bundle(),
+
+		// Provide ep forwarder bundle so fx knows where to find components
+		fx.Provide(func() eventplatformimpl.Params {
+			return eventplatformimpl.NewDefaultParams()
+		}),
+		eventplatformreceiverimpl.Module(),
+		eventplatformimpl.Module(),
 
 		// Provide remote config client bundle
 		remoteconfig.Bundle(),

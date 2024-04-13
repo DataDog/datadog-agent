@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func pathForConn(conn *model.Connection, epforwarderComp eventplatform.Component) {
+func pathForConn(conn *model.Connection, epForwarderComp eventplatform.Component) {
 	var remoteAddr *model.Addr
 	remoteAddr = conn.Raddr
 	if remoteAddr.Ip == "127.0.0.1" {
@@ -35,7 +35,7 @@ func pathForConn(conn *model.Connection, epforwarderComp eventplatform.Component
 	}
 	log.Warnf("Network Path: %+v", path)
 
-	epForwarder, ok := epforwarderComp.Get()
+	epForwarder, ok := epForwarderComp.Get()
 	if ok {
 		payloadBytes, err := json.Marshal(path)
 		if err != nil {
