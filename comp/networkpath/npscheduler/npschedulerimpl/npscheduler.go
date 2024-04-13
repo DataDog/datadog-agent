@@ -50,7 +50,7 @@ type npSchedulerImpl struct {
 
 func (s npSchedulerImpl) Schedule(hostname string, port uint16) {
 	//TODO implement me
-	log.Errorf("Schedule called: hostname=%s port=%s", hostname, port)
+	log.Errorf("Schedule called: hostname=%s port=%d", hostname, port)
 
 	s.pathForConn(hostname, port)
 }
