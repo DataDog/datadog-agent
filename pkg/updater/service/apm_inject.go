@@ -346,6 +346,11 @@ func restoreAgentConfig() error {
 
 // restartTraceAgent restarts the trace agent, both stable and experimental
 func restartTraceAgent() error {
+	// if SELinux is enabled, add bin_t to /opt/datadog-packages
+	if err := setSELinuxPermissions(); err != nil {
+		return err
+	}
+
 	if err := restartUnit("datadog-agent-trace.service"); err != nil {
 		return err
 	}

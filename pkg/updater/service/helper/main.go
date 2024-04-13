@@ -80,6 +80,11 @@ func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("mv", "/tmp/ld.so.preload.tmp", "/etc/ld.so.preload"), nil
 	case "add-installer-to-agent-group":
 		return exec.Command("usermod", "-aG", "dd-agent", "dd-installer"), nil
+	case "set-selinux-permissions":
+		// TODO: semanage is not always installed, let's find a better way to do this
+		return exec.Command("semanage", "fcontext", "-a", "-t", "bin_t", "\"/opt/datadog-packages(/.*)?\""), nil
+	case "restore-selinux-context":
+		return exec.Command("restorecon", "-R", "/opt/datadog-packages"), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}

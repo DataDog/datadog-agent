@@ -83,6 +83,13 @@ func SetupAgentUnits() (err error) {
 	if err = installinfo.WriteInstallInfo("updater_package", "manual_update"); err != nil {
 		return
 	}
+
+	// if SELinux is enabled, add bin_t to /opt/datadog-packages
+	err = setSELinuxPermissions()
+	if err != nil {
+		return
+	}
+
 	for _, unit := range stableUnits {
 		if err = startUnit(unit); err != nil {
 			return

@@ -23,21 +23,23 @@ var (
 )
 
 const (
-	startCommand             unitCommand = "start"
-	stopCommand              unitCommand = "stop"
-	enableCommand            unitCommand = "enable"
-	disableCommand           unitCommand = "disable"
-	loadCommand              unitCommand = "load-unit"
-	removeCommand            unitCommand = "remove-unit"
-	addInstallerToAgentGroup unitCommand = "add-installer-to-agent-group"
-	backupCommand            unitCommand = `backup-file`
-	restoreCommand           unitCommand = `restore-file`
-	replaceDockerCommand                 = `{"command":"replace-docker"}`
-	restartDockerCommand                 = `{"command":"restart-docker"}`
-	createDockerDirCommand               = `{"command":"create-docker-dir"}`
-	replaceLDPreloadCommand              = `{"command":"replace-ld-preload"}`
-	systemdReloadCommand                 = `{"command":"systemd-reload"}`
-	adminExecutor                        = "datadog-updater-admin.service"
+	startCommand                 unitCommand = "start"
+	stopCommand                  unitCommand = "stop"
+	enableCommand                unitCommand = "enable"
+	disableCommand               unitCommand = "disable"
+	loadCommand                  unitCommand = "load-unit"
+	removeCommand                unitCommand = "remove-unit"
+	addInstallerToAgentGroup     unitCommand = "add-installer-to-agent-group"
+	backupCommand                unitCommand = `backup-file`
+	restoreCommand               unitCommand = `restore-file`
+	replaceDockerCommand                     = `{"command":"replace-docker"}`
+	restartDockerCommand                     = `{"command":"restart-docker"}`
+	createDockerDirCommand                   = `{"command":"create-docker-dir"}`
+	replaceLDPreloadCommand                  = `{"command":"replace-ld-preload"}`
+	systemdReloadCommand                     = `{"command":"systemd-reload"}`
+	seLinuxSetPermissionsCommand             = `{"command":"set-selinux-permissions"}`
+	seLinuxRestoreContextCommand             = `{"command":"restore-selinux-context"}`
+	adminExecutor                            = "datadog-updater-admin.service"
 )
 
 type privilegeCommand struct {

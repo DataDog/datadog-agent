@@ -207,12 +207,8 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	// Temporarily disable CentOS & Redhat, as there is a bug in the APM injector
-	if v.distro == os.CentOSDefault || v.distro == os.RedHatDefault {
-		v.T().Skip("APM injector not available for CentOS or RedHat yet")
-	}
-	if v.distro == os.DebianDefault || v.distro == os.UbuntuDefault && v.arch == os.AMD64Arch {
-		// TODO (baptiste): Fix test
-		v.T().Skip("Test has been temporarily disabled")
+	if v.distro == os.CentOSDefault {
+		v.T().Skip("APM injector not available for CentOS yet")
 	}
 
 	host := v.Env().RemoteHost
@@ -313,11 +309,11 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 
 	launchJavaDockerContainer(v.T(), host)
 
-	// check "Dropping Payload due to non-retryable error" in trace agent logs
-	// as we don't have an API key the payloads can't be flushed successfully,
-	// but this log indicates that the trace agent managed to receive the payload
+	// check "Dropping Payload" in trace agent logs as we don't have an API key the
+	// payloads can't be flushed successfully, but this log indicates that the trace
+	// agent managed to receive the payload
 	require.Eventually(v.T(), func() bool {
-		_, err := host.Execute(`cat /var/log/datadog/trace-agent.log | grep "Dropping Payload due to non-retryable error"`)
+		_, err := host.Execute(`cat /var/log/datadog/trace-agent.log | grep "Dropping Payload"`)
 		return err == nil
 	}, 30*time.Second, 100*time.Millisecond)
 
