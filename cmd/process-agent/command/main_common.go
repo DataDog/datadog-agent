@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
@@ -140,6 +141,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		}),
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(),
+
+		// Provide network path scheduler bundle
+		networkpath.Bundle(),
 
 		// Provide remote config client bundle
 		remoteconfig.Bundle(),
