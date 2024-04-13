@@ -138,6 +138,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide remote config client bundle
 		remoteconfig.Bundle(),
 
+		// NEED TO DECLARE TracerouteScheduler component here
+		// Then use it in
+
 		// Provide workloadmeta module
 		workloadmeta.Module(),
 

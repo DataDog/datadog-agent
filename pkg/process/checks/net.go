@@ -208,11 +208,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 func (c *ConnectionsCheck) pathForConn(conn *model.Connection) {
 	var remoteAddr *model.Addr
-	if conn.Direction == model.ConnectionDirection_outgoing {
-		remoteAddr = conn.Raddr
-	} else {
-		remoteAddr = conn.Laddr
-	}
+	remoteAddr = conn.Raddr
 	if remoteAddr.Ip == "127.0.0.1" {
 		// skip local addr
 		return

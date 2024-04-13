@@ -7,6 +7,7 @@
 package connectionscheckimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -33,9 +34,11 @@ type check struct {
 type dependencies struct {
 	fx.In
 
-	Sysconfig sysprobeconfig.Component
-	Config    config.Component
-	WMeta     workloadmeta.Component
+	Sysconfig   sysprobeconfig.Component
+	Config      config.Component
+	WMeta       workloadmeta.Component
+	EpForwarder eventplatform.Component
+	// ADD HERE TracerouteScheduler
 }
 
 type result struct {
