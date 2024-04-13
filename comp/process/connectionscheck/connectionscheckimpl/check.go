@@ -7,7 +7,7 @@
 package connectionscheckimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -37,7 +37,7 @@ type dependencies struct {
 	Sysconfig   sysprobeconfig.Component
 	Config      config.Component
 	WMeta       workloadmeta.Component
-	EpForwarder eventplatform.Component
+	NpScheduler npscheduler.Component
 }
 
 type result struct {
@@ -49,7 +49,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject(), deps.WMeta, deps.EpForwarder),
+		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject(), deps.WMeta, deps.NpScheduler),
 	}
 	return result{
 		Check: types.ProvidesCheck{

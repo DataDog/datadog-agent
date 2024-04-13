@@ -13,7 +13,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"github.com/benbjohnson/clock"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -48,13 +48,13 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, epForwarder eventplatform.Component) *ConnectionsCheck {
+func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npScheduler npscheduler.Component) *ConnectionsCheck {
 	return &ConnectionsCheck{
 		config:             config,
 		syscfg:             syscfg,
 		sysprobeYamlConfig: sysprobeYamlConfig,
 		wmeta:              wmeta,
-		epForwarder:        epForwarder,
+		npScheduler:        npScheduler,
 	}
 }
 
@@ -79,7 +79,7 @@ type ConnectionsCheck struct {
 	localresolver *resolver.LocalResolver
 	wmeta         workloadmeta.Component
 
-	epForwarder eventplatform.Component
+	npScheduler npscheduler.Component
 }
 
 // ProcessConnRates describes connection rates for processes
@@ -197,7 +197,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	log.Warnf("connsJson: %s", connsJson)
 
 	for _, conn := range conns.Conns {
-		pathForConn(conn, c.epForwarder)
+		pathForConn(conn, c.npScheduler)
 	}
 
 	groupID := nextGroupID()
