@@ -201,6 +201,14 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 		c.schedulePathForConnection(conn)
 	}
 
+	for _, domain := range conns.Domains {
+		c.schedulePathForDomain(domain)
+	}
+
+	for _, dns := range conns.Dns {
+		c.schedulePathForDns(dns)
+	}
+
 	groupID := nextGroupID()
 	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
@@ -536,4 +544,14 @@ func (c *ConnectionsCheck) schedulePathForConnection(conn *model.Connection) {
 	}
 	log.Warnf("schedulePathForConnection: %+v", remoteAddr)
 	c.npScheduler.Schedule(remoteAddr.Ip, uint16(conn.Raddr.Port))
+}
+
+func (c *ConnectionsCheck) schedulePathForDomain(domain string) {
+	c.npScheduler.Schedule(domain, 0)
+}
+
+func (c *ConnectionsCheck) schedulePathForDns(dns *model.DNSEntry) {
+	for _, name := range dns.Names {
+		c.npScheduler.Schedule(name, 0)
+	}
 }
