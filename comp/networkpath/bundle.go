@@ -7,14 +7,15 @@
 package networkpath
 
 import (
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"github.com/DataDog/datadog-agent/comp/networkpath/scheduler/schedulerimpl"
 )
 
 // team: network-device-monitoring, network-performance-monitoring
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	schedulerimpl.Module(),
-)
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		npschedulerimpl.Module(),
+	)
+}
