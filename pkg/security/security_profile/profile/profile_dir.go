@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -155,10 +156,20 @@ func (dp *DirectoryProvider) UpdateWorkloadSelectors(selectors []cgroupModel.Wor
 }
 
 func (dp *DirectoryProvider) onNewProfileDebouncerCallback() {
+	// we don't want to keep the lock for too long, especially not while calling the callback
 	dp.Lock()
-	defer dp.Unlock()
-	for _, selector := range dp.selectors {
-		for profileSelector, profilePath := range dp.profileMapping {
+	selectors := make([]cgroupModel.WorkloadSelector, len(dp.selectors))
+	copy(selectors, dp.selectors)
+	profileMapping := maps.Clone(dp.profileMapping)
+	propagateCb := dp.onNewProfileCallback
+	dp.Unlock()
+
+	if propagateCb == nil {
+		return
+	}
+
+	for _, selector := range selectors {
+		for profileSelector, profilePath := range profileMapping {
 			if selector.Match(profileSelector) {
 				// read and parse profile
 				profile, err := LoadProtoFromFile(profilePath.path)
@@ -168,7 +179,7 @@ func (dp *DirectoryProvider) onNewProfileDebouncerCallback() {
 				}
 
 				// propagate the new profile
-				dp.onNewProfileCallback(profileSelector, profile)
+				propagateCb(profileSelector, profile)
 			}
 		}
 	}
