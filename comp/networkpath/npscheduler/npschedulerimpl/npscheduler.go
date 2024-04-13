@@ -6,7 +6,12 @@
 package npschedulerimpl
 
 import (
+	"encoding/json"
+
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/fx"
 
@@ -16,7 +21,7 @@ import (
 type dependencies struct {
 	fx.In
 
-	// populate the component dependencies
+	EpForwarder eventplatform.Component
 }
 
 type provides struct {
@@ -35,18 +40,57 @@ func Module() fxutil.Module {
 func newNpScheduler(deps dependencies) provides {
 	// Component initialization
 	return provides{
-		Comp: newNpSchedulerImpl(),
+		Comp: newNpSchedulerImpl(deps.EpForwarder),
 	}
 }
 
 type npSchedulerImpl struct {
+	epForwarder eventplatform.Component
 }
 
-func (s npSchedulerImpl) Schedule() {
+func (s npSchedulerImpl) Schedule(hostname string, port uint16) {
 	//TODO implement me
-	log.Error("Schedule called")
+	log.Errorf("Schedule called: hostname=%s port=%s", hostname, port)
+
+	s.pathForConn(hostname, port)
 }
 
-func newNpSchedulerImpl() npSchedulerImpl {
-	return npSchedulerImpl{}
+func (s npSchedulerImpl) pathForConn(hostname string, port uint16) {
+	log.Warnf("destination hostname: %+v", hostname)
+
+	cfg := traceroute.Config{
+		DestHostname: hostname,
+		DestPort:     uint16(port),
+		MaxTTL:       24,
+		TimeoutMs:    1000,
+	}
+
+	tr := traceroute.New(cfg)
+	path, err := tr.Run()
+	if err != nil {
+		log.Warnf("traceroute error: %+v", err)
+	}
+	log.Warnf("Network Path: %+v", path)
+
+	epForwarder, ok := s.epForwarder.Get()
+	if ok {
+		payloadBytes, err := json.Marshal(path)
+		if err != nil {
+			log.Errorf("SendEventPlatformEventBlocking error: %s", err)
+		} else {
+
+			log.Warnf("Network Path MSG: %s", string(payloadBytes))
+			m := message.NewMessage(payloadBytes, nil, "", 0)
+			err = epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkPath)
+			if err != nil {
+				log.Errorf("SendEventPlatformEventBlocking error: %s", err)
+			}
+		}
+	}
+}
+
+func newNpSchedulerImpl(epForwarder eventplatform.Component) npSchedulerImpl {
+	return npSchedulerImpl{
+		epForwarder: epForwarder,
+	}
 }

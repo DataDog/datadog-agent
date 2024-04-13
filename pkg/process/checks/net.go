@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	gonet "net"
 	"runtime"
 	"sort"
 	"time"
@@ -197,7 +198,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	log.Warnf("connsJson: %s", connsJson)
 
 	for _, conn := range conns.Conns {
-		pathForConn(conn, c.npScheduler)
+		c.schedulePathForConnection(conn)
 	}
 
 	groupID := nextGroupID()
@@ -519,4 +520,20 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 	}
 
 	return tagsStr
+}
+
+func (c *ConnectionsCheck) schedulePathForConnection(conn *model.Connection) {
+	var remoteAddr *model.Addr
+	remoteAddr = conn.Raddr
+	if remoteAddr.Ip == "127.0.0.1" {
+		log.Debugf("Skip localhost 127.0.0.1: %+v", remoteAddr)
+		return
+	}
+	if gonet.ParseIP(remoteAddr.Ip).To4() == nil {
+		// TODO: IPv6 not supported yet
+		log.Debugf("Only IPv4 is currently supported yet: %+v", remoteAddr)
+		return
+	}
+	log.Warnf("schedulePathForConnection: %+v", remoteAddr)
+	c.npScheduler.Schedule(remoteAddr.Ip, uint16(conn.Raddr.Port))
 }
