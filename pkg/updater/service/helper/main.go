@@ -37,11 +37,11 @@ var (
 // running and finding the correct systemd path.
 // We should probably provide the correct path when we build the package
 func findSystemdPath() (systemdPath string, err error) {
-	if _, err = os.Stat(debSystemdPath); err == nil {
-		return debSystemdPath, nil
-	}
 	if _, err = os.Stat(rpmSystemdPath); err == nil {
 		return rpmSystemdPath, nil
+	}
+	if _, err = os.Stat(debSystemdPath); err == nil {
+		return debSystemdPath, nil
 	}
 	return "", fmt.Errorf("systemd unit path error: %w", err)
 }
