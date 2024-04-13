@@ -10,5 +10,5 @@ package scheduler
 
 // Component is the component type.
 type Component interface {
-	/* TODO: define Component interface */
+	SchedulePath()
 }
