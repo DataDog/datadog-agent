@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package scheduler used to manage network paths
-package scheduler
+//go:build test
 
-// team: network-device-monitoring, network-performance-monitoring
+package npscheduler
 
-// Component is the component type.
-type Component interface {
-	SchedulePath()
+// Mock implements mock-specific methods.
+type Mock interface {
+	Component
 }
