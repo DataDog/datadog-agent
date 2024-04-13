@@ -8,6 +8,7 @@ package checks
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -102,12 +103,12 @@ func (p CombinedRunResult) RealtimePayloads() []model.MessageBody {
 // All is a list of all runnable checks. Putting a check in here does not guarantee it will be run,
 // it just guarantees that the collector will be able to find the check.
 // If you want to add a check you MUST register it here.
-func All(config, sysprobeYamlCfg ddconfig.ReaderWriter, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component) []Check {
+func All(config, sysprobeYamlCfg ddconfig.ReaderWriter, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, epForwarder eventplatform.Component) []Check {
 	return []Check{
 		NewProcessCheck(config, sysprobeYamlCfg, wmeta),
 		NewContainerCheck(config, wmeta),
 		NewRTContainerCheck(config, wmeta),
-		NewConnectionsCheck(config, sysprobeYamlCfg, syscfg, wmeta),
+		NewConnectionsCheck(config, sysprobeYamlCfg, syscfg, wmeta, epForwarder),
 		NewProcessDiscoveryCheck(config),
 		NewProcessEventsCheck(config),
 	}
