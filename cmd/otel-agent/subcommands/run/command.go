@@ -87,7 +87,7 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 
 		// TODO: remove this once we start reading the collector config
 		fx.Provide(func() config.Params {
-			return config.NewAgentParams(params.ConfPath)
+			return config.NewAgentParams(params.ConfPaths)
 		}),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		fx.Provide(func() corelogimpl.Params {

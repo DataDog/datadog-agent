@@ -80,7 +80,8 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 	return enrichedTags
 }
 
-func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (
+// GetCoreComponents returns the components of the core Agent's OTLP pipeline.
+func GetCoreComponents(s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (
 	otelcol.Factories,
 	error,
 ) {
@@ -214,7 +215,7 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 
 	col, err := otelcol.NewCollector(otelcol.CollectorSettings{
 		Factories: func() (otelcol.Factories, error) {
-			return getComponents(s, logsAgentChannel)
+			return GetCoreComponents(s, logsAgentChannel)
 		},
 		BuildInfo:               buildInfo,
 		DisableGracefulShutdown: true,
