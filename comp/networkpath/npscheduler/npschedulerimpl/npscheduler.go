@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package schedulerimpl
+package npschedulerimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/networkpath/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -22,31 +22,31 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp scheduler.Component
+	Comp npscheduler.Component
 }
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newScheduler),
+		fx.Provide(newNpScheduler),
 	)
 }
 
-func newScheduler(deps dependencies) provides {
+func newNpScheduler(deps dependencies) provides {
 	// Component initialization
 	return provides{
-		Comp: newSchedulerImpl(),
+		Comp: newNpSchedulerImpl(),
 	}
 }
 
-type schedulerImpl struct {
+type npSchedulerImpl struct {
 }
 
-func (s schedulerImpl) SchedulePath() {
+func (s npSchedulerImpl) Schedule() {
 	//TODO implement me
-	log.Error("SchedulePath called")
+	log.Error("Schedule called")
 }
 
-func newSchedulerImpl() schedulerImpl {
-	return schedulerImpl{}
+func newNpSchedulerImpl() npSchedulerImpl {
+	return npSchedulerImpl{}
 }

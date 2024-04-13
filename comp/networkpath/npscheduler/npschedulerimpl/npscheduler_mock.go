@@ -5,7 +5,7 @@
 
 //go:build test
 
-package schedulerimpl
+package npschedulerimpl
 
 import (
 	"go.uber.org/fx"
@@ -21,6 +21,6 @@ func MockModule() fxutil.Module {
 }
 
 func newMock(deps dependencies) provides {
-  // Mock initialization
+	// Mock initialization
 	return provides{}
 }
