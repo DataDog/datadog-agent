@@ -531,7 +531,7 @@ func (c *ConnectionsCheck) schedulePathForConnection(conn *model.Connection) {
 	}
 	if gonet.ParseIP(remoteAddr.Ip).To4() == nil {
 		// TODO: IPv6 not supported yet
-		log.Debugf("Only IPv4 is currently supported yet: %+v", remoteAddr)
+		log.Debugf("Only IPv4 is currently supported yet. Address not supported: %+v", remoteAddr)
 		return
 	}
 	log.Warnf("schedulePathForConnection: %+v", remoteAddr)
