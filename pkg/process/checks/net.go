@@ -7,6 +7,7 @@ package checks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"runtime"
 	"sort"
@@ -184,6 +185,16 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	c.notifyProcessConnRates(c.config, conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
+
+	connsJson, err := json.Marshal(conns)
+	if err != nil {
+		log.Errorf("Json Error: %s", err)
+	}
+	log.Warnf("connsJson: %s", connsJson)
+
+	//for _, conn := range conns.Conns {
+	//	pathForConn(conn)
+	//}
 
 	groupID := nextGroupID()
 	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
