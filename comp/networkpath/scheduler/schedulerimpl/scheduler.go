@@ -6,6 +6,7 @@
 package schedulerimpl
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/networkpath/scheduler"
@@ -33,5 +34,19 @@ func Module() fxutil.Module {
 
 func newScheduler(deps dependencies) provides {
 	// Component initialization
-	return provides{}
+	return provides{
+		Comp: newSchedulerImpl(),
+	}
+}
+
+type schedulerImpl struct {
+}
+
+func (s schedulerImpl) SchedulePath() {
+	//TODO implement me
+	log.Error("SchedulePath called")
+}
+
+func newSchedulerImpl() schedulerImpl {
+	return schedulerImpl{}
 }
