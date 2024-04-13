@@ -51,7 +51,7 @@ func getEndpointsInfo(cfg config.Reader) []endpointInfo {
 		// Process endpoints
 		{endpoints.ProcessStatusEndpoint, "GET", nil},
 		{endpoints.ProcessesIntakeStatusEndpoint, "GET", nil},
-		//{endpoints.ProcessesEndpoint, "POST", emptyPayload},
+		{endpoints.ProcessesEndpoint, "POST", emptyPayload},
 		//{endpoints.ProcessDiscoveryEndpoint, "POST", emptyPayload},
 		//{endpoints.RtProcessesEndpoint, "POST", emptyPayload},
 		//{endpoints.ContainerEndpoint, "POST", emptyPayload},
@@ -59,7 +59,7 @@ func getEndpointsInfo(cfg config.Reader) []endpointInfo {
 		//{endpoints.ConnectionsEndpoint, "POST", emptyPayload},
 
 		// Orchestrator endpoints
-		//{endpoints.ProcessLifecycleEndpoint, "POST", emptyPayload},
+		{endpoints.ProcessLifecycleEndpoint, "POST", emptyPayload},
 		//{endpoints.LegacyOrchestratorEndpoint, "POST", emptyPayload},
 		//{endpoints.OrchestratorEndpoint, "POST", emptyPayload},
 		//{endpoints.OrchestratorManifestEndpoint, "POST", emptyPayload},
