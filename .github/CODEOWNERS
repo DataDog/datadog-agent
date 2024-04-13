@@ -250,7 +250,7 @@
 /comp/metadata @DataDog/agent-shared-components
 /comp/ndmtmp @DataDog/network-device-monitoring
 /comp/netflow @DataDog/network-device-monitoring
-/comp/networkpath @DataDog/network-device-monitoring, network-performance-monitoring
+/comp/networkpath @DataDog/network-device-monitoring @network-performance-monitoring
 /comp/otelcol @DataDog/opentelemetry
 /comp/process @DataDog/processes
 /comp/remote-config @DataDog/remote-config
