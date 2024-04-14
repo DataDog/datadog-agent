@@ -4,10 +4,10 @@ import json
 import os
 import platform
 import re
-import subprocess
 import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
+from subprocess import PIPE, CalledProcessError, Popen
 
 from invoke.exceptions import Exit
 
@@ -214,11 +214,12 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, addi
         if additional_tags:
             args.extend(additional_tags)
         args.append(junit_file_path)
-        processes.append(subprocess.Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env))
+        processes.append(Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env, stdout=PIPE, stderr=PIPE))
     for process in processes:
-        exit_code = process.wait()
-        if exit_code != 0:
-            raise subprocess.CalledProcessError(exit_code, DATADOG_CI_COMMAND)
+        _, stderr = process.communicate()
+        if stderr:
+            print(f"Failed uploading junit:\n{stderr}", file=os.sys.stderr)
+            raise CalledProcessError(process.returncode, DATADOG_CI_COMMAND)
 
 
 def is_e2e_internal_failure(xml_path):
