@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/http
 
-go 1.21
+go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../config/model

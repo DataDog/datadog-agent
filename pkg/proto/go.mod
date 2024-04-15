@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/proto
 
-go 1.21
+go 1.21.0
 
 retract v0.46.0-devel
 
