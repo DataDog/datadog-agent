@@ -25,7 +25,7 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 		Use:   "purge",
 		Short: "Purge installer packages",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return purgeFxWrapper()
 		},
 	}
