@@ -26,6 +26,9 @@ import (
 
 const (
 	webhookName = "autoscaling"
+
+	requestType = "request"
+	limitType   = "limit"
 )
 
 type wh struct {
@@ -94,7 +97,7 @@ func (w *wh) mutate(request *admission.MutateRequest) ([]byte, error) {
 
 // updateResource finds the owner of a pod, calls the recommender to retrieve the recommended CPU and Memory
 // requests
-func (w *wh) updateResources(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+func (w *wh) updateResources(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
 	if len(pod.OwnerReferences) == 0 {
 		return false, fmt.Errorf("no owner found for pod %s", pod.Name)
 	}
@@ -129,12 +132,14 @@ func (w *wh) updateResources(pod *corev1.Pod, _ string, _ dynamic.Interface) (bo
 			for resource, limit := range reco.Limits {
 				if limit != cont.Resources.Limits[resource] {
 					cont.Resources.Limits[resource] = limit
+					injections.Set(limit.AsApproximateFloat64(), string(resource), ns, ownerRef.Name, cont.Name, limitType)
 					injected = true
 				}
 			}
 			for resource, request := range reco.Requests {
 				if request != cont.Resources.Requests[resource] {
 					cont.Resources.Requests[resource] = request
+					injections.Set(request.AsApproximateFloat64(), string(resource), ns, ownerRef.Name, cont.Name, requestType)
 					injected = true
 				}
 			}
