@@ -622,10 +622,10 @@ static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct _
     kafka->response.carry_over_offset = offset - orig_offset;
     kafka->response.record_batch_length = 0;
 
-    kafka_response_context_t responsectx;
-    bpf_memcpy(&responsectx, &kafka->response, sizeof(responsectx));
+    kafka_response_context_t response_ctx;
+    bpf_memcpy(&response_ctx, &kafka->response, sizeof(response_ctx));
 
-    bpf_map_update_elem(&kafka_response, &tup, &responsectx, BPF_ANY);
+    bpf_map_update_elem(&kafka_response, &tup, &response_ctx, BPF_ANY);
 
     kafka_save_tcp_seq(&tup, skb_info);
     kafka_call_response_parser(&tup, skb);
