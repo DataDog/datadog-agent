@@ -206,7 +206,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	}
 
 	for _, dns := range conns.Dns {
-		c.schedulePathForDns(dns)
+		c.schedulePathForDNS(dns)
 	}
 
 	groupID := nextGroupID()
@@ -550,7 +550,7 @@ func (c *ConnectionsCheck) schedulePathForDomain(domain string) {
 	c.npScheduler.Schedule(domain, 0)
 }
 
-func (c *ConnectionsCheck) schedulePathForDns(dns *model.DNSEntry) {
+func (c *ConnectionsCheck) schedulePathForDNS(dns *model.DNSEntry) {
 	for _, name := range dns.Names {
 		c.npScheduler.Schedule(name, 0)
 	}
