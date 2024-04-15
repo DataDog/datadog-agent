@@ -29,11 +29,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
-	"github.com/DataDog/datadog-agent/cmd/manager"
 
 	// checks implemented as components
 
 	// core components
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
@@ -88,6 +88,7 @@ import (
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
+	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
@@ -121,7 +122,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
-	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
@@ -232,6 +232,7 @@ func run(log log.Component,
 	metadatascheduler metadatascheduler.Component,
 	jmxlogger jmxlogger.Component,
 	_ healthprobe.Component,
+	_ autoexit.Component,
 	settings settings.Component,
 ) error {
 	defer func() {
@@ -427,6 +428,7 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		healthprobeimpl.Module(),
+		adschedulerimpl.Module(),
 		fx.Provide(func(serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
@@ -501,11 +503,6 @@ func startAgent(
 
 	ctx, _ := pkgcommon.GetMainCtxCancel()
 
-	err = manager.ConfigureAutoExit(ctx, pkgconfig.Datadog)
-	if err != nil {
-		return log.Errorf("Unable to configure auto-exit, err: %v", err)
-	}
-
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
@@ -527,11 +524,6 @@ func startAgent(
 			// LoadAndRun is called later on
 			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
 		}
-	}
-
-	if logsAgent, ok := logsAgent.Get(); ok {
-		// TODO: (components) - once adScheduler is a component, inject it into the logs agent.
-		logsAgent.AddScheduler(adScheduler.New(ac))
 	}
 
 	// start the cloudfoundry container tagger

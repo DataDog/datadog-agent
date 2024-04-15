@@ -10,6 +10,10 @@ Click the links for more documentation.
 
 Package agent implements the "agent" bundle,
 
+### [comp/agent/autoexit](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/autoexit)
+
+Package autoexit lets setup automatic shutdown mechanism if necessary
+
 ### [comp/agent/expvarserver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/expvarserver)
 
 Package expvarserver contains the component type for the expVar server.
@@ -247,6 +251,10 @@ Package client implements a component to send process metadata to the Cluster-Ag
 *Datadog Team*: agent-metrics-logs
 
 
+
+### [comp/logs/adscheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/adscheduler)
+
+Package adscheduler is glue code to connect autodiscovery to the logs agent. It receives and filters events and converts them into log sources.
 
 ### [comp/logs/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/agent)
 

@@ -54,6 +54,9 @@ func init() {
 	}
 }
 
+// Option is a function that modifies a Server
+type Option func(*Server)
+
 // Server is a struct implementing a fakeintake server
 type Server struct {
 	server    http.Server
@@ -75,7 +78,7 @@ type Server struct {
 // options accept WithPort and WithReadyChan.
 // Call Server.Start() to start the server in a separate go-routine
 // If the port is 0, a port number is automatically chosen
-func NewServer(options ...func(*Server)) *Server {
+func NewServer(options ...Option) *Server {
 	fi := &Server{
 		urlMutex:                  sync.RWMutex{},
 		clock:                     clock.New(),
@@ -133,7 +136,7 @@ func NewServer(options ...func(*Server)) *Server {
 // WithAddress changes the server host:port.
 // If host is empty, it will bind to 0.0.0.0
 // If the port is empty or 0, a port number is automatically chosen
-func WithAddress(addr string) func(*Server) {
+func WithAddress(addr string) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the port.")
@@ -145,12 +148,12 @@ func WithAddress(addr string) func(*Server) {
 
 // WithPort changes the server port.
 // If the port is 0, a port number is automatically chosen
-func WithPort(port int) func(*Server) {
-	return WithAddress(fmt.Sprintf(":%d", port))
+func WithPort(port int) Option {
+	return WithAddress(fmt.Sprintf("0.0.0.0:%d", port))
 }
 
 // WithReadyChannel assign a boolean channel to get notified when the server is ready
-func WithReadyChannel(ready chan bool) func(*Server) {
+func WithReadyChannel(ready chan bool) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the ready channel.")
@@ -161,7 +164,7 @@ func WithReadyChannel(ready chan bool) func(*Server) {
 }
 
 // WithClock changes the clock used by the server
-func WithClock(clock clock.Clock) func(*Server) {
+func WithClock(clock clock.Clock) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the clock.")
@@ -172,7 +175,7 @@ func WithClock(clock clock.Clock) func(*Server) {
 }
 
 // WithRetention changes the retention time of payloads in the store
-func WithRetention(retention time.Duration) func(*Server) {
+func WithRetention(retention time.Duration) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the ready channel.")

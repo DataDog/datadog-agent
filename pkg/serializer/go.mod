@@ -69,7 +69,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/json v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.13.3
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.14.0
 	github.com/benbjohnson/clock v1.3.5
 	github.com/gogo/protobuf v1.3.2
 	github.com/json-iterator/go v1.1.12
@@ -166,9 +166,9 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
-	golang.org/x/mod v0.16.0 // indirect
-	golang.org/x/net v0.22.0 // indirect
-	golang.org/x/sys v0.18.0 // indirect
+	golang.org/x/mod v0.17.0 // indirect
+	golang.org/x/net v0.24.0 // indirect
+	golang.org/x/sys v0.19.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.19.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
