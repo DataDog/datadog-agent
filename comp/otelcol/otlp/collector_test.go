@@ -23,13 +23,13 @@ import (
 )
 
 func TestGetComponents(t *testing.T) {
-	_, err := getComponents(&serializer.MockSerializer{}, make(chan *message.Message))
+	_, err := getComponents(&serializer.MockSerializer{}, make(chan message.TimedMessage[*message.Message]))
 	// No duplicate component
 	require.NoError(t, err)
 }
 
 func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
-	p, err := NewPipeline(pcfg, &serializer.MockSerializer{}, make(chan *message.Message))
+	p, err := NewPipeline(pcfg, &serializer.MockSerializer{}, make(chan message.TimedMessage[*message.Message]))
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -54,7 +54,7 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 }
 
 func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
-	p, err := NewPipeline(pcfg, &serializer.MockSerializer{}, make(chan *message.Message))
+	p, err := NewPipeline(pcfg, &serializer.MockSerializer{}, make(chan message.TimedMessage[*message.Message]))
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

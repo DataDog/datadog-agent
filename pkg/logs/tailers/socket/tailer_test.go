@@ -18,30 +18,30 @@ import (
 )
 
 func TestReadAndForwardShouldSucceedWithSuccessfulRead(t *testing.T) {
-	msgChan := make(chan *message.Message)
+	msgChan := make(chan message.TimedMessage[*message.Message])
 	r, w := net.Pipe()
 	tailer := NewTailer(sources.NewLogSource("", &config.LogsConfig{}), r, msgChan, read)
 	tailer.Start()
 
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
 
 	// should receive and decode one message
 	w.Write([]byte("foo\n"))
 	msg = <-msgChan
-	assert.Equal(t, "foo", string(msg.GetContent()))
+	assert.Equal(t, "foo", string(msg.Inner.GetContent()))
 
 	// should receive and decode two messages
 	w.Write([]byte("bar\nboo\n"))
 	msg = <-msgChan
-	assert.Equal(t, "bar", string(msg.GetContent()))
+	assert.Equal(t, "bar", string(msg.Inner.GetContent()))
 	msg = <-msgChan
-	assert.Equal(t, "boo", string(msg.GetContent()))
+	assert.Equal(t, "boo", string(msg.Inner.GetContent()))
 
 	tailer.Stop()
 }
 
 func TestReadShouldFailWithError(t *testing.T) {
-	msgChan := make(chan *message.Message)
+	msgChan := make(chan message.TimedMessage[*message.Message])
 	r, w := net.Pipe()
 	read := func(*Tailer) ([]byte, error) { return nil, errors.New("") }
 	tailer := NewTailer(sources.NewLogSource("", &config.LogsConfig{}), r, msgChan, read)

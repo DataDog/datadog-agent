@@ -7,6 +7,8 @@ package sender
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -14,14 +16,14 @@ import (
 // that Message's Content. This is used for TCP destinations, which stream the output
 // without batching multiple messages together.
 type streamStrategy struct {
-	inputChan       chan *message.Message
+	inputChan       chan message.TimedMessage[*message.Message]
 	outputChan      chan *message.Payload
 	contentEncoding ContentEncoding
 	done            chan struct{}
 }
 
 // NewStreamStrategy creates a new stream strategy
-func NewStreamStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, contentEncoding ContentEncoding) Strategy {
+func NewStreamStrategy(inputChan chan message.TimedMessage[*message.Message], outputChan chan *message.Payload, contentEncoding ContentEncoding) Strategy {
 	return &streamStrategy{
 		inputChan:       inputChan,
 		outputChan:      outputChan,
@@ -34,21 +36,27 @@ func NewStreamStrategy(inputChan chan *message.Message, outputChan chan *message
 func (s *streamStrategy) Start() {
 	go func() {
 		for msg := range s.inputChan {
-			if msg.Origin != nil {
-				msg.Origin.LogSource.LatencyStats.Add(msg.GetLatency())
+
+			metrics.TlmChanTime.Observe(float64(msg.SendDuration().Nanoseconds()), "stream")
+			metrics.TlmChanTimeSkew.Set(telemetry.GetSkew(metrics.TlmChanTime, "stream"), "stream")
+
+			if msg.Inner.Origin != nil {
+				msg.Inner.Origin.LogSource.LatencyStats.Add(msg.Inner.GetLatency())
 			}
 
-			encodedPayload, err := s.contentEncoding.encode(msg.GetContent())
+			encodedPayload, err := s.contentEncoding.encode(msg.Inner.GetContent())
+			metrics.TlmMessageLatency.Observe(float64(msg.Inner.GetLatency()))
+
 			if err != nil {
 				log.Warn("Encoding failed - dropping payload", err)
 				return
 			}
 
 			s.outputChan <- &message.Payload{
-				Messages:      []*message.Message{msg},
+				Messages:      []*message.Message{msg.Inner},
 				Encoded:       encodedPayload,
 				Encoding:      s.contentEncoding.name(),
-				UnencodedSize: len(msg.GetContent()),
+				UnencodedSize: len(msg.Inner.GetContent()),
 			}
 		}
 		s.done <- struct{}{}

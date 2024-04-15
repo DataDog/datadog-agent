@@ -70,6 +70,30 @@ var (
 	DestinationHttpRespByStatusAndUrl = expvar.Map{}
 	//nolint:revive // TODO(AML) Fix revive linter
 	TlmDestinationHttpRespByStatusAndUrl = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
+
+	TlmLogsInput = telemetry.NewCounter("logs", "input", nil, "Total number of log messages read.")
+	// For output see `TlmLogsSent`.
+	TlmFileRead = telemetry.NewGauge("processing", "file_read", []string{"file_name"}, "File read progress.")
+	TlmChanTime = telemetry.NewHistogram("processing",
+		"channel_time",
+		[]string{"channel"},
+		"Time to send on the processing channel",
+		[]float64{1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000})
+
+	TlmChanTimeSkew = telemetry.NewGauge("processing", "channel_time_skew", []string{"channel"}, "Skew of the processing channel")
+
+	TlmChanLength = telemetry.NewGauge("processing", "channel_length", []string{"channel"}, "Length of the processing channel")
+
+	TlmProcessTime = telemetry.NewHistogram("processing", "time",
+		[]string{},
+		"Time spent processing a message",
+		[]float64{1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000})
+
+	TlmMessageLatency = telemetry.NewHistogram("log",
+		"latency",
+		[]string{},
+		"Time between message creation and processing",
+		[]float64{1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000})
 )
 
 func init() {

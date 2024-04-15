@@ -30,11 +30,11 @@ func TestUDPShouldReceiveMessage(t *testing.T) {
 	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
 	assert.Nil(t, err)
 
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
 
 	fmt.Fprintf(conn, "hello world\n")
 	msg = <-msgChan
-	assert.Equal(t, "hello world", string(msg.GetContent()))
+	assert.Equal(t, "hello world", string(msg.Inner.GetContent()))
 
 	listener.Stop()
 }

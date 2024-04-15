@@ -39,7 +39,7 @@ const (
 type Tailer struct {
 	decoder    *decoder.Decoder
 	source     *sources.LogSource
-	outputChan chan *message.Message
+	outputChan chan message.TimedMessage[*message.Message]
 	journal    Journal
 	exclude    struct {
 		systemUnits map[string]bool
@@ -58,7 +58,7 @@ type Tailer struct {
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, processRawMessage bool) *Tailer {
+func NewTailer(source *sources.LogSource, outputChan chan message.TimedMessage[*message.Message], journal Journal, processRawMessage bool) *Tailer {
 	if len(source.Config.ProcessingRules) > 0 && processRawMessage {
 		log.Warn("The logs processing rules currently apply to the raw journald JSON-structured log. These rules can now be applied to the message content only, and we plan to make this the default behavior in the future.")
 		log.Warn("In order to immediately switch to this new behavior, set 'process_raw_message' to 'false' in your logs integration config and adapt your processing rules accordingly.")
@@ -192,7 +192,7 @@ func (t *Tailer) setup() error {
 func (t *Tailer) forwardMessages() {
 	for decodedMessage := range t.decoder.OutputChan {
 		if len(decodedMessage.GetContent()) > 0 {
-			t.outputChan <- decodedMessage
+			t.outputChan <- message.NewTimedMessage(decodedMessage)
 		}
 	}
 }

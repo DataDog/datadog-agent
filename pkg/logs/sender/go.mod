@@ -46,6 +46,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.53.0-rc.2
@@ -61,7 +62,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.53.0-rc.2 // indirect

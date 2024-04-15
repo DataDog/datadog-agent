@@ -33,12 +33,12 @@ const containerAppName = "CONTAINER_APP_NAME"
 type Tailer struct {
 	source     *sources.LogSource
 	inputChan  chan *config.ChannelMessage
-	outputChan chan *message.Message
+	outputChan chan message.TimedMessage[*message.Message]
 	done       chan interface{}
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *sources.LogSource, inputChan chan *config.ChannelMessage, outputChan chan *message.Message) *Tailer {
+func NewTailer(source *sources.LogSource, inputChan chan *config.ChannelMessage, outputChan chan message.TimedMessage[*message.Message]) *Tailer {
 	return &Tailer{
 		source:     source,
 		inputChan:  inputChan,
@@ -82,7 +82,7 @@ func (t *Tailer) run() {
 			origin.SetTags(channelTags)
 		}
 
-		t.outputChan <- buildMessage(logline, origin)
+		t.outputChan <- message.NewTimedMessage(buildMessage(logline, origin))
 	}
 }
 

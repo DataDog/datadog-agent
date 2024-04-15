@@ -1104,7 +1104,7 @@ func TestUnmarshal(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	components, err := getComponents(&serializer.MockSerializer{}, make(chan *message.Message))
+	components, err := getComponents(&serializer.MockSerializer{}, make(chan message.TimedMessage[*message.Message]))
 	require.NoError(t, err)
 
 	_, err = provider.Get(context.Background(), components)

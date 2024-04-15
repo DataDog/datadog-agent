@@ -29,7 +29,7 @@ type Provider interface {
 	Stop()
 	ReconfigureSDSStandardRules(standardRules []byte) error
 	ReconfigureSDSAgentConfig(config []byte) error
-	NextPipelineChan() chan *message.Message
+	NextPipelineChan() chan message.TimedMessage[*message.Message]
 	// Flush flushes all pipeline contained in this Provider
 	Flush(ctx context.Context)
 }
@@ -153,7 +153,7 @@ func (p *provider) ReconfigureSDSAgentConfig(config []byte) error {
 }
 
 // NextPipelineChan returns the next pipeline input channel
-func (p *provider) NextPipelineChan() chan *message.Message {
+func (p *provider) NextPipelineChan() chan message.TimedMessage[*message.Message] {
 	pipelinesLen := len(p.pipelines)
 	if pipelinesLen == 0 {
 		return nil
