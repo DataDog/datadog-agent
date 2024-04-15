@@ -20,6 +20,7 @@ const (
 	OffsetNameSignalStructStructTTY     = "tty_offset"
 	OffsetNameTTYStructStructName       = "tty_name_offset"
 	OffsetNameCredStructUID             = "creds_uid_offset"
+	OffsetNameCredStructCapInheritable  = "creds_cap_inheritable_offset"
 	OffsetNameLinuxBinprmP              = "linux_binprm_p_offset"
 	OffsetNameLinuxBinprmArgc           = "linux_binprm_argc_offset"
 	OffsetNameLinuxBinprmEnvc           = "linux_binprm_envc_offset"
