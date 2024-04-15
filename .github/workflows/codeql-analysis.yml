@@ -43,7 +43,7 @@ jobs:
           go-version-file: ".go-version"
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3.24.10
+        uses: github/codeql-action/init@v3.25.0
         with:
           languages: ${{ matrix.language }}
           setup-python-dependencies: false
@@ -62,4 +62,4 @@ jobs:
           invoke agent.build --build-exclude=systemd
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3.24.10
+        uses: github/codeql-action/analyze@v3.25.0
