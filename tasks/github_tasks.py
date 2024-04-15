@@ -175,7 +175,7 @@ def get_milestone_id(_, milestone):
 
 
 @task
-def send_rate_limit_info_datadog(_, pipeline_id):
+def send_rate_limit_info_datadog(_, pipeline_id, app_instance):
     from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI()
@@ -185,7 +185,12 @@ def send_rate_limit_info_datadog(_, pipeline_id):
         metric_name='github.rate_limit.remaining',
         timestamp=int(time.time()),
         value=rate_limit_info[0],
-        tags=['source:github', 'repository:datadog-agent', f'pipeline_id:{pipeline_id}'],
+        tags=[
+            'source:github',
+            'repository:datadog-agent',
+            f'pipeline_id:{pipeline_id}',
+            f'app_instance:{app_instance}',
+        ],
     )
     send_metrics([metric])
 
