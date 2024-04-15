@@ -62,7 +62,10 @@ func (m *packageManager) installStable(pkg string, version string, image oci.Ima
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
+	return nil
+}
 
+func (m *packageManager) setupUnits(pkg string) error {
 	m.installLock.Lock()
 	defer m.installLock.Unlock()
 	switch pkg {
@@ -71,7 +74,7 @@ func (m *packageManager) installStable(pkg string, version string, image oci.Ima
 	case packageAPMInjector:
 		return service.SetupAPMInjector()
 	case packageDatadogInstaller:
-		return service.SetupInstallerUnit()
+		return service.SetupInstallerUnits()
 	default:
 		return nil
 	}

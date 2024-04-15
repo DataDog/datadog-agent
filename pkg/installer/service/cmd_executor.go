@@ -28,28 +28,28 @@ const execTimeout = 30 * time.Second
 
 // ChownDDAgent changes the owner of the given path to the dd-agent user.
 func ChownDDAgent(path string) error {
-	return executeCommand(`{"command":"chown dd-agent","path":"` + path + `"}`)
+	return executeHelperCommand(`{"command":"chown dd-agent","path":"` + path + `"}`)
 }
 
 // RemoveAll removes all files under a given path under /opt/datadog-packages regardless of their owner.
 func RemoveAll(path string) error {
-	return executeCommand(`{"command":"rm","path":"` + path + `"}`)
+	return executeHelperCommand(`{"command":"rm","path":"` + path + `"}`)
 }
 
 func createAgentSymlink() error {
-	return executeCommand(`{"command":"agent-symlink"}`)
+	return executeHelperCommand(`{"command":"agent-symlink"}`)
 }
 
 func rmAgentSymlink() error {
-	return executeCommand(`{"command":"rm-agent-symlink"}`)
+	return executeHelperCommand(`{"command":"rm-agent-symlink"}`)
 }
 
 // SetCapHelper sets cap setuid on the newly installed helper
 func SetCapHelper(path string) error {
-	return executeCommand(`{"command":"setcap cap_setuid+ep", "path":"` + path + `"}`)
+	return executeHelperCommand(`{"command":"setcap cap_setuid+ep", "path":"` + path + `"}`)
 }
 
-func executeCommand(command string) error {
+func executeHelperCommand(command string) error {
 	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
 	defer cancelfunc()
 	cmd := exec.CommandContext(cancelctx, updaterHelper, command)

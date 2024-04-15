@@ -30,7 +30,7 @@ const (
 // later
 func (a *apmInjectorInstaller) setDockerConfig() error {
 	// Create docker dir if it doesn't exist
-	err := executeCommand(createDockerDirCommand)
+	err := executeHelperCommand(createDockerDirCommand)
 	if err != nil {
 		return err
 	}
@@ -63,7 +63,7 @@ func (a *apmInjectorInstaller) setDockerConfig() error {
 	}
 
 	// Move the temporary file to the final location
-	err = executeCommand(string(replaceDockerCommand))
+	err = executeHelperCommand(string(replaceDockerCommand))
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func (a *apmInjectorInstaller) deleteDockerConfig() error {
 	}
 
 	// Move the temporary file to the final location
-	err = executeCommand(string(replaceDockerCommand))
+	err = executeHelperCommand(string(replaceDockerCommand))
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func restartDocker() error {
 		log.Info("installer: docker is not installed, skipping reload")
 		return nil
 	}
-	return executeCommand(restartDockerCommand)
+	return executeHelperCommand(restartDockerCommand)
 }
 
 // isDockerInstalled checks if docker is installed on the system

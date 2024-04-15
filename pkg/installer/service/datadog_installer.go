@@ -16,8 +16,8 @@ const (
 
 var installerUnits = []string{installerUnit, installerUnitExp}
 
-// SetupInstallerUnit installs and starts the installer systemd units
-func SetupInstallerUnit() (err error) {
+// SetupInstallerUnits installs and starts the installer systemd units
+func SetupInstallerUnits() (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup installer units: %s, reverting", err)
@@ -37,15 +37,11 @@ func SetupInstallerUnit() (err error) {
 	if err = enableUnit(installerUnit); err != nil {
 		return err
 	}
-
-	if err = startUnit(installerUnit); err != nil {
-		return err
-	}
 	return nil
 }
 
-// RemoveInstallerUnit removes the installer systemd units
-func RemoveInstallerUnit() {
+// RemoveInstallerUnits removes the installer systemd units
+func RemoveInstallerUnits() {
 	var err error
 	for _, unit := range installerUnits {
 		if err = disableUnit(unit); err != nil {

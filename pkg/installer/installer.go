@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -102,6 +103,26 @@ func BootstrapURL(ctx context.Context, url string, config config.Reader) error {
 	return i.BootstrapURL(ctx, url)
 }
 
+// SetupUnits copies/loads/starts systemd units associated with a package
+func SetupUnits(ctx context.Context, pkg string, config config.Reader) error {
+	rc := newNoopRemoteConfig()
+	i, err := newInstaller(rc, defaultRepositoriesPath, defaultLocksPath, config)
+	if err != nil {
+		return fmt.Errorf("could not create installer: %w", err)
+	}
+	err = i.Start(ctx)
+	if err != nil {
+		return fmt.Errorf("could not start installer: %w", err)
+	}
+	defer func() {
+		err := i.Stop(ctx)
+		if err != nil {
+			log.Errorf("could not stop installer: %v", err)
+		}
+	}()
+	return i.SetupUnits(ctx, pkg)
+}
+
 // Purge removes files installed by the installer
 func Purge() {
 	purge(defaultLocksPath, defaultRepositoriesPath)
@@ -109,6 +130,7 @@ func Purge() {
 
 func purge(locksPath, repositoryPath string) {
 	service.RemoveAgentUnits()
+	service.RemoveInstallerUnits()
 	if err := service.RemoveAPMInjector(); err != nil {
 		log.Warnf("installer: could not remove APM injector: %v", err)
 	}
@@ -275,6 +297,23 @@ func (i *installerImpl) bootstrapPackage(ctx context.Context, url string, expect
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}
+	if downloadedPackage.Name != "datadog-installer" {
+		state, err := i.packageManager.repositories.Get("datadog-installer").GetState()
+		if err != nil {
+			return fmt.Errorf("could not get stable installer: %w", err)
+		}
+		stableInstaller := filepath.Join(state.Stable, "bin/installer/installer")
+		cmd := exec.CommandContext(ctx, stableInstaller, "setup-units", "--package=datadog-installer")
+		err = cmd.Run()
+		if err != nil {
+			return fmt.Errorf("could not datadog-installer setup units with stable: %w", err)
+		}
+	} else {
+		err = i.packageManager.setupUnits(downloadedPackage.Name)
+		if err != nil {
+			return fmt.Errorf("could not setup units: %w", err)
+		}
+	}
 
 	log.Infof("Installer: Successfully installed default version %s of package %s from %s", downloadedPackage.Version, downloadedPackage.Name, url)
 	return nil
@@ -349,6 +388,25 @@ func (i *installerImpl) StopExperiment(ctx context.Context, pkg string) (err err
 	}
 	log.Infof("Installer: Successfully stopped experiment for package %s", pkg)
 	return nil
+}
+
+// SetupUnits copies/loads and sometines start systemd units for the package
+// this returns no error id
+func (i *installerImpl) SetupUnits(ctx context.Context, pkg string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "setup_units")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+
+	// Documented way of checking if systemd is running
+	// https://www.freedesktop.org/software/systemd/man/latest/sd_booted.html#Notes
+	_, err = os.Stat("/run/systemd/system")
+	if os.IsNotExist(err) {
+		log.Infof("Installer: systemd is not running, skip unit setup")
+		return nil
+	}
+
+	i.m.Lock()
+	defer i.m.Unlock()
+	return i.packageManager.setupUnits(pkg)
 }
 
 func (i *installerImpl) handleCatalogUpdate(c catalog) error {

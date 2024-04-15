@@ -64,31 +64,31 @@ func restartUnit(unit string) error {
 }
 
 func stopUnit(unit string) error {
-	return executeCommand(wrapUnitCommand(stopCommand, unit))
+	return executeHelperCommand(wrapUnitCommand(stopCommand, unit))
 }
 
 func startUnit(unit string) error {
-	return executeCommand(wrapUnitCommand(startCommand, unit))
+	return executeHelperCommand(wrapUnitCommand(startCommand, unit))
 }
 
 func enableUnit(unit string) error {
-	return executeCommand(wrapUnitCommand(enableCommand, unit))
+	return executeHelperCommand(wrapUnitCommand(enableCommand, unit))
 }
 
 func disableUnit(unit string) error {
-	return executeCommand(wrapUnitCommand(disableCommand, unit))
+	return executeHelperCommand(wrapUnitCommand(disableCommand, unit))
 }
 
 func loadUnit(unit string) error {
-	return executeCommand(wrapUnitCommand(loadCommand, unit))
+	return executeHelperCommand(wrapUnitCommand(loadCommand, unit))
 }
 
 func removeUnit(unit string) error {
-	return executeCommand(wrapUnitCommand(removeCommand, unit))
+	return executeHelperCommand(wrapUnitCommand(removeCommand, unit))
 }
 
 func systemdReload() error {
-	return executeCommand(systemdReloadCommand)
+	return executeHelperCommand(systemdReloadCommand)
 }
 
 func wrapUnitCommand(command unitCommand, unit string) string {
@@ -107,5 +107,5 @@ func executeCommandStruct(command privilegeCommand) error {
 		return err
 	}
 	privilegeCommandJSON := string(rawJSON)
-	return executeCommand(privilegeCommandJSON)
+	return executeHelperCommand(privilegeCommandJSON)
 }
