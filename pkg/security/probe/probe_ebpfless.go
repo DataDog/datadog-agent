@@ -42,12 +42,12 @@ const (
 )
 
 type client struct {
-	conn             net.Conn
-	probe            *EBPFLessProbe
-	seqNum           uint64
-	nsID             uint64
-	containerContext *ebpfless.ContainerContext
-	entrypointArgs   []string
+	conn          net.Conn
+	probe         *EBPFLessProbe
+	seqNum        uint64
+	nsID          uint64
+	containerID   string
+	containerName string
 }
 
 type clientMsg struct {
@@ -59,7 +59,8 @@ type clientMsg struct {
 type EBPFLessProbe struct {
 	sync.Mutex
 
-	Resolvers *resolvers.EBPFLessResolvers
+	Resolvers         *resolvers.EBPFLessResolvers
+	containerContexts map[string]*ebpfless.ContainerContext
 
 	// Constants and configuration
 	opts         Opts
@@ -92,10 +93,11 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 			)
 
 			cl.nsID = msg.Hello.NSID
-			cl.containerContext = msg.Hello.ContainerContext
-			cl.entrypointArgs = msg.Hello.EntrypointArgs
-			if cl.containerContext != nil {
-				seclog.Infof("tracing started for container ID [%s] (Name: [%s]) with entrypoint %q", cl.containerContext.ID, cl.containerContext.Name, cl.entrypointArgs)
+			if msg.Hello.ContainerContext != nil {
+				cl.containerID = msg.Hello.ContainerContext.ID
+				cl.containerName = msg.Hello.ContainerContext.Name
+				p.containerContexts[msg.Hello.ContainerContext.ID] = msg.Hello.ContainerContext
+				seclog.Infof("tracing started for container ID [%s] (Name: [%s]) with entrypoint %q", msg.Hello.ContainerContext.ID, msg.Hello.ContainerContext.Name, msg.Hello.EntrypointArgs)
 			}
 		}
 	case ebpfless.MessageTypeSyscall:
@@ -132,7 +134,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		entry := p.Resolvers.ProcessResolver.AddExecEntry(
 			process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.PPID, syscallMsg.Exec.File.Filename,
 			syscallMsg.Exec.Args, syscallMsg.Exec.ArgsTruncated, syscallMsg.Exec.Envs, syscallMsg.Exec.EnvsTruncated,
-			cl.containerContext.ID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
+			syscallMsg.ContainerID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
 		if syscallMsg.Exec.Credentials != nil {
 			entry.Credentials.UID = syscallMsg.Exec.Credentials.UID
 			entry.Credentials.EUID = syscallMsg.Exec.Credentials.EUID
@@ -256,11 +258,13 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	}
 
 	// container context
-	event.ContainerContext.ID = cl.containerContext.ID
-	event.ContainerContext.CreatedAt = cl.containerContext.CreatedAt
-	event.ContainerContext.Tags = []string{
-		"image_name:" + cl.containerContext.ImageShortName,
-		"image_tag:" + cl.containerContext.ImageTag,
+	event.ContainerContext.ID = syscallMsg.ContainerID
+	if containerContext, exists := p.containerContexts[syscallMsg.ContainerID]; exists {
+		event.ContainerContext.CreatedAt = containerContext.CreatedAt
+		event.ContainerContext.Tags = []string{
+			"image_name:" + containerContext.ImageShortName,
+			"image_tag:" + containerContext.ImageTag,
+		}
 	}
 
 	// use ProcessCacheEntry process context as process context
@@ -400,9 +404,8 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 				delete(p.clients, conn)
 				p.Unlock()
 
-				if client.containerContext != nil {
-					seclog.Infof("tracing stopped for container ID [%s] (Name: [%s])", client.containerContext.ID, client.containerContext.Name)
-				}
+				msg.Type = ebpfless.MessageTypeGoodbye
+				ch <- msg
 
 				return
 			}
@@ -445,6 +448,13 @@ func (p *EBPFLessProbe) Start() error {
 
 	go func() {
 		for msg := range ch {
+			if msg.Type == ebpfless.MessageTypeGoodbye {
+				if msg.client.containerID != "" {
+					delete(p.containerContexts, msg.client.containerID)
+					seclog.Infof("tracing stopped for container ID [%s] (Name: [%s])", msg.client.containerID, msg.client.containerName)
+				}
+				continue
+			}
 			p.handleClientMsg(msg.client, &msg.Message)
 		}
 	}()
@@ -549,16 +559,17 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 
 	var grpcOpts []grpc.ServerOption
 	p := &EBPFLessProbe{
-		probe:         probe,
-		config:        config,
-		opts:          opts,
-		statsdClient:  opts.StatsdClient,
-		server:        grpc.NewServer(grpcOpts...),
-		ctx:           ctx,
-		cancelFnc:     cancelFnc,
-		buf:           make([]byte, 4096),
-		clients:       make(map[net.Conn]*client),
-		processKiller: NewProcessKiller(),
+		probe:             probe,
+		config:            config,
+		opts:              opts,
+		statsdClient:      opts.StatsdClient,
+		server:            grpc.NewServer(grpcOpts...),
+		ctx:               ctx,
+		cancelFnc:         cancelFnc,
+		buf:               make([]byte, 4096),
+		clients:           make(map[net.Conn]*client),
+		processKiller:     NewProcessKiller(),
+		containerContexts: make(map[string]*ebpfless.ContainerContext),
 	}
 
 	resolversOpts := resolvers.Opts{
