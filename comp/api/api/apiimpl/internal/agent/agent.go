@@ -215,7 +215,6 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	verbose := r.URL.Query().Get("verbose") == "true"
 	format := r.URL.Query().Get("format")
 	var contentType string
-	var err error
 	var s []byte
 
 	contentType, ok := mimeTypeMap[format]
@@ -227,6 +226,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	}
 	w.Header().Set("Content-Type", contentType)
 
+	var err error
 	if section, ok := section.Get(); ok {
 		s, err = statusComponent.GetStatusBySection(section, format, verbose)
 	} else {
