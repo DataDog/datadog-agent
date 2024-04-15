@@ -1,7 +1,7 @@
 import random
 import unittest
 
-from tasks.libs.version import Version
+from tasks.libs.types.version import Version
 
 
 class TestVersionComparison(unittest.TestCase):

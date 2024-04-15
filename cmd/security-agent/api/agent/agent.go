@@ -16,9 +16,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -28,12 +28,14 @@ import (
 // Agent handles REST API calls
 type Agent struct {
 	statusComponent status.Component
+	settings        settings.Component
 }
 
 // NewAgent returns a new Agent
-func NewAgent(statusComponent status.Component) *Agent {
+func NewAgent(statusComponent status.Component, settings settings.Component) *Agent {
 	return &Agent{
 		statusComponent: statusComponent,
+		settings:        settings,
 	}
 }
 
@@ -45,10 +47,18 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/stop", a.stopAgent).Methods("POST")
 	r.HandleFunc("/status", a.getStatus).Methods("GET")
 	r.HandleFunc("/status/health", a.getHealth).Methods("GET")
-	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")
-	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
+	r.HandleFunc("/config", a.settings.GetFullConfig(config.Datadog, "")).Methods("GET")
+	r.HandleFunc("/config/list-runtime", a.settings.ListConfigurable).Methods("GET")
+	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		setting := vars["setting"]
+		a.settings.GetValue(setting, w, r)
+	}).Methods("GET")
+	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		setting := vars["setting"]
+		a.settings.SetValue(setting, w, r)
+	}).Methods("POST")
 }
 
 func (a *Agent) stopAgent(w http.ResponseWriter, _ *http.Request) {

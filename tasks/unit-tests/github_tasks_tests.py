@@ -27,13 +27,13 @@ class TestAssignTeamLabelMock(unittest.TestCase):
     CODEOWNERS_FILE = './tasks/unit-tests/testdata/codeowners.txt'
 
     def make_test(self, changed_files, expected_labels, pr_labels=None, possible_labels=None):
-        from tasks.libs.pipeline_notifications import read_owners
+        from tasks.libs.owners.parsing import read_owners
 
         possible_labels = possible_labels or ['team/agent-platform', 'team/documentation', 'team/agent-security']
 
         fake_codeowners = read_owners(TestAssignTeamLabelMock.CODEOWNERS_FILE)
 
-        with patch('tasks.libs.common.github_api.GithubAPI') as gh_mock, patch.object(
+        with patch('tasks.libs.ciproviders.github_api.GithubAPI') as gh_mock, patch.object(
             tasks.github_tasks, 'read_owners'
         ) as read_owners_mock, patch.object(tasks.github_tasks, '_get_team_labels') as team_labels_mock:
             gh = GithubAPIMock(
