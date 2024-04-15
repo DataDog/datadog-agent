@@ -8,7 +8,7 @@ default_stages:
 
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.3.5
+  rev: 0ccbb5b7942d83fbcf7cb5e0fd99633efd2351d7 # v0.3.5
   hooks:
     - id: ruff
       args: [ --fix ]
