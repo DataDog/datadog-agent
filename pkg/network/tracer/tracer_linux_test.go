@@ -2050,7 +2050,6 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {
-	ebpftest.LogLevel(t, "trace")
 	require.NoError(t, rlimit.RemoveMemlock())
 
 	prebuiltErrorValues := []bool{true}
