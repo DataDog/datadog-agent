@@ -9,6 +9,21 @@ setup_agent_version:
     - $S3_CP_CMD $CI_PROJECT_DIR/agent-version.cache $S3_ARTIFACTS_URI/agent-version.cache
   needs: []
 
+get_smp_comparison_shas:
+  stage: setup
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  script:
+    - source /root/.bashrc
+    - echo "All available envs"
+    - env
+    - git fetch origin
+    - SMP_BASE_BRANCH=$(inv release.get-release-json-value base_branch)
+    - echo "Looking for merge base for branch ${SMP_BASE_BRANCH}"
+    - SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_BASE_BRANCH})
+    - echo "Merge base is ${SMP_MERGE_BASE}"
+  needs: []
+
 github_rate_limit_info:
   stage: .pre
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
