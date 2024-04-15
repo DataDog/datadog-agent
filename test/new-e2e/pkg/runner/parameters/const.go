@@ -46,7 +46,7 @@ const (
 	// PulumiLogToStdErr config file parameter name
 	PulumiLogToStdErr StoreKey = "pulumi_log_to_stderr"
 	// PulumiVerboseProgressStreams config file parameter name
-	PulumiVerboseProgressStreams StoreKey = "pulumi_progress_streams"
+	PulumiVerboseProgressStreams StoreKey = "pulumi_verbose_progress_streams"
 	// DevMode config flag parameter name
 	DevMode StoreKey = "dev_mode"
 )
