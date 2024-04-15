@@ -10,7 +10,8 @@ package checks
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
@@ -139,7 +140,7 @@ func TestDisableRealTime(t *testing.T) {
 type deps struct {
 	fx.In
 	WMeta       workloadmeta.Component
-	EpForwarder eventplatform.Component
+	NpScheduler npscheduler.Component
 }
 
 func createDeps(t *testing.T) deps {
@@ -147,7 +148,6 @@ func createDeps(t *testing.T) deps {
 		core.MockBundle(),
 		workloadmeta.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		eventplatformimpl.MockModule(),
-		fx.Supply(eventplatformimpl.NewDefaultParams()),
+		npschedulerimpl.MockModule(),
 	)
 }

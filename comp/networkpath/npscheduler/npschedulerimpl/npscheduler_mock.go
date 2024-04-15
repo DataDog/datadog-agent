@@ -20,7 +20,7 @@ func MockModule() fxutil.Module {
 	)
 }
 
-func newMock(deps dependencies) provides {
+func newMock() provides {
 	// Mock initialization
 	return provides{}
 }
