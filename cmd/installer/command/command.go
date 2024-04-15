@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package command implements the top-level `updater` binary, including its subcommands.
+// Package command implements the top-level `installer` binary, including its subcommands.
 package command
 
 import (
@@ -17,12 +17,12 @@ import (
 
 // common constants for all the updater subcommands.
 const (
-	ConfigName      = "updater"
-	LoggerName      = "UPDATER"
+	ConfigName      = "installer"
+	LoggerName      = "INSTALLER"
 	DefaultLogLevel = "off"
 )
 
-// GlobalParams contains the values of updater-global Cobra flags.
+// GlobalParams contains the values of installer-global Cobra flags.
 //
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
@@ -53,13 +53,13 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 	// AgentCmd is the root command
 	agentCmd := &cobra.Command{
 		Use:   fmt.Sprintf("%s [command]", os.Args[0]),
-		Short: "Datadog Updater at your service.",
+		Short: "Datadog Installer at your service.",
 		Long: `
-Datadog Updater updates your agents based on requests received from the Datadog UI.`,
+Datadog Installer installs datadog-packages based on your commands.`,
 		SilenceUsage: true,
 	}
 
-	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing updater.yaml")
+	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing installer.yaml")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.RepositoriesDir, "repositories", "d", "/opt/datadog-packages", "path to directory containing repositories")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.PIDFilePath, "pidfile", "p", "", "path to the pidfile")
 	_ = agentCmd.MarkFlagRequired("package")

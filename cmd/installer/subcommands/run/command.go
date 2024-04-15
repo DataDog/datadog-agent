@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package run implements 'updater run'.
+// Package run implements 'installer run'.
 package run
 
 import (
@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/updater/command"
+	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -46,7 +46,7 @@ type cliParams struct {
 func Commands(global *command.GlobalParams) []*cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "run",
-		Short: "Runs the updater",
+		Short: "Runs the installer",
 		Long:  ``,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return runFxWrapper(&cliParams{
@@ -67,7 +67,7 @@ func runFxWrapper(params *cliParams) error {
 			ConfigParams:         config.NewAgentParams(params.GlobalParams.ConfFilePath),
 			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
-			LogParams:            logimpl.ForDaemon("UPDATER", "updater.log_file", pkgconfig.DefaultUpdaterLogFile),
+			LogParams:            logimpl.ForDaemon("INSTALLER", "installer.log_file", pkgconfig.DefaultUpdaterLogFile),
 		}),
 		core.Bundle(),
 		fx.Supply(&rcservice.Params{

@@ -3,19 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package run
+//go:build oracle_test
+
+package oracle
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/updater/command"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/stretchr/testify/require"
 )
 
-func TestRunCheckCmdCommand(t *testing.T) {
-	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
-		[]string{"run"},
-		run,
-		func() {})
+func TestUserSessions(t *testing.T) {
+	c, s := newDefaultCheck(t, "", "")
+	err := c.Run()
+	require.NoError(t, err)
+	s.AssertMetricTaggedWith(t, "Gauge", userSessionsMetricName, []string{})
 }

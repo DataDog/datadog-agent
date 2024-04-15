@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/updater/command"
+	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
@@ -35,7 +35,7 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 func purgeFxWrapper() error {
 	return fxutil.OneShot(purge,
 		fx.Supply(core.BundleParams{
-			LogParams: logimpl.ForOneShot("UPDATER", "info", true),
+			LogParams: logimpl.ForOneShot("INSTALLER", "info", true),
 		}),
 		core.Bundle(),
 		telemetryimpl.Module(),
