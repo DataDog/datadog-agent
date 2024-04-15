@@ -22,6 +22,13 @@ def get_fake_jobs() -> List[ProjectJob]:
     return [ProjectJob(MagicMock(), attrs=job) for job in jobs]
 
 
+def get_fake_jobs() -> List[ProjectJob]:
+    with open("tasks/unit-tests/testdata/jobs.json") as f:
+        jobs = json.load(f)
+
+    return [ProjectJob(MagicMock(), attrs=job) for job in jobs]
+
+
 class TestSendMessage(unittest.TestCase):
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_merge(self, api_mock):
