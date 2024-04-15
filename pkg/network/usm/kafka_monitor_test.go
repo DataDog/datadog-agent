@@ -683,6 +683,31 @@ func TestKafkaFetchRaw(t *testing.T) {
 		numFetchedRecords int
 	}{
 		{
+			name: "basic",
+			buildResponse: func() kmsg.FetchResponse {
+				record := makeRecord()
+				var records []kmsg.Record
+				for i := 0; i < 5; i++ {
+					records = append(records, record)
+				}
+
+				recordBatch := makeRecordBatch(records...)
+				var batches []kmsg.RecordBatch
+				for i := 0; i < 4; i++ {
+					batches = append(batches, recordBatch)
+				}
+
+				partition := makeFetchResponseTopicPartition(batches...)
+				var partitions []kmsg.FetchResponseTopicPartition
+				for i := 0; i < 3; i++ {
+					partitions = append(partitions, partition)
+				}
+
+				return makeFetchResponse(makeFetchResponseTopic(topic, partitions...))
+			},
+			numFetchedRecords: 5 * 4 * 3,
+		},
+		{
 			name: "aborted transactions",
 			buildResponse: func() kmsg.FetchResponse {
 				record := makeRecord()
