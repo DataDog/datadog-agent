@@ -169,11 +169,5 @@ func (m *Macro) GetFields() []Field {
 
 // GetFields - Returns all the Field that the MacroEvaluator handles
 func (m *MacroEvaluator) GetFields() []Field {
-	fields := make([]Field, len(m.fieldValues))
-	i := 0
-	for key := range m.fieldValues {
-		fields[i] = key
-		i++
-	}
-	return fields
+	return m.fields
 }

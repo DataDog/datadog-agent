@@ -30,6 +30,7 @@ from tasks import (
     msi,
     new_e2e_tests,
     notify,
+    omnibus,
     owners,
     package,
     pipeline,
@@ -37,6 +38,7 @@ from tasks import (
     process_agent,
     release,
     rtloader,
+    sds,
     security_agent,
     selinux,
     system_probe,
@@ -145,6 +147,7 @@ ns.add_collection(github_tasks, "github")
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(notify)
+ns.add_collection(sds)
 ns.add_collection(selinux)
 ns.add_collection(systray)
 ns.add_collection(release)
@@ -163,6 +166,7 @@ ns.add_collection(owners)
 ns.add_collection(modules)
 ns.add_collection(pre_commit)
 ns.add_collection(devcontainer)
+ns.add_collection(omnibus)
 ns.configure(
     {
         'run': {
