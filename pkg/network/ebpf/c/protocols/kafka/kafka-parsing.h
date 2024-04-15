@@ -268,7 +268,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
 
                 // Kafka fetch responses can have some partial, unparseable records in the record
                 // batch block which are truncated due to the maximum response size specified in
-                // the request.  If there are no more paritions left, assume we've reached such
+                // the request.  If there are no more partitions left, assume we've reached such
                 // a block and report what we have.
                 if (response->transaction.records_count > 0 && response->partitions_count == 1) {
                     extra_debug("assuming truncated data due to maxsize");
