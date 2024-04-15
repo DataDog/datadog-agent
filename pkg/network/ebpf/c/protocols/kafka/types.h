@@ -53,7 +53,7 @@ typedef struct {
     __u32 partitions_count;
     kafka_transaction_t transaction;
     __u32 remainder;
-    char buf[4];
+    char remainder_buf[4];
 } kafka_response_context_t;
 
 typedef struct {

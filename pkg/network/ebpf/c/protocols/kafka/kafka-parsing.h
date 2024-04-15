@@ -132,7 +132,7 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
 
     response->remainder = 0;
 
-    __u8 *out = response->buf;
+    __u8 *out = response->remainder_buf;
     __u8 pkttmp[4] = {0};
 
     bpf_skb_load_bytes(skb, *offset, &pkttmp, 4);
@@ -403,13 +403,13 @@ static __always_inline enum parse_result kafka_continue_parse_response(kafka_res
 
         switch (response->carry_over_offset) {
         case -1:
-            bpf_skb_load_bytes(skb, skb->len - 1, &response->buf, 1);
+            bpf_skb_load_bytes(skb, skb->len - 1, &response->remainder_buf, 1);
             break;
         case -2:
-            bpf_skb_load_bytes(skb, skb->len - 2, &response->buf, 2);
+            bpf_skb_load_bytes(skb, skb->len - 2, &response->remainder_buf, 2);
             break;
         case -3:
-            bpf_skb_load_bytes(skb, skb->len - 3, &response->buf, 3);
+            bpf_skb_load_bytes(skb, skb->len - 3, &response->remainder_buf, 3);
             break;
         default:
             return RET_ERR;

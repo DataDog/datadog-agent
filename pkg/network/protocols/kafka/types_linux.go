@@ -50,5 +50,5 @@ type KafkaResponseContext struct {
 	Partitions_count         uint32
 	Transaction              KafkaTransaction
 	Remainder                uint32
-	Buf                      [4]byte
+	Remainder_buf            [4]int8
 }
