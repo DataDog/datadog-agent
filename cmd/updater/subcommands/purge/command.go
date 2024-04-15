@@ -7,13 +7,16 @@
 package purge
 
 import (
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
+	"github.com/DataDog/datadog-agent/comp/updater/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/installer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 )
 
 // Commands returns the run command
@@ -35,10 +38,11 @@ func purgeFxWrapper() error {
 			LogParams: logimpl.ForOneShot("UPDATER", "info", true),
 		}),
 		core.Bundle(),
+		telemetryimpl.Module(),
 	)
 }
 
-func purge() error {
+func purge(_ telemetry.Component) error {
 	installer.Purge()
 	return nil
 }

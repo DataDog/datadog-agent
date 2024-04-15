@@ -8,9 +8,9 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -19,13 +19,15 @@ import (
 
 	"github.com/go-ini/ini"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
+	"github.com/DataDog/datadog-agent/comp/updater/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/installer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -41,7 +43,7 @@ type cliParams struct {
 }
 
 var (
-	installScriptParamsFile = filepath.Join(path.DefaultConfPath, "datadog-installer.ini")
+	installScriptParamsFile = "/etc/datadog-agent/datadog-installer.ini"
 )
 
 type installScriptParams struct {
@@ -49,20 +51,10 @@ type installScriptParams struct {
 	Features  installScriptFeaturesParams  `ini:"features"`
 }
 
-func (p *installScriptParams) TraceID() uint64 {
-	return p.Telemetry.TraceID
-}
-
-func (p *installScriptParams) SpanID() uint64 {
-	return p.Telemetry.SpanID
-}
-
-// ForeachBaggageItem is a no-op required to implement the tracer.SpanContext interface
-func (p *installScriptParams) ForeachBaggageItem(_ func(_, _ string) bool) {}
-
 type installScriptTelemetryParams struct {
-	TraceID uint64 `ini:"trace_id"`
-	SpanID  uint64 `ini:"span_id"`
+	TraceID  uint64 `ini:"trace_id"`
+	ParentID uint64 `ini:"parent_id"`
+	Priority int    `ini:"priority"`
 }
 
 type installScriptFeaturesParams struct {
@@ -115,23 +107,32 @@ func bootstrapFxWrapper(ctx context.Context, params *cliParams, installScriptPar
 			LogParams:            logimpl.ForOneShot("UPDATER", "info", true),
 		}),
 		core.Bundle(),
+		telemetryimpl.Module(),
 	)
 }
 
-func bootstrap(ctx context.Context, params *cliParams, installScriptParams *installScriptParams, config config.Component) error {
+func bootstrap(ctx context.Context, params *cliParams, installScriptParams *installScriptParams, config config.Component, log log.Component, _ telemetry.Component) error {
 	url := packageURL(config.GetString("site"), params.pkg, params.version)
 	if params.url != "" {
 		url = params.url
 	}
-
-	span, ctx := tracer.StartSpanFromContext(ctx, "cmd/bootstrap", tracer.ChildOf(installScriptParams))
+	ctxCarrier := tracer.TextMapCarrier{
+		tracer.DefaultTraceIDHeader:  fmt.Sprint(installScriptParams.Telemetry.TraceID),
+		tracer.DefaultParentIDHeader: fmt.Sprint(installScriptParams.Telemetry.ParentID),
+		tracer.DefaultPriorityHeader: fmt.Sprint(installScriptParams.Telemetry.Priority),
+	}
+	spanCtx, err := tracer.Extract(ctxCarrier)
+	if err != nil {
+		log.Errorf("failed to extract span context from install script params: %v", err)
+	}
+	span, ctx := tracer.StartSpanFromContext(ctx, "cmd/bootstrap", tracer.ChildOf(spanCtx))
 	defer span.Finish()
 	span.SetTag(ext.ManualKeep, true)
 	span.SetTag("params.url", params.url)
 	span.SetTag("params.pkg", params.pkg)
 	span.SetTag("params.version", params.version)
-	span.SetTag("script_params.telemetry.trace_id", installScriptParams.TraceID())
-	span.SetTag("script_params.telemetry.span_id", installScriptParams.SpanID())
+	span.SetTag("script_params.telemetry.trace_id", installScriptParams.Telemetry.TraceID)
+	span.SetTag("script_params.telemetry.span_id", installScriptParams.Telemetry.ParentID)
 	span.SetTag("script_params.features.apm_instrumentation", installScriptParams.Features.APMInstrumentation)
 
 	return installer.BootstrapURL(ctx, url, config)
@@ -155,7 +156,7 @@ func prodPackageURL(pkg string, version string) string {
 func readInstallScriptParams() (*installScriptParams, error) {
 	params := &installScriptParams{}
 	file, err := os.Open(installScriptParamsFile)
-	if err == os.ErrNotExist {
+	if errors.Is(err, os.ErrNotExist) {
 		return params, nil
 	}
 	if err != nil {

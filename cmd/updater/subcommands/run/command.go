@@ -32,6 +32,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
 	"github.com/DataDog/datadog-agent/comp/updater/localapi/localapiimpl"
+	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
+	"github.com/DataDog/datadog-agent/comp/updater/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/updater/updaterimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -46,7 +48,7 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 		Use:   "run",
 		Short: "Runs the updater",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return runFxWrapper(&cliParams{
 				GlobalParams: *global,
 			})
@@ -77,11 +79,12 @@ func runFxWrapper(params *cliParams) error {
 		rcserviceimpl.Module(),
 		updaterimpl.Module(),
 		localapiimpl.Module(),
+		telemetryimpl.Module(),
 		fx.Supply(pidimpl.NewParams(params.PIDFilePath)),
 	)
 }
 
-func run(shutdowner fx.Shutdowner, _ pid.Component, _ localapi.Component) error {
+func run(shutdowner fx.Shutdowner, _ pid.Component, _ localapi.Component, _ telemetry.Component) error {
 	handleSignals(shutdowner)
 	return nil
 }

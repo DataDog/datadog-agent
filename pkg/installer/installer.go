@@ -68,7 +68,6 @@ type installerImpl struct {
 	repositories   *repository.Repositories
 	downloader     *downloader
 	packageManager *packageManager
-	telemetry      *telemetry
 
 	remoteUpdates     bool
 	rc                *remoteConfig
@@ -144,19 +143,12 @@ func newInstaller(rc *remoteConfig, repositoriesPath string, locksPath string, c
 	repositories := repository.NewRepositories(repositoriesPath, locksPath)
 	remoteRegistryOverride := config.GetString("updater.registry")
 	rcClient := rc
-
-	telemetry, err := newTelemetry(config, repositoriesPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not create telemetry: %w", err)
-	}
-
 	i := &installerImpl{
 		remoteUpdates:     config.GetBool("updater.remote_updates"),
 		rc:                rcClient,
 		repositories:      repositories,
 		downloader:        newDownloader(config, http.DefaultClient, remoteRegistryOverride),
 		packageManager:    newPackageManager(repositories),
-		telemetry:         telemetry,
 		requests:          make(chan remoteAPIRequest, 32),
 		catalog:           catalog{},
 		bootstrapVersions: bootstrapVersions{},
@@ -173,7 +165,6 @@ func (i *installerImpl) GetState() (map[string]repository.State, error) {
 
 // Start starts remote config and the garbage collector.
 func (i *installerImpl) Start(ctx context.Context) error {
-	i.telemetry.Start(ctx)
 	go func() {
 		for {
 			select {
@@ -205,7 +196,6 @@ func (i *installerImpl) Start(ctx context.Context) error {
 // Stop stops the garbage collector.
 func (i *installerImpl) Stop(ctx context.Context) error {
 	i.rc.Close()
-	i.telemetry.Stop(ctx)
 	close(i.stopChan)
 	i.requestsWG.Wait()
 	close(i.requests)
