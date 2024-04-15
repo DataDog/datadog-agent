@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package experiment implements 'updater {start, stop, promote}-experiment' subcommands.
+// Package experiment implements 'installer {start, stop, promote}-experiment' subcommands.
 package experiment
 
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/updater/command"
+	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient/localapiclientimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
