@@ -130,6 +130,44 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 	require.Equal(t, source.Config.AutoMultiLineMatchThreshold, 0.123)
 }
 
+func TestMakeFileSource_podman_success(t *testing.T) {
+	fileTestSetup(t)
+	mockConfig := coreConfig.Mock(t)
+	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
+
+	p := filepath.Join(podmanLogsBasePath, filepath.FromSlash("storage/overlay-containers/abc/userdata/ctr.log"))
+	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
+	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:                        "podman",
+		Identifier:                  "abc",
+		Source:                      "src",
+		Service:                     "svc",
+		Tags:                        []string{"tag!"},
+		AutoMultiLine:               pointer.Ptr(true),
+		AutoMultiLineSampleSize:     321,
+		AutoMultiLineMatchThreshold: 0.321,
+	})
+	child, err := tf.makeFileSource(source)
+	require.NoError(t, err)
+	require.Equal(t, source.Name, child.Name)
+	require.Equal(t, "file", child.Config.Type)
+	require.Equal(t, source.Config.Identifier, child.Config.Identifier)
+	require.Equal(t, p, child.Config.Path)
+	require.Equal(t, source.Config.Source, child.Config.Source)
+	require.Equal(t, source.Config.Service, child.Config.Service)
+	require.Equal(t, source.Config.Tags, child.Config.Tags)
+	require.Equal(t, sources.DockerSourceType, child.GetSourceType())
+	require.Equal(t, *source.Config.AutoMultiLine, true)
+	require.Equal(t, source.Config.AutoMultiLineSampleSize, 321)
+	require.Equal(t, source.Config.AutoMultiLineMatchThreshold, 0.321)
+}
+
 func TestMakeFileSource_docker_no_file(t *testing.T) {
 	fileTestSetup(t)
 
