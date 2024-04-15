@@ -101,7 +101,7 @@ func SetupHandlers(
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
-		getStatus(w, r, statusComponent, optional.NewNoneOption[string]())
+		getStatus(w, r, statusComponent, "")
 	}).Methods("GET")
 	r.HandleFunc("/stream-event-platform", streamEventPlatform(eventPlatformReceiver)).Methods("POST")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
@@ -196,7 +196,7 @@ func componentStatusGetterHandler(w http.ResponseWriter, r *http.Request, status
 	case "py":
 		getPythonStatus(w, r)
 	default:
-		getStatus(w, r, status, optional.NewOption(component))
+		getStatus(w, r, status, component)
 	}
 }
 
@@ -211,7 +211,7 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component, section optional.Option[string]) {
+func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component, section string) {
 	log.Info("Got a request for the status. Making status.")
 	verbose := r.URL.Query().Get("verbose") == "true"
 	format := r.URL.Query().Get("format")
@@ -222,7 +222,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 
 	contentType, ok := mimeTypeMap[format]
 
-	if len(exclude) > 0 {
+	if len(excludeQuery) > 0 {
 		exclude = strings.Split(excludeQuery, ",")
 	}
 
@@ -234,7 +234,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	w.Header().Set("Content-Type", contentType)
 
 	var err error
-	if section, ok := section.Get(); ok {
+	if len(section) > 0 {
 		s, err = statusComponent.GetStatusBySection(section, format, verbose)
 	} else {
 		s, err = statusComponent.GetStatus(format, verbose, exclude...)
