@@ -7,13 +7,13 @@
 
 package service
 
-// SetupInstallerUnit noop
-func SetupInstallerUnit() (err error) {
+// SetupInstallerUnits noop
+func SetupInstallerUnits() (err error) {
 	return nil
 }
 
-// RemoveInstallerUnit noop
-func RemoveInstallerUnit() {
+// RemoveInstallerUnits noop
+func RemoveInstallerUnits() {
 }
 
 // StartInstallerExperiment noop
@@ -23,5 +23,10 @@ func StartInstallerExperiment() error {
 
 // StopInstallerExperiment noop
 func StopInstallerExperiment() error {
+	return nil
+}
+
+// StartInstallerStable noop
+func StartInstallerStable() error {
 	return nil
 }
