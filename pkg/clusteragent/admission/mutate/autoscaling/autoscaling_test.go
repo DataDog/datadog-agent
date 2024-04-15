@@ -168,6 +168,68 @@ func TestUpdateResources(t *testing.T) {
 			},
 		},
 		{
+			name: "no update when pod has no owner",
+			wh:   &wh{},
+			pod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "container1",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+				},
+			},
+			wantPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "container1",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "no update when deployment can't be parsed",
+			wh:   &wh{},
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
+					Kind: "ReplicaSet",
+					Name: "test-deployment-notahash",
+				}}},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "container1",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+				},
+			},
+			wantPod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
+					Kind: "ReplicaSet",
+					Name: "test-deployment-notahash",
+				}}},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "container1",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+				},
+			},
+			wantErr: true,
+		},
+		{
 			name: "no update on errors",
 			wh: &wh{
 				recommender: &fakeRecommender{

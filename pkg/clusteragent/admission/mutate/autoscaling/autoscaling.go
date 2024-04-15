@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
 //go:build kubeapiserver
 
@@ -9,6 +9,8 @@
 package autoscaling
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -93,10 +95,17 @@ func (w *wh) mutate(request *admission.MutateRequest) ([]byte, error) {
 // updateResource finds the owner of a pod, calls the recommender to retrieve the recommended CPU and Memory
 // requests
 func (w *wh) updateResources(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+	if len(pod.OwnerReferences) == 0 {
+		return false, fmt.Errorf("no owner found for pod %s", pod.Name)
+	}
 	ownerRef := pod.OwnerReferences[0]
 	if ownerRef.Kind == kubernetes.ReplicaSetKind {
 		ownerRef.Kind = kubernetes.DeploymentKind
 		ownerRef.Name = kubernetes.ParseDeploymentForReplicaSet(ownerRef.Name)
+	}
+	// ParseDeploymentForReplicaSet returns "" when the parsing fails
+	if ownerRef.Name == "" {
+		return false, fmt.Errorf("no owner found for pod %s", pod.Name)
 	}
 
 	recommendations, err := w.recommender.GetRecommendations(pod.Namespace, ownerRef)
