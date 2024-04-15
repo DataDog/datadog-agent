@@ -119,8 +119,8 @@ func TestRetryLogic_Error(t *testing.T) {
 
 			// Set up the configuration
 			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-			cfg.Set("sbom.scan_queue.base_backoff", "2s", model.SourceAgentRuntime)
-			cfg.Set("sbom.scan_queue.max_backoff", "5s", model.SourceAgentRuntime)
+			cfg.Set("sbom.scan_queue.base_backoff", "1s", model.SourceAgentRuntime)
+			cfg.Set("sbom.scan_queue.max_backoff", "3s", model.SourceAgentRuntime)
 
 			// Create a scanner and start it
 			scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
@@ -144,7 +144,7 @@ func TestRetryLogic_Error(t *testing.T) {
 			select {
 			case res := <-resultCh:
 				t.Errorf("unexpected result received %v", res)
-			case <-time.After(10 * time.Second):
+			case <-time.After(4 * time.Second):
 			}
 
 			cancel()
