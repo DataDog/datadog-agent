@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 
 	"github.com/go-ini/ini"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -38,8 +40,8 @@ type cliParams struct {
 	version string
 }
 
-const (
-	installScriptParamsFile = "/etc/datadog-installer.ini"
+var (
+	installScriptParamsFile = filepath.Join(path.DefaultConfPath, "datadog-installer.ini")
 )
 
 type installScriptParams struct {
