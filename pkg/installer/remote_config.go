@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package updater
+package installer
 
 import (
 	"encoding/json"
@@ -116,7 +116,7 @@ func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate) client.Handler {
 			var catalog catalog
 			err := json.Unmarshal(config.Config, &catalog)
 			if err != nil {
-				log.Errorf("could not unmarshal updater catalog: %s", err)
+				log.Errorf("could not unmarshal installer catalog: %s", err)
 				applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 				return
 			}

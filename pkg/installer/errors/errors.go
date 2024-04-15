@@ -3,18 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package errors contains errors used by the updater.
+// Package errors contains errors used by the installer.
 package errors
 
 import (
 	"errors"
 )
 
-// UpdaterErrorCode is an error code used by the updater.
-type UpdaterErrorCode uint64
+// InstallerErrorCode is an error code used by the installer.
+type InstallerErrorCode uint64
 
 const (
-	errUnknown UpdaterErrorCode = iota // This error code is purposefully not exported
+	errUnknown InstallerErrorCode = iota // This error code is purposefully not exported
 	// ErrInstallFailed is the code for an install failure.
 	ErrInstallFailed
 	// ErrDownloadFailed is the code for a download failure.
@@ -29,55 +29,55 @@ const (
 	ErrUpdateExperimentFailed
 )
 
-// UpdaterError is an error type used by the updater.
-type UpdaterError struct {
+// InstallerError is an error type used by the installer.
+type InstallerError struct {
 	err  error
-	code UpdaterErrorCode
+	code InstallerErrorCode
 }
 
 // Error returns the error message.
-func (e UpdaterError) Error() string {
+func (e InstallerError) Error() string {
 	return e.err.Error()
 }
 
 // Unwrap returns the wrapped error.
-func (e UpdaterError) Unwrap() error {
+func (e InstallerError) Unwrap() error {
 	return e.err
 }
 
 // Is implements the Is method of the errors.Is interface.
-func (e UpdaterError) Is(target error) bool {
-	_, ok := target.(*UpdaterError)
+func (e InstallerError) Is(target error) bool {
+	_, ok := target.(*InstallerError)
 	return ok
 }
 
-// Code returns the error code of the updater error.
-func (e UpdaterError) Code() UpdaterErrorCode {
+// Code returns the error code of the installer error.
+func (e InstallerError) Code() InstallerErrorCode {
 	return e.code
 }
 
-// Wrap wraps the given error with an updater error.
-// If the given error is already an updater error, it is not wrapped and
-// left as it is. Only the deepest UpdaterError remains.
-func Wrap(errCode UpdaterErrorCode, err error) error {
-	if errors.Is(err, &UpdaterError{}) {
+// Wrap wraps the given error with an installer error.
+// If the given error is already an installer error, it is not wrapped and
+// left as it is. Only the deepest InstallerError remains.
+func Wrap(errCode InstallerErrorCode, err error) error {
+	if errors.Is(err, &InstallerError{}) {
 		return err
 	}
-	return &UpdaterError{
+	return &InstallerError{
 		err:  err,
 		code: errCode,
 	}
 }
 
-// From returns a new UpdaterError from the given error.
-func From(err error) *UpdaterError {
+// From returns a new InstallerError from the given error.
+func From(err error) *InstallerError {
 	if err == nil {
 		return nil
 	}
 
-	e, ok := err.(*UpdaterError)
+	e, ok := err.(*InstallerError)
 	if !ok {
-		return &UpdaterError{
+		return &InstallerError{
 			err:  err,
 			code: errUnknown,
 		}
