@@ -164,7 +164,7 @@ func (i *installerImpl) GetState() (map[string]repository.State, error) {
 }
 
 // Start starts remote config and the garbage collector.
-func (i *installerImpl) Start(ctx context.Context) error {
+func (i *installerImpl) Start(_ context.Context) error {
 	go func() {
 		for {
 			select {
@@ -194,7 +194,7 @@ func (i *installerImpl) Start(ctx context.Context) error {
 }
 
 // Stop stops the garbage collector.
-func (i *installerImpl) Stop(ctx context.Context) error {
+func (i *installerImpl) Stop(_ context.Context) error {
 	i.rc.Close()
 	close(i.stopChan)
 	i.requestsWG.Wait()
