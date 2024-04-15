@@ -13,10 +13,14 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/results"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	"github.com/google/uuid"
 )
@@ -31,17 +35,64 @@ const (
 	DefaultDelay        = 50 //msec
 	DefaultReadTimeout  = 3 * time.Second
 	DefaultOutputFormat = "json"
+
+	maxSubnetCacheSize         = 1024
+	tracerouteRunnerModuleName = "network_path__traceroute_runner"
 )
+
+// Telemetry
+var tracerouteRunnerTelemetry = struct {
+	runs       *telemetry.StatCounterWrapper
+	failedRuns *telemetry.StatCounterWrapper
+
+	subnetCacheSize    *telemetry.StatGaugeWrapper
+	subnetCacheMisses  *telemetry.StatCounterWrapper
+	subnetCacheLookups *telemetry.StatCounterWrapper
+	subnetLookups      *telemetry.StatCounterWrapper
+	subnetLookupErrors *telemetry.StatCounterWrapper
+}{
+	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "runs", []string{}, "Counter measuring the size of the subnet cache"),
+	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "runs_failed", []string{}, "Counter measuring the size of the subnet cache"),
+	telemetry.NewStatGaugeWrapper(tracerouteRunnerModuleName, "subnet_cache_size", []string{}, "Counter measuring the size of the subnet cache"),
+	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "subnet_cache_misses", []string{}, "Counter measuring the number of subnet cache misses"),
+	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "subnet_cache_lookups", []string{}, "Counter measuring the number of subnet cache lookups"),
+	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "subnet_lookups", []string{}, "Counter measuring the number of subnet lookups"),
+	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "subnet_lookup_errors", []string{"reason"}, "Counter measuring the number of subnet lookup errors"),
+}
+
+// NewRunner initializes a new traceroute runner
+func NewRunner() (*Runner, error) {
+	subnetCache, err := simplelru.NewLRU[int, any](maxSubnetCacheSize, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: we should probably cache this info
+	// double check the underlying call doesn't
+	// already do this
+	networkID, err := ec2.GetNetworkID(context.Background())
+	if err != nil {
+		log.Debugf("failed to get network ID: %s", err.Error())
+	}
+
+	return &Runner{
+		subnetCache: subnetCache,
+		networkID:   networkID,
+	}, nil
+}
 
 // RunTraceroute wraps the implementation of traceroute
 // so it can be called from the different OS implementations
 //
 // This code is experimental and will be replaced with a more
 // complete implementation.
-func RunTraceroute(cfg Config) (NetworkPath, error) {
+func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (NetworkPath, error) {
 	rawDest := cfg.DestHostname
-	dests, err := net.DefaultResolver.LookupIP(context.Background(), "ip4", rawDest)
+	dests, err := net.DefaultResolver.LookupIP(ctx, "ip4", rawDest)
 	if err != nil || len(dests) == 0 {
+		// TODO: better tagging
+		//TracerouteRunnerTelemetry.runs.Inc(fmt.Sprintf("hostname:%s", rawDest))
+		//TracerouteRunnerTelemetry.failedRuns.Inc(fmt.Sprintf("hostname:%s", rawDest))
 		return NetworkPath{}, fmt.Errorf("cannot resolve %s: %v", rawDest, err)
 	}
 
@@ -81,20 +132,26 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 	log.Debugf("Traceroute UDPv4 probe config: %+v", dt)
 	results, err := dt.Traceroute()
 	if err != nil {
+		// TODO: better tagging
+		//TracerouteRunnerTelemetry.runs.Add(1, fmt.Sprintf("dest_host:%s", rawDest), fmt.Sprintf("dest_ip:%s", dest.String()), fmt.Sprintf("ttl:%d", maxTTL))
+		//TracerouteRunnerTelemetry.failedRuns.Add(1, fmt.Sprintf("dest_host:%s", rawDest), fmt.Sprintf("dest_ip:%s", dest.String()), fmt.Sprintf("ttl:%d", maxTTL))
 		return NetworkPath{}, fmt.Errorf("traceroute run failed: %s", err.Error())
 	}
-	log.Debugf("Raw results: %+v", results)
+	//log.Debugf("Raw results: %+v", results)
 
-	hname, err := hostname.Get(context.TODO())
+	hname, err := hostname.Get(ctx)
 	if err != nil {
 		return NetworkPath{}, err
 	}
 
-	pathResult, err := processResults(results, hname, rawDest, dest)
+	pathResult, err := r.processResults(ctx, results, hname, rawDest, dest)
 	if err != nil {
 		return NetworkPath{}, err
 	}
+	log.Debugf("Processed Results: %+v", results)
 
+	// TODO: better tagging
+	//TracerouteRunnerTelemetry.runs.Add(1, fmt.Sprintf("dest_host:%s", rawDest), fmt.Sprintf("dest_ip:%s", dest.String()), fmt.Sprintf("ttl:%d", maxTTL))
 	return pathResult, nil
 }
 
@@ -115,7 +172,7 @@ func getPorts(configDestPort uint16) (uint16, uint16, bool) {
 	return destPort, srcPort, useSourcePort
 }
 
-func processResults(r *results.Results, hname string, destinationHost string, destinationIP net.IP) (NetworkPath, error) {
+func (r *Runner) processResults(ctx context.Context, res *results.Results, hname string, destinationHost string, destinationIP net.IP) (NetworkPath, error) {
 	type node struct {
 		node  string
 		probe *results.Probe
@@ -127,7 +184,8 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 		PathID:    pathID,
 		Timestamp: time.Now().UnixMilli(),
 		Source: NetworkPathSource{
-			Hostname: hname,
+			Hostname:  hname,
+			NetworkID: r.networkID,
 		},
 		Destination: NetworkPathDestination{
 			Hostname:  destinationHost,
@@ -135,28 +193,51 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 		},
 	}
 
-	for idx, probes := range r.Flows {
+	for idx, probes := range res.Flows {
 		log.Debugf("Flow idx: %d\n", idx)
 		for probleIndex, probe := range probes {
 			log.Debugf("%d - %d - %s\n", probleIndex, probe.Sent.IP.TTL, probe.Name)
 		}
 	}
 
-	flowIDs := make([]int, 0, len(r.Flows))
-	for flowID := range r.Flows {
+	flowIDs := make([]int, 0, len(res.Flows))
+	for flowID := range res.Flows {
 		flowIDs = append(flowIDs, int(flowID))
 	}
 	sort.Ints(flowIDs)
 
 	for _, flowID := range flowIDs {
-		hops := r.Flows[uint16(flowID)]
+		hops := res.Flows[uint16(flowID)]
 		if len(hops) == 0 {
 			log.Debugf("No hops for flow ID %d", flowID)
 			continue
 		}
 		var nodes []node
 		// add first hop
-		firstNodeName := hops[0].Sent.IP.SrcIP.String()
+		localAddr := hops[0].Sent.IP.SrcIP
+
+		// get hardware interface info
+		iface, err := getInterface(localAddr)
+		if err != nil {
+			// TODO: we probably don't want to stop execution here.
+			// For testing though, we probably do want to see how often
+			// this fails
+			log.Errorf("failed to get interface: %s", err.Error())
+			return NetworkPath{}, err
+		}
+
+		// Resolve subnet from hardware interface
+		// we should probably cache this in a similar
+		// way to what's done for NPM
+		subnet, err := r.resolveSubnetID(ctx, iface)
+		if err != nil {
+			log.Errorf("failed to resolve subnet for interface %q: %s", iface.Name, err.Error())
+		}
+		// TODO: this should probably all be done outside
+		// this loop
+		traceroutePath.Source.Subnet = subnet
+
+		firstNodeName := localAddr.String()
 		nodes = append(nodes, node{node: firstNodeName, probe: &hops[0]})
 
 		// then add all the other hops
@@ -248,4 +329,90 @@ func getHostname(ipAddr string) string {
 		currHost = ipAddr
 	}
 	return currHost
+}
+
+func getInterface(localAddr net.IP) (net.Interface, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return net.Interface{}, fmt.Errorf("failed to get interfaces: %w", err)
+	}
+
+	for _, iface := range interfaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			fmt.Printf("failed to get iface addresses: %s\n", err.Error())
+			continue
+		}
+
+		for _, addr := range addrs {
+			ip, _, err := net.ParseCIDR(addr.String())
+			if err != nil {
+				fmt.Printf("failed to parse cidr for %s: %s", addr.String(), err.Error())
+				continue
+			}
+
+			if ip.Equal(localAddr) {
+				return iface, nil
+			}
+		}
+	}
+
+	return net.Interface{}, fmt.Errorf("failed to find matching interface for %q", localAddr.String())
+}
+
+func (r *Runner) resolveSubnetID(ctx context.Context, iface net.Interface) (string, error) {
+	cacheEntry, ok := r.subnetCache.Get(iface.Index)
+	// TODO: tagging
+	tracerouteRunnerTelemetry.subnetCacheLookups.Inc()
+	if !ok {
+		// TODO: tagging
+		tracerouteRunnerTelemetry.subnetCacheMisses.Inc()
+
+		if iface.Flags&net.FlagLoopback != 0 {
+			// negative cache loopback interfaces
+			r.subnetCache.Add(iface.Index, "")
+			tracerouteRunnerTelemetry.subnetCacheSize.Inc()
+			return "", nil
+		}
+
+		subnet, err := ec2.GetSubnetForHardwareAddr(ctx, iface.HardwareAddr)
+		// TODO: tagging
+		tracerouteRunnerTelemetry.subnetLookups.Inc()
+		if err != nil {
+			log.Debugf("interface index: %d, hardware address: %+v", iface.Index, iface.HardwareAddr)
+			log.Errorf("failed to get subnet from hardware address: %s", err.Error())
+
+			// cache an empty result so that we don't keep hitting the
+			// ec2 metadata endpoint for this interface
+			if errors.IsTimeout(err) {
+				// retry after a minute if we timed out
+				r.subnetCache.Add(iface.Index, time.Now().Add(time.Minute))
+				tracerouteRunnerTelemetry.subnetLookupErrors.Inc("timeout")
+			} else {
+				// cache an empty string if there's no subnet
+				r.subnetCache.Add(iface.Index, "")
+				tracerouteRunnerTelemetry.subnetLookupErrors.Inc("general error")
+			}
+
+			return "", err
+		}
+
+		r.subnetCache.Add(iface.Index, subnet.ID)
+		tracerouteRunnerTelemetry.subnetCacheSize.Inc()
+
+		return subnet.ID, nil
+	}
+
+	switch value := cacheEntry.(type) {
+	case time.Time:
+		if time.Now().After(value) {
+			r.subnetCache.Remove(iface.Index)
+			tracerouteRunnerTelemetry.subnetCacheSize.Dec()
+		}
+		return "", nil
+	case string:
+		return value, nil
+	default:
+		return "", nil
+	}
 }
