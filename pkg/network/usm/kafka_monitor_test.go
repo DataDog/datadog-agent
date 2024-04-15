@@ -653,6 +653,9 @@ func runCannedTransaction(t *testing.T, msgs []Message) {
 	reader := bufio.NewReader(conn)
 	for _, msg := range msgs {
 		if len(msg.request) > 0 {
+			// Note that the net package sets TCP_NODELAY by default,
+			// so this will send out each msg individually, which
+			// is which we want to test split segment handling.
 			conn.Write(msg.request)
 		}
 
@@ -754,6 +757,45 @@ func TestKafkaFetchRaw(t *testing.T) {
 
 			validateProduceFetchCount(t, kafkaStats, topic, kafkaParsingValidation{
 				expectedNumberOfFetchRequests: tt.numFetchedRecords,
+				expectedAPIVersionFetch:       11,
+			})
+		})
+
+		name := fmt.Sprintf("split/%s", tt.name)
+		t.Run(name, func(t *testing.T) {
+			resp := tt.buildResponse()
+
+			formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
+
+			var msgs []Message
+			splitIdx := 0
+			for splitIdx = 0; splitIdx < 1000; splitIdx++ {
+				reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(splitIdx))
+				respData := appendResponse(make([]byte, 0), resp, uint32(splitIdx))
+
+				// There is an assumption in the code that the first segment contains the data
+				// up to and including the number of paritions.  This size is 38 bytes with
+				// the topic name test-topic and API version 11.
+				minSegSize := 38
+				require.Equal(t, topic, "test-topic")
+				require.Equal(t, int(req.GetVersion()), 11)
+
+				segSize := min(minSegSize+splitIdx, len(respData))
+				if segSize >= len(respData) {
+					break
+				}
+
+				msgs = append(msgs, Message{request: reqData})
+				msgs = append(msgs, Message{response: respData[0:segSize]})
+				msgs = append(msgs, Message{response: respData[segSize:]})
+			}
+
+			monitor := newKafkaMonitor(t, getDefaultTestConfiguration())
+			runCannedTransaction(t, msgs)
+			kafkaStats := getAndValidateKafkaStats(t, monitor, 1)
+
+			validateProduceFetchCount(t, kafkaStats, topic, kafkaParsingValidation{
+				expectedNumberOfFetchRequests: tt.numFetchedRecords * splitIdx,
 				expectedAPIVersionFetch:       11,
 			})
 		})
