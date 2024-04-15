@@ -233,6 +233,12 @@ def build(
     omnibus_cache_dir = os.environ.get('OMNIBUS_GIT_CACHE_DIR')
     use_omnibus_git_cache = omnibus_cache_dir is not None
     if use_omnibus_git_cache:
+        # The cache will be written in the provided cache dir (see omnibus.rb) but
+        # the git repository itself will be located in a subfolder that replicates
+        # the install_dir hierarchy
+        # For instance if git_cache_dir is set to "/git/cache/dir" and install_dir is
+        # set to /a/b/c, the cache git repository will be located in
+        # /git/cache/dir/a/b/c/.git
         if install_directory is None:
             install_directory = install_dir_for_project(target_project)
         if install_directory[0] == "/":
