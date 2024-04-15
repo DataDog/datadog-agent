@@ -6,7 +6,7 @@
 // Package npscheduler used to manage network paths
 package npscheduler
 
-// team: network-device-monitoring, network-performance-monitoring
+// team: network-device-monitoring
 
 // Component is the component type.
 type Component interface {
