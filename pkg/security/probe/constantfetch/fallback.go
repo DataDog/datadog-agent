@@ -326,11 +326,8 @@ func getCredsUIDOffset(kv *kernel.Version) uint64 {
 	}
 }
 
-func getCredCapInheritableOffset(_ *kernel.Version) uint64 {
-	switch {
-	default:
-		return 40
-	}
+func getCredCapInheritableOffset(kv *kernel.Version) uint64 {
+	return getCredsUIDOffset(kv) + 36
 }
 
 func getBpfMapIDOffset(kv *kernel.Version) uint64 {
