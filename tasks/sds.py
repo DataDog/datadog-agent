@@ -9,6 +9,7 @@ from tasks.rtloader import get_dev_path
 is_windows = sys.platform == "win32"
 is_darwin = sys.platform == "darwin"
 
+sds_version = "v0.1.0"
 
 @task
 def build_library(ctx):
@@ -22,6 +23,7 @@ def build_library(ctx):
         with ctx.cd(temp_dir):
             ctx.run("git clone https://github.com/DataDog/dd-sensitive-data-scanner")
             with ctx.cd("dd-sensitive-data-scanner/sds-go/rust"):
+                ctx.run(f"git checkout {sds_version}")
                 ctx.run("cargo build --release")
                 # write the lib besides rtloader libs
                 dev_path = get_dev_path()
