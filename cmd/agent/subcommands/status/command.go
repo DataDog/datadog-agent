@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 
 	"go.uber.org/fx"
 
@@ -41,6 +42,7 @@ type cliParams struct {
 	prettyPrintJSON bool
 	statusFilePath  string
 	verbose         bool
+	exclude         []string
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -75,6 +77,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
 	cmd.Flags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")
 	cmd.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print out verbose status")
+	cmd.Flags().StringArrayVarP(&cliParams.exclude, "exclude", "x", []string{}, "sections to exclude")
 
 	componentCmd := &cobra.Command{
 		Use:   "component",
@@ -177,6 +180,10 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	}
 
 	v := setIpcURL(cliParams)
+
+	if len(cliParams.exclude) > 0 {
+		v.Set("exclude", strings.Join(cliParams.exclude, ","))
+	}
 
 	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status")
 	if err != nil {
