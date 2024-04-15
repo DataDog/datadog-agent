@@ -109,8 +109,18 @@ void __attribute__((always_inline)) fill_file(struct dentry* dentry, struct file
     bpf_probe_read(&file->metadata.uid, sizeof(file->metadata.uid), &d_inode->i_uid);
     bpf_probe_read(&file->metadata.gid, sizeof(file->metadata.gid), &d_inode->i_gid);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)
     bpf_probe_read(&file->metadata.ctime, sizeof(file->metadata.ctime), &d_inode->i_ctime);
+#else
+    bpf_probe_read(&file->metadata.ctime, sizeof(file->metadata.ctime), &d_inode->__i_ctime);
+#endif
+
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 7, 0)
     bpf_probe_read(&file->metadata.mtime, sizeof(file->metadata.mtime), &d_inode->i_mtime);
+#else
+    bpf_probe_read(&file->metadata.mtime, sizeof(file->metadata.mtime), &d_inode->__i_mtime);
+#endif
 }
 
 #define get_dentry_key_path(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }

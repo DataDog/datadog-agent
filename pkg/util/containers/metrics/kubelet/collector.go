@@ -77,8 +77,9 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 	}
 
 	collectors := &provider.Collectors{
-		Stats:   provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
-		Network: provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
+		Stats:                           provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
+		Network:                         provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
+		ContainerIDForPodUIDAndContName: provider.MakeRef[provider.ContainerIDForPodUIDAndContNameRetriever](collector, collectorPriority),
 	}
 
 	return provider.CollectorMetadata{
