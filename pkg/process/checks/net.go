@@ -190,7 +190,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
-	c.schedulePathForConnection(conns.Conns)
+	c.schedulePathForConns(conns.Conns)
 
 	groupID := nextGroupID()
 	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
@@ -513,7 +513,7 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 	return tagsStr
 }
 
-func (c *ConnectionsCheck) schedulePathForConnection(conns []*model.Connection) {
+func (c *ConnectionsCheck) schedulePathForConns(conns []*model.Connection) {
 	for _, conn := range conns {
 		remoteAddr := conn.Raddr
 		if stdnet.ParseIP(remoteAddr.Ip).IsLoopback() {
