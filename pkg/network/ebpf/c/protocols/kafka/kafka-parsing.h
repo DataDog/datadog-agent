@@ -271,7 +271,9 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
                 extra_debug("batchLength too small %d", response->record_batch_length);
                 return RET_ERR;
             }
-            if (response->record_batch_length + sizeof(u32) + sizeof(u64) > response->record_batches_num_bytes) {
+            // The batchLength excludes the baseOffset (u64) and the batchLength (s32) itself,
+            // so those need to be be added separately.
+            if (response->record_batch_length + sizeof(s32) + sizeof(u64) > response->record_batches_num_bytes) {
                 extra_debug("batchLength too large %d (record_batches_num_bytes: %d)", response->record_batch_length,
                             response->record_batches_num_bytes);
 
