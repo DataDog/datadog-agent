@@ -41,7 +41,6 @@ const (
 	kafkaHeapMap                             = "kafka_heap"
 	inFlightMap                              = "kafka_in_flight"
 	responseMap                              = "kafka_response"
-	tcpSeqMap                                = "kafka_tcp_seq"
 )
 
 // Spec is the protocol spec for the kafka protocol.
@@ -59,9 +58,6 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: responseMap,
-		},
-		{
-			Name: tcpSeqMap,
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -114,10 +110,6 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[responseMap] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
-		EditorFlag: manager.EditMaxEntries,
-	}
-	opts.MapSpecEditors[tcpSeqMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}

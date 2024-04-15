@@ -62,10 +62,8 @@ int socket__kafka_filter(struct __sk_buff* skb) {
 
     if (is_tcp_termination(&skb_info)) {
         bpf_map_delete_elem(&kafka_response, &tup);
-        bpf_map_delete_elem(&kafka_tcp_seq, &tup);
         flip_tuple(&tup);
         bpf_map_delete_elem(&kafka_response, &tup);
-        bpf_map_delete_elem(&kafka_tcp_seq, &tup);
         return 0;
     }
 
@@ -511,27 +509,20 @@ int socket__kafka_response_parser(struct __sk_buff *skb) {
     return 0;
 }
 
-static __always_inline void kafka_save_tcp_seq(conn_tuple_t *tup, skb_info_t *skb_info) {
+// Gets the next expected TCP sequence in the stream, assuming
+// no retransmits and out-of-order segments.
+static __always_inline u32 kafka_get_next_tcp_seq(skb_info_t *skb_info) {
     u32 data_len = skb_info->data_end - skb_info->data_off;
     u32 next_seq = skb_info->tcp_seq + data_len;
 
-    bpf_map_update_elem(&kafka_tcp_seq, tup, &next_seq, BPF_ANY);
+    return next_seq;
 }
 
 // Somewhat similar to has_sequence_seen_before() except that this ignores all
 // segments with an older sequence number.
-static __always_inline bool kafka_is_old_tcp_segment(conn_tuple_t *tup, skb_info_t *skb_info, u32 *expected_seq) {
-    if (!skb_info || !skb_info->tcp_seq) {
-        return false;
-    }
-
-    u32 *tcp_seq = bpf_map_lookup_elem(&kafka_tcp_seq, tup);
-    if (tcp_seq) {
-        *expected_seq = *tcp_seq;
-    }
-
-    if (tcp_seq != NULL && skb_info->tcp_seq != *tcp_seq) {
-        u32 old = *tcp_seq;
+static __always_inline bool kafka_is_old_tcp_segment(conn_tuple_t *tup, skb_info_t *skb_info, u32 expected_seq) {
+    if (skb_info->tcp_seq != expected_seq) {
+        u32 old = expected_seq;
         u32 new = skb_info->tcp_seq;
 
         // When the sequence number is greater than the end of the earlier
@@ -559,20 +550,20 @@ static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct _
     __u32 orig_offset = offset;
     kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &tup);
     if (response) {
-        u32 expected_seq = 0;
-        if (kafka_is_old_tcp_segment(&tup, skb_info, &expected_seq)) {
+        if (kafka_is_old_tcp_segment(&tup, skb_info, response->expected_tcp_seq)) {
             extra_debug("kafka: skip old TCP segment");
             // We know it's on the response path, so not need to process as request.
             return true;
         }
 
-        if (skb_info->tcp_seq != expected_seq) {
+        if (skb_info->tcp_seq != response->expected_tcp_seq) {
             // The segment is not old, but it is not the next one we were expecting.
             // No point in parsing this as a response continuation since it may
             // yield bogus values. Flush what we have and forget about this current
             // response.
 
-            extra_debug("kafka: lost response TCP segments expected %u got %u", expected_seq,
+            extra_debug("kafka: lost response TCP segments expected %u got %u",
+                        response->expected_tcp_seq,
                         skb_info->tcp_seq);
 
             if (response->transaction.records_count) {
@@ -583,7 +574,7 @@ static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct _
             bpf_map_delete_elem(&kafka_response, &tup);
             // Try to parse it as a new response.
         } else {
-            kafka_save_tcp_seq(&tup, skb_info);
+            response->expected_tcp_seq = kafka_get_next_tcp_seq(skb_info);
             kafka_call_response_parser(&tup, skb);
             return false;
         }
@@ -638,13 +629,13 @@ static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct _
     kafka->response.record_batches_num_bytes = 0;
     kafka->response.carry_over_offset = offset - orig_offset;
     kafka->response.record_batch_length = 0;
+    kafka->response.expected_tcp_seq = kafka_get_next_tcp_seq(skb_info);
 
     kafka_response_context_t response_ctx;
     bpf_memcpy(&response_ctx, &kafka->response, sizeof(response_ctx));
 
     bpf_map_update_elem(&kafka_response, &tup, &response_ctx, BPF_ANY);
 
-    kafka_save_tcp_seq(&tup, skb_info);
     kafka_call_response_parser(&tup, skb);
 
     return true;

@@ -58,6 +58,7 @@ typedef struct kafka_response_context_t {
     char remainder_buf[4];
     __s32 record_batches_num_bytes;
     __s32 record_batch_length;
+    __u32 expected_tcp_seq;
     // The offset to start reading data from the next packet, carried
     // over from processing of the previous packet. Used when a fetch response
     // is split over multiple TCP segments.
