@@ -402,13 +402,11 @@ func (i *installerImpl) setupInstallerUnits() (err error) {
 		return fmt.Errorf("failed to setup datadog-installer systemd units: %w", err)
 	}
 	if !i.remoteUpdates {
-		defer func() {
-			service.RemoveInstallerUnits()
-		}()
+		service.RemoveInstallerUnits()
+		return
 	} else {
-		service.StartInstallerStable()
+		return service.StartInstallerStable()
 	}
-	return nil
 }
 
 func (i *installerImpl) handleCatalogUpdate(c catalog) error {
