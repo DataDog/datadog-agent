@@ -18,12 +18,11 @@ type ConnTuple struct {
 type EbpfTx struct {
 	Tup                 ConnTuple
 	Request_started     uint64
-	Request_api_key     uint16
-	Request_api_version uint16
+	Request_api_key     uint8
+	Request_api_version uint8
 	Topic_name          [80]byte
 	Topic_name_size     uint16
 	Records_count       uint32
-	Pad_cgo_0           [4]byte
 }
 
 type KafkaTransactionKey struct {
@@ -34,12 +33,11 @@ type KafkaTransactionKey struct {
 type KafkaTransaction struct {
 	Tup                 ConnTuple
 	Request_started     uint64
-	Request_api_key     uint16
-	Request_api_version uint16
+	Request_api_key     uint8
+	Request_api_version uint8
 	Topic_name          [80]byte
 	Topic_name_size     uint16
 	Records_count       uint32
-	Pad_cgo_0           [4]byte
 }
 
 type KafkaResponseContext struct {
