@@ -4,9 +4,10 @@
 #
 # .deb: STEP 5 of 5
 
-readonly INSTALL_DIR=/opt/datadog/updater
-readonly UPDATER_HELPER=${INSTALL_DIR}/bin/updater/updater-helper
 readonly PACKAGES_DIR=/opt/datadog-packages
+readonly INSTALL_DIR=/opt/datadog-installer
+readonly BOOTSTRAP_INSTALLER=${INSTALL_DIR}/bin/installer/installer
+readonly HELPER=${INSTALL_DIR}/bin/installer/helper
 readonly LOG_DIR=/var/log/datadog
 readonly PACKAGES_LOCK_DIR=/var/run/datadog-packages
 readonly CONFIG_DIR=/etc/datadog-agent
@@ -33,9 +34,9 @@ add_user_and_group() {
 set -e
 case "$1" in
     configure)
-        add_user_and_group 'dd-updater' $PACKAGES_DIR
+        add_user_and_group 'dd-installer' $PACKAGES_DIR
         add_user_and_group 'dd-agent' $PACKAGES_DIR/datadog-agent
-        usermod -aG dd-agent dd-updater
+        usermod -aG dd-agent dd-installer
     ;;
     abort-upgrade|abort-remove|abort-deconfigure)
     ;;
@@ -48,9 +49,9 @@ chown -R dd-agent:dd-agent ${CONFIG_DIR}
 chmod -R g+rw ${CONFIG_DIR}
 chown -R dd-agent:dd-agent ${LOG_DIR}
 chmod -R g+rw ${LOG_DIR}
-chown -R dd-updater:dd-updater ${INSTALL_DIR}
-chown -R dd-updater:dd-updater ${PACKAGES_DIR}
-chown -R dd-updater:dd-updater ${PACKAGES_LOCK_DIR}
+chown -R dd-installer:dd-installer ${PACKAGES_DIR}
+chown -R dd-installer:dd-installer ${PACKAGES_LOCK_DIR}
+chown -R dd-installer:dd-installer ${INSTALL_DIR}
 
 chmod -R 755 ${PACKAGES_DIR}
 # Lock_dir is world read/write/x as any application with a tracer injected
@@ -77,14 +78,10 @@ if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
     chown -R root:root ${CONFIG_DIR}/runtime-security.d || true
 fi
 
-# Set updater helper rights
-chmod 750 ${UPDATER_HELPER}
-setcap cap_setuid+ep ${UPDATER_HELPER}
+# Set helper rights
+chmod 750 ${HELPER}
+setcap cap_setuid+ep ${HELPER}
 
-$INSTALL_DIR/bin/updater/updater bootstrap -P datadog-agent
-
-# start updater
-SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-updater || true
-SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-updater || true
+$BOOTSTRAP_INSTALLER bootstrap --url "oci://docker.io/datadog/installer-package-dev:latest"
 
 exit 0

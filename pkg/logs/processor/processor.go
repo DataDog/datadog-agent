@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,24 +25,33 @@ const UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {
-	inputChan                 chan *message.Message
-	outputChan                chan *message.Message // strategy input
+	inputChan  chan *message.Message
+	outputChan chan *message.Message // strategy input
+	// ReconfigChan transports rules to use in order to reconfigure
+	// the processing rules of the SDS Scanner.
+	ReconfigChan              chan sds.ReconfigureOrder
 	processingRules           []*config.ProcessingRule
 	encoder                   Encoder
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
 	hostname                  hostnameinterface.Component
+
+	sds *sds.Scanner // configured through RC
 }
 
 // New returns an initialized Processor.
 func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component) *Processor {
+	sdsScanner := sds.CreateScanner()
+
 	return &Processor{
 		inputChan:                 inputChan,
 		outputChan:                outputChan, // strategy input
+		ReconfigChan:              make(chan sds.ReconfigureOrder),
 		processingRules:           processingRules,
 		encoder:                   encoder,
 		done:                      make(chan struct{}),
+		sds:                       sdsScanner,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		hostname:                  hostname,
 	}
@@ -57,6 +67,12 @@ func (p *Processor) Start() {
 func (p *Processor) Stop() {
 	close(p.inputChan)
 	<-p.done
+	// once the processor mainloop is not running, it's safe
+	// to delete the sds scanner instance.
+	if p.sds != nil {
+		p.sds.Delete()
+		p.sds = nil
+	}
 }
 
 // Flush processes synchronously the messages that this processor has to process.
@@ -82,17 +98,34 @@ func (p *Processor) run() {
 	defer func() {
 		p.done <- struct{}{}
 	}()
-	for msg := range p.inputChan {
-		p.processMessage(msg)
-		p.mu.Lock() // block here if we're trying to flush synchronously
-		//nolint:staticcheck
-		p.mu.Unlock()
+
+	for {
+		select {
+		case msg, ok := <-p.inputChan:
+			if !ok { // channel has been closed
+				return
+			}
+			p.processMessage(msg)
+			p.mu.Lock() // block here if we're trying to flush synchronously
+			//nolint:staticcheck
+			p.mu.Unlock()
+		case order := <-p.ReconfigChan:
+			p.mu.Lock()
+			if err := p.sds.Reconfigure(order); err != nil {
+				log.Errorf("Error while reconfiguring the SDS scanner: %v", err)
+				order.ResponseChan <- err
+			} else {
+				order.ResponseChan <- nil
+			}
+			p.mu.Unlock()
+		}
 	}
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
+
 	if toSend := p.applyRedactingRules(msg); toSend {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
@@ -123,6 +156,9 @@ func (p *Processor) processMessage(msg *message.Message) {
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	var content []byte = msg.GetContent()
 
+	// Use the internal scrubbing implementation of the Agent
+	// ---------------------------
+
 	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
 	for _, rule := range rules {
 		switch rule.Type {
@@ -141,7 +177,18 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 		}
 	}
 
-	// TODO(remy): this is most likely where we want to plug in SDS
+	// Use the SDS implementation
+	// --------------------------
+
+	// Global SDS scanner, applied on all log sources
+	if p.sds.IsReady() {
+		matched, processed, err := p.sds.Scan(content, msg)
+		if err != nil {
+			log.Error("while using SDS to scan the log:", err)
+		} else if matched {
+			content = processed
+		}
+	}
 
 	msg.SetContent(content)
 	return true // we want to send this message

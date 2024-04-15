@@ -3,5 +3,5 @@
 # Contains jobs to run integration tests in go binaries
 
 include:
-  - /.gitlab/integration_test/dogstatsd.yml
-  - /.gitlab/integration_test/windows.yml
+  - .gitlab/integration_test/dogstatsd.yml
+  - .gitlab/integration_test/windows.yml

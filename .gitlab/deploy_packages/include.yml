@@ -5,8 +5,9 @@
 # start as soon as possible.
 
 include:
-  - /.gitlab/deploy_packages/cluster_agent_cloudfoundry.yml
-  - /.gitlab/deploy_packages/deploy_common.yml
-  - /.gitlab/deploy_packages/nix.yml
-  - /.gitlab/deploy_packages/windows.yml
-  - /.gitlab/deploy_packages/winget.yml
+  - .gitlab/deploy_packages/cluster_agent_cloudfoundry.yml
+  - .gitlab/deploy_packages/deploy_common.yml
+  - .gitlab/deploy_packages/nix.yml
+  - .gitlab/deploy_packages/oci.yml
+  - .gitlab/deploy_packages/windows.yml
+  - .gitlab/deploy_packages/winget.yml

@@ -1,0 +1,18 @@
+version: "3.9"
+services:
+  agent:
+    container_name: datadog-agent
+    ports:
+      - "2055:2055/udp"
+      - "2056:2056/udp"
+      - "4739:4739"
+      - "6343:6343/udp"
+    volumes:
+      - ${CONFIG_DIR}/datadog.yaml:/etc/datadog-agent/datadog.yaml
+  netflow:
+    command: /go/bin/nflow-generator -t datadog-agent -p 2056
+    container_name: netflow-generator
+    depends_on:
+      agent:
+        condition: service_healthy
+    image: ghcr.io/datadog/apps-netflow-generator:main

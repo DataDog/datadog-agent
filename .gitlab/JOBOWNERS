@@ -47,7 +47,9 @@ agent_dmg*                           @DataDog/agent-build-and-releases
 windows_msi*                         @DataDog/windows-agent
 
 # Packaging
-packaging_oci                        @DataDog/agent-build-and-releases
+agent_oci                            @DataDog/agent-build-and-releases
+updater_deb-*                        @DataDog/agent-build-and-releases
+updater_rpm-*                        @DataDog/agent-build-and-releases
 
 # Testing package deploy
 deploy_deb_testing*                  @DataDog/agent-build-and-releases
@@ -135,9 +137,9 @@ new-e2e-updater*                  @DataDog/fleet
 # Kernel matrix testing
 upload_dependencies*              @DataDog/ebpf-platform
 upload_minimized_btfs*            @DataDog/ebpf-platform
-kernel_matrix_testing*            @DataDog/ebpf-platform
-upload_security_agent_tests*      @DataDog/ebpf-platform
-upload_system_probe_tests*        @DataDog/ebpf-platform
+kmt_*                             @DataDog/ebpf-platform
+upload_secagent_tests*            @DataDog/ebpf-platform
+upload_sysprobe_tests*            @DataDog/ebpf-platform
 pull_test_dockers*                @DataDog/universal-service-monitoring
 
 # Single machine performance
