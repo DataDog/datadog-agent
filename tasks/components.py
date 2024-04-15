@@ -222,6 +222,7 @@ def make_codeowners(codeowners_lines, bundles, components_without_bundle):
     # less-specific (bundles).  We include only components with a team different from their bundle, to
     # keep the file short.
     yield '/comp @DataDog/agent-shared-components'
+    yield '/comp/README.md # do not notify anyone'
     different_components = []
     for b in bundles:
         if b.team:
