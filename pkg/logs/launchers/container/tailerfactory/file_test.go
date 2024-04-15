@@ -135,6 +135,13 @@ func TestMakeFileSource_podman_success(t *testing.T) {
 	mockConfig := coreConfig.Mock(t)
 	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
 
+	// On Windows, podman runs within a Linux virtual machine, so the Agent would believe it runs in a Linux environment with all the paths being nix-like.
+	// The real path on the system is abstracted by the Windows Subsystem for Linux layer, so this unit test is skipped.
+	// Ref: https://github.com/containers/podman/blob/main/docs/tutorials/podman-for-windows.md
+	if runtime.GOOS == "windows" {
+		t.Skip("Skip on Windows due to WSL file path abstraction")
+	}
+
 	p := filepath.Join(podmanLogsBasePath, filepath.FromSlash("storage/overlay-containers/abc/userdata/ctr.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
 	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
