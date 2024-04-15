@@ -96,10 +96,16 @@ enum parse_result {
     RET_LOOP_END = -2,
 };
 
+// TCP segments splits can happen at any point in the response. If a
+// field happens to straddles the segment boundary, we need to read
+// some bytes from the old packet and the rest from the new packet.
 static __always_inline enum parse_result read_with_remainder(kafka_response_context_t *response, const struct __sk_buff *skb,
                                                              __u32 *offset, s32 *val, bool first)
 {
     if (*offset >= skb->len) {
+        // The offset we want to read is completely outside of the current
+        // packet. No remainder to save, we just need to save the offset
+        // at which we need to start reading the next packet from.
         response->carry_over_offset = *offset - skb->len;
         return RET_EOP;
     }
@@ -117,17 +123,27 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
     }
 
     if (avail < want) {
+        // We have less than 4 bytes left in the packet.
+
         if (remainder) {
+            // We don't handle the case where we already have a remainder saved
+            // and the new packet is so small that it doesn't allow us to fully
+            // read the value we want to read. Actually we don't need to check
+            // for 4 bytes but just enough bytes to fill the value, but in reality
+            // packet sizes so small are highly unlikely so just check for 4 bytes.
             extra_debug("Continuation packet less than 4 bytes?");
             return RET_ERR;
         }
 
-        // This is negative, caller will check and save remainder.
+        // This is negative and so kafka_continue_parse_response() will save
+        // remainder.
         response->carry_over_offset = *offset - skb->len;
         return RET_EOP;
     }
 
     if (!remainder) {
+        // No remainder, and 4 or more bytes more in the packet, so just
+        // do a normal read.
         bpf_skb_load_bytes(skb, *offset, val, sizeof(*val));
         *offset += sizeof(*val);
         *val = bpf_ntohl(*val);
@@ -135,6 +151,7 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
         return RET_DONE;
     }
 
+    // We'll be using up the remainder so clear it.
     response->remainder = 0;
 
     // The remainder_buf contains up to 3 head bytes of the value we
@@ -744,7 +761,7 @@ static __always_inline bool kafka_process(kafka_info_t *kafka, struct __sk_buff*
         break;
     }
     case KAFKA_FETCH:
-        // We currently lack support for fetch record counts as they are only accessible within the Kafka response
+        // Filled in when the response is parsed.
         kafka_transaction->records_count = 0;
         break;
     default:
