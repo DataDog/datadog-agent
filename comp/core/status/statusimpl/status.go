@@ -14,6 +14,7 @@ import (
 	"io"
 	"path"
 	"sort"
+	"strings"
 	"text/template"
 	"unicode"
 
@@ -82,7 +83,7 @@ func newStatus(deps dependencies) provides {
 		}
 
 		if !present(provider.Section(), sortedSectionNames) && provider.Section() != status.CollectorSection {
-			sortedSectionNames = append(sortedSectionNames, provider.Section())
+			sortedSectionNames = append(sortedSectionNames, strings.ToLower(provider.Section()))
 		}
 	}
 
@@ -93,10 +94,12 @@ func newStatus(deps dependencies) provides {
 	}
 
 	// Providers of each section are sort alphabetically by name
+	// Section names are stored lower case
 	sortedProvidersBySection := map[string][]status.Provider{}
 	for _, provider := range providers {
-		providers := sortedProvidersBySection[provider.Section()]
-		sortedProvidersBySection[provider.Section()] = append(providers, provider)
+		lowerSectionName := strings.ToLower(provider.Section())
+		providers := sortedProvidersBySection[lowerSectionName]
+		sortedProvidersBySection[lowerSectionName] = append(providers, provider)
 	}
 	for section, providers := range sortedProvidersBySection {
 		sortedProvidersBySection[section] = sortByName(providers)
@@ -129,11 +132,17 @@ func newStatus(deps dependencies) provides {
 func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSections ...string) ([]byte, error) {
 	var errors []error
 
+	var excludeSectionsLower []string
+
+	for _, s := range excludeSections {
+		excludeSectionsLower = append(excludeSectionsLower, strings.ToLower(s))
+	}
+
 	switch format {
 	case "json":
 		stats := make(map[string]interface{})
 		for _, sc := range s.sortedHeaderProviders {
-			if present(sc.Name(), excludeSections) {
+			if present(sc.Name(), excludeSectionsLower) {
 				continue
 			}
 
@@ -144,7 +153,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 
 		for _, providers := range s.sortedProvidersBySection {
 			for _, provider := range providers {
-				if present(provider.Section(), excludeSections) {
+				if present(provider.Section(), excludeSectionsLower) {
 					continue
 				}
 				if err := provider.JSON(verbose, stats); err != nil {
@@ -167,7 +176,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 
 		for _, sc := range s.sortedHeaderProviders {
 			name := sc.Name()
-			if present(name, excludeSections) {
+			if present(name, excludeSectionsLower) {
 				continue
 			}
 
@@ -184,7 +193,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 		}
 
 		for _, section := range s.sortedSectionNames {
-			if present(section, excludeSections) {
+			if present(section, excludeSectionsLower) {
 				continue
 			}
 
@@ -214,7 +223,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 		var b = new(bytes.Buffer)
 
 		for _, sc := range s.sortedHeaderProviders {
-			if present(sc.Name(), excludeSections) {
+			if present(sc.Name(), excludeSectionsLower) {
 				continue
 			}
 
@@ -225,7 +234,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 		}
 
 		for _, section := range s.sortedSectionNames {
-			if present(section, excludeSections) {
+			if present(section, excludeSectionsLower) {
 				continue
 			}
 
@@ -307,7 +316,7 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 			return []byte{}, nil
 		}
 	default:
-		providers, ok := s.sortedProvidersBySection[section]
+		providers, ok := s.sortedProvidersBySection[strings.ToLower(section)]
 		if !ok {
 			return nil, fmt.Errorf("unknown status section '%s'", section)
 		}
@@ -377,7 +386,7 @@ func (s *statusImplementation) fillFlare(fb flaretypes.FlareBuilder) error {
 
 func present(value string, container []string) bool {
 	for _, v := range container {
-		if v == value {
+		if v == strings.ToLower(value) {
 			return true
 		}
 	}
