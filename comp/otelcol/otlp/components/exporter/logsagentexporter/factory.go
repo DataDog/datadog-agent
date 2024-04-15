@@ -21,10 +21,19 @@ import (
 
 const (
 	// TypeStr defines the logsagent exporter type string.
-	TypeStr       = "logsagent"
-	stability     = component.StabilityLevelStable
+	TypeStr   = "logsagent"
+	stability = component.StabilityLevelStable
+	// logSourceName specifies the Datadog source tag value to be added to logs sent by the logs agent exporter.
 	logSourceName = "OTLP log ingestion"
+	// otelSource specifies a source to be added to all logs sent by the logs agent exporter. The tag has key `otel_source` and the value specified on this constant.
+	otelSource = "datadog_agent"
 )
+
+// Config defines configuration for the logs agent exporter.
+type Config struct {
+	otelSource    string
+	logSourceName string
+}
 
 type factory struct {
 	logsAgentChannel chan *message.Message
@@ -37,7 +46,12 @@ func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
 
 	return exp.NewFactory(
 		cfgType,
-		func() component.Config { return &struct{}{} },
+		func() component.Config {
+			return &Config{
+				otelSource:    otelSource,
+				logSourceName: logSourceName,
+			}
+		},
 		exp.WithLogs(f.createLogsExporter, stability),
 	)
 }
@@ -47,7 +61,8 @@ func (f *factory) createLogsExporter(
 	set exp.CreateSettings,
 	c component.Config,
 ) (exp.Logs, error) {
-	logSource := sources.NewLogSource(logSourceName, &config.LogsConfig{})
+	cfg := checkAndCastConfig(c)
+	logSource := sources.NewLogSource(cfg.logSourceName, &config.LogsConfig{})
 
 	// TODO: Ideally the attributes translator would be created once and reused
 	// across all signals. This would need unifying the logsagent and serializer
@@ -57,7 +72,7 @@ func (f *factory) createLogsExporter(
 		return nil, err
 	}
 
-	exporter, err := newExporter(set.TelemetrySettings, logSource, f.logsAgentChannel, attributesTranslator)
+	exporter, err := newExporter(set.TelemetrySettings, cfg, logSource, f.logsAgentChannel, attributesTranslator)
 	if err != nil {
 		return nil, err
 	}
@@ -74,4 +89,14 @@ func (f *factory) createLogsExporter(
 			return nil
 		}),
 	)
+}
+
+// checkAndCastConfig checks the configuration type and its warnings, and casts it to
+// the logs agent exporter Config struct.
+func checkAndCastConfig(c component.Config) *Config {
+	cfg, ok := c.(*Config)
+	if !ok {
+		panic("programming error: config structure is not of type *logsagentexporter.Config")
+	}
+	return cfg
 }
