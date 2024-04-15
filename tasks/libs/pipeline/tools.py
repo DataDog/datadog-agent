@@ -159,7 +159,6 @@ def wait_for_pipeline(
     Follow a given pipeline, periodically checking the pipeline status
     and printing changes to the job statuses.
     """
-    pipeline.refresh()
     commit = repo.commits.get(pipeline.sha)
 
     print(
@@ -207,6 +206,7 @@ def pipeline_status(pipeline: ProjectPipeline, job_status):
     """
     Checks the pipeline status and updates job statuses.
     """
+    pipeline.refresh()
     jobs = pipeline.jobs.list(per_page=100, all=True)
 
     job_status = update_job_status(jobs, job_status)
