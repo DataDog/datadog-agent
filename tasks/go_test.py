@@ -5,6 +5,7 @@ High level testing tasks
 # Recent versions of Python should be able to use dict and list directly in type hints,
 # so we only need to check that we don't run this code with old Python versions.
 
+import fnmatch
 import glob
 import json
 import operator
@@ -39,6 +40,7 @@ TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
 GO_COV_TEST_PATH = "test_with_coverage"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
+TRIGGER_ALL_TESTS_PATHS = ["tasks/go_test.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
 
 
 class TestProfiler:
@@ -324,6 +326,7 @@ def test(
     junit_tar="",
     only_modified_packages=False,
     only_impacted_packages=False,
+    include_sds=False,
     skip_flakes=False,
     build_stdlib=False,
 ):
@@ -349,7 +352,12 @@ def test(
 
     unit_tests_tags = {
         f: compute_build_tags_for_flavor(
-            flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
+            flavor=f,
+            build="unit-tests",
+            arch=arch,
+            build_include=build_include,
+            build_exclude=build_exclude,
+            include_sds=include_sds,
         )
         for f in flavors
     }
@@ -750,6 +758,18 @@ def get_impacted_packages(ctx, build_tags=None):
     dependencies = create_dependencies(ctx, build_tags)
     files = get_modified_files(ctx)
 
+    # Safeguard to be sure that the files that should trigger all test are not renamed without being updated
+    for file in TRIGGER_ALL_TESTS_PATHS:
+        if len(glob.glob(file)) == 0:
+            raise Exit(
+                code=1,
+                message=f"No file matched {file} make sure you modified TRIGGER_ALL_TEST_FILES if you renamed one of them",
+            )
+
+    # Some files like tasks/go_test.py should trigger all tests
+    if should_run_all_tests(files, TRIGGER_ALL_TESTS_PATHS):
+        return DEFAULT_MODULES.values()
+
     modified_packages = {
         f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}"
         for file in files
@@ -837,7 +857,7 @@ def format_packages(ctx, impacted_packages):
         module_path = get_go_module(package).replace("./", "")
 
         # Check if the module is in the target list of the modules we want to test
-        if module_path not in DEFAULT_MODULES:
+        if module_path not in DEFAULT_MODULES or not DEFAULT_MODULES[module_path].condition():
             continue
 
         # Check if the package is in the target list of the module we want to test
@@ -912,6 +932,14 @@ def get_go_module(path):
     raise Exception(f"No go.mod file found for package at {path}")
 
 
+def should_run_all_tests(files, trigger_files):
+    for trigger_file in trigger_files:
+        if len(fnmatch.filter(files, trigger_file)):
+            print(f"Triggering all tests because a file matching {trigger_file} was modified")
+            return True
+    return False
+
+
 @task(iterable=['flavors'])
 def lint_go(
     ctx,
@@ -928,6 +956,7 @@ def lint_go(
     timeout: int = None,
     golangci_lint_kwargs="",
     headless_mode=False,
+    include_sds=False,
 ):
     _lint_go(
         ctx,
@@ -944,4 +973,5 @@ def lint_go(
         timeout,
         golangci_lint_kwargs,
         headless_mode,
+        include_sds,
     )

@@ -1,6 +1,7 @@
 ---
 include:
   - .gitlab/.pre/cancel-prev-pipelines.yml
+  - .gitlab/.pre/test_gitlab_configuration.yml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
   - .gitlab/check_deploy/check_deploy.yml
@@ -76,7 +77,6 @@ stages:
   - pkg_metrics
   - packaging
   - kitchen_deploy
-  - e2e_pre_test
   - kitchen_testing
   - container_build
   - container_scan
@@ -91,6 +91,7 @@ stages:
   - choco_deploy
   - internal_image_deploy
   - install_script_testing
+  - e2e_pre_test
   - e2e
   - kitchen_cleanup
   - functional_test
@@ -138,7 +139,7 @@ variables:
   WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
   DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
-  S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
+  S3_CP_OPTIONS: --no-progress --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
   S3_ARTIFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
   S3_PERMANENT_ARTIFACTS_URI: s3://dd-ci-persistent-artefacts-build-stable/$CI_PROJECT_NAME
@@ -162,19 +163,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v31533949-8ad94aa8
+  DATADOG_AGENT_BUILDIMAGES: v31988376-bfbb3afb
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v31533949-8ad94aa8
+  DATADOG_AGENT_WINBUILDIMAGES: v31988376-bfbb3afb
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v31533949-8ad94aa8
+  DATADOG_AGENT_ARMBUILDIMAGES: v31988376-bfbb3afb
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v31533949-8ad94aa8
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v31533949-8ad94aa8
-  DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v31533949-8ad94aa8
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v31988376-bfbb3afb
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v31533949-8ad94aa8
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v31988376-bfbb3afb
   DATADOG_AGENT_BUILDERS: v28719426-b6a4fd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -357,6 +354,15 @@ variables:
 # Rule to trigger jobs only when a branch matches the mergequeue pattern.
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+
+.fakeintake_changes: &fakeintake_changes
+  changes:
+    paths:
+      - "test/fakeintake/**/*"
+      - .gitlab/binary_build/fakeintake.yml
+      - .gitlab/container_build/fakeintake.yml
+      - .gitlab/dev_container_deploy/fakeintake.yml
+    compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 #
 # Workflow rules
@@ -763,6 +769,23 @@ workflow:
 
 # New E2E related rules
 
+.on_e2e_or_fakeintake_changes_or_manual:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - <<: *fakeintake_changes
+    variables:
+      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
+    when: on_success
+  - changes:
+      paths:
+        - test/new-e2e/pkg/**/*
+        - test/new-e2e/test-infra-definition/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
+    allow_failure: true
+
 
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
   - <<: *if_disable_e2e_tests
@@ -993,23 +1016,12 @@ workflow:
         - .go-version
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.on_fakeintake_changes: &on_fakeintake_changes
-  changes:
-    - "test/fakeintake/**/*"
-    - .gitlab/binary_build/fakeintake.yml
-    - .gitlab/container_build/fakeintake.yml
-    - .gitlab/dev_container_deploy/fakeintake.yml
-
-.on_fakeintake_changes_on_main_or_manual:
-  - <<: *on_fakeintake_changes
-    if: $CI_COMMIT_BRANCH == "main"
-  - <<: *on_fakeintake_changes
-    when: manual
-    allow_failure: true
+.on_fakeintake_changes:
+  - <<: *fakeintake_changes
 
 .on_fakeintake_changes_on_main:
-  - <<: *on_fakeintake_changes
-    if: $CI_COMMIT_BRANCH == "main"
+  - <<: *fakeintake_changes
+    <<: *if_main_branch
 
 .fast_on_dev_branch_only:
   - <<: *if_main_branch
@@ -1029,3 +1041,25 @@ workflow:
       FAST_TESTS: "false"
   - variables:
       FAST_TESTS: "true"
+
+.on_gitlab_changes:
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - .gitlab-ci.yml
+        - .gitlab/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_invoke_tasks_changes:
+  - <<: *if_main_branch
+  - changes:
+      paths:
+        - tasks/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_kitchen_invoke_tasks_changes:
+  - <<: *if_main_branch
+  - changes:
+      paths:
+        - test/kitchen/tasks/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916

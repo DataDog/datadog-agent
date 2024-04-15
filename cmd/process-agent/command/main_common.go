@@ -14,7 +14,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
-	"github.com/DataDog/datadog-agent/cmd/manager"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -24,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -45,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -150,6 +154,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide configsync module
 		configsyncimpl.OptionalModule(),
 
+		// Provide autoexit module
+		autoexitimpl.Module(),
+
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		collectors.GetCatalog(),
 		fx.Provide(func(c config.Component) workloadmeta.Params {
@@ -195,12 +202,23 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			_ tagger.Component,
 			_ pid.Component,
 			processAgent agent.Component,
+			_ autoexit.Component,
 		) error {
 			if !processAgent.Enabled() {
 				return errAgentDisabled
 			}
 			return nil
 		}),
+		fx.Supply(
+			settings.Settings{
+				"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
+				"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
+				"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
+				"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
+				"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
+			},
+		),
+		settingsimpl.Module(),
 	)
 
 	if err := app.Err(); err != nil {
@@ -295,13 +313,7 @@ func initMisc(deps miscDeps) error {
 	// appCtx is a context that cancels when the OnStop hook is called
 	appCtx, stopApp := context.WithCancel(context.Background())
 	deps.Lc.Append(fx.Hook{
-		OnStart: func(startCtx context.Context) error {
-
-			err := manager.ConfigureAutoExit(startCtx, deps.Config)
-			if err != nil {
-				deps.Logger.Criticalf("Unable to configure auto-exit, err: %w", err)
-				return err
-			}
+		OnStart: func(_ context.Context) error {
 
 			if collector.Enabled(deps.Config) {
 				err := processCollectionServer.Start(appCtx, deps.WorkloadMeta)
@@ -312,7 +324,7 @@ func initMisc(deps miscDeps) error {
 
 			return nil
 		},
-		OnStop: func(ctx context.Context) error {
+		OnStop: func(_ context.Context) error {
 			stopApp()
 
 			return nil

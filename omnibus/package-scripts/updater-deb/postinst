@@ -5,8 +5,9 @@
 # .deb: STEP 5 of 5
 
 readonly PACKAGES_DIR=/opt/datadog-packages
-readonly INSTALL_DIR=${PACKAGES_DIR}/installer_boot
-readonly UPDATER_HELPER=${INSTALL_DIR}/bin/updater/updater-helper
+readonly INSTALL_DIR=/opt/datadog-installer
+readonly BOOTSTRAP_INSTALLER=${INSTALL_DIR}/bin/installer/installer
+readonly HELPER=${INSTALL_DIR}/bin/installer/helper
 readonly LOG_DIR=/var/log/datadog
 readonly PACKAGES_LOCK_DIR=/var/run/datadog-packages
 readonly CONFIG_DIR=/etc/datadog-agent
@@ -50,6 +51,7 @@ chown -R dd-agent:dd-agent ${LOG_DIR}
 chmod -R g+rw ${LOG_DIR}
 chown -R dd-installer:dd-installer ${PACKAGES_DIR}
 chown -R dd-installer:dd-installer ${PACKAGES_LOCK_DIR}
+chown -R dd-installer:dd-installer ${INSTALL_DIR}
 
 chmod -R 755 ${PACKAGES_DIR}
 # Lock_dir is world read/write/x as any application with a tracer injected
@@ -76,12 +78,10 @@ if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
     chown -R root:root ${CONFIG_DIR}/runtime-security.d || true
 fi
 
-# Set updater helper rights
-chmod 750 ${UPDATER_HELPER}
-setcap cap_setuid+ep ${UPDATER_HELPER}
+# Set helper rights
+chmod 750 ${HELPER}
+setcap cap_setuid+ep ${HELPER}
 
-# start updater
-SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-installer || true
-SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-installer || true
+$BOOTSTRAP_INSTALLER bootstrap --url "oci://public.ecr.aws/datadog/installer-package:latest"
 
 exit 0

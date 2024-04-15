@@ -39,8 +39,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -139,6 +142,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			workloadmeta.Module(),
 			apiimpl.Module(),
 			authtokenimpl.Module(),
+			// The jmx command do not have settings that change are runtime
+			// still, we need to pass it to ensure the API server is proprely initialized
+			settingsimpl.Module(),
+			fx.Supply(settings.Settings{}),
 			// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
 			// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
 			// in others commands such as run.
@@ -161,6 +168,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			tagger.Module(),
 			autodiscoveryimpl.Module(),
+			fx.Supply(optional.NewNoneOption[gui.Component]()),
 			agent.Bundle(),
 			fx.Supply(jmxloggerimpl.NewCliParams(cliParams.logFile)),
 		)

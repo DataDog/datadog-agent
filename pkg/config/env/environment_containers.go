@@ -26,7 +26,7 @@ const (
 	defaultWindowsContainerdSocketPath = "//./pipe/containerd-containerd"
 	defaultLinuxCrioSocket             = "/var/run/crio/crio.sock"
 	defaultHostMountPrefix             = "/host"
-	defaultPodmanContainersStoragePath = "/var/lib/containers"
+	defaultPodmanContainersStoragePath = "/var/lib/containers/storage"
 	unixSocketPrefix                   = "unix://"
 	winNamedPipePrefix                 = "npipe://"
 
@@ -66,7 +66,7 @@ func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
 	detectContainerd(features, cfg)
 	detectAWSEnvironments(features, cfg)
 	detectCloudFoundry(features, cfg)
-	detectPodman(features)
+	detectPodman(features, cfg)
 }
 
 func detectKubernetes(features FeatureMap, cfg model.Reader) {
@@ -195,7 +195,12 @@ func detectCloudFoundry(features FeatureMap, cfg model.Reader) {
 	}
 }
 
-func detectPodman(features FeatureMap) {
+func detectPodman(features FeatureMap, cfg model.Reader) {
+	podmanDbPath := cfg.GetString("podman_db_path")
+	if podmanDbPath != "" {
+		features[Podman] = struct{}{}
+		return
+	}
 	for _, defaultPath := range getDefaultPodmanPaths() {
 		if _, err := os.Stat(defaultPath); err == nil {
 			features[Podman] = struct{}{}

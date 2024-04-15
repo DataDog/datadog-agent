@@ -42,30 +42,23 @@ build do
     mkdir "/etc/datadog-agent"
     mkdir "/etc/init"
     mkdir "/var/log/datadog"
-    move "bin/agent/dist/datadog.yaml", "#{etc_dir}/datadog.yaml.example"
-    move "bin/agent/dist/conf.d", "#{etc_dir}/conf.d"
-    move "bin/agent/dist/system-probe.yaml", "#{etc_dir}/system-probe.yaml.example"
-    move "bin/agent/dist/security-agent.yaml", "#{etc_dir}/security-agent.yaml.example"
     mkdir "/var/run/datadog-packages"
 
     # Packages
     mkdir "/opt/datadog-packages"
+    copy 'bin/installer', "#{install_dir}/bin/"
 
-    copy 'bin/updater', "#{install_dir}/bin/"
-
-    # Add installer units
-    systemdPath = "/lib/systemd/system/"
-    if not debian_target?
-      mkdir "/usr/lib/systemd/system/"
-      systemdPath = "/usr/lib/systemd/system/"
-    end
+    systemdPath = "#{install_dir}/systemd/"
     erb source: "datadog-installer.service.erb",
        dest: systemdPath + "datadog-installer.service",
        mode: 0644,
-       vars: { install_dir: install_dir, etc_dir: etc_dir}
+       vars: { installer_dir: "/opt/datadog-packages/datadog-installer/stable", etc_dir: etc_dir}
 
+    erb source: "datadog-installer-exp.service.erb",
+       dest: systemdPath + "datadog-installer-exp.service",
+       mode: 0644,
+       vars: { installer_dir: "/opt/datadog-packages/datadog-installer/experiment", etc_dir: etc_dir}
 
-    systemdPath = "#{install_dir}/systemd/"
     # Add stable agent units
     templateToFile = {
       "datadog-agent.service.erb" => "datadog-agent.service",
@@ -73,7 +66,6 @@ build do
       "datadog-agent-process.service.erb" => "datadog-agent-process.service",
       "datadog-agent-security.service.erb" => "datadog-agent-security.service",
       "datadog-agent-sysprobe.service.erb" => "datadog-agent-sysprobe.service",
-      "datadog-installer.service.erb" => "datadog-installer.service",
     }
     templateToFile.each do |template, file|
       agent_dir = "/opt/datadog-packages/datadog-agent/stable"
