@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// for now the updater is not supported on windows
+// for now the installer is not supported on windows
 //go:build !windows
 
-package updater
+package installer
 
 import (
 	"context"
@@ -21,9 +21,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/installer/service"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/updater/service"
 )
 
 type testRemoteConfigClient struct {
@@ -77,21 +77,21 @@ func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
 	}
 }
 
-func newTestUpdater(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) *updaterImpl {
-	u, _, _ := newTestUpdaterWithPaths(t, s, rcc, defaultFixture)
+func newTestInstaller(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) *installerImpl {
+	u, _, _ := newTestInstallerWithPaths(t, s, rcc, defaultFixture)
 	return u
 }
 
-func newTestUpdaterWithPaths(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) (*updaterImpl, string, string) {
+func newTestInstallerWithPaths(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) (*installerImpl, string, string) {
 	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	var b = true
 	cfg.Set("updater.remote_updates", &b, model.SourceDefault)
 	rc := &remoteConfig{client: rcc}
 	rootPath := t.TempDir()
 	locksPath := t.TempDir()
-	u, err := newUpdater(rc, rootPath, locksPath, cfg)
+	u, err := newInstaller(rc, rootPath, locksPath, cfg)
 	assert.NoError(t, err)
-	u.installer.configsDir = t.TempDir()
+	u.packageManager.configsDir = t.TempDir()
 	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
 	u.catalog = s.Catalog()
 	u.bootstrapVersions[defaultFixture.pkg] = defaultFixture.version
@@ -103,12 +103,12 @@ func TestBootstrapDefault(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
+	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
 
-	err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+	err := installer.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 
-	r := updater.repositories.Get(fixtureSimpleV1.pkg)
+	r := installer.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
@@ -120,12 +120,12 @@ func TestBootstrapURL(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
+	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
 
-	err := updater.BootstrapURL(context.Background(), s.Package(fixtureSimpleV1).URL)
+	err := installer.BootstrapURL(context.Background(), s.Package(fixtureSimpleV1).URL)
 	assert.NoError(t, err)
 
-	r := updater.repositories.Get(fixtureSimpleV1.pkg)
+	r := installer.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
@@ -137,13 +137,13 @@ func TestPurge(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	updater, rootPath, locksPath := newTestUpdaterWithPaths(t, s, rc, fixtureSimpleV1)
+	installer, rootPath, locksPath := newTestInstallerWithPaths(t, s, rc, fixtureSimpleV1)
 
 	bootstrapAndAssert := func() {
-		err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+		err := installer.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 		assert.NoError(t, err)
 
-		r := updater.repositories.Get(fixtureSimpleV1.pkg)
+		r := installer.repositories.Get(fixtureSimpleV1.pkg)
 		state, err := r.GetState()
 		assert.NoError(t, err)
 		assert.Equal(t, fixtureSimpleV1.version, state.Stable)
@@ -181,7 +181,7 @@ func TestBootstrapWithRC(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
+	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
 
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
@@ -189,9 +189,9 @@ func TestBootstrapWithRC(t *testing.T) {
 		Method:  methodBootstrap,
 		Params:  json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
 	})
-	updater.requestsWG.Wait()
+	installer.requestsWG.Wait()
 
-	r := updater.repositories.Get(fixtureSimpleV2.pkg)
+	r := installer.repositories.Get(fixtureSimpleV2.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV2.version, state.Stable)
@@ -204,13 +204,13 @@ func TestBootUpd(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
-	updater.catalog = catalog{}
+	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
+	installer.catalog = catalog{}
 
-	err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+	err := installer.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.Error(t, err)
 	rc.SubmitCatalog(s.Catalog())
-	err = updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+	err = installer.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 }
 
@@ -218,9 +218,9 @@ func TestStartExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
+	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
 
-	err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+	err := installer.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
@@ -231,9 +231,9 @@ func TestStartExperiment(t *testing.T) {
 		Method: methodStartExperiment,
 		Params: json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
 	})
-	updater.requestsWG.Wait()
+	installer.requestsWG.Wait()
 
-	r := updater.repositories.Get(fixtureSimpleV1.pkg)
+	r := installer.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
@@ -246,9 +246,9 @@ func TestPromoteExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
+	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
 
-	err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+	err := installer.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
@@ -259,7 +259,7 @@ func TestPromoteExperiment(t *testing.T) {
 		Method: methodStartExperiment,
 		Params: json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
 	})
-	updater.requestsWG.Wait()
+	installer.requestsWG.Wait()
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
 		Package: fixtureSimpleV1.pkg,
@@ -269,9 +269,9 @@ func TestPromoteExperiment(t *testing.T) {
 		},
 		Method: methodPromoteExperiment,
 	})
-	updater.requestsWG.Wait()
+	installer.requestsWG.Wait()
 
-	r := updater.repositories.Get(fixtureSimpleV1.pkg)
+	r := installer.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV2.version, state.Stable)
@@ -283,9 +283,9 @@ func TestStopExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
+	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
 
-	err := updater.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+	err := installer.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
@@ -296,8 +296,8 @@ func TestStopExperiment(t *testing.T) {
 		Method: methodStartExperiment,
 		Params: json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
 	})
-	updater.requestsWG.Wait()
-	r := updater.repositories.Get(fixtureSimpleV1.pkg)
+	installer.requestsWG.Wait()
+	r := installer.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.True(t, state.HasExperiment())
@@ -310,7 +310,7 @@ func TestStopExperiment(t *testing.T) {
 		},
 		Method: methodStopExperiment,
 	})
-	updater.requestsWG.Wait()
+	installer.requestsWG.Wait()
 
 	state, err = r.GetState()
 	assert.NoError(t, err)
