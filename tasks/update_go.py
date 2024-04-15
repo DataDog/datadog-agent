@@ -191,14 +191,9 @@ def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_ru
             # to allow them to keep using the modules
             continue
         mod_file = f"./{path}/go.mod"
-
-        if module.legacy_go_mod_version:
-            major_minor = _get_major_minor_version(version)
-            # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
-            _update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR}\r?$", f"go {major_minor}", dry_run=dry_run)
-        else:
-            # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
-            _update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$", f"go {version}", dry_run=dry_run)
+        major_minor = _get_major_minor_version(version)
+        # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
+        _update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR}\r?$", f"go {major_minor}", dry_run=dry_run)
 
 
 def _create_releasenote(ctx: Context, version: str):
