@@ -66,8 +66,6 @@ func (s npSchedulerImpl) Schedule(hostname string, port uint16) {
 }
 
 func (s npSchedulerImpl) pathForConn(hostname string, port uint16) {
-	log.Warnf("destination hostname: %+v", hostname)
-
 	statsd.Client.Gauge("datadog.network_path.test_metric.abc", 1, []string{}, 1) //nolint:errcheck
 
 	cfg := traceroute.Config{
