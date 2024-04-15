@@ -767,7 +767,7 @@ def get_impacted_packages(ctx, build_tags=None):
             )
 
     # Some files like tasks/go_test.py should trigger all tests
-    if should_trigger_all_tests(files, TRIGGER_ALL_TESTS_PATHS):
+    if should_run_all_tests(files, TRIGGER_ALL_TESTS_PATHS):
         return DEFAULT_MODULES.values()
 
     modified_packages = {
@@ -932,7 +932,7 @@ def get_go_module(path):
     raise Exception(f"No go.mod file found for package at {path}")
 
 
-def should_trigger_all_tests(files, trigger_files):
+def should_run_all_tests(files, trigger_files):
     for trigger_file in trigger_files:
         if len(fnmatch.filter(files, trigger_file)):
             print(f"Triggering all tests because a file matching {trigger_file} was modified")

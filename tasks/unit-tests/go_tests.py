@@ -53,8 +53,8 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(should_run_all_tests(modified_files, trigger_files))
 
     def test_should_run_all_tests_2(self):
-        modified_files = ["pkg/*"]
-        trigger_files = ["pkg/toto/bar.go"]
+        modified_files = ["pkg/toto/bar.go"]
+        trigger_files = ["pkg/*"]
 
         self.assertTrue(should_run_all_tests(modified_files, trigger_files))
 
