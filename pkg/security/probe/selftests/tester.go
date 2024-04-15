@@ -214,7 +214,12 @@ func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, _ *prob
 			Event:  s,
 		}
 
-		t.eventChan <- selfTestEvent
+		select {
+		case t.eventChan <- selfTestEvent:
+		default:
+			log.Errorf("self test channel is full, discarding event.\n")
+		}
+
 		return true
 	}
 	return false
