@@ -55,8 +55,8 @@ class FailedJobReason(Enum):
     E2E_INFRA_FAILURE = 9
 
     @staticmethod
-    def from_gitlab_job_failure_reason(failure_reason: str):
-        failure_mapping = {
+    def get_infra_failure_mapping():
+        return {
             'runner_system_failure': FailedJobReason.RUNNER,
             'stuck_or_timeout_failure': FailedJobReason.GITLAB,
             'unknown_failure': FailedJobReason.GITLAB,
@@ -66,7 +66,9 @@ class FailedJobReason(Enum):
             'data_integrity_failure': FailedJobReason.GITLAB,
         }
 
-        return failure_mapping.get(failure_reason, FailedJobReason.GITLAB)
+    @staticmethod
+    def from_gitlab_job_failure_reason(failure_reason: str):
+        return FailedJobReason.get_infra_failure_mapping().get(failure_reason, FailedJobReason.GITLAB)
 
 
 class FailedJobs:

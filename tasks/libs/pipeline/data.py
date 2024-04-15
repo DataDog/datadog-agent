@@ -126,17 +126,9 @@ def get_job_failure_context(job: ProjectJob, job_log: str):
     as the precise reason why the job failed.
     """
 
-    infra_job_failure_reasons = {
-        'runner_system_failure',
-        'stuck_or_timeout_failure',
-        'unknown_failure',
-        'api_failure',
-        'scheduler_failure',
-        'stale_schedule',
-        'data_integrity_failure',
-    }
+    infra_failure_reasons = FailedJobReason.get_infra_failure_mapping().keys()
 
-    if job.failure_reason in infra_job_failure_reasons:
+    if job.failure_reason in infra_failure_reasons:
         return FailedJobType.INFRA_FAILURE, FailedJobReason.from_gitlab_job_failure_reason(job.failure_reason)
 
     for regex, type in infra_failure_logs:
