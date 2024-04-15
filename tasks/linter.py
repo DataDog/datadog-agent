@@ -402,12 +402,11 @@ def releasenote(ctx):
     Lint release notes with Reno
     """
     branch = os.environ.get("BRANCH_NAME")
-    pr_url = os.environ.get("PR_ID")
+    pr_id = os.environ.get("PR_ID")
 
-    run_check = is_pr_context(branch, pr_url, "release note")
+    run_check = is_pr_context(branch, pr_id, "release note")
     if run_check:
         github = GithubAPI(repository=GITHUB_REPO_NAME, public_repo=True)
-        pr_id = pr_url.rsplit('/')[-1]
         if github.is_release_note_needed(pr_id):
             if not github.contains_release_note(pr_id):
                 print(
