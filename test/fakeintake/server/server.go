@@ -87,7 +87,7 @@ func NewServer(options ...Option) *Server {
 		responseOverridesMutex:    sync.RWMutex{},
 		responseOverridesByMethod: newResponseOverrides(),
 		server: http.Server{
-			Addr: ":0",
+			Addr: "0.0.0.0:0",
 		},
 		storeDriver: "memory",
 	}
