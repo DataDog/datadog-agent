@@ -37,7 +37,7 @@ func (f *fakeRecommender) GetRecommendations(_ string, ownerRef metav1.OwnerRefe
 func TestUpdateResources(t *testing.T) {
 	tests := []struct {
 		name         string
-		wh           *wh
+		wh           *Webhook
 		pod          corev1.Pod
 		wantInjected bool
 		wantErr      bool
@@ -45,7 +45,7 @@ func TestUpdateResources(t *testing.T) {
 	}{
 		{
 			name: "update resources when recommendations differ",
-			wh: &wh{
+			wh: &Webhook{
 				recommender: &fakeRecommender{
 					recommendations: map[string][]datadoghq.DatadogPodAutoscalerContainerResources{
 						"test-deployment": {
@@ -88,7 +88,7 @@ func TestUpdateResources(t *testing.T) {
 		},
 		{
 			name: "update resources when there are none",
-			wh: &wh{
+			wh: &Webhook{
 				recommender: &fakeRecommender{
 					recommendations: map[string][]datadoghq.DatadogPodAutoscalerContainerResources{
 						"test-deployment": {
@@ -127,7 +127,7 @@ func TestUpdateResources(t *testing.T) {
 		},
 		{
 			name: "no update when recommendations match",
-			wh: &wh{
+			wh: &Webhook{
 				recommender: &fakeRecommender{
 					recommendations: map[string][]datadoghq.DatadogPodAutoscalerContainerResources{
 						"test-deployment": {
@@ -169,7 +169,7 @@ func TestUpdateResources(t *testing.T) {
 		},
 		{
 			name: "no update when pod has no owner",
-			wh:   &wh{},
+			wh:   &Webhook{},
 			pod: corev1.Pod{
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
@@ -196,7 +196,7 @@ func TestUpdateResources(t *testing.T) {
 		},
 		{
 			name: "no update when deployment can't be parsed",
-			wh:   &wh{},
+			wh:   &Webhook{},
 			pod: corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
 					Kind: "ReplicaSet",
@@ -231,7 +231,7 @@ func TestUpdateResources(t *testing.T) {
 		},
 		{
 			name: "no update on errors",
-			wh: &wh{
+			wh: &Webhook{
 				recommender: &fakeRecommender{
 					err: fmt.Errorf("error"),
 				},

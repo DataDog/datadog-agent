@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -31,7 +30,7 @@ const (
 	limitType   = "limit"
 )
 
-type wh struct {
+type Webhook struct {
 	name        string
 	isEnabled   bool
 	endpoint    string
@@ -41,8 +40,8 @@ type wh struct {
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(recommender workload.PatcherAdapter) webhook.MutatingWebhook {
-	return &wh{
+func NewWebhook(recommender workload.PatcherAdapter) *Webhook {
+	return &Webhook{
 		name:        webhookName,
 		isEnabled:   config.Datadog.GetBool("admission_controller.autoscaling.enabled"),
 		endpoint:    config.Datadog.GetString("admission_controller.autoscaling.endpoint"),
@@ -53,51 +52,51 @@ func NewWebhook(recommender workload.PatcherAdapter) webhook.MutatingWebhook {
 }
 
 // Name returns the name of the webhook
-func (w *wh) Name() string {
+func (w *Webhook) Name() string {
 	return w.name
 }
 
 // IsEnabled returns whether the webhook is enabled
-func (w *wh) IsEnabled() bool {
+func (w *Webhook) IsEnabled() bool {
 	return w.isEnabled
 }
 
 // Endpoint returns the endpoint of the webhook
-func (w *wh) Endpoint() string {
+func (w *Webhook) Endpoint() string {
 	return w.endpoint
 }
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *wh) Resources() []string {
+func (w *Webhook) Resources() []string {
 	return w.resources
 }
 
 // Operations returns the operations on the resources specified for which
 // the webhook should be invoked
-func (w *wh) Operations() []admiv1.OperationType {
+func (w *Webhook) Operations() []admiv1.OperationType {
 	return w.operations
 }
 
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
-func (w *wh) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
+func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
 	return common.DefaultLabelSelectors(useNamespaceSelector)
 }
 
 // MutateFunc returns the function that mutates the resources
-func (w *wh) MutateFunc() admission.WebhookFunc {
+func (w *Webhook) MutateFunc() admission.WebhookFunc {
 	return w.mutate
 }
 
 // mutate adds the DD_AGENT_HOST and DD_ENTITY_ID env vars to the pod template if they don't exist
-func (w *wh) mutate(request *admission.MutateRequest) ([]byte, error) {
+func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
 	return common.Mutate(request.Raw, request.Namespace, w.Name(), w.updateResources, request.DynamicClient)
 }
 
 // updateResource finds the owner of a pod, calls the recommender to retrieve the recommended CPU and Memory
 // requests
-func (w *wh) updateResources(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
+func (w *Webhook) updateResources(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
 	if len(pod.OwnerReferences) == 0 {
 		return false, fmt.Errorf("no owner found for pod %s", pod.Name)
 	}
