@@ -149,8 +149,7 @@ func setIpcURL(cliParams *cliParams) url.Values {
 	return v
 }
 
-// return "[REDACTED] - failure to clean the message"
-func postProcessRec(res []byte, cliParams *cliParams) error {
+func renderResponse(res []byte, cliParams *cliParams) error {
 	var s string
 
 	// The rendering is done in the client so that the agent has less work to do
@@ -190,7 +189,7 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	}
 
 	// The rendering is done in the client so that the agent has less work to do
-	err = postProcessRec(res, cliParams)
+	err = renderResponse(res, cliParams)
 	if err != nil {
 		return err
 	}
@@ -220,7 +219,7 @@ func componentStatus(config config.Component, cliParams *cliParams, component st
 	}
 
 	// The rendering is done in the client so that the agent has less work to do
-	err = postProcessRec(res, cliParams)
+	err = renderResponse(res, cliParams)
 	if err != nil {
 		return err
 	}
