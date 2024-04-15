@@ -9,8 +9,13 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
+
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
+	"github.com/go-ini/ini"
 
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -32,6 +37,35 @@ type cliParams struct {
 	version string
 }
 
+const (
+	installScriptParamsFile = "/etc/datadog-installer.ini"
+)
+
+type installScriptParams struct {
+	Telemetry installScriptTelemetryParams `ini:"telemetry"`
+	Features  installScriptFeaturesParams  `ini:"features"`
+}
+
+func (p *installScriptParams) TraceID() uint64 {
+	return p.Telemetry.TraceID
+}
+
+func (p *installScriptParams) SpanID() uint64 {
+	return p.Telemetry.SpanID
+}
+
+// ForeachBaggageItem is a no-op required to implement the tracer.SpanContext interface
+func (p *installScriptParams) ForeachBaggageItem(_ func(_, _ string) bool) {}
+
+type installScriptTelemetryParams struct {
+	TraceID uint64 `ini:"trace_id"`
+	SpanID  uint64 `ini:"span_id"`
+}
+
+type installScriptFeaturesParams struct {
+	APMInstrumentation string `ini:"apm_instrumentation"`
+}
+
 // Commands returns the bootstrap command
 func Commands(global *command.GlobalParams) []*cobra.Command {
 	var timeout time.Duration
@@ -45,6 +79,10 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 		This first version is sent remotely to the agent and can be configured from the UI.
 		This command will exit after the first version is installed.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			installScriptParams, err := readInstallScriptParams()
+			if err != nil {
+				return err
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 			return bootstrapFxWrapper(ctx, &cliParams{
@@ -52,7 +90,7 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 				url:          url,
 				pkg:          pkg,
 				version:      version,
-			})
+			}, installScriptParams)
 		},
 	}
 	bootstrapCmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
@@ -62,10 +100,11 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{bootstrapCmd}
 }
 
-func bootstrapFxWrapper(ctx context.Context, params *cliParams) error {
+func bootstrapFxWrapper(ctx context.Context, params *cliParams, installScriptParams *installScriptParams) error {
 	return fxutil.OneShot(bootstrap,
 		fx.Provide(func() context.Context { return ctx }),
 		fx.Supply(params),
+		fx.Supply(installScriptParams),
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewAgentParams(params.GlobalParams.ConfFilePath),
 			SecretParams:         secrets.NewEnabledParams(),
@@ -76,11 +115,21 @@ func bootstrapFxWrapper(ctx context.Context, params *cliParams) error {
 	)
 }
 
-func bootstrap(ctx context.Context, params *cliParams, config config.Component) error {
+func bootstrap(ctx context.Context, params *cliParams, installScriptParams *installScriptParams, config config.Component) error {
 	url := packageURL(config.GetString("site"), params.pkg, params.version)
 	if params.url != "" {
 		url = params.url
 	}
+
+	span, ctx := tracer.StartSpanFromContext(ctx, "cmd/bootstrap", tracer.ChildOf(installScriptParams))
+	defer span.Finish()
+	span.SetTag("params.url", params.url)
+	span.SetTag("params.pkg", params.pkg)
+	span.SetTag("params.version", params.version)
+	span.SetTag("script_params.telemetry.trace_id", installScriptParams.TraceID())
+	span.SetTag("script_params.telemetry.span_id", installScriptParams.SpanID())
+	span.SetTag("script_params.features.apm_instrumentation", installScriptParams.Features.APMInstrumentation)
+
 	return updater.BootstrapURL(ctx, url, config)
 }
 
@@ -97,4 +146,25 @@ func stagingPackageURL(pkg string, version string) string {
 
 func prodPackageURL(pkg string, version string) string {
 	return fmt.Sprintf("oci://public.ecr.aws/datadoghq/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+}
+
+func readInstallScriptParams() (*installScriptParams, error) {
+	params := &installScriptParams{}
+	file, err := os.Open(installScriptParamsFile)
+	if err == os.ErrNotExist {
+		return params, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to open install script params file: %w", err)
+	}
+	defer file.Close()
+	cfg, err := ini.Load(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load install script params file: %w", err)
+	}
+	err = cfg.MapTo(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map install script params: %w", err)
+	}
+	return params, nil
 }
