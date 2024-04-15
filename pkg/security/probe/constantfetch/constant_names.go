@@ -59,6 +59,7 @@ const (
 	OffsetNameNetDeviceStructIfIndex    = "net_device_ifindex_offset"
 	OffsetNameNetStructNS               = "net_ns_offset"
 	OffsetNameNetStructProcInum         = "net_proc_inum_offset"
+	OffsetNameDeviceStructNdNet         = "device_nd_net_net_offset"
 	OffsetNameSockCommonStructSKCNet    = "sock_common_skc_net_offset"
 	OffsetNameSocketStructSK            = "socket_sock_offset"
 	OffsetNameNFConnStructCTNet         = "nf_conn_ct_net_offset"
