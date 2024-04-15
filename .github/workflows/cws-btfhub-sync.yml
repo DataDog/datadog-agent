@@ -8,6 +8,11 @@ on:
         required: false
         default: 'main'
         type: string
+      force_refresh:
+        description: 'Force refresh of the constants'
+        required: false
+        default: 'false'
+        type: boolean
   schedule:
     - cron: '30 4 * * 5' # at 4:30 UTC on Friday
 
@@ -55,7 +60,7 @@ jobs:
 
       - name: Sync constants
         run: |
-          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive
+          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive ${{ inputs.force_refresh && '--force-refresh' || '' }}
 
       - uses: stefanzweifel/git-auto-commit-action@v5
         id: commit-creator
