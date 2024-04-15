@@ -44,12 +44,11 @@ type KafkaTransaction struct {
 
 type KafkaResponseContext struct {
 	State                    uint8
+	Remainder                uint8
+	Remainder_buf            [4]int8
 	Record_batches_num_bytes int32
 	Record_batch_length      int32
 	Carry_over_offset        int32
 	Partitions_count         uint32
 	Transaction              KafkaTransaction
-	Remainder                uint8
-	Remainder_buf            [4]int8
-	Pad_cgo_0                [3]byte
 }

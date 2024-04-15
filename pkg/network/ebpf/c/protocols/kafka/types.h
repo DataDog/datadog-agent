@@ -47,16 +47,16 @@ typedef enum {
 
 typedef struct kafka_response_context_t {
     kafka_response_state state;
-    __s32 record_batches_num_bytes;
-    __s32 record_batch_length;
-    __s32 carry_over_offset;
-    __u32 partitions_count;
-    kafka_transaction_t transaction;
     // The number of remainder bytes stored from the previous packet into
     // in remainder_buf. The maximum value is 3, even though remainder_buf
     // needs to have space for 4 bytes to make building of the value easier.
     __u8 remainder;
     char remainder_buf[4];
+    __s32 record_batches_num_bytes;
+    __s32 record_batch_length;
+    __s32 carry_over_offset;
+    __u32 partitions_count;
+    kafka_transaction_t transaction;
 } kafka_response_context_t;
 
 typedef struct kafka_info_t {
