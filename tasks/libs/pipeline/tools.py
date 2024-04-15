@@ -159,6 +159,7 @@ def wait_for_pipeline(
     Follow a given pipeline, periodically checking the pipeline status
     and printing changes to the job statuses.
     """
+    pipeline.refresh()
     commit = repo.commits.get(pipeline.sha)
 
     print(
