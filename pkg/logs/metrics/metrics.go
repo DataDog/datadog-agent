@@ -84,6 +84,11 @@ var (
 
 	TlmChanLength = telemetry.NewGauge("processing", "channel_length", []string{"channel"}, "Length of the processing channel")
 
+	TlmProcessTime = telemetry.NewHistogram("processing", "time",
+		[]string{},
+		"Time spent processing a message",
+		[]float64{1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000})
+
 	TlmMessageLatency = telemetry.NewHistogram("log",
 		"latency",
 		[]string{},

@@ -122,11 +122,17 @@ func (p *Processor) run() {
 			idle := float64(time.Since(startIdle) / time.Millisecond)
 			tlmIdle.Add(idle)
 
-			var startInUse = time.Now()
+			startProcess := time.Now()
+			startInUse := time.Now()
+
 			p.processMessage(msg.Inner)
 			p.mu.Lock() // block here if we're trying to flush synchronously
 			//nolint:staticcheck
 			p.mu.Unlock()
+
+			processTime := float64(time.Since(startProcess) / time.Millisecond)
+			metrics.TlmProcessTime.Observe(processTime)
+
 			inUse := float64(time.Since(startInUse) / time.Millisecond)
 			tlmInUse.Add(inUse)
 			startIdle = time.Now()
@@ -173,8 +179,6 @@ func (p *Processor) processMessage(msg *message.Message) {
 		p.outputChan <- message.NewTimedMessage(msg)
 	}
 }
-
-var tlmBiggestPrime = telemetry.NewGauge("processing", "biggest_prime", nil, "Biggest prime found")
 
 // applyRedactingRules returns given a message if we should process it or not,
 // it applies the change directly on the Message content.
