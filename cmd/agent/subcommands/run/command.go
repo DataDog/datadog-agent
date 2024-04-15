@@ -88,6 +88,7 @@ import (
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
+	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
@@ -120,7 +121,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
-	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
@@ -429,6 +429,7 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		healthprobeimpl.Module(),
+		adschedulerimpl.Module(),
 		fx.Provide(func(serverDebug dogstatsddebug.Component) settings.Settings {
 			return settings.Settings{
 				"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
@@ -522,11 +523,6 @@ func startAgent(
 			// LoadAndRun is called later on
 			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
 		}
-	}
-
-	if logsAgent, ok := logsAgent.Get(); ok {
-		// TODO: (components) - once adScheduler is a component, inject it into the logs agent.
-		logsAgent.AddScheduler(adScheduler.New(ac))
 	}
 
 	// start the cmd HTTP server
