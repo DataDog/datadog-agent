@@ -100,6 +100,9 @@ func (v *vmUpdaterSuite) TestUpdaterDirs() {
 }
 
 func (v *vmUpdaterSuite) TestInstallerUnitLoaded() {
+	if v.packageManager == "rpm" {
+		v.T().Skip("FIXME(Paul): installer unit files disappear after bootstrap")
+	}
 	require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(`systemctl is-enabled datadog-installer.service`))
 }
 

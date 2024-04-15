@@ -23,13 +23,28 @@ import (
 )
 
 var (
-	installPath string
-	systemdPath = "/lib/systemd/system" // todo load it at build time from omnibus
-	pkgDir      = "/opt/datadog-packages"
-	agentDir    = "/etc/datadog-agent"
-	dockerDir   = "/etc/docker"
-	testSkipUID = ""
+	installPath    string
+	debSystemdPath = "/lib/systemd/system" // todo load it at build time from omnibus
+	rpmSystemdPath = "/usr/lib/systemd/system"
+	pkgDir         = "/opt/datadog-packages/"
+	agentDir       = "/etc/datadog-agent"
+	dockerDir      = "/etc/docker"
+	testSkipUID    = ""
+	installerUser  = "dd-installer"
 )
+
+// findSystemdPath todo: this is a hacky way to detect on which os family we are currently
+// running and finding the correct systemd path.
+// We should probably provide the correct path when we build the package
+func findSystemdPath() (systemdPath string, err error) {
+	if _, err = os.Stat(rpmSystemdPath); err == nil {
+		return rpmSystemdPath, nil
+	}
+	if _, err = os.Stat(debSystemdPath); err == nil {
+		return debSystemdPath, nil
+	}
+	return "", fmt.Errorf("systemd unit path error: %w", err)
+}
 
 func enforceUID() bool {
 	return testSkipUID != "true"
@@ -53,6 +68,52 @@ func isValidUnitString(s string) bool {
 		}
 	}
 	return true
+}
+
+func splitPathPrefix(path string) (first string, rest string) {
+	for i := 0; i < len(path); i++ {
+		if os.IsPathSeparator(path[i]) {
+			return path[:i], path[i+1:]
+		}
+	}
+	return first, rest
+}
+
+func checkHelperPath(path string) (err error) {
+	target, found := strings.CutPrefix(path, pkgDir)
+	if !found {
+		return fmt.Errorf("installer-helper should be in packages directory")
+	}
+	helperPackage, rest := splitPathPrefix(target)
+	if helperPackage != "datadog-installer" {
+		return fmt.Errorf("installer-helper should be in datadog-installer package")
+	}
+	version, helperPath := splitPathPrefix(rest)
+	if version == "stable" || version == "experiment" {
+		return fmt.Errorf("installer-helper should be a concrete version")
+	}
+	if helperPath != "bin/installer/helper" {
+		return fmt.Errorf("installer-helper not a the expected path")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return fmt.Errorf("couldn't get update helper stats: %w", err)
+	}
+	ddUpdaterUser, err := user.Lookup(installerUser)
+	if err != nil {
+		return fmt.Errorf("failed to lookup dd-installer user: %w", err)
+	}
+	if ddUpdaterUser.Uid != strconv.Itoa(int(stat.Uid)) {
+		return fmt.Errorf("installer-helper should be owned by dd-installer")
+	}
+	if info.Mode() != 0750 {
+		return fmt.Errorf("installer-helper should only be executable by the user. Expected permssions %O, got permissions %O", 0750, info.Mode())
+	}
+	return nil
 }
 
 func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
@@ -98,8 +159,16 @@ func buildUnitCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		// --no-block is used to avoid waiting on oneshot executions
 		return exec.Command("systemctl", command, unit, "--no-block"), nil
 	case "load-unit":
+		systemdPath, err := findSystemdPath()
+		if err != nil {
+			return nil, err
+		}
 		return exec.Command("cp", filepath.Join(installPath, "systemd", unit), filepath.Join(systemdPath, unit)), nil
 	case "remove-unit":
+		systemdPath, err := findSystemdPath()
+		if err != nil {
+			return nil, err
+		}
 		return exec.Command("rm", filepath.Join(systemdPath, unit)), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
@@ -121,6 +190,12 @@ func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("chown", "-R", "dd-agent:dd-agent", path), nil
 	case "rm":
 		return exec.Command("rm", "-rf", path), nil
+	case "setcap cap_setuid+ep":
+		err := checkHelperPath(path)
+		if err != nil {
+			return nil, err
+		}
+		return exec.Command("setcap", "cap_setuid+ep", path), nil
 	case "backup-file":
 		return exec.Command("cp", "-f", path, path+".bak"), nil
 	case "restore-file":
@@ -150,7 +225,7 @@ func executeCommand() error {
 
 	// only root or dd-installer can execute this command
 	if currentUser != 0 && enforceUID() {
-		ddUpdaterUser, err := user.Lookup("dd-installer")
+		ddUpdaterUser, err := user.Lookup(installerUser)
 		if err != nil {
 			return fmt.Errorf("failed to lookup dd-installer user: %s", err)
 		}

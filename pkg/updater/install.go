@@ -29,8 +29,9 @@ const (
 	datadogPackageMaxSize                              = 3 << 30 // 3GiB
 	defaultConfigsDir                                  = "/etc"
 
-	packageDatadogAgent = "datadog-agent"
-	packageAPMInjector  = "datadog-apm-inject"
+	packageDatadogAgent     = "datadog-agent"
+	packageAPMInjector      = "datadog-apm-inject"
+	packageDatadogInstaller = "datadog-installer"
 )
 
 type installer struct {
@@ -69,6 +70,8 @@ func (i *installer) installStable(pkg string, version string, image oci.Image) e
 		return service.SetupAgentUnits()
 	case packageAPMInjector:
 		return service.SetupAPMInjector()
+	case packageDatadogInstaller:
+		return service.SetupInstallerUnit()
 	default:
 		return nil
 	}
@@ -117,6 +120,8 @@ func (i *installer) startExperiment(pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
 		return service.StartAgentExperiment()
+	case packageDatadogInstaller:
+		return service.StartInstallerExperiment()
 	default:
 		return nil
 	}
@@ -128,6 +133,8 @@ func (i *installer) stopExperiment(pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
 		return service.StopAgentExperiment()
+	case packageAPMInjector:
+		return service.StopInstallerExperiment()
 	default:
 		return nil
 	}
