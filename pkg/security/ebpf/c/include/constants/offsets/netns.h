@@ -39,12 +39,11 @@ __attribute__((always_inline)) u32 get_netns_from_net(struct net *net) {
 }
 
 __attribute__((always_inline)) u32 get_netns_from_net_device(struct net_device *device) {
-    struct net *net = NULL;
-    int ret = bpf_probe_read(&net, sizeof(net), &device->nd_net.net);
-    if (!ret || !net) {
-        return 0;
-    }
+    u64 device_nd_net_net_offset;
+    LOAD_CONSTANT("device_nd_net_net_offset", device_nd_net_net_offset);
 
+    struct net *net = NULL;
+    bpf_probe_read(&net, sizeof(net), (void *)device + device_nd_net_net_offset);
     return get_netns_from_net(net);
 }
 
