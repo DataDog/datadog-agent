@@ -14,12 +14,12 @@ import (
 type SchedulerProvider struct {
 	fx.Out
 
-	SchedulerProvider schedulers.Scheduler `group:"log-agent-scheduler"`
+	Scheduler schedulers.Scheduler `group:"log-agent-scheduler"`
 }
 
 // NewSchedulerProvider returns a new SchedulerProvider.
-func NewSchedulerProvider(provider schedulers.Scheduler) SchedulerProvider {
+func NewSchedulerProvider(scheduler schedulers.Scheduler) SchedulerProvider {
 	return SchedulerProvider{
-		SchedulerProvider: provider,
+		Scheduler: scheduler,
 	}
 }
