@@ -137,28 +137,32 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
 
     response->remainder = 0;
 
-    __u8 *out = response->remainder_buf;
-    __u8 pkttmp[4] = {0};
+    // The remainder_buf contains up to 3 head bytes of the value we
+    // need to read, saved from the previous packet. Read the tail
+    // bytes of the value from the current packet and reconstruct
+    // the value to be read.
+    __u8 *reconstruct = response->remainder_buf;
+    __u8 tail[4] = {0};
 
-    bpf_skb_load_bytes(skb, *offset, &pkttmp, 4);
+    bpf_skb_load_bytes(skb, *offset, &tail, 4);
 
     switch (remainder) {
     case 1:
-        out[1] = pkttmp[0];
-        out[2] = pkttmp[1];
-        out[3] = pkttmp[2];
+        reconstruct[1] = tail[0];
+        reconstruct[2] = tail[1];
+        reconstruct[3] = tail[2];
         break;
     case 2:
-        out[2] = pkttmp[0];
-        out[3] = pkttmp[1];
+        reconstruct[2] = tail[0];
+        reconstruct[3] = tail[1];
         break;
     case 3:
-        out[3] = pkttmp[0];
+        reconstruct[3] = tail[0];
         break;
     }
 
     *offset += want - remainder;
-    *val = bpf_ntohl(*(u32 *)out);
+    *val = bpf_ntohl(*(u32 *)reconstruct);
     extra_debug("read with remainder: %d", *val);
 
     return RET_DONE;
