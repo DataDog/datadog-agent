@@ -18,7 +18,7 @@ typedef struct {
 
 #define KAFKA_MIN_LENGTH (sizeof(kafka_header_t))
 
-typedef struct {
+typedef struct kafka_transaction_t {
     conn_tuple_t tup;
     __u64 request_started;
     __u16 request_api_key;
@@ -28,7 +28,7 @@ typedef struct {
     __u32 records_count;
 } kafka_transaction_t;
 
-typedef struct {
+typedef struct kafka_transaction_key_t {
     conn_tuple_t tuple;
     __s32 correlation_id;
 } kafka_transaction_key_t;
@@ -45,7 +45,7 @@ typedef enum {
     KAFKA_FETCH_RESPONSE_PARTITION_END,
 } __attribute__ ((packed)) kafka_response_state;
 
-typedef struct {
+typedef struct kafka_response_context_t {
     kafka_response_state state;
     __s32 record_batches_num_bytes;
     __s32 record_batch_length;
@@ -56,7 +56,7 @@ typedef struct {
     char remainder_buf[4];
 } kafka_response_context_t;
 
-typedef struct {
+typedef struct kafka_info_t {
     conn_tuple_t tup;
     kafka_transaction_t transaction;
     kafka_response_context_t response;
