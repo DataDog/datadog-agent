@@ -304,7 +304,7 @@ func (a *apmInjectorInstaller) deleteAgentConfig() (err error) {
 		return nil
 	}
 
-	err = os.WriteFile(datadogConfigPath, content, 0644)
+	err = os.WriteFile(datadogConfigPath, newContent, 0644)
 	if err != nil {
 		return err
 	}

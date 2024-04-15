@@ -80,12 +80,10 @@ sudo systemctl start docker
 // and make a call to it
 func launchJavaDockerContainer(t *testing.T, host *components.RemoteHost) {
 	host.MustExecute(`sudo docker run -d -p8887:8888 baptistefoy702/message-server:latest`)
-	// for i := 0; i < 10; i++ {
 	assert.Eventually(t,
 		func() bool {
 			_, err := host.Execute(`curl -m 1 localhost:8887/messages`)
 			return err == nil
-		}, 10*time.Second, 100*time.Millisecond,
+		}, 30*time.Second, 100*time.Millisecond,
 	)
-	// }
 }
