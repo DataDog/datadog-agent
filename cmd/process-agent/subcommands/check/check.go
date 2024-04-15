@@ -28,7 +28,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -60,6 +64,7 @@ type dependencies struct {
 	// lifecycle.
 	Tagger       tagger.Component
 	WorkloadMeta workloadmeta.Component
+	NpScheduler  npscheduler.Component
 	Checks       []types.CheckComponent `group:"check"`
 }
 
@@ -97,6 +102,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(),
 				// Provide workloadmeta module
 				workloadmeta.Module(),
+				// Provide eventplatformimpl module
+				eventplatformreceiverimpl.Module(),
+				eventplatformimpl.Module(),
+				fx.Supply(eventplatformimpl.NewDefaultParams()),
+				npschedulerimpl.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
 				collectors.GetCatalog(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {
