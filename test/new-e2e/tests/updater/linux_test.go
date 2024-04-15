@@ -54,23 +54,23 @@ func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.De
 }
 
 func TestCentOSARM(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault)
 }
 
 func TestRedHatARM(t *testing.T) {
 	t.Skip("Support for SELinux has not been added yet")
-	t.Parallel()
+	// t.Parallel()
 	runTest(t, "rpm", os.ARM64Arch, os.RedHatDefault)
 }
 
 func TestUbuntuARM(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 	runTest(t, "dpkg", os.ARM64Arch, os.UbuntuDefault)
 }
 
 func TestDebianX86(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault)
 }
 
@@ -210,12 +210,8 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	// Temporarily disable CentOS & Redhat, as there is a bug in the APM injector
-	if v.distro == os.CentOSDefault || v.distro == os.RedHatDefault {
-		v.T().Skip("APM injector not available for CentOS or RedHat yet")
-	}
-	if v.distro == os.DebianDefault || v.distro == os.UbuntuDefault && v.arch == os.AMD64Arch {
-		// TODO (baptiste): Fix test
-		v.T().Skip("Test has been temporarily disabled")
+	if v.distro == os.CentOSDefault {
+		v.T().Skip("APM injector not available for CentOS yet")
 	}
 
 	host := v.Env().RemoteHost
