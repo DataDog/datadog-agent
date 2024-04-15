@@ -7,7 +7,6 @@ package checks
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	stdnet "net"
 	"runtime"
@@ -191,23 +190,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
-	connsJSON, err := json.Marshal(conns)
-	if err != nil {
-		log.Errorf("Json Error: %s", err)
-	}
-	log.Warnf("connsJSON: %s", connsJSON)
-
-	for _, conn := range conns.Conns {
-		c.schedulePathForConnection(conn)
-	}
-
-	for _, domain := range conns.Domains {
-		c.schedulePathForDomain(domain)
-	}
-
-	for _, dns := range conns.Dns {
-		c.schedulePathForDNS(dns)
-	}
+	c.schedulePathForConnection(conns.Conns)
 
 	groupID := nextGroupID()
 	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
@@ -530,21 +513,13 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 	return tagsStr
 }
 
-func (c *ConnectionsCheck) schedulePathForConnection(conn *model.Connection) {
-	remoteAddr := conn.Raddr
-	if stdnet.ParseIP(remoteAddr.Ip).IsLoopback() {
-		log.Debugf("Skip loopback IP: %s", remoteAddr.Ip)
-		return
-	}
-	c.npScheduler.Schedule(remoteAddr.Ip, uint16(conn.Raddr.Port))
-}
-
-func (c *ConnectionsCheck) schedulePathForDomain(domain string) {
-	c.npScheduler.Schedule(domain, 0)
-}
-
-func (c *ConnectionsCheck) schedulePathForDNS(dns *model.DNSEntry) {
-	for _, name := range dns.Names {
-		c.npScheduler.Schedule(name, 0)
+func (c *ConnectionsCheck) schedulePathForConnection(conns []*model.Connection) {
+	for _, conn := range conns {
+		remoteAddr := conn.Raddr
+		if stdnet.ParseIP(remoteAddr.Ip).IsLoopback() {
+			log.Debugf("Skip loopback IP: %s", remoteAddr.Ip)
+			continue
+		}
+		c.npScheduler.Schedule(remoteAddr.Ip, uint16(conn.Raddr.Port))
 	}
 }
