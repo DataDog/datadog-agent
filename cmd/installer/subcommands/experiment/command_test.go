@@ -8,7 +8,7 @@ package experiment
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/updater/command"
+	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

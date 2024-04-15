@@ -7,6 +7,7 @@ package tagger
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -14,7 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 // TODO Improve test coverage with dogstatsd/enrich tests once Origin Detection is refactored.
@@ -83,4 +86,69 @@ func TestEnrichTagsOptOut(t *testing.T) {
 	assert.Equal(t, []string{}, tb.Get())
 	EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "originID", FromMsg: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
 	assert.Equal(t, []string{}, tb.Get())
+}
+
+type fakeCIDProvider struct {
+	entries     map[string]string
+	initEntries map[string]string
+}
+
+func (f *fakeCIDProvider) ContainerIDForPodUIDAndContName(podUID, contName string, initCont bool, _ time.Duration) (string, error) {
+	id := podUID + "/" + contName
+	if initCont {
+		return f.initEntries[id], nil
+	}
+	return f.entries[id], nil
+}
+
+func TestParseEntityID(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		entityID    string
+		expected    string
+		cidProvider *fakeCIDProvider
+	}{
+		{
+			name:        "empty",
+			entityID:    "",
+			expected:    kubelet.KubePodTaggerEntityPrefix,
+			cidProvider: &fakeCIDProvider{},
+		},
+		{
+			name:        "pod uid",
+			entityID:    "my-pod_uid",
+			expected:    kubelet.KubePodTaggerEntityPrefix + "my-pod_uid",
+			cidProvider: &fakeCIDProvider{},
+		},
+		{
+			name:     "container + pod uid",
+			entityID: "en-62381f4f-a19f-4f37-9413-90b738f92f83/appp",
+			expected: containers.BuildTaggerEntityName("cid"),
+			cidProvider: &fakeCIDProvider{
+				entries: map[string]string{
+					"62381f4f-a19f-4f37-9413-90b738f92f83/appp": "cid",
+				},
+			},
+		},
+		{
+			name:     "init container + pod uid",
+			entityID: "en-init.62381f4f-a19f-4f37-9413-90b738f92f83/appp",
+			expected: containers.BuildTaggerEntityName("init-cid"),
+			cidProvider: &fakeCIDProvider{
+				initEntries: map[string]string{
+					"62381f4f-a19f-4f37-9413-90b738f92f83/appp": "init-cid",
+				},
+			},
+		},
+		{
+			name:        "not found",
+			entityID:    "en-init.62381f4f-a19f-4f37-9413-90b738f92f83/init-my-cont_name",
+			cidProvider: &fakeCIDProvider{},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeCl := TaggerClient{}
+			assert.Equal(t, tt.expected, fakeCl.parseEntityID(tt.entityID, tt.cidProvider))
+		})
+	}
 }
