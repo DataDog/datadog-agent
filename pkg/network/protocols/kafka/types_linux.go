@@ -49,6 +49,7 @@ type KafkaResponseContext struct {
 	Carry_over_offset        int32
 	Partitions_count         uint32
 	Transaction              KafkaTransaction
-	Remainder                uint32
+	Remainder                uint8
 	Remainder_buf            [4]int8
+	Pad_cgo_0                [3]byte
 }
