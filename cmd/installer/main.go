@@ -3,19 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package main implements 'updater'.
+// Package main implements 'installer'.
 package main
 
 import (
 	"os"
 
+	"github.com/DataDog/datadog-agent/cmd/installer/command"
+	"github.com/DataDog/datadog-agent/cmd/installer/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
-	"github.com/DataDog/datadog-agent/cmd/updater/command"
-	"github.com/DataDog/datadog-agent/cmd/updater/subcommands"
 )
 
 func main() {
 	// root user is changed to dd-installer to avoid permission issues
 	rootToDDInstaller()
-	os.Exit(runcmd.Run(command.MakeCommand(subcommands.UpdaterSubcommands())))
+	os.Exit(runcmd.Run(command.MakeCommand(subcommands.InstallerSubcommands())))
 }

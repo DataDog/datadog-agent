@@ -12,7 +12,7 @@ import (
 	"os"
 	"text/template"
 
-	"github.com/DataDog/datadog-agent/cmd/updater/command"
+	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient/localapiclientimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -29,7 +29,7 @@ type cliParams struct {
 func Commands(global *command.GlobalParams) []*cobra.Command {
 	statusCmd := &cobra.Command{
 		Use:   "status",
-		Short: "Print the updater status",
+		Short: "Print the installer status",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return statusFxWrapper(&cliParams{

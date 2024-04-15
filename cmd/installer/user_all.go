@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-// Package main implements 'updater'.
+// Package main implements 'installer'.
 package main
 
 import (
