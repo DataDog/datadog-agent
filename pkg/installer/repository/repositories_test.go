@@ -8,12 +8,15 @@
 package repository
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/installer/service"
 )
+
+var testCtx = context.TODO()
 
 func newTestRepositories(t *testing.T) *Repositories {
 	rootPath := t.TempDir()
@@ -34,12 +37,12 @@ func TestRepositoriesEmpty(t *testing.T) {
 func TestRepositories(t *testing.T) {
 	repositories := newTestRepositories(t)
 
-	err := repositories.Create("repo1", "v1", t.TempDir())
+	err := repositories.Create(testCtx, "repo1", "v1", t.TempDir())
 	assert.NoError(t, err)
 	repository := repositories.Get("repo1")
-	err = repository.SetExperiment("v2", t.TempDir())
+	err = repository.SetExperiment(testCtx, "v2", t.TempDir())
 	assert.NoError(t, err)
-	err = repositories.Create("repo2", "v1.0", t.TempDir())
+	err = repositories.Create(testCtx, "repo2", "v1.0", t.TempDir())
 	assert.NoError(t, err)
 
 	state, err := repositories.GetState()
@@ -51,9 +54,9 @@ func TestRepositories(t *testing.T) {
 
 func TestRepositoriesReopen(t *testing.T) {
 	repositories := newTestRepositories(t)
-	err := repositories.Create("repo1", "v1", t.TempDir())
+	err := repositories.Create(testCtx, "repo1", "v1", t.TempDir())
 	assert.NoError(t, err)
-	err = repositories.Create("repo2", "v1", t.TempDir())
+	err = repositories.Create(testCtx, "repo2", "v1", t.TempDir())
 	assert.NoError(t, err)
 
 	repositories = NewRepositories(repositories.rootPath, repositories.locksPath)

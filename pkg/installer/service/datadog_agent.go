@@ -9,11 +9,13 @@
 package service
 
 import (
+	"context"
 	"os/exec"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
@@ -47,35 +49,37 @@ var (
 )
 
 // SetupAgentUnits installs and starts the agent units
-func SetupAgentUnits() (err error) {
+func SetupAgentUnits(ctx context.Context) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup agent units: %s, reverting", err)
-			RemoveAgentUnits()
+			RemoveAgentUnits(ctx)
 		}
+		span.Finish(tracer.WithError(err))
 	}()
 
-	if err = setInstallerAgentGroup(); err != nil {
+	if err = setInstallerAgentGroup(ctx); err != nil {
 		return
 	}
 
 	for _, unit := range stableUnits {
-		if err = loadUnit(unit); err != nil {
+		if err = loadUnit(ctx, unit); err != nil {
 			return
 		}
 	}
 	for _, unit := range experimentalUnits {
-		if err = loadUnit(unit); err != nil {
+		if err = loadUnit(ctx, unit); err != nil {
 			return
 		}
 	}
 
-	if err = systemdReload(); err != nil {
+	if err = systemdReload(ctx); err != nil {
 		return
 	}
 
 	for _, unit := range stableUnits {
-		if err = enableUnit(unit); err != nil {
+		if err = enableUnit(ctx, unit); err != nil {
 			return
 		}
 	}
@@ -84,64 +88,66 @@ func SetupAgentUnits() (err error) {
 		return
 	}
 	for _, unit := range stableUnits {
-		if err = startUnit(unit); err != nil {
+		if err = startUnit(ctx, unit); err != nil {
 			return
 		}
 	}
-	err = createAgentSymlink()
+	err = createAgentSymlink(ctx)
 	return
 }
 
 // RemoveAgentUnits stops and removes the agent units
-func RemoveAgentUnits() {
+func RemoveAgentUnits(ctx context.Context) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "remove_agent_units")
+	defer span.Finish()
 	// stop experiments, they can restart stable agent
 	for _, unit := range experimentalUnits {
-		if err := stopUnit(unit); err != nil {
+		if err := stopUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
 	}
 	// stop stable agents
 	for _, unit := range stableUnits {
-		if err := stopUnit(unit); err != nil {
+		if err := stopUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
 	}
 	// purge experimental units
 	for _, unit := range experimentalUnits {
-		if err := disableUnit(unit); err != nil {
+		if err := disableUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to disable %s: %s", unit, err)
 		}
-		if err := removeUnit(unit); err != nil {
+		if err := removeUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to remove %s: %s", unit, err)
 		}
 	}
 	// purge stable units
 	for _, unit := range stableUnits {
-		if err := disableUnit(unit); err != nil {
+		if err := disableUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to disable %s: %s", unit, err)
 		}
-		if err := removeUnit(unit); err != nil {
+		if err := removeUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to remove %s: %s", unit, err)
 		}
 	}
-	if err := rmAgentSymlink(); err != nil {
+	if err := rmAgentSymlink(ctx); err != nil {
 		log.Warnf("Failed to remove agent symlink: %s", err)
 	}
 	installinfo.RmInstallInfo()
 }
 
 // StartAgentExperiment starts the agent experiment
-func StartAgentExperiment() error {
-	return startUnit(agentExp)
+func StartAgentExperiment(ctx context.Context) error {
+	return startUnit(ctx, agentExp)
 }
 
 // StopAgentExperiment stops the agent experiment
-func StopAgentExperiment() error {
-	return startUnit(agentUnit)
+func StopAgentExperiment(ctx context.Context) error {
+	return startUnit(ctx, agentUnit)
 }
 
 // setInstallerAgentGroup adds the dd-installer to the dd-agent group if it's not already in it
-func setInstallerAgentGroup() error {
+func setInstallerAgentGroup(ctx context.Context) error {
 	// Get groups of dd-installer
 	out, err := exec.Command("id", "-Gn", "dd-installer").Output()
 	if err != nil {
@@ -150,5 +156,5 @@ func setInstallerAgentGroup() error {
 	if strings.Contains(string(out), "dd-agent") {
 		return nil
 	}
-	return executeCommand(string(addInstallerToAgentGroup))
+	return executeCommand(ctx, string(addInstallerToAgentGroup))
 }

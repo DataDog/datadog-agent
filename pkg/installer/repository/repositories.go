@@ -6,6 +6,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -54,9 +55,9 @@ func (r *Repositories) Get(pkg string) *Repository {
 }
 
 // Create creates a new repository for the given package name.
-func (r *Repositories) Create(pkg string, version string, stableSourcePath string) error {
+func (r *Repositories) Create(ctx context.Context, pkg string, version string, stableSourcePath string) error {
 	repository := r.newRepository(pkg)
-	err := repository.Create(version, stableSourcePath)
+	err := repository.Create(ctx, version, stableSourcePath)
 	if err != nil {
 		return fmt.Errorf("could not create repository for package %s: %w", pkg, err)
 	}
@@ -86,13 +87,13 @@ func (r *Repositories) GetPackageState(pkg string) (State, error) {
 }
 
 // Cleanup cleans up the repositories.
-func (r *Repositories) Cleanup() error {
+func (r *Repositories) Cleanup(ctx context.Context) error {
 	repositories, err := r.loadRepositories()
 	if err != nil {
 		return fmt.Errorf("could not load repositories: %w", err)
 	}
 	for _, repo := range repositories {
-		err := repo.Cleanup()
+		err := repo.Cleanup(ctx)
 		if err != nil {
 			return fmt.Errorf("could not clean up repository: %w", err)
 		}

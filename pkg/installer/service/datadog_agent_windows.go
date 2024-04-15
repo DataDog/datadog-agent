@@ -8,20 +8,22 @@
 // Package service provides a way to interact with os services
 package service
 
+import "context"
+
 // SetupAgentUnits noop
-func SetupAgentUnits() error {
+func SetupAgentUnits(_ context.Context) error {
 	return nil
 }
 
 // StartAgentExperiment noop
-func StartAgentExperiment() error {
+func StartAgentExperiment(_ context.Context) error {
 	return nil
 }
 
 // StopAgentExperiment noop
-func StopAgentExperiment() error {
+func StopAgentExperiment(_ context.Context) error {
 	return nil
 }
 
 // RemoveAgentUnits noop
-func RemoveAgentUnits() {}
+func RemoveAgentUnits(_ context.Context) {}
