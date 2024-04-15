@@ -1,23 +1,26 @@
 """
-vscode namespaced tags
-
-Helpers for getting vscode set up nicely
+Helpers for working with devcontainers
 """
 import json
 import os
+import platform as py_platform
+import sys
 from collections import OrderedDict
+from functools import wraps
 from pathlib import Path
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.commands.docker import DockerCLI
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 
 DEVCONTAINER_DIR = ".devcontainer"
 DEVCONTAINER_FILE = "devcontainer.json"
 DEVCONTAINER_NAME = "datadog_agent_devcontainer"
+AGENT_REPOSITORY_PATH = "/workspaces/datadog-agent"
 
 
 @task
@@ -94,7 +97,7 @@ def setup(
                     "--build-tags",
                     local_build_tags,
                     "--config",
-                    "/workspaces/datadog-agent/.golangci.yml",
+                    f"{AGENT_REPOSITORY_PATH}/.golangci.yml",
                 ],
                 "[go]": {
                     "editor.formatOnSave": True,
@@ -106,7 +109,7 @@ def setup(
     }
     devcontainer[
         "postStartCommand"
-    ] = "git config --global --add safe.directory /workspaces/datadog-agent && invoke install-tools && invoke deps"
+    ] = f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && invoke install-tools && invoke deps"
 
     with open(fullpath, "w") as sf:
         json.dump(devcontainer, sf, indent=4, sort_keys=False, separators=(',', ': '))
@@ -166,3 +169,39 @@ def is_up(ctx) -> bool:
 def is_installed(ctx) -> bool:
     res = ctx.run("which devcontainer", hide=True, warn=True)
     return res.ok
+
+
+def run_on_devcontainer(func):
+    """
+    This decorator will run the decorated function in a devcontainer if the selected platform is linux.
+    All you need to do is to decorate your task with this decorator and add a `platform` argument to your task.
+    """
+
+    @wraps(func)
+    def _run_on_devcontainer(ctx, *args, **kwargs):
+        if 'platform' in kwargs:
+            platform = kwargs['platform'].lower()
+            if platform == "linux" and py_platform.system().lower() != platform:
+                # If we choose to run them on linux, and we are not on linux already
+                if not file().exists():
+                    print(color_message("Generating the devcontainer file to run the linter in a container.", "orange"))
+                    # TODO remove the hardcoded image and auto-pull it
+                    setup(ctx, image="486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-devenv:1-arm64")
+
+                if not is_up(ctx):
+                    print(color_message("Starting the devcontainer...", "orange"))
+                    start(ctx)
+
+                print(color_message("Running the command in the devcontainer...", "orange"))
+                cli = DockerCLI(DEVCONTAINER_NAME)
+
+                cmd = ["inv"] + sys.argv[1:]
+                if not cli.run_command(cmd).ok:
+                    print(color_message("Failed to run the command in the devcontainer.", "red"))
+                    raise Exit(code=1)
+
+                return
+
+        func(ctx, *args, **kwargs)
+
+    return _run_on_devcontainer
