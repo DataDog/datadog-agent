@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -531,6 +532,205 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			testProtocolParsingInner(t, tt, tt.configuration())
+		})
+	}
+}
+
+func generateFetchRequest(topic string) kmsg.FetchRequest {
+	req := kmsg.NewFetchRequest()
+	req.SetVersion(11)
+	reqTopic := kmsg.NewFetchRequestTopic()
+	reqTopic.Topic = topic
+	partition := kmsg.NewFetchRequestTopicPartition()
+	partition.PartitionMaxBytes = 1024
+	reqTopic.Partitions = append(reqTopic.Partitions, partition)
+	req.Topics = append(req.Topics, reqTopic)
+	return req
+}
+
+func makeRecord() kmsg.Record {
+	var tmp []byte
+	record := kmsg.NewRecord()
+	record.Value = []byte("Hello Kafka!")
+	tmp = record.AppendTo(make([]byte, 0))
+	// 1 is the length of varint encoded 0
+	record.Length = int32(len(tmp) - 1)
+	return record
+}
+
+func makeRecordBatch(records ...kmsg.Record) kmsg.RecordBatch {
+	recordBatch := kmsg.NewRecordBatch()
+	recordBatch.Magic = 2
+
+	recordBatch.NumRecords = int32(len(records))
+	for _, record := range records {
+		recordBatch.Records = record.AppendTo(recordBatch.Records)
+	}
+
+	tmp := recordBatch.AppendTo(make([]byte, 0))
+	// Length excludes sizeof(FirstOffset + Length)
+	recordBatch.Length = int32(len(tmp) - 12)
+
+	return recordBatch
+}
+
+func makeFetchResponseTopicPartition(recordBatches ...kmsg.RecordBatch) kmsg.FetchResponseTopicPartition {
+	respParition := kmsg.NewFetchResponseTopicPartition()
+
+	for _, recordBatch := range recordBatches {
+		respParition.RecordBatches = recordBatch.AppendTo(respParition.RecordBatches)
+	}
+
+	return respParition
+}
+
+func makeFetchResponseTopic(topic string, partitions ...kmsg.FetchResponseTopicPartition) kmsg.FetchResponseTopic {
+	respTopic := kmsg.NewFetchResponseTopic()
+	respTopic.Topic = topic
+	respTopic.Partitions = append(respTopic.Partitions, partitions...)
+	return respTopic
+}
+
+func makeFetchResponse(topics ...kmsg.FetchResponseTopic) kmsg.FetchResponse {
+	resp := kmsg.NewFetchResponse()
+	resp.SetVersion(11)
+	resp.Topics = append(resp.Topics, topics...)
+	return resp
+}
+
+func appendUint32(dst []byte, u uint32) []byte {
+	return append(dst, byte(u>>24), byte(u>>16), byte(u>>8), byte(u))
+}
+
+// kmsg doesn't have a ResponseFormatter so we need to add the length
+// and the correlation Id ourselves.
+func appendResponse(dst []byte, response kmsg.FetchResponse, correlationId uint32) []byte {
+	var data []byte
+	data = response.AppendTo(data)
+
+	// Length excludes the field itself
+	dst = appendUint32(dst, uint32(len(data)+4))
+	dst = appendUint32(dst, correlationId)
+	dst = append(dst, data...)
+
+	return dst
+}
+
+type Message struct {
+	request  []byte
+	response []byte
+}
+
+func runCannedTransaction(t *testing.T, msgs []Message) {
+	address := "127.0.0.1:9092"
+	listener, err := net.Listen("tcp", address)
+	require.NoError(t, err)
+	defer listener.Close()
+
+	go func() {
+		conn, err := listener.Accept()
+		require.NoError(t, err)
+		defer conn.Close()
+
+		reader := bufio.NewReader(conn)
+
+		for _, msg := range msgs {
+			if len(msg.request) > 0 {
+				_, err := io.ReadFull(reader, msg.request)
+				require.NoError(t, err)
+			}
+
+			if len(msg.response) > 0 {
+				conn.Write(msg.response)
+			}
+		}
+	}()
+
+	conn, err := net.Dial("tcp", address)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	reader := bufio.NewReader(conn)
+	for _, msg := range msgs {
+		if len(msg.request) > 0 {
+			conn.Write(msg.request)
+		}
+
+		if len(msg.response) > 0 {
+			_, err := io.ReadFull(reader, msg.response)
+			require.NoError(t, err)
+		}
+	}
+}
+
+func appendMessages(messages []Message, correlationId int, req kmsg.FetchRequest, resp kmsg.FetchResponse) []Message {
+	formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
+	data := formatter.AppendRequest(make([]byte, 0), &req, int32(correlationId))
+	respData := appendResponse(make([]byte, 0), resp, uint32(correlationId))
+
+	return append(messages,
+		Message{request: data},
+		Message{response: respData},
+	)
+}
+
+func TestKafkaFetchRaw(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+	topic := "test-topic"
+	tests := []struct {
+		name              string
+		buildResponse     func() kmsg.FetchResponse
+		numFetchedRecords int
+	}{
+		{
+			name: "aborted transactions",
+			buildResponse: func() kmsg.FetchResponse {
+				record := makeRecord()
+				partition := makeFetchResponseTopicPartition(makeRecordBatch(record, record))
+				aborted := kmsg.NewFetchResponseTopicPartitionAbortedTransaction()
+
+				for i := 0; i < 10; i++ {
+					partition.AbortedTransactions = append(partition.AbortedTransactions, aborted)
+				}
+
+				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
+			},
+			numFetchedRecords: 2,
+		},
+		{
+			name: "partial record batch",
+			buildResponse: func() kmsg.FetchResponse {
+				record := makeRecord()
+				recordBatch := makeRecordBatch(record, record, record)
+				partition := makeFetchResponseTopicPartition(recordBatch)
+
+				// Partial record batch, aka "Truncated Content" in Wireshark.  See
+				// comment near FetchResponseTopicPartition.RecordBatch in kmsg.
+				tmp := recordBatch.AppendTo(make([]byte, 0))
+				partition.RecordBatches = append(partition.RecordBatches, tmp[:len(tmp)-1]...)
+
+				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
+			},
+			numFetchedRecords: 3,
+		},
+	}
+
+	req := generateFetchRequest(topic)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := tt.buildResponse()
+			var msgs []Message
+			msgs = appendMessages(msgs, 99, req, resp)
+
+			monitor := newKafkaMonitor(t, getDefaultTestConfiguration())
+			runCannedTransaction(t, msgs)
+			kafkaStats := getAndValidateKafkaStats(t, monitor, 1)
+
+			validateProduceFetchCount(t, kafkaStats, topic, kafkaParsingValidation{
+				expectedNumberOfFetchRequests: tt.numFetchedRecords,
+				expectedAPIVersionFetch:       11,
+			})
 		})
 	}
 }
