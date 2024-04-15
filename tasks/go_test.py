@@ -326,6 +326,7 @@ def test(
     junit_tar="",
     only_modified_packages=False,
     only_impacted_packages=False,
+    include_sds=False,
     skip_flakes=False,
     build_stdlib=False,
 ):
@@ -351,7 +352,12 @@ def test(
 
     unit_tests_tags = {
         f: compute_build_tags_for_flavor(
-            flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
+            flavor=f,
+            build="unit-tests",
+            arch=arch,
+            build_include=build_include,
+            build_exclude=build_exclude,
+            include_sds=include_sds,
         )
         for f in flavors
     }
@@ -950,6 +956,7 @@ def lint_go(
     timeout: int = None,
     golangci_lint_kwargs="",
     headless_mode=False,
+    include_sds=False,
 ):
     _lint_go(
         ctx,
@@ -966,4 +973,5 @@ def lint_go(
         timeout,
         golangci_lint_kwargs,
         headless_mode,
+        include_sds,
     )

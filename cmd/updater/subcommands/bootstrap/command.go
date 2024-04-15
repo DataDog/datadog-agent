@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package bootstrap implements 'updater bootstrap'.
+// Package bootstrap implements 'installer bootstrap'.
 package bootstrap
 
 import (
@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/pkg/updater"
+	"github.com/DataDog/datadog-agent/pkg/installer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
@@ -47,7 +47,7 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
-			return boostrapFxWrapper(ctx, &cliParams{
+			return bootstrapFxWrapper(ctx, &cliParams{
 				GlobalParams: *global,
 				url:          url,
 				pkg:          pkg,
@@ -62,7 +62,7 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{bootstrapCmd}
 }
 
-func boostrapFxWrapper(ctx context.Context, params *cliParams) error {
+func bootstrapFxWrapper(ctx context.Context, params *cliParams) error {
 	return fxutil.OneShot(bootstrap,
 		fx.Provide(func() context.Context { return ctx }),
 		fx.Supply(params),
@@ -81,7 +81,7 @@ func bootstrap(ctx context.Context, params *cliParams, config config.Component) 
 	if params.url != "" {
 		url = params.url
 	}
-	return updater.BootstrapURL(ctx, url, config)
+	return installer.BootstrapURL(ctx, url, config)
 }
 
 func packageURL(site string, pkg string, version string) string {

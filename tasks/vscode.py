@@ -8,10 +8,10 @@ import os
 from typing import OrderedDict
 
 from invoke import task
-from libs.common.color import color_message
 
 from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import color_message
 
 VSCODE_DIR = ".vscode"
 VSCODE_FILE = "settings.json"
