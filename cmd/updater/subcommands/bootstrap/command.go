@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package bootstrap implements 'updater bootstrap'.
+// Package bootstrap implements 'installer bootstrap'.
 package bootstrap
 
 import (
@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/pkg/updater"
+	"github.com/DataDog/datadog-agent/pkg/installer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
@@ -132,7 +132,7 @@ func bootstrap(ctx context.Context, params *cliParams, installScriptParams *inst
 	span.SetTag("script_params.telemetry.span_id", installScriptParams.SpanID())
 	span.SetTag("script_params.features.apm_instrumentation", installScriptParams.Features.APMInstrumentation)
 
-	return updater.BootstrapURL(ctx, url, config)
+	return installer.BootstrapURL(ctx, url, config)
 }
 
 func packageURL(site string, pkg string, version string) string {

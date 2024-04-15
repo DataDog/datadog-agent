@@ -3,14 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package localapiclient provides the local API client component.
-package localapiclient
+// Package adscheduler is glue code to connect autodiscovery to the logs agent. It receives and filters events and converts them into log sources.
+package adscheduler
 
-import "github.com/DataDog/datadog-agent/pkg/installer"
-
-// team: fleet
+// team: agent-metrics-logs
 
 // Component is the component type.
-type Component interface {
-	installer.LocalAPIClient
-}
+type Component interface{}

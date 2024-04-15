@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package updater
+package installer
 
 import (
 	"bytes"
@@ -16,13 +16,13 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/pkg/updater/repository"
+	"github.com/DataDog/datadog-agent/pkg/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
-	defaultSocketPath = defaultRepositoriesPath + "/updater.sock"
+	defaultSocketPath = defaultRepositoriesPath + "/installer.sock"
 )
 
 // StatusResponse is the response to the status endpoint.
@@ -42,21 +42,21 @@ type APIError struct {
 	Message string `json:"message"`
 }
 
-// LocalAPI is the interface for the locally exposed API to interact with the updater.
+// LocalAPI is the interface for the locally exposed API to interact with the installer.
 type LocalAPI interface {
 	Start(context.Context) error
 	Stop(context.Context) error
 }
 
-// localAPIImpl is a locally exposed API to interact with the updater.
+// localAPIImpl is a locally exposed API to interact with the installer.
 type localAPIImpl struct {
-	updater  Updater
-	listener net.Listener
-	server   *http.Server
+	installer Installer
+	listener  net.Listener
+	server    *http.Server
 }
 
 // NewLocalAPI returns a new LocalAPI.
-func NewLocalAPI(updater Updater) (LocalAPI, error) {
+func NewLocalAPI(installer Installer) (LocalAPI, error) {
 	socketPath := defaultSocketPath
 	err := os.RemoveAll(socketPath)
 	if err != nil {
@@ -70,9 +70,9 @@ func NewLocalAPI(updater Updater) (LocalAPI, error) {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
 	return &localAPIImpl{
-		server:   &http.Server{},
-		listener: listener,
-		updater:  updater,
+		server:    &http.Server{},
+		listener:  listener,
+		installer: installer,
 	}, nil
 }
 
@@ -109,7 +109,7 @@ func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
-	pacakges, err := l.updater.GetState()
+	pacakges, err := l.installer.GetState()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -121,7 +121,7 @@ func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/updater.sock -H 'Content-Type: application/json' http://updater/datadog-agent/experiment/start -d '{"version":"1.21.5"}'
+// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/experiment/start -d '{"version":"1.21.5"}'
 func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
@@ -137,7 +137,7 @@ func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Infof("Received local request to start experiment for package %s version %s", pkg, request.Version)
-	err = l.updater.StartExperiment(r.Context(), pkg, request.Version)
+	err = l.installer.StartExperiment(r.Context(), pkg, request.Version)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -145,7 +145,7 @@ func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/updater.sock -H 'Content-Type: application/json' http://updater/datadog-agent/experiment/stop -d '{}'
+// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/experiment/stop -d '{}'
 func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
@@ -154,7 +154,7 @@ func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
 	log.Infof("Received local request to stop experiment for package %s", pkg)
-	err := l.updater.StopExperiment(r.Context(), pkg)
+	err := l.installer.StopExperiment(r.Context(), pkg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -162,7 +162,7 @@ func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/updater.sock -H 'Content-Type: application/json' http://updater/datadog-agent/experiment/promote -d '{}'
+// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/experiment/promote -d '{}'
 func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
@@ -171,7 +171,7 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 		_ = json.NewEncoder(w).Encode(response)
 	}()
 	log.Infof("Received local request to promote experiment for package %s", pkg)
-	err := l.updater.PromoteExperiment(r.Context(), pkg)
+	err := l.installer.PromoteExperiment(r.Context(), pkg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -179,7 +179,7 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/updater.sock -H 'Content-Type: application/json' http://updater/datadog-agent/bootstrap -d '{"version":"1.21.5"}'
+// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/bootstrap -d '{"version":"1.21.5"}'
 func (l *localAPIImpl) bootstrap(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
@@ -199,10 +199,10 @@ func (l *localAPIImpl) bootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 	if request.Version != "" {
 		log.Infof("Received local request to bootstrap package %s version %s", pkg, request.Version)
-		err = l.updater.BootstrapVersion(r.Context(), pkg, request.Version)
+		err = l.installer.BootstrapVersion(r.Context(), pkg, request.Version)
 	} else {
 		log.Infof("Received local request to bootstrap package %s", pkg)
-		err = l.updater.BootstrapDefault(r.Context(), pkg)
+		err = l.installer.BootstrapDefault(r.Context(), pkg)
 
 	}
 	if err != nil {
@@ -212,7 +212,7 @@ func (l *localAPIImpl) bootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// LocalAPIClient is a client to interact with the locally exposed updater API.
+// LocalAPIClient is a client to interact with the locally exposed installer API.
 type LocalAPIClient interface {
 	Status() (StatusResponse, error)
 
@@ -222,7 +222,7 @@ type LocalAPIClient interface {
 	BootstrapVersion(pkg, version string) error
 }
 
-// LocalAPIClient is a client to interact with the locally exposed updater API.
+// LocalAPIClient is a client to interact with the locally exposed installer API.
 type localAPIClientImpl struct {
 	client *http.Client
 	addr   string
@@ -231,7 +231,7 @@ type localAPIClientImpl struct {
 // NewLocalAPIClient returns a new LocalAPIClient.
 func NewLocalAPIClient() LocalAPIClient {
 	return &localAPIClientImpl{
-		addr: "updater", // this has no meaning when using a unix socket
+		addr: "installer", // this has no meaning when using a unix socket
 		client: &http.Client{
 			Transport: &http.Transport{
 				Dial: func(_, _ string) (net.Conn, error) {
@@ -242,7 +242,7 @@ func NewLocalAPIClient() LocalAPIClient {
 	}
 }
 
-// Status returns the status of the updater.
+// Status returns the status of the installer.
 func (c *localAPIClientImpl) Status() (StatusResponse, error) {
 	var response StatusResponse
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s/status", c.addr), nil)

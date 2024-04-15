@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package updater
+package installer
 
 import (
 	"context"
@@ -41,7 +41,7 @@ type downloadedPackage struct {
 	Version string
 }
 
-// downloader is the downloader used by the updater to download packages.
+// downloader is the downloader used by the installer to download packages.
 type downloader struct {
 	keychain      authn.Keychain
 	client        *http.Client
