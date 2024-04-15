@@ -20,41 +20,38 @@ const (
 
 // NewHostAgentClient creates an Agent client for host install
 func NewHostAgentClient(t *testing.T, host *components.RemoteHost, waitForAgentReady bool) (agentclient.Agent, error) {
-	params := agentclientparams.NewParams()
-	params.ShouldWaitForReady = waitForAgentReady
-
-	ae := newAgentHostExecutor(host, params)
-	commandRunner := newAgentCommandRunner(t, ae)
-
-	if params.ShouldWaitForReady {
-		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
-			return nil, err
-		}
+	if !waitForAgentReady {
+		return NewHostAgentClientWithParams(t, host, agentclientparams.WithSkipWaitForAgentReady())
 	}
 
-	return commandRunner, nil
+	return NewHostAgentClientWithParams(t, host)
 }
 
 // NewHostAgentClientWithParams creates an Agent client for host install with custom parameters
 func NewHostAgentClientWithParams(t *testing.T, host *components.RemoteHost, options ...agentclientparams.Option) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(options...)
 	ae := newAgentHostExecutor(host, params)
-	commandRunner := newAgentCommandRunner(t, ae)
 
-	if params.ShouldWaitForReady {
-		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
-			return nil, err
-		}
-	}
-
-	return commandRunner, nil
+	return newAgentClient(t, params, ae)
 }
 
 // NewDockerAgentClient creates an Agent client for a Docker install
 func NewDockerAgentClient(t *testing.T, docker *Docker, agentContainerName string, waitForAgentReady bool) (agentclient.Agent, error) {
-	commandRunner := newAgentCommandRunner(t, newAgentDockerExecutor(docker, agentContainerName))
+	options := []agentclientparams.Option{}
+	if !waitForAgentReady {
+		options = append(options, agentclientparams.WithSkipWaitForAgentReady())
+	}
 
-	if waitForAgentReady {
+	params := agentclientparams.NewParams(options...)
+	ae := newAgentDockerExecutor(docker, agentContainerName)
+
+	return newAgentClient(t, params, ae)
+}
+
+func newAgentClient(t *testing.T, params *agentclientparams.Params, executor agentCommandExecutor) (agentclient.Agent, error) {
+	commandRunner := newAgentCommandRunner(t, executor)
+
+	if params.ShouldWaitForReady {
 		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
 			return nil, err
 		}
