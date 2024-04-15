@@ -7,11 +7,8 @@ build do
     license "Apache-2.0"
     license_file "./LICENSE"
 
-    sds_version = "v0.1.0"
-
     # no Windows support for now.
     if linux_target? || osx_target?
-        command "git checkout #{sds_version}"
         command "cargo build --release", cwd: "#{project_dir}/sds-go/rust"
         if osx_target?
             copy "sds-go/rust/target/release/libsds_go.dylib", "#{install_dir}/embedded/lib"
