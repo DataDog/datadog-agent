@@ -180,7 +180,7 @@ def send_rate_limit_info_datadog(_, pipeline_id, app_instance):
 
     gh = GithubAPI()
     rate_limit_info = gh.get_rate_limit_info()
-    print(f"Remaining rate limit: {rate_limit_info[0]}/{rate_limit_info[1]}")
+    print(f"Remaining rate limit for app instance {app_instance}: {rate_limit_info[0]}/{rate_limit_info[1]}")
     metric = create_count(
         metric_name='github.rate_limit.remaining',
         timestamp=int(time.time()),
