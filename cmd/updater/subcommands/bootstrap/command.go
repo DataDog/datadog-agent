@@ -47,7 +47,7 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
-			return boostrapFxWrapper(ctx, &cliParams{
+			return bootstrapFxWrapper(ctx, &cliParams{
 				GlobalParams: *global,
 				url:          url,
 				pkg:          pkg,
@@ -62,7 +62,7 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{bootstrapCmd}
 }
 
-func boostrapFxWrapper(ctx context.Context, params *cliParams) error {
+func bootstrapFxWrapper(ctx context.Context, params *cliParams) error {
 	return fxutil.OneShot(bootstrap,
 		fx.Provide(func() context.Context { return ctx }),
 		fx.Supply(params),

@@ -8,6 +8,9 @@ package run
 
 import (
 	"context"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -25,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
 	"github.com/DataDog/datadog-agent/comp/updater/localapi/localapiimpl"
@@ -77,6 +81,20 @@ func runFxWrapper(params *cliParams) error {
 	)
 }
 
-func run(_ pid.Component, _ localapi.Component) error {
-	select {}
+func run(shutdowner fx.Shutdowner, _ pid.Component, _ localapi.Component) error {
+	handleSignals(shutdowner)
+	return nil
+}
+
+func handleSignals(shutdowner fx.Shutdowner) {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGPIPE)
+	for signo := range sigChan {
+		switch signo {
+		case syscall.SIGINT, syscall.SIGTERM:
+			log.Infof("Received signal %d (%v)", signo, signo)
+			_ = shutdowner.Shutdown()
+			return
+		}
+	}
 }

@@ -225,7 +225,7 @@ func (u *updaterImpl) BootstrapDefault(ctx context.Context, pkg string) (err err
 	if !ok {
 		return fmt.Errorf("could not get default package '%s' for arch '%s' and platform '%s'", pkg, runtime.GOARCH, runtime.GOOS)
 	}
-	return u.boostrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
+	return u.bootstrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
 }
 
 // BootstrapVersion installs the stable version of the package.
@@ -241,7 +241,7 @@ func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version 
 	if !ok {
 		return fmt.Errorf("could not get package '%s' version '%s' for arch '%s' and platform '%s'", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
-	return u.boostrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
+	return u.bootstrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
 }
 
 // BootstrapURL installs the stable version of the package.
@@ -253,10 +253,10 @@ func (u *updaterImpl) BootstrapURL(ctx context.Context, url string) (err error) 
 	u.refreshState(ctx)
 	defer u.refreshState(ctx)
 
-	return u.boostrapPackage(ctx, url, "", "")
+	return u.bootstrapPackage(ctx, url, "", "")
 }
 
-func (u *updaterImpl) boostrapPackage(ctx context.Context, url string, expectedPackage string, expectedVersion string) error {
+func (u *updaterImpl) bootstrapPackage(ctx context.Context, url string, expectedPackage string, expectedVersion string) error {
 	// both tmp and repository paths are checked for available disk space in case they are on different partitions
 	err := checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
 	if err != nil {
