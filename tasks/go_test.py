@@ -761,10 +761,8 @@ def get_impacted_packages(ctx, build_tags=None):
             )
 
     # Some files like tasks/go_test.py should trigger all tests
-    for trigger_file in TRIGGER_ALL_TESTS_PATHS:
-        if len(fnmatch.filter(files, trigger_file)):
-            print(f"Triggering all tests because a file matching {trigger_file} was modified")
-            return DEFAULT_MODULES.values()
+    if should_trigger_all_tests(files, TRIGGER_ALL_TESTS_PATHS):
+        return DEFAULT_MODULES.values()
 
     modified_packages = {
         f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}"
@@ -926,6 +924,14 @@ def get_go_module(path):
             return path
         path = os.path.dirname(path)
     raise Exception(f"No go.mod file found for package at {path}")
+
+
+def should_trigger_all_tests(files, trigger_files):
+    for trigger_file in trigger_files:
+        if len(fnmatch.filter(files, trigger_file)):
+            print(f"Triggering all tests because a file matching {trigger_file} was modified")
+            return True
+    return False
 
 
 @task(iterable=['flavors'])
