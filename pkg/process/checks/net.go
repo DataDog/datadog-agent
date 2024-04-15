@@ -191,11 +191,11 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
-	connsJson, err := json.Marshal(conns)
+	connsJSON, err := json.Marshal(conns)
 	if err != nil {
 		log.Errorf("Json Error: %s", err)
 	}
-	log.Warnf("connsJson: %s", connsJson)
+	log.Warnf("connsJSON: %s", connsJSON)
 
 	for _, conn := range conns.Conns {
 		c.schedulePathForConnection(conn)
@@ -531,8 +531,7 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 }
 
 func (c *ConnectionsCheck) schedulePathForConnection(conn *model.Connection) {
-	var remoteAddr *model.Addr
-	remoteAddr = conn.Raddr
+	remoteAddr := conn.Raddr
 	if remoteAddr.Ip == "127.0.0.1" {
 		log.Debugf("Skip localhost 127.0.0.1: %+v", remoteAddr)
 		return
