@@ -1145,7 +1145,7 @@ def explain_ci_failure(_, pipeline: str):
 
 
 @task()
-def tmux(ctx: Context, stack: Optional[str] = None):
+def tmux(ctx: Context, stack: str | None = None):
     """Create a tmux session with panes for each VM in the stack.
 
     Note that this task requires the tmux command to be available on the system, and the SSH
