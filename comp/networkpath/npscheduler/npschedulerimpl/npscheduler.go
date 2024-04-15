@@ -53,7 +53,9 @@ func (s npSchedulerImpl) Schedule(hostname string, port uint16) {
 	//TODO implement me
 	log.Errorf("Schedule called: hostname=%s port=%d", hostname, port)
 
-	s.pathForConn(hostname, port)
+	for i := 0; i < 3; i++ {
+		s.pathForConn(hostname, port)
+	}
 }
 
 func (s npSchedulerImpl) pathForConn(hostname string, port uint16) {
