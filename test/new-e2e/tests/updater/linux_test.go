@@ -54,22 +54,23 @@ func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.De
 }
 
 func TestCentOSARM(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault)
 }
 
 func TestRedHatARM(t *testing.T) {
-	t.Parallel()
+	t.Skip("Support for SELinux has not been added yet")
+	// t.Parallel()
 	runTest(t, "rpm", os.ARM64Arch, os.RedHatDefault)
 }
 
 func TestUbuntuARM(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 	runTest(t, "dpkg", os.ARM64Arch, os.UbuntuDefault)
 }
 
 func TestDebianX86(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault)
 }
 
@@ -108,7 +109,6 @@ func (v *vmUpdaterSuite) TestInstallerUnitLoaded() {
 
 func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
 	t := v.T()
-	t.Skip("FIXME(Arthur): dockerhub rate limits make this test flaky")
 	stableUnits := []string{
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -116,7 +116,8 @@ func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
 		"datadog-agent-sysprobe.service",
 		"datadog-agent-security.service",
 	}
-	v.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://docker.io/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootUpdaterDir))
+	addEcrConfig(v.Env().RemoteHost)
+	v.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootUpdaterDir))
 	for _, unit := range stableUnits {
 		require.Equal(t, "enabled\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, unit)))
 	}
@@ -124,10 +125,10 @@ func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
 
 func (v *vmUpdaterSuite) TestExperimentCrash() {
 	t := v.T()
-	t.Skip("FIXME(Arthur): dockerhub rate limits make this test flaky")
 	host := v.Env().RemoteHost
+	addEcrConfig(host)
 	startTime := getMonotonicTimestamp(t, host)
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://docker.io/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootUpdaterDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootUpdaterDir))
 	v.Env().RemoteHost.MustExecute(`sudo systemctl start datadog-agent-exp --no-block`)
 	res := getJournalDOnCondition(t, host, startTime, stopCondition([]JournaldLog{
 		{Unit: "datadog-agent.service", Message: "Started"},
@@ -142,9 +143,8 @@ func (v *vmUpdaterSuite) TestExperimentCrash() {
 }
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
-	t := v.T()
-	t.Skip("FIXME(Arthur): dockerhub rate limits make this test flaky")
 	host := v.Env().RemoteHost
+	addEcrConfig(host)
 	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootUpdaterDir))
 	stableUnits := []string{
 		"datadog-agent.service",
@@ -179,7 +179,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	}
 
 	// bootstrap
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://docker.io/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootUpdaterDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootUpdaterDir))
 
 	// assert agent symlink
 	_ = host.MustExecute(`test -L /usr/bin/datadog-agent`)
@@ -210,12 +210,8 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	// Temporarily disable CentOS & Redhat, as there is a bug in the APM injector
-	if v.distro == os.CentOSDefault || v.distro == os.RedHatDefault {
-		v.T().Skip("APM injector not available for CentOS or RedHat yet")
-	}
-	if v.distro == os.DebianDefault || v.distro == os.UbuntuDefault && v.arch == os.AMD64Arch {
-		// TODO (baptiste): Fix test
-		v.T().Skip("Test has been temporarily disabled")
+	if v.distro == os.CentOSDefault {
+		v.T().Skip("APM injector not available for CentOS yet")
 	}
 
 	host := v.Env().RemoteHost
@@ -223,7 +219,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	///////////////////
 	// Setup machine //
 	///////////////////
-
+	addEcrConfig(host)
 	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootUpdaterDir))
 	// Install docker
 	installDocker(v.distro, v.T(), host)
@@ -257,9 +253,9 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	// Bootstrap packages //
 	////////////////////////
 
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://docker.io/datadog/agent-package-dev:7.54.0-devel.git.247.f92fbc1.pipeline.31778392-1"`, bootUpdaterDir))
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://docker.io/datadog/apm-library-java-package-dev:1.32.0-SNAPSHOT-8708864e8e-pipeline.30373268.beta.8708864e-1"`, bootUpdaterDir))
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://docker.io/datadog/apm-inject-package-dev:0.12.3-dev.bddec85.glci481808135.g8acdc698-1"`, bootUpdaterDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/agent-package-dev:7.54.0-devel.git.247.f92fbc1.pipeline.31778392-1"`, bootUpdaterDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/apm-library-java-package-dev:1.32.0-SNAPSHOT-8708864e8e-pipeline.30373268.beta.8708864e-1"`, bootUpdaterDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/apm-inject-package-dev:0.12.3-dev.bddec85.glci481808135.g8acdc698-1"`, bootUpdaterDir))
 
 	////////////////////////////////
 	// Check post-bootstrap state //
@@ -340,8 +336,8 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	require.NotNil(v.T(), err)
 	_, err = host.Execute(`grep "/opt/datadog-packages/datadog-apm-inject" /etc/docker/daemon.json`)
 	require.NotNil(v.T(), err)
-	_, err = host.Execute(`test -f /etc/docker/daemon.json.bak`)
-	require.NotNil(v.T(), err)
+	res, err = host.Execute("grep \"LD PRELOAD CONFIG\" /etc/datadog-agent/datadog.yaml")
+	require.NotNil(v.T(), err, "expected no LD PRELOAD CONFIG in agent config, got:\n%s", res)
 }
 
 func assertInstallMethod(v *vmUpdaterSuite, t *testing.T, host *components.RemoteHost) {
@@ -353,6 +349,10 @@ func assertInstallMethod(v *vmUpdaterSuite, t *testing.T, host *components.Remot
 	assert.Equal(t, "updater_package", config.InstallMethod["installer_version"])
 	assert.Equal(t, v.packageManager, config.InstallMethod["tool"])
 	assert.True(t, "" != config.InstallMethod["tool_version"])
+}
+
+func addEcrConfig(host *components.RemoteHost) {
+	host.MustExecute(fmt.Sprintf("cat %s/datadog.yaml | grep registry_auth || echo \"\nupdater:\n  registry_auth: ecr\" | sudo tee -a %s/datadog.yaml", confDir, confDir))
 }
 
 // Config yaml struct
