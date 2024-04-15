@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/logs/auditor
 
-go 1.21.9
+go 1.21
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
