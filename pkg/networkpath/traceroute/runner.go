@@ -193,6 +193,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 			continue
 		}
 
+		lastSuccessIdx := 0
 		// start at node 1. Each node back-references the previous one
 		for idx := 1; idx < len(nodes); idx++ {
 			if idx >= len(nodes) {
@@ -219,12 +220,36 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 			ip := cur.node
 			durationMs := float64(cur.probe.RttUsec) / 1000
 
+			if isSuccess {
+				lastSuccessIdx = idx
+			}
+
 			hop := NetworkPathHop{
 				TTL:       idx,
 				IPAddress: ip,
 				Hostname:  getHostname(cur.node),
 				RTT:       durationMs,
 				Success:   isSuccess,
+			}
+			traceroutePath.Hops = append(traceroutePath.Hops, hop)
+		}
+
+		if len(traceroutePath.Hops) == 0 {
+			// no hops
+			continue
+		}
+		lastHop := traceroutePath.Hops[len(traceroutePath.Hops)-1]
+
+		// Remove trailing unknown nodes
+		if !lastHop.Success {
+			traceroutePath.Hops = traceroutePath.Hops[0:lastSuccessIdx]
+		}
+		// Add destination hop (if last hop is not destination hop)
+		if !lastHop.Success && lastHop.IPAddress != destinationIP.String() {
+			hop := NetworkPathHop{
+				Hostname:  destinationHost,
+				IPAddress: destinationIP.String(),
+				Success:   false,
 			}
 			traceroutePath.Hops = append(traceroutePath.Hops, hop)
 		}
