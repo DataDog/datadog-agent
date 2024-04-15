@@ -218,8 +218,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
                     return RET_ERR;
                 }
                 if (aborted_transactions >= 0) {
-                    // This and the aborted_transaction code paths need test cases, it's not
-                    // yet seen in real life pcaps.
                     // producer_id and first_offset in each aborted transaction
                     offset += sizeof(s64) * 2 * aborted_transactions;
                 }
