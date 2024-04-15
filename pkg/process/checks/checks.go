@@ -8,6 +8,7 @@ package checks
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
