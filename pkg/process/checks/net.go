@@ -9,12 +9,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	gonet "net"
+	stdnet "net"
 	"runtime"
 	"sort"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"github.com/benbjohnson/clock"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -23,6 +22,7 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -532,16 +532,10 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 
 func (c *ConnectionsCheck) schedulePathForConnection(conn *model.Connection) {
 	remoteAddr := conn.Raddr
-	if remoteAddr.Ip == "127.0.0.1" {
-		log.Debugf("Skip localhost 127.0.0.1: %+v", remoteAddr)
+	if stdnet.ParseIP(remoteAddr.Ip).IsLoopback() {
+		log.Debugf("Skip loopback IP: %s", remoteAddr.Ip)
 		return
 	}
-	if gonet.ParseIP(remoteAddr.Ip).To4() == nil {
-		// TODO: IPv6 not supported yet
-		log.Debugf("Only IPv4 is currently supported yet. Address not supported: %+v", remoteAddr)
-		return
-	}
-	log.Warnf("schedulePathForConnection: %+v", remoteAddr)
 	c.npScheduler.Schedule(remoteAddr.Ip, uint16(conn.Raddr.Port))
 }
 

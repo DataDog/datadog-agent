@@ -8,6 +8,7 @@ package npschedulerimpl
 
 import (
 	"encoding/json"
+	"net"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
@@ -51,8 +52,13 @@ type npSchedulerImpl struct {
 }
 
 func (s npSchedulerImpl) Schedule(hostname string, port uint16) {
-	//TODO implement me
-	log.Errorf("Schedule called: hostname=%s port=%d", hostname, port)
+	log.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
+
+	if net.ParseIP(hostname).To4() == nil {
+		// TODO: IPv6 not supported yet
+		log.Debugf("Only IPv4 is currently supported yet. Address not supported: %+v", hostname)
+		return
+	}
 
 	for i := 0; i < 3; i++ {
 		s.pathForConn(hostname, port)
