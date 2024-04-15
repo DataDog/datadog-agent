@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/go-ini/ini"
@@ -123,6 +124,7 @@ func bootstrap(ctx context.Context, params *cliParams, installScriptParams *inst
 
 	span, ctx := tracer.StartSpanFromContext(ctx, "cmd/bootstrap", tracer.ChildOf(installScriptParams))
 	defer span.Finish()
+	span.SetTag(ext.ManualKeep, true)
 	span.SetTag("params.url", params.url)
 	span.SetTag("params.pkg", params.pkg)
 	span.SetTag("params.version", params.version)
