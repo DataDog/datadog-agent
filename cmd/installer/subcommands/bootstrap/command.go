@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/updater/command"
+	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -41,7 +41,7 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 	bootstrapCmd := &cobra.Command{
 		Use:   "bootstrap",
 		Short: "Bootstraps the package with the first version.",
-		Long: `Installs the first version of the package managed by this updater.
+		Long: `Installs the first version of the package managed by the installer.
 		This first version is sent remotely to the agent and can be configured from the UI.
 		This command will exit after the first version is installed.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
@@ -70,7 +70,7 @@ func bootstrapFxWrapper(ctx context.Context, params *cliParams) error {
 			ConfigParams:         config.NewAgentParams(params.GlobalParams.ConfFilePath),
 			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
-			LogParams:            logimpl.ForOneShot("UPDATER", "info", true),
+			LogParams:            logimpl.ForOneShot("INSTALLER", "info", true),
 		}),
 		core.Bundle(),
 	)
