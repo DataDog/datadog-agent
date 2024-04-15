@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/updater/subcommands/experiment"
 	"github.com/DataDog/datadog-agent/cmd/updater/subcommands/purge"
 	"github.com/DataDog/datadog-agent/cmd/updater/subcommands/run"
-	setupunits "github.com/DataDog/datadog-agent/cmd/updater/subcommands/setup-units"
 	"github.com/DataDog/datadog-agent/cmd/updater/subcommands/status"
 )
 
@@ -25,6 +24,5 @@ func UpdaterSubcommands() []command.SubcommandFactory {
 		status.Commands,
 		experiment.Commands,
 		purge.Commands,
-		setupunits.Commands,
 	}
 }

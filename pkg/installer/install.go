@@ -62,7 +62,7 @@ func (m *packageManager) installStable(pkg string, version string, image oci.Ima
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	return nil
+	return m.setupUnits(pkg)
 }
 
 func (m *packageManager) setupUnits(pkg string) error {
@@ -73,8 +73,6 @@ func (m *packageManager) setupUnits(pkg string) error {
 		return service.SetupAgentUnits()
 	case packageAPMInjector:
 		return service.SetupAPMInjector()
-	case packageDatadogInstaller:
-		return service.SetupInstallerUnits()
 	default:
 		return nil
 	}

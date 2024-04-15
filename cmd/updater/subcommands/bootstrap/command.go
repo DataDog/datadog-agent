@@ -77,6 +77,9 @@ func bootstrapFxWrapper(ctx context.Context, params *cliParams) error {
 }
 
 func bootstrap(ctx context.Context, params *cliParams, config config.Component) error {
+	if params.pkg == "" && params.url == "" {
+		return installer.Bootstrap(ctx, config)
+	}
 	url := packageURL(config.GetString("site"), params.pkg, params.version)
 	if params.url != "" {
 		url = params.url

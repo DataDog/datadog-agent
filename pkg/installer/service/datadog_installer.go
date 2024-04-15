@@ -40,6 +40,11 @@ func SetupInstallerUnits() (err error) {
 	return nil
 }
 
+// StartInstallerStable starts the stable systemd units for the installer
+func StartInstallerStable() (err error) {
+	return startUnit(installerUnit)
+}
+
 // RemoveInstallerUnits removes the installer systemd units
 func RemoveInstallerUnits() {
 	var err error
@@ -58,7 +63,7 @@ func StartInstallerExperiment() error {
 	return startUnit(installerUnitExp)
 }
 
-// StopInstallerExperiment installs the stable systemd units for the installer
+// StopInstallerExperiment starts the stable systemd units for the installer
 func StopInstallerExperiment() error {
 	return startUnit(installerUnit)
 }

@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -103,8 +102,8 @@ func BootstrapURL(ctx context.Context, url string, config config.Reader) error {
 	return i.BootstrapURL(ctx, url)
 }
 
-// SetupUnits copies/loads/starts systemd units associated with a package
-func SetupUnits(ctx context.Context, pkg string, config config.Reader) error {
+// Bootstrap is the generic installer bootstrap.
+func Bootstrap(ctx context.Context, config config.Reader) error {
 	rc := newNoopRemoteConfig()
 	i, err := newInstaller(rc, defaultRepositoriesPath, defaultLocksPath, config)
 	if err != nil {
@@ -120,7 +119,7 @@ func SetupUnits(ctx context.Context, pkg string, config config.Reader) error {
 			log.Errorf("could not stop installer: %v", err)
 		}
 	}()
-	return i.SetupUnits(ctx, pkg)
+	return i.Bootstrap(ctx)
 }
 
 // Purge removes files installed by the installer
@@ -266,6 +265,22 @@ func (i *installerImpl) BootstrapVersion(ctx context.Context, pkg string, versio
 	return i.bootstrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
 }
 
+// Bootstrap is the generic bootstrap of the installer
+func (i *installerImpl) Bootstrap(ctx context.Context) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	i.m.Lock()
+	defer i.m.Unlock()
+	i.refreshState(ctx)
+	defer i.refreshState(ctx)
+
+	if err = i.setupInstallerUnits(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // BootstrapURL installs the stable version of the package.
 func (i *installerImpl) BootstrapURL(ctx context.Context, url string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap_url")
@@ -296,28 +311,6 @@ func (i *installerImpl) bootstrapPackage(ctx context.Context, url string, expect
 	err = i.packageManager.installStable(downloadedPackage.Name, downloadedPackage.Version, downloadedPackage.Image)
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
-	}
-
-	systemdRunning, err := service.IsSystemdRunning()
-	if err != nil {
-		return fmt.Errorf("error checking if systemd is running: %w", err)
-	}
-	if systemdRunning && downloadedPackage.Name != "datadog-installer" {
-		err = i.packageManager.setupUnits(downloadedPackage.Name)
-		if err != nil {
-			return fmt.Errorf("could not setup units: %w", err)
-		}
-	} else if systemdRunning && i.remoteUpdates {
-		state, err := i.packageManager.repositories.Get("datadog-installer").GetState()
-		if err != nil {
-			return fmt.Errorf("could not get stable installer: %w", err)
-		}
-		stableInstaller := filepath.Join(state.Stable, "bin/installer/installer")
-		cmd := exec.CommandContext(ctx, stableInstaller, "setup-units", "--package=datadog-installer")
-		err = cmd.Run()
-		if err != nil {
-			return fmt.Errorf("could not datadog-installer setup units with stable: %w", err)
-		}
 	}
 
 	log.Infof("Installer: Successfully installed default version %s of package %s from %s", downloadedPackage.Version, downloadedPackage.Name, url)
@@ -395,15 +388,27 @@ func (i *installerImpl) StopExperiment(ctx context.Context, pkg string) (err err
 	return nil
 }
 
-// SetupUnits copies/loads and sometines start systemd units for the package
-// this returns no error id
-func (i *installerImpl) SetupUnits(ctx context.Context, pkg string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "setup_units")
-	defer func() { span.Finish(tracer.WithError(err)) }()
-
-	i.m.Lock()
-	defer i.m.Unlock()
-	return i.packageManager.setupUnits(pkg)
+func (i *installerImpl) setupInstallerUnits() (err error) {
+	systemdRunning, err := service.IsSystemdRunning()
+	if err != nil {
+		return fmt.Errorf("error checking if systemd is running: %w", err)
+	}
+	if !systemdRunning {
+		log.Infof("Installer: Systemd is not running, skipping unit setup")
+		return nil
+	}
+	err = service.SetupInstallerUnits()
+	if err != nil {
+		return fmt.Errorf("failed to setup datadog-installer systemd units: %w", err)
+	}
+	if !i.remoteUpdates {
+		defer func() {
+			service.RemoveInstallerUnits()
+		}()
+	} else {
+		service.StartInstallerStable()
+	}
+	return nil
 }
 
 func (i *installerImpl) handleCatalogUpdate(c catalog) error {
