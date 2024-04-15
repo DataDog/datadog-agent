@@ -1,5 +1,5 @@
 # AgentCheck stubs for testing
-class AgentCheck(object):  # noqa
+class AgentCheck(object):  # noqa: UP004
     def __init__(self, *args, **kwargs):  # noqa: U100
         pass
 
