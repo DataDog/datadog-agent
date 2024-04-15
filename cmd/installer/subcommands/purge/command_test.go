@@ -3,19 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package run
+package purge
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/updater/command"
+	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestRunCheckCmdCommand(t *testing.T) {
+func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"run"},
-		run,
+		[]string{"purge"},
+		purge,
 		func() {})
 }

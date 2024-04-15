@@ -46,7 +46,7 @@ def build(
     go_build_tags = " ".join(build_tags)
     updater_bin = os.path.join(BIN_PATH, bin_name("installer"))
     cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
-    cmd += f"-o {updater_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/updater"
+    cmd += f"-o {updater_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/installer"
 
     ctx.run(cmd, env=env)
 
