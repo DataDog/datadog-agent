@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/fx"
 
@@ -60,6 +61,8 @@ func (s npSchedulerImpl) Schedule(hostname string, port uint16) {
 
 func (s npSchedulerImpl) pathForConn(hostname string, port uint16) {
 	log.Warnf("destination hostname: %+v", hostname)
+
+	statsd.Client.Gauge("datadog.network_path.test_metric.abc", 1, []string{}, 1) //nolint:errcheck
 
 	cfg := traceroute.Config{
 		DestHostname: hostname,
