@@ -160,7 +160,8 @@ func (p *protocol) Stop(*manager.Manager) {
 
 // DumpMaps dumps map contents for debugging.
 func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
-	if mapName == inFlightMap {
+	switch mapName {
+	case inFlightMap:
 		var key KafkaTransactionKey
 		var value KafkaTransaction
 		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
@@ -168,7 +169,7 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
-	} else if mapName == responseMap {
+	case responseMap:
 		var key ConnTuple
 		var value KafkaResponseContext
 		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
