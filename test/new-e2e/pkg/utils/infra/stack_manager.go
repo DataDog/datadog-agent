@@ -194,6 +194,31 @@ func (sm *StackManager) getLoggingOptions() (debug.LoggingOptions, error) {
 	}, nil
 }
 
+func (sm *StackManager) getProgressStreamsOnUp(logger io.Writer) (optup.Option, error) {
+	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
+	if err != nil {
+		return optup.ProgressStreams(logger), err
+	}
+
+	if progressStreams {
+		return optup.ProgressStreams(logger), nil
+	}
+
+	return optup.ErrorProgressStreams(logger), nil
+}
+
+func (sm *StackManager) getProgressStreamsOnDestroy(logger io.Writer) (optdestroy.Option, error) {
+	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
+	if err != nil {
+		return optdestroy.ProgressStreams(logger), err
+	}
+
+	if progressStreams {
+		return optdestroy.ProgressStreams(logger), nil
+	}
+	return optdestroy.ErrorProgressStreams(logger), nil
+}
+
 func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *auto.Stack, logWriter io.Writer) error {
 	if stack == nil {
 		return fmt.Errorf("unable to find stack, skipping deletion of: %s", stackID)
@@ -212,7 +237,12 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	} else {
 		logger = logWriter
 	}
-	_, err = stack.Destroy(destroyContext, optdestroy.ErrorProgressStreams(logger), optdestroy.DebugLogging(loggingOptions))
+	progressStreamsDestroyOption, err := sm.getProgressStreamsOnDestroy(logger)
+	if err != nil {
+		return err
+	}
+
+	_, err = stack.Destroy(destroyContext, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 	cancel()
 	if err != nil {
 		return err
@@ -273,11 +303,20 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		logger = logWriter
 	}
 
+	progressStreamsUpOption, err := sm.getProgressStreamsOnUp(logger)
+	if err != nil {
+		return nil, auto.UpResult{}, err
+	}
+	progressStreamsDestroyOption, err := sm.getProgressStreamsOnDestroy(logger)
+	if err != nil {
+		return nil, auto.UpResult{}, err
+	}
+
 	var upResult auto.UpResult
 
 	for retry := 0; retry < stackUpRetry; retry++ {
 		upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
-		upResult, err = stack.Up(upCtx, optup.ErrorProgressStreams(logger), optup.DebugLogging(loggingOptions))
+		upResult, err = stack.Up(upCtx, progressStreamsUpOption, optup.DebugLogging(loggingOptions))
 		cancel()
 
 		if err == nil {
@@ -293,7 +332,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 			if retryStrategy == reCreate {
 				// If we are recreating the stack, we should destroy the stack first
 				destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
-				_, err := stack.Destroy(destroyCtx, optdestroy.ErrorProgressStreams(logger), optdestroy.DebugLogging(loggingOptions))
+				_, err := stack.Destroy(destroyCtx, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 				cancel()
 				if err != nil {
 					return stack, auto.UpResult{}, err
