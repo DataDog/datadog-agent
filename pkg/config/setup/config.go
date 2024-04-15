@@ -1337,6 +1337,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Updater configuration
 	config.BindEnvAndSetDefault("updater.remote_updates", false)
 	config.BindEnv("updater.registry")
+	config.BindEnvAndSetDefault("updater.registry_auth", "")
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
