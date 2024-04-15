@@ -787,7 +787,17 @@ func TestKafkaFetchRaw(t *testing.T) {
 
 				msgs = append(msgs, Message{request: reqData})
 				msgs = append(msgs, Message{response: respData[0:segSize]})
-				msgs = append(msgs, Message{response: respData[segSize:]})
+
+				if segSize+8 >= len(respData) {
+					msgs = append(msgs, Message{response: respData[segSize:]})
+				} else {
+					// Three segments tests other code paths than two, for example
+					// it will fail if the tcp_seq is not updated in the response
+					// parsing continuation path.
+					msgs = append(msgs, Message{response: respData[segSize : segSize+8]})
+					msgs = append(msgs, Message{response: respData[segSize+8:]})
+				}
+
 			}
 
 			monitor := newKafkaMonitor(t, getDefaultTestConfiguration())
