@@ -404,9 +404,8 @@ func (i *installerImpl) setupInstallerUnits() (err error) {
 	if !i.remoteUpdates {
 		service.RemoveInstallerUnits()
 		return
-	} else {
-		return service.StartInstallerStable()
 	}
+	return service.StartInstallerStable()
 }
 
 func (i *installerImpl) handleCatalogUpdate(c catalog) error {
