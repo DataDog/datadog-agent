@@ -20,6 +20,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
@@ -56,9 +58,6 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 		logimpl.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
-		fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
-			return m.(workloadmeta.Component)
-		}),
 	))
 
 	optComponent := newClient(deps).(optional.Option[clientComp.Component])
@@ -95,6 +94,9 @@ func TestClientEnabled(t *testing.T) {
 			func(t *testing.T) {
 				deps := fxutil.Test[dependencies](t, fx.Options(
 					config.MockModule(),
+					fx.Provide(func() optional.Option[secrets.Component] {
+						return optional.NewOption[secrets.Component](secretsimpl.NewMock())
+					}),
 					fx.Replace(config.MockParams{Overrides: map[string]interface{}{
 						"language_detection.enabled":           testCase.languageDetectionEnabled,
 						"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,
@@ -104,9 +106,6 @@ func TestClientEnabled(t *testing.T) {
 					logimpl.MockModule(),
 					fx.Supply(workloadmeta.NewParams()),
 					workloadmeta.MockModuleV2(),
-					fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
-						return m.(workloadmeta.Component)
-					}),
 				))
 
 				optionalCl := newClient(deps).(optional.Option[clientComp.Component])

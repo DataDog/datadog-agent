@@ -44,19 +44,28 @@ type Scanner struct {
 	// cacheMutex is used to protect the cache from concurrent access
 	// It cannot be cleaned when a scan is running
 	cacheMutex sync.Mutex
+
+	wmeta      optional.Option[workloadmeta.Component]
+	collectors map[string]collectors.Collector
 }
 
 // NewScanner creates a new SBOM scanner. Call Start to start the store and its
 // collectors.
-func NewScanner(cfg config.Config) *Scanner {
+func NewScanner(cfg config.Config, collectors map[string]collectors.Collector, wmeta optional.Option[workloadmeta.Component]) *Scanner {
 	return &Scanner{
-		scanQueue: workqueue.NewRateLimitingQueue(
+		scanQueue: workqueue.NewRateLimitingQueueWithConfig(
 			workqueue.NewItemExponentialFailureRateLimiter(
 				cfg.GetDuration("sbom.scan_queue.base_backoff"),
 				cfg.GetDuration("sbom.scan_queue.max_backoff"),
 			),
+			workqueue.RateLimitingQueueConfig{
+				Name:            "sbom_request",
+				MetricsProvider: telemetry.QueueMetricProvider{},
+			},
 		),
-		disk: filesystem.NewDisk(),
+		disk:       filesystem.NewDisk(),
+		wmeta:      wmeta,
+		collectors: collectors,
 	}
 }
 
@@ -78,7 +87,7 @@ func CreateGlobalScanner(cfg config.Config, wmeta optional.Option[workloadmeta.C
 		}
 	}
 
-	globalScanner = NewScanner(cfg)
+	globalScanner = NewScanner(cfg, collectors.Collectors, wmeta)
 	return globalScanner, nil
 }
 
@@ -151,7 +160,7 @@ func (s *Scanner) startCacheCleaner(ctx context.Context) {
 			case <-cleanTicker.C:
 				s.cacheMutex.Lock()
 				log.Debug("cleaning SBOM cache")
-				for _, collector := range collectors.Collectors {
+				for _, collector := range s.collectors {
 					if err := collector.CleanCache(); err != nil {
 						_ = log.Warnf("could not clean SBOM cache: %v", err)
 					}
@@ -185,7 +194,7 @@ func (s *Scanner) startScanRequestHandler(ctx context.Context) {
 			s.handleScanRequest(ctx, r)
 			s.scanQueue.Done(r)
 		}
-		for _, collector := range collectors.Collectors {
+		for _, collector := range s.collectors {
 			collector.Shutdown()
 		}
 	}()
@@ -200,7 +209,7 @@ func (s *Scanner) handleScanRequest(ctx context.Context, r interface{}) {
 	}
 
 	telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
-	collector, ok := collectors.Collectors[request.Collector()]
+	collector, ok := s.collectors[request.Collector()]
 	if !ok {
 		_ = log.Errorf("invalid collector '%s'", request.Collector())
 		s.scanQueue.Forget(request)
@@ -220,8 +229,8 @@ func (s *Scanner) handleScanRequest(ctx context.Context, r interface{}) {
 // getImageMetadata returns the image metadata if the collector is a container image collector
 // and the metadata is found in the store.
 func (s *Scanner) getImageMetadata(request sbom.ScanRequest) *workloadmeta.ContainerImageMetadata {
-	store := workloadmeta.GetGlobalStore()
-	if store == nil {
+	store, ok := s.wmeta.Get()
+	if !ok {
 		_ = log.Errorf("workloadmeta store is not initialized")
 		s.scanQueue.AddRateLimited(request)
 		return nil

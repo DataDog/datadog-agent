@@ -20,6 +20,7 @@ from tasks.agent import BUNDLED_AGENTS
 from tasks.agent import build as agent_build
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -30,7 +31,6 @@ from tasks.libs.common.utils import (
     get_gobin,
     get_version_numeric_only,
 )
-from tasks.libs.ninja_syntax import NinjaWriter
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -638,6 +638,7 @@ def test(
     failfast=False,
     kernel_release=None,
     timeout=None,
+    extra_arguments="",
 ):
     """
     Run tests on eBPF parts
@@ -671,6 +672,7 @@ def test(
     args["run"] = f"-run {run}" if run else ""
     args["go"] = "go"
     args["sudo"] = "sudo -E " if not is_windows and not output_path and not is_root() else ""
+    args["extra_arguments"] = extra_arguments
 
     _, _, env = get_build_flags(ctx)
     env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
@@ -686,7 +688,7 @@ def test(
         args["dir"] = pdir
         testto = timeout if timeout else get_test_timeout(pdir)
         args["timeout"] = f"-timeout {testto}" if testto else ""
-        cmd = '{sudo}{go} test -mod=mod -v {failfast} {timeout} -tags "{build_tags}" {output_params} {dir} {run}'
+        cmd = '{sudo}{go} test -mod=mod -v {failfast} {timeout} -tags "{build_tags}" {extra_arguments} {output_params} {dir} {run}'
         res = ctx.run(cmd.format(**args), env=env, warn=True)
         if res.exited is None or res.exited > 0:
             failed_pkgs.append(os.path.relpath(pdir, ctx.cwd))
@@ -856,7 +858,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/bytecode/testsuite
     for i, pkg in enumerate(target_packages):
-        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, pkg.lstrip(os.getcwd()))
+        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, os.path.relpath(pkg, os.getcwd()))
         target_bin = "testsuite"
         if is_windows:
             target_bin = "testsuite.exe"
@@ -1768,6 +1770,10 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
     if is_windows:
         return
 
+    # crane does not accept 'x86_64' as a valid architecture
+    if arch == "x86_64":
+        arch = "amd64"
+
     # only download images not present in preprepared vm disk
     resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/docker.ls')
     docker_ls = {line for line in resp.text.split('\n') if line.strip()}
@@ -1831,7 +1837,8 @@ def start_microvms(
     stack_name="kernel-matrix-testing-system",
     vmconfig=None,
     local=False,
-    provision=False,
+    provision_instance=False,
+    provision_microvms=False,
     run_agent=False,
     agent_version=None,
 ):
@@ -1848,10 +1855,11 @@ def start_microvms(
         f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
         f"--name {stack_name}",
         f"--vmconfig {vmconfig}" if vmconfig else "",
-        "--run-provision" if provision else "",
         "--local" if local else "",
         "--run-agent" if run_agent else "",
         f"--agent-version {agent_version}" if agent_version else "",
+        "--provision-instance" if provision_instance else "",
+        "--provision-microvms" if provision_microvms else "",
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))

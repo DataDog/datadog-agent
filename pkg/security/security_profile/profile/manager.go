@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"slices"
 	"sync"
 	"time"
@@ -362,7 +363,7 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 			m.cacheMiss.Inc()
 
 			// create a new entry
-			profile = NewSecurityProfile(selector, m.eventTypes)
+			profile = NewSecurityProfile(selector, m.eventTypes, m.pathsReducer)
 			m.profiles[selector] = profile
 
 			// notify the providers that we're interested in a new workload selector
@@ -505,6 +506,13 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	if profile.loadedInKernel {
 		// remove profile from kernel space
 		m.unloadProfile(profile)
+
+		// only persist the profile if it was actively used
+		if profile.ActivityTree != nil {
+			if err := m.persistProfile(profile); err != nil {
+				seclog.Errorf("couldn't persist profile: %v", err)
+			}
+		}
 	}
 
 	// cleanup profile before insertion in cache
@@ -517,22 +525,6 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 
 	// add profile in cache
 	m.pendingCache.Add(profile.selector, profile)
-}
-
-func (m *SecurityProfileManager) protoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfile) {
-	// decode the content of the profile
-	ProtoToSecurityProfile(output, m.pathsReducer, input)
-	output.ActivityTree.DNSMatchMaxDepth = m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth
-	if m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs && input.Metadata.DifferentiateArgs {
-		output.ActivityTree.DifferentiateArgs()
-	}
-	output.loadedInKernel = false
-	// compute activity tree initial stats
-	output.ActivityTree.ComputeActivityTreeStats()
-	// prepare the profile for insertion
-	m.prepareProfile(output)
-	// override selector to a profile one
-	output.selector.Tag = "*"
 }
 
 // OnNewProfileEvent handles the arrival of a new profile (or the new version of a profile) from a provider
@@ -550,14 +542,17 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 		profileManagerSelector.Tag = "*"
 	}
 
+	loadOpts := LoadOpts{
+		DNSMatchMaxDepth:  m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth,
+		DifferentiateArgs: m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs,
+	}
+
 	// Update the Security Profile content
 	profile, ok := m.profiles[profileManagerSelector]
 	if !ok {
 		// this was likely a short-lived workload, cache the profile in case this workload comes back
-		profile = NewSecurityProfile(selector, m.eventTypes)
-
-		// decode the content of the profile
-		m.protoToSecurityProfile(profile, newProfile)
+		profile = NewSecurityProfile(selector, m.eventTypes, m.pathsReducer)
+		profile.LoadFromProto(newProfile, loadOpts)
 
 		// insert in cache and leave
 		m.pendingCacheLock.Lock()
@@ -572,7 +567,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	// if profile was waited, push it
 	if !profile.loadedInKernel {
 		// decode the content of the profile
-		m.protoToSecurityProfile(profile, newProfile)
+		profile.LoadFromProto(newProfile, loadOpts)
 
 		// load the profile in kernel space
 		if err := m.loadProfile(profile); err != nil {
@@ -630,7 +625,7 @@ func (m *SecurityProfileManager) SendStats() error {
 	}
 
 	for imageName, nbVersions := range profileVersions {
-		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileVersions, float64(nbVersions), []string{"image_name:" + imageName}, 1.0); err != nil {
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileVersions, float64(nbVersions), []string{"security_profile_image_name:" + imageName}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileVersions: %w", err)
 		}
 	}
@@ -682,14 +677,6 @@ func (m *SecurityProfileManager) SendStats() error {
 	}
 
 	return nil
-}
-
-// prepareProfile (thread unsafe) generates eBPF programs and cookies to prepare for kernel space insertion
-func (m *SecurityProfileManager) prepareProfile(profile *SecurityProfile) {
-	// generate cookies for the profile
-	profile.generateCookies()
-
-	// TODO: generate eBPF programs and make sure the profile is ready to be inserted in kernel space
 }
 
 // loadProfile (thread unsafe) loads a Security Profile in kernel space
@@ -745,6 +732,45 @@ func (m *SecurityProfileManager) canGenerateAnomaliesFor(e *model.Event) bool {
 	return m.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(m.config.RuntimeSecurity.AnomalyDetectionEventTypes, e.GetEventType())
 }
 
+// persistProfile (thread unsafe) persists a profile to the filesystem
+func (m *SecurityProfileManager) persistProfile(profile *SecurityProfile) error {
+	proto := SecurityProfileToProto(profile)
+	if proto == nil {
+		return fmt.Errorf("couldn't encode profile (nil proto)")
+	}
+	raw, err := proto.MarshalVT()
+	if err != nil {
+		return fmt.Errorf("couldn't encode profile: %w", err)
+	}
+
+	filename := profile.Metadata.Name + ".profile"
+	outputPath := path.Join(m.config.RuntimeSecurity.SecurityProfileDir, filename)
+
+	// create output directory and output file, truncate existing file if a profile already exists
+	err = os.MkdirAll(m.config.RuntimeSecurity.SecurityProfileDir, 0400)
+	if err != nil {
+		return fmt.Errorf("couldn't ensure directory [%s] exists: %w", m.config.RuntimeSecurity.SecurityProfileDir, err)
+	}
+
+	file, err := os.OpenFile(outputPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0400)
+	if err != nil {
+		return fmt.Errorf("couldn't persist profile to file [%s]: %w", outputPath, err)
+	}
+	defer file.Close()
+
+	if _, err = file.Write(raw); err != nil {
+		return fmt.Errorf("couldn't write profile to file [%s]: %w", outputPath, err)
+	}
+
+	if err = file.Close(); err != nil {
+		return fmt.Errorf("error trying to close profile file [%s]: %w", file.Name(), err)
+	}
+
+	seclog.Infof("[profile] file for %s written at: [%s]", profile.selector.String(), outputPath)
+
+	return nil
+}
+
 // LookupEventInProfiles lookups event in profiles
 func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	// ignore events with an error
@@ -775,6 +801,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		return
 	}
 	if !profile.IsEventTypeValid(event.GetEventType()) || !profile.loadedInKernel {
+		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return
 	}
 
@@ -805,9 +832,9 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	}
 	profile.versionContextsLock.Unlock()
 
-	// if we have one version of the profile in unstable, just skip the whole process
-	globalProfilState := profile.GetGlobalState()
-	if globalProfilState == UnstableEventType {
+	// if we have one version of the profile in unstable for this event type, just skip the whole process
+	globalEventTypeProfilState := profile.GetGlobalEventTypeState(event.GetEventType())
+	if globalEventTypeProfilState == UnstableEventType {
 		m.incrementEventFilteringStat(event.GetEventType(), UnstableEventType, NA)
 		return
 	}
@@ -983,8 +1010,7 @@ func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.Workload
 
 	for selector, profile := range m.profiles {
 		profile.Lock()
-		//nolint:gosimple // TODO(SEC) Fix gosimple linter
-		if profile.loadedInKernel == false {
+		if !profile.loadedInKernel {
 			out[selector] = profile.Instances
 		}
 		profile.Unlock()

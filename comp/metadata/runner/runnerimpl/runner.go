@@ -14,31 +14,22 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newRunner))
+	return fxutil.Component(fx.Provide(newRunner))
 }
 
 // MetadataProvider is the provider for metadata
 type MetadataProvider func(context.Context) time.Duration
 
-// PriorityMetadataProvider is the provider for metadata that needs to be execute at start time of the agent.
-// Right now the agent needs the host metadata provider to execute first to ensure host tags are being reported correctly.
-// This is a temporary workaorund until we figure a more permanent solution in the backend
-// If you need to use this provide please contact the agent-shared-components team
-type PriorityMetadataProvider func(context.Context) time.Duration
-
 type runnerImpl struct {
 	log    log.Component
 	config config.Component
 
-	providers         []MetadataProvider
-	priorityProviders []PriorityMetadataProvider
+	providers []MetadataProvider
 
 	wg       sync.WaitGroup
 	stopChan chan struct{}
@@ -50,72 +41,30 @@ type dependencies struct {
 	Log    log.Component
 	Config config.Component
 
-	Providers         []optional.Option[MetadataProvider]         `group:"metadata_provider"`
-	PriorityProviders []optional.Option[PriorityMetadataProvider] `group:"metadata_priority_provider"`
+	Providers []MetadataProvider `group:"metadata_provider"`
 }
 
 // Provider represents the callback from a metada provider. This is returned by 'NewProvider' helper.
 type Provider struct {
 	fx.Out
 
-	Callback optional.Option[MetadataProvider] `group:"metadata_provider"`
-}
-
-// PriorityProvider represents the callback from a priority metada provider. This is returned by 'NewPriorityProvider' helper.
-type PriorityProvider struct {
-	fx.Out
-
-	Callback optional.Option[PriorityMetadataProvider] `group:"metadata_priority_provider"`
+	Callback MetadataProvider `group:"metadata_provider"`
 }
 
 // NewProvider registers a new metadata provider by adding a callback to the runner.
 func NewProvider(callback MetadataProvider) Provider {
 	return Provider{
-		Callback: optional.NewOption[MetadataProvider](callback),
-	}
-}
-
-// NewPriorityProvider registers a new metadata provider by adding a callback to the runner.
-func NewPriorityProvider(callback PriorityMetadataProvider) PriorityProvider {
-	return PriorityProvider{
-		Callback: optional.NewOption[PriorityMetadataProvider](callback),
-	}
-}
-
-// NewEmptyProvider returns a empty provider which is not going to register anything. This is useful for providers that
-// can be enabled/disabled through configuration.
-func NewEmptyProvider() Provider {
-	return Provider{
-		Callback: optional.NewNoneOption[MetadataProvider](),
+		Callback: callback,
 	}
 }
 
 // createRunner instantiates a runner object
 func createRunner(deps dependencies) *runnerImpl {
-	providers := []MetadataProvider{}
-	priorityProviders := []PriorityMetadataProvider{}
-
-	nonNilProviders := fxutil.GetAndFilterGroup(deps.Providers)
-	nonNilPriorityProviders := fxutil.GetAndFilterGroup(deps.PriorityProviders)
-
-	for _, optionaP := range nonNilProviders {
-		if p, isSet := optionaP.Get(); isSet {
-			providers = append(providers, p)
-		}
-	}
-
-	for _, optionaP := range nonNilPriorityProviders {
-		if p, isSet := optionaP.Get(); isSet {
-			priorityProviders = append(priorityProviders, p)
-		}
-	}
-
 	return &runnerImpl{
-		log:               deps.Log,
-		config:            deps.Config,
-		providers:         providers,
-		priorityProviders: priorityProviders,
-		stopChan:          make(chan struct{}),
+		log:       deps.Log,
+		config:    deps.Config,
+		providers: fxutil.GetAndFilterGroup(deps.Providers),
+		stopChan:  make(chan struct{}),
 	}
 }
 
@@ -139,7 +88,7 @@ func newRunner(lc fx.Lifecycle, deps dependencies) runner.Component {
 }
 
 // handleProvider runs a provider at regular interval until the runner is stopped
-func (r *runnerImpl) handleProvider(p func(context.Context) time.Duration) {
+func (r *runnerImpl) handleProvider(p MetadataProvider) {
 	r.log.Debugf("Starting runner for MetadataProvider %#v", p)
 	r.wg.Add(1)
 
@@ -176,20 +125,11 @@ func (r *runnerImpl) handleProvider(p func(context.Context) time.Duration) {
 // start is called by FX when the application starts. Lifecycle hooks are blocking and called sequencially. We should
 // not block here.
 func (r *runnerImpl) start() error {
-	r.log.Debugf("Starting metadata runner with %d priority providers and %d regular providers", len(r.priorityProviders), len(r.providers))
+	r.log.Debugf("Starting metadata runner with %d providers", len(r.providers))
 
-	go func() {
-		for _, priorityProvider := range r.priorityProviders {
-			// Execute synchronously the priority provider
-			priorityProvider(context.Background())
-
-			go r.handleProvider(priorityProvider)
-		}
-
-		for _, provider := range r.providers {
-			go r.handleProvider(provider)
-		}
-	}()
+	for _, provider := range r.providers {
+		go r.handleProvider(provider)
+	}
 
 	return nil
 }

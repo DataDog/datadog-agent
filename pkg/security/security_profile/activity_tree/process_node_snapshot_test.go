@@ -41,7 +41,7 @@ func TestSnapshotMemoryMappedFiles(t *testing.T) {
 	}
 
 	// hand-made version
-	ownImplemFiles, err := snapshotMemoryMappedFiles(int32(pid), "")
+	ownImplemFiles, err := getMemoryMappedFiles(int32(pid), "")
 	if err != nil {
 		t.Fatal(err)
 	}

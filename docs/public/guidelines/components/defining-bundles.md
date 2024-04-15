@@ -56,6 +56,6 @@ A bundle should have a test file, `bundle_test.go`, to verify the documentation'
 === ":octicons-file-code-16: bundle_test.go"
     ```go
     func TestBundleDependencies(t *testing.T) {
-        fxutil.TestBundle(t, Bundle, EXTERNAL_DEPENDENCIES)
+        fxutil.TestBundle(t, Bundle)
     }
     ```

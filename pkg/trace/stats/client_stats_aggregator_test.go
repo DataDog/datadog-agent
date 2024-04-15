@@ -644,18 +644,6 @@ func TestNewClientStatsAggregatorPeerAggregation(t *testing.T) {
 		a := NewClientStatsAggregator(&cfg, nil, statsd)
 		assert.False(a.peerTagsAggregation)
 	})
-	t.Run("deprecated peer service flag set", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:         time.Duration(testBucketInterval),
-			AgentVersion:           "0.99.0",
-			DefaultEnv:             "env",
-			Hostname:               "hostname",
-			PeerServiceAggregation: true,
-		}
-		a := NewClientStatsAggregator(&cfg, nil, statsd)
-		assert.True(a.peerTagsAggregation)
-	})
 	t.Run("peer tags aggregation flag", func(t *testing.T) {
 		assert := assert.New(t)
 		cfg := config.AgentConfig{
@@ -664,19 +652,6 @@ func TestNewClientStatsAggregatorPeerAggregation(t *testing.T) {
 			DefaultEnv:          "env",
 			Hostname:            "hostname",
 			PeerTagsAggregation: true,
-		}
-		a := NewClientStatsAggregator(&cfg, nil, statsd)
-		assert.True(a.peerTagsAggregation)
-	})
-	t.Run("deprecated peer service flag set + new peer tags aggregation flag", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:         time.Duration(testBucketInterval),
-			AgentVersion:           "0.99.0",
-			DefaultEnv:             "env",
-			Hostname:               "hostname",
-			PeerServiceAggregation: true,
-			PeerTagsAggregation:    true,
 		}
 		a := NewClientStatsAggregator(&cfg, nil, statsd)
 		assert.True(a.peerTagsAggregation)
@@ -744,6 +719,7 @@ func deepCopyGroupedStats(s []*proto.ClientGroupedStats) []*proto.ClientGroupedS
 			TopLevelHits:   b.GetTopLevelHits(),
 			SpanKind:       b.GetSpanKind(),
 			PeerTags:       b.GetPeerTags(),
+			IsTraceRoot:    b.GetIsTraceRoot(),
 		}
 		if b.OkSummary != nil {
 			stats[i].OkSummary = make([]byte, len(b.OkSummary))

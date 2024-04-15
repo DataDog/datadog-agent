@@ -8,7 +8,9 @@ package tagger
 import (
 	"context"
 	"reflect"
+	"regexp"
 	"sync"
+	"time"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
@@ -21,16 +23,22 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+
 	"go.uber.org/fx"
 )
+
+var entityIDRegex = regexp.MustCompile(`^en-(init\.)?([a-fA-F0-9-]+)/([a-zA-Z0-9-_]+)$`)
 
 type dependencies struct {
 	fx.In
@@ -64,6 +72,11 @@ type tagger interface {
 	Component
 }
 
+type datadogConfig struct {
+	dogstatsdEntityIDPrecedenceEnabled bool
+	dogstatsdOptOutEnabled             bool
+}
+
 // TaggerClient is a component that contains two tagger component: capturetagger and defaulttagger
 //
 // nolint:revive // TODO(containers) Fix revive linter
@@ -76,6 +89,9 @@ type TaggerClient struct {
 
 	// defaultTagger is the shared tagger instance backing the global Tag and Init functions
 	defaultTagger tagger
+
+	wmeta         workloadmeta.Component
+	datadogConfig datadogConfig
 }
 
 var (
@@ -143,6 +159,14 @@ func newTaggerClient(deps dependencies) Component {
 			captureTagger: nil,
 		}
 	}
+
+	if taggerClient != nil {
+		taggerClient.wmeta = deps.Wmeta
+	}
+
+	taggerClient.datadogConfig.dogstatsdEntityIDPrecedenceEnabled = deps.Config.GetBool("dogstatsd_entity_id_precedence")
+	taggerClient.datadogConfig.dogstatsdOptOutEnabled = deps.Config.GetBool("dogstatsd_origin_optout_enabled")
+
 	deps.Log.Info("TaggerClient is created, defaultTagger type: ", reflect.TypeOf(taggerClient.defaultTagger))
 	SetGlobalTaggerClient(taggerClient)
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
@@ -271,7 +295,7 @@ func (t *TaggerClient) Standard(entity string) ([]string, error) {
 // AgentTags returns the agent tags
 // It relies on the container provider utils to get the Agent container ID
 func (t *TaggerClient) AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
-	ctrID, err := metrics.GetProvider().GetMetaCollector().GetSelfContainerID()
+	ctrID, err := metrics.GetProvider(optional.NewOption(t.wmeta)).GetMetaCollector().GetSelfContainerID()
 	if err != nil {
 		return nil, err
 	}
@@ -338,12 +362,82 @@ func (t *TaggerClient) ResetCaptureTagger() {
 // NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
-func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, udsOrigin string, clientOrigin string, cardinalityName string) {
-	cardinality := taggerCardinality(cardinalityName)
+func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
+	cardinality := taggerCardinality(originInfo.Cardinality)
 
-	if udsOrigin != packets.NoOrigin {
-		if err := t.AccumulateTagsFor(udsOrigin, cardinality, tb); err != nil {
-			log.Errorf(err.Error())
+	switch originInfo.ProductOrigin {
+	case taggertypes.ProductOriginDogStatsD:
+		// The following was moved from the dogstatsd package
+		// originFromUDS is the origin discovered via UDS origin detection (container ID).
+		// originFromTag is the origin sent by the client via the dd.internal.entity_id tag (non-prefixed pod uid).
+		// originFromMsg is the origin sent by the client via the container field (non-prefixed container ID).
+		// entityIDPrecedenceEnabled refers to the dogstatsd_entity_id_precedence parameter.
+		//
+		//	---------------------------------------------------------------------------------
+		//
+		// | originFromUDS | originFromTag | entityIDPrecedenceEnabled || Result: udsOrigin  |
+		// |---------------|---------------|---------------------------||--------------------|
+		// | any           | any           | false                     || originFromUDS      |
+		// | any           | any           | true                      || empty              |
+		// | any           | empty         | any                       || originFromUDS      |
+		//
+		//	---------------------------------------------------------------------------------
+		//
+		//	---------------------------------------------------------------------------------
+		//
+		// | originFromTag          | originFromMsg   || Result: originFromClient            |
+		// |------------------------|-----------------||-------------------------------------|
+		// | not empty && not none  | any             || pod prefix + originFromTag          |
+		// | empty                  | empty           || empty                               |
+		// | none                   | empty           || empty                               |
+		// | empty                  | not empty       || container prefix + originFromMsg    |
+		// | none                   | not empty       || container prefix + originFromMsg    |
+		if t.datadogConfig.dogstatsdOptOutEnabled && originInfo.Cardinality == "none" {
+			originInfo.FromUDS = packets.NoOrigin
+			originInfo.FromTag = ""
+			originInfo.FromMsg = ""
+			return
+		}
+
+		// We use the UDS socket origin if no origin ID was specify in the tags
+		// or 'dogstatsd_entity_id_precedence' is set to False (default false).
+		if originInfo.FromUDS != packets.NoOrigin &&
+			(originInfo.FromTag == "" || !t.datadogConfig.dogstatsdEntityIDPrecedenceEnabled) {
+			if err := t.AccumulateTagsFor(originInfo.FromUDS, cardinality, tb); err != nil {
+				log.Errorf(err.Error())
+			}
+		}
+
+		// originFromClient can either be originInfo.FromTag or originInfo.FromMsg
+		originFromClient := ""
+		if originInfo.FromTag != "" && originInfo.FromTag != "none" {
+			// Check if the value is not "none" in order to avoid calling the tagger for entity that doesn't exist.
+			// Currently only supported for pods
+			originFromClient = t.parseEntityID(originInfo.FromTag, metrics.GetProvider(optional.NewOption(t.wmeta)).GetMetaCollector())
+		} else if originInfo.FromTag == "" && len(originInfo.FromMsg) > 0 {
+			// originInfo.FromMsg is the container ID sent by the newer clients.
+			originFromClient = containers.BuildTaggerEntityName(originInfo.FromMsg)
+		}
+
+		if originFromClient != "" {
+			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
+				tlmUDPOriginDetectionError.Inc()
+				log.Tracef("Cannot get tags for entity %s: %s", originFromClient, err)
+			}
+		}
+	default:
+		if originInfo.FromUDS != packets.NoOrigin {
+			if err := t.AccumulateTagsFor(originInfo.FromUDS, cardinality, tb); err != nil {
+				log.Errorf(err.Error())
+			}
+		}
+
+		if err := t.AccumulateTagsFor(containers.BuildTaggerEntityName(originInfo.FromMsg), cardinality, tb); err != nil {
+			log.Tracef("Cannot get tags for entity %s: %s", originInfo.FromMsg, err)
+		}
+
+		if err := t.AccumulateTagsFor(kubelet.KubePodTaggerEntityPrefix+originInfo.FromTag, cardinality, tb); err != nil {
+			log.Tracef("Cannot get tags for entity %s: %s", originInfo.FromMsg, err)
 		}
 	}
 
@@ -351,12 +445,37 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, udsOrigin string, c
 		log.Error(err.Error())
 	}
 
-	if clientOrigin != "" {
-		if err := t.AccumulateTagsFor(clientOrigin, cardinality, tb); err != nil {
-			tlmUDPOriginDetectionError.Inc()
-			log.Tracef("Cannot get tags for entity %s: %s", clientOrigin, err)
-		}
+}
+
+// parseEntityID parses the entity ID and returns the correct tagger entity
+// It can be either just a pod uid or `en-(init.)$(POD_UID)/$(CONTAINER_NAME)`
+func (t *TaggerClient) parseEntityID(entityID string, metricsProvider provider.ContainerIDForPodUIDAndContNameRetriever) string {
+	// Parse the (init.)$(POD_UID)/$(CONTAINER_NAME) entity ID with a regex
+	parts := entityIDRegex.FindStringSubmatch(entityID)
+	var cname, podUID string
+	initCont := false
+	switch len(parts) {
+	case 0:
+		return kubelet.KubePodTaggerEntityPrefix + entityID
+	case 3:
+		podUID = parts[1]
+		cname = parts[2]
+	case 4:
+		podUID = parts[2]
+		cname = parts[3]
+		initCont = parts[1] == "init."
 	}
+	cid, err := metricsProvider.ContainerIDForPodUIDAndContName(
+		podUID,
+		cname,
+		initCont,
+		time.Second,
+	)
+	if err != nil {
+		log.Debugf("Error getting container ID for pod UID and container name: %s", err)
+		return entityID
+	}
+	return containers.BuildTaggerEntityName(cid)
 }
 
 // taggerCardinality converts tagger cardinality string to collectors.TagCardinality

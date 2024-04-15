@@ -59,9 +59,9 @@ func (c *Scheduler) Stop() {
 	}
 }
 
-// AddCollector schedules a Metadata Collector at the given interval
-func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
-	if c.IsScheduled(name) {
+// addCollector schedules a Metadata Collector at the given interval
+func (c *Scheduler) addCollector(name string, interval time.Duration) error {
+	if c.isScheduled(name) {
 		return fmt.Errorf("trying to schedule %s twice", name)
 	}
 
@@ -110,34 +110,9 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 }
 
 // IsScheduled returns wether a given Collector has been added to this Scheduler
-func (c *Scheduler) IsScheduled(name string) bool {
+func (c *Scheduler) isScheduled(name string) bool {
 	_, found := c.collectors[name]
 	return found
-}
-
-// TriggerAndResetCollectorTimer runs a collector manually, on demand. The delay
-// parameter can be set to 0 to run it immediately, or to a duration after which
-// the collector will run. The runs at regular intervals of the collector will
-// be resumed *after* this manual run. Calling TriggerAndResetCollectorTimer on
-// a stopped Scheduler does nothing, since the goroutine that waits on the Timer
-// will not be running.
-func (c *Scheduler) TriggerAndResetCollectorTimer(name string, delay time.Duration) {
-	sc, found := c.collectors[name]
-
-	if !found {
-		log.Errorf("Unable to find '" + name + "' in the running metadata collectors!")
-	}
-
-	if !sc.sendTimer.Stop() {
-		// Drain the channel after stoping, as per Timer's documentation
-		// Explanation here: https://blogtitle.github.io/go-advanced-concurrency-patterns-part-2-timers/
-		select {
-		case <-sc.sendTimer.C:
-		default: //So we don't block if the channel is empty
-		}
-	}
-
-	sc.sendTimer.Reset(delay)
 }
 
 // RegisterCollector adds a Metadata Collector to the catalog

@@ -22,6 +22,8 @@ const (
 	MessageTypeHello
 	// MessageTypeSyscall syscall type
 	MessageTypeSyscall
+	// MessageTypeGoodbye event type
+	MessageTypeGoodbye
 )
 
 // SyscallType defines the type of a syscall message
@@ -60,7 +62,7 @@ const (
 	SyscallTypeUtimes
 	// SyscallTypeLink link/linkat/symlink/symlinkat type
 	SyscallTypeLink
-	// SyscallTypeChmod chmod/fchmod/fchmodat type
+	// SyscallTypeChmod chmod/fchmod/fchmodat/fchmodat2 type
 	SyscallTypeChmod
 	// SyscallTypeChown chown/fchown/lchown/fchownat/fchownat2 type
 	SyscallTypeChown
@@ -259,6 +261,7 @@ type SyscallMsg struct {
 	PID          uint32
 	Timestamp    uint64
 	Retval       int64
+	ContainerID  string
 	Exec         *ExecSyscallMsg         `json:",omitempty"`
 	Open         *OpenSyscallMsg         `json:",omitempty"`
 	Fork         *ForkSyscallMsg         `json:",omitempty"`

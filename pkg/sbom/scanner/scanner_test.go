@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 	"github.com/stretchr/testify/assert"
@@ -79,8 +80,6 @@ func TestRetryLogic_Error(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
 	))
-	workloadmeta.SetGlobalStore(workloadmetaStore)
-	defer workloadmeta.SetGlobalStore(nil)
 
 	// Store the image
 	imageID := "id"
@@ -117,7 +116,6 @@ func TestRetryLogic_Error(t *testing.T) {
 			mockCollector.On("Channel").Return(resultCh)
 			mockCollector.On("Shutdown")
 			mockCollector.On("Type").Return(tt.st)
-			collectors.RegisterCollector(collName, mockCollector)
 
 			// Set up the configuration
 			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
@@ -125,7 +123,7 @@ func TestRetryLogic_Error(t *testing.T) {
 			cfg.Set("sbom.scan_queue.max_backoff", "5s", model.SourceAgentRuntime)
 
 			// Create a scanner and start it
-			scanner := NewScanner(cfg)
+			scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
 			ctx, cancel := context.WithCancel(context.Background())
 			scanner.Start(ctx)
 
@@ -163,8 +161,6 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
 	))
-	workloadmeta.SetGlobalStore(workloadmetaStore)
-	defer workloadmeta.SetGlobalStore(nil)
 
 	// Store the image
 	imageID := "id"
@@ -184,17 +180,16 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	mockCollector.On("Options").Return(sbom.ScanOptions{})
 	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(errorResult).Twice()
 	mockCollector.On("Channel").Return(resultCh)
-	mockCollector.On("Shutdown")
+	shutdown := mockCollector.On("Shutdown")
 	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
-	collectors.RegisterCollector(collName, mockCollector)
 
-	// Set up the configuration
+	// Set up the configuration as the default one is too slow
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	cfg.Set("sbom.scan_queue.base_backoff", "2s", model.SourceAgentRuntime)
-	cfg.Set("sbom.scan_queue.max_backoff", "5s", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.base_backoff", "1s", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.max_backoff", "3s", model.SourceAgentRuntime)
 
 	// Create a scanner and start it
-	scanner := NewScanner(cfg)
+	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
 	ctx, cancel := context.WithCancel(context.Background())
 	scanner.Start(ctx)
 
@@ -213,9 +208,52 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 		case res := <-resultCh:
 			assert.Equal(t, errorResult.Error, res.Error)
 			return false
-		case <-time.After(10 * time.Second):
+		case <-time.After(4 * time.Second):
 			return true
 		}
 	}, 15*time.Second, 1*time.Second)
 	cancel()
+	// Ensure the collector is stopped
+	shutdown.WaitUntil(time.After(5 * time.Second))
+}
+
+func TestRetryLogic_Host(t *testing.T) {
+	// Create a mock collector
+	collName := "mock"
+	mockCollector := collectors.NewMockCollector()
+	resultCh := make(chan sbom.ScanResult, 1)
+	errorResult := sbom.ScanResult{Error: errors.New("scan error")}
+	mockCollector.On("Options").Return(sbom.ScanOptions{})
+	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(errorResult).Twice()
+	mockCollector.On("Channel").Return(resultCh)
+	shutdown := mockCollector.On("Shutdown")
+	mockCollector.On("Type").Return(collectors.HostScanType)
+
+	// Set up the configuration as the default one is too slow
+	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg.Set("sbom.scan_queue.base_backoff", "1s", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.max_backoff", "3s", model.SourceAgentRuntime)
+
+	// Create a scanner and start it
+	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewNoneOption[workloadmeta.Component]())
+	ctx, cancel := context.WithCancel(context.Background())
+	scanner.Start(ctx)
+
+	// Enqueue a scan request for container images
+	err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: "hostname", scanRequestType: sbom.ScanFilesystemType}))
+	assert.NoError(t, err)
+
+	// Assert error results
+	res := <-resultCh
+	assert.Equal(t, errorResult.Error, res.Error)
+
+	// Never retry
+	select {
+	case res := <-resultCh:
+		t.Errorf("unexpected result received %v", res)
+	case <-time.After(4 * time.Second):
+	}
+	cancel()
+	// Ensure the collector is stopped
+	shutdown.WaitUntil(time.After(5 * time.Second))
 }
