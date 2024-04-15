@@ -59,7 +59,7 @@ func SetupAgentUnits(ctx context.Context) (err error) {
 		span.Finish(tracer.WithError(err))
 	}()
 
-	if err = setInstallerAgentGroup(); err != nil {
+	if err = setInstallerAgentGroup(ctx); err != nil {
 		return
 	}
 

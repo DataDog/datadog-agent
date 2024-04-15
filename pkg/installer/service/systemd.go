@@ -48,17 +48,17 @@ type privilegeCommand struct {
 }
 
 // restartUnit restarts a systemd unit
-func restartUnit(unit string) error {
+func restartUnit(ctx context.Context, unit string) error {
 	// check that the unit exists first
 	if _, err := os.Stat(path.Join(systemdPath, unit)); os.IsNotExist(err) {
 		log.Infof("Unit %s does not exist, skipping restart", unit)
 		return nil
 	}
 
-	if err := stopUnit(unit); err != nil {
+	if err := stopUnit(ctx, unit); err != nil {
 		return err
 	}
-	if err := startUnit(unit); err != nil {
+	if err := startUnit(ctx, unit); err != nil {
 		return err
 	}
 	return nil
@@ -102,7 +102,7 @@ func wrapUnitCommand(command unitCommand, unit string) string {
 	return string(rawJSON)
 }
 
-func executeCommandStruct(command privilegeCommand) error {
+func executeCommandStruct(ctx context.Context, command privilegeCommand) error {
 	rawJSON, err := json.Marshal(command)
 	if err != nil {
 		return err

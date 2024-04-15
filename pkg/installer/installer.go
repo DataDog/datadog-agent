@@ -108,12 +108,15 @@ func Purge() {
 }
 
 func purge(locksPath, repositoryPath string) {
-	service.RemoveAgentUnits()
-	if err := service.RemoveAPMInjector(); err != nil {
+	var err error
+	span, ctx := tracer.StartSpanFromContext(context.Background(), "purge")
+	defer span.Finish(tracer.WithError(err))
+	service.RemoveAgentUnits(ctx)
+	if err = service.RemoveAPMInjector(ctx); err != nil {
 		log.Warnf("installer: could not remove APM injector: %v", err)
 	}
 	cleanDir(locksPath, os.RemoveAll)
-	cleanDir(repositoryPath, service.RemoveAll)
+	cleanDir(repositoryPath, func(path string) error { return service.RemoveAll(ctx, path) })
 }
 
 func cleanDir(dir string, cleanFunc func(string) error) {
@@ -179,7 +182,7 @@ func (i *installerImpl) Start(ctx context.Context) error {
 			select {
 			case <-time.After(gcInterval):
 				i.m.Lock()
-				err := i.repositories.Cleanup()
+				err := i.repositories.Cleanup(context.TODO())
 				i.m.Unlock()
 				if err != nil {
 					log.Errorf("installer: could not run GC: %v", err)
@@ -271,7 +274,7 @@ func (i *installerImpl) bootstrapPackage(ctx context.Context, url string, expect
 	if (expectedPackage != "" && downloadedPackage.Name != expectedPackage) || (expectedVersion != "" && downloadedPackage.Version != expectedVersion) {
 		return fmt.Errorf("downloaded package does not match expected package: %s, %s != %s, %s", downloadedPackage.Name, downloadedPackage.Version, expectedPackage, expectedVersion)
 	}
-	err = i.packageManager.installStable(downloadedPackage.Name, downloadedPackage.Version, downloadedPackage.Image)
+	err = i.packageManager.installStable(ctx, downloadedPackage.Name, downloadedPackage.Version, downloadedPackage.Image)
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}
@@ -307,7 +310,7 @@ func (i *installerImpl) StartExperiment(ctx context.Context, pkg string, version
 	if downloadedPackage.Name != experimentPackage.Name || downloadedPackage.Version != experimentPackage.Version {
 		return fmt.Errorf("downloaded package does not match requested package: %s, %s != %s, %s", downloadedPackage.Name, downloadedPackage.Version, experimentPackage.Name, experimentPackage.Version)
 	}
-	err = i.packageManager.installExperiment(pkg, version, downloadedPackage.Image)
+	err = i.packageManager.installExperiment(ctx, pkg, version, downloadedPackage.Image)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
@@ -325,7 +328,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) (err 
 	defer i.refreshState(ctx)
 
 	log.Infof("Installer: Promoting experiment for package %s", pkg)
-	err = i.packageManager.promoteExperiment(pkg)
+	err = i.packageManager.promoteExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -343,7 +346,7 @@ func (i *installerImpl) StopExperiment(ctx context.Context, pkg string) (err err
 	defer i.refreshState(ctx)
 
 	defer log.Infof("Installer: Stopping experiment for package %s", pkg)
-	err = i.packageManager.uninstallExperiment(pkg)
+	err = i.packageManager.uninstallExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}

@@ -108,7 +108,7 @@ func (m *packageManager) promoteExperiment(ctx context.Context, pkg string) erro
 
 func (m *packageManager) uninstallExperiment(ctx context.Context, pkg string) error {
 	repository := m.repositories.Get(pkg)
-	err := repository.DeleteExperiment()
+	err := repository.DeleteExperiment(ctx)
 	if err != nil {
 		return fmt.Errorf("could not delete experiment: %w", err)
 	}
