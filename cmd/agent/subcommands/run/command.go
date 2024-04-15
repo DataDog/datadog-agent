@@ -99,6 +99,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
@@ -443,6 +444,7 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		settingsimpl.Module(),
+		networkpath.Bundle(),
 	)
 }
 
