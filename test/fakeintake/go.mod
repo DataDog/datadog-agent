@@ -1,12 +1,16 @@
 module github.com/DataDog/datadog-agent/test/fakeintake
 
-go 1.21.8
+go 1.21.9
 
 // every datadog-agent module replaced in the fakeintake go.mod needs to be copied in the Dockerfile
-replace github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
+replace (
+	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../comp/netflow/payload
+	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
+)
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.106
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/proto v0.53.0-rc.2
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v4 v4.2.1
@@ -48,7 +52,7 @@ require (
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/exp v0.0.0-20231108232855-2478ac86f678 // indirect
-	golang.org/x/sys v0.16.0 // indirect
+	golang.org/x/sys v0.19.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/gc/v3 v3.0.0-20240107210532-573471604cb6 // indirect
 	modernc.org/libc v1.41.0 // indirect

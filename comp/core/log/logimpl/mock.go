@@ -14,11 +14,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/cihub/seelog"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -61,12 +61,14 @@ func newMockLogger(t testing.TB, lc fx.Lifecycle) (log.Component, error) {
 
 	// flush the seelog logger when the test app stops
 	lc.Append(fx.Hook{OnStop: func(context.Context) error {
+		// stop using the logger to avoid a race condition
+		pkglog.ChangeLogLevel(seelog.Default, "debug")
 		iface.Flush()
 		return nil
 	}})
 
 	// install the logger into pkg/util/log
-	pkglog.ChangeLogLevel(iface, "off")
+	pkglog.ChangeLogLevel(iface, "debug")
 
 	return &logger{}, nil
 }

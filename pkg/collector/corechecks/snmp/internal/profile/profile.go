@@ -27,19 +27,19 @@ func GetProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) 
 		//   There are possibly multiple init configs
 		customProfiles, err := loadInitConfigProfiles(initConfigProfiles)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load initConfig profiles: %s", err)
+			return nil, fmt.Errorf("failed to load profiles from initConfig: %w", err)
 		}
 		profiles = customProfiles
-	} else if profileBundleFileExist() {
-		defaultProfiles, err := loadBundleJSONProfiles()
+	} else if bundlePath := findProfileBundleFilePath(); bundlePath != "" {
+		defaultProfiles, err := loadBundleJSONProfiles(bundlePath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load bundle json profiles: %s", err)
+			return nil, fmt.Errorf("failed to load profiles from json bundle %q: %w", bundlePath, err)
 		}
 		profiles = defaultProfiles
 	} else {
 		defaultProfiles, err := loadYamlProfiles()
 		if err != nil {
-			return nil, fmt.Errorf("failed to load yaml profiles: %s", err)
+			return nil, fmt.Errorf("failed to load yaml profiles: %w", err)
 		}
 		profiles = defaultProfiles
 	}
@@ -58,7 +58,7 @@ func GetProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (st
 		for _, oidPattern := range profConfig.Definition.SysObjectIds {
 			found, err := filepath.Match(oidPattern, sysObjectID)
 			if err != nil {
-				log.Debugf("pattern error: %s", err)
+				log.Debugf("pattern error in profile %q: %v", profile, err)
 				continue
 			}
 			if !found {
@@ -69,7 +69,7 @@ func GetProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (st
 					continue
 				}
 				if profiles[prevMatchedProfile].IsUserProfile == profConfig.IsUserProfile {
-					return "", fmt.Errorf("profile %s has the same sysObjectID (%s) as %s", profile, oidPattern, prevMatchedProfile)
+					return "", fmt.Errorf("profile %q has the same sysObjectID (%s) as %q", profile, oidPattern, prevMatchedProfile)
 				}
 			}
 			tmpSysOidToProfile[oidPattern] = profile
@@ -78,7 +78,7 @@ func GetProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (st
 	}
 	oid, err := getMostSpecificOid(matchedOids)
 	if err != nil {
-		return "", fmt.Errorf("failed to get most specific profile for sysObjectID `%s`, for matched oids %v: %s", sysObjectID, matchedOids, err)
+		return "", fmt.Errorf("failed to get most specific profile for sysObjectID %q, for matched oids %v: %w", sysObjectID, matchedOids, err)
 	}
 	return tmpSysOidToProfile[oid], nil
 }

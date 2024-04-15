@@ -39,7 +39,14 @@ func IsStringPrintable(bytesValue []byte) bool {
 	return true
 }
 
-// GetValueFromPDU converts the value from an  SnmpPDU to a standard type
+// GetValueFromPDU converts the value from an SnmpPDU to a standard type.
+// Octet and Bit strings will be returned as []byte.
+// All integer and float types will be returned as float64.
+// IPs and OIDs will be returned as strings; OIDs will have any leading '.' stripped.
+// Unsupported types:
+//   - gosnmp.Opaque: gosnmp never returns these, instead processing them recursively
+//     See https://github.com/gosnmp/gosnmp/blob/dc320dac5b53d95a366733fd95fb5851f2099387/helper.go#L195-L205
+//   - Boolean, Null: Although ASN1 allows these, SNMP does not (if someone needs a bool they use an enumerated integer instead)
 func GetValueFromPDU(pduVariable gosnmp.SnmpPDU) (interface{}, error) {
 	switch pduVariable.Type {
 	case gosnmp.OctetString, gosnmp.BitString:
