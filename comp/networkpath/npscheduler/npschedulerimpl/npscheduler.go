@@ -81,21 +81,22 @@ func (s npSchedulerImpl) pathForConn(hostname string, port uint16) {
 	path, err := tr.Run()
 	if err != nil {
 		log.Warnf("traceroute error: %+v", err)
+		return
 	}
-	log.Warnf("Network Path: %+v", path)
+	log.Debugf("Network Path: %+v", path)
 
 	epForwarder, ok := s.epForwarder.Get()
 	if ok {
 		payloadBytes, err := json.Marshal(path)
 		if err != nil {
-			log.Errorf("SendEventPlatformEventBlocking error: %s", err)
+			log.Errorf("json marshall error: %s", err)
 		} else {
 
-			log.Warnf("Network Path MSG: %s", string(payloadBytes))
+			log.Debugf("network path event: %s", string(payloadBytes))
 			m := message.NewMessage(payloadBytes, nil, "", 0)
-			err = epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkPath)
+			err = epForwarder.SendEventPlatformEvent(m, eventplatform.EventTypeNetworkPath)
 			if err != nil {
-				log.Errorf("SendEventPlatformEventBlocking error: %s", err)
+				log.Errorf("SendEventPlatformEvent error: %s", err)
 			}
 		}
 	}
