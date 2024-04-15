@@ -70,7 +70,7 @@ func TestUbuntuARM(t *testing.T) {
 
 func TestDebianX86(t *testing.T) {
 	t.Parallel()
-	runTest(t, "dpkg", os.AMD64Arch, os.UbuntuDefault)
+	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault)
 }
 
 func (v *vmUpdaterSuite) TestUserGroupsCreation() {
