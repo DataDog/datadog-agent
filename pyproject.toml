@@ -19,7 +19,7 @@ exclude = [
     "releasenotes",
     "vendor",
     "venv",
-    "venv",
+    "dev",
 ]
 line-length = 120
 
