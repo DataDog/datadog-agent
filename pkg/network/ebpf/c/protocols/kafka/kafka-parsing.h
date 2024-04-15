@@ -85,9 +85,14 @@ int socket__kafka_filter(struct __sk_buff* skb) {
 READ_INTO_BUFFER(topic_name_parser, TOPIC_NAME_MAX_STRING_SIZE, BLK_SIZE)
 
 enum parse_result {
+    // End of packet. This packet parsed successfully, but more data is needed
+    // for the response to be completed.
     RET_EOP = 0,
+    // Response parsed fully.
     RET_DONE = 1,
+    // Error during processing response.
     RET_ERR = -1,
+    // Ran out of iterations in the packet processing loop.
     RET_LOOP_END = -2,
 };
 

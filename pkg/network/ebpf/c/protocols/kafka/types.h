@@ -53,10 +53,14 @@ typedef struct kafka_response_context_t {
     // The number of remainder bytes stored from the previous packet into
     // in remainder_buf. The maximum value is 3, even though remainder_buf
     // needs to have space for 4 bytes to make building of the value easier.
+    // Used when a fetch response is split over multiple TCP segments.
     __u8 remainder;
     char remainder_buf[4];
     __s32 record_batches_num_bytes;
     __s32 record_batch_length;
+    // The offset to start reading data from the next packet, carried
+    // over from processing of the previous packet. Used when a fetch response
+    // is split over multiple TCP segments.
     __s32 carry_over_offset;
     __u32 partitions_count;
     kafka_transaction_t transaction;
