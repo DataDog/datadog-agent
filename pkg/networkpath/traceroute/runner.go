@@ -242,7 +242,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 
 		// Remove trailing unknown nodes
 		if !lastHop.Success {
-			traceroutePath.Hops = traceroutePath.Hops[0:lastSuccessIdx]
+			traceroutePath.Hops = traceroutePath.Hops[0 : lastSuccessIdx-1]
 		}
 		// Add destination hop (if last hop is not destination hop)
 		if !lastHop.Success && lastHop.IPAddress != destinationIP.String() {
