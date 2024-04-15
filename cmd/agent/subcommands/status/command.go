@@ -73,10 +73,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			)
 		},
 	}
-	cmd.Flags().BoolVarP(&cliParams.jsonStatus, "json", "j", false, "print out raw json")
-	cmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
-	cmd.Flags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")
-	cmd.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print out verbose status")
+	cmd.PersistentFlags().BoolVarP(&cliParams.jsonStatus, "json", "j", false, "print out raw json")
+	cmd.PersistentFlags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
+	cmd.PersistentFlags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")
+	cmd.PersistentFlags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print out verbose status")
 	cmd.Flags().StringArrayVarP(&cliParams.exclude, "exclude", "x", []string{}, "sections to exclude")
 
 	componentCmd := &cobra.Command{
@@ -99,10 +99,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			)
 		},
 	}
-	componentCmd.Flags().BoolVarP(&cliParams.jsonStatus, "json", "j", false, "print out raw json")
-	componentCmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
-	componentCmd.Flags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")
-	componentCmd.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print out verbose status")
 	cmd.AddCommand(componentCmd)
 
 	return []*cobra.Command{cmd}
