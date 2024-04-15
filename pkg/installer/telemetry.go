@@ -161,7 +161,7 @@ func (l *telemetryListener) Addr() net.Addr {
 	return addr(0)
 }
 
-func (l *telemetryListener) Dial(network, addr string) (net.Conn, error) {
+func (l *telemetryListener) Dial(_, _ string) (net.Conn, error) {
 	select {
 	case <-l.close:
 		return nil, errors.New("listener closed")
@@ -170,7 +170,6 @@ func (l *telemetryListener) Dial(network, addr string) (net.Conn, error) {
 	server, client := net.Pipe()
 	l.conns <- server
 	return client, nil
-
 }
 
 type addr int
