@@ -233,6 +233,10 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 			rootPIDs = w.GetPIDs()
 		}
 	}
+	if process.ContainerID == "" {
+		// try also to open directly the file on the filesystem in case the process was a short lived one
+		rootPIDs = append(rootPIDs, 1)
+	}
 
 	// open the target file
 	var lastErr error
