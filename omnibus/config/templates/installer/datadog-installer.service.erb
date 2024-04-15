@@ -15,6 +15,5 @@ ExecStart=<%= installer_dir %>/bin/installer/installer run -p <%= installer_dir 
 StartLimitInterval=10
 StartLimitBurst=5
 
-# We don't want the unit to start on boot for now, even if it's loaded
-# [Install]
-# WantedBy=multi-user.target
+[Install]
+WantedBy=multi-user.target
