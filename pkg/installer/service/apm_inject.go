@@ -10,6 +10,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path"
@@ -35,24 +36,24 @@ dogstatsd_socket: %s
 )
 
 // SetupAPMInjector sets up the injector at bootstrap
-func SetupAPMInjector() error {
+func SetupAPMInjector(ctx context.Context) error {
 	// Enforce dd-installer is in the dd-agent group
-	if err := setInstallerAgentGroup(); err != nil {
+	if err := setInstallerAgentGroup(ctx); err != nil {
 		return err
 	}
 
 	installer := &apmInjectorInstaller{
 		installPath: "/opt/datadog-packages/datadog-apm-inject/stable",
 	}
-	return installer.Setup()
+	return installer.Setup(ctx)
 }
 
 // RemoveAPMInjector removes the APM injector
-func RemoveAPMInjector() error {
+func RemoveAPMInjector(ctx context.Context) error {
 	installer := &apmInjectorInstaller{
 		installPath: "/opt/datadog-packages/datadog-apm-inject/stable",
 	}
-	return installer.Remove()
+	return installer.Remove(ctx)
 }
 
 type apmInjectorInstaller struct {
@@ -60,7 +61,7 @@ type apmInjectorInstaller struct {
 }
 
 // Setup sets up the APM injector
-func (a *apmInjectorInstaller) Setup() error {
+func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	var err error
 	defer func() {
 		if err != nil {
@@ -70,29 +71,29 @@ func (a *apmInjectorInstaller) Setup() error {
 			}
 		}
 	}()
-	if err := a.setAgentConfig(); err != nil {
+	if err := a.setAgentConfig(ctx); err != nil {
 		return err
 	}
-	if err := a.setRunPermissions(); err != nil {
+	if err := a.setRunPermissions(ctx); err != nil {
 		return err
 	}
-	if err := a.setLDPreloadConfig(); err != nil {
+	if err := a.setLDPreloadConfig(ctx); err != nil {
 		return err
 	}
-	if err := a.setDockerConfig(); err != nil {
+	if err := a.setDockerConfig(ctx); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (a *apmInjectorInstaller) Remove() error {
-	if err := a.deleteAgentConfig(); err != nil {
+func (a *apmInjectorInstaller) Remove(ctx context.Context) error {
+	if err := a.deleteAgentConfig(ctx); err != nil {
 		return err
 	}
-	if err := a.deleteLDPreloadConfig(); err != nil {
+	if err := a.deleteLDPreloadConfig(ctx); err != nil {
 		return err
 	}
-	if err := a.deleteDockerConfig(); err != nil {
+	if err := a.deleteDockerConfig(ctx); err != nil {
 		return err
 	}
 	return nil

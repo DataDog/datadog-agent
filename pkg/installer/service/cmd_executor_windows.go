@@ -6,15 +6,18 @@
 // Package service provides a way to interact with os services
 package service
 
-import "os"
+import (
+	"context"
+	"os"
+)
 
 // ChownDDAgent changes the owner of the given path to the dd-agent user.
-func ChownDDAgent(_ string) error {
+func ChownDDAgent(_ context.Context, _ string) error {
 	return nil
 }
 
 // RemoveAll removes the versioned files at a given path.
-func RemoveAll(path string) error {
+func RemoveAll(_ context.Context, path string) error {
 	return os.RemoveAll(path)
 }
 
@@ -24,6 +27,6 @@ func BuildHelperForTests(_, _ string, _ bool) error {
 }
 
 // SetCapHelper sets cap setuid on the newly installed helper
-func SetCapHelper(_ string) error {
+func SetCapHelper(_ context.Context, _ string) error {
 	return nil
 }

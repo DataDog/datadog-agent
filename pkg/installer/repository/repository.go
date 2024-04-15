@@ -7,6 +7,7 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -109,7 +110,7 @@ func (r *Repository) GetState() (State, error) {
 // 2. Create the root directory.
 // 3. Move the stable source to the repository.
 // 4. Create the stable link.
-func (r *Repository) Create(name string, stableSourcePath string) error {
+func (r *Repository) Create(ctx context.Context, name string, stableSourcePath string) error {
 	err := os.MkdirAll(r.rootPath, 0755)
 	if err != nil {
 		return fmt.Errorf("could not create packages root directory: %w", err)
@@ -150,12 +151,12 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 		}
 	}
 
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
 
-	err = repository.setStable(name, stableSourcePath)
+	err = repository.setStable(ctx, name, stableSourcePath)
 	if err != nil {
 		return fmt.Errorf("could not set first stable: %w", err)
 	}
@@ -167,19 +168,19 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 // 1. Cleanup the repository.
 // 2. Move the experiment source to the repository.
 // 3. Set the experiment link to the experiment package.
-func (r *Repository) SetExperiment(name string, sourcePath string) error {
+func (r *Repository) SetExperiment(ctx context.Context, name string, sourcePath string) error {
 	repository, err := readRepository(r.rootPath, r.locksPath)
 	if err != nil {
 		return err
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
 	if !repository.stable.Exists() {
 		return fmt.Errorf("stable package does not exist, invalid state")
 	}
-	err = repository.setExperiment(name, sourcePath)
+	err = repository.setExperiment(ctx, name, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
@@ -192,12 +193,12 @@ func (r *Repository) SetExperiment(name string, sourcePath string) error {
 // 2. Set the stable link to the experiment package.
 // 3. Delete the experiment link.
 // 4. Cleanup the repository to remove the previous stable package.
-func (r *Repository) PromoteExperiment() error {
+func (r *Repository) PromoteExperiment(ctx context.Context) error {
 	repository, err := readRepository(r.rootPath, r.locksPath)
 	if err != nil {
 		return err
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -221,7 +222,7 @@ func (r *Repository) PromoteExperiment() error {
 	if err != nil {
 		return err
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -233,12 +234,12 @@ func (r *Repository) PromoteExperiment() error {
 // 1. Cleanup the repository.
 // 2. Delete the experiment link.
 // 3. Cleanup the repository to remove the previous experiment package.
-func (r *Repository) DeleteExperiment() error {
+func (r *Repository) DeleteExperiment(ctx context.Context) error {
 	repository, err := readRepository(r.rootPath, r.locksPath)
 	if err != nil {
 		return err
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -258,7 +259,7 @@ func (r *Repository) DeleteExperiment() error {
 	if err != nil {
 		return err
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -266,12 +267,12 @@ func (r *Repository) DeleteExperiment() error {
 }
 
 // Cleanup calls the cleanup function of the repository
-func (r *Repository) Cleanup() error {
+func (r *Repository) Cleanup(ctx context.Context) error {
 	repository, err := readRepository(r.rootPath, r.locksPath)
 	if err != nil {
 		return err
 	}
-	return repository.cleanup()
+	return repository.cleanup(ctx)
 }
 
 type repositoryFiles struct {
@@ -321,8 +322,8 @@ func readRepository(rootPath string, locksPath string) (*repositoryFiles, error)
 	}, nil
 }
 
-func (r *repositoryFiles) setExperiment(name string, sourcePath string) error {
-	path, err := movePackageFromSource(name, r.rootPath, r.lockedPackages, sourcePath)
+func (r *repositoryFiles) setExperiment(ctx context.Context, name string, sourcePath string) error {
+	path, err := movePackageFromSource(ctx, name, r.rootPath, r.lockedPackages, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move experiment source: %w", err)
 	}
@@ -330,8 +331,8 @@ func (r *repositoryFiles) setExperiment(name string, sourcePath string) error {
 	return r.experiment.Set(path)
 }
 
-func (r *repositoryFiles) setStable(name string, sourcePath string) error {
-	path, err := movePackageFromSource(name, r.rootPath, r.lockedPackages, sourcePath)
+func (r *repositoryFiles) setStable(ctx context.Context, name string, sourcePath string) error {
+	path, err := movePackageFromSource(ctx, name, r.rootPath, r.lockedPackages, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move stable source: %w", err)
 	}
@@ -339,7 +340,7 @@ func (r *repositoryFiles) setStable(name string, sourcePath string) error {
 	return r.stable.Set(path)
 }
 
-func movePackageFromSource(packageName string, rootPath string, lockedPackages map[string]bool, sourcePath string) (string, error) {
+func movePackageFromSource(ctx context.Context, packageName string, rootPath string, lockedPackages map[string]bool, sourcePath string) (string, error) {
 	if packageName == "" || packageName == stableVersionLink || packageName == experimentVersionLink {
 		return "", fmt.Errorf("invalid package name")
 	}
@@ -367,7 +368,7 @@ func movePackageFromSource(packageName string, rootPath string, lockedPackages m
 	}
 	switch filepath.Base(rootPath) {
 	case "datadog-agent":
-		if err := service.ChownDDAgent(targetPath); err != nil {
+		if err := service.ChownDDAgent(ctx, targetPath); err != nil {
 			return "", err
 		}
 	case "datadog-installer":
@@ -383,7 +384,7 @@ func movePackageFromSource(packageName string, rootPath string, lockedPackages m
 	return targetPath, nil
 }
 
-func (r *repositoryFiles) cleanup() error {
+func (r *repositoryFiles) cleanup(ctx context.Context) error {
 	files, err := os.ReadDir(r.rootPath)
 	if err != nil {
 		return fmt.Errorf("could not read root directory: %w", err)
@@ -405,7 +406,7 @@ func (r *repositoryFiles) cleanup() error {
 			pkgRepositoryPath := filepath.Join(r.rootPath, file.Name())
 			pkgLocksPath := filepath.Join(r.locksPath, file.Name())
 			log.Debugf("package %s isn't locked, removing it", pkgRepositoryPath)
-			if err := service.RemoveAll(pkgRepositoryPath); err != nil {
+			if err := service.RemoveAll(ctx, pkgRepositoryPath); err != nil {
 				log.Errorf("could not remove package %s directory, will retry: %v", pkgRepositoryPath, err)
 			}
 			if err := os.RemoveAll(pkgLocksPath); err != nil {

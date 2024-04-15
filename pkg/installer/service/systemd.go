@@ -9,6 +9,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path"
@@ -63,32 +64,32 @@ func restartUnit(unit string) error {
 	return nil
 }
 
-func stopUnit(unit string) error {
-	return executeCommand(wrapUnitCommand(stopCommand, unit))
+func stopUnit(ctx context.Context, unit string) error {
+	return executeCommand(ctx, wrapUnitCommand(stopCommand, unit))
 }
 
-func startUnit(unit string) error {
-	return executeCommand(wrapUnitCommand(startCommand, unit))
+func startUnit(ctx context.Context, unit string) error {
+	return executeCommand(ctx, wrapUnitCommand(startCommand, unit))
 }
 
-func enableUnit(unit string) error {
-	return executeCommand(wrapUnitCommand(enableCommand, unit))
+func enableUnit(ctx context.Context, unit string) error {
+	return executeCommand(ctx, wrapUnitCommand(enableCommand, unit))
 }
 
-func disableUnit(unit string) error {
-	return executeCommand(wrapUnitCommand(disableCommand, unit))
+func disableUnit(ctx context.Context, unit string) error {
+	return executeCommand(ctx, wrapUnitCommand(disableCommand, unit))
 }
 
-func loadUnit(unit string) error {
-	return executeCommand(wrapUnitCommand(loadCommand, unit))
+func loadUnit(ctx context.Context, unit string) error {
+	return executeCommand(ctx, wrapUnitCommand(loadCommand, unit))
 }
 
-func removeUnit(unit string) error {
-	return executeCommand(wrapUnitCommand(removeCommand, unit))
+func removeUnit(ctx context.Context, unit string) error {
+	return executeCommand(ctx, wrapUnitCommand(removeCommand, unit))
 }
 
-func systemdReload() error {
-	return executeCommand(systemdReloadCommand)
+func systemdReload(ctx context.Context) error {
+	return executeCommand(ctx, systemdReloadCommand)
 }
 
 func wrapUnitCommand(command unitCommand, unit string) string {
@@ -107,5 +108,5 @@ func executeCommandStruct(command privilegeCommand) error {
 		return err
 	}
 	privilegeCommandJSON := string(rawJSON)
-	return executeCommand(privilegeCommandJSON)
+	return executeCommand(ctx, privilegeCommandJSON)
 }
