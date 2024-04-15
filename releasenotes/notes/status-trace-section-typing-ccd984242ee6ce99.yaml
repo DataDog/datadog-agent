@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix typing error while generating the trace-agent status.
+    Fix type conversion error while generating the trace-agent status.
