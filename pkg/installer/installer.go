@@ -297,7 +297,17 @@ func (i *installerImpl) bootstrapPackage(ctx context.Context, url string, expect
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}
-	if downloadedPackage.Name != "datadog-installer" {
+
+	systemdRunning, err := service.IsSystemdRunning()
+	if err != nil {
+		return fmt.Errorf("error checking if systemd is running: %w", err)
+	}
+	if systemdRunning && downloadedPackage.Name != "datadog-installer" {
+		err = i.packageManager.setupUnits(downloadedPackage.Name)
+		if err != nil {
+			return fmt.Errorf("could not setup units: %w", err)
+		}
+	} else if systemdRunning && i.remoteUpdates {
 		state, err := i.packageManager.repositories.Get("datadog-installer").GetState()
 		if err != nil {
 			return fmt.Errorf("could not get stable installer: %w", err)
@@ -307,11 +317,6 @@ func (i *installerImpl) bootstrapPackage(ctx context.Context, url string, expect
 		err = cmd.Run()
 		if err != nil {
 			return fmt.Errorf("could not datadog-installer setup units with stable: %w", err)
-		}
-	} else {
-		err = i.packageManager.setupUnits(downloadedPackage.Name)
-		if err != nil {
-			return fmt.Errorf("could not setup units: %w", err)
 		}
 	}
 
@@ -395,14 +400,6 @@ func (i *installerImpl) StopExperiment(ctx context.Context, pkg string) (err err
 func (i *installerImpl) SetupUnits(ctx context.Context, pkg string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_units")
 	defer func() { span.Finish(tracer.WithError(err)) }()
-
-	// Documented way of checking if systemd is running
-	// https://www.freedesktop.org/software/systemd/man/latest/sd_booted.html#Notes
-	_, err = os.Stat("/run/systemd/system")
-	if os.IsNotExist(err) {
-		log.Infof("Installer: systemd is not running, skip unit setup")
-		return nil
-	}
 
 	i.m.Lock()
 	defer i.m.Unlock()
