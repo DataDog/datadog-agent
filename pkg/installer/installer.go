@@ -182,7 +182,7 @@ func (i *installerImpl) Start(ctx context.Context) error {
 			select {
 			case <-time.After(gcInterval):
 				i.m.Lock()
-				err := i.repositories.Cleanup(context.TODO())
+				err := i.repositories.Cleanup(context.Background())
 				i.m.Unlock()
 				if err != nil {
 					log.Errorf("installer: could not run GC: %v", err)
