@@ -318,7 +318,8 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 	default:
 		providers, ok := s.sortedProvidersBySection[strings.ToLower(section)]
 		if !ok {
-			return nil, fmt.Errorf("unknown status section '%s'", section)
+			availableSections := strings.Join(s.sortedSectionNames, "\n- ")
+			return nil, fmt.Errorf("unknown status section '%s', available sections are:\n- %s", section, availableSections)
 		}
 		switch format {
 		case "json":
