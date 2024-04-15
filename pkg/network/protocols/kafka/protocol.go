@@ -151,6 +151,7 @@ func (p *protocol) PostStart(mgr *manager.Manager) error {
 
 // Stop stops the kafka events consumer.
 func (p *protocol) Stop(*manager.Manager) {
+	// inFlightMapCleaner handles nil receiver pointers.
 	p.inFlightMapCleaner.Stop()
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
