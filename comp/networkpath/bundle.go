@@ -7,8 +7,9 @@
 package networkpath
 
 import (
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl"
 )
 
 // team: network-device-monitoring
