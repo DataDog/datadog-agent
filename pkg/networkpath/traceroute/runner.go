@@ -241,7 +241,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 		lastHop := traceroutePath.Hops[len(traceroutePath.Hops)-1]
 
 		// Remove trailing unknown nodes
-		if !lastHop.Success {
+		if !lastHop.Success && len(traceroutePath.Hops) > 1 {
 			traceroutePath.Hops = traceroutePath.Hops[0 : lastSuccessIdx-1]
 		}
 		// Add destination hop (if last hop is not destination hop)
