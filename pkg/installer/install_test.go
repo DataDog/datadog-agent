@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// for now the updater is not supported on windows
+// for now the installer is not supported on windows
 //go:build !windows
 
-package updater
+package installer
 
 import (
 	"bytes"
@@ -19,7 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/updater/repository"
+	"github.com/DataDog/datadog-agent/pkg/installer/repository"
 )
 
 func assertEqualFS(t *testing.T, expected fs.FS, actual fs.FS) {
@@ -72,28 +72,28 @@ func fsContainsAll(a fs.FS, b fs.FS) error {
 	})
 }
 
-type testInstaller struct {
-	installer
+type testPackageManager struct {
+	packageManager
 }
 
-func newTestInstaller(t *testing.T) *testInstaller {
+func newTestPackageManager(t *testing.T) *testPackageManager {
 	repositories := repository.NewRepositories(t.TempDir(), t.TempDir())
-	return &testInstaller{
-		installer{
+	return &testPackageManager{
+		packageManager{
 			repositories: repositories,
 			configsDir:   t.TempDir(),
 		},
 	}
 }
 
-func (i *testInstaller) ConfigFS(f fixture) fs.FS {
+func (i *testPackageManager) ConfigFS(f fixture) fs.FS {
 	return os.DirFS(filepath.Join(i.configsDir, f.pkg))
 }
 
 func TestInstallStable(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
-	installer := newTestInstaller(t)
+	installer := newTestPackageManager(t)
 
 	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)
@@ -109,7 +109,7 @@ func TestInstallStable(t *testing.T) {
 func TestInstallExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
-	installer := newTestInstaller(t)
+	installer := newTestPackageManager(t)
 
 	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)
@@ -128,7 +128,7 @@ func TestInstallExperiment(t *testing.T) {
 func TestInstallPromoteExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
-	installer := newTestInstaller(t)
+	installer := newTestPackageManager(t)
 
 	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)
@@ -148,7 +148,7 @@ func TestInstallPromoteExperiment(t *testing.T) {
 func TestUninstallExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
-	installer := newTestInstaller(t)
+	installer := newTestPackageManager(t)
 
 	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)

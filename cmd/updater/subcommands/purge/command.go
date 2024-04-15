@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package purge implements 'updater purge'.
+// Package purge implements 'installer purge'.
 package purge
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/pkg/updater"
+	"github.com/DataDog/datadog-agent/pkg/installer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -20,7 +20,7 @@ import (
 func Commands(_ *command.GlobalParams) []*cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "purge",
-		Short: "Purge updater packages",
+		Short: "Purge installer packages",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return purgeFxWrapper()
@@ -39,6 +39,6 @@ func purgeFxWrapper() error {
 }
 
 func purge() error {
-	updater.Purge()
+	installer.Purge()
 	return nil
 }

@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/updater/service"
+	"github.com/DataDog/datadog-agent/pkg/installer/service"
 )
 
 func newTestRepositories(t *testing.T) *Repositories {

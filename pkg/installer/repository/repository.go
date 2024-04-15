@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/gopsutil/process"
 
-	"github.com/DataDog/datadog-agent/pkg/updater/service"
+	"github.com/DataDog/datadog-agent/pkg/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

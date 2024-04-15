@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package updater implements the updater.
-package updater
+// Package installer implements the installer.
+package installer
 
 import (
 	"context"
@@ -22,10 +22,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	installerErrors "github.com/DataDog/datadog-agent/pkg/installer/errors"
+	"github.com/DataDog/datadog-agent/pkg/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/installer/service"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	updaterErrors "github.com/DataDog/datadog-agent/pkg/updater/errors"
-	"github.com/DataDog/datadog-agent/pkg/updater/repository"
-	"github.com/DataDog/datadog-agent/pkg/updater/service"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -46,8 +46,8 @@ var (
 	fsDisk            = filesystem.NewDisk()
 )
 
-// Updater is the updater used to update packages.
-type Updater interface {
+// Installer is the datadog packages installer.
+type Installer interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 
@@ -61,14 +61,14 @@ type Updater interface {
 	GetState() (map[string]repository.State, error)
 }
 
-type updaterImpl struct {
+type installerImpl struct {
 	m        sync.Mutex
 	stopChan chan struct{}
 
-	repositories *repository.Repositories
-	downloader   *downloader
-	installer    *installer
-	telemetry    *telemetry
+	repositories   *repository.Repositories
+	downloader     *downloader
+	packageManager *packageManager
+	telemetry      *telemetry
 
 	remoteUpdates     bool
 	rc                *remoteConfig
@@ -82,27 +82,27 @@ type disk interface {
 	GetUsage(path string) (*filesystem.DiskUsage, error)
 }
 
-// BootstrapURL bootstraps the updater with the given package.
+// BootstrapURL installs the given package from an URL.
 func BootstrapURL(ctx context.Context, url string, config config.Reader) error {
 	rc := newNoopRemoteConfig()
-	u, err := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config)
+	i, err := newInstaller(rc, defaultRepositoriesPath, defaultLocksPath, config)
 	if err != nil {
-		return fmt.Errorf("could not create updater: %w", err)
+		return fmt.Errorf("could not create installer: %w", err)
 	}
-	err = u.Start(ctx)
+	err = i.Start(ctx)
 	if err != nil {
-		return fmt.Errorf("could not start updater: %w", err)
+		return fmt.Errorf("could not start installer: %w", err)
 	}
 	defer func() {
-		err := u.Stop(ctx)
+		err := i.Stop(ctx)
 		if err != nil {
-			log.Errorf("could not stop updater: %v", err)
+			log.Errorf("could not stop installer: %v", err)
 		}
 	}()
-	return u.BootstrapURL(ctx, url)
+	return i.BootstrapURL(ctx, url)
 }
 
-// Purge removes files installed by the updater
+// Purge removes files installed by the installer
 func Purge() {
 	purge(defaultLocksPath, defaultRepositoriesPath)
 }
@@ -110,7 +110,7 @@ func Purge() {
 func purge(locksPath, repositoryPath string) {
 	service.RemoveAgentUnits()
 	if err := service.RemoveAPMInjector(); err != nil {
-		log.Warnf("updater: could not remove APM injector: %v", err)
+		log.Warnf("installer: could not remove APM injector: %v", err)
 	}
 	cleanDir(locksPath, os.RemoveAll)
 	cleanDir(repositoryPath, service.RemoveAll)
@@ -119,28 +119,28 @@ func purge(locksPath, repositoryPath string) {
 func cleanDir(dir string, cleanFunc func(string) error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		log.Warnf("updater: could not read directory %s: %v", dir, err)
+		log.Warnf("installer: could not read directory %s: %v", dir, err)
 	}
 
 	for _, entry := range entries {
 		path := filepath.Join(dir, entry.Name())
 		err := cleanFunc(path)
 		if err != nil {
-			log.Warnf("updater: could not remove %s: %v", path, err)
+			log.Warnf("installer: could not remove %s: %v", path, err)
 		}
 	}
 }
 
-// NewUpdater returns a new Updater.
-func NewUpdater(rcFetcher client.ConfigFetcher, config config.Reader) (Updater, error) {
+// NewInstaller returns a new Installer.
+func NewInstaller(rcFetcher client.ConfigFetcher, config config.Reader) (Installer, error) {
 	rc, err := newRemoteConfig(rcFetcher)
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config)
+	return newInstaller(rc, defaultRepositoriesPath, defaultLocksPath, config)
 }
 
-func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, config config.Reader) (*updaterImpl, error) {
+func newInstaller(rc *remoteConfig, repositoriesPath string, locksPath string, config config.Reader) (*installerImpl, error) {
 	repositories := repository.NewRepositories(repositoriesPath, locksPath)
 	remoteRegistryOverride := config.GetString("updater.registry")
 	rcClient := rc
@@ -150,120 +150,120 @@ func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, con
 		return nil, fmt.Errorf("could not create telemetry: %w", err)
 	}
 
-	u := &updaterImpl{
+	i := &installerImpl{
 		remoteUpdates:     config.GetBool("updater.remote_updates"),
 		rc:                rcClient,
 		repositories:      repositories,
 		downloader:        newDownloader(config, http.DefaultClient, remoteRegistryOverride),
-		installer:         newInstaller(repositories),
+		packageManager:    newPackageManager(repositories),
 		telemetry:         telemetry,
 		requests:          make(chan remoteAPIRequest, 32),
 		catalog:           catalog{},
 		bootstrapVersions: bootstrapVersions{},
 		stopChan:          make(chan struct{}),
 	}
-	u.refreshState(context.Background())
-	return u, nil
+	i.refreshState(context.Background())
+	return i, nil
 }
 
 // GetState returns the state.
-func (u *updaterImpl) GetState() (map[string]repository.State, error) {
-	return u.repositories.GetState()
+func (i *installerImpl) GetState() (map[string]repository.State, error) {
+	return i.repositories.GetState()
 }
 
 // Start starts remote config and the garbage collector.
-func (u *updaterImpl) Start(ctx context.Context) error {
-	u.telemetry.Start(ctx)
+func (i *installerImpl) Start(ctx context.Context) error {
+	i.telemetry.Start(ctx)
 	go func() {
 		for {
 			select {
 			case <-time.After(gcInterval):
-				u.m.Lock()
-				err := u.repositories.Cleanup()
-				u.m.Unlock()
+				i.m.Lock()
+				err := i.repositories.Cleanup()
+				i.m.Unlock()
 				if err != nil {
-					log.Errorf("updater: could not run GC: %v", err)
+					log.Errorf("installer: could not run GC: %v", err)
 				}
-			case <-u.stopChan:
+			case <-i.stopChan:
 				return
-			case request := <-u.requests:
-				err := u.handleRemoteAPIRequest(request)
+			case request := <-i.requests:
+				err := i.handleRemoteAPIRequest(request)
 				if err != nil {
-					log.Errorf("updater: could not handle remote request: %v", err)
+					log.Errorf("installer: could not handle remote request: %v", err)
 				}
 			}
 		}
 	}()
-	if !u.remoteUpdates {
-		log.Infof("updater: Remote updates are disabled")
+	if !i.remoteUpdates {
+		log.Infof("installer: Remote updates are disabled")
 		return nil
 	}
-	u.rc.Start(u.handleCatalogUpdate, u.scheduleRemoteAPIRequest)
+	i.rc.Start(i.handleCatalogUpdate, i.scheduleRemoteAPIRequest)
 	return nil
 }
 
 // Stop stops the garbage collector.
-func (u *updaterImpl) Stop(ctx context.Context) error {
-	u.rc.Close()
-	u.telemetry.Stop(ctx)
-	close(u.stopChan)
-	u.requestsWG.Wait()
-	close(u.requests)
+func (i *installerImpl) Stop(ctx context.Context) error {
+	i.rc.Close()
+	i.telemetry.Stop(ctx)
+	close(i.stopChan)
+	i.requestsWG.Wait()
+	close(i.requests)
 	return nil
 }
 
 // Bootstrap installs the stable version of the package.
-func (u *updaterImpl) BootstrapDefault(ctx context.Context, pkg string) (err error) {
+func (i *installerImpl) BootstrapDefault(ctx context.Context, pkg string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "bootrap_default")
 	defer func() { span.Finish(tracer.WithError(err)) }()
-	u.m.Lock()
-	defer u.m.Unlock()
-	u.refreshState(ctx)
-	defer u.refreshState(ctx)
+	i.m.Lock()
+	defer i.m.Unlock()
+	i.refreshState(ctx)
+	defer i.refreshState(ctx)
 
-	stablePackage, ok := u.catalog.getDefaultPackage(u.bootstrapVersions, pkg, runtime.GOARCH, runtime.GOOS)
+	stablePackage, ok := i.catalog.getDefaultPackage(i.bootstrapVersions, pkg, runtime.GOARCH, runtime.GOOS)
 	if !ok {
 		return fmt.Errorf("could not get default package '%s' for arch '%s' and platform '%s'", pkg, runtime.GOARCH, runtime.GOOS)
 	}
-	return u.bootstrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
+	return i.bootstrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
 }
 
 // BootstrapVersion installs the stable version of the package.
-func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version string) (err error) {
+func (i *installerImpl) BootstrapVersion(ctx context.Context, pkg string, version string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap_version")
 	defer func() { span.Finish(tracer.WithError(err)) }()
-	u.m.Lock()
-	defer u.m.Unlock()
-	u.refreshState(ctx)
-	defer u.refreshState(ctx)
+	i.m.Lock()
+	defer i.m.Unlock()
+	i.refreshState(ctx)
+	defer i.refreshState(ctx)
 
-	stablePackage, ok := u.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
+	stablePackage, ok := i.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
 	if !ok {
 		return fmt.Errorf("could not get package '%s' version '%s' for arch '%s' and platform '%s'", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
-	return u.bootstrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
+	return i.bootstrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
 }
 
 // BootstrapURL installs the stable version of the package.
-func (u *updaterImpl) BootstrapURL(ctx context.Context, url string) (err error) {
+func (i *installerImpl) BootstrapURL(ctx context.Context, url string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap_url")
 	defer func() { span.Finish(tracer.WithError(err)) }()
-	u.m.Lock()
-	defer u.m.Unlock()
-	u.refreshState(ctx)
-	defer u.refreshState(ctx)
+	i.m.Lock()
+	defer i.m.Unlock()
+	i.refreshState(ctx)
+	defer i.refreshState(ctx)
 
-	return u.bootstrapPackage(ctx, url, "", "")
+	return i.bootstrapPackage(ctx, url, "", "")
 }
 
-func (u *updaterImpl) bootstrapPackage(ctx context.Context, url string, expectedPackage string, expectedVersion string) error {
+func (i *installerImpl) bootstrapPackage(ctx context.Context, url string, expectedPackage string, expectedVersion string) error {
 	// both tmp and repository paths are checked for available disk space in case they are on different partitions
 	err := checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
 	if err != nil {
 		return fmt.Errorf("not enough disk space to install package: %w", err)
 	}
-	log.Infof("Updater: Bootstrapping stable package from %s", url)
-	downloadedPackage, err := u.downloader.Download(ctx, url)
+	log.Infof("Installer: Bootstrapping stable package from %s", url)
+	downloadedPackage, err := i.downloader.Download(ctx, url)
 	if err != nil {
 		return fmt.Errorf("could not download: %w", err)
 	}
@@ -271,35 +271,35 @@ func (u *updaterImpl) bootstrapPackage(ctx context.Context, url string, expected
 	if (expectedPackage != "" && downloadedPackage.Name != expectedPackage) || (expectedVersion != "" && downloadedPackage.Version != expectedVersion) {
 		return fmt.Errorf("downloaded package does not match expected package: %s, %s != %s, %s", downloadedPackage.Name, downloadedPackage.Version, expectedPackage, expectedVersion)
 	}
-	err = u.installer.installStable(downloadedPackage.Name, downloadedPackage.Version, downloadedPackage.Image)
+	err = i.packageManager.installStable(downloadedPackage.Name, downloadedPackage.Version, downloadedPackage.Image)
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}
 
-	log.Infof("Updater: Successfully installed default version %s of package %s from %s", downloadedPackage.Version, downloadedPackage.Name, url)
+	log.Infof("Installer: Successfully installed default version %s of package %s from %s", downloadedPackage.Version, downloadedPackage.Name, url)
 	return nil
 }
 
 // StartExperiment starts an experiment with the given package.
-func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version string) (err error) {
+func (i *installerImpl) StartExperiment(ctx context.Context, pkg string, version string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap_version")
 	defer func() { span.Finish(tracer.WithError(err)) }()
-	u.m.Lock()
-	defer u.m.Unlock()
-	u.refreshState(ctx)
-	defer u.refreshState(ctx)
+	i.m.Lock()
+	defer i.m.Unlock()
+	i.refreshState(ctx)
+	defer i.refreshState(ctx)
 
-	log.Infof("Updater: Starting experiment for package %s version %s", pkg, version)
+	log.Infof("Installer: Starting experiment for package %s version %s", pkg, version)
 	// both tmp and repository paths are checked for available disk space in case they are on different partitions
 	err = checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
 	if err != nil {
 		return fmt.Errorf("not enough disk space to install package: %w", err)
 	}
-	experimentPackage, ok := u.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
+	experimentPackage, ok := i.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
 	if !ok {
 		return fmt.Errorf("could not get package %s, %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
-	downloadedPackage, err := u.downloader.Download(ctx, experimentPackage.URL)
+	downloadedPackage, err := i.downloader.Download(ctx, experimentPackage.URL)
 	if err != nil {
 		return fmt.Errorf("could not download experiment: %w", err)
 	}
@@ -307,108 +307,108 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version s
 	if downloadedPackage.Name != experimentPackage.Name || downloadedPackage.Version != experimentPackage.Version {
 		return fmt.Errorf("downloaded package does not match requested package: %s, %s != %s, %s", downloadedPackage.Name, downloadedPackage.Version, experimentPackage.Name, experimentPackage.Version)
 	}
-	err = u.installer.installExperiment(pkg, version, downloadedPackage.Image)
+	err = i.packageManager.installExperiment(pkg, version, downloadedPackage.Image)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
-	log.Infof("Updater: Successfully started experiment for package %s version %s", pkg, version)
+	log.Infof("Installer: Successfully started experiment for package %s version %s", pkg, version)
 	return nil
 }
 
 // PromoteExperiment promotes the experiment to stable.
-func (u *updaterImpl) PromoteExperiment(ctx context.Context, pkg string) (err error) {
+func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "promote_experiment")
 	defer func() { span.Finish(tracer.WithError(err)) }()
-	u.m.Lock()
-	defer u.m.Unlock()
-	u.refreshState(ctx)
-	defer u.refreshState(ctx)
+	i.m.Lock()
+	defer i.m.Unlock()
+	i.refreshState(ctx)
+	defer i.refreshState(ctx)
 
-	log.Infof("Updater: Promoting experiment for package %s", pkg)
-	err = u.installer.promoteExperiment(pkg)
+	log.Infof("Installer: Promoting experiment for package %s", pkg)
+	err = i.packageManager.promoteExperiment(pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
-	log.Infof("Updater: Successfully promoted experiment for package %s", pkg)
+	log.Infof("Installer: Successfully promoted experiment for package %s", pkg)
 	return nil
 }
 
 // StopExperiment stops the experiment.
-func (u *updaterImpl) StopExperiment(ctx context.Context, pkg string) (err error) {
+func (i *installerImpl) StopExperiment(ctx context.Context, pkg string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "stop_experiment")
 	defer func() { span.Finish(tracer.WithError(err)) }()
-	u.m.Lock()
-	defer u.m.Unlock()
-	u.refreshState(ctx)
-	defer u.refreshState(ctx)
+	i.m.Lock()
+	defer i.m.Unlock()
+	i.refreshState(ctx)
+	defer i.refreshState(ctx)
 
-	defer log.Infof("Updater: Stopping experiment for package %s", pkg)
-	err = u.installer.uninstallExperiment(pkg)
+	defer log.Infof("Installer: Stopping experiment for package %s", pkg)
+	err = i.packageManager.uninstallExperiment(pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
-	log.Infof("Updater: Successfully stopped experiment for package %s", pkg)
+	log.Infof("Installer: Successfully stopped experiment for package %s", pkg)
 	return nil
 }
 
-func (u *updaterImpl) handleCatalogUpdate(c catalog) error {
-	u.m.Lock()
-	defer u.m.Unlock()
-	log.Infof("Updater: Received catalog update")
-	u.catalog = c
+func (i *installerImpl) handleCatalogUpdate(c catalog) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+	log.Infof("Installer: Received catalog update")
+	i.catalog = c
 	return nil
 }
 
-func (u *updaterImpl) scheduleRemoteAPIRequest(request remoteAPIRequest) error {
-	u.requestsWG.Add(1)
-	u.requests <- request
+func (i *installerImpl) scheduleRemoteAPIRequest(request remoteAPIRequest) error {
+	i.requestsWG.Add(1)
+	i.requests <- request
 	return nil
 }
 
-func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error) {
-	defer u.requestsWG.Done()
+func (i *installerImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error) {
+	defer i.requestsWG.Done()
 	ctx := newRequestContext(request)
-	u.refreshState(ctx)
-	defer u.refreshState(ctx)
+	i.refreshState(ctx)
+	defer i.refreshState(ctx)
 
-	s, err := u.repositories.GetPackageState(request.Package)
+	s, err := i.repositories.GetPackageState(request.Package)
 	if err != nil {
-		return fmt.Errorf("could not get updater state: %w", err)
+		return fmt.Errorf("could not get installer state: %w", err)
 	}
 	if s.Stable != request.ExpectedState.Stable || s.Experiment != request.ExpectedState.Experiment {
 		log.Infof("remote request %s not executed as state does not match: expected %v, got %v", request.ID, request.ExpectedState, s)
 		setRequestInvalid(ctx)
-		u.refreshState(ctx)
+		i.refreshState(ctx)
 		return nil
 	}
 
 	defer func() { setRequestDone(ctx, err) }()
 	switch request.Method {
 	case methodStartExperiment:
-		log.Infof("Updater: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
+		log.Infof("Installer: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
 		var params taskWithVersionParams
 		err := json.Unmarshal(request.Params, &params)
 		if err != nil {
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
-		return u.StartExperiment(context.Background(), request.Package, params.Version)
+		return i.StartExperiment(context.Background(), request.Package, params.Version)
 	case methodStopExperiment:
-		log.Infof("Updater: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
-		return u.StopExperiment(ctx, request.Package)
+		log.Infof("Installer: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
+		return i.StopExperiment(ctx, request.Package)
 	case methodPromoteExperiment:
-		log.Infof("Updater: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
-		return u.PromoteExperiment(ctx, request.Package)
+		log.Infof("Installer: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
+		return i.PromoteExperiment(ctx, request.Package)
 	case methodBootstrap:
 		var params taskWithVersionParams
 		err := json.Unmarshal(request.Params, &params)
 		if err != nil {
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
-		log.Infof("Updater: Received remote request %s to bootstrap package %s version %s", request.ID, request.Package, params.Version)
+		log.Infof("Installer: Received remote request %s to bootstrap package %s version %s", request.ID, request.Package, params.Version)
 		if params.Version == "" {
-			return u.BootstrapDefault(context.Background(), request.Package)
+			return i.BootstrapDefault(context.Background(), request.Package)
 		}
-		return u.BootstrapVersion(context.Background(), request.Package, params.Version)
+		return i.BootstrapVersion(context.Background(), request.Package, params.Version)
 	default:
 		return fmt.Errorf("unknown method: %s", request.Method)
 	}
@@ -450,7 +450,7 @@ type requestState struct {
 	Package string
 	ID      string
 	State   pbgo.TaskState
-	Err     *updaterErrors.UpdaterError
+	Err     *installerErrors.InstallerError
 }
 
 func newRequestContext(request remoteAPIRequest) context.Context {
@@ -471,15 +471,15 @@ func setRequestDone(ctx context.Context, err error) {
 	state.State = pbgo.TaskState_DONE
 	if err != nil {
 		state.State = pbgo.TaskState_ERROR
-		state.Err = updaterErrors.From(err)
+		state.Err = installerErrors.From(err)
 	}
 }
 
-func (u *updaterImpl) refreshState(ctx context.Context) {
-	state, err := u.GetState()
+func (i *installerImpl) refreshState(ctx context.Context) {
+	state, err := i.GetState()
 	if err != nil {
 		// TODO: we should report this error through RC in some way
-		log.Errorf("could not get updater state: %v", err)
+		log.Errorf("could not get installer state: %v", err)
 		return
 	}
 	requestState, ok := ctx.Value(requestStateKey).(*requestState)
@@ -506,5 +506,5 @@ func (u *updaterImpl) refreshState(ctx context.Context) {
 		}
 		packages = append(packages, p)
 	}
-	u.rc.SetState(packages)
+	i.rc.SetState(packages)
 }

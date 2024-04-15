@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// for now the updater is not supported on windows
+// for now the installer is not supported on windows
 //go:build !windows
 
-package updater
+package installer
 
 import (
 	"context"
@@ -25,14 +25,14 @@ type testLocalAPI struct {
 
 func newTestLocalAPI(t *testing.T, s *testFixturesServer) *testLocalAPI {
 	rc := newTestRemoteConfigClient()
-	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
+	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
 	rc.SubmitCatalog(s.Catalog())
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	apiServer := &localAPIImpl{
-		server:   &http.Server{},
-		listener: l,
-		updater:  updater,
+		server:    &http.Server{},
+		listener:  l,
+		installer: installer,
 	}
 	apiServer.Start(context.Background())
 	apiClient := &localAPIClientImpl{

@@ -13,12 +13,12 @@ import (
 )
 
 func TestFrom(t *testing.T) {
-	var err error = &UpdaterError{
+	var err error = &InstallerError{
 		err:  fmt.Errorf("test: test"),
 		code: ErrDownloadFailed,
 	}
 	taskErr := From(err)
-	assert.Equal(t, taskErr, &UpdaterError{
+	assert.Equal(t, taskErr, &InstallerError{
 		err:  fmt.Errorf("test: test"),
 		code: ErrDownloadFailed,
 	})
@@ -29,15 +29,15 @@ func TestFrom(t *testing.T) {
 func TestWrap(t *testing.T) {
 	err := fmt.Errorf("test: test")
 	taskErr := Wrap(ErrDownloadFailed, err)
-	assert.Equal(t, taskErr, &UpdaterError{
+	assert.Equal(t, taskErr, &InstallerError{
 		err:  err,
 		code: ErrDownloadFailed,
 	})
 
 	// Check that Wrap doesn't change anything if the error
-	// is already an UpdaterError
+	// is already an InstallerError
 	taskErr2 := Wrap(ErrInstallFailed, taskErr)
-	assert.Equal(t, taskErr2, &UpdaterError{
+	assert.Equal(t, taskErr2, &InstallerError{
 		err:  err,
 		code: ErrDownloadFailed,
 	})

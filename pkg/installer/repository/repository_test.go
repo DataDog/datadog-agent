@@ -13,7 +13,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/updater/service"
+	"github.com/DataDog/datadog-agent/pkg/installer/service"
 	"github.com/stretchr/testify/assert"
 )
 

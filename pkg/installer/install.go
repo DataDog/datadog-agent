@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package updater
+package installer
 
 import (
 	"archive/tar"
@@ -18,8 +18,8 @@ import (
 	oci "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 
-	"github.com/DataDog/datadog-agent/pkg/updater/repository"
-	"github.com/DataDog/datadog-agent/pkg/updater/service"
+	"github.com/DataDog/datadog-agent/pkg/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,37 +34,37 @@ const (
 	packageDatadogInstaller = "datadog-installer"
 )
 
-type installer struct {
+type packageManager struct {
 	repositories *repository.Repositories
 	configsDir   string
 	installLock  sync.Mutex
 }
 
-func newInstaller(repositories *repository.Repositories) *installer {
-	return &installer{
+func newPackageManager(repositories *repository.Repositories) *packageManager {
+	return &packageManager{
 		repositories: repositories,
 		configsDir:   defaultConfigsDir,
 	}
 }
 
-func (i *installer) installStable(pkg string, version string, image oci.Image) error {
+func (m *packageManager) installStable(pkg string, version string, image oci.Image) error {
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	configDir := filepath.Join(i.configsDir, pkg)
+	configDir := filepath.Join(m.configsDir, pkg)
 	err = extractPackageLayers(image, configDir, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
 	}
-	err = i.repositories.Create(pkg, version, tmpDir)
+	err = m.repositories.Create(pkg, version, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
 
-	i.installLock.Lock()
-	defer i.installLock.Unlock()
+	m.installLock.Lock()
+	defer m.installLock.Unlock()
 	switch pkg {
 	case packageDatadogAgent:
 		return service.SetupAgentUnits()
@@ -77,46 +77,46 @@ func (i *installer) installStable(pkg string, version string, image oci.Image) e
 	}
 }
 
-func (i *installer) installExperiment(pkg string, version string, image oci.Image) error {
+func (m *packageManager) installExperiment(pkg string, version string, image oci.Image) error {
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	configDir := filepath.Join(i.configsDir, pkg)
+	configDir := filepath.Join(m.configsDir, pkg)
 	err = extractPackageLayers(image, configDir, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
 	}
-	repository := i.repositories.Get(pkg)
+	repository := m.repositories.Get(pkg)
 	err = repository.SetExperiment(version, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
-	return i.startExperiment(pkg)
+	return m.startExperiment(pkg)
 }
 
-func (i *installer) promoteExperiment(pkg string) error {
-	repository := i.repositories.Get(pkg)
+func (m *packageManager) promoteExperiment(pkg string) error {
+	repository := m.repositories.Get(pkg)
 	err := repository.PromoteExperiment()
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
-	return i.stopExperiment(pkg)
+	return m.stopExperiment(pkg)
 }
 
-func (i *installer) uninstallExperiment(pkg string) error {
-	repository := i.repositories.Get(pkg)
+func (m *packageManager) uninstallExperiment(pkg string) error {
+	repository := m.repositories.Get(pkg)
 	err := repository.DeleteExperiment()
 	if err != nil {
 		return fmt.Errorf("could not delete experiment: %w", err)
 	}
-	return i.stopExperiment(pkg)
+	return m.stopExperiment(pkg)
 }
 
-func (i *installer) startExperiment(pkg string) error {
-	i.installLock.Lock()
-	defer i.installLock.Unlock()
+func (m *packageManager) startExperiment(pkg string) error {
+	m.installLock.Lock()
+	defer m.installLock.Unlock()
 	switch pkg {
 	case packageDatadogAgent:
 		return service.StartAgentExperiment()
@@ -127,9 +127,9 @@ func (i *installer) startExperiment(pkg string) error {
 	}
 }
 
-func (i *installer) stopExperiment(pkg string) error {
-	i.installLock.Lock()
-	defer i.installLock.Unlock()
+func (m *packageManager) stopExperiment(pkg string) error {
+	m.installLock.Lock()
+	defer m.installLock.Unlock()
 	switch pkg {
 	case packageDatadogAgent:
 		return service.StopAgentExperiment()
@@ -222,7 +222,7 @@ func extractTarArchive(reader io.Reader, destinationPath string, maxSize int64) 
 				return fmt.Errorf("could not create symlink: %w", err)
 			}
 		case tar.TypeLink:
-			// we currently don't support hard links in the updater
+			// we currently don't support hard links in the installer
 		default:
 			log.Warnf("Unsupported tar entry type %d for %s", header.Typeflag, header.Name)
 		}

@@ -37,7 +37,6 @@ const (
 	createDockerDirCommand               = `{"command":"create-docker-dir"}`
 	replaceLDPreloadCommand              = `{"command":"replace-ld-preload"}`
 	systemdReloadCommand                 = `{"command":"systemd-reload"}`
-	adminExecutor                        = "datadog-updater-admin.service"
 )
 
 type privilegeCommand struct {

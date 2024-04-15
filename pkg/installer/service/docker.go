@@ -176,7 +176,7 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte)
 // restartDocker reloads the docker daemon if it exists
 func restartDocker() error {
 	if !isDockerInstalled() {
-		log.Info("updater: docker is not installed, skipping reload")
+		log.Info("installer: docker is not installed, skipping reload")
 		return nil
 	}
 	return executeCommand(restartDockerCommand)
@@ -189,7 +189,7 @@ func isDockerInstalled() bool {
 	cmd.Stdout = &outb
 	err := cmd.Run()
 	if err != nil {
-		log.Warn("updater: failed to check if docker is installed, assuming it isn't: ", err)
+		log.Warn("installer: failed to check if docker is installed, assuming it isn't: ", err)
 		return false
 	}
 	return len(outb.String()) != 0
