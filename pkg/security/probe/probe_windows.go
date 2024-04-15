@@ -65,8 +65,10 @@ type WindowsProbe struct {
 	onETWNotification chan etwNotification
 
 	// ETW component for FIM
-	fileguid windows.GUID
-	regguid  windows.GUID
+	fileguid  windows.GUID
+	regguid   windows.GUID
+	auditguid windows.GUID
+
 	//etwcomp    etw.Component
 	fimSession etw.Session
 	fimwg      sync.WaitGroup
@@ -171,6 +173,13 @@ func (p *WindowsProbe) initEtwFIM() error {
 		return err
 	}
 
+	//  <provider name="Microsoft-Windows-Security-Auditing" guid="{54849625-5478-4994-a5ba-3e3b0328c30d}"
+	p.auditguid, err = windows.GUIDFromString("{54849625-5478-4994-a5ba-3e3b0328c30d}")
+	if err != nil {
+		log.Errorf("Error converting guid %v", err)
+		return err
+	}
+
 	pidsList := make([]uint32, 0)
 
 	p.fimSession.ConfigureProvider(p.fileguid, func(cfg *etw.ProviderConfiguration) {
@@ -224,12 +233,25 @@ func (p *WindowsProbe) initEtwFIM() error {
 		cfg.MatchAnyKeyword = 0xF7E3
 	})
 
+	p.fimSession.ConfigureProvider(p.auditguid, func(cfg *etw.ProviderConfiguration) {
+		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
+		cfg.PIDs = pidsList
+
+		cfg.MatchAnyKeyword = 0xFFFFFFFFFFFFFFFF
+	})
+
 	err = p.fimSession.EnableProvider(p.fileguid)
 	if err != nil {
 		log.Warnf("Error enabling provider %v", err)
 		return err
 	}
 	err = p.fimSession.EnableProvider(p.regguid)
+	if err != nil {
+		log.Warnf("Error enabling provider %v", err)
+		return err
+	}
+
+	err = p.fimSession.EnableProvider(p.auditguid)
 	if err != nil {
 		log.Warnf("Error enabling provider %v", err)
 		return err
@@ -259,32 +281,54 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 	pid := os.Getpid()
 	err := p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
 		if pid != int(e.EventHeader.ProcessID) {
-			return
+			//return
 		}
 		switch e.EventHeader.ProviderID {
+		case etw.DDGUID(p.auditguid):
+			switch e.EventHeader.EventDescriptor.ID {
+			case idObjectPermsChange:
+				log.Infof("Received objectPermsChange event %d \n", e.EventHeader.EventDescriptor.ID)
+				if pc, err := p.parseObjectPermsChange(e); err == nil {
+					log.Infof("Received objectPermsChange event %d %s\n", e.EventHeader.EventDescriptor.ID, pc)
+					ecb(pc, e.EventHeader.ProcessID)
+				}
+			}
+
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
+			case idNameCreate:
+				if ca, err := p.parseNameCreateArgs(e); err == nil {
+					log.Tracef("Received nameCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					ecb(ca, e.EventHeader.ProcessID)
+				}
+
+			case idNameDelete:
+				if ca, err := p.parseNameDeleteArgs(e); err == nil {
+					log.Tracef("Received nameDelete event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					ecb(ca, e.EventHeader.ProcessID)
+				}
+
 			case idCreate:
 				if ca, err := p.parseCreateHandleArgs(e); err == nil {
-					log.Infof("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 				p.stats.fileCreate++
 			case idCreateNewFile:
 				if ca, err := p.parseCreateNewFileArgs(e); err == nil {
-					log.Infof("Received idCreateNewFile event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					log.Tracef("Received idCreateNewFile event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 				p.stats.fileCreateNew++
 			case idCleanup:
 				if ca, err := p.parseCleanupArgs(e); err == nil {
-					log.Infof("Received cleanup event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					log.Tracef("Received cleanup event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 				p.stats.fileCleanup++
 			case idClose:
 				if ca, err := p.parseCloseArgs(e); err == nil {
-					log.Infof("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					log.Tracef("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 					if e.EventHeader.EventDescriptor.ID == idClose {
 						p.filePathResolverLock.Lock()
@@ -302,26 +346,52 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			case idWrite:
 				if wa, err := p.parseWriteArgs(e); err == nil {
 					//fmt.Printf("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
-					log.Infof("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
+					log.Tracef("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
 					ecb(wa, e.EventHeader.ProcessID)
 				}
 
 			// cases below here are file id events we're not currently processing.
 			// for now, just count them so that we can get an idea of frequency/voluem
 			case idSetInformation:
+				if si, err := p.parseInformationArgs(e); err == nil {
+					log.Tracef("Received SetInformation event %d %s\n", e.EventHeader.EventDescriptor.ID, si)
+					ecb(si, e.EventHeader.ProcessID)
+				}
 				p.stats.fileSetInformation++
 
 			case idSetDelete:
+				if sd, err := p.parseSetDeleteArgs(e); err == nil {
+					log.Tracef("Received SetDelete event %d %s\n", e.EventHeader.EventDescriptor.ID, sd)
+					ecb(sd, e.EventHeader.ProcessID)
+				}
 				p.stats.fileSetDelete++
 
+			case idDeletePath:
+				if dp, err := p.parseDeletePathArgs(e); err == nil {
+					log.Tracef("Received DeletePath event %d %s\n", e.EventHeader.EventDescriptor.ID, dp)
+					ecb(dp, e.EventHeader.ProcessID)
+				}
+
 			case idRename:
+				if rn, err := p.parseRenameArgs(e); err == nil {
+					log.Tracef("Received Rename event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
+					ecb(rn, e.EventHeader.ProcessID)
+				}
 				p.stats.fileidRename++
 			case idQueryInformation:
 				p.stats.fileidQueryInformation++
 			case idFSCTL:
+				if fs, err := p.parseFsctlArgs(e); err == nil {
+					log.Tracef("Received FSCTL event %d %s\n", e.EventHeader.EventDescriptor.ID, fs)
+					ecb(fs, e.EventHeader.ProcessID)
+				}
 				p.stats.fileidFSCTL++
 
 			case idRename29:
+				if rn, err := p.parseRename29Args(e); err == nil {
+					log.Tracef("Received Rename29 event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
+					ecb(rn, e.EventHeader.ProcessID)
+				}
 				p.stats.fileidRename29++
 			}
 
