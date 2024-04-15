@@ -9,9 +9,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -19,6 +17,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -125,7 +124,7 @@ func TestConnectionsCheck(t *testing.T) {
 type ProcessCheckDeps struct {
 	fx.In
 	WMeta       workloadmeta.Component
-	EpForwarder eventplatform.Component
+	NpScheduler npscheduler.Component
 }
 
 func createProcessCheckDeps(t *testing.T) ProcessCheckDeps {
@@ -133,7 +132,6 @@ func createProcessCheckDeps(t *testing.T) ProcessCheckDeps {
 		workloadmeta.MockModule(),
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		eventplatformimpl.MockModule(),
-		fx.Supply(eventplatformimpl.NewDefaultParams()),
+		npschedulerimpl.MockModule(),
 	)
 }
