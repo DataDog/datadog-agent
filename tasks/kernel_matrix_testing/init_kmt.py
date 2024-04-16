@@ -64,5 +64,8 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool):
     kmt_os.assert_user_in_docker_group(ctx)
     info(f"[+] User '{os.getlogin()}' in group 'docker'")
 
-    for cc in all_compilers(ctx):
-        cc.build()
+    if kmt_os.name == "macos"
+        for cc in all_compilers(ctx):
+            cc.build()
+    else:
+        get_compiler(ctx, "local").build()
