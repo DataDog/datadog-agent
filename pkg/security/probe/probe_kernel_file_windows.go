@@ -455,3 +455,79 @@ func (ca *closeArgs) String() string {
 func (fa *flushArgs) String() string {
 	return (*cleanupArgs)(fa).string("FLUSH")
 }
+
+
+type readArgs struct {
+	etw.DDEventHeader
+	ByteOffset uint64
+	irp        uint64
+	threadID   uint64
+	fileObject fileObjectPointer
+	fileKey    fileObjectPointer
+	IOSize     uint32
+	IOFlags    uint32
+	extraFlags uint32 // zero if version 0, as they're not supplied
+	fileName   string
+}
+type writeArgs readArgs
+
+func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
+	ra := &readArgs{
+		DDEventHeader: e.EventHeader,
+	}
+	data := etwimpl.GetUserData(e)
+	if e.EventHeader.EventDescriptor.Version == 0 {
+		ra.ByteOffset = data.GetUint64(0)
+		ra.irp = data.GetUint64(8)
+		ra.threadID = data.GetUint64(16)
+		ra.fileObject = fileObjectPointer(data.GetUint64(24))
+		ra.fileKey = fileObjectPointer(data.GetUint64(32))
+		ra.IOSize = data.GetUint32(40)
+		ra.IOFlags = data.GetUint32(44)
+	} else if e.EventHeader.EventDescriptor.Version == 1 {
+		ra.ByteOffset = data.GetUint64(0)
+		ra.irp = data.GetUint64(8)
+		ra.fileObject = fileObjectPointer(data.GetUint64(16))
+		ra.fileKey = fileObjectPointer(data.GetUint64(24))
+		ra.threadID = uint64(data.GetUint32(32))
+		ra.IOSize = data.GetUint32(36)
+		ra.IOFlags = data.GetUint32(40)
+		ra.extraFlags = data.GetUint32(44)
+	} else {
+		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
+	}
+	if s, ok := wp.filePathResolver[fileObjectPointer(ra.fileObject)]; ok {
+		ra.fileName = s
+	}
+	return ra, nil
+}
+
+// nolint: unused
+func (ra *readArgs) string(t string) string {
+	var output strings.Builder
+
+	output.WriteString(t + ": PID: " + strconv.Itoa(int(ra.DDEventHeader.ProcessID)) + "\n")
+	output.WriteString("        fo: " + strconv.FormatUint(uint64(ra.fileObject), 16) + "\n")
+	output.WriteString("        fk: " + strconv.FormatUint(uint64(ra.fileKey), 16) + "\n")
+	output.WriteString("        Name: " + ra.fileName + "\n")
+	output.WriteString("        Size: " + strconv.FormatUint(uint64(ra.IOSize), 16) + "\n")
+	return output.String()
+
+}
+
+// nolint: unused
+func (ra *readArgs) String() string {
+	return ra.string("READ")
+}
+
+func (wp *WindowsProbe) parseWriteArgs(e *etw.DDEventRecord) (*writeArgs, error) {
+	wa, err := wp.parseReadArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*writeArgs)(wa), nil
+}
+
+func (wa *writeArgs) String() string {
+	return (*readArgs)(wa).string("WRITE")
+}
