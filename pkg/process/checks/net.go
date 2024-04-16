@@ -79,7 +79,8 @@ type ConnectionsCheck struct {
 	localresolver *resolver.LocalResolver
 	wmeta         workloadmeta.Component
 
-	npScheduler npscheduler.Component
+	npScheduler            npscheduler.Component
+	enableConnectionRollup bool
 }
 
 // ProcessConnRates describes connection rates for processes
@@ -121,6 +122,8 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.serviceExtractor = parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
+
+	c.enableConnectionRollup = c.sysprobeYamlConfig.GetBool("network_config.enable_network_path")
 
 	// LocalResolver is a singleton LocalResolver
 	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(c.wmeta), clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
@@ -190,7 +193,9 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
-	c.schedulePathForConns(conns.Conns)
+	if c.enableConnectionRollup {
+		c.scheduleNetworkPath(conns.Conns)
+	}
 
 	groupID := nextGroupID()
 	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
@@ -513,7 +518,7 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 	return tagsStr
 }
 
-func (c *ConnectionsCheck) schedulePathForConns(conns []*model.Connection) {
+func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
 	for _, conn := range conns {
 		remoteAddr := conn.Raddr
 		if stdnet.ParseIP(remoteAddr.Ip).IsLoopback() {

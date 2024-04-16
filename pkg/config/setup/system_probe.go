@@ -282,6 +282,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// connection aggregation with port rollups
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_connection_rollup"), false)
 
+	// network_config network path config
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_network_path"), false)
+
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
 
