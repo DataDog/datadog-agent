@@ -94,16 +94,16 @@ func newProcessAgent(p processAgentParams) provides {
 		Log:     p.Log,
 	}
 
-	if flavor.GetFlavor() == flavor.ProcessAgent {
+	if flavor.GetFlavor() != flavor.ProcessAgent {
+		// We return a status provider when the component is used outside of the process agent
+		// as the component status is unique from the typical agent status in this case.
 		return provides{
-			Comp: processAgentComponent,
+			Comp:           processAgentComponent,
+			StatusProvider: statusComponent.NewInformationProvider(agent.NewStatusProvider(p.Config)),
 		}
 	}
 
-	return provides{
-		Comp:           processAgentComponent,
-		StatusProvider: statusComponent.NewInformationProvider(agent.NewStatusProvider(p.Config)),
-	}
+	return provides{Comp: processAgentComponent}
 }
 
 // Enabled determines whether the process agent is enabled based on the configuration.

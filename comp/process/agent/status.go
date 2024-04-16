@@ -69,6 +69,7 @@ func (s StatusProvider) populateStatus() map[string]interface{} {
 			return status
 		}
 
+		// Using the core agent's expvar server
 		port := s.config.GetInt("expvar_port")
 		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
 	}
