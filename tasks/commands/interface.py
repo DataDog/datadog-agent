@@ -15,6 +15,7 @@ class CLI:
     """
     CLI interface to run command lines.
     """
+
     def _format_command(self, command: Iterable[str]) -> str:
         return " ".join(c if ' ' not in c else f"'{c}'" for c in command)
 

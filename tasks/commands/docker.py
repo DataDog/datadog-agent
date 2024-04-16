@@ -14,6 +14,7 @@ class DockerCLI(CLI):
     """
     CLI interface to run command lines directly in a docker container.
     """
+
     def __init__(self, container_name: str):
         self._container_name = container_name
 
