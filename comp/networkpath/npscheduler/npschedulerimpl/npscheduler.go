@@ -7,6 +7,7 @@
 package npschedulerimpl
 
 import (
+	"context"
 	"encoding/json"
 	"net"
 
@@ -75,8 +76,12 @@ func (s npSchedulerImpl) pathForConn(hostname string, port uint16) {
 		TimeoutMs:    1000,
 	}
 
-	tr := traceroute.New(cfg)
-	path, err := tr.Run()
+	tr, err := traceroute.New(cfg)
+	if err != nil {
+		log.Warnf("traceroute new error: %+v", err)
+		return
+	}
+	path, err := tr.Run(context.TODO())
 	if err != nil {
 		log.Warnf("traceroute error: %+v", err)
 		return
