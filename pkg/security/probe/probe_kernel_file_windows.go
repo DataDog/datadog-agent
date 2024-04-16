@@ -456,7 +456,6 @@ func (fa *flushArgs) String() string {
 	return (*cleanupArgs)(fa).string("FLUSH")
 }
 
-
 type readArgs struct {
 	etw.DDEventHeader
 	ByteOffset uint64
@@ -530,4 +529,104 @@ func (wp *WindowsProbe) parseWriteArgs(e *etw.DDEventRecord) (*writeArgs, error)
 
 func (wa *writeArgs) String() string {
 	return (*readArgs)(wa).string("WRITE")
+}
+
+/*
+	     <template tid="DeletePathArgs">
+	      <data name="Irp" inType="win:Pointer"/>
+	      <data name="ThreadId" inType="win:Pointer"/>
+	      <data name="FileObject" inType="win:Pointer"/>
+	      <data name="FileKey" inType="win:Pointer"/>
+	      <data name="ExtraInformation" inType="win:Pointer"/>
+	      <data name="InfoClass" inType="win:UInt32"/>
+	      <data name="FilePath" inType="win:UnicodeString"/>
+	     </template>
+		      <template tid="DeletePathArgs_V1">
+	      <data name="Irp" inType="win:Pointer"/>
+	      <data name="FileObject" inType="win:Pointer"/>
+	      <data name="FileKey" inType="win:Pointer"/>
+	      <data name="ExtraInformation" inType="win:Pointer"/>
+	      <data name="IssuingThreadId" inType="win:UInt32"/>
+	      <data name="InfoClass" inType="win:UInt32"/>
+	      <data name="FilePath" inType="win:UnicodeString"/>
+	     </template>
+*/
+type deletePathArgs struct {
+	etw.DDEventHeader
+	irp              uint64
+	threadID         uint64
+	fileObject       fileObjectPointer
+	fileKey          fileObjectPointer
+	extraInformation uint64
+	infoClass        uint32
+	filePath         string
+}
+type renamePath deletePathArgs
+type setLinkPath deletePathArgs
+
+func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (*deletePathArgs, error) {
+	dpa := &deletePathArgs{
+		DDEventHeader: e.EventHeader,
+	}
+	data := etwimpl.GetUserData(e)
+	if e.EventHeader.EventDescriptor.Version == 0 {
+		dpa.irp = data.GetUint64(0)
+		dpa.threadID = data.GetUint64(8)
+		dpa.fileObject = fileObjectPointer(data.GetUint64(16))
+		dpa.fileKey = fileObjectPointer(data.GetUint64(24))
+		dpa.extraInformation = data.GetUint64(32)
+		dpa.infoClass = data.GetUint32(40)
+		dpa.filePath, _, _, _ = data.ParseUnicodeString(44)
+	} else if e.EventHeader.EventDescriptor.Version == 1 {
+		dpa.irp = data.GetUint64(0)
+		dpa.fileObject = fileObjectPointer(data.GetUint64(8))
+		dpa.fileKey = fileObjectPointer(data.GetUint64(16))
+		dpa.extraInformation = data.GetUint64(24)
+		dpa.threadID = uint64(data.GetUint32(32))
+		dpa.infoClass = data.GetUint32(36)
+		dpa.filePath, _, _, _ = data.ParseUnicodeString(40)
+	}
+
+	return dpa, nil
+}
+
+// nolint: unused
+func (dpa *deletePathArgs) string(t string) string {
+	var output strings.Builder
+
+	output.WriteString(t + ": PID: " + strconv.Itoa(int(dpa.ProcessID)) + "\n")
+	output.WriteString("        Name: " + dpa.filePath + "\n")
+	return output.String()
+
+}
+
+// nolint: unused
+func (dpa *deletePathArgs) String() string {
+	return dpa.string("DELETE_PATH")
+}
+
+func (wp *WindowsProbe) parseRenamePathArgs(e *etw.DDEventRecord) (*renamePath, error) {
+	rpa, err := wp.parseDeletePathArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*renamePath)(rpa), nil
+}
+
+// nolint: unused
+func (rpa *renamePath) String() string {
+	return (*deletePathArgs)(rpa).string("RENAME_PATH")
+}
+
+func (wp *WindowsProbe) parseSetLinkPathArgs(e *etw.DDEventRecord) (*setLinkPath, error) {
+	sla, err := wp.parseDeletePathArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*setLinkPath)(sla), nil
+}
+
+// nolint: unused
+func (sla *setLinkPath) String() string {
+	return (*deletePathArgs)(sla).string("SET_LINK_PATH")
 }
