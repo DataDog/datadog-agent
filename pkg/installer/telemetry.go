@@ -30,8 +30,9 @@ const (
 	telemetryEndpoint = "/v0.4/traces"
 )
 
-type telemetryImpl struct {
-	t internaltelemetry.Client
+// Telemetry handles the installer telemetry
+type Telemetry struct {
+	telemetryClient internaltelemetry.Client
 
 	site string
 
@@ -41,18 +42,18 @@ type telemetryImpl struct {
 }
 
 // NewTelemetry creates a new telemetry instance
-func NewTelemetry(config config.Reader) (*telemetryImpl, error) {
+func NewTelemetry(config config.Reader) (*Telemetry, error) {
 	endpoint := &traceconfig.Endpoint{
 		Host:   utils.GetMainEndpoint(config, traceconfig.TelemetryEndpointPrefix, "updater.telemetry.dd_url"),
 		APIKey: utils.SanitizeAPIKey(config.GetString("api_key")),
 	}
 	site := config.GetString("site")
 	listener := newTelemetryListener()
-	t := &telemetryImpl{
-		t:        internaltelemetry.NewClient(http.DefaultClient, []*traceconfig.Endpoint{endpoint}, "datadog-installer", site == "datad0g.com"),
-		site:     site,
-		listener: listener,
-		server:   &http.Server{},
+	t := &Telemetry{
+		telemetryClient: internaltelemetry.NewClient(http.DefaultClient, []*traceconfig.Endpoint{endpoint}, "datadog-installer", site == "datad0g.com"),
+		site:            site,
+		listener:        listener,
+		server:          &http.Server{},
 		client: &http.Client{
 			Transport: &http.Transport{
 				Dial: listener.Dial,
@@ -64,7 +65,7 @@ func NewTelemetry(config config.Reader) (*telemetryImpl, error) {
 }
 
 // Start starts the telemetry
-func (t *telemetryImpl) Start(_ context.Context) error {
+func (t *Telemetry) Start(_ context.Context) error {
 	go func() {
 		err := t.server.Serve(t.listener)
 		if err != nil {
@@ -87,7 +88,7 @@ func (t *telemetryImpl) Start(_ context.Context) error {
 }
 
 // Stop stops the telemetry
-func (t *telemetryImpl) Stop(ctx context.Context) error {
+func (t *Telemetry) Stop(ctx context.Context) error {
 	tracer.Flush()
 	tracer.Stop()
 	t.listener.Close()
@@ -98,7 +99,7 @@ func (t *telemetryImpl) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (t *telemetryImpl) handler() http.Handler {
+func (t *Telemetry) handler() http.Handler {
 	r := mux.NewRouter().Headers("Content-Type", "application/msgpack").Subrouter()
 	r.HandleFunc(telemetryEndpoint, func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
@@ -115,7 +116,7 @@ func (t *telemetryImpl) handler() http.Handler {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		t.t.SendTraces(traces)
+		t.telemetryClient.SendTraces(traces)
 		w.WriteHeader(http.StatusOK)
 	})
 	return r
