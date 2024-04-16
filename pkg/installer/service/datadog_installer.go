@@ -20,8 +20,8 @@ const (
 
 var installerUnits = []string{installerUnit, installerUnitExp}
 
-// SetupInstallerUnit installs and starts the installer systemd units
-func SetupInstallerUnit(ctx context.Context) (err error) {
+// SetupInstallerUnits installs and starts the installer systemd units
+func SetupInstallerUnits(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup installer units: %s, reverting", err)
@@ -41,15 +41,16 @@ func SetupInstallerUnit(ctx context.Context) (err error) {
 	if err = enableUnit(ctx, installerUnit); err != nil {
 		return err
 	}
-
-	if err = startUnit(ctx, installerUnit); err != nil {
-		return err
-	}
 	return nil
 }
 
-// RemoveInstallerUnit removes the installer systemd units
-func RemoveInstallerUnit(ctx context.Context) {
+// StartInstallerStable starts the stable systemd units for the installer
+func StartInstallerStable(ctx context.Context) (err error) {
+	return startUnit(ctx, installerUnit)
+}
+
+// RemoveInstallerUnits removes the installer systemd units
+func RemoveInstallerUnits(ctx context.Context) {
 	var err error
 	for _, unit := range installerUnits {
 		if err = disableUnit(ctx, unit); err != nil {
@@ -66,7 +67,7 @@ func StartInstallerExperiment(ctx context.Context) error {
 	return startUnit(ctx, installerUnitExp)
 }
 
-// StopInstallerExperiment installs the stable systemd units for the installer
+// StopInstallerExperiment starts the stable systemd units for the installer
 func StopInstallerExperiment(ctx context.Context) error {
 	return startUnit(ctx, installerUnit)
 }

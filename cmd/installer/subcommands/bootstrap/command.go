@@ -112,30 +112,39 @@ func bootstrapFxWrapper(ctx context.Context, params *cliParams, installScriptPar
 	)
 }
 
-func bootstrap(ctx context.Context, params *cliParams, installScriptParams *installScriptParams, config config.Component, log log.Component, _ telemetry.Component) error {
-	url := packageURL(config.GetString("site"), params.pkg, params.version)
-	if params.url != "" {
-		url = params.url
+func bootstrap(ctx context.Context, params *cliParams, installScriptParams *installScriptParams, config config.Component, log log.Component, _ telemetry.Component) (err error) {
+	var spanOptions []tracer.StartSpanOption
+	if installScriptParams.Telemetry.TraceID != 0 && installScriptParams.Telemetry.ParentID != 0 {
+		ctxCarrier := tracer.TextMapCarrier{
+			tracer.DefaultTraceIDHeader:  fmt.Sprint(installScriptParams.Telemetry.TraceID),
+			tracer.DefaultParentIDHeader: fmt.Sprint(installScriptParams.Telemetry.ParentID),
+			tracer.DefaultPriorityHeader: fmt.Sprint(installScriptParams.Telemetry.Priority),
+		}
+		spanCtx, err := tracer.Extract(ctxCarrier)
+		if err != nil {
+			log.Errorf("failed to extract span context from install script params: %v", err)
+		}
+		spanOptions = append(spanOptions, tracer.ChildOf(spanCtx))
 	}
-	ctxCarrier := tracer.TextMapCarrier{
-		tracer.DefaultTraceIDHeader:  fmt.Sprint(installScriptParams.Telemetry.TraceID),
-		tracer.DefaultParentIDHeader: fmt.Sprint(installScriptParams.Telemetry.ParentID),
-		tracer.DefaultPriorityHeader: fmt.Sprint(installScriptParams.Telemetry.Priority),
-	}
-	spanCtx, err := tracer.Extract(ctxCarrier)
-	if err != nil {
-		log.Errorf("failed to extract span context from install script params: %v", err)
-	}
-	span, ctx := tracer.StartSpanFromContext(ctx, "cmd/bootstrap", tracer.ChildOf(spanCtx))
-	defer span.Finish()
+
+	span, ctx := tracer.StartSpanFromContext(ctx, "cmd/bootstrap", spanOptions...)
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag(ext.ManualKeep, true)
-	span.SetTag("params.url", params.url)
 	span.SetTag("params.pkg", params.pkg)
 	span.SetTag("params.version", params.version)
 	span.SetTag("script_params.telemetry.trace_id", installScriptParams.Telemetry.TraceID)
 	span.SetTag("script_params.telemetry.span_id", installScriptParams.Telemetry.ParentID)
 	span.SetTag("script_params.features.apm_instrumentation", installScriptParams.Features.APMInstrumentation)
 
+	if params.pkg == "" && params.url == "" {
+		return installer.Bootstrap(ctx, config)
+	}
+
+	url := packageURL(config.GetString("site"), params.pkg, params.version)
+	if params.url != "" {
+		url = params.url
+	}
+	span.SetTag("params.url", params.url)
 	return installer.BootstrapURL(ctx, url, config)
 }
 

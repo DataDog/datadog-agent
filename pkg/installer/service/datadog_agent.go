@@ -156,5 +156,5 @@ func setInstallerAgentGroup(ctx context.Context) error {
 	if strings.Contains(string(out), "dd-agent") {
 		return nil
 	}
-	return executeCommand(ctx, string(addInstallerToAgentGroup))
+	return executeHelperCommand(ctx, string(addInstallerToAgentGroup))
 }

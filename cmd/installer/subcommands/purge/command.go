@@ -13,8 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
-	"github.com/DataDog/datadog-agent/comp/updater/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/installer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -38,11 +36,10 @@ func purgeFxWrapper() error {
 			LogParams: logimpl.ForOneShot("INSTALLER", "info", true),
 		}),
 		core.Bundle(),
-		telemetryimpl.Module(),
 	)
 }
 
-func purge(_ telemetry.Component) error {
+func purge() error {
 	installer.Purge()
 	return nil
 }

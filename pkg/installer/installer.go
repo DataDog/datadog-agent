@@ -101,6 +101,26 @@ func BootstrapURL(ctx context.Context, url string, config config.Reader) error {
 	return i.BootstrapURL(ctx, url)
 }
 
+// Bootstrap is the generic installer bootstrap.
+func Bootstrap(ctx context.Context, config config.Reader) error {
+	rc := newNoopRemoteConfig()
+	i, err := newInstaller(rc, defaultRepositoriesPath, defaultLocksPath, config)
+	if err != nil {
+		return fmt.Errorf("could not create installer: %w", err)
+	}
+	err = i.Start(ctx)
+	if err != nil {
+		return fmt.Errorf("could not start installer: %w", err)
+	}
+	defer func() {
+		err := i.Stop(ctx)
+		if err != nil {
+			log.Errorf("could not stop installer: %v", err)
+		}
+	}()
+	return i.Bootstrap(ctx)
+}
+
 // Purge removes files installed by the installer
 func Purge() {
 	purge(defaultLocksPath, defaultRepositoriesPath)
@@ -111,6 +131,7 @@ func purge(locksPath, repositoryPath string) {
 	span, ctx := tracer.StartSpanFromContext(context.Background(), "purge")
 	defer span.Finish(tracer.WithError(err))
 	service.RemoveAgentUnits(ctx)
+	service.RemoveInstallerUnits(ctx)
 	if err = service.RemoveAPMInjector(ctx); err != nil {
 		log.Warnf("installer: could not remove APM injector: %v", err)
 	}
@@ -237,6 +258,22 @@ func (i *installerImpl) BootstrapVersion(ctx context.Context, pkg string, versio
 	return i.bootstrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
 }
 
+// Bootstrap is the generic bootstrap of the installer
+func (i *installerImpl) Bootstrap(ctx context.Context) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	i.m.Lock()
+	defer i.m.Unlock()
+	i.refreshState(ctx)
+	defer i.refreshState(ctx)
+
+	if err = i.setupInstallerUnits(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // BootstrapURL installs the stable version of the package.
 func (i *installerImpl) BootstrapURL(ctx context.Context, url string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap_url")
@@ -342,6 +379,26 @@ func (i *installerImpl) StopExperiment(ctx context.Context, pkg string) (err err
 	}
 	log.Infof("Installer: Successfully stopped experiment for package %s", pkg)
 	return nil
+}
+
+func (i *installerImpl) setupInstallerUnits(ctx context.Context) (err error) {
+	systemdRunning, err := service.IsSystemdRunning()
+	if err != nil {
+		return fmt.Errorf("error checking if systemd is running: %w", err)
+	}
+	if !systemdRunning {
+		log.Infof("Installer: Systemd is not running, skipping unit setup")
+		return nil
+	}
+	err = service.SetupInstallerUnits(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to setup datadog-installer systemd units: %w", err)
+	}
+	if !i.remoteUpdates {
+		service.RemoveInstallerUnits(ctx)
+		return
+	}
+	return service.StartInstallerStable(ctx)
 }
 
 func (i *installerImpl) handleCatalogUpdate(c catalog) error {

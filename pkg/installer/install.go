@@ -63,7 +63,10 @@ func (m *packageManager) installStable(ctx context.Context, pkg string, version 
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
+	return m.setupUnits(ctx, pkg)
+}
 
+func (m *packageManager) setupUnits(ctx context.Context, pkg string) error {
 	m.installLock.Lock()
 	defer m.installLock.Unlock()
 	switch pkg {
@@ -71,8 +74,6 @@ func (m *packageManager) installStable(ctx context.Context, pkg string, version 
 		return service.SetupAgentUnits(ctx)
 	case packageAPMInjector:
 		return service.SetupAPMInjector(ctx)
-	case packageDatadogInstaller:
-		return service.SetupInstallerUnit(ctx)
 	default:
 		return nil
 	}
