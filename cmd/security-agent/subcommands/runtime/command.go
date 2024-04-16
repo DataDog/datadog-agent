@@ -76,10 +76,11 @@ func commonPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
 type evalCliParams struct {
 	*command.GlobalParams
 
-	dir       string
-	ruleID    string
-	eventFile string
-	debug     bool
+	dir          string
+	ruleID       string
+	eventFile    string
+	debug        bool
+	windowsModel bool
 }
 
 func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -108,6 +109,9 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	evalCmd.Flags().StringVar(&evalArgs.eventFile, "event-file", "", "File of the event data")
 	_ = evalCmd.MarkFlagRequired("event-file")
 	evalCmd.Flags().BoolVar(&evalArgs.debug, "debug", false, "Display an event dump if the evaluation fail")
+	if runtime.GOOS == "linux" {
+		evalCmd.Flags().BoolVar(&evalArgs.windowsModel, "windows-model", false, "Use the Windows model")
+	}
 
 	return []*cobra.Command{evalCmd}
 }
@@ -570,7 +574,12 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 
 	loader := rules.NewPolicyLoader(provider)
 
-	ruleSet := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	var ruleSet *rules.RuleSet
+	if evalArgs.windowsModel {
+		ruleSet = rules.NewRuleSet(&winmodel.Model{}, newFakeWindowsEvent, ruleOpts, evalOpts)
+	} else {
+		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	}
 	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
 	if err != nil {
 		return err
@@ -589,11 +598,13 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 		Event: event,
 	}
 
-	approvers, err := ruleSet.GetApprovers(kfilters.GetCapababilities())
-	if err != nil {
-		report.Error = err
-	} else {
-		report.Approvers = approvers
+	if !evalArgs.windowsModel {
+		approvers, err := ruleSet.GetApprovers(kfilters.GetCapababilities())
+		if err != nil {
+			report.Error = err
+		} else {
+			report.Approvers = approvers
+		}
 	}
 
 	report.Succeeded = ruleSet.Evaluate(event)
