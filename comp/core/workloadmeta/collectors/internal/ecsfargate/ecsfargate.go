@@ -10,14 +10,14 @@ package ecsfargate
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
@@ -29,6 +29,12 @@ const (
 	componentName = "workloadmeta-ecs_fargate"
 )
 
+type dependencies struct {
+	fx.In
+
+	Config config.Component
+}
+
 type collector struct {
 	id                    string
 	store                 workloadmeta.Component
@@ -36,18 +42,20 @@ type collector struct {
 	metaV2                v2.Client
 	metaV4                v3or4.Client
 	seen                  map[workloadmeta.EntityID]struct{}
+	config                config.Component
 	taskCollectionEnabled bool
 	taskCollectionParser  util.TaskParser
 }
 
 // NewCollector returns a new ecsfargate collector provider and an error
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:                    collectorID,
 			catalog:               workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 			seen:                  make(map[workloadmeta.EntityID]struct{}),
-			taskCollectionEnabled: util.IsTaskCollectionEnabled(),
+			config:                deps.Config,
+			taskCollectionEnabled: util.IsTaskCollectionEnabled(deps.Config),
 		},
 	}, nil
 }
@@ -58,41 +66,24 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.ECSFargate) {
+	if !pkgConfig.IsFeaturePresent(pkgConfig.ECSFargate) {
 		return errors.NewDisabled(componentName, "Agent is not running on ECS Fargate")
 	}
 
 	c.store = store
 
-	apiVersion, err := c.detectEndpoint()
-	if err != nil {
-		return err
-	}
-	switch apiVersion {
-	case "v4":
-		c.taskCollectionParser = c.parseTaskFromV4Endpoint
-	case "v2":
-		c.taskCollectionParser = c.parseTaskFromV2Endpoint
-	default:
-		return fmt.Errorf("failed to detect ECS fargate metadata endpoint")
-	}
+	c.setTaskCollectionParser()
 
 	return nil
 }
 
-func (c *collector) detectEndpoint() (string, error) {
-	var err error
-	c.metaV4, err = ecsmeta.V4FromCurrentTask()
+func (c *collector) setTaskCollectionParser() {
+	_, err := ecsmeta.V4FromCurrentTask()
 	if c.taskCollectionEnabled && err == nil {
-		return "v4", nil
+		c.taskCollectionParser = c.parseTaskFromV4Endpoint
+		return
 	}
-
-	c.metaV2, err = ecsmeta.V2()
-	if err != nil {
-		return "", err
-	}
-
-	return "v2", nil
+	c.taskCollectionParser = c.parseTaskFromV2Endpoint
 }
 
 func (c *collector) Pull(ctx context.Context) error {
