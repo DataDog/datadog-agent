@@ -47,7 +47,7 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/stop", a.stopAgent).Methods("POST")
 	r.HandleFunc("/status", a.getStatus).Methods("GET")
 	r.HandleFunc("/status/health", a.getHealth).Methods("GET")
-	r.HandleFunc("/config", a.settings.GetFullConfig(config.Datadog, "")).Methods("GET")
+	r.HandleFunc("/config", a.settings.GetFullConfig("")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", a.settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)

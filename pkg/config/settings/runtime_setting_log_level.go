@@ -6,7 +6,7 @@
 package settings
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -14,7 +14,6 @@ import (
 
 // LogLevelRuntimeSetting wraps operations to change log level at runtime.
 type LogLevelRuntimeSetting struct {
-	Config    config.ReaderWriter
 	ConfigKey string
 }
 
@@ -41,7 +40,7 @@ func (l *LogLevelRuntimeSetting) Name() string {
 }
 
 // Get returns the current value of the runtime setting
-func (l *LogLevelRuntimeSetting) Get() (interface{}, error) {
+func (l *LogLevelRuntimeSetting) Get(_ config.Component) (interface{}, error) {
 	level, err := log.GetLogLevel()
 	if err != nil {
 		return "", err
@@ -50,7 +49,7 @@ func (l *LogLevelRuntimeSetting) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (l *LogLevelRuntimeSetting) Set(v interface{}, source model.Source) error {
+func (l *LogLevelRuntimeSetting) Set(config config.Component, v interface{}, source model.Source) error {
 	level := v.(string)
 
 	err := pkgconfiglogs.ChangeLogLevel(level)
@@ -62,10 +61,7 @@ func (l *LogLevelRuntimeSetting) Set(v interface{}, source model.Source) error {
 	if l.ConfigKey != "" {
 		key = l.ConfigKey
 	}
-	var cfg config.ReaderWriter = config.Datadog
-	if l.Config != nil {
-		cfg = l.Config
-	}
-	cfg.Set(key, level, source)
+
+	config.Set(key, level, source)
 	return nil
 }
