@@ -393,6 +393,9 @@ func (dp *DirectoryProvider) watch(ctx context.Context) {
 
 							// delete profile
 							dp.deleteProfile(selector)
+							dp.newFilesLock.Lock()
+							delete(dp.newFiles, profile.path)
+							dp.newFilesLock.Unlock()
 
 							seclog.Debugf("security profile %s removed from profile mapping", selector)
 						}
