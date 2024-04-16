@@ -30,12 +30,6 @@ const (
 	telemetryEndpoint = "/v0.4/traces"
 )
 
-// Telemetry defines the telemetry interface
-type Telemetry interface {
-	Start(context.Context) error
-	Stop(context.Context) error
-}
-
 type telemetryImpl struct {
 	t internaltelemetry.Client
 
@@ -47,7 +41,7 @@ type telemetryImpl struct {
 }
 
 // NewTelemetry creates a new telemetry instance
-func NewTelemetry(config config.Reader) (Telemetry, error) {
+func NewTelemetry(config config.Reader) (*telemetryImpl, error) {
 	endpoint := &traceconfig.Endpoint{
 		Host:   utils.GetMainEndpoint(config, traceconfig.TelemetryEndpointPrefix, "updater.telemetry.dd_url"),
 		APIKey: utils.SanitizeAPIKey(config.GetString("api_key")),

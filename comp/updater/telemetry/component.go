@@ -6,11 +6,8 @@
 // Package telemetry provides the installer telemetry component.
 package telemetry
 
-import "github.com/DataDog/datadog-agent/pkg/installer"
-
 // team: fleet
 
 // Component is the component type.
 type Component interface {
-	installer.Telemetry
 }
