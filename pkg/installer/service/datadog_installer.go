@@ -7,7 +7,11 @@
 
 package service
 
-import "github.com/DataDog/datadog-agent/pkg/util/log"
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
 const (
 	installerUnit    = "datadog-installer.service"
@@ -17,7 +21,7 @@ const (
 var installerUnits = []string{installerUnit, installerUnitExp}
 
 // SetupInstallerUnits installs and starts the installer systemd units
-func SetupInstallerUnits() (err error) {
+func SetupInstallerUnits(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup installer units: %s, reverting", err)
@@ -25,45 +29,45 @@ func SetupInstallerUnits() (err error) {
 	}()
 
 	for _, unit := range installerUnits {
-		if err = loadUnit(unit); err != nil {
+		if err = loadUnit(ctx, unit); err != nil {
 			return err
 		}
 	}
 
-	if err = systemdReload(); err != nil {
+	if err = systemdReload(ctx); err != nil {
 		return err
 	}
 
-	if err = enableUnit(installerUnit); err != nil {
+	if err = enableUnit(ctx, installerUnit); err != nil {
 		return err
 	}
 	return nil
 }
 
 // StartInstallerStable starts the stable systemd units for the installer
-func StartInstallerStable() (err error) {
-	return startUnit(installerUnit)
+func StartInstallerStable(ctx context.Context) (err error) {
+	return startUnit(ctx, installerUnit)
 }
 
 // RemoveInstallerUnits removes the installer systemd units
-func RemoveInstallerUnits() {
+func RemoveInstallerUnits(ctx context.Context) {
 	var err error
 	for _, unit := range installerUnits {
-		if err = disableUnit(unit); err != nil {
+		if err = disableUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to disable %s: %s", unit, err)
 		}
-		if err = removeUnit(unit); err != nil {
+		if err = removeUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
 	}
 }
 
 // StartInstallerExperiment installs the experimental systemd units for the installer
-func StartInstallerExperiment() error {
-	return startUnit(installerUnitExp)
+func StartInstallerExperiment(ctx context.Context) error {
+	return startUnit(ctx, installerUnitExp)
 }
 
 // StopInstallerExperiment starts the stable systemd units for the installer
-func StopInstallerExperiment() error {
-	return startUnit(installerUnit)
+func StopInstallerExperiment(ctx context.Context) error {
+	return startUnit(ctx, installerUnit)
 }

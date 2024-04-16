@@ -109,6 +109,7 @@ type ExecSyscallMsg struct {
 	TTY           string
 	Credentials   *Credentials
 	PPID          uint32
+	FromProcFS    bool
 }
 
 // ForkSyscallMsg defines a fork message

@@ -7,6 +7,7 @@ package installer
 
 import (
 	"archive/tar"
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -47,7 +48,7 @@ func newPackageManager(repositories *repository.Repositories) *packageManager {
 	}
 }
 
-func (m *packageManager) installStable(pkg string, version string, image oci.Image) error {
+func (m *packageManager) installStable(ctx context.Context, pkg string, version string, image oci.Image) error {
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
@@ -58,27 +59,27 @@ func (m *packageManager) installStable(pkg string, version string, image oci.Ima
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
 	}
-	err = m.repositories.Create(pkg, version, tmpDir)
+	err = m.repositories.Create(ctx, pkg, version, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	return m.setupUnits(pkg)
+	return m.setupUnits(ctx, pkg)
 }
 
-func (m *packageManager) setupUnits(pkg string) error {
+func (m *packageManager) setupUnits(ctx context.Context, pkg string) error {
 	m.installLock.Lock()
 	defer m.installLock.Unlock()
 	switch pkg {
 	case packageDatadogAgent:
-		return service.SetupAgentUnits()
+		return service.SetupAgentUnits(ctx)
 	case packageAPMInjector:
-		return service.SetupAPMInjector()
+		return service.SetupAPMInjector(ctx)
 	default:
 		return nil
 	}
 }
 
-func (m *packageManager) installExperiment(pkg string, version string, image oci.Image) error {
+func (m *packageManager) installExperiment(ctx context.Context, pkg string, version string, image oci.Image) error {
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
@@ -90,52 +91,52 @@ func (m *packageManager) installExperiment(pkg string, version string, image oci
 		return fmt.Errorf("could not extract package layers: %w", err)
 	}
 	repository := m.repositories.Get(pkg)
-	err = repository.SetExperiment(version, tmpDir)
+	err = repository.SetExperiment(ctx, version, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
-	return m.startExperiment(pkg)
+	return m.startExperiment(ctx, pkg)
 }
 
-func (m *packageManager) promoteExperiment(pkg string) error {
+func (m *packageManager) promoteExperiment(ctx context.Context, pkg string) error {
 	repository := m.repositories.Get(pkg)
-	err := repository.PromoteExperiment()
+	err := repository.PromoteExperiment(ctx)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
-	return m.stopExperiment(pkg)
+	return m.stopExperiment(ctx, pkg)
 }
 
-func (m *packageManager) uninstallExperiment(pkg string) error {
+func (m *packageManager) uninstallExperiment(ctx context.Context, pkg string) error {
 	repository := m.repositories.Get(pkg)
-	err := repository.DeleteExperiment()
+	err := repository.DeleteExperiment(ctx)
 	if err != nil {
 		return fmt.Errorf("could not delete experiment: %w", err)
 	}
-	return m.stopExperiment(pkg)
+	return m.stopExperiment(ctx, pkg)
 }
 
-func (m *packageManager) startExperiment(pkg string) error {
+func (m *packageManager) startExperiment(ctx context.Context, pkg string) error {
 	m.installLock.Lock()
 	defer m.installLock.Unlock()
 	switch pkg {
 	case packageDatadogAgent:
-		return service.StartAgentExperiment()
+		return service.StartAgentExperiment(ctx)
 	case packageDatadogInstaller:
-		return service.StartInstallerExperiment()
+		return service.StartInstallerExperiment(ctx)
 	default:
 		return nil
 	}
 }
 
-func (m *packageManager) stopExperiment(pkg string) error {
+func (m *packageManager) stopExperiment(ctx context.Context, pkg string) error {
 	m.installLock.Lock()
 	defer m.installLock.Unlock()
 	switch pkg {
 	case packageDatadogAgent:
-		return service.StopAgentExperiment()
+		return service.StopAgentExperiment(ctx)
 	case packageAPMInjector:
-		return service.StopInstallerExperiment()
+		return service.StopInstallerExperiment(ctx)
 	default:
 		return nil
 	}

@@ -67,7 +67,7 @@ fi
 chmod 750 ${HELPER}
 setcap cap_setuid+ep ${HELPER}
 
-$BOOTSTRAP_INSTALLER bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/agent-package-dev:7.54.0-devel.git.366.99b427c.pipeline.32143438-1"
+$BOOTSTRAP_INSTALLER bootstrap --url "oci://public.ecr.aws/datadog/installer-package:latest"
 $STABLE_INSTALLER bootstrap
 
 exit 0

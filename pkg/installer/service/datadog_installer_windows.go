@@ -7,26 +7,28 @@
 
 package service
 
+import "context"
+
 // SetupInstallerUnits noop
-func SetupInstallerUnits() (err error) {
+func SetupInstallerUnits(_ context.Context) (err error) {
 	return nil
 }
 
 // RemoveInstallerUnits noop
-func RemoveInstallerUnits() {
+func RemoveInstallerUnits(_ context.Context) {
 }
 
 // StartInstallerExperiment noop
-func StartInstallerExperiment() error {
+func StartInstallerExperiment(_ context.Context) error {
 	return nil
 }
 
 // StopInstallerExperiment noop
-func StopInstallerExperiment() error {
+func StopInstallerExperiment(_ context.Context) error {
 	return nil
 }
 
 // StartInstallerStable noop
-func StartInstallerStable() error {
+func StartInstallerStable(_ context.Context) error {
 	return nil
 }

@@ -10,12 +10,14 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 var (
@@ -35,24 +37,31 @@ dogstatsd_socket: %s
 )
 
 // SetupAPMInjector sets up the injector at bootstrap
-func SetupAPMInjector() error {
+func SetupAPMInjector(ctx context.Context) error {
+	var err error
+	span, ctx := tracer.StartSpanFromContext(ctx, "setup_injector")
+	defer span.Finish(tracer.WithError(err))
 	// Enforce dd-installer is in the dd-agent group
-	if err := setInstallerAgentGroup(); err != nil {
+	if err = setInstallerAgentGroup(ctx); err != nil {
 		return err
 	}
 
 	installer := &apmInjectorInstaller{
 		installPath: "/opt/datadog-packages/datadog-apm-inject/stable",
 	}
-	return installer.Setup()
+	return installer.Setup(ctx)
 }
 
 // RemoveAPMInjector removes the APM injector
-func RemoveAPMInjector() error {
+func RemoveAPMInjector(ctx context.Context) error {
+	span, ctx := tracer.StartSpanFromContext(ctx, "remove_injector")
+	var err error
+	defer span.Finish(tracer.WithError(err))
 	installer := &apmInjectorInstaller{
 		installPath: "/opt/datadog-packages/datadog-apm-inject/stable",
 	}
-	return installer.Remove()
+	err = installer.Remove(ctx)
+	return err
 }
 
 type apmInjectorInstaller struct {
@@ -60,39 +69,39 @@ type apmInjectorInstaller struct {
 }
 
 // Setup sets up the APM injector
-func (a *apmInjectorInstaller) Setup() error {
+func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	var err error
 	defer func() {
 		if err != nil {
-			removeErr := a.Remove()
+			removeErr := a.Remove(ctx)
 			if removeErr != nil {
 				log.Warnf("Failed to remove APM injector: %v", removeErr)
 			}
 		}
 	}()
-	if err := a.setAgentConfig(); err != nil {
+	if err := a.setAgentConfig(ctx); err != nil {
 		return err
 	}
 	if err := a.setRunPermissions(); err != nil {
 		return err
 	}
-	if err := a.setLDPreloadConfig(); err != nil {
+	if err := a.setLDPreloadConfig(ctx); err != nil {
 		return err
 	}
-	if err := a.setDockerConfig(); err != nil {
+	if err := a.setDockerConfig(ctx); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (a *apmInjectorInstaller) Remove() error {
-	if err := a.deleteAgentConfig(); err != nil {
+func (a *apmInjectorInstaller) Remove(ctx context.Context) error {
+	if err := a.deleteAgentConfig(ctx); err != nil {
 		return err
 	}
-	if err := a.deleteLDPreloadConfig(); err != nil {
+	if err := a.deleteLDPreloadConfig(ctx); err != nil {
 		return err
 	}
-	if err := a.deleteDockerConfig(); err != nil {
+	if err := a.deleteDockerConfig(ctx); err != nil {
 		return err
 	}
 	return nil
@@ -103,7 +112,7 @@ func (a *apmInjectorInstaller) setRunPermissions() error {
 }
 
 // setLDPreloadConfig adds preload options on /etc/ld.so.preload, overriding existing ones
-func (a *apmInjectorInstaller) setLDPreloadConfig() error {
+func (a *apmInjectorInstaller) setLDPreloadConfig(ctx context.Context) error {
 	var ldSoPreload []byte
 	stat, err := os.Stat(ldSoPreloadPath)
 	if err == nil {
@@ -133,7 +142,7 @@ func (a *apmInjectorInstaller) setLDPreloadConfig() error {
 		return err
 	}
 
-	return executeHelperCommand(string(replaceLDPreloadCommand))
+	return executeHelperCommand(ctx, string(replaceLDPreloadCommand))
 }
 
 // setLDPreloadConfigContent sets the content of the LD preload configuration
@@ -154,7 +163,7 @@ func (a *apmInjectorInstaller) setLDPreloadConfigContent(ldSoPreload []byte) ([]
 }
 
 // deleteLDPreloadConfig removes the preload options from /etc/ld.so.preload
-func (a *apmInjectorInstaller) deleteLDPreloadConfig() error {
+func (a *apmInjectorInstaller) deleteLDPreloadConfig(ctx context.Context) error {
 	var ldSoPreload []byte
 	stat, err := os.Stat(ldSoPreloadPath)
 	if err == nil {
@@ -186,7 +195,7 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfig() error {
 		return err
 	}
 
-	return executeHelperCommand(string(replaceLDPreloadCommand))
+	return executeHelperCommand(ctx, string(replaceLDPreloadCommand))
 }
 
 // deleteLDPreloadConfigContent deletes the content of the LD preload configuration
@@ -227,14 +236,14 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(ldSoPreload []byte) 
 // installer system and this will be replaced by a proper experiment when available. This is a temporary
 // solution to allow the APM injector to be installed, and if the agent crashes, we try to detect it and
 // restore the previous configuration
-func (a *apmInjectorInstaller) setAgentConfig() (err error) {
-	err = backupAgentConfig()
+func (a *apmInjectorInstaller) setAgentConfig(ctx context.Context) (err error) {
+	err = backupAgentConfig(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		if err != nil {
-			restoreErr := restoreAgentConfig()
+			restoreErr := restoreAgentConfig(ctx)
 			if restoreErr != nil {
 				log.Warnf("Failed to restore agent config: %v", restoreErr)
 			}
@@ -257,7 +266,7 @@ func (a *apmInjectorInstaller) setAgentConfig() (err error) {
 		return err
 	}
 
-	err = restartTraceAgent()
+	err = restartTraceAgent(ctx)
 	return
 }
 
@@ -279,14 +288,14 @@ func (a *apmInjectorInstaller) setAgentConfigContent(content []byte) []byte {
 }
 
 // deleteAgentConfig removes the agent configuration for the APM injector
-func (a *apmInjectorInstaller) deleteAgentConfig() (err error) {
-	err = backupAgentConfig()
+func (a *apmInjectorInstaller) deleteAgentConfig(ctx context.Context) (err error) {
+	err = backupAgentConfig(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		if err != nil {
-			restoreErr := restoreAgentConfig()
+			restoreErr := restoreAgentConfig(ctx)
 			if restoreErr != nil {
 				log.Warnf("Failed to restore agent config: %v", restoreErr)
 			}
@@ -304,12 +313,12 @@ func (a *apmInjectorInstaller) deleteAgentConfig() (err error) {
 		return nil
 	}
 
-	err = os.WriteFile(datadogConfigPath, content, 0644)
+	err = os.WriteFile(datadogConfigPath, newContent, 0644)
 	if err != nil {
 		return err
 	}
 
-	return restartTraceAgent()
+	return restartTraceAgent(ctx)
 }
 
 // deleteAgentConfigContent deletes the agent configuration for the APM injector
@@ -325,31 +334,28 @@ func (a *apmInjectorInstaller) deleteAgentConfigContent(content []byte) []byte {
 }
 
 // backupAgentConfig backs up the agent configuration
-func backupAgentConfig() error {
-	return executeCommandStruct(privilegeCommand{
+func backupAgentConfig(ctx context.Context) error {
+	return executeCommandStruct(ctx, privilegeCommand{
 		Command: string(backupCommand),
 		Path:    datadogConfigPath,
 	})
 }
 
 // restoreAgentConfig restores the agent configuration & restarts the agent
-func restoreAgentConfig() error {
-	err := executeCommandStruct(privilegeCommand{
+func restoreAgentConfig(ctx context.Context) error {
+	err := executeCommandStruct(ctx, privilegeCommand{
 		Command: string(restoreCommand),
 		Path:    datadogConfigPath,
 	})
 	if err != nil {
 		return err
 	}
-	return restartTraceAgent()
+	return restartTraceAgent(ctx)
 }
 
-// restartTraceAgent restarts the trace agent, both stable and experimental
-func restartTraceAgent() error {
-	if err := restartUnit("datadog-agent-trace.service"); err != nil {
-		return err
-	}
-	if err := restartUnit("datadog-agent-trace-exp.service"); err != nil {
+// restartTraceAgent restarts the stable trace agent
+func restartTraceAgent(ctx context.Context) error {
+	if err := restartUnit(ctx, "datadog-agent-trace.service"); err != nil {
 		return err
 	}
 	return nil

@@ -34,7 +34,6 @@ import (
 
 	// core components
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
-
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
@@ -60,6 +59,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/comp/agent"
+	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
@@ -112,7 +112,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
-	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
@@ -227,6 +226,7 @@ func run(log log.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	cloudfoundrycontainer cloudfoundrycontainer.Component,
 	_ expvarserver.Component,
 	_ pid.Component,
 	metadatascheduler metadatascheduler.Component,
@@ -296,6 +296,7 @@ func run(log log.Component,
 		invChecks,
 		statusComponent,
 		collector,
+		cloudfoundrycontainer,
 		metadatascheduler,
 		jmxlogger,
 		settings,
@@ -468,6 +469,7 @@ func startAgent(
 	invChecks inventorychecks.Component,
 	_ status.Component,
 	collector collector.Component,
+	_ cloudfoundrycontainer.Component,
 	_ metadatascheduler.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
@@ -520,16 +522,6 @@ func startAgent(
 			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
 			// LoadAndRun is called later on
 			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
-		}
-	}
-
-	// start the cloudfoundry container tagger
-	if pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) && !pkgconfig.Datadog.GetBool("cloud_foundry_buildpack") {
-		containerTagger, err := containertagger.NewContainerTagger(wmeta)
-		if err != nil {
-			log.Errorf("Failed to create Cloud Foundry container tagger: %v", err)
-		} else {
-			containerTagger.Start(ctx)
 		}
 	}
 

@@ -128,13 +128,16 @@ func Purge() {
 }
 
 func purge(locksPath, repositoryPath string) {
-	service.RemoveAgentUnits()
-	service.RemoveInstallerUnits()
-	if err := service.RemoveAPMInjector(); err != nil {
+	var err error
+	span, ctx := tracer.StartSpanFromContext(context.Background(), "purge")
+	defer span.Finish(tracer.WithError(err))
+	service.RemoveAgentUnits(ctx)
+	service.RemoveInstallerUnits(ctx)
+	if err = service.RemoveAPMInjector(ctx); err != nil {
 		log.Warnf("installer: could not remove APM injector: %v", err)
 	}
 	cleanDir(locksPath, os.RemoveAll)
-	cleanDir(repositoryPath, service.RemoveAll)
+	cleanDir(repositoryPath, func(path string) error { return service.RemoveAll(ctx, path) })
 }
 
 func cleanDir(dir string, cleanFunc func(string) error) {
@@ -200,7 +203,7 @@ func (i *installerImpl) Start(ctx context.Context) error {
 			select {
 			case <-time.After(gcInterval):
 				i.m.Lock()
-				err := i.repositories.Cleanup()
+				err := i.repositories.Cleanup(context.Background())
 				i.m.Unlock()
 				if err != nil {
 					log.Errorf("installer: could not run GC: %v", err)
@@ -274,7 +277,7 @@ func (i *installerImpl) Bootstrap(ctx context.Context) (err error) {
 	i.refreshState(ctx)
 	defer i.refreshState(ctx)
 
-	if err = i.setupInstallerUnits(); err != nil {
+	if err = i.setupInstallerUnits(ctx); err != nil {
 		return err
 	}
 
@@ -308,7 +311,7 @@ func (i *installerImpl) bootstrapPackage(ctx context.Context, url string, expect
 	if (expectedPackage != "" && downloadedPackage.Name != expectedPackage) || (expectedVersion != "" && downloadedPackage.Version != expectedVersion) {
 		return fmt.Errorf("downloaded package does not match expected package: %s, %s != %s, %s", downloadedPackage.Name, downloadedPackage.Version, expectedPackage, expectedVersion)
 	}
-	err = i.packageManager.installStable(downloadedPackage.Name, downloadedPackage.Version, downloadedPackage.Image)
+	err = i.packageManager.installStable(ctx, downloadedPackage.Name, downloadedPackage.Version, downloadedPackage.Image)
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}
@@ -344,7 +347,7 @@ func (i *installerImpl) StartExperiment(ctx context.Context, pkg string, version
 	if downloadedPackage.Name != experimentPackage.Name || downloadedPackage.Version != experimentPackage.Version {
 		return fmt.Errorf("downloaded package does not match requested package: %s, %s != %s, %s", downloadedPackage.Name, downloadedPackage.Version, experimentPackage.Name, experimentPackage.Version)
 	}
-	err = i.packageManager.installExperiment(pkg, version, downloadedPackage.Image)
+	err = i.packageManager.installExperiment(ctx, pkg, version, downloadedPackage.Image)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
@@ -362,7 +365,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) (err 
 	defer i.refreshState(ctx)
 
 	log.Infof("Installer: Promoting experiment for package %s", pkg)
-	err = i.packageManager.promoteExperiment(pkg)
+	err = i.packageManager.promoteExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -380,7 +383,7 @@ func (i *installerImpl) StopExperiment(ctx context.Context, pkg string) (err err
 	defer i.refreshState(ctx)
 
 	defer log.Infof("Installer: Stopping experiment for package %s", pkg)
-	err = i.packageManager.uninstallExperiment(pkg)
+	err = i.packageManager.uninstallExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
@@ -388,7 +391,7 @@ func (i *installerImpl) StopExperiment(ctx context.Context, pkg string) (err err
 	return nil
 }
 
-func (i *installerImpl) setupInstallerUnits() (err error) {
+func (i *installerImpl) setupInstallerUnits(ctx context.Context) (err error) {
 	systemdRunning, err := service.IsSystemdRunning()
 	if err != nil {
 		return fmt.Errorf("error checking if systemd is running: %w", err)
@@ -397,15 +400,15 @@ func (i *installerImpl) setupInstallerUnits() (err error) {
 		log.Infof("Installer: Systemd is not running, skipping unit setup")
 		return nil
 	}
-	err = service.SetupInstallerUnits()
+	err = service.SetupInstallerUnits(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to setup datadog-installer systemd units: %w", err)
 	}
 	if !i.remoteUpdates {
-		service.RemoveInstallerUnits()
+		service.RemoveInstallerUnits(ctx)
 		return
 	}
-	return service.StartInstallerStable()
+	return service.StartInstallerStable(ctx)
 }
 
 func (i *installerImpl) handleCatalogUpdate(c catalog) error {
