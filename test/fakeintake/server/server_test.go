@@ -213,6 +213,9 @@ func testServer(t *testing.T, opts ...Option) {
 				},
 			},
 		}
+		for i := range actualGETResponse.Payloads {
+			actualGETResponse.Payloads[i].Timestamp = actualGETResponse.Payloads[i].Timestamp.UTC()
+		}
 		assert.Equal(t, expectedResponse, actualGETResponse)
 	})
 
@@ -248,6 +251,9 @@ func testServer(t *testing.T, opts ...Option) {
 		body, err := io.ReadAll(response.Body)
 		assert.NoError(t, err, "Error reading GET response")
 		json.Unmarshal(body, &actualGETResponse)
+		for i := range actualGETResponse.Payloads {
+			actualGETResponse.Payloads[i].Timestamp = actualGETResponse.Payloads[i].Timestamp.UTC()
+		}
 		assert.Equal(t, expectedGETResponse, actualGETResponse, "unexpected GET response")
 	})
 
