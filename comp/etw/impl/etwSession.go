@@ -44,9 +44,9 @@ func (e *etwSession) ConfigureProvider(providerGUID windows.GUID, configurations
 }
 
 func (e *etwSession) EnableProvider(providerGUID windows.GUID) error {
-	// could also thrown an error here for improper api usage.
+	
 	if e.wellKnown {
-		return nil
+		return fmt.Errorf("cannot enable provider on well-known session")
 	}
 	if _, ok := e.providers[providerGUID]; !ok {
 		// ConfigureProvider was not called prior, set the default configuration
