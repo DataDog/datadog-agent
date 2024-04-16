@@ -68,7 +68,6 @@ typedef struct kafka_response_context_t {
 } kafka_response_context_t;
 
 typedef struct kafka_info_t {
-    conn_tuple_t tup;
     kafka_transaction_t transaction;
     kafka_response_context_t response;
 } kafka_info_t;

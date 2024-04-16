@@ -8,9 +8,9 @@
 #include "protocols/kafka/usm-events.h"
 
 // forward declaration
-static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
-static __always_inline bool kafka_process(kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset);
-static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
+static __always_inline bool kafka_allow_packet(conn_tuple_t *tup, struct __sk_buff* skb, skb_info_t *skb_info);
+static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset);
+static __always_inline bool kafka_process_response(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
 
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
 // The iterations reads up to MIN(max_buffer_size, real_size).
@@ -54,9 +54,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    kafka->transaction.tup = tup;
-
-    if (!kafka_allow_packet(&kafka->transaction, skb, &skb_info)) {
+    if (!kafka_allow_packet(&tup, skb, &skb_info)) {
         return 0;
     }
 
@@ -69,16 +67,14 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    // Save non-normalized version
-    kafka->tup = kafka->transaction.tup;
+    kafka->transaction.tup = tup;
+    normalize_tuple(&kafka->transaction.tup);
 
-    if (kafka_process_response(kafka, skb, &skb_info)) {
+    if (kafka_process_response(&tup, kafka, skb, &skb_info)) {
         return 0;
     }
 
-    normalize_tuple(&kafka->transaction.tup);
-
-    (void)kafka_process(kafka, skb, skb_info.data_off);
+    (void)kafka_process(&tup, kafka, skb, skb_info.data_off);
     return 0;
 }
 
@@ -476,10 +472,10 @@ int socket__kafka_response_parser(struct __sk_buff *skb) {
     }
 
     skb_info_t skb_info;
-    if (!fetch_dispatching_arguments(&kafka->tup, &skb_info)) {
+    conn_tuple_t tup = {};
+    if (!fetch_dispatching_arguments(&tup, &skb_info)) {
         return 0;
     }
-    conn_tuple_t tup = kafka->tup;
 
     kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &tup);
     if (!response) {
@@ -591,13 +587,12 @@ static __always_inline bool kafka_process_new_response(conn_tuple_t *tup, kafka_
     return true;
 }
 
-static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info) {
-    conn_tuple_t tup = kafka->tup;
-    kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &tup);
+static __always_inline bool kafka_process_response(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info) {
+    kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, tup);
     if (response) {
         if (skb_info->tcp_seq == response->expected_tcp_seq) {
             response->expected_tcp_seq = kafka_get_next_tcp_seq(skb_info);
-            kafka_call_response_parser(&tup, skb);
+            kafka_call_response_parser(tup, skb);
             // It's on the response path, so no need to parser as a request.
             return true;
         }
@@ -632,14 +627,14 @@ static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct _
             kafka_batch_enqueue(&response->transaction);
         }
 
-        bpf_map_delete_elem(&kafka_response, &tup);
+        bpf_map_delete_elem(&kafka_response, tup);
         // Try to parse it as a new response.
     }
 
-    return kafka_process_new_response(&tup, kafka, skb, skb_info);
+    return kafka_process_new_response(tup, kafka, skb, skb_info);
 }
 
-static __always_inline bool kafka_process(kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset) {
+static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset) {
     /*
         We perform Kafka request validation as we can get kafka traffic that is not relevant for parsing (unsupported requests, responses, etc)
     */
@@ -763,7 +758,8 @@ static __always_inline bool kafka_process(kafka_info_t *kafka, struct __sk_buff*
         bpf_memset(&key, 0, sizeof(key));
         bpf_memcpy(&transaction, &kafka->transaction, sizeof(transaction));
         key.correlation_id = kafka_header.correlation_id;
-        bpf_memcpy(&key.tuple, &kafka->tup, sizeof(key.tuple));
+        bpf_memcpy(&key.tuple, tup, sizeof(key.tuple));
+        // Flip the tuple for the response path.
         flip_tuple(&key.tuple);
         bpf_map_update_elem(&kafka_in_flight, &key, &transaction, BPF_NOEXIST);
         return true;
@@ -776,9 +772,9 @@ static __always_inline bool kafka_process(kafka_info_t *kafka, struct __sk_buff*
 // this function is called by the socket-filter program to decide whether or not we should inspect
 // the contents of a certain packet, in order to avoid the cost of processing packets that are not
 // of interest such as empty ACKs, UDP data or encrypted traffic.
-static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info) {
+static __always_inline bool kafka_allow_packet(conn_tuple_t *tup, struct __sk_buff* skb, skb_info_t *skb_info) {
     // we're only interested in TCP traffic
-    if (!(kafka->tup.metadata&CONN_TYPE_TCP)) {
+    if (!(tup->metadata&CONN_TYPE_TCP)) {
         return false;
     }
 
