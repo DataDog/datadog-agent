@@ -10,6 +10,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -28,9 +29,9 @@ const (
 // setDockerConfig sets up the docker daemon to use the APM injector
 // even if docker isn't installed, to prepare for if it is installed
 // later
-func (a *apmInjectorInstaller) setDockerConfig() error {
+func (a *apmInjectorInstaller) setDockerConfig(ctx context.Context) error {
 	// Create docker dir if it doesn't exist
-	err := executeCommand(createDockerDirCommand)
+	err := executeCommand(ctx, createDockerDirCommand)
 	if err != nil {
 		return err
 	}
@@ -63,12 +64,12 @@ func (a *apmInjectorInstaller) setDockerConfig() error {
 	}
 
 	// Move the temporary file to the final location
-	err = executeCommand(string(replaceDockerCommand))
+	err = executeCommand(ctx, string(replaceDockerCommand))
 	if err != nil {
 		return err
 	}
 
-	return restartDocker()
+	return restartDocker(ctx)
 }
 
 // setDockerConfigContent sets the content of the docker daemon configuration
@@ -104,7 +105,7 @@ func (a *apmInjectorInstaller) setDockerConfigContent(previousContent []byte) ([
 }
 
 // deleteDockerConfig restores the docker daemon configuration
-func (a *apmInjectorInstaller) deleteDockerConfig() error {
+func (a *apmInjectorInstaller) deleteDockerConfig(ctx context.Context) error {
 	var file []byte
 	stat, err := os.Stat(dockerDaemonPath)
 	if err == nil {
@@ -134,11 +135,11 @@ func (a *apmInjectorInstaller) deleteDockerConfig() error {
 	}
 
 	// Move the temporary file to the final location
-	err = executeCommand(string(replaceDockerCommand))
+	err = executeCommand(ctx, string(replaceDockerCommand))
 	if err != nil {
 		return err
 	}
-	return restartDocker()
+	return restartDocker(ctx)
 }
 
 // deleteDockerConfigContent restores the content of the docker daemon configuration
@@ -174,12 +175,12 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte)
 }
 
 // restartDocker reloads the docker daemon if it exists
-func restartDocker() error {
+func restartDocker(ctx context.Context) error {
 	if !isDockerInstalled() {
 		log.Info("installer: docker is not installed, skipping reload")
 		return nil
 	}
-	return executeCommand(restartDockerCommand)
+	return executeCommand(ctx, restartDockerCommand)
 }
 
 // isDockerInstalled checks if docker is installed on the system

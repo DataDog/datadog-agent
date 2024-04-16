@@ -2,12 +2,12 @@
     "debian": {
         "x86_64": {
             "debian-9": "ami-0182559468c1975fe",
-            "debian-10": "ami-041540a5c191757a0",
+            "debian-10": "ami-0b94008ae0e4512b8",
             "debian-11": "ami-0607e701db389efe7",
             "debian-12": "ami-07edaec601cf2b6d3"
         },
         "arm64": {
-            "debian-10": "ami-0108ade0d057c8eba",
+            "debian-10": "ami-0458baca856015b8d",
             "debian-11": "ami-00988b9ead6afb0b1",
             "debian-12": "ami-02aab8d5301cb8d68"
         }
