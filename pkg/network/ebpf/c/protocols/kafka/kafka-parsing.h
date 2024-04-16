@@ -9,7 +9,7 @@
 
 // forward declaration
 static __always_inline bool kafka_allow_packet(conn_tuple_t *tup, struct __sk_buff* skb, skb_info_t *skb_info);
-static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset);
+static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, u32 offset);
 static __always_inline bool kafka_process_response(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
 
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
@@ -96,7 +96,7 @@ enum parse_result {
 // field happens to straddles the segment boundary, we need to read
 // some bytes from the old packet and the rest from the new packet.
 static __always_inline enum parse_result read_with_remainder(kafka_response_context_t *response, const struct __sk_buff *skb,
-                                                             __u32 *offset, s32 *val, bool first)
+                                                             u32 *offset, s32 *val, bool first)
 {
     if (*offset >= skb->len) {
         // The offset we want to read is completely outside of the current
@@ -106,9 +106,9 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
         return RET_EOP;
     }
 
-    __u32 avail = skb->len - *offset;
-    __u32 remainder = response->remainder;
-    __u32 want = sizeof(s32);
+    u32 avail = skb->len - *offset;
+    u32 remainder = response->remainder;
+    u32 want = sizeof(s32);
 
     extra_debug("avail %u want %u remainder %u", avail, want, remainder);
 
@@ -154,8 +154,8 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
     // need to read, saved from the previous packet. Read the tail
     // bytes of the value from the current packet and reconstruct
     // the value to be read.
-    __u8 *reconstruct = response->remainder_buf;
-    __u8 tail[4] = {0};
+    u8 *reconstruct = response->remainder_buf;
+    u8 tail[4] = {0};
 
     bpf_skb_load_bytes(skb, *offset, &tail, 4);
 
@@ -182,9 +182,9 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
 }
 
 static __always_inline enum parse_result kafka_continue_parse_response_loop(kafka_response_context_t *response,
-                                                                            struct __sk_buff *skb, __u32 offset)
+                                                                            struct __sk_buff *skb, u32 offset)
 {
-    __u32 orig_offset = offset;
+    u32 orig_offset = offset;
     kafka_transaction_t *request = &response->transaction;
     enum parse_result ret;
 
@@ -413,7 +413,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
     return RET_LOOP_END;
 }
 
-static __always_inline enum parse_result kafka_continue_parse_response(kafka_response_context_t *response, struct __sk_buff *skb, __u32 offset)
+static __always_inline enum parse_result kafka_continue_parse_response(kafka_response_context_t *response, struct __sk_buff *skb, u32 offset)
 {
     enum parse_result ret;
 
@@ -524,8 +524,8 @@ static __always_inline u32 kafka_get_next_tcp_seq(skb_info_t *skb_info) {
 }
 
 static __always_inline bool kafka_process_new_response(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info) {
-    __u32 offset = skb_info->data_off;
-    __u32 orig_offset = offset;
+    u32 offset = skb_info->data_off;
+    u32 orig_offset = offset;
 
     offset += sizeof(__s32); // Skip message size
     READ_BIG_ENDIAN_WRAPPER(s32, correlation_id, skb, offset);
@@ -634,7 +634,7 @@ static __always_inline bool kafka_process_response(conn_tuple_t *tup, kafka_info
     return kafka_process_new_response(tup, kafka, skb, skb_info);
 }
 
-static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset) {
+static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, u32 offset) {
     /*
         We perform Kafka request validation as we can get kafka traffic that is not relevant for parsing (unsupported requests, responses, etc)
     */
