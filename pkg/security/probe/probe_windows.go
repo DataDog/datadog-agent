@@ -267,6 +267,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				p.stats.fileCreate++
 			case idCreateNewFile:
 				if ca, err := p.parseCreateNewFileArgs(e); err == nil {
+					log.Tracef("Received idCreateNewFile event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 				p.stats.fileCreateNew++
