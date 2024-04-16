@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -42,7 +44,7 @@ type cliParams struct {
 }
 
 var (
-	installScriptParamsFile = "/etc/datadog-agent/datadog-installer.ini"
+	installScriptParamsFile = filepath.Join(path.DefaultConfPath, "datadog-installer.ini")
 )
 
 type installScriptParams struct {
