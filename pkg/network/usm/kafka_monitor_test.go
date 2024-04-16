@@ -622,7 +622,12 @@ type Message struct {
 }
 
 func runCannedTransaction(t *testing.T, msgs []Message) {
-	address := "127.0.0.1:9092"
+	// Use a different port than 9092 since the docker support code doesn't wait
+	// for the container with the real Kafka server used in previous tests to terminate,
+	// which leads to races. The disadvantage of not using 9092 is that you may
+	// have to explicitly pick the protocol in Wireshark when debugging with a packet
+	// trace.
+	address := "127.0.0.1:8082"
 	listener, err := net.Listen("tcp", address)
 	require.NoError(t, err)
 	defer listener.Close()
