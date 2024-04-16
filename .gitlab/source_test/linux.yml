@@ -148,6 +148,16 @@ lint_flavor_heroku_linux-x64:
   variables:
     FLAVORS: '--flavors heroku'
 
+lint_python:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: []
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+  script:
+    - inv -e linter.python
+
 # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
 # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
 # This is OK because the test on systemd still runs on the debian image above
