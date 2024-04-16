@@ -16,12 +16,14 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,17 +39,19 @@ const (
 
 type vmUpdaterSuite struct {
 	e2e.BaseSuite[environments.Host]
-	packageManager string
-	distro         os.Descriptor
-	arch           os.Architecture
+	packageManager       string
+	distro               os.Descriptor
+	arch                 os.Architecture
+	remoteUpdatesEnabled bool
 }
 
-func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.Descriptor) {
+func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.Descriptor, remoteUpdatesEnabled bool) {
 	reg := regexp.MustCompile(`[^a-zA-Z0-9_\-.]`)
 	testName := reg.ReplaceAllString(distro.String()+"-"+string(arch), "_")
-	e2e.Run(t, &vmUpdaterSuite{packageManager: pkgManager, distro: distro, arch: arch}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
+	e2e.Run(t, &vmUpdaterSuite{packageManager: pkgManager, distro: distro, arch: arch, remoteUpdatesEnabled: remoteUpdatesEnabled}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 		awshost.WithUpdater(),
 		awshost.WithEC2InstanceOptions(ec2.WithOSArch(distro, arch)),
+		WithRemoteUpdatesEnabled(remoteUpdatesEnabled),
 	)),
 		e2e.WithStackName(testName),
 	)
@@ -55,23 +59,33 @@ func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.De
 
 func TestCentOSARM(t *testing.T) {
 	// t.Parallel()
-	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault)
+	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault, false)
 }
 
 func TestRedHatARM(t *testing.T) {
 	t.Skip("Support for SELinux has not been added yet")
 	// t.Parallel()
-	runTest(t, "rpm", os.ARM64Arch, os.RedHatDefault)
+	runTest(t, "rpm", os.ARM64Arch, os.RedHatDefault, false)
+}
+
+func TestUbuntuARMRemoteUpdates(t *testing.T) {
+	// t.Parallel()
+	runTest(t, "dpkg", os.ARM64Arch, os.UbuntuDefault, true)
 }
 
 func TestUbuntuARM(t *testing.T) {
 	// t.Parallel()
-	runTest(t, "dpkg", os.ARM64Arch, os.UbuntuDefault)
+	runTest(t, "dpkg", os.ARM64Arch, os.UbuntuDefault, false)
+}
+
+func TestDebianX86RemoteUpdates(t *testing.T) {
+	// t.Parallel()
+	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault, true)
 }
 
 func TestDebianX86(t *testing.T) {
 	// t.Parallel()
-	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault)
+	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault, false)
 }
 
 func (v *vmUpdaterSuite) TestUserGroupsCreation() {
@@ -101,10 +115,17 @@ func (v *vmUpdaterSuite) TestUpdaterDirs() {
 }
 
 func (v *vmUpdaterSuite) TestInstallerUnitLoaded() {
+	t := v.T()
 	if v.packageManager == "rpm" {
-		v.T().Skip("FIXME(Paul): installer unit files disappear after bootstrap")
+		t.Skip("FIXME(Paul): installer unit files disappear after bootstrap")
 	}
-	require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(`systemctl is-enabled datadog-installer.service`))
+	if v.remoteUpdatesEnabled {
+		require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(`systemctl is-enabled datadog-installer.service`))
+	} else {
+		output, err := v.Env().RemoteHost.Execute(`systemctl is-enabled datadog-installer.service`)
+		require.Error(t, err)
+		require.Contains(t, output, "Failed to get unit file state for datadog-installer.service: No such file or directory")
+	}
 }
 
 func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
@@ -367,4 +388,15 @@ func addEcrConfig(host *components.RemoteHost) {
 // Config yaml struct
 type Config struct {
 	InstallMethod map[string]string `yaml:"install_method"`
+}
+
+func WithRemoteUpdatesEnabled(enabled bool) awshost.ProvisionerOption {
+	if enabled {
+		return awshost.WithAgentOptions(func(p *agentparams.Params) error {
+			p.ExtraAgentConfig = append(p.ExtraAgentConfig, pulumi.String("updater.remote_updates: true"))
+			return nil
+		})
+	} else {
+		return func(*awshost.ProvisionerParams) error { return nil }
+	}
 }
