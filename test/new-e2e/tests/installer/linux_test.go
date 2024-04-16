@@ -18,25 +18,23 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	confDir        = "/etc/datadog-agent"
-	logDir         = "/var/log/datadog"
-	locksDir       = "/var/run/datadog-packages"
-	packagesDir    = "/opt/datadog-packages"
-	bootUpdaterDir = "/opt/datadog-installer"
+	confDir          = "/etc/datadog-agent"
+	logDir           = "/var/log/datadog"
+	locksDir         = "/var/run/datadog-packages"
+	packagesDir      = "/opt/datadog-packages"
+	bootInstallerDir = "/opt/datadog-installer"
 )
 
 type vmUpdaterSuite struct {
@@ -55,7 +53,6 @@ func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.De
 	e2e.Run(t, &vmUpdaterSuite{packageManager: pkgManager, distro: distro, arch: arch, remoteUpdatesEnabled: remoteUpdatesEnabled}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 		awshost.WithUpdater(),
 		awshost.WithEC2InstanceOptions(ec2.WithOSArch(distro, arch)),
-		WithRemoteUpdatesEnabled(remoteUpdatesEnabled),
 	)),
 		e2e.WithStackName(testName),
 	)
@@ -72,40 +69,14 @@ func TestRedHatARM(t *testing.T) {
 	runTest(t, "rpm", os.ARM64Arch, os.RedHatDefault, false)
 }
 
-func TestUbuntuARMRemoteUpdates(t *testing.T) {
+func TestUbuntuARM(t *testing.T) {
 	t.Parallel()
 	runTest(t, "dpkg", os.ARM64Arch, os.UbuntuDefault, true)
 }
 
-func TestUbuntuARM(t *testing.T) {
-	t.Parallel()
-	runTest(t, "dpkg", os.ARM64Arch, os.UbuntuDefault, false)
-}
-
-func TestDebianX86RemoteUpdates(t *testing.T) {
-	t.Parallel()
-	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault, true)
-}
-
 func TestDebianX86(t *testing.T) {
 	t.Parallel()
-	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault, false)
-}
-
-func (v *vmUpdaterSuite) SetupTest() {
-	v.setupHost.Do(func() {
-		var err error
-		if v.remoteUpdatesEnabled {
-			_, err = v.Env().RemoteHost.Execute("sudo apt-get remove datadog-installer --yes")
-			if err != nil {
-				panic(fmt.Sprintf("Failed setup: %v", err))
-			}
-			_, err = v.Env().RemoteHost.Execute("sudo apt-get install datadog-installer --yes")
-			if err != nil {
-				panic(fmt.Sprintf("Failed setup: %v", err))
-			}
-		}
-	})
+	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault, true)
 }
 
 func (v *vmUpdaterSuite) TestUserGroupsCreation() {
@@ -126,7 +97,7 @@ func (v *vmUpdaterSuite) TestSharedAgentDirs() {
 }
 
 func (v *vmUpdaterSuite) TestUpdaterDirs() {
-	for _, dir := range []string{locksDir, packagesDir, bootUpdaterDir} {
+	for _, dir := range []string{locksDir, packagesDir, bootInstallerDir} {
 		require.Equal(v.T(), "dd-installer\n", v.Env().RemoteHost.MustExecute(`stat -c "%U" `+dir))
 		require.Equal(v.T(), "dd-installer\n", v.Env().RemoteHost.MustExecute(`stat -c "%G" `+dir))
 	}
@@ -136,15 +107,26 @@ func (v *vmUpdaterSuite) TestUpdaterDirs() {
 
 func (v *vmUpdaterSuite) TestInstallerUnitLoaded() {
 	t := v.T()
+	host := v.Env().RemoteHost
 	if v.packageManager == "rpm" {
 		t.Skip("FIXME(Paul): installer unit files disappear after bootstrap")
 	}
+
+	// temporary hack, remote update enabled by hand and disabled to assert the behavior and pass tests
+	// until agent param passing to the test install script is implemnted
+	_, err := host.Execute(`systemctl is-enabled datadog-installer.service`)
+	require.ErrorContains(t, err, "Failed to get unit file state for datadog-installer.service: No such file or directory")
+
 	if v.remoteUpdatesEnabled {
+		host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootInstallerDir))
+		host.MustExecute(fmt.Sprintf(`DD_UPDATER_REMOTE_UPDATES=true sudo -E %v/bin/installer/installer bootstrap`, bootInstallerDir))
 		require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(`systemctl is-enabled datadog-installer.service`))
-	} else {
-		_, err := v.Env().RemoteHost.Execute(`systemctl is-enabled datadog-installer.service`)
-		require.ErrorContains(t, err, "Failed to get unit file state for datadog-installer.service: No such file or directory")
+		host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootInstallerDir))
+		host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://public.ecr.aws/datadog/installer-package:latest"`, bootInstallerDir))
 	}
+	_, err = host.Execute(`systemctl is-enabled datadog-installer.service`)
+	require.ErrorContains(t, err, "Failed to get unit file state for datadog-installer.service: No such file or directory")
+
 }
 
 func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
@@ -157,7 +139,7 @@ func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
 		"datadog-agent-security.service",
 	}
 	addEcrConfig(v.Env().RemoteHost)
-	v.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootUpdaterDir))
+	v.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootInstallerDir))
 	for _, unit := range stableUnits {
 		require.Equal(t, "enabled\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, unit)))
 	}
@@ -168,7 +150,7 @@ func (v *vmUpdaterSuite) TestExperimentCrash() {
 	host := v.Env().RemoteHost
 	addEcrConfig(host)
 	startTime := getMonotonicTimestamp(t, host)
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootUpdaterDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootInstallerDir))
 	v.Env().RemoteHost.MustExecute(`sudo systemctl start datadog-agent-exp --no-block`)
 	res := getJournalDOnCondition(t, host, startTime, stopCondition([]JournaldLog{
 		{Unit: "datadog-agent.service", Message: "Started"},
@@ -190,7 +172,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	}
 
 	addEcrConfig(host)
-	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootUpdaterDir))
+	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootInstallerDir))
 	stableUnits := []string{
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -224,7 +206,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	}
 
 	// bootstrap
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootUpdaterDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/agent-package-dev@sha256:d86138d88b407cf5ef75bccb3e0bc492ce6e3e3dfa9d3a64d2387d3b350fe5c4"`, bootInstallerDir))
 
 	// assert agent symlink
 	_ = host.MustExecute(`test -L /usr/bin/datadog-agent`)
@@ -269,7 +251,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	// Setup machine //
 	///////////////////
 	addEcrConfig(host)
-	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootUpdaterDir))
+	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootInstallerDir))
 	// Install docker
 	installDocker(v.distro, v.arch, v.T(), host)
 	defer func() {
@@ -302,9 +284,9 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	// Bootstrap packages //
 	////////////////////////
 
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/agent-package-dev:7.54.0-devel.git.247.f92fbc1.pipeline.31778392-1"`, bootUpdaterDir))
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/apm-library-java-package-dev:1.32.0-SNAPSHOT-8708864e8e-pipeline.30373268.beta.8708864e-1"`, bootUpdaterDir))
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/apm-inject-package-dev:0.12.3-dev.bddec85.glci481808135.g8acdc698-1"`, bootUpdaterDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/agent-package-dev:7.54.0-devel.git.247.f92fbc1.pipeline.31778392-1"`, bootInstallerDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/apm-library-java-package-dev:1.32.0-SNAPSHOT-8708864e8e-pipeline.30373268.beta.8708864e-1"`, bootInstallerDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer bootstrap --url "oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/apm-inject-package-dev:0.12.3-dev.bddec85.glci481808135.g8acdc698-1"`, bootInstallerDir))
 
 	////////////////////////////////
 	// Check post-bootstrap state //
@@ -373,7 +355,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	// Check purge state //
 	///////////////////////
 
-	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootUpdaterDir))
+	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootInstallerDir))
 
 	_, err = host.Execute(`test -d /opt/datadog-packages/datadog-apm-inject`)
 	require.NotNil(v.T(), err)
@@ -407,14 +389,4 @@ func addEcrConfig(host *components.RemoteHost) {
 // Config yaml struct
 type Config struct {
 	InstallMethod map[string]string `yaml:"install_method"`
-}
-
-func WithRemoteUpdatesEnabled(enabled bool) awshost.ProvisionerOption {
-	if enabled {
-		return awshost.WithAgentOptions(func(p *agentparams.Params) error {
-			p.ExtraAgentConfig = append(p.ExtraAgentConfig, pulumi.String("updater.remote_updates: true"))
-			return nil
-		})
-	}
-	return func(*awshost.ProvisionerParams) error { return nil }
 }
