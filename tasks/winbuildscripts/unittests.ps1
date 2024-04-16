@@ -66,5 +66,5 @@ $Env:DATADOG_API_KEY=$(& "c:\mnt\tools\ci\aws_ssm_get_wrapper.ps1" $Env:API_KEY_
 Get-ChildItem -Path "c:\mnt" -Filter "junit-*.tgz" -Recurse | ForEach-Object {
     $outputFilePath = "upload_output.txt"
     inv -e junit-upload --tgz-path $_.FullName > $outputFilePath
-    
 }
+

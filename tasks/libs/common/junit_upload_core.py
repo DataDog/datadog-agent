@@ -7,6 +7,7 @@ import re
 import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
+from shutil import which
 from subprocess import PIPE, CalledProcessError, Popen
 
 from invoke.exceptions import Exit
@@ -22,7 +23,10 @@ from tasks.libs.pipeline.notifications import (
 E2E_INTERNAL_ERROR_STRING = "E2E INTERNAL ERROR"
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
 REPO_NAME_PREFIX = "github.com/DataDog/datadog-agent/"
-DATADOG_CI_COMMAND = ["datadog-ci", "junit", "upload"]
+if platform.system() == "Windows":
+    DATADOG_CI_COMMAND = [r"c:\devtools\datadog-ci\datadog-ci", "junit", "upload"]
+else:
+    DATADOG_CI_COMMAND = [which("datadog-ci"), "junit", "upload"]
 JOB_URL_FILE_NAME = "job_url.txt"
 JOB_ENV_FILE_NAME = "job_env.txt"
 TAGS_FILE_NAME = "tags.txt"
@@ -226,7 +230,7 @@ def is_e2e_internal_failure(xml_path):
     """
     Check if the given JUnit XML file contains E2E INTERAL ERROR string.
     """
-    with open(xml_path) as f:
+    with open(xml_path, encoding="utf8") as f:
         filecontent = f.read()
     return E2E_INTERNAL_ERROR_STRING in filecontent
 
