@@ -643,6 +643,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/proto v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/serializer v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/status/health v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.0.0-00010101000000-000000000000
