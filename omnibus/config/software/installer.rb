@@ -52,8 +52,8 @@ build do
     if debian_target?
         uninstall_command="sudo apt-get remove datadog-installer"
     end
-    erb source: "Readme.md.erb",
-       dest: "#{install_dir}/" + "Readme.md.erb",
+    erb source: "README.md.erb",
+       dest: "#{install_dir}/" + "README.md.erb",
        mode: 0644,
        vars: { uninstall_command: uninstall_command}
 
