@@ -475,7 +475,10 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 				} else if waitStatus.Signaled() {
 					exitCtx.Cause = model.ExitSignaled
 					exitCtx.Code = uint32(waitStatus.Signal())
+				} else {
+					exitCtx.Code = uint32(waitStatus.Signal())
 				}
+
 				sendSyscallMsg(&ebpfless.SyscallMsg{
 					Type: ebpfless.SyscallTypeExit,
 					Exit: exitCtx,
