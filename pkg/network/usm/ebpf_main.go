@@ -61,8 +61,8 @@ const (
 	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
 	connectionStatesMap                    = "connection_states"
 	sockFDLookupArgsMap                    = "sockfd_lookup_args"
-	sockByPidFDMap                         = "sock_by_pid_fd"
-	pidFDBySockMap                         = "pid_fd_by_sock"
+	tupleByPidFDMap                        = "tuple_by_pid_fd"
+	pidFDByTupleMap                        = "pid_fd_by_tuple"
 
 	sockFDLookup    = "kprobe__sockfd_lookup_light"
 	sockFDLookupRet = "kretprobe__sockfd_lookup_light"
@@ -98,8 +98,8 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 			{Name: protocols.ProtocolDispatcherProgramsMap},
 			{Name: connectionStatesMap},
 			{Name: sockFDLookupArgsMap},
-			{Name: sockByPidFDMap},
-			{Name: pidFDBySockMap},
+			{Name: tupleByPidFDMap},
+			{Name: pidFDByTupleMap},
 		},
 		Probes: []*manager.Probe{
 			{
@@ -382,11 +382,11 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		sockByPidFDMap: {
+		tupleByPidFDMap: {
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		pidFDBySockMap: {
+		pidFDByTupleMap: {
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
@@ -506,19 +506,19 @@ func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName s
 			spew.Fdump(w, key, value)
 		}
 
-	case sockByPidFDMap: // maps/sock_by_pid_fd (BPF_MAP_TYPE_HASH), key C.pid_fd_t, value uintptr // C.struct sock*
-		io.WriteString(w, "Map: '"+mapName+"', key: 'C.pid_fd_t', value: 'uintptr // C.struct sock*'\n")
+	case tupleByPidFDMap: // maps/tuple_by_pid_fd (BPF_MAP_TYPE_HASH), key C.pid_fd_t, value C.conn_tuple_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.pid_fd_t', value: 'C.conn_tuple_t'\n")
 		iter := currentMap.Iterate()
 		var key netebpf.PIDFD
-		var value uintptr // C.struct sock*
+		var value http.ConnTuple
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
 
-	case pidFDBySockMap: // maps/pid_fd_by_sock (BPF_MAP_TYPE_HASH), key uintptr // C.struct sock*, value C.pid_fd_t
-		io.WriteString(w, "Map: '"+mapName+"', key: 'uintptr // C.struct sock*', value: 'C.pid_fd_t'\n")
+	case pidFDByTupleMap: // maps/pid_fd_by_tuple (BPF_MAP_TYPE_HASH), key C.conn_tuple_t, value C.pid_fd_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.conn_tuple_t', value: 'C.pid_fd_t'\n")
 		iter := currentMap.Iterate()
-		var key uintptr // C.struct sock*
+		var key http.ConnTuple
 		var value netebpf.PIDFD
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
