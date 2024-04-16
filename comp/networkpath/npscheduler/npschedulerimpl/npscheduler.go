@@ -53,6 +53,7 @@ type npSchedulerImpl struct {
 
 func (s npSchedulerImpl) Schedule(hostname string, port uint16) {
 	log.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
+	statsd.Client.Incr("datadog.network_path.scheduler.count", []string{}, 1) //nolint:errcheck
 
 	if net.ParseIP(hostname).To4() == nil {
 		// TODO: IPv6 not supported yet
@@ -66,8 +67,6 @@ func (s npSchedulerImpl) Schedule(hostname string, port uint16) {
 }
 
 func (s npSchedulerImpl) pathForConn(hostname string, port uint16) {
-	statsd.Client.Gauge("datadog.network_path.test_metric.abc", 1, []string{}, 1) //nolint:errcheck
-
 	cfg := traceroute.Config{
 		DestHostname: hostname,
 		DestPort:     uint16(port),
