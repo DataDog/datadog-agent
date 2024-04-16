@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Activate the autodiscovery automatically if at least one configuration is given in `network_devices.snmp_listener`.
+    Activate the autodiscovery automatically if at least one configuration is given in `network_devices.autodiscovery`. Remove the `listeners: -snmp` requirement.

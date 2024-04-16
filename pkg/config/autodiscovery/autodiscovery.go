@@ -75,7 +75,7 @@ func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.L
 
 	// Auto-activate autodiscovery without listeners: - snmp
 	configs := []snmplistener.Config{}
-	err := config.Datadog.UnmarshalKey("network_devices.snmp_listener.configs", &configs)
+	err := config.Datadog.UnmarshalKey("network_devices.autodiscovery.configs", &configs)
 
 	if err == nil && len(configs) > 0 {
 		detectedListeners = append(detectedListeners, config.Listeners{Name: "snmp"})

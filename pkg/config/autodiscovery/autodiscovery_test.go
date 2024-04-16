@@ -18,23 +18,23 @@ func TestDiscoverComponentsFromConfigForSnmp(t *testing.T) {
 
 	err := config.Datadog.ReadConfig(strings.NewReader(`
 network_devices:
-  snmp_listener:
+  autodiscovery:
     configs:
       - network: 127.0.0.1/30
 `))
 	assert.NoError(t, err)
 	_, configListeners := DiscoverComponentsFromConfig()
-	assert.Equal(t, 1, len(configListeners))
+	assert.Len(t, configListeners, 1)
 	assert.Equal(t, "snmp", configListeners[0].Name)
 
 	err = config.Datadog.ReadConfig(strings.NewReader(`
 network_devices:
-  snmp_listener:
+  autodiscovery:
     configs:
 `))
 	assert.NoError(t, err)
 	_, configListeners = DiscoverComponentsFromConfig()
-	assert.Equal(t, 0, len(configListeners))
+	assert.Empty(t, len(configListeners))
 
 	err = config.Datadog.ReadConfig(strings.NewReader(`
 snmp_listener:
@@ -43,5 +43,5 @@ snmp_listener:
 `))
 	assert.NoError(t, err)
 	_, configListeners = DiscoverComponentsFromConfig()
-	assert.Equal(t, 0, len(configListeners))
+	assert.Empty(t, len(configListeners))
 }
