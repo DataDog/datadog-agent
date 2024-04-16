@@ -71,7 +71,7 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	t := s.T()
 	config := testConfig()
 	config.TCPConnTimeout = 100 * time.Millisecond
-	tr := setupTracer(t, config)
+	tr := setupTracer(t, config, false)
 	// Create a dummy TCP Server
 	server := NewTCPServer(func(c net.Conn) {
 	})
@@ -126,7 +126,7 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 func (s *TracerSuite) TestTCPRetransmit() {
 	t := s.T()
 	// Enable BPF-based system probe
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, testConfig(), false)
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := NewTCPServer(func(c net.Conn) {
@@ -202,7 +202,7 @@ func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 	// this connection (if there are pid collisions,
 	// we assign the tcp stats to one connection randomly,
 	// which is the point of this test)
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, testConfig(), false)
 
 	const numProcesses = 10
 	iptablesWrapper(t, func() {
@@ -248,7 +248,7 @@ func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 func (s *TracerSuite) TestTCPRTT() {
 	t := s.T()
 	// Enable BPF-based system probe
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, testConfig(), false)
 	// Create TCP Server that simply "drains" connection until receiving an EOF
 	server := NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
@@ -286,7 +286,7 @@ func (s *TracerSuite) TestTCPRTT() {
 func (s *TracerSuite) TestTCPMiscount() {
 	t := s.T()
 	t.Skip("skipping because this test will pass/fail depending on host performance")
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, testConfig(), false)
 	// Create a dummy TCP Server
 	server := NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
@@ -340,7 +340,7 @@ func (s *TracerSuite) TestTCPMiscount() {
 func (s *TracerSuite) TestConnectionExpirationRegression() {
 	t := s.T()
 	t.SkipNow()
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, testConfig(), false)
 	// Create TCP Server that simply "drains" connection until receiving an EOF
 	connClosed := make(chan struct{})
 	server := NewTCPServer(func(c net.Conn) {
@@ -390,7 +390,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	ebpftest.LogLevel(t, "trace")
 	netlinktestutil.SetupDNAT(t)
 
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, testConfig(), false)
 
 	server := NewTCPServerOnAddress("1.1.1.1:0", func(c net.Conn) {
 		defer c.Close()
@@ -466,7 +466,7 @@ func (s *TracerSuite) TestConntrackDelays() {
 	netlinktestutil.SetupDNAT(t)
 	wg := sync.WaitGroup{}
 
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, testConfig(), false)
 	// This will ensure that the first lookup for every connection fails, while the following ones succeed
 	tr.conntracker = tracertest.NewDelayedConntracker(tr.conntracker, 1)
 
@@ -506,7 +506,7 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	netlinktestutil.SetupDNAT(t)
 	wg := sync.WaitGroup{}
 
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, testConfig(), false)
 
 	// Setup TCP server
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", 0), func(c net.Conn) {
@@ -561,7 +561,7 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 		t.Skip("UDPv6 disabled")
 	}
 
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, false)
 	linkLocal, err := offsetguess.GetIPv6LinkLocalAddress()
 	require.NoError(t, err)
 
@@ -597,7 +597,7 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 		m := NewMockcloudProvider(ctrl)
 		m.EXPECT().IsAWS().Return(false)
 		cloud = m
-		tr := setupTracer(t, cfg)
+		tr := setupTracer(t, cfg, false)
 		require.Nil(t, tr.gwLookup)
 	})
 
@@ -617,7 +617,7 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 		ddconfig.Datadog.SetWithoutSource("cloud_provider_metadata", []string{})
 		defer ddconfig.Datadog.SetWithoutSource("cloud_provider_metadata", clouds)
 
-		tr := setupTracer(t, cfg)
+		tr := setupTracer(t, cfg, false)
 		require.Nil(t, tr.gwLookup)
 	})
 }
@@ -923,7 +923,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 func (s *TracerSuite) TestConnectionAssured() {
 	t := s.T()
 	cfg := testConfig()
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, false)
 	server := &UDPServer{
 		network: "udp4",
 		onMessage: func(b []byte, n int) []byte {
@@ -964,7 +964,7 @@ func (s *TracerSuite) TestConnectionAssured() {
 func (s *TracerSuite) TestConnectionNotAssured() {
 	t := s.T()
 	cfg := testConfig()
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, false)
 
 	server := &UDPServer{
 		network: "udp4",
@@ -1003,7 +1003,7 @@ func (s *TracerSuite) TestUDPConnExpiryTimeout() {
 	timeout, err := sysctl.NewInt("/proc", "net/netfilter/nf_conntrack_udp_timeout", 0).Get()
 	require.NoError(t, err)
 
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, testConfig(), false)
 	require.Equal(t, uint64(time.Duration(timeout)*time.Second), tr.udpConnTimeout(false))
 	require.Equal(t, uint64(time.Duration(streamTimeout)*time.Second), tr.udpConnTimeout(true))
 }
@@ -1012,7 +1012,7 @@ func (s *TracerSuite) TestDNATIntraHostIntegration() {
 	t := s.T()
 	netlinktestutil.SetupDNAT(t)
 
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, testConfig(), false)
 
 	var serverAddr struct {
 		local, remote net.Addr
@@ -1081,7 +1081,7 @@ func (s *TracerSuite) TestSelfConnect() {
 	// Enable BPF-based system probe
 	cfg := testConfig()
 	cfg.TCPConnTimeout = 3 * time.Second
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, false)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	t.Cleanup(cancel)
@@ -1122,7 +1122,7 @@ func (s *TracerSuite) TestSelfConnect() {
 func (s *TracerSuite) TestUDPPeekCount() {
 	t := s.T()
 	config := testConfig()
-	tr := setupTracer(t, config)
+	tr := setupTracer(t, config, false)
 
 	ln, err := net.ListenPacket("udp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -1212,7 +1212,7 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 		t.Skip("reuseport not supported on prebuilt")
 	}
 
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, false)
 
 	var out string
 	var err error
@@ -1310,7 +1310,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 		t.Skip("reuseport not supported on prebuilt")
 	}
 
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, false)
 
 	createReuseServer := func(port int) *UDPServer {
 		return &UDPServer{
@@ -1394,7 +1394,7 @@ func (s *TracerSuite) TestDNSStatsWithNAT() {
 	cfg := testConfig()
 	cfg.CollectDNSStats = true
 	cfg.DNSTimeout = 1 * time.Second
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, false)
 
 	t.Logf("requesting golang.com@2.2.2.2 with conntrack type: %T", tr.conntracker)
 	testDNSStats(t, tr, "golang.org", 1, 0, 0, "2.2.2.2")
@@ -1451,7 +1451,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 	t := s.T()
 	// Start tracer
 	cfg := testConfig()
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, false)
 
 	// Create temporary file
 	tmpdir := t.TempDir()
@@ -1566,7 +1566,7 @@ func isPrebuilt(cfg *config.Config) bool {
 
 func (s *TracerSuite) TestSendfileError() {
 	t := s.T()
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, testConfig(), false)
 
 	tmpfile, err := os.CreateTemp("", "sendfile_source")
 	require.NoError(t, err)
@@ -1623,7 +1623,7 @@ func sendFile(t *testing.T, c SyscallConn, f *os.File, offset *int64, count int)
 
 func (s *TracerSuite) TestShortWrite() {
 	t := s.T()
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, testConfig(), false)
 
 	read := make(chan struct{})
 	server := NewTCPServer(func(c net.Conn) {
@@ -1711,7 +1711,7 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	cfg := config.New()
 	cfg.AttachKprobesWithKprobeEventsABI = true
 
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, false)
 
 	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
 		t.Skip("skipped on Fargate")
@@ -1733,7 +1733,7 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 
 func (s *TracerSuite) TestBlockingReadCounts() {
 	t := s.T()
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, testConfig(), false)
 	ch := make(chan struct{})
 	server := NewTCPServer(func(c net.Conn) {
 		_, err := c.Write([]byte("foo"))
@@ -1824,7 +1824,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	_, _ = r.ReadBytes(byte('\n'))
 
 	// Enable BPF-based system probe
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, testConfig(), false)
 	// Write more data so that the tracer will notice the connection
 	_, err = c.Write(genPayload(clientMessageSize))
 	require.NoError(t, err)
@@ -1895,7 +1895,7 @@ func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *confi
 	require.NoError(t, err)
 
 	// Enable BPF-based system probe
-	tr := setupTracer(t, config)
+	tr := setupTracer(t, config, false)
 
 	// close the server connection so the tracer picks it up
 	close(ch)
@@ -1931,7 +1931,7 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 
 	cfg := testConfig()
 	cfg.ProtocolClassificationEnabled = false
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, false)
 
 	err := server.Run(64)
 	require.NoError(t, err)
@@ -1972,7 +1972,7 @@ func (s *TracerSuite) TestGetMapsTelemetry() {
 
 	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
 	cfg := testConfig()
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, false)
 
 	cmd := []string{"curl", "-k", "-o/dev/null", "example.com/[1-10]"}
 	err := exec.Command(cmd[0], cmd[1:]...).Run()
@@ -2016,7 +2016,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 	cfg := testConfig()
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, false)
 
 	expectedErrorTP := "tracepoint__syscalls__sys_enter_openat"
 	syscallNumber := syscall.SYS_OPENAT
@@ -2170,13 +2170,13 @@ func (s *TracerSuite) TestOffsetGuessIPv6DisabledCentOS() {
 		t.Skip("This test should only be run on kernels < 4.7.0")
 	}
 	// fail if tracer cannot start
-	_ = setupTracer(t, cfg)
+	_ = setupTracer(t, cfg, false)
 }
 
 func (s *TracerSuite) TestConnectionDuration() {
 	t := s.T()
 	cfg := testConfig()
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, false)
 
 	srv := NewTCPServer(func(c net.Conn) {
 		var b [4]byte

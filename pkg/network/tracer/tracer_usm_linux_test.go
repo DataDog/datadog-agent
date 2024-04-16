@@ -82,7 +82,7 @@ func (s *USMSuite) TestEnableHTTPMonitoring() {
 
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
-	_ = setupTracer(t, cfg)
+	_ = setupTracer(t, cfg, false)
 }
 
 func (s *USMSuite) TestProtocolClassification() {
@@ -241,7 +241,7 @@ func (s *USMSuite) TestTLSClassification() {
 	portAsString := strconv.Itoa(int(port))
 	require.NoError(t, prototls.RunServerOpenssl(t, portAsString, len(scenarios), "-www"))
 
-	tr := setupTracer(t, cfg)
+	tr := setupTracer(t, cfg, false)
 
 	type tlsTest struct {
 		name            string
@@ -324,7 +324,7 @@ func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 		}
 
 		makeRequest()
-		tr := setupTracer(t, cfg)
+		tr := setupTracer(t, cfg, false)
 		time.Sleep(100 * time.Millisecond)
 		makeRequest()
 
@@ -353,6 +353,7 @@ func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 		require.NotNil(t, prog)
 
 		curDir, _ := testutil.CurDir()
+		pktSource := pcap.GetPacketSourceFromPCAP(t, curDir+"/testdata/tls_already_running.pcap")
 
 		for packet := range pktSource.Packets() {
 			// HACK: For some reason, the first 14bytes are skipped, so we pad
