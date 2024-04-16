@@ -9,7 +9,6 @@ import (
 	"database/sql"
 	"log"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
@@ -32,8 +31,6 @@ type sqlStore struct {
 
 	stopCh  chan struct{}
 	metrics sqlMetrics
-
-	cleanupMutex sync.RWMutex
 }
 
 type sqlMetrics struct {
@@ -140,8 +137,6 @@ func (s *sqlStore) AppendPayload(route string, data []byte, encoding string, col
 // CleanUpPayloadsOlderThan removes payloads older than specified time
 func (s *sqlStore) CleanUpPayloadsOlderThan(time time.Time) {
 	log.Printf("Cleaning up payloads")
-	s.cleanupMutex.Lock()
-	defer s.cleanupMutex.Unlock()
 	_, err := s.db.Exec("DELETE FROM payloads WHERE timestamp < ?", time.Unix())
 	if err != nil {
 		log.Println("Error cleaning payloads: ", err)
@@ -157,8 +152,6 @@ func (s *sqlStore) CleanUpPayloadsOlderThan(time time.Time) {
 
 // GetRawPayloads returns all raw payloads for a given route
 func (s *sqlStore) GetRawPayloads(route string) []api.Payload {
-	s.cleanupMutex.RLock()
-	defer s.cleanupMutex.RUnlock()
 	now := time.Now()
 	rows, err := s.db.Query("SELECT timestamp, data, encoding FROM payloads WHERE route = ?", route)
 	if err != nil {

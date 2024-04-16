@@ -346,12 +346,16 @@ func testServer(t *testing.T, opts ...Option) {
 
 		clock.Add(10 * time.Minute)
 
-		response20Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
-		require.NoError(t, err, "Error on GET request")
-		defer response20Min.Body.Close()
-		var getResponse20Min api.APIFakeIntakePayloadsRawGETResponse
-		json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
-		assert.Empty(t, getResponse20Min.Payloads, "should be empty after cleanup")
+		// With SQL driver, the cleanup is triggered in its own goroutine before the GET request but
+		// we can't control the order of execution of the goroutines so it could complete after the GET
+		assert.Eventuallyf(t, func() bool {
+			response20Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
+			require.NoError(t, err, "Error on GET request")
+			defer response20Min.Body.Close()
+			var getResponse20Min api.APIFakeIntakePayloadsRawGETResponse
+			json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
+			return len(getResponse20Min.Payloads) == 0
+		}, 5*time.Second, 100*time.Millisecond, "should contain no elements after cleanup")
 	})
 
 	for _, tt := range []struct {
@@ -411,13 +415,16 @@ func testServer(t *testing.T, opts ...Option) {
 
 			clock.Add(tt.expectedRetention)
 
-			cleanedResponse, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
-			require.NoError(t, err, "Error on GET request")
-			defer cleanedResponse.Body.Close()
-			var getCleanedResponse api.APIFakeIntakePayloadsRawGETResponse
-			json.NewDecoder(cleanedResponse.Body).Decode(&getCleanedResponse)
-			assert.Len(t, getCleanedResponse.Payloads, 2, "should contain 2 elements after cleanup of only older elements")
-
+			// With SQL driver, the cleanup is triggered in its own goroutine before the GET request but
+			// we can't control the order of execution of the goroutines so it could complete after the GET
+			assert.Eventuallyf(t, func() bool {
+				cleanedResponse, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
+				require.NoError(t, err, "Error on GET request")
+				defer cleanedResponse.Body.Close()
+				var getCleanedResponse api.APIFakeIntakePayloadsRawGETResponse
+				json.NewDecoder(cleanedResponse.Body).Decode(&getCleanedResponse)
+				return len(getCleanedResponse.Payloads) == 2
+			}, 5*time.Second, 100*time.Millisecond, "should contain 2 elements after cleanup of only older elements")
 			fi.Stop()
 		})
 	}
@@ -441,12 +448,16 @@ func testServer(t *testing.T, opts ...Option) {
 
 		clock.Add(10 * time.Minute)
 
-		response20Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/api/v2/logs&format=json")
-		require.NoError(t, err, "Error on GET request")
-		defer response20Min.Body.Close()
-		var getResponse20Min api.APIFakeIntakePayloadsJsonGETResponse
-		json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
-		assert.Len(t, getResponse20Min.Payloads, 1, "should contain 1 elements after cleanup of only older elements")
+		// With SQL driver, the cleanup is triggered in its own goroutine before the GET request but
+		// we can't control the order of execution of the goroutines so it could complete after the GET
+		assert.Eventuallyf(t, func() bool {
+			response20Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/api/v2/logs&format=json")
+			require.NoError(t, err, "Error on GET request")
+			defer response20Min.Body.Close()
+			var getResponse20Min api.APIFakeIntakePayloadsJsonGETResponse
+			json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
+			return len(getResponse20Min.Payloads) == 1
+		}, 5*time.Second, 100*time.Millisecond, "should contain 1 elements after cleanup of only older elements")
 	})
 
 	t.Run("should respond with custom response to /support/flare", func(t *testing.T) {
