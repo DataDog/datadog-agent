@@ -12,7 +12,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -43,8 +42,6 @@ type vmUpdaterSuite struct {
 	distro               os.Descriptor
 	arch                 os.Architecture
 	remoteUpdatesEnabled bool
-
-	setupHost sync.Once
 }
 
 func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.Descriptor, remoteUpdatesEnabled bool) {
