@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,6 +45,8 @@ type vmUpdaterSuite struct {
 	distro               os.Descriptor
 	arch                 os.Architecture
 	remoteUpdatesEnabled bool
+
+	setupHost sync.Once
 }
 
 func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.Descriptor, remoteUpdatesEnabled bool) {
@@ -87,6 +90,22 @@ func TestDebianX86RemoteUpdates(t *testing.T) {
 func TestDebianX86(t *testing.T) {
 	t.Parallel()
 	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault, false)
+}
+
+func (v *vmUpdaterSuite) SetupTest() {
+	v.setupHost.Do(func() {
+		var err error
+		if v.remoteUpdatesEnabled {
+			_, err = v.Env().RemoteHost.Execute("sudo apt-get remove datadog-installer --yes")
+			if err != nil {
+				panic(fmt.Sprintf("Failed setup: %v", err))
+			}
+			_, err = v.Env().RemoteHost.Execute("sudo apt-get install datadog-installer --yes")
+			if err != nil {
+				panic(fmt.Sprintf("Failed setup: %v", err))
+			}
+		}
+	})
 }
 
 func (v *vmUpdaterSuite) TestUserGroupsCreation() {
