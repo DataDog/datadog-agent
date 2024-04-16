@@ -426,6 +426,10 @@ static __always_inline enum parse_result kafka_continue_parse_response(kafka_res
         return ret;
     }
 
+    // carry_over_offset is negative when the paket ended in the middle of a
+    // 4 byte value that we wanted to read, so we we need to save the appropriate
+    // number of byte to be able to reconstruct the value when we receive the
+    // rest of the bytes in the next packet. See read_with_remainder().
     if (response->carry_over_offset < 0) {
         extra_debug("Saving remainder %d", response->carry_over_offset);
 
@@ -440,10 +444,13 @@ static __always_inline enum parse_result kafka_continue_parse_response(kafka_res
             bpf_skb_load_bytes(skb, skb->len - 3, &response->remainder_buf, 3);
             break;
         default:
+            // read_with_remainder() only reads 4 byte values, so the remainder
+            // can never be more than 3.
             return RET_ERR;
         }
 
         response->remainder = -1 * response->carry_over_offset;
+        // We shouldn't be skipping any part of the new packet.
         response->carry_over_offset = 0;
     }
 
