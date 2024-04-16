@@ -6,7 +6,7 @@ from unittest import mock
 from invoke.exceptions import Exit
 
 from tasks import release
-from tasks.libs.version import Version
+from tasks.libs.types.version import Version
 
 
 def fake_tag(value):

@@ -7,9 +7,7 @@ from typing import List
 
 from invoke import Exit, task
 
-from tasks.libs.common.utils import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH, get_git_pretty_ref
-from tasks.libs.datadog_api import create_count, send_metrics
-from tasks.libs.github_actions_tools import (
+from tasks.libs.ciproviders.github_actions_tools import (
     download_artifacts,
     download_with_retry,
     follow_workflow_run,
@@ -17,8 +15,10 @@ from tasks.libs.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
-from tasks.libs.junit_upload_core import repack_macos_junit_tar
-from tasks.libs.pipeline_notifications import read_owners
+from tasks.libs.common.datadog_api import create_count, send_metrics
+from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
+from tasks.libs.common.utils import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH, get_git_pretty_ref
+from tasks.libs.owners.parsing import read_owners
 from tasks.release import _get_release_json_value
 
 
@@ -165,7 +165,7 @@ def _get_code_owners(root_folder):
 def get_milestone_id(_, milestone):
     # Local import as github isn't part of our default set of installed
     # dependencies, and we don't want to propagate it to files importing this one
-    from libs.common.github_api import GithubAPI
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI()
     m = gh.get_milestone_by_name(milestone)
@@ -175,24 +175,29 @@ def get_milestone_id(_, milestone):
 
 
 @task
-def send_rate_limit_info_datadog(_, pipeline_id):
-    from .libs.common.github_api import GithubAPI
+def send_rate_limit_info_datadog(_, pipeline_id, app_instance):
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI()
     rate_limit_info = gh.get_rate_limit_info()
-    print(f"Remaining rate limit: {rate_limit_info[0]}/{rate_limit_info[1]}")
+    print(f"Remaining rate limit for app instance {app_instance}: {rate_limit_info[0]}/{rate_limit_info[1]}")
     metric = create_count(
         metric_name='github.rate_limit.remaining',
         timestamp=int(time.time()),
         value=rate_limit_info[0],
-        tags=['source:github', 'repository:datadog-agent', f'pipeline_id:{pipeline_id}'],
+        tags=[
+            'source:github',
+            'repository:datadog-agent',
+            f'pipeline_id:{pipeline_id}',
+            f'app_instance:{app_instance}',
+        ],
     )
     send_metrics([metric])
 
 
 @task
 def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
-    from .libs.common.github_api import GithubAPI
+    from .libs.ciproviders.github_api import GithubAPI
 
     GithubAPI.get_token_from_app(app_id_env, pkey_env)
 
@@ -235,7 +240,7 @@ def assign_team_label(_, pr_id=-1):
     """
     import github
 
-    from tasks.libs.common.github_api import GithubAPI
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI('DataDog/datadog-agent')
 

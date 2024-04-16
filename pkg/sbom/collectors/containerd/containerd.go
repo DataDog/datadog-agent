@@ -28,19 +28,24 @@ import (
 // 1000 is already a very large default value
 const resultChanSize = 1000
 
-// ScanRequest defines a scan request. This struct should be
+// scanRequest defines a scan request. This struct should be
 // hashable to be pushed in the work queue for processing.
-type ScanRequest struct {
-	ImageID string
+type scanRequest struct {
+	imageID string
+}
+
+// NewScanRequest creates a new scan request
+func NewScanRequest(imageID string) sbom.ScanRequest {
+	return scanRequest{imageID: imageID}
 }
 
 // Collector returns the collector name
-func (r ScanRequest) Collector() string {
+func (r scanRequest) Collector() string {
 	return collectors.ContainerdCollector
 }
 
 // Type returns the scan request type
-func (r ScanRequest) Type() string {
+func (r scanRequest) Type() string {
 	if pkgconfig.Datadog.GetBool("sbom.container_image.use_mount") {
 		return sbom.ScanFilesystemType
 	}
@@ -48,8 +53,8 @@ func (r ScanRequest) Type() string {
 }
 
 // ID returns the scan request ID
-func (r ScanRequest) ID() string {
-	return r.ImageID
+func (r scanRequest) ID() string {
+	return r.imageID
 }
 
 // Collector defines a containerd collector
@@ -84,7 +89,7 @@ func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmet
 
 // Scan performs the scan
 func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
-	containerdScanRequest, ok := request.(ScanRequest)
+	containerdScanRequest, ok := request.(scanRequest)
 	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectors.ContainerdCollector)}
 	}

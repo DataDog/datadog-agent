@@ -167,7 +167,6 @@ func extractTraceAgentConfig(agentConfig Config, converter *config.LegacyConfigC
 		"trace.config.env":                       "apm_config.env",
 		"trace.config.log_level":                 "apm_config.log_level",
 		"trace.config.log_file":                  "apm_config.log_file",
-		"trace.config.log_throttling":            "apm_config.log_throttling",
 		"trace.concentrator.bucket_size_seconds": "apm_config.bucket_size_seconds",
 		"trace.concentrator.extra_aggregators":   "apm_config.extra_aggregators",
 		"trace.receiver.receiver_port":           "apm_config.receiver_port",

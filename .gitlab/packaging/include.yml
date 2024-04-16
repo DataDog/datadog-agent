@@ -1,2 +1,4 @@
 include:
-  - /.gitlab/packaging/oci.yml
+  - .gitlab/packaging/oci.yml
+  - .gitlab/packaging/deb.yml
+  - .gitlab/packaging/rpm.yml

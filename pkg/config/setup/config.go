@@ -382,6 +382,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Yaml keys which values are stripped from flare
 	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
+	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
@@ -508,6 +509,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("dogstatsd_socket", "")        // Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "") // Experimental || Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
+	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust_strategy", "max_throughput")
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
 	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
@@ -631,7 +633,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 
 	// Podman
-	config.BindEnvAndSetDefault("podman_db_path", "/var/lib/containers/storage/libpod/bolt_state.db")
+	config.BindEnvAndSetDefault("podman_db_path", "")
 
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
@@ -688,6 +690,27 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.SetKnown("snmp_listener.ping.timeout")
 	config.SetKnown("snmp_listener.ping.linux")
 	config.SetKnown("snmp_listener.ping.linux.use_raw_socket")
+
+	// network_devices.snmp_listener has precedence over snmp_listener config
+	// snmp_listener config is still here for legacy reasons
+	config.SetKnown("network_devices.snmp_listener.discovery_interval")
+	config.SetKnown("network_devices.snmp_listener.allowed_failures")
+	config.SetKnown("network_devices.snmp_listener.discovery_allowed_failures")
+	config.SetKnown("network_devices.snmp_listener.collect_device_metadata")
+	config.SetKnown("network_devices.snmp_listener.collect_topology")
+	config.SetKnown("network_devices.snmp_listener.workers")
+	config.SetKnown("network_devices.snmp_listener.configs")
+	config.SetKnown("network_devices.snmp_listener.loader")
+	config.SetKnown("network_devices.snmp_listener.min_collection_interval")
+	config.SetKnown("network_devices.snmp_listener.namespace")
+	config.SetKnown("network_devices.snmp_listener.use_device_id_as_hostname")
+	config.SetKnown("network_devices.snmp_listener.ping")
+	config.SetKnown("network_devices.snmp_listener.ping.enabled")
+	config.SetKnown("network_devices.snmp_listener.ping.count")
+	config.SetKnown("network_devices.snmp_listener.ping.interval")
+	config.SetKnown("network_devices.snmp_listener.ping.timeout")
+	config.SetKnown("network_devices.snmp_listener.ping.linux")
+	config.SetKnown("network_devices.snmp_listener.ping.linux.use_raw_socket")
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
@@ -781,6 +804,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
 	config.BindEnvAndSetDefault("ecs_resource_tags_replace_colon", false)
 	config.BindEnvAndSetDefault("ecs_metadata_timeout", 500) // value in milliseconds
+	config.BindEnvAndSetDefault("ecs_task_collection_enabled", false)
+	config.BindEnvAndSetDefault("ecs_task_cache_ttl", 3*time.Minute)
+	config.BindEnvAndSetDefault("ecs_task_collection_rate", 35)
+	config.BindEnvAndSetDefault("ecs_task_collection_burst", 60)
 
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
@@ -1074,7 +1101,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.inject_config.dogstatsd_socket", "unix:///var/run/datadog/dsd.socket")
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
-	config.BindEnvAndSetDefault("admission_controller.pod_owners_cache_validity", 10) // in minutes
+	config.BindEnvAndSetDefault("admission_controller.inject_tags.pod_owners_cache_validity", 10) // in minutes
+	config.BindEnv("admission_controller.pod_owners_cache_validity")                              // Alias for admission_controller.inject_tags.pod_owners_cache_validity. Was added without the "inject_tags" prefix by mistake but needs to be kept for backwards compatibility
 	config.BindEnvAndSetDefault("admission_controller.namespace_selector_fallback", false)
 	config.BindEnvAndSetDefault("admission_controller.failure_policy", "Ignore")
 	config.BindEnvAndSetDefault("admission_controller.reinvocation_policy", "IfNeeded")
@@ -1247,7 +1275,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
-	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
 	config.BindEnv("compliance_config.run_commands_as")
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
 	config.BindEnvAndSetDefault("compliance_config.metrics.enabled", false)
@@ -1260,7 +1287,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	} else {
 		config.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(InstallPath, "run/runtime-security.sock"))
 	}
-	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
 	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", false)
@@ -1334,7 +1360,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	setupHighAvailability(config)
 
 	// Updater configuration
+	config.BindEnvAndSetDefault("updater.remote_updates", false)
 	config.BindEnv("updater.registry")
+	config.BindEnvAndSetDefault("updater.registry_auth", "")
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables

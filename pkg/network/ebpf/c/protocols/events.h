@@ -63,13 +63,13 @@
                                                      sizeof(batch_data_t));                             \
                 }                                                                                       \
                 if (perf_ret < 0) {                                                                     \
-                    _LOG(name, "batch flush error: cpu: %d idx: %d err: %d",                            \
+                    _LOG(name, "batch flush error: cpu: %d idx: %llu err: %ld",                           \
                          key.cpu, batch->idx, perf_ret);                                                \
                     batch->failed_flushes++;                                                            \
                     return;                                                                             \
                 }                                                                                       \
                                                                                                         \
-                _LOG(name, "batch flushed: cpu: %d idx: %d", key.cpu, batch->idx);                      \
+                _LOG(name, "batch flushed: cpu: %d idx: %llu", key.cpu, batch->idx);                      \
                 batch->dropped_events = 0;                                                              \
                 batch->failed_flushes = 0;                                                              \
                 batch->len = 0;                                                                         \
@@ -95,7 +95,7 @@
         enough */                                                                                       \
         if (name##_batch_full(batch)) {                                                                 \
             batch->dropped_events++;                                                                    \
-            _LOG(name, "enqueue error: cpu: %d batch_idx: %d dropping event because batch is full.",    \
+            _LOG(name, "enqueue error: cpu: %d batch_idx: %llu dropping event because batch is full.",    \
                  key.cpu, batch->idx);                                                                  \
             return;                                                                                     \
         }                                                                                               \
@@ -110,7 +110,7 @@
         batch->event_size = sizeof(value);                                                              \
         batch->idx = batch_state->idx;                                                                  \
                                                                                                         \
-        _LOG(name, "event enqueued: cpu: %d batch_idx: %d len: %d",                                     \
+        _LOG(name, "event enqueued: cpu: %d batch_idx: %llu len: %d",                                   \
              key.cpu, batch_state->idx, batch->len);                                                    \
         /* if we have filled up the batch we move to the next one.
            notice the batch will be sent "asynchronously" to userspace during the

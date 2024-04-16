@@ -40,11 +40,12 @@ const (
 
 // HTTP errors.
 var (
-	errClient = errors.New("client error")
-	errServer = errors.New("server error")
-	tlmSend   = telemetry.NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
-	tlmInUse  = telemetry.NewCounter("logs_client_http_destination", "in_use_ms", []string{"sender"}, "Time spent sending payloads in ms")
-	tlmIdle   = telemetry.NewCounter("logs_client_http_destination", "idle_ms", []string{"sender"}, "Time spent idle while not sending payloads in ms")
+	errClient  = errors.New("client error")
+	errServer  = errors.New("server error")
+	tlmSend    = telemetry.NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
+	tlmInUse   = telemetry.NewCounter("logs_client_http_destination", "in_use_ms", []string{"sender"}, "Time spent sending payloads in ms")
+	tlmIdle    = telemetry.NewCounter("logs_client_http_destination", "idle_ms", []string{"sender"}, "Time spent idle while not sending payloads in ms")
+	tlmDropped = telemetry.NewCounterWithOpts("logs_client_http_destination", "payloads_dropped", []string{}, "Number of payloads dropped because of unrecoverable errors", telemetry.Options{DefaultMetric: true})
 
 	expVarIdleMsMapKey  = "idleMs"
 	expVarInUseMsMapKey = "inUseMs"
@@ -238,7 +239,13 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()
-			log.Warnf("Could not send payload: %v", err)
+
+			// shouldRetry is false for serverless. This log line is too verbose for serverless so make it debug only.
+			if d.shouldRetry {
+				log.Warnf("Could not send payload: %v", err)
+			} else {
+				log.Debugf("Could not send payload: %v", err)
+			}
 		}
 
 		if err == context.Canceled {
@@ -282,6 +289,8 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	}
 	req.Header.Set("DD-API-KEY", d.endpoint.GetAPIKey())
 	req.Header.Set("Content-Type", d.contentType)
+	req.Header.Set("User-Agent", fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+
 	if payload.Encoding != "" {
 		req.Header.Set("Content-Encoding", payload.Encoding)
 	}
@@ -332,6 +341,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		resp.StatusCode == http.StatusRequestEntityTooLarge {
 		// the logs-agent is likely to be misconfigured,
 		// the URL or the API key may be wrong.
+		tlmDropped.Inc()
 		return errClient
 	} else if resp.StatusCode > http.StatusBadRequest {
 		// the server could not serve the request, most likely because of an
