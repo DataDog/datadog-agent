@@ -24,6 +24,7 @@ import (
 
 func TestTablespaces(t *testing.T) {
 	c, s := newDefaultCheck(t, "", "")
+	defer c.Teardown()
 	err := c.Run()
 	require.NoError(t, err)
 	s.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

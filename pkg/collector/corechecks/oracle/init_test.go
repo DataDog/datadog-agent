@@ -18,6 +18,7 @@ func TestTags(t *testing.T) {
 	c, _ := newDefaultCheck(t, `tags:
   - foo1:bar1
   - foo2:bar2`, "")
+	defer c.Teardown()
 	err := c.Run()
 	require.NoError(t, err)
 	assert.True(t, c.initialized, "Check not initialized")
