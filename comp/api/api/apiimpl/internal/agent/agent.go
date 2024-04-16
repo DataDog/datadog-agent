@@ -19,7 +19,6 @@ import (
 	"os"
 	"path"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/DataDog/zstd"
@@ -215,16 +214,10 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	log.Info("Got a request for the status. Making status.")
 	verbose := r.URL.Query().Get("verbose") == "true"
 	format := r.URL.Query().Get("format")
-	excludeQuery := r.URL.Query().Get("exclude")
-	var exclude []string
 	var contentType string
 	var s []byte
 
 	contentType, ok := mimeTypeMap[format]
-
-	if len(excludeQuery) > 0 {
-		exclude = strings.Split(excludeQuery, ",")
-	}
 
 	if !ok {
 		log.Warn("Got a request with invalid format parameter. Defaulting to 'text' format")
@@ -237,7 +230,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	if len(section) > 0 {
 		s, err = statusComponent.GetStatusBySection(section, format, verbose)
 	} else {
-		s, err = statusComponent.GetStatus(format, verbose, exclude...)
+		s, err = statusComponent.GetStatus(format, verbose)
 	}
 
 	if err != nil {
