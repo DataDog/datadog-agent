@@ -47,6 +47,7 @@ build do
     # Packages
     mkdir "/opt/datadog-packages"
     copy 'bin/installer', "#{install_dir}/bin/"
+    copy '#{files_path}/installer/Readme.md', "#{install_dir}/Readme.md"
 
     systemdPath = "#{install_dir}/systemd/"
     erb source: "datadog-installer.service.erb",
