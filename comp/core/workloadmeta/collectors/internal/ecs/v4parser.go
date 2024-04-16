@@ -29,7 +29,7 @@ func (c *collector) parseTasksFromV4Endpoint(ctx context.Context) ([]workloadmet
 	events := []workloadmeta.CollectorEvent{}
 	seen := make(map[workloadmeta.EntityID]struct{})
 
-	taskWorker := newWorker(c.taskRateRPS, c.taskRateBurst, c.taskCache, c.getTaskWithTagsFromV4Endpoint)
+	taskWorker := newWorker[v3or4.Task](c.taskRateRPS, c.taskRateBurst, c.taskCache, c.getTaskWithTagsFromV4Endpoint)
 	processed, rest, skipped := taskWorker.execute(ctx, tasks)
 
 	// parse the processed tasks

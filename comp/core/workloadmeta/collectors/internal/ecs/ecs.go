@@ -10,15 +10,15 @@ package ecs
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/patrickmn/go-cache"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -32,6 +32,12 @@ const (
 	componentName = "workloadmeta-ecs"
 )
 
+type dependencies struct {
+	fx.In
+
+	Config config.Component
+}
+
 type collector struct {
 	id                  string
 	store               workloadmeta.Component
@@ -43,6 +49,7 @@ type collector struct {
 	collectResourceTags bool
 	resourceTags        map[string]resourceTags
 	seen                map[workloadmeta.EntityID]struct{}
+	config              config.Component
 	// taskCollectionEnabled is a flag to enable detailed task collection
 	// if the flag is enabled, the collector will query the latest metadata endpoint, currently v4, for each task
 	// that is returned from the v1/tasks endpoint
@@ -59,17 +66,18 @@ type resourceTags struct {
 }
 
 // NewCollector returns a new ecs collector provider and an error
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:                    collectorID,
 			resourceTags:          make(map[string]resourceTags),
 			seen:                  make(map[workloadmeta.EntityID]struct{}),
 			catalog:               workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-			taskCollectionEnabled: util.IsTaskCollectionEnabled(),
-			taskCache:             cache.New(config.Datadog.GetDuration("ecs_task_cache_ttl"), 30*time.Second),
-			taskRateRPS:           config.Datadog.GetInt("ecs_task_collection_rate"),
-			taskRateBurst:         config.Datadog.GetInt("ecs_task_collection_burst"),
+			config:                deps.Config,
+			taskCollectionEnabled: util.IsTaskCollectionEnabled(deps.Config),
+			taskCache:             cache.New(deps.Config.GetDuration("ecs_task_cache_ttl"), 30*time.Second),
+			taskRateRPS:           deps.Config.GetInt("ecs_task_collection_rate"),
+			taskRateBurst:         deps.Config.GetInt("ecs_task_collection_burst"),
 		},
 	}, nil
 }
@@ -80,7 +88,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.ECSEC2) {
+	if !pkgConfig.IsFeaturePresent(pkgConfig.ECSEC2) {
 		return errors.NewDisabled(componentName, "Agent is not running on ECS EC2")
 	}
 
@@ -98,7 +106,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 
 	c.hasResourceTags = ecsutil.HasEC2ResourceTags()
-	c.collectResourceTags = config.Datadog.GetBool("ecs_collect_resource_tags_ec2")
+	c.collectResourceTags = c.config.GetBool("ecs_collect_resource_tags_ec2")
 
 	instance, err := c.metaV1.GetInstance(ctx)
 	if err == nil {
@@ -107,24 +115,18 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		log.Warnf("cannot determine ECS cluster name: %s", err)
 	}
 
-	switch c.detectEndpoint() {
-	case "v4":
-		c.taskCollectionParser = c.parseTasksFromV4Endpoint
-	case "v1":
-		c.taskCollectionParser = c.parseTasksFromV1Endpoint
-	default:
-		return fmt.Errorf("failed to detect ECS metadata endpoint")
-	}
+	c.setTaskCollectionParser()
 
 	return nil
 }
 
-func (c *collector) detectEndpoint() string {
+func (c *collector) setTaskCollectionParser() {
 	_, err := ecsmeta.V4FromCurrentTask()
 	if c.taskCollectionEnabled && err == nil {
-		return "v4"
+		c.taskCollectionParser = c.parseTasksFromV4Endpoint
+		return
 	}
-	return "v1"
+	c.taskCollectionParser = c.parseTasksFromV1Endpoint
 }
 
 func (c *collector) Pull(ctx context.Context) error {

@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,8 +26,8 @@ type TaskParser func(ctx context.Context) ([]workloadmeta.CollectorEvent, error)
 // IsTaskCollectionEnabled returns true if the task metadata collection is enabled for core agent
 // If agent launch type is EC2, collector will query the latest ECS metadata endpoint for each task returned by v1/tasks
 // If agent launch type is Fargate, collector will query the latest ECS metadata endpoint
-func IsTaskCollectionEnabled() bool {
-	return config.Datadog.GetBool("ecs_task_collection_enabled") && (flavor.GetFlavor() == flavor.DefaultAgent)
+func IsTaskCollectionEnabled(cfg config.Component) bool {
+	return cfg.GetBool("ecs_task_collection_enabled") && (flavor.GetFlavor() == flavor.DefaultAgent)
 }
 
 // ParseV4Task parses a metadata v4 task into a workloadmeta.ECSTask
