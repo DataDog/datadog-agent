@@ -112,7 +112,7 @@ func bootstrapFxWrapper(ctx context.Context, params *cliParams, installScriptPar
 	)
 }
 
-func bootstrap(ctx context.Context, params *cliParams, installScriptParams *installScriptParams, config config.Component, log log.Component, _ telemetry.Component) error {
+func bootstrap(ctx context.Context, params *cliParams, installScriptParams *installScriptParams, config config.Component, log log.Component, _ telemetry.Component) (err error) {
 	var spanOptions []tracer.StartSpanOption
 	if installScriptParams.Telemetry.TraceID != 0 && installScriptParams.Telemetry.ParentID != 0 {
 		ctxCarrier := tracer.TextMapCarrier{
@@ -128,7 +128,7 @@ func bootstrap(ctx context.Context, params *cliParams, installScriptParams *inst
 	}
 
 	span, ctx := tracer.StartSpanFromContext(ctx, "cmd/bootstrap", spanOptions...)
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag(ext.ManualKeep, true)
 	span.SetTag("params.pkg", params.pkg)
 	span.SetTag("params.version", params.version)
