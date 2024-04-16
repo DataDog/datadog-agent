@@ -41,12 +41,12 @@
         },
         "ec2": {
             "x86_64": {
-                "debian-10": "ami-041540a5c191757a0",
+                "debian-10": "ami-067a196d70cb53732",
                 "debian-11": "ami-0fd320e6b2de9e34a",
                 "debian-12": "ami-07edaec601cf2b6d3"
             },
             "arm64": {
-                "debian-10": "ami-0108ade0d057c8eba",
+                "debian-10": "ami-0b6ee4b8f4aa91fb4",
                 "debian-11": "ami-0d3b78362fc3d8e61",
                 "debian-12": "ami-02aab8d5301cb8d68"
             }
