@@ -241,10 +241,9 @@ def build(
         # /git/cache/dir/a/b/c/.git
         if install_directory is None:
             install_directory = install_dir_for_project(target_project)
-        if install_directory[0] == "/":
-            # Is the path starts with a /, it's considered the new root for the joined path
-            # which effectively drops whatever was in omnibus_cache_dir
-            install_directory = install_directory[1:]
+        # Is the path starts with a /, it's considered the new root for the joined path
+        # which effectively drops whatever was in omnibus_cache_dir
+        install_directory = install_directory.lstrip('/')
         omnibus_cache_dir = os.path.join(omnibus_cache_dir, install_directory)
         remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
         # We don't want to update the cache when not running on a CI
