@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Added new end-to-end tests to test agent logs intake in a
+    Added new end-to-end tests for Agent logs intake in a
     k8s environment.
