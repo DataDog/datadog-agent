@@ -88,6 +88,7 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 	entry.PPid = ppid
 	entry.ForkTime = time.Unix(0, int64(ts))
 	entry.IsThread = true
+	entry.Source = model.ProcessCacheEntryFromEvent
 
 	p.Lock()
 	defer p.Unlock()
@@ -99,10 +100,11 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
-	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string) *model.ProcessCacheEntry {
+	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string, source uint64) *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext.Pid = key.Pid
 	entry.PPid = ppid
+	entry.Source = source
 
 	entry.Process.ArgsEntry = &model.ArgsEntry{
 		Values:    argv,
