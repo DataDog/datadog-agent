@@ -318,26 +318,29 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		if err == nil {
 			break
 		}
-		if retryStrategy := sm.getRetryStrategyFrom(err); retryStrategy != noRetry {
-			fmt.Fprintf(logger, "Got error that should be retried during stack up, retrying with %s strategy", retryStrategy)
-			err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : retrying Pulumi stack up", name), err.Error(), []string{"operation:up", fmt.Sprintf("retry:%s", retryStrategy)}, logger)
+
+		retryStrategy := sm.getRetryStrategyFrom(err)
+		err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), err.Error(), []string{"operation:up", fmt.Sprintf("retry:%s", retryStrategy)}, logger)
+		switch retryStrategy {
+		case reUp:
+			fmt.Fprint(logger, "Got error during stack up, retring")
 			if err != nil {
 				fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
 			}
-
-			if retryStrategy == reCreate {
-				// If we are recreating the stack, we should destroy the stack first
-				destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
-				_, err := stack.Destroy(destroyCtx, optdestroy.ProgressStreams(logger), optdestroy.DebugLogging(loggingOptions))
-				cancel()
-				if err != nil {
-					return stack, auto.UpResult{}, err
-				}
+		case reCreate:
+			fmt.Fprint(logger, "Got error during stack up, recreating stack")
+			destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
+			_, err := stack.Destroy(destroyCtx, optdestroy.ProgressStreams(logger), optdestroy.DebugLogging(loggingOptions))
+			cancel()
+			if err != nil {
+				return stack, auto.UpResult{}, err
 			}
-		} else {
-			break
+		case noRetry:
+			fmt.Fprint(logger, "Got error during stack up, giving up")
+			return stack, upResult, err
 		}
 	}
+
 	return stack, upResult, err
 }
 
