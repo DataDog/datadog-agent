@@ -5,6 +5,7 @@ import sys
 from datetime import datetime
 
 import requests
+from release import _get_release_json_value
 
 
 def _get_build_images(ctx):
@@ -12,6 +13,11 @@ def _get_build_images(ctx):
     # as a test image and the merged version shouldn't share their cache
     tags = ctx.run("grep -E 'DATADOG_AGENT_.*BUILDIMAGES' .gitlab-ci.yml | cut -d ':' -f 2", hide='stdout').stdout
     return (t.strip() for t in tags.splitlines())
+
+
+def _get_omnibus_commits(field):
+    release_version = os.environ['RELEASE_VERSION_7']
+    return _get_release_json_value(f'{release_version}::{field}')
 
 
 def _get_environment_for_cache() -> dict:
@@ -142,6 +148,10 @@ def omnibus_compute_cache_key(ctx):
     buildimages_hash = _get_build_images(ctx)
     for img_hash in buildimages_hash:
         h.update(str.encode(img_hash))
+    omnibus_ruby_commit = _get_omnibus_commits('OMNIBUS_RUBY_VERSION')
+    omnibus_software_commit = _get_omnibus_commits('OMNIBUS_SOFTWARE_VERSION')
+    h.update(str.encode(omnibus_ruby_commit))
+    h.update(str.encode(omnibus_software_commit))
     environment = _get_environment_for_cache()
     for k, v in environment.items():
         print(f'\tUsing environment variable {k} to compute cache key')
