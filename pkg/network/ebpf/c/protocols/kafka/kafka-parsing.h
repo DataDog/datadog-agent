@@ -578,6 +578,7 @@ static __always_inline bool kafka_process_new_response(conn_tuple_t *tup, kafka_
     kafka->response.record_batch_length = 0;
     kafka->response.expected_tcp_seq = kafka_get_next_tcp_seq(skb_info);
 
+    // Copy it to the stack since the verifier on 4.14 complains otherwise.
     kafka_response_context_t response_ctx;
     bpf_memcpy(&response_ctx, &kafka->response, sizeof(response_ctx));
 
