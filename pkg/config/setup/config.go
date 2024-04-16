@@ -691,6 +691,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.SetKnown("snmp_listener.ping.linux")
 	config.SetKnown("snmp_listener.ping.linux.use_raw_socket")
 
+	// network_devices.snmp_listener has precedence over snmp_listener config
+	// snmp_listener config is still here for legacy reasons
 	config.SetKnown("network_devices.snmp_listener.discovery_interval")
 	config.SetKnown("network_devices.snmp_listener.allowed_failures")
 	config.SetKnown("network_devices.snmp_listener.discovery_allowed_failures")
