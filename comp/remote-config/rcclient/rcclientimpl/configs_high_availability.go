@@ -12,7 +12,8 @@ import (
 
 // highAvailabilityConfig is a deserialized high availability configuration file
 type highAvailabilityConfig struct {
-	Failover *bool `json:"failover"`
+	FailoverMetrics *bool `json:"failover_metrics"`
+	FailoverLogs    *bool `json:"failover_logs"`
 }
 
 // parseHighAvailabilityConfig parses an agent task config

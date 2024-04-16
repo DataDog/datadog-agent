@@ -161,48 +161,79 @@ func (rc rcClient) start() {
 }
 
 func (rc rcClient) haUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	var failover *bool
+	// If the updates map is empty, we should unset the failover settings if they were set via RC previously
+	if len(updates) == 0 {
+		// Determine the current source of the ha.failover_metrics and ha.failover_logs cfg value
+		haFailoverMetricsSource := config.Datadog.GetSource("ha.failover_metrics")
+		haFailoverLogsSource := config.Datadog.GetSource("ha.failover_logs")
+
+		// Unset the RC-sourced failover values regardless of what they are
+		config.Datadog.UnsetForSource("ha.failover_metrics", model.SourceRC)
+		config.Datadog.UnsetForSource("ha.failover_logs", model.SourceRC)
+
+		// If either of the values were previously set via RC, log the current values now that we've unset them
+		if haFailoverMetricsSource == model.SourceRC {
+			pkglog.Infof("Falling back to `ha.failover_metrics: %t`", config.Datadog.GetBool("ha.failover_metrics"))
+		}
+		if haFailoverLogsSource == model.SourceRC {
+			pkglog.Infof("Falling back to `ha.failover_logs: %t`", config.Datadog.GetBool("ha.failover_logs"))
+		}
+		return
+	}
+
 	applied := false
 	for cfgPath, update := range updates {
+		// Parse the config contents
 		haUpdate, err := parseHighAvailabilityConfig(update.Config)
 		if err != nil {
 			pkglog.Errorf("HA update unmarshal failed: %s", err)
+			applyStateCallback(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
 			continue
 		}
-		if haUpdate != nil && haUpdate.Failover != nil {
+
+		if haUpdate != nil && (haUpdate.FailoverMetrics != nil || haUpdate.FailoverLogs != nil) {
+			// If we've received multiple config files updating the failover settings, we should disregard all but the first update and log it, as this is unexpected
 			if applied {
-				pkglog.Infof("Multiple HA updates received, disregarding update of `ha.failover` to %t", *haUpdate.Failover)
-				continue
-			}
-			failover = haUpdate.Failover
-			pkglog.Infof("Setting `ha.failover: %t` through remote config", *failover)
-			err = rc.settingsComponent.SetRuntimeSetting("ha.failover", *failover, model.SourceRC)
-			if err != nil {
-				pkglog.Errorf("HA failover update failed: %s", err)
+				pkglog.Infof("Multiple HA updates received, disregarding update of `ha.failover_metrics` to %v and `ha.failover_logs` to %v", haUpdate.FailoverMetrics, haUpdate.FailoverLogs)
 				applyStateCallback(cfgPath, state.ApplyStatus{
 					State: state.ApplyStateError,
 					Error: err.Error(),
 				})
-			} else {
-				applied = true
-				applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+				continue
+			}
+
+			if haUpdate.FailoverMetrics != nil {
+				appliedMetrics := rc.applyHARuntimeSetting("ha.failover_metrics", *haUpdate.FailoverMetrics, cfgPath, applyStateCallback)
+				applied = applied || appliedMetrics
+			}
+			if haUpdate.FailoverLogs != nil {
+				appliedLogs := rc.applyHARuntimeSetting("ha.failover_logs", *haUpdate.FailoverLogs, cfgPath, applyStateCallback)
+				applied = applied || appliedLogs
+			}
+			if applied {
+				applyStateCallback(cfgPath, state.ApplyStatus{
+					State: state.ApplyStateAcknowledged,
+					Error: err.Error(),
+				})
 			}
 		}
 	}
+}
 
-	// Config update is nil, so we should unset the failover value if it was set via RC previously
-	if failover == nil {
-		// Determine the current source of the ha.failover cfg value
-		haCfgSource := config.Datadog.GetSource("ha.failover")
-
-		// Unset the RC-sourced ha.failover value regardless of what it is
-		config.Datadog.UnsetForSource("ha.failover", model.SourceRC)
-
-		// If the ha.failover value was previously set via RC, log the current value now that we've unset it
-		if haCfgSource == model.SourceRC {
-			pkglog.Infof("Falling back to `ha.failover: %t`", config.Datadog.GetBool("ha.failover"))
-		}
+func (rc rcClient) applyHARuntimeSetting(setting string, value bool, cfgPath string, applyStateCallback func(string, state.ApplyStatus)) bool {
+	pkglog.Infof("Setting `%s: %t` through remote config", setting, value)
+	err := rc.settingsComponent.SetRuntimeSetting(setting, value, model.SourceRC)
+	if err != nil {
+		pkglog.Errorf("Failed to set %s runtime setting to %t: %s", setting, value, err)
+		applyStateCallback(cfgPath, state.ApplyStatus{
+			State: state.ApplyStateError,
+			Error: err.Error(),
+		})
 	}
+	return err == nil
 }
 
 func (rc rcClient) SubscribeAgentTask() {
