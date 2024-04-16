@@ -341,7 +341,7 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 
 			for i, sc := range providers {
 				if i == 0 {
-					printHeader(b, section)
+					printHeader(b, sc.Section())
 					newLine(b)
 				}
 
