@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -38,8 +37,8 @@ func injectDeps(deps APIServerDeps, handler func(APIServerDeps, http.ResponseWri
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
-	r.HandleFunc("/config", deps.Settings.GetFullConfig(pkgconfig.Datadog, "process_config")).Methods("GET")
-	r.HandleFunc("/config/all", deps.Settings.GetFullConfig(pkgconfig.Datadog, "")).Methods("GET") // Get all fields from process-agent Config object
+	r.HandleFunc("/config", deps.Settings.GetFullConfig("process_config")).Methods("GET")
+	r.HandleFunc("/config/all", deps.Settings.GetFullConfig("")).Methods("GET") // Get all fields from process-agent Config object
 	r.HandleFunc("/config/list-runtime", deps.Settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)

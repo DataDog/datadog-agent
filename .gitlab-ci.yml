@@ -163,15 +163,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v31802788-2dee8fe9
+  DATADOG_AGENT_BUILDIMAGES: v31988376-bfbb3afb
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v31802788-2dee8fe9
+  DATADOG_AGENT_WINBUILDIMAGES: v31988376-bfbb3afb
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v31802788-2dee8fe9
+  DATADOG_AGENT_ARMBUILDIMAGES: v31988376-bfbb3afb
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v31802788-2dee8fe9
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v31988376-bfbb3afb
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v31802788-2dee8fe9
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v31988376-bfbb3afb
   DATADOG_AGENT_BUILDERS: v28719426-b6a4fd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -223,6 +223,9 @@ variables:
   MACOS_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.macos_github_app_id  # agent-ci-experience
   MACOS_GITHUB_INSTALLATION_ID_SSM_NAME: ci.datadog-agent.macos_github_installation_id  # agent-ci-experience
   MACOS_GITHUB_KEY_SSM_NAME: ci.datadog-agent.macos_github_key_b64  # agent-ci-experience
+  MACOS_GITHUB_APP_ID_2_SSM_NAME: ci.datadog-agent.macos_github_app_id_2  # agent-ci-experience
+  MACOS_GITHUB_INSTALLATION_ID_2_SSM_NAME: ci.datadog-agent.macos_github_installation_id_2  # agent-ci-experience
+  MACOS_GITHUB_KEY_2_SSM_NAME: ci.datadog-agent.macos_github_key_b64_2  # agent-ci-experience
   RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
   RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
   SMP_ACCOUNT_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-account-id  # single-machine-performance
@@ -940,7 +943,7 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_updater_or_e2e_changes_or_manual:
+.on_installer_or_e2e_changes_or_manual:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_mergequeue]
@@ -954,10 +957,10 @@ workflow:
       paths:
         - .gitlab/**/*
         - omnibus/config/**/*
-        - pkg/updater/**/*
-        - cmd/updater/**/*
-        - test/new-e2e/tests/updater/**/*
-        - tasks/updater.py
+        - pkg/installer/**/*
+        - cmd/installer/**/*
+        - test/new-e2e/tests/installer/**/*
+        - tasks/installer.py
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
@@ -1049,7 +1052,7 @@ workflow:
         - .gitlab-ci.yml
         - .gitlab/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-    
+
 .on_invoke_tasks_changes:
   - <<: *if_main_branch
   - changes:
