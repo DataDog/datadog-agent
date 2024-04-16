@@ -237,6 +237,10 @@ type setInformationArgs struct {
 	infoClass  uint32
 	fileName   string
 }
+type setDeleteArgs setInformationArgs
+type renameArgs setInformationArgs
+type rename29Args setInformationArgs
+type fsctlArgs setInformationArgs
 
 // nolint: unused
 func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
@@ -289,6 +293,62 @@ func (sia *setInformationArgs) string(t string) string {
 // nolint: unused
 func (sia *setInformationArgs) String() string {
 	return sia.string("SET_INFORMATION")
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseSetDeleteArgs(e *etw.DDEventRecord) (*setDeleteArgs, error) {
+	sda, err := wp.parseInformationArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*setDeleteArgs)(sda), nil
+}
+
+// nolint: unused
+func (sda *setDeleteArgs) String() string {
+	return (*setInformationArgs)(sda).string("SET_DELETE")
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseRenameArgs(e *etw.DDEventRecord) (*renameArgs, error) {
+	ra, err := wp.parseInformationArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*renameArgs)(ra), nil
+}
+
+// nolint: unused
+func (ra *renameArgs) String() string {
+	return (*setInformationArgs)(ra).string("RENAME")
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseRename29Args(e *etw.DDEventRecord) (*rename29Args, error) {
+	ra, err := wp.parseInformationArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*rename29Args)(ra), nil
+}
+
+// nolint: unused
+func (ra *rename29Args) String() string {
+	return (*setInformationArgs)(ra).string("RENAME29")
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseFsctlArgs(e *etw.DDEventRecord) (*fsctlArgs, error) {
+	fa, err := wp.parseInformationArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*fsctlArgs)(fa), nil
+}
+
+// nolint: unused
+func (fa *fsctlArgs) String() string {
+	return (*setInformationArgs)(fa).string("FSCTL")
 }
 
 /*
