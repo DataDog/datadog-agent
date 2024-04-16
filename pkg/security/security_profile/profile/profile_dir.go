@@ -364,14 +364,14 @@ func (dp *DirectoryProvider) watch(ctx context.Context) {
 					return
 				}
 
-				if event.Op&(fsnotify.Create|fsnotify.Remove) > 0 {
+				if event.Has(fsnotify.Create | fsnotify.Remove) {
 					files, err := dp.listProfiles()
 					if err != nil {
 						seclog.Errorf("couldn't list profiles: %v", err)
 						continue
 					}
 
-					if event.Op&fsnotify.Create > 0 {
+					if event.Has(fsnotify.Create) {
 						// look for the new profile
 						for _, file := range files {
 							if _, ok = dp.findProfile(file); ok {
@@ -384,7 +384,7 @@ func (dp *DirectoryProvider) watch(ctx context.Context) {
 							dp.newFilesLock.Unlock()
 							dp.newFilesDebouncer.Call()
 						}
-					} else if event.Op&fsnotify.Remove > 0 {
+					} else if event.Has(fsnotify.Remove) {
 						// look for the deleted profile
 						for selector, profile := range dp.getProfiles() {
 							if slices.Contains(files, profile.path) {
@@ -401,7 +401,7 @@ func (dp *DirectoryProvider) watch(ctx context.Context) {
 						}
 					}
 
-				} else if event.Op&fsnotify.Write > 0 && filepath.Ext(event.Name) == profileExtension {
+				} else if event.Has(fsnotify.Write) && filepath.Ext(event.Name) == profileExtension {
 					// add file in the list of new files
 					dp.newFilesLock.Lock()
 					dp.newFiles[event.Name] = true
