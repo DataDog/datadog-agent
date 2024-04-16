@@ -8,9 +8,7 @@ tests_macos:
     PYTHON_RUNTIMES: "3"
   script:
     - source /root/.bashrc
-    - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_KEY_SSM_NAME)
-    - export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_APP_ID_SSM_NAME)
-    - export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_INSTALLATION_ID_SSM_NAME)
+    - !reference [.setup_macos_github_app]
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     - export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
     - !reference [.setup_python_mirror_linux]
@@ -23,7 +21,7 @@ tests_macos:
     - source /root/.bashrc
     # Upload generated junit files
     - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
-    - for f in junit-*.tgz; do inv -e junit-upload --tgz-path $f; done
+    - for f in junit-*-repacked.tgz; do inv -e junit-upload --tgz-path $f; done
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -35,7 +33,9 @@ tests_macos:
 
 lint_macos:
   stage: source_test
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
@@ -43,9 +43,7 @@ lint_macos:
   timeout: 6h
   script:
     - source /root/.bashrc
-    - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_KEY_SSM_NAME)
-    - export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_APP_ID_SSM_NAME)
-    - export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_INSTALLATION_ID_SSM_NAME)
+    - !reference [.setup_macos_github_app]
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     - export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
     - !reference [.setup_python_mirror_linux]

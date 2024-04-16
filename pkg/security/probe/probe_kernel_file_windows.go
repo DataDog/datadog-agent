@@ -7,7 +7,9 @@
 package probe
 
 import (
+	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -42,7 +44,7 @@ const (
 type fileObjectPointer uint64
 
 var (
-	filePathResolver = make(map[fileObjectPointer]string, 0)
+	errDiscardedPath = errors.New("discarded path")
 )
 
 /*
@@ -128,7 +130,7 @@ The Parameters.Create.FileAttributes and Parameters.Create.EaLength members are 
 	by file systems and file system filter drivers. For more information, see the IRP_MJ_CREATE topic in
 	the Installable File System (IFS) documentation.
 */
-func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
+func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 	ca := &createHandleArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -156,12 +158,27 @@ func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	filePathResolver[ca.fileObject] = ca.fileName
+	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
+		wp.stats.fileCreateSkippedDiscardedPaths++
+		return nil, errDiscardedPath
+	}
+
+	// not amazing to double compute the basename..
+	basename := filepath.Base(ca.fileName)
+	if _, ok := wp.discardedBasenames.Get(basename); ok {
+		wp.stats.fileCreateSkippedDiscardedBasenames++
+		return nil, errDiscardedPath
+	}
+
+	wp.filePathResolverLock.Lock()
+	defer wp.filePathResolverLock.Unlock()
+	wp.filePathResolver[ca.fileObject] = ca.fileName
+
 	return ca, nil
 }
 
-func parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
-	ca, err := parseCreateHandleArgs(e)
+func (wp *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
+	ca, err := wp.parseCreateHandleArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -169,19 +186,25 @@ func parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
 }
 
 // nolint: unused
-func (ca *createHandleArgs) String() string {
+func (ca *createHandleArgs) string(t string) string {
 	var output strings.Builder
 
-	output.WriteString("  Create PID: " + strconv.Itoa(int(ca.ProcessID)) + "\n")
+	output.WriteString(t + " PID: " + strconv.Itoa(int(ca.ProcessID)) + "\n")
 	output.WriteString("         Name: " + ca.fileName + "\n")
 	output.WriteString("         Opts: " + strconv.FormatUint(uint64(ca.createOptions), 16) + " Share: " + strconv.FormatUint(uint64(ca.shareAccess), 16) + "\n")
 	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
+
 	return output.String()
 }
 
 // nolint: unused
+func (ca *createHandleArgs) String() string {
+	return ca.string("CREATE")
+}
+
+// nolint: unused
 func (ca *createNewFileArgs) String() string {
-	return (*createHandleArgs)(ca).String()
+	return (*createHandleArgs)(ca).string("CREATE_NEW_FILE")
 }
 
 /*
@@ -203,7 +226,7 @@ func (ca *createNewFileArgs) String() string {
       <data name="InfoClass" inType="win:UInt32"/>
      </template>
 */
-
+// nolint: unused
 type setInformationArgs struct {
 	etw.DDEventHeader
 	irp        uint64
@@ -215,7 +238,8 @@ type setInformationArgs struct {
 	fileName   string
 }
 
-func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
+// nolint: unused
+func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	sia := &setInformationArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -238,21 +262,33 @@ func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
-	if s, ok := filePathResolver[fileObjectPointer(sia.fileObject)]; ok {
+
+	wp.filePathResolverLock.Lock()
+	defer wp.filePathResolverLock.Unlock()
+	if s, ok := wp.filePathResolver[fileObjectPointer(sia.fileObject)]; ok {
 		sia.fileName = s
 	}
+
 	return sia, nil
 }
 
 // nolint: unused
-func (sia *setInformationArgs) String() string {
+func (sia *setInformationArgs) string(t string) string {
 	var output strings.Builder
 
-	output.WriteString("  SIA TID: " + strconv.Itoa(int(sia.threadID)) + "\n")
+	output.WriteString(t + " TID: " + strconv.Itoa(int(sia.threadID)) + "\n")
 	output.WriteString("      Name: " + sia.fileName + "\n")
 	output.WriteString("      InfoClass: " + strconv.FormatUint(uint64(sia.infoClass), 16) + "\n")
+	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(sia.fileObject), 16) + "\n")
+	output.WriteString("         KEY:  " + strconv.FormatUint(uint64(sia.fileKey), 16) + "\n")
+
 	return output.String()
 
+}
+
+// nolint: unused
+func (sia *setInformationArgs) String() string {
+	return sia.string("SET_INFORMATION")
 }
 
 /*
@@ -286,7 +322,7 @@ type closeArgs cleanupArgs
 // nolint: unused
 type flushArgs cleanupArgs
 
-func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
+func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	ca := &cleanupArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -305,16 +341,19 @@ func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
-	if s, ok := filePathResolver[ca.fileObject]; ok {
-		ca.fileName = s
 
+	wp.filePathResolverLock.Lock()
+	defer wp.filePathResolverLock.Unlock()
+	if s, ok := wp.filePathResolver[ca.fileObject]; ok {
+		ca.fileName = s
 	}
+
 	return ca, nil
 }
 
 // nolint: unused
-func parseCloseArgs(e *etw.DDEventRecord) (*closeArgs, error) {
-	ca, err := parseCleanupArgs(e)
+func (wp *WindowsProbe) parseCloseArgs(e *etw.DDEventRecord) (*closeArgs, error) {
+	ca, err := wp.parseCleanupArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -322,8 +361,8 @@ func parseCloseArgs(e *etw.DDEventRecord) (*closeArgs, error) {
 }
 
 // nolint: unused
-func parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error) {
-	ca, err := parseCleanupArgs(e)
+func (wp *WindowsProbe) parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error) {
+	ca, err := wp.parseCleanupArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -331,22 +370,28 @@ func parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error) {
 }
 
 // nolint: unused
-func (ca *cleanupArgs) String() string {
+func (ca *cleanupArgs) string(t string) string {
 	var output strings.Builder
 
-	output.WriteString("  CLEANUP: TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
+	output.WriteString(t + ": TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
 	output.WriteString("           Name: " + ca.fileName + "\n")
 	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
+	output.WriteString("         KEY:  " + strconv.FormatUint(uint64(ca.fileKey), 16) + "\n")
 	return output.String()
 
 }
 
 // nolint: unused
+func (ca *cleanupArgs) String() string {
+	return ca.string("CLEANUP")
+}
+
+// nolint: unused
 func (ca *closeArgs) String() string {
-	return (*cleanupArgs)(ca).String()
+	return (*cleanupArgs)(ca).string("CLOSE")
 }
 
 // nolint: unused
 func (fa *flushArgs) String() string {
-	return (*cleanupArgs)(fa).String()
+	return (*cleanupArgs)(fa).string("FLUSH")
 }

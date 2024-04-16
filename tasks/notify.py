@@ -11,18 +11,20 @@ from typing import Dict
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
-from tasks.libs.datadog_api import create_count, send_metrics
-from tasks.libs.pipeline_data import get_failed_jobs
-from tasks.libs.pipeline_notifications import (
+from tasks.libs.common.datadog_api import create_count, send_metrics
+from tasks.libs.pipeline.data import get_failed_jobs
+from tasks.libs.pipeline.notifications import (
     GITHUB_SLACK_MAP,
     base_message,
     check_for_missing_owners_slack_and_jira,
+    email_to_slackid,
     find_job_owners,
     get_failed_tests,
+    get_git_author,
     send_slack_message,
 )
-from tasks.libs.pipeline_stats import get_failed_jobs_stats
-from tasks.libs.types import FailedJobs, SlackMessage, TeamMessage
+from tasks.libs.pipeline.stats import get_failed_jobs_stats
+from tasks.libs.types.types import FailedJobs, SlackMessage, TeamMessage
 
 UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
 Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
@@ -40,8 +42,8 @@ def check_teams(_):
     if check_for_missing_owners_slack_and_jira():
         print(
             "Error: Some teams in CODEOWNERS don't have their slack notification channel or jira specified!\n"
-            "Please specify one in the GITHUB_SLACK_MAP or GITHUB_JIRA_MAP maps in tasks/libs/github_slack_map.yaml"
-            " or tasks/libs/github_jira_map.yaml"
+            "Please specify one in the GITHUB_SLACK_MAP or GITHUB_JIRA_MAP maps in tasks/libs/pipeline/github_slack_map.yaml"
+            " or tasks/libs/pipeline/github_jira_map.yaml"
         )
         raise Exit(code=1)
     else:
@@ -49,12 +51,15 @@ def check_teams(_):
 
 
 @task
-def send_message(_, notification_type="merge", print_to_stdout=False):
+def send_message(ctx, notification_type="merge", print_to_stdout=False):
     """
     Send notifications for the current pipeline. CI-only task.
     Use the --print-to-stdout option to test this locally, without sending
     real slack messages.
     """
+    default_branch = os.getenv('CI_DEFAULT_BRANCH')
+    git_ref = os.getenv('CI_COMMIT_REF_NAME')
+
     try:
         failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
         messages_to_send = generate_failure_messages(PROJECT_NAME, failed_jobs)
@@ -102,7 +107,28 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
         if print_to_stdout:
             print(f"Would send to {channel}:\n{str(message)}")
         else:
-            send_slack_message(channel, str(message))  # TODO: use channel variable
+            all_teams = channel == '#datadog-agent-pipelines'
+            post_channel = _should_send_message_to_channel(git_ref, default_branch) or all_teams
+            send_dm = not _should_send_message_to_channel(git_ref, default_branch) and all_teams
+
+            if post_channel:
+                recipient = channel
+                send_slack_message(recipient, str(message))
+
+            # DM author
+            if send_dm:
+                author_email = get_git_author(email=True)
+                recipient = email_to_slackid(ctx, author_email)
+                send_slack_message(recipient, str(message))
+
+
+def _should_send_message_to_channel(git_ref: str, default_branch: str) -> bool:
+    # Must match X.Y.Z, X.Y.x, W.X.Y-rc.Z
+    # Must not match W.X.Y-rc.Z-some-feature
+    release_ref_regex = re.compile(r"^[0-9]+\.[0-9]+\.(x|[0-9]+)$")
+    release_ref_regex_rc = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]-rc.[0-9]+$")
+
+    return git_ref == default_branch or release_ref_regex.match(git_ref) or release_ref_regex_rc.match(git_ref)
 
 
 @task
@@ -265,7 +291,7 @@ def update_statistics(job_executions):
     # Update statistics and collect consecutive failed jobs
     alert_jobs = {"consecutive": [], "cumulative": []}
     failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
-    failed_set = {job["name"] for job in failed_jobs.all_failures()}
+    failed_set = {job.name for job in failed_jobs.all_failures()}
     current_set = set(job_executions["jobs"].keys())
     # Insert data for newly failing jobs
     new_failed_jobs = failed_set - current_set
@@ -309,7 +335,7 @@ def send_notification(alert_jobs):
 
 @task
 def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
-    from tasks.libs.common.github_api import GithubAPI
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
     pipeline_id_regex = re.compile(r"pipeline ([0-9]*)")
 

@@ -24,7 +24,7 @@ const (
 	// envDisableStats defines the environment variable to set to disable avoidable stats
 	envDisableStats = "DD_CWS_INSTRUMENTATION_DISABLE_STATS"
 	// envDisableProcScan defines the environment variable to disable procfs scan
-	envDisableProcScan = "DD_CWS_INSTRUMENTATION_DISABLE_PROC_SCAN"
+	// envDisableProcScan = "DD_CWS_INSTRUMENTATION_DISABLE_PROC_SCAN"
 	// envProcScanRate defines the rate of the prodfs scan
 	envProcScanRate = "DD_CWS_INSTRUMENTATION_PROC_SCAN_RATE"
 )
@@ -103,7 +103,7 @@ func Command() []*cobra.Command {
 	traceCmd.Flags().Int32Var(&params.GID, gid, -1, "gid used to start the tracee")
 	traceCmd.Flags().BoolVar(&params.Async, async, false, "enable async GRPC connection")
 	traceCmd.Flags().BoolVar(&params.DisableStats, disableStats, os.Getenv(envDisableStats) != "", "disable use of stats")
-	traceCmd.Flags().BoolVar(&params.DisableProcScan, disableProcScan, os.Getenv(envDisableProcScan) != "", "disable proc scan")
+	traceCmd.Flags().BoolVar(&params.DisableProcScan, disableProcScan, true, "disable proc scan")
 	traceCmd.Flags().StringVar(&params.ScanProcEvery, scanProcEvery, os.Getenv(envProcScanRate), "proc scan rate")
 
 	traceCmd.AddCommand(selftestscmd.Command()...)

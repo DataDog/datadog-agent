@@ -22,10 +22,10 @@ if ($Env:TARGET_ARCH -eq "x86") {
 }
 & .\tasks\winbuildscripts\pre-go-build.ps1 -Architecture "$archflag" -PythonRuntimes "$Env:PY_RUNTIMES"
 
-& inv -e lint-go --build system-probe-unit-tests --targets .\pkg
+& inv -e linter.go --build system-probe-unit-tests --targets .\pkg
 $err = $LASTEXITCODE
 if ($err -ne 0) {
-    Write-Host -ForegroundColor Red "lint-go failed $err"
+    Write-Host -ForegroundColor Red "linter.go failed $err"
     [Environment]::Exit($err)
 }
 

@@ -27,9 +27,11 @@ type WindowsCreateFileSelfTest struct {
 func (o *WindowsCreateFileSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 	o.ruleID = fmt.Sprintf("%s_windows_create_file", ruleIDPrefix)
 
+	basename := filepath.Base(o.filename)
+
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
-		Expression: fmt.Sprintf(`create.file.name == "%s"`, filepath.Base(o.filename)),
+		Expression: fmt.Sprintf(`create.file.name == "%s" && create.file.path == "%s"`, basename, o.filename),
 	}
 }
 

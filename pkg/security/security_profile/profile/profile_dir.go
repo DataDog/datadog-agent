@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -155,20 +156,30 @@ func (dp *DirectoryProvider) UpdateWorkloadSelectors(selectors []cgroupModel.Wor
 }
 
 func (dp *DirectoryProvider) onNewProfileDebouncerCallback() {
+	// we don't want to keep the lock for too long, especially not while calling the callback
 	dp.Lock()
-	defer dp.Unlock()
-	for _, selector := range dp.selectors {
-		for profileSelector, profilePath := range dp.profileMapping {
+	selectors := make([]cgroupModel.WorkloadSelector, len(dp.selectors))
+	copy(selectors, dp.selectors)
+	profileMapping := maps.Clone(dp.profileMapping)
+	propagateCb := dp.onNewProfileCallback
+	dp.Unlock()
+
+	if propagateCb == nil {
+		return
+	}
+
+	for _, selector := range selectors {
+		for profileSelector, profilePath := range profileMapping {
 			if selector.Match(profileSelector) {
 				// read and parse profile
-				profile, err := LoadProfileFromFile(profilePath.path)
+				profile, err := LoadProtoFromFile(profilePath.path)
 				if err != nil {
 					seclog.Warnf("couldn't load profile %s: %v", profilePath.path, err)
 					continue
 				}
 
 				// propagate the new profile
-				dp.onNewProfileCallback(profileSelector, profile)
+				propagateCb(profileSelector, profile)
 			}
 		}
 	}
@@ -203,7 +214,7 @@ func (dp *DirectoryProvider) listProfiles() ([]string, error) {
 }
 
 func (dp *DirectoryProvider) loadProfile(profilePath string) error {
-	profile, err := LoadProfileFromFile(profilePath)
+	profile, err := LoadProtoFromFile(profilePath)
 	if err != nil {
 		return fmt.Errorf("couldn't load profile %s: %w", profilePath, err)
 	}
@@ -226,10 +237,14 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 
 	// lock selectors and profiles mapping
 	dp.Lock()
-	defer dp.Unlock()
+	selectors := make([]cgroupModel.WorkloadSelector, len(dp.selectors))
+	copy(selectors, dp.selectors)
+	profileMapping := maps.Clone(dp.profileMapping)
+	propagateCb := dp.onNewProfileCallback
+	dp.Unlock()
 
 	// prioritize a persited profile over activity dumps
-	if existingProfile, ok := dp.profileMapping[profileManagerSelector]; ok {
+	if existingProfile, ok := profileMapping[profileManagerSelector]; ok {
 		if existingProfile.selector.Tag == "*" && profile.Selector.GetImageTag() != "*" {
 			seclog.Debugf("ignoring %s: a persisted profile already exists for workload %s", profilePath, profileManagerSelector.String())
 			return nil
@@ -244,14 +259,14 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 
 	seclog.Debugf("security profile %s loaded from file system", workloadSelector)
 
-	if dp.onNewProfileCallback == nil {
+	if propagateCb == nil {
 		return nil
 	}
 
 	// check if this profile matches a workload selector
-	for _, selector := range dp.selectors {
+	for _, selector := range selectors {
 		if workloadSelector.Match(selector) {
-			dp.onNewProfileCallback(workloadSelector, profile)
+			propagateCb(workloadSelector, profile)
 		}
 	}
 	return nil

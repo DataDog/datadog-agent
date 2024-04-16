@@ -1,0 +1,20 @@
+#!/bin/sh
+#
+#
+# .deb: STEP 1 of 5
+
+readonly INSTALL_DIR=/opt/datadog-installer
+
+SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-installer || true
+SYSTEMCTL_SKIP_SYSV=true systemctl disable datadog-installer || true
+
+set -e
+
+case "$1" in
+    remove)
+        $INSTALL_DIR/bin/installer/installer purge
+    ;;
+    *)
+    ;;
+esac
+exit 0

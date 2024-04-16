@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# Perform necessary datadog-updater removal steps after package is uninstalled.
+#
+# .deb: STEP 3 of 5
+
+PACKAGES_DIR=/opt/datadog-packages
+INSTALL_DIR=/opt/datadog-installer
+PACKAGES_LOCK_DIR=/var/run/datadog-packages
+
+set -e
+
+remove_packages()
+{
+    echo "Removing packages installed by datadog-installer"
+    $INSTALL_DIR/bin/installer/installer purge
+}
+
+case "$1" in
+    purge)
+        remove_packages
+        echo "Deleting dd-agent user"
+        deluser dd-agent --quiet
+        deluser dd-installer --quiet
+        echo "Deleting dd-agent group"
+        (getent group dd-agent >/dev/null && delgroup dd-agent --quiet) || true
+        (getent group dd-installer >/dev/null && delgroup dd-installer --quiet) || true
+        echo "Force-deleting $INSTALL_DIR, $PACKAGES_DIR"
+        rm -rf $INSTALL_DIR
+        rm -rf $PACKAGES_DIR
+        rm -rf $PACKAGES_LOCK_DIR
+    ;;
+    remove)
+        remove_packages
+    ;;
+    *)
+    ;;
+esac
+
+exit 0

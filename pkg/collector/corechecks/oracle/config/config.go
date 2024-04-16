@@ -25,7 +25,7 @@ const defaultLoader = "core"
 // InitConfig is used to deserialize integration init config.
 type InitConfig struct {
 	MinCollectionInterval int           `yaml:"min_collection_interval"`
-	CustomQueries         []CustomQuery `yaml:"custom_queries"`
+	CustomQueries         []CustomQuery `yaml:"global_custom_queries"`
 	UseInstantClient      bool          `yaml:"use_instant_client"`
 	Service               string        `yaml:"service"`
 	Loader                string        `yaml:"loader"`
@@ -67,6 +67,10 @@ type ProcessMemoryConfig struct {
 }
 
 type inactiveSessionsConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type userSessionsCount struct {
 	Enabled bool `yaml:"enabled"`
 }
 
@@ -117,24 +121,29 @@ type locksConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+// ConnectionConfig store the database connection information
+type ConnectionConfig struct {
+	Server       string `yaml:"server"`
+	Port         int    `yaml:"port"`
+	ServiceName  string `yaml:"service_name"`
+	Username     string `yaml:"username"`
+	Password     string `yaml:"password"`
+	TnsAlias     string `yaml:"tns_alias"`
+	TnsAdmin     string `yaml:"tns_admin"`
+	Protocol     string `yaml:"protocol"`
+	Wallet       string `yaml:"wallet"`
+	OracleClient bool   `yaml:"oracle_client"`
+}
+
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
-	Server                             string                 `yaml:"server"`
-	Port                               int                    `yaml:"port"`
-	ServiceName                        string                 `yaml:"service_name"`
-	Username                           string                 `yaml:"username"`
+	ConnectionConfig                   `yaml:",inline"`
 	User                               string                 `yaml:"user"`
-	Password                           string                 `yaml:"password"`
-	TnsAlias                           string                 `yaml:"tns_alias"`
-	TnsAdmin                           string                 `yaml:"tns_admin"`
-	Protocol                           string                 `yaml:"protocol"`
-	Wallet                             string                 `yaml:"wallet"`
 	DBM                                bool                   `yaml:"dbm"`
 	Tags                               []string               `yaml:"tags"`
 	LogUnobfuscatedQueries             bool                   `yaml:"log_unobfuscated_queries"`
 	ObfuscatorOptions                  obfuscate.SQLConfig    `yaml:"obfuscator_options"`
 	InstantClient                      bool                   `yaml:"instant_client"`
-	OracleClient                       bool                   `yaml:"oracle_client"`
 	ReportedHostname                   string                 `yaml:"reported_hostname"`
 	QuerySamples                       QuerySamplesConfig     `yaml:"query_samples"`
 	QueryMetrics                       QueryMetricsConfig     `yaml:"query_metrics"`
@@ -142,6 +151,7 @@ type InstanceConfig struct {
 	Tablespaces                        TablespacesConfig      `yaml:"tablespaces"`
 	ProcessMemory                      ProcessMemoryConfig    `yaml:"process_memory"`
 	InactiveSessions                   inactiveSessionsConfig `yaml:"inactive_sessions"`
+	UserSessionsCount                  userSessionsCount      `yaml:"user_sessions_count"`
 	SharedMemory                       SharedMemoryConfig     `yaml:"shared_memory"`
 	ExecutionPlans                     ExecutionPlansConfig   `yaml:"execution_plans"`
 	AgentSQLTrace                      AgentSQLTrace          `yaml:"agent_sql_trace"`
@@ -212,6 +222,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.ProcessMemory.Enabled = true
 	instance.SharedMemory.Enabled = true
 	instance.InactiveSessions.Enabled = true
+	instance.UserSessionsCount.Enabled = true
 	instance.Asm.Enabled = true
 	instance.ResourceManager.Enabled = true
 	instance.Locks.Enabled = true
