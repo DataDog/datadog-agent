@@ -17,6 +17,7 @@ import (
 
 type dependencies struct {
 	fx.In
+	Lc fx.Lifecycle
 
 	Config config.Component
 }
@@ -28,11 +29,11 @@ func Module() fxutil.Module {
 	)
 }
 
-func newTelemetry(lc fx.Lifecycle, deps dependencies) (telemetry.Component, error) {
+func newTelemetry(deps dependencies) (telemetry.Component, error) {
 	telemetry, err := installer.NewTelemetry(deps.Config)
 	if err != nil {
 		return nil, err
 	}
-	lc.Append(fx.Hook{OnStart: telemetry.Start, OnStop: telemetry.Stop})
+	deps.Lc.Append(fx.Hook{OnStart: telemetry.Start, OnStop: telemetry.Stop})
 	return telemetry, nil
 }
