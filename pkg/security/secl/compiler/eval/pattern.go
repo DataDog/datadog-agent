@@ -19,7 +19,7 @@ func nextSegment(str string) (bool, string, int) {
 		star = true
 	}
 
-	for i, c := range str {
+	for i, c := range []byte(str) {
 		if c != '*' {
 			if !inSegment {
 				start = i
