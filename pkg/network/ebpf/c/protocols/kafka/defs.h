@@ -17,6 +17,6 @@
 #define KAFKA_MAX_ABORTED_TRANSACTIONS 10000
 
 // This controls the number of Kafka transactions read from userspace at a time
-#define KAFKA_BATCH_SIZE 26
+#define KAFKA_BATCH_SIZE 28
 
 #endif
