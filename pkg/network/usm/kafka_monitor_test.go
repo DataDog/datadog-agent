@@ -671,10 +671,10 @@ func runCannedTransaction(t *testing.T, msgs []Message) {
 	}
 }
 
-func appendMessages(messages []Message, correlationId int, req kmsg.FetchRequest, resp kmsg.FetchResponse) []Message {
+func appendMessages(messages []Message, correlationID int, req kmsg.FetchRequest, resp kmsg.FetchResponse) []Message {
 	formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
-	data := formatter.AppendRequest(make([]byte, 0), &req, int32(correlationId))
-	respData := appendResponse(make([]byte, 0), resp, uint32(correlationId))
+	data := formatter.AppendRequest(make([]byte, 0), &req, int32(correlationID))
+	respData := appendResponse(make([]byte, 0), resp, uint32(correlationID))
 
 	return append(messages,
 		Message{request: data},
