@@ -16,7 +16,10 @@ def _get_build_images(ctx):
 
 
 def _get_omnibus_commits(field):
-    release_version = os.environ['RELEASE_VERSION_7']
+    if 'RELEASE_VERSION' in os.environ:
+        release_version = os.environ['RELEASE_VERSION']
+    else:
+        release_version = os.environ['RELEASE_VERSION_7']
     return _get_release_json_value(f'{release_version}::{field}')
 
 
