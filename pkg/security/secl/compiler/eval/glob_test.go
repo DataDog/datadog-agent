@@ -227,3 +227,17 @@ func TestGlobMatches(t *testing.T) {
 		t.Error("should contain the filename")
 	}
 }
+
+func BenchmarkGlob(b *testing.B) {
+	glob, err := NewGlob("*/*/http*/*b*/test/**", false, false)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		if matches := glob.Matches("/var/log/httpd/abc/test/123"); !matches {
+			b.Fatalf("glob should match")
+		}
+	}
+}
