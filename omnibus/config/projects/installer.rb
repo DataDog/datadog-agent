@@ -138,6 +138,7 @@ end
 # ------------------------------------
 
 if linux_target?
+  extra_package_file "{files_path}/installer/Readme.md"
   extra_package_file '/etc/datadog-agent/'
   extra_package_file '/var/log/datadog/'
   extra_package_file '/var/run/datadog-packages/'
