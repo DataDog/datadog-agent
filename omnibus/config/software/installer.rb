@@ -47,7 +47,15 @@ build do
     # Packages
     mkdir "/opt/datadog-packages"
     copy 'bin/installer', "#{install_dir}/bin/"
-    copy '#{files_path}/installer/Readme.md', "#{install_dir}/Readme.md"
+
+    uninstall_command="sudo yum remove datadog-installer"
+    if debian_target?
+        uninstall_command="sudo apt-get remove datadog-installer"
+    end
+    erb source: "Readme.md.erb",
+       dest: "#{install_dir}/" + "Readme.md.erb",
+       mode: 0644,
+       vars: { uninstall_command: uninstall_command}
 
     systemdPath = "#{install_dir}/systemd/"
     erb source: "datadog-installer.service.erb",
