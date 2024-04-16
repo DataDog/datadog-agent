@@ -86,8 +86,10 @@ func TestFloat(t *testing.T) {
       - name: value
         type: gauge
 `, "")
+	defer c.Teardown()
 	err := c.Run()
 	require.NoError(t, err)
+	assertConnectionCount(t, &c, expectedSessionsWithCustomQueries)
 	s.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	s.AssertMetricTaggedWith(t, "Gauge", "oracle.custom_query.test.value", []string{"name:TAG1"})
 	s.AssertMetric(t, "Gauge", "oracle.custom_query.test.value", 1.012345, c.dbHostname, []string{})
@@ -96,5 +98,6 @@ func TestFloat(t *testing.T) {
 func TestGlobalCustomQueries(t *testing.T) {
 	globalCustomQueries := fmt.Sprintf("global_custom_queries:\n%s", customQueryTestConfig)
 	c, s := newDefaultCheck(t, "", globalCustomQueries)
+	defer c.Teardown()
 	assertCustomQuery(t, &c, s)
 }
