@@ -146,7 +146,6 @@ def omnibus_compute_cache_key(ctx):
     for k, v in environment.items():
         print(f'\tUsing environment variable {k} to compute cache key')
         h.update(str.encode(f'{k}={v}'))
-    # FIXME: include omnibus-ruby and omnibus-software version once they are pinned
     cache_key = h.hexdigest()
     print(f'Cache key: {cache_key}')
     return cache_key
