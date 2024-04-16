@@ -9,7 +9,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -20,7 +21,6 @@ type ProfilingRuntimeSetting struct {
 	SettingName string
 	Service     string
 
-	Config       config.ReaderWriter
 	ConfigPrefix string
 }
 
@@ -48,24 +48,20 @@ func (l *ProfilingRuntimeSetting) Name() string {
 }
 
 // Get returns the current value of the runtime setting
-func (l *ProfilingRuntimeSetting) Get() (interface{}, error) {
-	var cfg config.ReaderWriter = config.Datadog
-	if l.Config != nil {
-		cfg = l.Config
-	}
-	return cfg.GetBool(l.ConfigPrefix + "internal_profiling.enabled"), nil
+func (l *ProfilingRuntimeSetting) Get(config config.Component) (interface{}, error) {
+	return config.GetBool(l.ConfigPrefix + "internal_profiling.enabled"), nil
 }
 
 // Set changes the value of the runtime setting
-func (l *ProfilingRuntimeSetting) Set(v interface{}, source model.Source) error {
+func (l *ProfilingRuntimeSetting) Set(config config.Component, v interface{}, source model.Source) error {
 	var profile bool
 	var err error
 
 	if v, ok := v.(string); ok && strings.ToLower(v) == "restart" {
-		if err := l.Set(false, source); err != nil {
+		if err := l.Set(config, false, source); err != nil {
 			return err
 		}
-		return l.Set(true, source)
+		return l.Set(config, true, source)
 	}
 
 	profile, err = GetBool(v)
@@ -74,52 +70,47 @@ func (l *ProfilingRuntimeSetting) Set(v interface{}, source model.Source) error 
 		return fmt.Errorf("Unsupported type for profile runtime setting: %v", err)
 	}
 
-	var cfg config.ReaderWriter = config.Datadog
-	if l.Config != nil {
-		cfg = l.Config
-	}
-
 	if profile {
 		// populate site
-		s := config.DefaultSite
-		if cfg.IsSet(l.ConfigPrefix + "site") {
-			s = cfg.GetString(l.ConfigPrefix + "site")
+		s := pkgconfig.DefaultSite
+		if config.IsSet(l.ConfigPrefix + "site") {
+			s = config.GetString(l.ConfigPrefix + "site")
 		}
 
 		// allow full url override for development use
 		site := fmt.Sprintf(profiling.ProfilingURLTemplate, s)
-		if cfg.IsSet(l.ConfigPrefix + "internal_profiling.profile_dd_url") {
-			site = cfg.GetString(l.ConfigPrefix + "internal_profiling.profile_dd_url")
+		if config.IsSet(l.ConfigPrefix + "internal_profiling.profile_dd_url") {
+			site = config.GetString(l.ConfigPrefix + "internal_profiling.profile_dd_url")
 		}
 
 		// Note that we must derive a new profiling.Settings on every
 		// invocation, as many of these settings may have changed at runtime.
 		v, _ := version.Agent()
 
-		tags := cfg.GetStringSlice(l.ConfigPrefix + "internal_profiling.extra_tags")
+		tags := config.GetStringSlice(l.ConfigPrefix + "internal_profiling.extra_tags")
 		tags = append(tags, fmt.Sprintf("version:%v", v))
 
 		settings := profiling.Settings{
 			ProfilingURL:         site,
-			Socket:               cfg.GetString(l.ConfigPrefix + "internal_profiling.unix_socket"),
-			Env:                  cfg.GetString(l.ConfigPrefix + "env"),
+			Socket:               config.GetString(l.ConfigPrefix + "internal_profiling.unix_socket"),
+			Env:                  config.GetString(l.ConfigPrefix + "env"),
 			Service:              l.Service,
-			Period:               cfg.GetDuration(l.ConfigPrefix + "internal_profiling.period"),
-			CPUDuration:          cfg.GetDuration(l.ConfigPrefix + "internal_profiling.cpu_duration"),
-			MutexProfileFraction: cfg.GetInt(l.ConfigPrefix + "internal_profiling.mutex_profile_fraction"),
-			BlockProfileRate:     cfg.GetInt(l.ConfigPrefix + "internal_profiling.block_profile_rate"),
-			WithGoroutineProfile: cfg.GetBool(l.ConfigPrefix + "internal_profiling.enable_goroutine_stacktraces"),
-			WithDeltaProfiles:    cfg.GetBool(l.ConfigPrefix + "internal_profiling.delta_profiles"),
+			Period:               config.GetDuration(l.ConfigPrefix + "internal_profiling.period"),
+			CPUDuration:          config.GetDuration(l.ConfigPrefix + "internal_profiling.cpu_duration"),
+			MutexProfileFraction: config.GetInt(l.ConfigPrefix + "internal_profiling.mutex_profile_fraction"),
+			BlockProfileRate:     config.GetInt(l.ConfigPrefix + "internal_profiling.block_profile_rate"),
+			WithGoroutineProfile: config.GetBool(l.ConfigPrefix + "internal_profiling.enable_goroutine_stacktraces"),
+			WithDeltaProfiles:    config.GetBool(l.ConfigPrefix + "internal_profiling.delta_profiles"),
 			Tags:                 tags,
-			CustomAttributes:     cfg.GetStringSlice(l.ConfigPrefix + "internal_profiling.custom_attributes"),
+			CustomAttributes:     config.GetStringSlice(l.ConfigPrefix + "internal_profiling.custom_attributes"),
 		}
 		err := profiling.Start(settings)
 		if err == nil {
-			cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", true, source)
+			config.Set(l.ConfigPrefix+"internal_profiling.enabled", true, source)
 		}
 	} else {
 		profiling.Stop()
-		cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", false, source)
+		config.Set(l.ConfigPrefix+"internal_profiling.enabled", false, source)
 	}
 
 	return nil

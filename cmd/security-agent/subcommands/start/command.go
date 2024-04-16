@@ -179,11 +179,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
 				autoexitimpl.Module(),
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
-				fx.Supply(
-					settings.Settings{
-						"log_level": commonsettings.NewLogLevelRuntimeSetting(),
-					},
-				),
+				fx.Provide(func(c config.Component) settings.Params {
+					return settings.Params{
+						Settings: map[string]settings.RuntimeSetting{
+							"log_level": commonsettings.NewLogLevelRuntimeSetting(),
+						},
+						Config: c,
+					}
+				}),
 				settingsimpl.Module(),
 			)
 		},
