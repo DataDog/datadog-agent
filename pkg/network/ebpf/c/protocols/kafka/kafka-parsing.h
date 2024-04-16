@@ -62,6 +62,8 @@ int socket__kafka_filter(struct __sk_buff* skb) {
 
     if (is_tcp_termination(&skb_info)) {
         bpf_map_delete_elem(&kafka_response, &tup);
+        // Delete the opposite direction also like HTTP/2 does since the termination
+        // for the other direction may not be reached in some cases (localhost).
         flip_tuple(&tup);
         bpf_map_delete_elem(&kafka_response, &tup);
         return 0;
