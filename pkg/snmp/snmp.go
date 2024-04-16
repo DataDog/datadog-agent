@@ -118,8 +118,19 @@ func NewListenerConfig() (ListenerConfig, error) {
 	// Set defaults before unmarshalling
 	snmpConfig.CollectDeviceMetadata = true
 	snmpConfig.CollectTopology = true
-	if err := coreconfig.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
-		return snmpConfig, err
+
+	if coreconfig.Datadog.IsSet("network_devices.snmp_listener") {
+		err := coreconfig.Datadog.UnmarshalKey("network_devices.snmp_listener", &snmpConfig, opt)
+		if err != nil {
+			return snmpConfig, err
+		}
+	} else if coreconfig.Datadog.IsSet("snmp_listener") {
+		err := coreconfig.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt)
+		if err != nil {
+			return snmpConfig, err
+		}
+	} else {
+		return snmpConfig, errors.New("no config given for snmp_listener")
 	}
 
 	if snmpConfig.AllowedFailures == 0 && snmpConfig.AllowedFailuresLegacy != 0 {
