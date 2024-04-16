@@ -183,7 +183,7 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="wait for intake (~1m)", emoji=":alarm_clock:"):
             time.sleep(1 * 60)
 
-        with Step(msg="wait for datadog.security_agent.compliance.running metric", emoji="\N{beer mug}"):  # noqa
+        with Step(msg="wait for datadog.security_agent.compliance.running metric", emoji="\N{beer mug}"):  # fmt: off
             self.app.wait_for_metric("datadog.security_agent.compliance.running", host=TestE2EKubernetes.hostname)
 
         ## Disabled while no CSPM API is available
@@ -193,7 +193,7 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="wait for finding generation (~1m)", emoji=":alarm_clock:"):
             time.sleep(1 * 60)
 
-        with Step(msg="wait for datadog.security_agent.compliance.containers_running metric", emoji="\N{beer mug}"):  # noqa
+        with Step(msg="wait for datadog.security_agent.compliance.containers_running metric", emoji="\N{beer mug}"):  # fmt: off
             self.app.wait_for_metric(
                 "datadog.security_agent.compliance.containers_running", host=TestE2EKubernetes.hostname
             )
