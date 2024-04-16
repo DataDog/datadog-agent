@@ -132,17 +132,11 @@ func newStatus(deps dependencies) provides {
 func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSections ...string) ([]byte, error) {
 	var errors []error
 
-	var excludeSectionsLower []string
-
-	for _, s := range excludeSections {
-		excludeSectionsLower = append(excludeSectionsLower, strings.ToLower(s))
-	}
-
 	switch format {
 	case "json":
 		stats := make(map[string]interface{})
 		for _, sc := range s.sortedHeaderProviders {
-			if present(sc.Name(), excludeSectionsLower) {
+			if present(sc.Name(), excludeSections) {
 				continue
 			}
 
@@ -153,7 +147,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 
 		for _, providers := range s.sortedProvidersBySection {
 			for _, provider := range providers {
-				if present(provider.Section(), excludeSectionsLower) {
+				if present(provider.Section(), excludeSections) {
 					continue
 				}
 				if err := provider.JSON(verbose, stats); err != nil {
@@ -176,7 +170,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 
 		for _, sc := range s.sortedHeaderProviders {
 			name := sc.Name()
-			if present(name, excludeSectionsLower) {
+			if present(name, excludeSections) {
 				continue
 			}
 
@@ -193,7 +187,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 		}
 
 		for _, section := range s.sortedSectionNames {
-			if present(section, excludeSectionsLower) {
+			if present(section, excludeSections) {
 				continue
 			}
 
@@ -223,7 +217,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 		var b = new(bytes.Buffer)
 
 		for _, sc := range s.sortedHeaderProviders {
-			if present(sc.Name(), excludeSectionsLower) {
+			if present(sc.Name(), excludeSections) {
 				continue
 			}
 
@@ -234,7 +228,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 		}
 
 		for _, section := range s.sortedSectionNames {
-			if present(section, excludeSectionsLower) {
+			if present(section, excludeSections) {
 				continue
 			}
 
@@ -386,8 +380,10 @@ func (s *statusImplementation) fillFlare(fb flaretypes.FlareBuilder) error {
 }
 
 func present(value string, container []string) bool {
+	valueLower := strings.ToLower(value)
+
 	for _, v := range container {
-		if v == strings.ToLower(value) {
+		if strings.ToLower(v) == valueLower {
 			return true
 		}
 	}
