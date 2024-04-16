@@ -8,7 +8,9 @@ package tagger
 import (
 	"context"
 	"reflect"
+	"regexp"
 	"sync"
+	"time"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
@@ -27,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,6 +37,8 @@ import (
 
 	"go.uber.org/fx"
 )
+
+var entityIDRegex = regexp.MustCompile(`^en-(init\.)?([a-fA-F0-9-]+)/([a-zA-Z0-9-_]+)$`)
 
 type dependencies struct {
 	fx.In
@@ -408,7 +413,7 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 		if originInfo.FromTag != "" && originInfo.FromTag != "none" {
 			// Check if the value is not "none" in order to avoid calling the tagger for entity that doesn't exist.
 			// Currently only supported for pods
-			originFromClient = kubelet.KubePodTaggerEntityPrefix + originInfo.FromTag
+			originFromClient = t.parseEntityID(originInfo.FromTag, metrics.GetProvider(optional.NewOption(t.wmeta)).GetMetaCollector())
 		} else if originInfo.FromTag == "" && len(originInfo.FromMsg) > 0 {
 			// originInfo.FromMsg is the container ID sent by the newer clients.
 			originFromClient = containers.BuildTaggerEntityName(originInfo.FromMsg)
@@ -440,6 +445,37 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 		log.Error(err.Error())
 	}
 
+}
+
+// parseEntityID parses the entity ID and returns the correct tagger entity
+// It can be either just a pod uid or `en-(init.)$(POD_UID)/$(CONTAINER_NAME)`
+func (t *TaggerClient) parseEntityID(entityID string, metricsProvider provider.ContainerIDForPodUIDAndContNameRetriever) string {
+	// Parse the (init.)$(POD_UID)/$(CONTAINER_NAME) entity ID with a regex
+	parts := entityIDRegex.FindStringSubmatch(entityID)
+	var cname, podUID string
+	initCont := false
+	switch len(parts) {
+	case 0:
+		return kubelet.KubePodTaggerEntityPrefix + entityID
+	case 3:
+		podUID = parts[1]
+		cname = parts[2]
+	case 4:
+		podUID = parts[2]
+		cname = parts[3]
+		initCont = parts[1] == "init."
+	}
+	cid, err := metricsProvider.ContainerIDForPodUIDAndContName(
+		podUID,
+		cname,
+		initCont,
+		time.Second,
+	)
+	if err != nil {
+		log.Debugf("Error getting container ID for pod UID and container name: %s", err)
+		return entityID
+	}
+	return containers.BuildTaggerEntityName(cid)
 }
 
 // taggerCardinality converts tagger cardinality string to collectors.TagCardinality
