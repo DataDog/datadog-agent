@@ -42,6 +42,11 @@ __attribute__((always_inline)) u32 get_netns_from_net_device(struct net_device *
     u64 device_nd_net_net_offset;
     LOAD_CONSTANT("device_nd_net_net_offset", device_nd_net_net_offset);
 
+    // no constant
+    if (device_nd_net_net_offset == -1) {
+        return 0;
+    }
+
     struct net *net = NULL;
     bpf_probe_read(&net, sizeof(net), (void *)device + device_nd_net_net_offset);
     return get_netns_from_net(net);
