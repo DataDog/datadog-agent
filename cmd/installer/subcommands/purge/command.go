@@ -12,30 +12,42 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/installer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+type cliParams struct {
+	command.GlobalParams
+}
+
 // Commands returns the run command
-func Commands(_ *command.GlobalParams) []*cobra.Command {
+func Commands(global *command.GlobalParams) []*cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "purge",
 		Short: "Purge installer packages",
 		Long:  ``,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return purgeFxWrapper()
+			return purgeFxWrapper(&cliParams{
+				GlobalParams: *global,
+			})
 		},
 	}
 	return []*cobra.Command{runCmd}
 }
 
-func purgeFxWrapper() error {
+func purgeFxWrapper(params *cliParams) error {
 	return fxutil.OneShot(purge,
 		fx.Supply(core.BundleParams{
-			LogParams: logimpl.ForOneShot("INSTALLER", "info", true),
+			ConfigParams:         config.NewAgentParams(params.GlobalParams.ConfFilePath),
+			SecretParams:         secrets.NewEnabledParams(),
+			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
+			LogParams:            logimpl.ForOneShot("INSTALLER", "info", true),
 		}),
 		core.Bundle(),
 		telemetryimpl.Module(),
