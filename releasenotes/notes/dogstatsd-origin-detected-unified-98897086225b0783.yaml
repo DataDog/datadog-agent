@@ -8,5 +8,6 @@
 ---
 enhancements:
   - |
-    dogstatsd: Implement unified origin detection
-
+    dogstatsd: Implement new config option `origin_detection_unified`.
+    This new option will allow users to configure the origin detection behavior for DogStatsD.
+    When enabled, the DogStatsD server will use the default Origin Detection logic.
