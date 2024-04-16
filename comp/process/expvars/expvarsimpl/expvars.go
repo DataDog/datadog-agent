@@ -60,8 +60,8 @@ func newExpvarServer(deps dependencies) (expvars.Component, error) {
 		return nil, err
 	}
 
-	if flavor.GetFlavor() == flavor.DefaultAgent {
-		// Don't run the actual server if we're in the core agent
+	if flavor.GetFlavor() != flavor.ProcessAgent {
+		// Don't run the server outside of the process agent
 		return nil, nil
 	}
 
