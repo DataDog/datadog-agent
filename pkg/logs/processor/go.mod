@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/logs/processor
 
-go 1.21.8
+go 1.21.9
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
@@ -17,6 +17,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../metrics
+	github.com/DataDog/datadog-agent/pkg/logs/sds => ../sds
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../status/utils
@@ -45,6 +46,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/sds v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
 	github.com/stretchr/testify v1.9.0
@@ -72,6 +74,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2 // indirect
+	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240318112024-de26033b606a // indirect
 	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -101,7 +104,7 @@ require (
 	github.com/prometheus/procfs v0.11.1 // indirect
 	github.com/shirou/gopsutil/v3 v3.23.12 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
-	github.com/spf13/afero v1.1.2 // indirect
+	github.com/spf13/afero v1.9.5 // indirect
 	github.com/spf13/cast v1.5.1 // indirect
 	github.com/spf13/cobra v1.7.0 // indirect
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
@@ -121,9 +124,9 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.23.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
-	golang.org/x/mod v0.15.0 // indirect
-	golang.org/x/sys v0.17.0 // indirect
-	golang.org/x/text v0.9.0 // indirect
+	golang.org/x/mod v0.17.0 // indirect
+	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.18.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

@@ -23,7 +23,7 @@ static __always_inline void http_begin_request(http_transaction_t *http, http_me
     http->response_last_seen = 0;
     http->response_status_code = 0;
     bpf_memcpy(&http->request_fragment, buffer, HTTP_BUFFER_SIZE);
-    log_debug("http_begin_request: htx=%llx method=%d start=%llx", http, http->request_method, http->request_started);
+    log_debug("http_begin_request: htx=%p method=%d start=%llx", http, http->request_method, http->request_started);
 }
 
 static __always_inline void http_begin_response(http_transaction_t *http, const char *buffer) {
@@ -32,7 +32,7 @@ static __always_inline void http_begin_response(http_transaction_t *http, const 
     status_code += (buffer[HTTP_STATUS_OFFSET+1]-'0') * 10;
     status_code += (buffer[HTTP_STATUS_OFFSET+2]-'0') * 1;
     http->response_status_code = status_code;
-    log_debug("http_begin_response: htx=%llx status=%d", http, status_code);
+    log_debug("http_begin_response: htx=%p status=%d", http, status_code);
 }
 
 static __always_inline void http_batch_enqueue_wrapper(conn_tuple_t *tuple, http_transaction_t *http) {

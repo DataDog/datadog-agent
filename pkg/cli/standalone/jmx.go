@@ -21,7 +21,6 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -124,7 +123,7 @@ func loadJMXConfigs(runner *jmxfetch.JMXFetch, selectedChecks []string, configs 
 			}
 			c.Instances = instances
 
-			jmx.AddScheduledConfig(c)
+			jmxfetch.AddScheduledConfig(c)
 			runner.ConfigureFromInitConfig(c.InitConfig) //nolint:errcheck
 			for _, instance := range c.Instances {
 				runner.ConfigureFromInstance(instance) //nolint:errcheck
