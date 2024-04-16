@@ -113,16 +113,21 @@ func bootstrapFxWrapper(ctx context.Context, params *cliParams, installScriptPar
 }
 
 func bootstrap(ctx context.Context, params *cliParams, installScriptParams *installScriptParams, config config.Component, log log.Component, _ telemetry.Component) error {
-	ctxCarrier := tracer.TextMapCarrier{
-		tracer.DefaultTraceIDHeader:  fmt.Sprint(installScriptParams.Telemetry.TraceID),
-		tracer.DefaultParentIDHeader: fmt.Sprint(installScriptParams.Telemetry.ParentID),
-		tracer.DefaultPriorityHeader: fmt.Sprint(installScriptParams.Telemetry.Priority),
+	var spanOptions []tracer.StartSpanOption
+	if installScriptParams.Telemetry.TraceID != 0 && installScriptParams.Telemetry.ParentID != 0 {
+		ctxCarrier := tracer.TextMapCarrier{
+			tracer.DefaultTraceIDHeader:  fmt.Sprint(installScriptParams.Telemetry.TraceID),
+			tracer.DefaultParentIDHeader: fmt.Sprint(installScriptParams.Telemetry.ParentID),
+			tracer.DefaultPriorityHeader: fmt.Sprint(installScriptParams.Telemetry.Priority),
+		}
+		spanCtx, err := tracer.Extract(ctxCarrier)
+		if err != nil {
+			log.Errorf("failed to extract span context from install script params: %v", err)
+		}
+		spanOptions = append(spanOptions, tracer.ChildOf(spanCtx))
 	}
-	spanCtx, err := tracer.Extract(ctxCarrier)
-	if err != nil {
-		log.Errorf("failed to extract span context from install script params: %v", err)
-	}
-	span, ctx := tracer.StartSpanFromContext(ctx, "cmd/bootstrap", tracer.ChildOf(spanCtx))
+
+	span, ctx := tracer.StartSpanFromContext(ctx, "cmd/bootstrap", spanOptions...)
 	defer span.Finish()
 	span.SetTag(ext.ManualKeep, true)
 	span.SetTag("params.pkg", params.pkg)
