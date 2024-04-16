@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"path"
@@ -130,7 +131,7 @@ func newStatus(deps dependencies) provides {
 }
 
 func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSections ...string) ([]byte, error) {
-	var errors []error
+	var errs []error
 
 	switch format {
 	case "json":
@@ -141,7 +142,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 			}
 
 			if err := sc.JSON(verbose, stats); err != nil {
-				errors = append(errors, err)
+				errs = append(errs, err)
 			}
 		}
 
@@ -151,14 +152,14 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 					continue
 				}
 				if err := provider.JSON(verbose, stats); err != nil {
-					errors = append(errors, err)
+					errs = append(errs, err)
 				}
 			}
 		}
 
-		if len(errors) > 0 {
+		if len(errs) > 0 {
 			errorsInfo := []string{}
-			for _, error := range errors {
+			for _, error := range errs {
 				errorsInfo = append(errorsInfo, error.Error())
 			}
 			stats["errors"] = errorsInfo
@@ -179,7 +180,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 				newLine(b)
 
 				if err := sc.Text(verbose, b); err != nil {
-					errors = append(errors, err)
+					errs = append(errs, err)
 				}
 
 				newLine(b)
@@ -197,15 +198,15 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 
 				for _, provider := range s.sortedProvidersBySection[section] {
 					if err := provider.Text(verbose, b); err != nil {
-						errors = append(errors, err)
+						errs = append(errs, err)
 					}
 				}
 
 				newLine(b)
 			}
 		}
-		if len(errors) > 0 {
-			if err := renderErrors(b, errors); err != nil {
+		if len(errs) > 0 {
+			if err := renderErrors(b, errs); err != nil {
 				return []byte{}, err
 			}
 
@@ -246,7 +247,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 }
 
 func (s *statusImplementation) GetStatusBySection(section string, format string, verbose bool) ([]byte, error) {
-	var errors []error
+	var errs []error
 
 	switch section {
 	case "header":
@@ -257,13 +258,13 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 
 			for _, sc := range providers {
 				if err := sc.JSON(verbose, stats); err != nil {
-					errors = append(errors, err)
+					errs = append(errs, err)
 				}
 			}
 
-			if len(errors) > 0 {
+			if len(errs) > 0 {
 				errorsInfo := []string{}
-				for _, error := range errors {
+				for _, error := range errs {
 					errorsInfo = append(errorsInfo, error.Error())
 				}
 				stats["errors"] = errorsInfo
@@ -281,14 +282,14 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 
 				err := sc.Text(verbose, b)
 				if err != nil {
-					errors = append(errors, err)
+					errs = append(errs, err)
 				}
 			}
 
 			newLine(b)
 
-			if len(errors) > 0 {
-				if err := renderErrors(b, errors); err != nil {
+			if len(errs) > 0 {
+				if err := renderErrors(b, errs); err != nil {
 					return []byte{}, err
 				}
 
@@ -312,8 +313,9 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 	default:
 		providers, ok := s.sortedProvidersBySection[strings.ToLower(section)]
 		if !ok {
-			availableSections := strings.Join(s.sortedSectionNames, "\n- ")
-			return nil, fmt.Errorf("unknown status section '%s', available sections are:\n- %s", section, availableSections)
+			res, _ := json.Marshal(s.sortedSectionNames)
+			errorMsg := fmt.Sprintf("unknown status section '%s', available sections are: %s", section, string(res))
+			return nil, errors.New(errorMsg)
 		}
 		switch format {
 		case "json":
@@ -321,13 +323,13 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 
 			for _, sc := range providers {
 				if err := sc.JSON(verbose, stats); err != nil {
-					errors = append(errors, err)
+					errs = append(errs, err)
 				}
 			}
 
-			if len(errors) > 0 {
+			if len(errs) > 0 {
 				errorsInfo := []string{}
-				for _, error := range errors {
+				for _, error := range errs {
 					errorsInfo = append(errorsInfo, error.Error())
 				}
 				stats["errors"] = errorsInfo
@@ -344,12 +346,12 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 				}
 
 				if err := sc.Text(verbose, b); err != nil {
-					errors = append(errors, err)
+					errs = append(errs, err)
 				}
 			}
 
-			if len(errors) > 0 {
-				if err := renderErrors(b, errors); err != nil {
+			if len(errs) > 0 {
+				if err := renderErrors(b, errs); err != nil {
 					return []byte{}, err
 				}
 
