@@ -74,7 +74,7 @@ def trigger_macos_workflow(
     # Thus the following hack: Send an id as input when creating a workflow on Github. The worklow will use the id and put it in the name of one of its jobs.
     # We then fetch workflows and check if it contains the id in its job name.
 
-    MAX_RETRIES = 10  # Retry up to 10 times
+    MAX_RETRIES = 30  # Retry for up to 5 minutes
     for i in range(MAX_RETRIES):
         print(f"Fetching triggered workflow (try {i + 1}/{MAX_RETRIES})")
         recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
@@ -86,8 +86,8 @@ def trigger_macos_workflow(
                         return recent_run
             else:
                 print("waiting for jobs to popup...")
-                sleep(3)
-        sleep(5)
+                sleep(5)
+        sleep(10)
 
     # Something went wrong :(
     print("Couldn't fetch workflow run that was triggered.")

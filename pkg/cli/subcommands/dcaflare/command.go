@@ -246,5 +246,5 @@ func newSettingsClient() (settings.Client, error) {
 		pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"),
 	)
 
-	return settingshttp.NewClient(c, apiConfigURL, "datadog-cluster-agent"), nil
+	return settingshttp.NewClient(c, apiConfigURL, "datadog-cluster-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }

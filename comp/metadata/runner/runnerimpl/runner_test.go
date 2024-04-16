@@ -8,6 +8,7 @@ package runnerimpl
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,11 +22,14 @@ import (
 )
 
 func TestHandleProvider(t *testing.T) {
-	called := make(chan struct{})
+	wg := sync.WaitGroup{}
+
 	provider := func(context.Context) time.Duration {
-		called <- struct{}{}
+		wg.Done()
 		return 1 * time.Minute // Long timeout to block
 	}
+
+	wg.Add(1)
 
 	r := createRunner(
 		fxutil.Test[dependencies](
@@ -36,17 +40,20 @@ func TestHandleProvider(t *testing.T) {
 		))
 
 	r.start()
-	// either called receive a value or the test will fail as a timeout
-	<-called
+	// either the provider call wg.Done() or the test will fail as a timeout
+	wg.Wait()
 	assert.NoError(t, r.stop())
 }
 
 func TestRunnerCreation(t *testing.T) {
-	called := make(chan struct{})
-	callback := func(context.Context) time.Duration {
-		called <- struct{}{}
+	wg := sync.WaitGroup{}
+
+	provider := func(context.Context) time.Duration {
+		wg.Done()
 		return 1 * time.Minute // Long timeout to block
 	}
+
+	wg.Add(1)
 
 	lc := fxtest.NewLifecycle(t)
 	fxutil.Test[runner.Component](
@@ -56,14 +63,14 @@ func TestRunnerCreation(t *testing.T) {
 		config.MockModule(),
 		Module(),
 		// Supplying our provider by using the helper function
-		fx.Supply(NewProvider(callback)),
+		fx.Supply(NewProvider(provider)),
 	)
 
 	ctx := context.Background()
 	lc.Start(ctx)
 
-	// either called receive a value or the test will fail as a timeout
-	<-called
+	// either the provider call wg.Done() or the test will fail as a timeout
+	wg.Wait()
 
 	assert.NoError(t, lc.Stop(ctx))
 }

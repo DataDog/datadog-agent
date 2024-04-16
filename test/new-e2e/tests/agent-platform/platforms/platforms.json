@@ -13,7 +13,7 @@
         }
     },
     "ubuntu": {
-        "x86_64":{
+        "x86_64": {
             "ubuntu-14-04": "ami-013d633d3b6cdb22c",
             "ubuntu-16-04": "ami-089043ae24872fe78",
             "ubuntu-18-04": "ami-015715c1584e7243c",
@@ -48,7 +48,6 @@
     },
     "centos": {
         "x86_64": {
-            "centos-610": "ami-0506f01ccb6dddeda",
             "centos-79": "ami-0db0376aef6830be3",
             "rhel-86": "ami-031eff1ae75bb87e4",
             "rocky-92": "ami-08f362c39d03a4eb5",

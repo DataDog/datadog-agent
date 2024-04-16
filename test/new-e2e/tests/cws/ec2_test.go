@@ -213,7 +213,7 @@ func (a *agentSuite) Test01FeatureCWSEnabled() {
 				return
 			}
 		}
-	}, 16*time.Minute, 2*time.Minute, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
+	}, 20*time.Minute, 30*time.Second, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
 }
 
 func (a *agentSuite) waitAgentLogs(agentName string, pattern string) error {

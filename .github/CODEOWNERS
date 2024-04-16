@@ -172,6 +172,7 @@
 /cmd/system-probe/modules/process*      @DataDog/processes
 /cmd/system-probe/modules/eventmonitor* @DataDog/agent-security
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
+/cmd/system-probe/modules/ping*         @DataDog/network-device-monitoring
 /cmd/system-probe/windows/              @DataDog/windows-kernel-integrations
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
 /cmd/system-probe/main_windows*.go      @DataDog/windows-kernel-integrations
