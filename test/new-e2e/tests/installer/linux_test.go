@@ -396,7 +396,6 @@ func WithRemoteUpdatesEnabled(enabled bool) awshost.ProvisionerOption {
 			p.ExtraAgentConfig = append(p.ExtraAgentConfig, pulumi.String("updater.remote_updates: true"))
 			return nil
 		})
-	} else {
-		return func(*awshost.ProvisionerParams) error { return nil }
 	}
+	return func(*awshost.ProvisionerParams) error { return nil }
 }
