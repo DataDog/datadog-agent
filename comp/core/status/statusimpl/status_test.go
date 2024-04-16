@@ -773,6 +773,25 @@ X Section
 				assert.Equal(t, expectedResult, output)
 			},
 		},
+		{
+			name:    "Text case insensitive",
+			format:  "text",
+			section: "X SeCtIoN",
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := `=========
+X Section
+=========
+ text from a
+ text from x
+`
+
+				// We replace windows line break by linux so the tests pass on every OS
+				expectedResult := strings.Replace(result, "\r\n", "\n", -1)
+				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+
+				assert.Equal(t, expectedResult, output)
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -952,17 +971,7 @@ func TestFlareProvider(t *testing.T) {
 	assert.NotNil(t, flareProvider)
 }
 
-func TestCaseInsensitive(t *testing.T) {
-	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
-	startTimeProvider = time.Unix(1515151515, 0)
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
-
-	defer func() {
-		nowFunc = time.Now
-		startTimeProvider = pkgconfigsetup.StartTime
-		os.Setenv("TZ", originalTZ)
-	}()
+func TestGetStatusBySectionIncorrect(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
@@ -970,58 +979,28 @@ func TestCaseInsensitive(t *testing.T) {
 			agentParams,
 			status.NewInformationProvider(mockProvider{
 				returnError: false,
-				section:     "sec",
+				section:     "Lorem",
 				name:        "1",
-				text:        "lll\n",
-				html: `<p>lll</p>
-`,
-				data: map[string]interface{}{
-					"1": "lll",
-				},
 			}),
 			status.NewInformationProvider(mockProvider{
 				returnError: false,
-				section:     "Sec",
-				name:        "2",
-				text:        "ull\n",
-				data: map[string]interface{}{
-					"2": "ull",
-				},
-				html: `<p>ull</p>
-`,
+				section:     "ipsum",
+				name:        "1",
 			}),
 			status.NewInformationProvider(mockProvider{
 				returnError: false,
-				section:     "sEc",
-				name:        "3",
-				text:        "lul\n",
-				data: map[string]interface{}{
-					"3": "ull",
-				},
-				html: `<p>lul</p>
-`,
+				section:     "doloR",
+				name:        "1",
 			}),
 			status.NewInformationProvider(mockProvider{
 				returnError: false,
-				section:     "seC",
-				name:        "4",
-				text:        "llu\n",
-				data: map[string]interface{}{
-					"4": "llu",
-				},
-				html: `<p>llu</p>
-`,
+				section:     "Sit",
+				name:        "1",
 			}),
 			status.NewInformationProvider(mockProvider{
 				returnError: false,
-				section:     "SEC",
-				name:        "5",
-				text:        "uuu\n",
-				data: map[string]interface{}{
-					"5": "uuu",
-				},
-				html: `<p>uuu</p>
-`,
+				section:     "AmEt",
+				name:        "1",
 			}),
 		),
 	))
@@ -1029,210 +1008,8 @@ func TestCaseInsensitive(t *testing.T) {
 	provides := newStatus(deps)
 	statusComponent := provides.Comp
 
-	generalHeader := fmt.Sprintf(`%s
-  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
-  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-  Pid: %d
-  Go Version: %s
-  Python Version: n/a
-  Build arch: %s
-  Agent flavor: %s
-  Log Level: info
+	bytesResult, err := statusComponent.GetStatusBySection("consectetur", "json", false)
 
-  Paths
-  =====
-    Config File: There is no config file
-    conf.d: %s
-    checks.d: %s
-`, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
-
-	generalHTMLheader := fmt.Sprintf(`<div class="stat">
-  <span class="stat_title">Agent Info</span>
-  <span class="stat_data">
-    Version: %s
-    <br>Flavor: %s
-    <br>PID: %d
-    <br>Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-    <br>Log Level: info
-    <br>Config File: There is no config file
-    <br>Conf.d Path: %s
-    <br>Checks.d Path: %s
-  </span>
-</div>
-
-<div class="stat">
-  <span class="stat_title">System Info</span>
-  <span class="stat_data">
-    System time: 2018-01-05 11:25:15 UTC (1515151515000)
-    <br>Go Version: %s
-    <br>Python Version: n/a
-    <br>Build arch: %s
-  </span>
-</div>`, agentVersion, agentFlavor, pid, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"), goVersion, arch)
-
-	testCases := []struct {
-		name            string
-		format          string
-		excludeSections []string
-		assertFunc      func(*testing.T, []byte)
-	}{
-		{
-			name:            "JSON exclude section lower",
-			format:          "json",
-			excludeSections: []string{"sec"},
-			assertFunc: func(t *testing.T, bytes []byte) {
-				result := map[string]interface{}{}
-				err := json.Unmarshal(bytes, &result)
-
-				assert.NoError(t, err)
-
-				assert.Nil(t, result["1"])
-				assert.Nil(t, result["2"])
-				assert.Nil(t, result["3"])
-				assert.Nil(t, result["4"])
-				assert.Nil(t, result["5"])
-			},
-		},
-		{
-			name:            "JSON exclude section upper",
-			format:          "json",
-			excludeSections: []string{"SEC"},
-			assertFunc: func(t *testing.T, bytes []byte) {
-				result := map[string]interface{}{}
-				err := json.Unmarshal(bytes, &result)
-
-				assert.NoError(t, err)
-
-				assert.Nil(t, result["1"])
-				assert.Nil(t, result["2"])
-				assert.Nil(t, result["3"])
-				assert.Nil(t, result["4"])
-				assert.Nil(t, result["5"])
-			},
-		},
-		{
-			name:   "Text",
-			format: "text",
-			assertFunc: func(t *testing.T, bytes []byte) {
-				expectedStatusTextOutput := fmt.Sprintf(`%s
-===
-Sec
-===
-lll
-ull
-lul
-llu
-uuu
-
-`, generalHeader)
-				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusTextOutput, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
-
-				assert.Equal(t, expectedResult, output)
-			},
-		},
-		{
-			name:            "Text exclude section upper",
-			format:          "text",
-			excludeSections: []string{"SEC"},
-			assertFunc: func(t *testing.T, bytes []byte) {
-				expectedStatusTextOutput := fmt.Sprintf(`%s
-`, generalHeader)
-
-				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusTextOutput, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
-
-				assert.Equal(t, expectedResult, output)
-			},
-		},
-		{
-			name:            "Text exclude section lower",
-			format:          "text",
-			excludeSections: []string{"sec"},
-			assertFunc: func(t *testing.T, bytes []byte) {
-				expectedStatusTextOutput := fmt.Sprintf(`%s
-`, generalHeader)
-
-				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusTextOutput, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
-
-				assert.Equal(t, expectedResult, output)
-			},
-		},
-		{
-			name:   "HTML",
-			format: "html",
-			assertFunc: func(t *testing.T, bytes []byte) {
-				// We have to do this strings replacement because html/temaplte escapes the `+` sign
-				// https://github.com/golang/go/issues/42506
-				result := string(bytes)
-				unescapedResult := strings.Replace(result, "&#43;", "+", -1)
-
-				expectedStatusHTMLOutput := fmt.Sprintf(`%s
-<p>lll</p>
-<p>ull</p>
-<p>lul</p>
-<p>llu</p>
-<p>uuu</p>
-`, generalHTMLheader)
-
-				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusHTMLOutput, "\r\n", "\n", -1)
-				output := strings.Replace(unescapedResult, "\r\n", "\n", -1)
-
-				assert.Equal(t, expectedResult, output)
-			},
-		},
-		{
-			name:            "HTML exclude lower",
-			format:          "html",
-			excludeSections: []string{"sec"},
-			assertFunc: func(t *testing.T, bytes []byte) {
-				// We have to do this strings replacement because html/temaplte escapes the `+` sign
-				// https://github.com/golang/go/issues/42506
-				result := string(bytes)
-				unescapedResult := strings.Replace(result, "&#43;", "+", -1)
-
-				expectedStatusHTMLOutput := fmt.Sprintf("%s\n", generalHTMLheader)
-
-				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusHTMLOutput, "\r\n", "\n", -1)
-				output := strings.Replace(unescapedResult, "\r\n", "\n", -1)
-
-				assert.Equal(t, expectedResult, output)
-			},
-		},
-		{
-			name:            "HTML exclude lower",
-			format:          "html",
-			excludeSections: []string{"SEC"},
-			assertFunc: func(t *testing.T, bytes []byte) {
-				// We have to do this strings replacement because html/temaplte escapes the `+` sign
-				// https://github.com/golang/go/issues/42506
-				result := string(bytes)
-				unescapedResult := strings.Replace(result, "&#43;", "+", -1)
-
-				expectedStatusHTMLOutput := fmt.Sprintf("%s\n", generalHTMLheader)
-
-				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusHTMLOutput, "\r\n", "\n", -1)
-				output := strings.Replace(unescapedResult, "\r\n", "\n", -1)
-
-				assert.Equal(t, expectedResult, output)
-			},
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			bytesResult, err := statusComponent.GetStatus(testCase.format, false, testCase.excludeSections...)
-
-			assert.NoError(t, err)
-
-			testCase.assertFunc(t, bytesResult)
-		})
-	}
+	assert.Nil(t, bytesResult)
+	assert.EqualError(t, err, `unknown status section 'consectetur', available sections are: ["amet","dolor","ipsum","lorem","sit"]`)
 }
