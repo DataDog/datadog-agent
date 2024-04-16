@@ -8,9 +8,10 @@ from invoke import Exit, task
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
-from tasks.libs.ciproviders.gitlab_api import (
+from tasks.libs.ciproviders.gitlab import (
+    Gitlab,
     generate_gitlab_full_configuration,
-    get_gitlab_repo,
+    get_gitlab_token,
     get_preset_contexts,
     load_context,
 )
@@ -380,15 +381,15 @@ def gitlab_ci(_, test="all", custom_context=None):
     else:
         all_contexts = get_preset_contexts(test)
     print(f"We will tests {len(all_contexts)} contexts.")
-    agent = get_gitlab_repo()
     for context in all_contexts:
         print("Test gitlab configuration with context: ", context)
         config = generate_gitlab_full_configuration(".gitlab-ci.yml", dict(context))
-        res = agent.ci_lint.create({"content": config})
-        status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
+        gitlab = Gitlab(api_token=get_gitlab_token())
+        res = gitlab.lint(config)
+        status = color_message("valid", "green") if res["valid"] else color_message("invalid", "red")
         print(f"Config is {status}")
-        if len(res.warnings) > 0:
-            print(color_message(f"Warnings: {res.warnings}", "orange"), file=sys.stderr)
-        if not res.valid:
-            print(color_message(f"Errors: {res.errors}", "red"), file=sys.stderr)
+        if len(res["warnings"]) > 0:
+            print(color_message(f"Warnings: {res['warnings']}", "orange"), file=sys.stderr)
+        if not res["valid"]:
+            print(color_message(f"Errors: {res['errors']}", "red"), file=sys.stderr)
             raise Exit(code=1)
