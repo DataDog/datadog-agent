@@ -58,33 +58,33 @@ func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.De
 }
 
 func TestCentOSARM(t *testing.T) {
-	// t.Parallel()
+	t.Parallel()
 	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault, false)
 }
 
 func TestRedHatARM(t *testing.T) {
 	t.Skip("Support for SELinux has not been added yet")
-	// t.Parallel()
+	t.Parallel()
 	runTest(t, "rpm", os.ARM64Arch, os.RedHatDefault, false)
 }
 
 func TestUbuntuARMRemoteUpdates(t *testing.T) {
-	// t.Parallel()
+	t.Parallel()
 	runTest(t, "dpkg", os.ARM64Arch, os.UbuntuDefault, true)
 }
 
 func TestUbuntuARM(t *testing.T) {
-	// t.Parallel()
+	t.Parallel()
 	runTest(t, "dpkg", os.ARM64Arch, os.UbuntuDefault, false)
 }
 
 func TestDebianX86RemoteUpdates(t *testing.T) {
-	// t.Parallel()
+	t.Parallel()
 	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault, true)
 }
 
 func TestDebianX86(t *testing.T) {
-	// t.Parallel()
+	t.Parallel()
 	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault, false)
 }
 
@@ -252,7 +252,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	addEcrConfig(host)
 	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootUpdaterDir))
 	// Install docker
-	installDocker(v.distro, v.T(), host)
+	installDocker(v.distro, v.arch, v.T(), host)
 	defer func() {
 		// Best effort to stop any running container at the end of the test
 		host.Execute(`sudo docker ps -aq | xargs sudo docker stop | xargs sudo docker rm`)
