@@ -691,6 +691,27 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.SetKnown("snmp_listener.ping.linux")
 	config.SetKnown("snmp_listener.ping.linux.use_raw_socket")
 
+	// network_devices.snmp_listener has precedence over snmp_listener config
+	// snmp_listener config is still here for legacy reasons
+	config.SetKnown("network_devices.snmp_listener.discovery_interval")
+	config.SetKnown("network_devices.snmp_listener.allowed_failures")
+	config.SetKnown("network_devices.snmp_listener.discovery_allowed_failures")
+	config.SetKnown("network_devices.snmp_listener.collect_device_metadata")
+	config.SetKnown("network_devices.snmp_listener.collect_topology")
+	config.SetKnown("network_devices.snmp_listener.workers")
+	config.SetKnown("network_devices.snmp_listener.configs")
+	config.SetKnown("network_devices.snmp_listener.loader")
+	config.SetKnown("network_devices.snmp_listener.min_collection_interval")
+	config.SetKnown("network_devices.snmp_listener.namespace")
+	config.SetKnown("network_devices.snmp_listener.use_device_id_as_hostname")
+	config.SetKnown("network_devices.snmp_listener.ping")
+	config.SetKnown("network_devices.snmp_listener.ping.enabled")
+	config.SetKnown("network_devices.snmp_listener.ping.count")
+	config.SetKnown("network_devices.snmp_listener.ping.interval")
+	config.SetKnown("network_devices.snmp_listener.ping.timeout")
+	config.SetKnown("network_devices.snmp_listener.ping.linux")
+	config.SetKnown("network_devices.snmp_listener.ping.linux.use_raw_socket")
+
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.port", 9162)
