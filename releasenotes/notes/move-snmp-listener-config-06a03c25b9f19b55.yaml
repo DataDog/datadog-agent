@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    `snmp_listener` now lives under `network_devices`. While the old configuration will continue to work, if both configurations are present, the new one will take priority.
+    `snmp_listener` now lives under `network_devices` with the name `network_devices.autodiscovery`. While the old configuration will continue to work, if both configurations are present, the new one will take priority.

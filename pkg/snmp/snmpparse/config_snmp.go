@@ -99,10 +99,10 @@ func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
 	)
 	//the UnmarshalKey stores the result in mapstructures while the snmpconfig is in yaml
 	//so for each result of the Unmarshal key we store the result in a tmp SNMPConfig{} object
-	if conf.IsSet("network_devices.snmp_listener.configs") {
-		err := conf.UnmarshalKey("network_devices.snmp_listener.configs", &configs, opt)
+	if conf.IsSet("network_devices.autodiscovery.configs") {
+		err := conf.UnmarshalKey("network_devices.autodiscovery.configs", &configs, opt)
 		if err != nil {
-			fmt.Printf("unable to get snmp config from network_devices.snmp_listener: %v", err)
+			fmt.Printf("unable to get snmp config from network_devices.autodiscovery: %v", err)
 			return nil, err
 		}
 	} else if conf.IsSet("snmp_listener.configs") {

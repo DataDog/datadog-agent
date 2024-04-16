@@ -280,7 +280,7 @@ func assertIP(t *testing.T, input string, snmpConfigList []SNMPConfig, expectedO
 func TestParseConfigSnmpMain(t *testing.T) {
 	bConf := []byte(strings.ReplaceAll(`
 	network_devices:
-	  snmp_listener:
+	  autodiscovery:
 	    configs:
 	    - network_address: 127.0.0.1/30
 	      snmp_version: 1
@@ -321,7 +321,7 @@ func TestParseConfigSnmpMain(t *testing.T) {
 func TestIPDecodeHook(t *testing.T) {
 	bConf := []byte(`
 network_devices:
-  snmp_listener:
+  autodiscovery:
       configs:
       - network_address: 127.0.0.1/30
         snmp_version: 1
