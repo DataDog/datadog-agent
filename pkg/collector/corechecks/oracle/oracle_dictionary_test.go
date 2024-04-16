@@ -17,12 +17,13 @@ import (
 
 func TestGetFullSqlText(t *testing.T) {
 	c, _ := newDefaultCheck(t, "", "")
-	c.db = nil
+	defer c.Teardown()
 
 	c.dbmEnabled = false
 
 	err := c.Run()
 	assert.NoError(t, err, "check run")
+	assertConnectionCount(t, &c, expectedSessionsDefault)
 
 	var SQLStatement string
 	err = getFullSQLText(&c, &SQLStatement, "sql_id", "A")
