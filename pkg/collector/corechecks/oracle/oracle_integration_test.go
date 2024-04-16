@@ -33,14 +33,16 @@ func TestConnectionGoOra(t *testing.T) {
 
 	err = conn.Ping()
 	assert.NoError(t, err)
-
+	conn.Close()
 }
 
 func TestConnection(t *testing.T) {
 	var err error
 
 	c, _ := newDefaultCheck(t, "", "")
-	_, err = c.Connect()
+	defer c.Teardown()
+	c.db, err = c.Connect()
+	assertConnectionCount(t, &c, expectedSessionsDefault)
 	assert.NoError(t, err)
 }
 
@@ -106,8 +108,9 @@ func getTemporaryLobs(c *Check) (int, error) {
 
 func TestChkRun(t *testing.T) {
 	c, _ := newDefaultCheck(t, "", "")
+	defer c.Teardown()
+
 	c.dbmEnabled = true
-	c.config.InstanceConfig.OracleClient = false
 
 	// This is to ensure that query samples return rows
 	c.config.QuerySamples.IncludeAllSessions = true
@@ -116,11 +119,10 @@ func TestChkRun(t *testing.T) {
 		N int `db:"N"`
 	}
 
-	c.db = nil
-
 	c.statementsLastRun = time.Now().Add(-48 * time.Hour)
 	err := c.Run()
 	assert.NoError(t, err, "check run")
+	assertConnectionCount(t, &c, expectedSessionsDefault)
 
 	sessionBefore, _ := getSession(&c)
 
@@ -157,11 +159,12 @@ func TestChkRun(t *testing.T) {
 	c.statementsLastRun = time.Now().Add(-48 * time.Hour)
 	c.Run()
 
+	assertConnectionCount(t, &c, expectedSessionsDefault)
+
 	pgaAfter2ndRun, _ := getUsedPGA(t, &c)
 	diff2 := (pgaAfter2ndRun - pgaAfter1StRun) / 1024
-	percGrowth := (diff2 - diff1) * 100 / diff1
-	assert.Less(t, percGrowth, float64(10), "PGA memory leak (%f %% increase between two consecutive runs %d bytes)", percGrowth, pgaAfter2ndRun)
-	time.Sleep(1 * time.Hour)
+	percGrowth := diff2 * 100 / pgaAfter1StRun
+	assert.Less(t, percGrowth, float64(10), "PGA memory leak (%f %% increase between two consecutive runs %d bytes)", percGrowth, diff2)
 
 	tempLobsAfter, _ := getTemporaryLobs(&c)
 	diffTempLobs := tempLobsAfter - tempLobsBefore
@@ -314,6 +317,7 @@ func TestLegacyMode(t *testing.T) {
 		"only_custom_queries: true",
 	} {
 		c, s := newLegacyCheck(t, config, "")
+		defer c.Teardown()
 		err := c.Run()
 		assert.NoError(t, err)
 		expectedServerTag := fmt.Sprintf("server:%s", c.config.InstanceConfig.Server)

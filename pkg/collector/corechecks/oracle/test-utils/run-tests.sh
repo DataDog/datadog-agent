@@ -36,5 +36,7 @@ do
   echo "Starting tests for $f"
   . $f
   go clean -testcache
-  gotestsum --jsonfile module_test_output.json --format pkgname --packages=./pkg/collector/corechecks/oracle/... -- -mod=mod -vet=off --tags=oracle_test,oracle,test
+
+  # Tests are running sequentially for the predictability of the memory leak test
+  gotestsum --jsonfile module_test_output.json --format pkgname --packages=./pkg/collector/corechecks/oracle/... -- -mod=mod -vet=off --tags=oracle_test,oracle,test 
 done
