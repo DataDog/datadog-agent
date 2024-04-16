@@ -528,7 +528,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection_client", false)
 	// If enabled, all origin detection mechanisms will be unified to use the same logic.
-	config.BindEnvAndSetDefault("origin_detection_unified", true)
+	config.BindEnvAndSetDefault("origin_detection_unified", false)
 	config.BindEnvAndSetDefault("dogstatsd_origin_optout_enabled", true)
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
 	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
