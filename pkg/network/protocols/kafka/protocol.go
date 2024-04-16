@@ -137,8 +137,7 @@ func (p *protocol) PreStart(mgr *manager.Manager) error {
 
 // PostStart empty implementation.
 func (p *protocol) PostStart(mgr *manager.Manager) error {
-	p.setupInFlightMapCleaner(mgr)
-	return nil
+	return p.setupInFlightMapCleaner(mgr)
 }
 
 // Stop stops the kafka events consumer.
@@ -180,11 +179,11 @@ func (p *protocol) processKafka(events []EbpfTx) {
 	}
 }
 
-func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) {
+func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) error {
 	inFlightMap, _, err := mgr.GetMap(inFlightMap)
 	if err != nil {
 		log.Errorf("error getting %q map: %s", inFlightMap, err)
-		return
+		return err
 	}
 	// Disable batching as a temporary workaround since enabling it leads to
 	// TestKafkaInFlightMapCleaner() failing due to the values read not matching
@@ -192,7 +191,7 @@ func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) {
 	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](inFlightMap, 1)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
-		return
+		return err
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
@@ -202,6 +201,7 @@ func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) {
 	})
 
 	p.inFlightMapCleaner = mapCleaner
+	return nil
 }
 
 // GetStats returns a map of Kafka stats stored in the following format:
