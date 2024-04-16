@@ -13,7 +13,7 @@ The present repository contains the source code of the Datadog Agent version 7 a
 
 ## Documentation
 
-The general documentation of the project, including instructions for installation
+The general documentation of the project, including instructions for installation (Test Code Scanning Action)
 and development, is located under [the docs directory](docs) of the present repo.
 
 ## Getting started
