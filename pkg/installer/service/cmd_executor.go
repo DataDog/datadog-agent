@@ -29,28 +29,28 @@ const execTimeout = 30 * time.Second
 
 // ChownDDAgent changes the owner of the given path to the dd-agent user.
 func ChownDDAgent(ctx context.Context, path string) error {
-	return executeCommand(ctx, `{"command":"chown dd-agent","path":"`+path+`"}`)
+	return executeHelperCommand(ctx, `{"command":"chown dd-agent","path":"`+path+`"}`)
 }
 
 // RemoveAll removes all files under a given path under /opt/datadog-packages regardless of their owner.
 func RemoveAll(ctx context.Context, path string) error {
-	return executeCommand(ctx, `{"command":"rm","path":"`+path+`"}`)
+	return executeHelperCommand(ctx, `{"command":"rm","path":"`+path+`"}`)
 }
 
 func createAgentSymlink(ctx context.Context) error {
-	return executeCommand(ctx, `{"command":"agent-symlink"}`)
+	return executeHelperCommand(ctx, `{"command":"agent-symlink"}`)
 }
 
 func rmAgentSymlink(ctx context.Context) error {
-	return executeCommand(ctx, `{"command":"rm-agent-symlink"}`)
+	return executeHelperCommand(ctx, `{"command":"rm-agent-symlink"}`)
 }
 
 // SetCapHelper sets cap setuid on the newly installed helper
 func SetCapHelper(ctx context.Context, path string) error {
-	return executeCommand(ctx, `{"command":"setcap cap_setuid+ep", "path":"`+path+`"}`)
+	return executeHelperCommand(ctx, `{"command":"setcap cap_setuid+ep", "path":"`+path+`"}`)
 }
 
-func executeCommand(ctx context.Context, command string) error {
+func executeHelperCommand(ctx context.Context, command string) error {
 	var err error
 	var stderr io.ReadCloser
 	span, _ := tracer.StartSpanFromContext(ctx, "execute_command")
