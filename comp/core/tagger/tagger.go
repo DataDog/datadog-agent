@@ -75,7 +75,7 @@ type tagger interface {
 type datadogConfig struct {
 	dogstatsdEntityIDPrecedenceEnabled bool
 	dogstatsdOptOutEnabled             bool
-	dogstatsdUnifiedEnabled            bool
+	originDetectionUnifiedEnabled      bool
 }
 
 // TaggerClient is a component that contains two tagger component: capturetagger and defaulttagger
@@ -166,7 +166,7 @@ func newTaggerClient(deps dependencies) Component {
 	}
 
 	taggerClient.datadogConfig.dogstatsdEntityIDPrecedenceEnabled = deps.Config.GetBool("dogstatsd_entity_id_precedence")
-	taggerClient.datadogConfig.dogstatsdUnifiedEnabled = deps.Config.GetBool("dogstatsd_origin_detection_unified")
+	taggerClient.datadogConfig.originDetectionUnifiedEnabled = deps.Config.GetBool("origin_detection_unified")
 	taggerClient.datadogConfig.dogstatsdOptOutEnabled = deps.Config.GetBool("dogstatsd_origin_optout_enabled")
 
 	deps.Log.Info("TaggerClient is created, defaultTagger type: ", reflect.TypeOf(taggerClient.defaultTagger))
@@ -369,7 +369,7 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 
 	// If dogstatsdUnifiedEnabled is disabled, we use DogStatsD's Legacy Origin Detection.
 	// TODO: remove this when dogstatsd_origin_detection_unified is enabled by default
-	if !t.datadogConfig.dogstatsdUnifiedEnabled {
+	if !t.datadogConfig.originDetectionUnifiedEnabled {
 		originInfo.ProductOrigin = taggertypes.ProductOriginDogStatsDLegacy
 	}
 
