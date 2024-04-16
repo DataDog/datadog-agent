@@ -456,6 +456,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
         wait_for_pipeline(repo, pipeline)
 
         # Check pipeline status
+        pipeline.refresh()
         pipestatus = pipeline.status.lower().strip()
 
         if pipestatus != "success":
