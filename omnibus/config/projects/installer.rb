@@ -148,13 +148,13 @@ end
 # for the package being created
 if linux_target?
   if !generate_distro_package
-    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/updater-deb"
-    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/updater-rpm"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/installer-deb"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/installer-rpm"
   end
   if debian_target?
-      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/updater-deb"
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/installer-deb"
   elsif redhat_target?
-      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/updater-rpm"
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/installer-rpm"
   end
 end
 
