@@ -179,7 +179,7 @@ def run_on_devcontainer(func):
 
     @wraps(func)
     def _run_on_devcontainer(ctx, *args, **kwargs):
-        if 'platform' in kwargs:
+        if kwargs.get('platform'):
             platform = kwargs['platform'].lower()
             if platform == "linux" and py_platform.system().lower() != platform:
                 # If we choose to run them on linux, and we are not on linux already
