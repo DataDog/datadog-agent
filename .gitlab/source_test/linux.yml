@@ -150,11 +150,11 @@ lint_flavor_heroku_linux-x64:
 
 lint_python:
   stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: gcr.io/datadoghq/agent-circleci-runner:v31988376-bfbb3afb
   tags: ["arch:amd64"]
   needs: []
   before_script:
-    - source /root/.bashrc && conda activate ddpy3
+    - source /root/.bashrc
   script:
     - inv -e linter.python
 
