@@ -13,11 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -32,7 +31,7 @@ func TestMyKindSuite(t *testing.T) {
 	e2e.Run(t, &myKindSuite{}, e2e.WithProvisioner(customkind.Provisioner()))
 }
 
-func (v *myKindSuite) TestSingleLog() {
+func (v *myKindSuite) TestSingleLogAndMetadata() {
 	v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	var backOffLimit int32 = 4
 	testLogMessage := "Test log message"
