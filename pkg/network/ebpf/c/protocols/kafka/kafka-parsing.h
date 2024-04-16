@@ -518,12 +518,18 @@ static __always_inline u32 kafka_get_next_tcp_seq(skb_info_t *skb_info) {
     return next_seq;
 }
 
-// Somewhat similar to has_sequence_seen_before() except that this ignores all
-// segments with an older sequence number.
-static __always_inline bool kafka_is_old_tcp_segment(conn_tuple_t *tup, skb_info_t *skb_info, u32 expected_seq) {
-    if (skb_info->tcp_seq != expected_seq) {
-        u32 old = expected_seq;
-        u32 new = skb_info->tcp_seq;
+static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info) {
+    __u32 offset = skb_info->data_off;
+    conn_tuple_t tup = kafka->tup;
+    __u32 orig_offset = offset;
+    kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &tup);
+    if (response) {
+        if (skb_info->tcp_seq == response->expected_tcp_seq) {
+            response->expected_tcp_seq = kafka_get_next_tcp_seq(skb_info);
+            kafka_call_response_parser(&tup, skb);
+            // It's on the response path, so no need to parser as a request.
+            return false;
+        }
 
         // When the sequence number is greater than the end of the earlier
         // segment, we don't know for sure if we saw all the older data since
@@ -535,49 +541,28 @@ static __always_inline bool kafka_is_old_tcp_segment(conn_tuple_t *tup, skb_info
         // often be duplicated.
         //
         // The comparison is done this way to handle wraparound of sequence numbers.
-        s32 diff = new - old;
+        s32 diff = skb_info->tcp_seq - response->expected_tcp_seq;
         if (diff < 0) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info) {
-    __u32 offset = skb_info->data_off;
-    conn_tuple_t tup = kafka->tup;
-    __u32 orig_offset = offset;
-    kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &tup);
-    if (response) {
-        if (kafka_is_old_tcp_segment(&tup, skb_info, response->expected_tcp_seq)) {
             extra_debug("kafka: skip old TCP segment");
-            // We know it's on the response path, so not need to process as request.
+            // It's on the response path, so no need to parser as a request.
             return true;
         }
 
-        if (skb_info->tcp_seq != response->expected_tcp_seq) {
-            // The segment is not old, but it is not the next one we were expecting.
-            // No point in parsing this as a response continuation since it may
-            // yield bogus values. Flush what we have and forget about this current
-            // response.
+        // The segment is not old, but it is not the next one we were expecting.
+        // No point in parsing this as a response continuation since it may
+        // yield bogus values. Flush what we have and forget about this current
+        // response.
+        extra_debug("kafka: lost response TCP segments, expected %u got %u",
+                    response->expected_tcp_seq,
+                    skb_info->tcp_seq);
 
-            extra_debug("kafka: lost response TCP segments expected %u got %u",
-                        response->expected_tcp_seq,
-                        skb_info->tcp_seq);
-
-            if (response->transaction.records_count) {
-                extra_debug("kafka: enqueue (broken stream), records_count %d", response->transaction.records_count);
-                kafka_batch_enqueue(&response->transaction);
-            }
-
-            bpf_map_delete_elem(&kafka_response, &tup);
-            // Try to parse it as a new response.
-        } else {
-            response->expected_tcp_seq = kafka_get_next_tcp_seq(skb_info);
-            kafka_call_response_parser(&tup, skb);
-            return false;
+        if (response->transaction.records_count) {
+            extra_debug("kafka: enqueue (broken stream), records_count %d", response->transaction.records_count);
+            kafka_batch_enqueue(&response->transaction);
         }
+
+        bpf_map_delete_elem(&kafka_response, &tup);
+        // Try to parse it as a new response.
     }
 
     offset += sizeof(__s32); // Skip message size
