@@ -6,7 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
 features:
   - |
     [network path] Add feature to traceroute network connections.
