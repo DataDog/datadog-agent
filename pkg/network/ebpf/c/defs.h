@@ -1,9 +1,7 @@
 #ifndef _DEFS_H_
 #define _DEFS_H_
 
-#ifndef __maybe_unused
-#define __maybe_unused		__attribute__((__unused__))
-#endif
+#include "compiler.h"
 
 __maybe_unused static const __u64 ENABLED = 1;
 
