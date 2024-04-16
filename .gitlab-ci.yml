@@ -223,6 +223,9 @@ variables:
   MACOS_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.macos_github_app_id  # agent-ci-experience
   MACOS_GITHUB_INSTALLATION_ID_SSM_NAME: ci.datadog-agent.macos_github_installation_id  # agent-ci-experience
   MACOS_GITHUB_KEY_SSM_NAME: ci.datadog-agent.macos_github_key_b64  # agent-ci-experience
+  MACOS_GITHUB_APP_ID_2_SSM_NAME: ci.datadog-agent.macos_github_app_id_2  # agent-ci-experience
+  MACOS_GITHUB_INSTALLATION_ID_2_SSM_NAME: ci.datadog-agent.macos_github_installation_id_2  # agent-ci-experience
+  MACOS_GITHUB_KEY_2_SSM_NAME: ci.datadog-agent.macos_github_key_b64_2  # agent-ci-experience
   RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
   RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
   SMP_ACCOUNT_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-account-id  # single-machine-performance
