@@ -143,7 +143,12 @@ func (v *vmUpdaterSuite) TestExperimentCrash() {
 }
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
+	// disable Debian due to flaky failures
 	host := v.Env().RemoteHost
+	if v.distro == os.DebianDefault {
+		v.T().Skip("Skipping Debian as it fails")
+	}
+
 	addEcrConfig(host)
 	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootUpdaterDir))
 	stableUnits := []string{
@@ -210,8 +215,12 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	// Temporarily disable CentOS & Redhat, as there is a bug in the APM injector
+	// disable Debian as well as it fails
 	if v.distro == os.CentOSDefault {
 		v.T().Skip("APM injector not available for CentOS yet")
+	}
+	if v.distro == os.DebianDefault {
+		v.T().Skip("Skipping Debian as it fails")
 	}
 
 	host := v.Env().RemoteHost

@@ -940,7 +940,7 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_updater_or_e2e_changes_or_manual:
+.on_installer_or_e2e_changes_or_manual:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_mergequeue]
@@ -954,10 +954,10 @@ workflow:
       paths:
         - .gitlab/**/*
         - omnibus/config/**/*
-        - pkg/updater/**/*
-        - cmd/updater/**/*
-        - test/new-e2e/tests/updater/**/*
-        - tasks/updater.py
+        - pkg/installer/**/*
+        - cmd/installer/**/*
+        - test/new-e2e/tests/installer/**/*
+        - tasks/installer.py
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
