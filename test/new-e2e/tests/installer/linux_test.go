@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -47,7 +48,7 @@ type vmUpdaterSuite struct {
 
 func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.Descriptor, remoteUpdatesEnabled bool) {
 	reg := regexp.MustCompile(`[^a-zA-Z0-9_\-.]`)
-	testName := reg.ReplaceAllString(distro.String()+"-"+string(arch), "_")
+	testName := reg.ReplaceAllString(distro.String()+"-"+string(arch)+"-remote_updates_"+strconv.FormatBool(remoteUpdatesEnabled), "_")
 	e2e.Run(t, &vmUpdaterSuite{packageManager: pkgManager, distro: distro, arch: arch, remoteUpdatesEnabled: remoteUpdatesEnabled}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 		awshost.WithUpdater(),
 		awshost.WithEC2InstanceOptions(ec2.WithOSArch(distro, arch)),
@@ -122,9 +123,8 @@ func (v *vmUpdaterSuite) TestInstallerUnitLoaded() {
 	if v.remoteUpdatesEnabled {
 		require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(`systemctl is-enabled datadog-installer.service`))
 	} else {
-		output, err := v.Env().RemoteHost.Execute(`systemctl is-enabled datadog-installer.service`)
-		require.Error(t, err)
-		require.Contains(t, output, "Failed to get unit file state for datadog-installer.service: No such file or directory")
+		_, err := v.Env().RemoteHost.Execute(`systemctl is-enabled datadog-installer.service`)
+		require.ErrorContains(t, err, "Failed to get unit file state for datadog-installer.service: No such file or directory")
 	}
 }
 
