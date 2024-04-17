@@ -376,9 +376,6 @@ func movePackageFromSource(ctx context.Context, packageName string, rootPath str
 		if err := os.Chmod(helperPath, 0750); err != nil {
 			return "", fmt.Errorf("could not set permissions on installer-helper: %w", err)
 		}
-		if err := service.SetCapHelper(ctx, helperPath); err != nil {
-			return "", fmt.Errorf("could not set capabilities on installer-helper: %w", err)
-		}
 	}
 
 	return targetPath, nil
