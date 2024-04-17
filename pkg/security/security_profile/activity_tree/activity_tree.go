@@ -102,6 +102,11 @@ const (
 // SECLRuleOpts defines SECL rules options
 type SECLRuleOpts struct {
 	EnableKill bool
+	AllowList  bool
+	Lineage    bool
+	ImageName  string
+	ImageTag   string
+	Service    string
 }
 
 func (genType NodeGenerationType) String() string {
@@ -895,6 +900,26 @@ func applyKillAction(ruleDef *rules.RuleDefinition) {
 	}
 }
 
+func applyContext(ruleDef *rules.RuleDefinition, opts SECLRuleOpts) {
+	var context []string
+
+	if opts.ImageName != "" {
+		context = append(context, fmt.Sprintf(`container.tags == "image_name:%s"`, opts.ImageName))
+	}
+	if opts.ImageTag != "" {
+		context = append(context, fmt.Sprintf(`container.tags == "image_tag:%s"`, opts.ImageTag))
+	}
+	if opts.Service != "" {
+		context = append(context, fmt.Sprintf(`process.envp == "DD_SERVICE=%s"`, opts.Service))
+	}
+
+	if len(context) == 0 {
+		return
+	}
+
+	ruleDef.Expression = fmt.Sprintf("%s && (%s)", ruleDef.Expression, strings.Join(context, " && "))
+}
+
 func processToSECLExecRules(processNode *ProcessNode, opts SECLRuleOpts) *rules.RuleDefinition {
 	processPath := processNode.Process.FileEvent.PathnameStr
 
@@ -905,8 +930,18 @@ func processToSECLExecRules(processNode *ProcessNode, opts SECLRuleOpts) *rules.
 		}
 	}
 
+	var (
+		parentOp = "=="
+		ctxOp    = "!="
+	)
+
+	if parentPath == "" {
+		parentOp = "!="
+		ctxOp = "=="
+	}
+
 	ruleDef := &rules.RuleDefinition{
-		Expression: fmt.Sprintf(`exec.file.path == "%s" && process.parent.file.path != "%s" && process.parent.container.id != ""`, processPath, parentPath),
+		Expression: fmt.Sprintf(`exec.file.path == "%s" && process.parent.file.path %s "%s" && process.parent.container.id %s ""`, processPath, parentOp, parentPath, ctxOp),
 	}
 
 	if opts.EnableKill {
@@ -936,22 +971,27 @@ func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition,
 		}
 	})
 
-	execRuleDef := &rules.RuleDefinition{
-		Expression: strings.Join(execRuleExp, " && "),
-	}
-	if opts.EnableKill {
-		applyKillAction(execRuleDef)
-	}
-	ruleDefs = append(ruleDefs, execRuleDef)
-
-	denyDef := &rules.RuleDefinition{
-		Expression: fmt.Sprintf(`exec.file.path not in ["%s"]`, strings.Join(path, `","`)),
-	}
-	if opts.EnableKill {
-		applyKillAction(denyDef)
+	if opts.Lineage {
+		execRuleDef := &rules.RuleDefinition{
+			Expression: fmt.Sprintf(`!(%s)`, strings.Join(execRuleExp, " || ")),
+		}
+		applyContext(execRuleDef, opts)
+		if opts.EnableKill {
+			applyKillAction(execRuleDef)
+		}
+		ruleDefs = append(ruleDefs, execRuleDef)
 	}
 
-	ruleDefs = append(ruleDefs, denyDef)
+	if opts.AllowList {
+		denyDef := &rules.RuleDefinition{
+			Expression: fmt.Sprintf(`exec.file.path not in ["%s"]`, strings.Join(path, `","`)),
+		}
+		applyContext(denyDef, opts)
+		if opts.EnableKill {
+			applyKillAction(denyDef)
+		}
+		ruleDefs = append(ruleDefs, denyDef)
+	}
 
 	return ruleDefs, nil
 }

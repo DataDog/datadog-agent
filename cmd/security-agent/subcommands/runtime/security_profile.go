@@ -271,9 +271,14 @@ func saveSecurityProfile(_ log.Component, _ config.Component, _ secrets.Componen
 type securityProfileToWorloadPolicyCliParams struct {
 	*command.GlobalParams
 
-	input  string
-	output string
-	kill   bool
+	input     string
+	output    string
+	kill      bool
+	allowlist bool
+	lineage   bool
+	service   string
+	imageName string
+	imageTag  string
 }
 
 func securityProfileToWorloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -317,6 +322,41 @@ func securityProfileToWorloadPolicyCommands(globalParams *command.GlobalParams) 
 		"generate kill action with the workload policy",
 	)
 
+	securityProfileWorkloadPolicyCmd.Flags().BoolVar(
+		&cliParams.allowlist,
+		"allowlist",
+		false,
+		"generate allow list rules",
+	)
+
+	securityProfileWorkloadPolicyCmd.Flags().BoolVar(
+		&cliParams.lineage,
+		"lineage",
+		false,
+		"generate lineage rules",
+	)
+
+	securityProfileWorkloadPolicyCmd.Flags().StringVar(
+		&cliParams.service,
+		"service",
+		"",
+		"apply on specified service",
+	)
+
+	securityProfileWorkloadPolicyCmd.Flags().StringVar(
+		&cliParams.imageTag,
+		"image-tag",
+		"",
+		"apply on specified image tag",
+	)
+
+	securityProfileWorkloadPolicyCmd.Flags().StringVar(
+		&cliParams.imageName,
+		"image-name",
+		"",
+		"apply on specified image name",
+	)
+
 	return []*cobra.Command{securityProfileWorkloadPolicyCmd}
 }
 
@@ -329,7 +369,16 @@ func securityProfileToWorkloadPolicy(_ log.Component, _ config.Component, _ secr
 	sp := profile.NewSecurityProfile(model.WorkloadSelector{}, nil, nil)
 	sp.LoadFromProto(pp, profile.LoadOpts{})
 
-	rules, err := sp.ToSECLRules(profile.SECLRuleOpts{EnableKill: args.kill})
+	opts := profile.SECLRuleOpts{
+		EnableKill: args.kill,
+		AllowList:  args.allowlist,
+		Lineage:    args.lineage,
+		Service:    args.service,
+		ImageName:  args.imageName,
+		ImageTag:   args.imageTag,
+	}
+
+	rules, err := sp.ToSECLRules(opts)
 	if err != nil {
 		return err
 	}
