@@ -200,7 +200,7 @@ func (rc rcClient) haUpdateCallback(updates map[string]state.RawConfig, applySta
 				pkglog.Infof("Multiple HA updates received, disregarding update of `ha.failover_metrics` to %v and `ha.failover_logs` to %v", haUpdate.FailoverMetrics, haUpdate.FailoverLogs)
 				applyStateCallback(cfgPath, state.ApplyStatus{
 					State: state.ApplyStateError,
-					Error: err.Error(),
+					Error: "Multiple HA updates received. Only the first was applied.",
 				})
 				continue
 			}
@@ -214,10 +214,7 @@ func (rc rcClient) haUpdateCallback(updates map[string]state.RawConfig, applySta
 				applied = applied || appliedLogs
 			}
 			if applied {
-				applyStateCallback(cfgPath, state.ApplyStatus{
-					State: state.ApplyStateAcknowledged,
-					Error: err.Error(),
-				})
+				applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 			}
 		}
 	}
