@@ -561,7 +561,11 @@ type deletePathArgs struct {
 	infoClass        uint32
 	filePath         string
 }
+
+// nolint: unused
 type renamePath deletePathArgs
+
+// nolint: unused
 type setLinkPath deletePathArgs
 
 func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (*deletePathArgs, error) {
@@ -605,6 +609,7 @@ func (dpa *deletePathArgs) String() string {
 	return dpa.string("DELETE_PATH")
 }
 
+// nolint: unused
 func (wp *WindowsProbe) parseRenamePathArgs(e *etw.DDEventRecord) (*renamePath, error) {
 	rpa, err := wp.parseDeletePathArgs(e)
 	if err != nil {
@@ -618,6 +623,7 @@ func (rpa *renamePath) String() string {
 	return (*deletePathArgs)(rpa).string("RENAME_PATH")
 }
 
+// nolint: unused
 func (wp *WindowsProbe) parseSetLinkPathArgs(e *etw.DDEventRecord) (*setLinkPath, error) {
 	sla, err := wp.parseDeletePathArgs(e)
 	if err != nil {
@@ -671,7 +677,8 @@ func (ca *nameCreateArgs) String() string {
 	return ca.string("NAME_CREATE")
 }
 
-func (nd *nameDeleteArgs) String(t string) string {
+// nolint: unused
+func (nd *nameDeleteArgs) String() string {
 	return (*nameCreateArgs)(nd).string("NAME_DELETE")
 }
 
