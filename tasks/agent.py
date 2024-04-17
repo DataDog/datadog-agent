@@ -322,8 +322,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         # Ensure the config folders are not world writable
         os.chmod(check_dir, mode=0o755)
 
-    ## add additional windows-only corechecks, only on windows. Otherwise the check loader
-    ## on linux will throw an error because the module is not found, but the config is.
+    # add additional windows-only corechecks, only on windows. Otherwise the check loader
+    # on linux will throw an error because the module is not found, but the config is.
     if sys.platform == 'win32':
         for check in WINDOWS_CORECHECKS:
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")

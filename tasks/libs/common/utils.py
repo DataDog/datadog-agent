@@ -690,3 +690,13 @@ def environ(env):
             os.environ[var] = original_environ[var]
         else:
             os.environ.pop(var)
+
+
+def is_pr_context(branch, pr_id, test_name):
+    if branch == DEFAULT_BRANCH:
+        print(f"Running on {DEFAULT_BRANCH}, skipping check for {test_name}.")
+        return False
+    if not pr_id:
+        print(f"PR not found, skipping check for {test_name}.")
+        return False
+    return True
