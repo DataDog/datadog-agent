@@ -33,6 +33,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/status => ./comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ./comp/core/status/statusimpl
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry/
+	github.com/DataDog/datadog-agent/comp/def => ./comp/def/
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ./comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ./comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
@@ -704,6 +705,7 @@ require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.53.0-rc.2 // indirect

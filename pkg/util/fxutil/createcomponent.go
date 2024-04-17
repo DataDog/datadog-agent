@@ -42,6 +42,10 @@ func getComponentName() string {
 	filename = filepath.ToSlash(filename)
 	components := strings.Split(filename, "/")
 
+	// testing only
+	if len(components) >= 2 && components[len(components)-2] == "fxutil" {
+		return "fxutil"
+	}
 	// TODO: (components) Remove this check when all components will be migrated to the new files organisation.
 	if len(components) >= 4 && components[len(components)-4] == "comp" {
 		return fmt.Sprintf("comp/%s/%s", components[len(components)-3], components[len(components)-2])

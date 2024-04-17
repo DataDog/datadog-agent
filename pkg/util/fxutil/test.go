@@ -282,8 +282,6 @@ func getComponents(t *testing.T, mainType reflect.Type) []reflect.Type {
 	return nil
 }
 
-var fxOutType = reflect.TypeOf((*fx.Out)(nil)).Elem()
-
 func isFxOutType(t reflect.Type) bool {
 	if t.Kind() == reflect.Struct {
 		for i := 0; i < t.NumField(); i++ {
