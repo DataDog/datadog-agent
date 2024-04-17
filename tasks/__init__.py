@@ -77,7 +77,6 @@ from tasks.go_test import (
 from tasks.install_tasks import download_tools, install_devcontainer_cli, install_shellcheck, install_tools
 from tasks.junit_tasks import junit_upload
 from tasks.libs.common.go_workspaces import handle_go_work
-from tasks.pr_checks import lint_releasenote
 from tasks.show_linters_issues import show_linters_issues
 from tasks.unit_tests import invoke_unit_tests
 from tasks.update_go import go_version, update_go
@@ -100,7 +99,6 @@ ns.add_task(lint_go)
 ns.add_task(lint_fxutil_oneshot_test)
 ns.add_task(generate_protobuf)
 ns.add_task(reset)
-ns.add_task(lint_releasenote)
 ns.add_task(show_linters_issues)
 ns.add_task(go_version)
 ns.add_task(update_go)
