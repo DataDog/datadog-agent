@@ -14,9 +14,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"unicode"
@@ -28,7 +26,6 @@ var (
 	rpmSystemdPath = "/usr/lib/systemd/system"
 	pkgDir         = "/opt/datadog-packages/"
 	agentDir       = "/etc/datadog-agent"
-	dockerDir      = "/etc/docker"
 	testSkipUID    = ""
 	installerUser  = "dd-installer"
 )
@@ -68,15 +65,6 @@ func isValidUnitString(s string) bool {
 		}
 	}
 	return true
-}
-
-func splitPathPrefix(path string) (first string, rest string) {
-	for i := 0; i < len(path); i++ {
-		if os.IsPathSeparator(path[i]) {
-			return path[:i], path[i+1:]
-		}
-	}
-	return first, rest
 }
 
 func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
@@ -173,34 +161,9 @@ func executeCommand() error {
 	if err != nil {
 		return fmt.Errorf("decoding command %s", inputCommand)
 	}
-
-	currentUser := syscall.Getuid()
 	command, err := buildCommand(pc)
 	if err != nil {
 		return err
-	}
-
-	// only root or dd-installer can execute this command
-	if currentUser != 0 && enforceUID() {
-		ddUpdaterUser, err := user.Lookup(installerUser)
-		if err != nil {
-			return fmt.Errorf("failed to lookup dd-installer user: %s", err)
-		}
-		if strconv.Itoa(currentUser) != ddUpdaterUser.Uid {
-			return fmt.Errorf("only root or dd-installer can execute this command")
-		}
-		if err := syscall.Setuid(os.Getuid()); err != nil {
-			return fmt.Errorf("failed to restore priviledges: %s", err)
-		}
-		if err := syscall.Seteuid(0); err != nil {
-			return fmt.Errorf("failed to setuid: %s", err)
-		}
-		defer func() {
-			err := syscall.Setuid(currentUser)
-			if err != nil {
-				log.Printf("Failed to set back to current user: %s", err)
-			}
-		}()
 	}
 
 	commandErr := new(bytes.Buffer)
@@ -214,11 +177,29 @@ func executeCommand() error {
 }
 
 func main() {
+	err := setupPriviledges()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error setting up priviledges: %s\n", err)
+		os.Exit(1)
+	}
 	log.SetOutput(os.Stdout)
-	err := executeCommand()
+	err = executeCommand()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
 	}
 	os.Exit(0)
+}
+
+func setupPriviledges() error {
+	if os.Getuid() != 0 {
+		return fmt.Errorf("only root can execute this command")
+	}
+	if err := syscall.Setuid(os.Getuid()); err != nil {
+		return fmt.Errorf("failed to setuid: %s", err)
+	}
+	if err := syscall.Seteuid(0); err != nil {
+		return fmt.Errorf("failed to seteuid: %s", err)
+	}
+	return nil
 }
