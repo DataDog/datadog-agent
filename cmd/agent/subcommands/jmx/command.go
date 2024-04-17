@@ -145,7 +145,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			// The jmx command do not have settings that change are runtime
 			// still, we need to pass it to ensure the API server is proprely initialized
 			settingsimpl.Module(),
-			fx.Supply(settings.Settings{}),
+			fx.Supply(settings.Params{}),
 			// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
 			// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
 			// in others commands such as run.

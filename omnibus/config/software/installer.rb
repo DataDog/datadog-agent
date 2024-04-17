@@ -101,6 +101,11 @@ build do
 
   end
 
+  # Remove empty/unneeded folders
+  delete "#{install_dir}/embedded/bin"
+  delete "#{install_dir}/embedded/lib"
+  delete "#{install_dir}/embedded/"
+
   # The file below is touched by software builds that don't put anything in the installation
   # directory (libgcc right now) so that the git_cache gets updated let's remove it from the
   # final package
