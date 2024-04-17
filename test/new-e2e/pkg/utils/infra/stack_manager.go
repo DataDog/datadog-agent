@@ -323,7 +323,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), err.Error(), []string{"operation:up", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name())}, logger)
 		switch retryStrategy {
 		case reUp:
-			fmt.Fprint(logger, "Got error during stack up, retring")
+			fmt.Fprint(logger, "Got error during stack up, retrying")
 			if err != nil {
 				fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
 			}
