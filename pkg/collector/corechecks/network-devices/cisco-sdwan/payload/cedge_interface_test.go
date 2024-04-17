@@ -22,7 +22,7 @@ func TestCEdgeInterface(t *testing.T) {
 		expectedID               string
 		expectedIndex            int
 		expectedIndexError       string
-		expectedSpeed            int
+		expectedSpeed            float64
 		expectedOperStatus       devicemetadata.IfOperStatus
 		expectedAdminStatus      devicemetadata.IfAdminStatus
 		expectedMetadata         devicemetadata.InterfaceMetadata
@@ -145,7 +145,7 @@ func TestCEdgeInterface(t *testing.T) {
 				VmanageSystemIP: "10.0.0.1",
 				Ifname:          "test-interface",
 				Ifindex:         "10",
-				SpeedMbps:       "1000",
+				SpeedMbps:       "0.1",
 				IfOperStatus:    "if-oper-state-ready",
 				IfAdminStatus:   "if-state-down",
 				Description:     "Description",
@@ -155,7 +155,7 @@ func TestCEdgeInterface(t *testing.T) {
 			},
 			expectedID:          "10.0.0.1:test-interface",
 			expectedIndex:       10,
-			expectedSpeed:       1000,
+			expectedSpeed:       0.1,
 			expectedOperStatus:  devicemetadata.OperStatusUp,
 			expectedAdminStatus: devicemetadata.AdminStatusDown,
 			expectedMetadata: devicemetadata.InterfaceMetadata{
