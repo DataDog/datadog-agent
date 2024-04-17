@@ -17,7 +17,7 @@ import (
 )
 
 const erroMsg = `
-The dependencies.txt file is out of date. Please run: GOOS=linux go list -f '{{join .Deps "\n"}}' -tags serverless github.com/DataDog/datadog-agent/cmd/serverless > cmd/serverless/dependencies.txt to update it
+The dependencies.txt file is out of date. Please run: CGO_ENABLED=1 GOOS=linux go list -f '{{join .Deps "\n"}}' -tags serverless github.com/DataDog/datadog-agent/cmd/serverless > cmd/serverless/dependencies.txt to update it
 `
 
 func buildDependencyList() (string, error) {

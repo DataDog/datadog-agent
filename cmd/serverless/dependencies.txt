@@ -282,6 +282,8 @@ github.com/DataDog/datadog-agent/pkg/util/tmplvar
 github.com/DataDog/datadog-agent/pkg/version
 github.com/DataDog/datadog-go/v5/statsd
 github.com/DataDog/go-libddwaf/v2
+github.com/DataDog/go-libddwaf/v2/internal/lib
+github.com/DataDog/go-libddwaf/v2/internal/log
 github.com/DataDog/go-libddwaf/v2/internal/noopfree
 github.com/DataDog/go-sqllexer
 github.com/DataDog/go-tuf/client
@@ -394,6 +396,9 @@ github.com/coreos/go-systemd/v22/dbus
 github.com/davecgh/go-spew/spew
 github.com/docker/go-units
 github.com/dustin/go-humanize
+github.com/ebitengine/purego
+github.com/ebitengine/purego/internal/cgo
+github.com/ebitengine/purego/internal/strings
 github.com/fatih/color
 github.com/fsnotify/fsnotify
 github.com/go-logr/logr
@@ -819,6 +824,7 @@ reflect
 regexp
 regexp/syntax
 runtime
+runtime/cgo
 runtime/debug
 runtime/internal/atomic
 runtime/internal/math
