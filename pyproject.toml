@@ -43,10 +43,10 @@ ignore = [
     # Ignore:
     # - black-incompatible options: E203
     # - bugbear overlap: E722
-    # - style options: W2,W3,W50,E111,E114,E117,E12,E2,E3,E5,E74
-    # - unused argument with underscore: U101
+    # - style options: W2,W3,W50,E111,E114,E117,E2,E3,E5,E74
     # - Unnecessary dict call: C408
-    # - f-string missing prefix FS003
+    # - complex-structure : C901
+    # - raise-without-from-inside-except: B904
     "E203",
     "W2",
     "W3",
