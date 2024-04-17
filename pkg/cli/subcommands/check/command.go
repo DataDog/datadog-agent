@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -208,7 +209,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					},
 				),
 				statusimpl.Module(),
-
+				// The check command do not have settings that change are runtime
+				// still, we need to pass it to ensure the API server is proprely initialized
+				settingsimpl.Module(),
+				fx.Supply(settings.Params{}),
 				// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
 				// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
 				// in others commands such as run.
@@ -217,7 +221,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() replay.Component { return nil }),
 				fx.Provide(func() pidmap.Component { return nil }),
 				fx.Provide(func() serverdebug.Component { return nil }),
-				fx.Provide(func() settings.Component { return nil }),
 				fx.Provide(func() host.Component { return nil }),
 				fx.Provide(func() inventoryagent.Component { return nil }),
 				fx.Provide(func() inventoryhost.Component { return nil }),

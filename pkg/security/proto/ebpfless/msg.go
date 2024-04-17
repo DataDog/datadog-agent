@@ -22,6 +22,8 @@ const (
 	MessageTypeHello
 	// MessageTypeSyscall syscall type
 	MessageTypeSyscall
+	// MessageTypeGoodbye event type
+	MessageTypeGoodbye
 )
 
 // SyscallType defines the type of a syscall message
@@ -107,6 +109,7 @@ type ExecSyscallMsg struct {
 	TTY           string
 	Credentials   *Credentials
 	PPID          uint32
+	FromProcFS    bool
 }
 
 // ForkSyscallMsg defines a fork message
@@ -259,6 +262,7 @@ type SyscallMsg struct {
 	PID          uint32
 	Timestamp    uint64
 	Retval       int64
+	ContainerID  string
 	Exec         *ExecSyscallMsg         `json:",omitempty"`
 	Open         *OpenSyscallMsg         `json:",omitempty"`
 	Fork         *ForkSyscallMsg         `json:",omitempty"`

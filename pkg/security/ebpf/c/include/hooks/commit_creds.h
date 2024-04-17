@@ -238,7 +238,9 @@ struct __attribute__((__packed__)) cred_ids {
     kgid_t egid;
     kuid_t fsuid;
     kgid_t fsgid;
-    unsigned securebits;
+};
+
+struct __attribute__((__packed__)) cred_caps {
     kernel_cap_t cap_inheritable;
     kernel_cap_t cap_permitted;
     kernel_cap_t cap_effective;
@@ -251,6 +253,11 @@ int hook_commit_creds(ctx_t *ctx) {
     u64 creds_uid_offset;
     LOAD_CONSTANT("creds_uid_offset", creds_uid_offset);
     struct cred_ids *credentials = (struct cred_ids *)(CTX_PARM1(ctx) + creds_uid_offset);
+
+    u64 creds_cap_inheritable_offset;
+    LOAD_CONSTANT("creds_cap_inheritable_offset", creds_cap_inheritable_offset);
+    struct cred_caps *capabilities = (struct cred_caps *)(CTX_PARM1(ctx) + creds_cap_inheritable_offset);
+
     struct pid_cache_t new_pid_entry = {};
 
     // update pid_cache entry for the current process
@@ -270,8 +277,8 @@ int hook_commit_creds(ctx_t *ctx) {
     bpf_probe_read(&pid_entry->credentials.egid, sizeof(pid_entry->credentials.egid), &credentials->egid);
     bpf_probe_read(&pid_entry->credentials.fsuid, sizeof(pid_entry->credentials.fsuid), &credentials->fsuid);
     bpf_probe_read(&pid_entry->credentials.fsgid, sizeof(pid_entry->credentials.fsgid), &credentials->fsgid);
-    bpf_probe_read(&pid_entry->credentials.cap_effective, sizeof(pid_entry->credentials.cap_effective), &credentials->cap_effective);
-    bpf_probe_read(&pid_entry->credentials.cap_permitted, sizeof(pid_entry->credentials.cap_permitted), &credentials->cap_permitted);
+    bpf_probe_read(&pid_entry->credentials.cap_effective, sizeof(pid_entry->credentials.cap_effective), &capabilities->cap_effective);
+    bpf_probe_read(&pid_entry->credentials.cap_permitted, sizeof(pid_entry->credentials.cap_permitted), &capabilities->cap_permitted);
 
     if (new_entry) {
         bpf_map_update_elem(&pid_cache, &pid, &new_pid_entry, BPF_ANY);

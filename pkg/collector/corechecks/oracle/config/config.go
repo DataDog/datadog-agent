@@ -70,6 +70,10 @@ type inactiveSessionsConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+type userSessionsCount struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 //nolint:revive // TODO(DBM) Fix revive linter
 type SharedMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
@@ -147,6 +151,7 @@ type InstanceConfig struct {
 	Tablespaces                        TablespacesConfig      `yaml:"tablespaces"`
 	ProcessMemory                      ProcessMemoryConfig    `yaml:"process_memory"`
 	InactiveSessions                   inactiveSessionsConfig `yaml:"inactive_sessions"`
+	UserSessionsCount                  userSessionsCount      `yaml:"user_sessions_count"`
 	SharedMemory                       SharedMemoryConfig     `yaml:"shared_memory"`
 	ExecutionPlans                     ExecutionPlansConfig   `yaml:"execution_plans"`
 	AgentSQLTrace                      AgentSQLTrace          `yaml:"agent_sql_trace"`
@@ -217,6 +222,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.ProcessMemory.Enabled = true
 	instance.SharedMemory.Enabled = true
 	instance.InactiveSessions.Enabled = true
+	instance.UserSessionsCount.Enabled = true
 	instance.Asm.Enabled = true
 	instance.ResourceManager.Enabled = true
 	instance.Locks.Enabled = true

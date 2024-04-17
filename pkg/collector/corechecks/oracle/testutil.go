@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -29,6 +30,11 @@ const (
 	useDefaultUser = iota
 	useLegacyUser
 	useDoesNotExistUser
+)
+
+const (
+	expectedSessionsDefault           = 2
+	expectedSessionsWithCustomQueries = 3
 )
 
 func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
@@ -134,4 +140,12 @@ func newDefaultCheck(t *testing.T, instanceConfigAddition string, initConfig str
 
 func newDbDoesNotExistCheck(t *testing.T, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {
 	return newTestCheck(t, getConnectData(t, useDoesNotExistUser), instanceConfigAddition, initConfig)
+}
+
+func assertConnectionCount(t *testing.T, c *Check, max int) {
+	var n int
+	query := "select count(*) from v$session where username = :username"
+	err := getWrapper(c, &n, query, strings.ToUpper(c.config.InstanceConfig.Username))
+	require.NoError(t, err, "failed to execute the session count query")
+	require.LessOrEqual(t, n, max, "too many sessions:")
 }

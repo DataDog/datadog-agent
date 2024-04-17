@@ -29,8 +29,11 @@ const SDSEnabled = true
 // has to ensure of the thread safety.
 type Scanner struct {
 	*sds.Scanner
+	// lock used to separate between the lifecycle of the scanner (Reconfigure, Delete)
+	// and the use of the scanner (Scan).
 	sync.Mutex
-
+	// standard rules as received through the remote configuration, indexed
+	// by the standard rule ID for O(1) access when receiving user configurations.
 	standardRules map[string]StandardRuleConfig
 	// rawConfig is the raw config previously received through RC.
 	rawConfig []byte
@@ -287,8 +290,11 @@ func (s *Scanner) GetRuleByIdx(idx uint32) (RuleConfig, error) {
 }
 
 // Delete deallocates the internal SDS scanner.
-// This method is NOT thread safe, caller has to ensure the thread safety.
+// This method is thread safe, a reconfiguration or a scan can't happen at the same time.
 func (s *Scanner) Delete() {
+	s.Lock()
+	defer s.Unlock()
+
 	if s.Scanner != nil {
 		s.Scanner.Delete()
 		s.rawConfig = nil

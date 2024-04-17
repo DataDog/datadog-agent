@@ -34,7 +34,6 @@ import (
 
 	// core components
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
-
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
@@ -60,6 +59,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/comp/agent"
+	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
@@ -88,6 +88,7 @@ import (
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
+	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
@@ -111,7 +112,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
-	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
@@ -121,7 +121,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
-	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
@@ -227,6 +226,7 @@ func run(log log.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	cloudfoundrycontainer cloudfoundrycontainer.Component,
 	_ expvarserver.Component,
 	_ pid.Component,
 	metadatascheduler metadatascheduler.Component,
@@ -296,6 +296,7 @@ func run(log log.Component,
 		invChecks,
 		statusComponent,
 		collector,
+		cloudfoundrycontainer,
 		metadatascheduler,
 		jmxlogger,
 		settings,
@@ -428,18 +429,22 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		healthprobeimpl.Module(),
-		fx.Provide(func(serverDebug dogstatsddebug.Component) settings.Settings {
-			return settings.Settings{
-				"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
-				"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
-				"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
-				"dogstatsd_stats":                internalsettings.NewDsdStatsRuntimeSetting(serverDebug),
-				"dogstatsd_capture_duration":     internalsettings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration"),
-				"log_payloads":                   commonsettings.NewLogPayloadsRuntimeSetting(),
-				"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
-				"ha.enabled":                     internalsettings.NewHighAvailabilityRuntimeSetting("ha.enabled", "Enable/disable High Availability support."),
-				"ha.failover":                    internalsettings.NewHighAvailabilityRuntimeSetting("ha.failover", "Enable/disable redirection of telemetry data to failover region."),
-				"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
+		adschedulerimpl.Module(),
+		fx.Provide(func(serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
+			return settings.Params{
+				Settings: map[string]settings.RuntimeSetting{
+					"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
+					"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
+					"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
+					"dogstatsd_stats":                internalsettings.NewDsdStatsRuntimeSetting(serverDebug),
+					"dogstatsd_capture_duration":     internalsettings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration"),
+					"log_payloads":                   commonsettings.NewLogPayloadsRuntimeSetting(),
+					"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
+					"ha.enabled":                     internalsettings.NewHighAvailabilityRuntimeSetting("ha.enabled", "Enable/disable High Availability support."),
+					"ha.failover":                    internalsettings.NewHighAvailabilityRuntimeSetting("ha.failover", "Enable/disable redirection of telemetry data to failover region."),
+					"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
+				},
+				Config: config,
 			}
 		}),
 		settingsimpl.Module(),
@@ -467,6 +472,7 @@ func startAgent(
 	invChecks inventorychecks.Component,
 	_ status.Component,
 	collector collector.Component,
+	_ cloudfoundrycontainer.Component,
 	_ metadatascheduler.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
@@ -519,21 +525,6 @@ func startAgent(
 			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
 			// LoadAndRun is called later on
 			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
-		}
-	}
-
-	if logsAgent, ok := logsAgent.Get(); ok {
-		// TODO: (components) - once adScheduler is a component, inject it into the logs agent.
-		logsAgent.AddScheduler(adScheduler.New(ac))
-	}
-
-	// start the cloudfoundry container tagger
-	if pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) && !pkgconfig.Datadog.GetBool("cloud_foundry_buildpack") {
-		containerTagger, err := containertagger.NewContainerTagger(wmeta)
-		if err != nil {
-			log.Errorf("Failed to create Cloud Foundry container tagger: %v", err)
-		} else {
-			containerTagger.Start(ctx)
 		}
 	}
 
