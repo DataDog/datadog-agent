@@ -189,6 +189,9 @@ func executeCommand() error {
 		if strconv.Itoa(currentUser) != ddUpdaterUser.Uid {
 			return fmt.Errorf("only root or dd-installer can execute this command")
 		}
+		if err := syscall.Setuid(os.Getuid()); err != nil {
+			return fmt.Errorf("failed to restore priviledges: %s", err)
+		}
 		if err := syscall.Seteuid(0); err != nil {
 			return fmt.Errorf("failed to setuid: %s", err)
 		}
