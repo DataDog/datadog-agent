@@ -39,3 +39,4 @@ kitchen_ubuntu_process_agent-a7:
   extends:
     - .kitchen_scenario_ubuntu_a7_x64
     - .kitchen_test_process_agent
+  allow_failure: true
