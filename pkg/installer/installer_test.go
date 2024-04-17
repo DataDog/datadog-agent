@@ -154,7 +154,7 @@ func TestPurge(t *testing.T) {
 	assert.Nil(t, os.WriteFile(filepath.Join(locksPath, "not_empty"), []byte("morbier\n"), 0644))
 	assertDirNotEmpty(t, locksPath)
 	assertDirNotEmpty(t, rootPath)
-	purge(locksPath, rootPath)
+	purge(testCtx, locksPath, rootPath)
 	assertDirExistAndEmpty(t, locksPath)
 	assertDirExistAndEmpty(t, rootPath)
 	bootstrapAndAssert()
