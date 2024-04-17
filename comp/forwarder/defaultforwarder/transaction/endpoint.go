@@ -36,8 +36,9 @@ func (e Endpoint) GetEndpoint(domain string) string {
 
 	url := domain + "/" + e.Route
 
-	url = strings.TrimPrefix(url, "https://")
-	url = "https://" + url
+	if !strings.Contains(url, "http://") && !strings.Contains(url, "https://") {
+		url = "https://" + url
+	}
 
 	url = strings.Replace(url, "app", e.Subdomain, 1)
 
