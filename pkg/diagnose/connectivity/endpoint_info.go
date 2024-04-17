@@ -59,8 +59,8 @@ func getEndpointsInfo(cfg config.Reader) []endpointInfo {
 		{endpoints.ConnectionsEndpoint, "POST", emptyPayload},
 
 		// Orchestrator endpoints
-		{endpoints.ProcessLifecycleEndpoint, "POST", emptyPayload},
-		//{endpoints.LegacyOrchestratorEndpoint, "POST", emptyPayload},
+		//{endpoints.ProcessLifecycleEndpoint, "POST", emptyPayload},
+		{endpoints.LegacyOrchestratorEndpoint, "POST", emptyPayload},
 		{endpoints.OrchestratorEndpoint, "POST", emptyPayload},
 		{endpoints.OrchestratorManifestEndpoint, "POST", emptyPayload},
 
