@@ -45,13 +45,14 @@ func InstallLanguageDetectionEndpoints(r *mux.Router, wmeta workloadmeta.Compone
 }
 
 var ownersLanguages OwnersLanguages
-var languageTTL time.Duration
 var ownersLanguagesOnce sync.Once
+
+var languageTTL time.Duration
+var languageTTLOnce sync.Once
 
 func loadOwnersLanguages(wlm workloadmeta.Component) *OwnersLanguages {
 	ownersLanguagesOnce.Do(func() {
 		ownersLanguages = *newOwnersLanguages()
-		languageTTL = config.Datadog.GetDuration("cluster_agent.language_detection.cleanup.language_ttl")
 		cleanupPeriod := config.Datadog.GetDuration("cluster_agent.language_detection.cleanup.period")
 
 		// Launch periodic cleanup mechanism
@@ -66,6 +67,13 @@ func loadOwnersLanguages(wlm workloadmeta.Component) *OwnersLanguages {
 		go ownersLanguages.cleanRemovedOwners(wlm)
 	})
 	return &ownersLanguages
+}
+
+func loadLanguageTTL() time.Duration {
+	languageTTLOnce.Do(func() {
+		languageTTL = config.Datadog.GetDuration("cluster_agent.language_detection.cleanup.language_ttl")
+	})
+	return languageTTL
 }
 
 // preHandler is called by both leader and followers and returns true if the request should be forwarded or handled by the leader
@@ -106,7 +114,7 @@ func leaderHandler(w http.ResponseWriter, r *http.Request, wlm workloadmeta.Comp
 		return
 	}
 
-	ownersLanguagesFromRequest := getOwnersLanguages(requestData, time.Now().Add(languageTTL))
+	ownersLanguagesFromRequest := getOwnersLanguages(requestData, time.Now().Add(loadLanguageTTL()))
 
 	ownersLanguage := loadOwnersLanguages(wlm)
 	err = ownersLanguage.mergeAndFlush(ownersLanguagesFromRequest, wlm)
