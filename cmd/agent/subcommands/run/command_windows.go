@@ -150,6 +150,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				invChecks,
 				statusComponent,
 				collector,
+				config,
 				cloudfoundrycontainer,
 				metadatascheduler,
 				jmxlogger,
