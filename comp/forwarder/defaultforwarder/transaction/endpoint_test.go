@@ -15,40 +15,40 @@ import (
 
 func TestGetEndpoint(t *testing.T) {
 	tests := []struct {
-		name      string
-		endpoint  Endpoint
-		domain    string
-		want      string
+		name     string
+		endpoint Endpoint
+		domain   string
+		want     string
 	}{
 		{
-			name:      "default subdomain applied when empty",
-			endpoint:  Endpoint{Route: "docs"},
-			domain:    "https://dev.example.com",
-			want:      "https://dev.example.com/docs",
+			name:     "default subdomain applied when empty",
+			endpoint: Endpoint{Route: "docs"},
+			domain:   "https://dev.example.com",
+			want:     "https://dev.example.com/docs",
 		},
 		{
-			name:      "explicit subdomain replacement",
-			endpoint:  Endpoint{Subdomain: "admin", Route: "docs"},
-			domain:    "app.example.com",
-			want:      "https://admin.example.com/docs",
+			name:     "explicit subdomain replacement",
+			endpoint: Endpoint{Subdomain: "admin", Route: "docs"},
+			domain:   "app.example.com",
+			want:     "https://admin.example.com/docs",
 		},
 		{
-			name:      "no subdomain, app not in domain",
-			endpoint:  Endpoint{Subdomain: "app/", Route: "docs"},
-			domain:    "myappsite.com",
-			want:      "https://myappsite.com/docs",
+			name:     "no subdomain, app not in domain",
+			endpoint: Endpoint{Subdomain: "app/", Route: "docs"},
+			domain:   "myappsite.com",
+			want:     "https://myappsite.com/docs",
 		},
 		{
-			name:      "subdomain app with app in domain",
-			endpoint:  Endpoint{Subdomain: "app", Route: "support"},
-			domain:    "https://app.company.com",
-			want:      "https://app.company.com/support",
+			name:     "subdomain app with app in domain",
+			endpoint: Endpoint{Subdomain: "app", Route: "support"},
+			domain:   "https://app.company.com",
+			want:     "https://app.company.com/support",
 		},
 		{
-			name:      "complex route and domain",
-			endpoint:  Endpoint{Subdomain: "api", Route: "/v1/users"},
-			domain:    "https://app.service.com",
-			want:      "https://api.service.com/v1/users",
+			name:     "complex route and domain",
+			endpoint: Endpoint{Subdomain: "api", Route: "/v1/users"},
+			domain:   "https://app.service.com",
+			want:     "https://api.service.com/v1/users",
 		},
 	}
 
