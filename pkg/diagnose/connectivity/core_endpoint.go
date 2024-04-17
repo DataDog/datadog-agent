@@ -168,18 +168,20 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 
 	resp, err := client.Do(req)
 
-	if err != nil {
-		return 0, nil, logURL, fmt.Errorf("cannot send the HTTP request to '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
-	}
-	defer func() { _ = resp.Body.Close() }()
+	if (err == nil) || (endpointInfo.Endpoint.Subdomain == "process" && resp.StatusCode == http.StatusBadRequest) {
+		defer func() { _ = resp.Body.Close() }()
+		// Get the endpoint response
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return 0, nil, logURL, fmt.Errorf("fail to read the response Body: %s", scrubber.ScrubLine(err.Error()))
+		} else if strings.Contains(string(body), "invalid message format") {
+			resp.StatusCode = -1
+		}
 
-	// Get the endpoint response
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return 0, nil, logURL, fmt.Errorf("fail to read the response Body: %s", scrubber.ScrubLine(err.Error()))
+		return resp.StatusCode, body, logURL, nil
 	}
 
-	return resp.StatusCode, body, logURL, nil
+	return 0, nil, logURL, fmt.Errorf("cannot send the HTTP request to '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
 }
 
 // createEndpointUrl joins a domain with an endpoint
@@ -201,9 +203,9 @@ func verifyEndpointResponse(statusCode int, responseBody []byte, err error) (str
 	if statusCode >= 400 {
 		newErr = fmt.Errorf("bad request")
 		verifyReport = fmt.Sprintf("Received response : '%v'\n", scrubber.ScrubLine(string(responseBody)))
+	} else if statusCode != -1 {
+		verifyReport += fmt.Sprintf("Received status code %v from the endpoint", statusCode)
 	}
-
-	verifyReport += fmt.Sprintf("Received status code %v from the endpoint", statusCode)
 	return verifyReport, newErr
 }
 
