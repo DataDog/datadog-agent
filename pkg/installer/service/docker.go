@@ -16,13 +16,14 @@ import (
 	"os/exec"
 	"path"
 
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type dockerDaemonConfig map[string]interface{}
 
-const (
-	tmpDockerDaemonPath = "/tmp/daemon.json.tmp"
+var (
+	tmpDockerDaemonPath = path.Join(setup.InstallPath, "run", "daemon.json.tmp")
 	dockerDaemonPath    = "/etc/docker/daemon.json"
 )
 
