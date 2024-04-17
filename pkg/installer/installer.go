@@ -126,17 +126,66 @@ func Purge() {
 	purge(defaultLocksPath, defaultRepositoriesPath)
 }
 
+// PurgePackage removes an individual package
+func PurgePackage(pkg string) {
+	purgePackage(pkg, defaultLocksPath, defaultRepositoriesPath)
+}
+
+func purgePackage(pkg string, locksPath, repositoryPath string) {
+	var err error
+	span, ctx := tracer.StartSpanFromContext(context.Background(), "purge_pkg")
+	defer span.Finish(tracer.WithError(err))
+	span.SetTag("params.pkg", pkg)
+
+	switch pkg {
+	case "datadog-installer":
+		service.RemoveInstallerUnits(ctx)
+	case "datadog-agent":
+		service.RemoveAgentUnits(ctx)
+	case "datadog-apm-inject":
+		if err = service.RemoveAPMInjector(ctx); err != nil {
+			log.Warnf("installer: could not remove APM injector: %v", err)
+		}
+	default:
+		log.Warnf("installer: unrecognized package purge")
+		return
+	}
+	if err = removePkgDirs(ctx, pkg, locksPath, repositoryPath); err != nil {
+		log.Warnf("installer: %v", err)
+	}
+}
+
 func purge(locksPath, repositoryPath string) {
 	var err error
 	span, ctx := tracer.StartSpanFromContext(context.Background(), "purge")
 	defer span.Finish(tracer.WithError(err))
-	service.RemoveAgentUnits(ctx)
+
 	service.RemoveInstallerUnits(ctx)
-	if err = service.RemoveAPMInjector(ctx); err != nil {
-		log.Warnf("installer: could not remove APM injector: %v", err)
-	}
+
+	// todo(paullgdc): The APM injection removal already checks that the LD_PRELOAD points to the injector
+	// in /opt/datadog-packages before removal, so this should not impact previous deb installations
+	// of the injector, but since customers won't use install apm injectors, this codepath is not useful
+	// so it's safer to comment it out until we decide to install the apm-injector on boostrap
+
+	// if err = service.RemoveAPMInjector(ctx); err != nil {
+	// 	log.Warnf("installer: could not remove APM injector: %v", err)
+	// }
+
 	cleanDir(locksPath, os.RemoveAll)
 	cleanDir(repositoryPath, func(path string) error { return service.RemoveAll(ctx, path) })
+}
+
+func removePkgDirs(ctx context.Context, pkg string, locksPath, repositoryPath string) (err error) {
+	pkgLockPath := filepath.Join(locksPath, pkg)
+	if lockPathErr := os.RemoveAll(pkgLockPath); lockPathErr != nil {
+		err = fmt.Errorf("could not remove %s: %w", pkgLockPath, lockPathErr)
+	}
+
+	pkgRepositoryPath := filepath.Join(repositoryPath, pkg)
+	if pkgRepositoryErr := service.RemoveAll(ctx, pkgRepositoryPath); err != nil {
+		err = fmt.Errorf("%w; could not remove %s: %w", err, pkgRepositoryPath, pkgRepositoryErr)
+	}
+	return err
 }
 
 func cleanDir(dir string, cleanFunc func(string) error) {
