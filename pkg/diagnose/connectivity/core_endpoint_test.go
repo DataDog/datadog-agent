@@ -23,7 +23,7 @@ var (
 	apiKey1 = "api_key1"
 	apiKey2 = "api_key2"
 
-	endpointInfoTest = endpointInfo{Endpoint: endpoints.V1ValidateEndpoint}
+	endpointInfoTest    = endpointInfo{Endpoint: endpoints.V1ValidateEndpoint}
 	endpointProcessTest = endpointInfo{Endpoint: endpoints.ProcessStatusEndpoint}
 )
 
