@@ -142,7 +142,7 @@ func (a *apmInjectorInstaller) setLDPreloadConfig(ctx context.Context) error {
 		return err
 	}
 
-	return executeCommand(ctx, string(replaceLDPreloadCommand))
+	return executeHelperCommand(ctx, string(replaceLDPreloadCommand))
 }
 
 // setLDPreloadConfigContent sets the content of the LD preload configuration
@@ -195,7 +195,7 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfig(ctx context.Context) error 
 		return err
 	}
 
-	return executeCommand(ctx, string(replaceLDPreloadCommand))
+	return executeHelperCommand(ctx, string(replaceLDPreloadCommand))
 }
 
 // deleteLDPreloadConfigContent deletes the content of the LD preload configuration

@@ -25,7 +25,7 @@ import (
 
 const (
 	// CheckName is the name of the check
-	CheckName            = "ciscosdwan"
+	CheckName            = "cisco_sdwan"
 	defaultCheckInterval = 1 * time.Minute
 )
 
