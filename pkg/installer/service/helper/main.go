@@ -134,11 +134,11 @@ func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 	case "create-docker-dir":
 		return exec.Command("mkdir", "-p", "/etc/docker"), nil
 	case "replace-docker":
-		return exec.Command("mv", "/tmp/daemon.json.tmp", "/etc/docker/daemon.json"), nil
+		return exec.Command("mv", filepath.Join(installPath, "run", "daemon.json.tmp"), "/etc/docker/daemon.json"), nil
 	case "restart-docker":
 		return exec.Command("systemctl", "restart", "docker"), nil
 	case "replace-ld-preload":
-		return exec.Command("mv", "/tmp/ld.so.preload.tmp", "/etc/ld.so.preload"), nil
+		return exec.Command("mv", filepath.Join(installPath, "run", "ld.so.preload.tmp"), "/etc/ld.so.preload"), nil
 	case "add-installer-to-agent-group":
 		return exec.Command("usermod", "-aG", "dd-agent", "dd-installer"), nil
 	default:
