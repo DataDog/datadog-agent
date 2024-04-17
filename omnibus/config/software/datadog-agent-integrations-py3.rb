@@ -21,6 +21,8 @@ whitelist_file "embedded/lib/python3.11/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
+always_build true
+
 integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
 if integrations_core_version.nil? || integrations_core_version.empty?
   integrations_core_version = 'master'
