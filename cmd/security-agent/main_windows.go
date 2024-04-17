@@ -172,11 +172,14 @@ func (s *service) Run(svcctx context.Context) error {
 		// Force the instantiation of the component
 		fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
 		autoexitimpl.Module(),
-		fx.Supply(
-			settings.Settings{
-				"log_level": commonsettings.NewLogLevelRuntimeSetting(),
-			},
-		),
+		fx.Provide(func(c config.Component) settings.Params {
+			return settings.Params{
+				Settings: map[string]settings.RuntimeSetting{
+					"log_level": commonsettings.NewLogLevelRuntimeSetting(),
+				},
+				Config: c,
+			}
+		}),
 		settingsimpl.Module(),
 	)
 
