@@ -153,8 +153,6 @@ lint_python:
   image: gcr.io/datadoghq/agent-circleci-runner:v31988376-bfbb3afb
   tags: ["arch:amd64"]
   needs: []
-  before_script:
-    - source /root/.bashrc
   script:
     - inv -e linter.python
 
