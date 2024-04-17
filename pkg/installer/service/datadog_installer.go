@@ -53,6 +53,9 @@ func StartInstallerStable(ctx context.Context) (err error) {
 func RemoveInstallerUnits(ctx context.Context) {
 	var err error
 	for _, unit := range installerUnits {
+		if err = stopUnit(ctx, unit); err != nil {
+			log.Warnf("Failed stop unit %s: %s", unit, err)
+		}
 		if err = disableUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to disable %s: %s", unit, err)
 		}
