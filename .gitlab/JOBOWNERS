@@ -132,7 +132,7 @@ new-e2e-windows-agent*            @DataDog/windows-agent
 new-e2e-orchestrator*             @DataDog/container-app
 e2e_pre_test*                     @DataDog/agent-developer-tools
 new-e2e-remote-config*            @DataDog/remote-config
-new-e2e-updater*                  @DataDog/fleet
+new-e2e-installer*                @DataDog/fleet
 
 # Kernel matrix testing
 upload_dependencies*              @DataDog/ebpf-platform
