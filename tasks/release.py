@@ -1128,7 +1128,7 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
-def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
+def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin", slack_webhook=None):
     """
     Updates the release entries in release.json to prepare the next RC build.
     If the previous version of the Agent (determined as the latest tag on the
@@ -1155,6 +1155,8 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     Updates internal module dependencies with the new RC.
 
     Commits the above changes, and then creates a PR on the upstream repository with the change.
+
+    If slack_webhook is provided, it tries to send the PR URL to the provided webhook. This is meant to be used mainly in automation.
 
     Notes:
     This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
@@ -1248,12 +1250,15 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
             code=1,
         )
 
-    create_pr(
+    pr_url = create_pr(
         f"[release] Update release.json and Go modules for {versions_string}",
         current_branch,
         update_branch,
         new_final_version,
     )
+
+    # Step 4 - If slack workflow webhook is provided, send a slack message
+    ctx.run(f"curl -X POST -H 'Content-type: application/json' --data '{{\"pr_url\":\"{pr_url}\"}}' {slack_webhook}")
 
 
 def create_pr(title, base_branch, target_branch, version, changelog_pr=False):
@@ -1316,6 +1321,8 @@ Make sure that milestone is open before trying again.""",
 
     print(color_message(f"Set labels and milestone for PR #{updated_pr.number}", "bold"))
     print(color_message(f"Done preparing release PR. The PR is available here: {updated_pr.html_url}", "bold"))
+
+    return updated_pr.html_url
 
 
 @task
