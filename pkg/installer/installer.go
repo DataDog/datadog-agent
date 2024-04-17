@@ -126,15 +126,43 @@ func Purge() {
 	purge(defaultLocksPath, defaultRepositoriesPath)
 }
 
+func PurgePackage(pkg string) {
+	purgePackage(pkg, defaultLocksPath, defaultRepositoriesPath)
+}
+
+func purgePackage(pkg string, locksPath, repositoryPath string) {
+	var err error
+	span, ctx := tracer.StartSpanFromContext(context.Background(), "purge_pkg")
+	defer span.Finish(tracer.WithError(err))
+	span.SetTag("params.pkg", pkg)
+
+	switch pkg {
+	case "datadog-agent":
+		service.RemoveAgentUnits(ctx)
+		agentLockPath := filepath.Join(locksPath, "datadog-agent")
+		if err = os.RemoveAll(filepath.Join(locksPath, "datadog-agent")); err != nil {
+			log.Warnf("installer: could not remove %s: %v", agentLockPath, err)
+		}
+		agentRepositoryPath := filepath.Join(repositoryPath, "datadog-agent")
+		if err = service.RemoveAll(ctx, agentRepositoryPath); err != nil {
+			log.Warnf("installer: could not remove %s: %v", agentRepositoryPath, err)
+		}
+	default:
+		log.Warnf("installer: unrecognized package purge")
+	}
+}
+
 func purge(locksPath, repositoryPath string) {
 	var err error
 	span, ctx := tracer.StartSpanFromContext(context.Background(), "purge")
 	defer span.Finish(tracer.WithError(err))
-	service.RemoveAgentUnits(ctx)
+
 	service.RemoveInstallerUnits(ctx)
+
 	if err = service.RemoveAPMInjector(ctx); err != nil {
 		log.Warnf("installer: could not remove APM injector: %v", err)
 	}
+
 	cleanDir(locksPath, os.RemoveAll)
 	cleanDir(repositoryPath, func(path string) error { return service.RemoveAll(ctx, path) })
 }

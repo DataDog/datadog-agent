@@ -169,7 +169,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	}
 
 	addEcrConfig(host)
-	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootInstallerDir))
+	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge datadog-agent", bootInstallerDir))
 	stableUnits := []string{
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -248,6 +248,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	// Setup machine //
 	///////////////////
 	addEcrConfig(host)
+	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge datadog-agent", bootInstallerDir))
 	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootInstallerDir))
 	// Install docker
 	installDocker(v.distro, v.arch, v.T(), host)
@@ -352,6 +353,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	// Check purge state //
 	///////////////////////
 
+	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge datadog-agent", bootInstallerDir))
 	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer purge", bootInstallerDir))
 
 	_, err = host.Execute(`test -d /opt/datadog-packages/datadog-apm-inject`)
