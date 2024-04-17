@@ -256,6 +256,7 @@ type UnloadModuleSyscallMsg struct {
 	Name string
 }
 
+// SpanContext stores a span context (if any)
 type SpanContext struct {
 	SpanID  uint64
 	TraceID uint64

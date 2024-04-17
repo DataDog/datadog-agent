@@ -16,12 +16,15 @@ import (
 )
 
 const (
-	RPC_CMD              uint64 = 0xdeadc001
-	REGISTER_SPAN_TLS_OP uint8  = 6
+	// RPCCmd defines the ioctl CMD magic used by APM to register span TLS
+	RPCCmd uint64 = 0xdeadc001
+	// RegisterSpanTLSOp defines the span TLS register op code
+	RegisterSpanTLSOp uint8 = 6
 )
 
-type spanTLS struct {
-	format     uint64
+// SpanTLS holds the needed informations to retrieve spans on a TLS
+type SpanTLS struct {
+	format     uint64 // present but not used
 	maxThreads uint64
 	base       uintptr
 }
@@ -47,25 +50,25 @@ func registerSpanHandlers(handlers map[int]syscallHandler) []string {
 	return syscallList
 }
 
-func handleIoctl(tracer *Tracer, process *Process, regs syscall.PtraceRegs) *spanTLS {
+func handleIoctl(tracer *Tracer, process *Process, regs syscall.PtraceRegs) *SpanTLS {
 	fd := tracer.ReadArgUint64(regs, 1)
-	if fd != RPC_CMD {
+	if fd != RPCCmd {
 		return nil
 	}
 
 	pRequests, err := tracer.ReadArgData(process.Pid, regs, 2, 257)
-	if err != nil || pRequests[0] != REGISTER_SPAN_TLS_OP {
+	if err != nil || pRequests[0] != RegisterSpanTLSOp {
 		return nil
 	}
 
-	return &spanTLS{
+	return &SpanTLS{
 		format:     binary.NativeEndian.Uint64(pRequests[1:9]),
 		maxThreads: binary.NativeEndian.Uint64(pRequests[9:17]),
 		base:       uintptr(binary.NativeEndian.Uint64(pRequests[17:25])),
 	}
 }
 
-func fillSpanContext(tracer *Tracer, pid int, tid int, span *spanTLS) *ebpfless.SpanContext {
+func fillSpanContext(tracer *Tracer, pid int, tid int, span *SpanTLS) *ebpfless.SpanContext {
 	if span == nil {
 		return nil
 	}
