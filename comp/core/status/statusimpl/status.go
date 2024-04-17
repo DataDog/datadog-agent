@@ -193,10 +193,12 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 			}
 
 			if len(section) > 0 {
-				printHeader(b, section)
-				newLine(b)
 
-				for _, provider := range s.sortedProvidersBySection[section] {
+				for i, provider := range s.sortedProvidersBySection[section] {
+					if i == 0 {
+						printHeader(b, provider.Section())
+						newLine(b)
+					}
 					if err := provider.Text(verbose, b); err != nil {
 						errs = append(errs, err)
 					}
