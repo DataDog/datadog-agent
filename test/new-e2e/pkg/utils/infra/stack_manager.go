@@ -321,12 +321,12 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 
 		retryStrategy := sm.getRetryStrategyFrom(err)
 		err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), err.Error(), []string{"operation:up", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name())}, logger)
+		if err != nil {
+			fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
+		}
 		switch retryStrategy {
 		case reUp:
 			fmt.Fprint(logger, "Got error during stack up, retrying")
-			if err != nil {
-				fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
-			}
 		case reCreate:
 			fmt.Fprint(logger, "Got error during stack up, recreating stack")
 			destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
@@ -398,7 +398,7 @@ func (sm *StackManager) getRetryStrategyFrom(err error) retryType {
 			return retriableError.retryType
 		}
 	}
-	return noRetry
+	return reUp
 }
 
 // sendEventToDatadog sends an event to Datadog, it will use the API Key from environment variable DD_API_KEY if present, otherwise it will use the one from SSM Parameter Store
