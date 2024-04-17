@@ -37,8 +37,8 @@ func (itf *VEdgeInterface) ID() string {
 }
 
 // Index returns the interface index
-func (itf *VEdgeInterface) Index() (int, error) {
-	return int(itf.Ifindex), nil
+func (itf *VEdgeInterface) Index() (int64, error) {
+	return int64(itf.Ifindex), nil
 }
 
 // GetSpeedMbps returns the interface speed

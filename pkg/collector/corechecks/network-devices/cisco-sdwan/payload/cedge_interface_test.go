@@ -20,7 +20,7 @@ func TestCEdgeInterface(t *testing.T) {
 		namespace                string
 		itf                      client.CEdgeInterfaceState
 		expectedID               string
-		expectedIndex            int
+		expectedIndex            int64
 		expectedIndexError       string
 		expectedSpeed            int
 		expectedOperStatus       devicemetadata.IfOperStatus
@@ -91,16 +91,16 @@ func TestCEdgeInterface(t *testing.T) {
 			},
 			expectedID:               "10.0.0.1:test-interface",
 			expectedIndex:            0,
-			expectedIndexError:       "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
+			expectedIndexError:       "strconv.ParseInt: parsing \"iamnotanindex\": invalid syntax",
 			expectedSpeed:            1000,
 			expectedOperStatus:       devicemetadata.OperStatusUp,
 			expectedAdminStatus:      devicemetadata.AdminStatusDown,
 			expectedMetadata:         devicemetadata.InterfaceMetadata{},
-			expectedInterfaceError:   "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
+			expectedInterfaceError:   "strconv.ParseInt: parsing \"iamnotanindex\": invalid syntax",
 			expectedIPV4Address:      nil,
-			expectedIPV4AddressError: "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
+			expectedIPV4AddressError: "strconv.ParseInt: parsing \"iamnotanindex\": invalid syntax",
 			expectedIPV6Address:      nil,
-			expectedIPV6AddressError: "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
+			expectedIPV6AddressError: "strconv.ParseInt: parsing \"iamnotanindex\": invalid syntax",
 		},
 		{
 			name:      "invalid ip address",

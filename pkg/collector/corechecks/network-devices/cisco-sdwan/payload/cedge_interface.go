@@ -48,8 +48,8 @@ func (itf *CEdgeInterface) ID() string {
 }
 
 // Index returns the interface index
-func (itf *CEdgeInterface) Index() (int, error) {
-	index, err := strconv.Atoi(itf.Ifindex)
+func (itf *CEdgeInterface) Index() (int64, error) {
+	index, err := strconv.ParseInt(itf.Ifindex, 10, 32) // 32 bit size because index is stored as int32 in interface metadata
 	if err != nil {
 		return 0, err
 	}
