@@ -726,9 +726,6 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
 
-    // as previously registered memory will become unreachable, we'll have to unregister the TLS
-    unregister_span_memory();
-
     return 0;
 }
 
