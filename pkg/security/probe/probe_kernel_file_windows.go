@@ -495,6 +495,8 @@ func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
+	wp.filePathResolverLock.Lock()
+	defer wp.filePathResolverLock.Unlock()
 	if s, ok := wp.filePathResolver[fileObjectPointer(ra.fileObject)]; ok {
 		ra.fileName = s
 	}
@@ -560,6 +562,7 @@ type deletePathArgs struct {
 	extraInformation uint64
 	infoClass        uint32
 	filePath         string
+	oldPath          string
 }
 
 // nolint: unused
@@ -591,6 +594,12 @@ func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (*deletePathAr
 		dpa.filePath, _, _, _ = data.ParseUnicodeString(40)
 	}
 
+	wp.filePathResolverLock.Lock()
+	defer wp.filePathResolverLock.Unlock()
+	if s, ok := wp.filePathResolver[fileObjectPointer(dpa.fileObject)]; ok {
+		dpa.oldPath = s
+		// question, should we reset the filePathResolver here?
+	}
 	return dpa, nil
 }
 

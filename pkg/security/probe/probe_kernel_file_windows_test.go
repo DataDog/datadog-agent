@@ -467,6 +467,7 @@ func testSimpleFileRename(t *testing.T, et *etwTester, testfilename, testfileren
 	// now expecte two creates on the new file name.  IDK why two
 	if c, ok := et.notifications[ndx].(*renamePath); ok {
 		assert.True(t, isSameFile(testfilerename, c.filePath), "expected %s, got %s", testfilerename, c.filePath)
+		assert.True(t, isSameFile(testfilename, c.oldPath), "expected %s, got %s", testfilename, c.oldPath)
 	} else {
 		t.Errorf("expected renamePath, got %T", et.notifications[ndx])
 	}

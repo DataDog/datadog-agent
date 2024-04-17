@@ -256,11 +256,7 @@ func (p *WindowsProbe) Stop() {
 func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 	log.Info("Starting tracing...")
-	pid := os.Getpid()
 	err := p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
-		if uint32(pid) != e.EventHeader.ProcessID {
-			return
-		}
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
