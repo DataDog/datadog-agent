@@ -9,7 +9,7 @@ package traceroute
 import (
 	"context"
 
-	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 type (
@@ -29,8 +29,8 @@ type (
 
 	// Runner executes traceroutes
 	Runner struct {
-		subnetCache simplelru.LRUCache[int, any]
-		networkID   string
+		gatewayLookup network.GatewayLookup
+		networkID     string
 	}
 
 	// Traceroute defines an interface for running
@@ -52,9 +52,9 @@ type (
 	// NetworkPathSource encapsulates information
 	// about the source of a path
 	NetworkPathSource struct {
-		Hostname  string `json:"hostname"`
-		Subnet    string `json:"subnet"`
-		NetworkID string `json:"network_id"` // Today this will be a VPC ID since we only resolve AWS resources
+		Hostname  string       `json:"hostname"`
+		Via       *network.Via `json:"via"`
+		NetworkID string       `json:"network_id"` // Today this will be a VPC ID since we only resolve AWS resources
 	}
 
 	// NetworkPathDestination encapsulates information

@@ -92,7 +92,7 @@ type Tracer struct {
 	sourceExcludes []*network.ConnectionFilter
 	destExcludes   []*network.ConnectionFilter
 
-	gwLookup *gatewayLookup
+	gwLookup network.GatewayLookup
 
 	sysctlUDPConnTimeout       *sysctl.Int
 	sysctlUDPConnStreamTimeout *sysctl.Int
@@ -179,7 +179,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	}
 	coretelemetry.GetCompatComponent().RegisterCollector(tr.conntracker)
 
-	tr.gwLookup = newGatewayLookup(cfg)
+	tr.gwLookup = network.NewTracerGatewayLookup(cfg)
 	if tr.gwLookup != nil {
 		log.Info("gateway lookup enabled")
 	}
