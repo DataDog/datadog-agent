@@ -30,7 +30,7 @@ func TestPackageURL(t *testing.T) {
 
 	tests := []test{
 		{site: "datad0g.com", pkg: "datadog-agent", version: "latest", expected: "oci://docker.io/datadog/agent-package-dev:latest"},
-		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://public.ecr.aws/datadoghq/agent-package:1.2.3"},
+		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://public.ecr.aws/datadog/agent-package:1.2.3"},
 	}
 
 	for _, tt := range tests {
