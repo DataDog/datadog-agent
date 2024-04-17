@@ -83,9 +83,6 @@ func (a *apmInjectorInstaller) setDockerConfigContent(previousContent []byte) ([
 		}
 	}
 
-	if _, ok := dockerConfig["default-runtime"]; ok {
-		dockerConfig["default-runtime-backup"] = dockerConfig["default-runtime"]
-	}
 	dockerConfig["default-runtime"] = "dd-shim"
 	runtimes, ok := dockerConfig["runtimes"].(map[string]interface{})
 	if !ok {
@@ -153,10 +150,7 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte)
 		}
 	}
 
-	if _, ok := dockerConfig["default-runtime-backup"]; ok {
-		dockerConfig["default-runtime"] = dockerConfig["default-runtime-backup"]
-		delete(dockerConfig, "default-runtime-backup")
-	} else {
+	if defaultRuntime, ok := dockerConfig["default-runtime"].(string); ok && defaultRuntime == "dd-shim" || !ok {
 		dockerConfig["default-runtime"] = "runc"
 	}
 	runtimes, ok := dockerConfig["runtimes"].(map[string]interface{})
