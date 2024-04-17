@@ -1261,7 +1261,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     if slack_webhook:
         print(color_message("Sending slack notification", "bold"))
         ctx.run(
-            f"curl -X POST -H 'Content-type: application/json' --data '{{\"pr_url\":\"{pr_url}\"}}' {slack_webhook}"
+            f"curl -X POST -H 'Content-Type: application/json' --data '{{\"pr_url\":\"{pr_url}\"}}' {slack_webhook}"
         )
 
 
