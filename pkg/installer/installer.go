@@ -122,20 +122,18 @@ func Bootstrap(ctx context.Context, config config.Reader) error {
 }
 
 // Purge removes files installed by the installer
-func Purge() {
-	purge(defaultLocksPath, defaultRepositoriesPath)
+func Purge(ctx context.Context) error {
+	return purge(ctx, defaultLocksPath, defaultRepositoriesPath)
 }
 
 // PurgePackage removes an individual package
-func PurgePackage(pkg string) {
-	purgePackage(pkg, defaultLocksPath, defaultRepositoriesPath)
+func PurgePackage(ctx context.Context, pkg string) error {
+	return purgePackage(ctx, pkg, defaultLocksPath, defaultRepositoriesPath)
 }
 
-func purgePackage(pkg string, locksPath, repositoryPath string) {
-	var err error
-	span, ctx := tracer.StartSpanFromContext(context.Background(), "purge_pkg")
+func purgePackage(ctx context.Context, pkg string, locksPath, repositoryPath string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "purge_pkg")
 	defer span.Finish(tracer.WithError(err))
-	span.SetTag("params.pkg", pkg)
 
 	switch pkg {
 	case "datadog-installer":
@@ -143,21 +141,24 @@ func purgePackage(pkg string, locksPath, repositoryPath string) {
 	case "datadog-agent":
 		service.RemoveAgentUnits(ctx)
 	case "datadog-apm-inject":
+		// todo(paullgdc): should we continue with removing the pkg directories if we failed here
+		// or should exit early?
 		if err = service.RemoveAPMInjector(ctx); err != nil {
 			log.Warnf("installer: could not remove APM injector: %v", err)
 		}
 	default:
 		log.Warnf("installer: unrecognized package purge")
-		return
+		return nil
 	}
 	if err = removePkgDirs(ctx, pkg, locksPath, repositoryPath); err != nil {
 		log.Warnf("installer: %v", err)
+		return err
 	}
+	return nil
 }
 
-func purge(locksPath, repositoryPath string) {
-	var err error
-	span, ctx := tracer.StartSpanFromContext(context.Background(), "purge")
+func purge(ctx context.Context, locksPath, repositoryPath string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "purge")
 	defer span.Finish(tracer.WithError(err))
 
 	service.RemoveInstallerUnits(ctx)
@@ -173,6 +174,7 @@ func purge(locksPath, repositoryPath string) {
 
 	cleanDir(locksPath, os.RemoveAll)
 	cleanDir(repositoryPath, func(path string) error { return service.RemoveAll(ctx, path) })
+	return nil
 }
 
 func removePkgDirs(ctx context.Context, pkg string, locksPath, repositoryPath string) (err error) {
