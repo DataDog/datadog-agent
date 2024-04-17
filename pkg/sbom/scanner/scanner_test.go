@@ -105,8 +105,8 @@ func TestRetryLogic_Error(t *testing.T) {
 
 	// Set up the configuration as the default one is too slow
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	cfg.Set("sbom.scan_queue.base_backoff", "1s", model.SourceAgentRuntime)
-	cfg.Set("sbom.scan_queue.max_backoff", "3s", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.max_backoff", "600s", model.SourceAgentRuntime)
 
 	// Create a scanner and start it
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
@@ -130,7 +130,7 @@ func TestRetryLogic_Error(t *testing.T) {
 	select {
 	case res := <-resultCh:
 		t.Errorf("unexpected result received %v", res)
-	case <-time.After(4 * time.Second):
+	case <-time.After(time.Second):
 	}
 
 	cancel()
@@ -171,8 +171,8 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 
 	// Set up the configuration as the default one is too slow
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	cfg.Set("sbom.scan_queue.base_backoff", "1s", model.SourceAgentRuntime)
-	cfg.Set("sbom.scan_queue.max_backoff", "3s", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.max_backoff", "600s", model.SourceAgentRuntime)
 
 	// Create a scanner and start it
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
@@ -194,7 +194,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 		case res := <-resultCh:
 			assert.Equal(t, errorResult.Error, res.Error)
 			return false
-		case <-time.After(4 * time.Second):
+		case <-time.After(time.Second):
 			return true
 		}
 	}, 15*time.Second, 1*time.Second)
@@ -217,8 +217,8 @@ func TestRetryLogic_Host(t *testing.T) {
 
 	// Set up the configuration as the default one is too slow
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	cfg.Set("sbom.scan_queue.base_backoff", "1s", model.SourceAgentRuntime)
-	cfg.Set("sbom.scan_queue.max_backoff", "3s", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.max_backoff", "600s", model.SourceAgentRuntime)
 
 	// Create a scanner and start it
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewNoneOption[workloadmeta.Component]())
@@ -237,7 +237,7 @@ func TestRetryLogic_Host(t *testing.T) {
 	select {
 	case res := <-resultCh:
 		t.Errorf("unexpected result received %v", res)
-	case <-time.After(4 * time.Second):
+	case <-time.After(time.Second):
 	}
 	cancel()
 	shutdown.WaitUntil(time.After(5 * time.Second))
@@ -276,8 +276,8 @@ func TestRetryChannelFull(t *testing.T) {
 
 	// Set up the configuration
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	cfg.Set("sbom.scan_queue.base_backoff", "2s", model.SourceAgentRuntime)
-	cfg.Set("sbom.scan_queue.max_backoff", "5s", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.max_backoff", "600s", model.SourceAgentRuntime)
 
 	// Create a scanner and start it
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
@@ -299,7 +299,7 @@ func TestRetryChannelFull(t *testing.T) {
 	select {
 	case res := <-resultCh:
 		t.Errorf("unexpected result received %v", res)
-	case <-time.After(4 * time.Second):
+	case <-time.After(time.Second):
 	}
 
 	cancel()
