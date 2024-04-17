@@ -99,7 +99,7 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 }
 
 // NewEntry returns a new entry
-func (p EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
+func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
 	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string, source uint64) *model.ProcessCacheEntry {
 
 	entry := p.processCacheEntryPool.Get()
