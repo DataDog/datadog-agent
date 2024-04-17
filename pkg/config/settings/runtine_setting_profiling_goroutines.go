@@ -6,13 +6,12 @@
 package settings
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // ProfilingGoroutines wraps runtime.SetBlockProfileRate setting
 type ProfilingGoroutines struct {
-	Config       config.ReaderWriter
 	ConfigPrefix string
 	ConfigKey    string
 }
@@ -38,26 +37,18 @@ func (r *ProfilingGoroutines) Hidden() bool {
 }
 
 // Get returns the current value of the runtime setting
-func (r *ProfilingGoroutines) Get() (interface{}, error) {
-	var cfg config.ReaderWriter = config.Datadog
-	if r.Config != nil {
-		cfg = r.Config
-	}
-	return cfg.GetBool(r.ConfigPrefix + "internal_profiling.enable_goroutine_stacktraces"), nil
+func (r *ProfilingGoroutines) Get(config config.Component) (interface{}, error) {
+	return config.GetBool(r.ConfigPrefix + "internal_profiling.enable_goroutine_stacktraces"), nil
 }
 
 // Set changes the value of the runtime setting
-func (r *ProfilingGoroutines) Set(value interface{}, source model.Source) error {
+func (r *ProfilingGoroutines) Set(config config.Component, value interface{}, source model.Source) error {
 	enabled, err := GetBool(value)
 	if err != nil {
 		return err
 	}
 
-	var cfg config.ReaderWriter = config.Datadog
-	if r.Config != nil {
-		cfg = r.Config
-	}
-	cfg.Set(r.ConfigPrefix+"internal_profiling.enable_goroutine_stacktraces", enabled, source)
+	config.Set(r.ConfigPrefix+"internal_profiling.enable_goroutine_stacktraces", enabled, source)
 
 	return nil
 }

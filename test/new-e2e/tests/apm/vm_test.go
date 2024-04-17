@@ -220,6 +220,29 @@ func (s *VMFakeintakeSuite) TestAutoVersionStats() {
 	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
+func (s *VMFakeintakeSuite) TestIsTraceRootTag() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testIsTraceRootTag(s.T(), c, s.Env().FakeIntake)
+		s.logJournal()
+	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
+}
+
 func (s *VMFakeintakeSuite) TestBasicTrace() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)

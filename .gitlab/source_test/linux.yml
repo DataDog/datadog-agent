@@ -16,7 +16,6 @@
   stage: source_test
   needs: ["go_deps", "go_tools_deps"]
   rules:
-    - !reference [.except_mergequeue]
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
   variables:
@@ -28,14 +27,10 @@
   script:
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
-    - python3 -m pip install -r tasks/libs/requirements-github.txt
-    - inv -e invoke-unit-tests
-    - pushd test/kitchen
-    - inv -e kitchen.invoke-unit-tests
-    - popd
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
-    - inv -e test $FLAVORS --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG
+    - inv -e sds.build-library
+    - inv -e test $FLAVORS --include-sds --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -153,6 +148,14 @@ lint_flavor_heroku_linux-x64:
   variables:
     FLAVORS: '--flavors heroku'
 
+lint_python:
+  stage: source_test
+  image: gcr.io/datadoghq/agent-circleci-runner:v31988376-bfbb3afb
+  tags: ["arch:amd64"]
+  needs: []
+  script:
+    - inv -e linter.python
+
 # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
 # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
 # This is OK because the test on systemd still runs on the debian image above
@@ -162,7 +165,7 @@ tests_rpm-x64-py2:
     - !reference [.except_disable_unit_tests]
     - !reference [.except_mergequeue]
     - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64_testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     PYTHON_RUNTIMES: '2'
@@ -173,7 +176,7 @@ tests_rpm-x64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests_with_upload
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64_testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     PYTHON_RUNTIMES: '3'
