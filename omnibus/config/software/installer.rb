@@ -53,7 +53,7 @@ build do
         uninstall_command="sudo apt-get remove datadog-installer"
     end
     erb source: "README.md.erb",
-       dest: "#{install_dir}/" + "README.md",
+       dest: "#{install_dir}/README.md",
        mode: 0644,
        vars: { uninstall_command: uninstall_command}
 
