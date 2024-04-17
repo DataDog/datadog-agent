@@ -62,7 +62,7 @@ func (i internalError) Error() string {
 type StackManager struct {
 	stacks *safeStackMap
 
-	retriableErrors []retriableError
+	knownErrors []knownError
 }
 
 type safeStackMap struct {
@@ -114,8 +114,8 @@ func GetStackManager() *StackManager {
 
 func newStackManager() (*StackManager, error) {
 	return &StackManager{
-		stacks:          newSafeStackMap(),
-		retriableErrors: getKnownRetriableErrors(),
+		stacks:      newSafeStackMap(),
+		knownErrors: getKnownErrors(),
 	}, nil
 }
 
@@ -393,9 +393,9 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 }
 
 func (sm *StackManager) getRetryStrategyFrom(err error) retryType {
-	for _, retriableError := range sm.retriableErrors {
-		if strings.Contains(err.Error(), retriableError.errorMessage) {
-			return retriableError.retryType
+	for _, knownError := range sm.knownErrors {
+		if strings.Contains(err.Error(), knownError.errorMessage) {
+			return knownError.retryType
 		}
 	}
 	return reUp
