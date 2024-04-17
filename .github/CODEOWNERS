@@ -523,7 +523,8 @@
 /tasks/components.py                    @DataDog/agent-shared-components
 /tasks/components_templates             @DataDog/agent-shared-components
 /tasks/updater.py                       @DataDog/fleet
-/tasks/libs/omnibus_cache.py            @DataDog/agent-build-and-releases
+/tasks/libs/common/omnibus.py           @DataDog/agent-build-and-releases
+/tasks/omnibus.py                       @DataDog/agent-build-and-releases
 /tasks/installer.py                     @DataDog/fleet
 /test/                                  @DataDog/agent-developer-tools
 /test/benchmarks/                       @DataDog/agent-metrics-logs
