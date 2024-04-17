@@ -14,8 +14,10 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -137,12 +139,12 @@ func (a *apmInjectorInstaller) setLDPreloadConfig(ctx context.Context) error {
 	if stat != nil {
 		perms = stat.Mode()
 	}
-	err = os.WriteFile("/tmp/ld.so.preload.tmp", newLdSoPreload, perms)
+	err = os.WriteFile(filepath.Join(setup.InstallPath, "run", "ld.so.preload.tmp"), newLdSoPreload, perms)
 	if err != nil {
 		return err
 	}
 
-	return executeCommand(ctx, string(replaceLDPreloadCommand))
+	return executeHelperCommand(ctx, string(replaceLDPreloadCommand))
 }
 
 // setLDPreloadConfigContent sets the content of the LD preload configuration
@@ -190,12 +192,12 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfig(ctx context.Context) error 
 	if stat != nil {
 		perms = stat.Mode()
 	}
-	err = os.WriteFile("/tmp/ld.so.preload.tmp", newLdSoPreload, perms)
+	err = os.WriteFile(filepath.Join(setup.InstallPath, "run", "ld.so.preload.tmp"), newLdSoPreload, perms)
 	if err != nil {
 		return err
 	}
 
-	return executeCommand(ctx, string(replaceLDPreloadCommand))
+	return executeHelperCommand(ctx, string(replaceLDPreloadCommand))
 }
 
 // deleteLDPreloadConfigContent deletes the content of the LD preload configuration

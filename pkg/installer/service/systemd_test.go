@@ -37,7 +37,7 @@ func TestInvalidCommands(t *testing.T) {
 		`{"command":"chown dd-agent", "path":"/"}`:                           "error: invalid path\n",
 		`{"command":"chown dd-agent", "path":"/opt/datadog-packages/../.."}`: "error: invalid path\n",
 	} {
-		assert.Equal(t, expected, executeCommand(testCtx, input).Error())
+		assert.Equal(t, expected, executeHelperCommand(testCtx, input).Error())
 	}
 }
 

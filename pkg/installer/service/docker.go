@@ -16,13 +16,14 @@ import (
 	"os/exec"
 	"path"
 
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type dockerDaemonConfig map[string]interface{}
 
-const (
-	tmpDockerDaemonPath = "/tmp/daemon.json.tmp"
+var (
+	tmpDockerDaemonPath = path.Join(setup.InstallPath, "run", "daemon.json.tmp")
 	dockerDaemonPath    = "/etc/docker/daemon.json"
 )
 
@@ -31,7 +32,7 @@ const (
 // later
 func (a *apmInjectorInstaller) setDockerConfig(ctx context.Context) error {
 	// Create docker dir if it doesn't exist
-	err := executeCommand(ctx, createDockerDirCommand)
+	err := executeHelperCommand(ctx, createDockerDirCommand)
 	if err != nil {
 		return err
 	}
@@ -64,7 +65,7 @@ func (a *apmInjectorInstaller) setDockerConfig(ctx context.Context) error {
 	}
 
 	// Move the temporary file to the final location
-	err = executeCommand(ctx, string(replaceDockerCommand))
+	err = executeHelperCommand(ctx, string(replaceDockerCommand))
 	if err != nil {
 		return err
 	}
@@ -83,9 +84,6 @@ func (a *apmInjectorInstaller) setDockerConfigContent(previousContent []byte) ([
 		}
 	}
 
-	if _, ok := dockerConfig["default-runtime"]; ok {
-		dockerConfig["default-runtime-backup"] = dockerConfig["default-runtime"]
-	}
 	dockerConfig["default-runtime"] = "dd-shim"
 	runtimes, ok := dockerConfig["runtimes"].(map[string]interface{})
 	if !ok {
@@ -135,7 +133,7 @@ func (a *apmInjectorInstaller) deleteDockerConfig(ctx context.Context) error {
 	}
 
 	// Move the temporary file to the final location
-	err = executeCommand(ctx, string(replaceDockerCommand))
+	err = executeHelperCommand(ctx, string(replaceDockerCommand))
 	if err != nil {
 		return err
 	}
@@ -153,10 +151,7 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte)
 		}
 	}
 
-	if _, ok := dockerConfig["default-runtime-backup"]; ok {
-		dockerConfig["default-runtime"] = dockerConfig["default-runtime-backup"]
-		delete(dockerConfig, "default-runtime-backup")
-	} else {
+	if defaultRuntime, ok := dockerConfig["default-runtime"].(string); ok && defaultRuntime == "dd-shim" || !ok {
 		dockerConfig["default-runtime"] = "runc"
 	}
 	runtimes, ok := dockerConfig["runtimes"].(map[string]interface{})
@@ -180,7 +175,7 @@ func restartDocker(ctx context.Context) error {
 		log.Info("installer: docker is not installed, skipping reload")
 		return nil
 	}
-	return executeCommand(ctx, restartDockerCommand)
+	return executeHelperCommand(ctx, restartDockerCommand)
 }
 
 // isDockerInstalled checks if docker is installed on the system

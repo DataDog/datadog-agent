@@ -430,18 +430,21 @@ func getSharedFxOption() fx.Option {
 		}),
 		healthprobeimpl.Module(),
 		adschedulerimpl.Module(),
-		fx.Provide(func(serverDebug dogstatsddebug.Component) settings.Settings {
-			return settings.Settings{
-				"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
-				"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
-				"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
-				"dogstatsd_stats":                internalsettings.NewDsdStatsRuntimeSetting(serverDebug),
-				"dogstatsd_capture_duration":     internalsettings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration"),
-				"log_payloads":                   commonsettings.NewLogPayloadsRuntimeSetting(),
-				"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
-				"ha.enabled":                     internalsettings.NewHighAvailabilityRuntimeSetting("ha.enabled", "Enable/disable High Availability support."),
-				"ha.failover":                    internalsettings.NewHighAvailabilityRuntimeSetting("ha.failover", "Enable/disable redirection of telemetry data to failover region."),
-				"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
+		fx.Provide(func(serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
+			return settings.Params{
+				Settings: map[string]settings.RuntimeSetting{
+					"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
+					"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
+					"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
+					"dogstatsd_stats":                internalsettings.NewDsdStatsRuntimeSetting(serverDebug),
+					"dogstatsd_capture_duration":     internalsettings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration"),
+					"log_payloads":                   commonsettings.NewLogPayloadsRuntimeSetting(),
+					"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
+					"ha.enabled":                     internalsettings.NewHighAvailabilityRuntimeSetting("ha.enabled", "Enable/disable High Availability support."),
+					"ha.failover":                    internalsettings.NewHighAvailabilityRuntimeSetting("ha.failover", "Enable/disable redirection of telemetry data to failover region."),
+					"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
+				},
+				Config: config,
 			}
 		}),
 		settingsimpl.Module(),
