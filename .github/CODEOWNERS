@@ -257,6 +257,7 @@
 /comp/systray @DataDog/windows-agent
 /comp/trace @DataDog/agent-apm
 /comp/updater @DataDog/fleet
+/comp/agent/cloudfoundrycontainer @DataDog/platform-integrations
 /comp/agent/jmxlogger @DataDog/agent-metrics-logs
 /comp/aggregator/diagnosesendermanager @DataDog/agent-shared-components
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
@@ -489,7 +490,7 @@
 /pkg/windowsdriver/                     @DataDog/windows-kernel-integrations
 /comp/core/workloadmeta/collectors/internal/cloudfoundry @DataDog/platform-integrations
 /pkg/sbom/                              @DataDog/container-integrations @DataDog/agent-security
-/pkg/internaltelemetry                  @DataDog/windows-kernel-integrations
+/pkg/internaltelemetry                  @DataDog/windows-kernel-integrations @DataDog/fleet
 /pkg-config/                            @DataDog/agent-build-and-releases
 /pkg/networkpath/                       @DataDog/network-device-monitoring @DataDog/Networks
 /pkg/collector/corechecks/networkpath/  @DataDog/network-device-monitoring @DataDog/Networks
