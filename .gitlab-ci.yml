@@ -145,6 +145,7 @@ variables:
   S3_PERMANENT_ARTIFACTS_URI: s3://dd-ci-persistent-artefacts-build-stable/$CI_PROJECT_NAME
   S3_SBOM_STORAGE_URI: s3://sbom-root-us1-ddbuild-io/$CI_PROJECT_NAME/$CI_PIPELINE_ID
   S3_RELEASE_ARTIFACTS_URI: s3://dd-release-artifacts/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+  S3_RELEASE_INSTALLER_ARTIFACTS_URI: s3://dd-release-artifacts/datadog-installer/$CI_PIPELINE_ID
   ## comment out both lines below (S3_OMNIBUS_CACHE_BUCKET and USE_S3_CACHING) to allow
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
