@@ -138,20 +138,20 @@ func purgePackage(pkg string, locksPath, repositoryPath string) {
 	span.SetTag("params.pkg", pkg)
 
 	switch pkg {
+	case "datadog-installer":
+		service.RemoveInstallerUnits(ctx)
 	case "datadog-agent":
 		service.RemoveAgentUnits(ctx)
-		if err = removePkgDirs(ctx, pkg, locksPath, repositoryPath); err != nil {
-			log.Warnf("installer: %v", err)
-		}
 	case "datadog-apm-inject":
 		if err = service.RemoveAPMInjector(ctx); err != nil {
 			log.Warnf("installer: could not remove APM injector: %v", err)
 		}
-		if err = removePkgDirs(ctx, pkg, locksPath, repositoryPath); err != nil {
-			log.Warnf("installer: %v", err)
-		}
 	default:
 		log.Warnf("installer: unrecognized package purge")
+		return
+	}
+	if err = removePkgDirs(ctx, pkg, locksPath, repositoryPath); err != nil {
+		log.Warnf("installer: %v", err)
 	}
 }
 
@@ -162,9 +162,14 @@ func purge(locksPath, repositoryPath string) {
 
 	service.RemoveInstallerUnits(ctx)
 
-	if err = service.RemoveAPMInjector(ctx); err != nil {
-		log.Warnf("installer: could not remove APM injector: %v", err)
-	}
+	// todo(paullgdc): The APM injection removal already checks that the LD_PRELOAD points to the injector
+	// in /opt/datadog-packages before removal, so this should not impact previous deb installations
+	// of the injector, but since customers won't use install apm injectors, this codepath is not useful
+	// so it's safer to comment it out until we decide to install the apm-injector on boostrap
+
+	// if err = service.RemoveAPMInjector(ctx); err != nil {
+	// 	log.Warnf("installer: could not remove APM injector: %v", err)
+	// }
 
 	cleanDir(locksPath, os.RemoveAll)
 	cleanDir(repositoryPath, func(path string) error { return service.RemoveAll(ctx, path) })
