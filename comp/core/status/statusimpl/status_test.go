@@ -1011,5 +1011,5 @@ func TestGetStatusBySectionIncorrect(t *testing.T) {
 	bytesResult, err := statusComponent.GetStatusBySection("consectetur", "json", false)
 
 	assert.Nil(t, bytesResult)
-	assert.EqualError(t, err, `unknown status section 'consectetur', available sections are: ["amet","dolor","ipsum","lorem","sit"]`)
+	assert.EqualError(t, err, `unknown status section 'consectetur', available sections are: ["header","amet","dolor","ipsum","lorem","sit"]`)
 }

@@ -313,7 +313,7 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 	default:
 		providers, ok := s.sortedProvidersBySection[strings.ToLower(section)]
 		if !ok {
-			res, _ := json.Marshal(s.sortedSectionNames)
+			res, _ := json.Marshal(append([]string{"header"}, s.sortedSectionNames...))
 			errorMsg := fmt.Sprintf("unknown status section '%s', available sections are: %s", section, string(res))
 			return nil, errors.New(errorMsg)
 		}
