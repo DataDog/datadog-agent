@@ -8,6 +8,8 @@
 package sbom
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -18,11 +20,10 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	scanner2 "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/stretchr/testify/mock"
-	"go.uber.org/fx"
-	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"go.uber.org/fx"
 )
 
 func TestConfigParsing(t *testing.T) {

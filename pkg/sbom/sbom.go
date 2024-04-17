@@ -9,9 +9,10 @@ package sbom
 import (
 	"time"
 
-	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+
+	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 )
 
 const (
