@@ -126,6 +126,7 @@ func Purge() {
 	purge(defaultLocksPath, defaultRepositoriesPath)
 }
 
+// PurgePackage removes an individual package
 func PurgePackage(pkg string) {
 	purgePackage(pkg, defaultLocksPath, defaultRepositoriesPath)
 }
@@ -139,13 +140,15 @@ func purgePackage(pkg string, locksPath, repositoryPath string) {
 	switch pkg {
 	case "datadog-agent":
 		service.RemoveAgentUnits(ctx)
-		agentLockPath := filepath.Join(locksPath, "datadog-agent")
-		if err = os.RemoveAll(filepath.Join(locksPath, "datadog-agent")); err != nil {
-			log.Warnf("installer: could not remove %s: %v", agentLockPath, err)
+		if err = removePkgDirs(ctx, pkg, locksPath, repositoryPath); err != nil {
+			log.Warnf("installer: %v", err)
 		}
-		agentRepositoryPath := filepath.Join(repositoryPath, "datadog-agent")
-		if err = service.RemoveAll(ctx, agentRepositoryPath); err != nil {
-			log.Warnf("installer: could not remove %s: %v", agentRepositoryPath, err)
+	case "datadog-apm-inject":
+		if err = service.RemoveAPMInjector(ctx); err != nil {
+			log.Warnf("installer: could not remove APM injector: %v", err)
+		}
+		if err = removePkgDirs(ctx, pkg, locksPath, repositoryPath); err != nil {
+			log.Warnf("installer: %v", err)
 		}
 	default:
 		log.Warnf("installer: unrecognized package purge")
@@ -165,6 +168,19 @@ func purge(locksPath, repositoryPath string) {
 
 	cleanDir(locksPath, os.RemoveAll)
 	cleanDir(repositoryPath, func(path string) error { return service.RemoveAll(ctx, path) })
+}
+
+func removePkgDirs(ctx context.Context, pkg string, locksPath, repositoryPath string) (err error) {
+	pkgLockPath := filepath.Join(locksPath, pkg)
+	if lockPathErr := os.RemoveAll(pkgLockPath); lockPathErr != nil {
+		err = fmt.Errorf("could not remove %s: %w", pkgLockPath, lockPathErr)
+	}
+
+	pkgRepositoryPath := filepath.Join(repositoryPath, pkg)
+	if pkgRepositoryErr := service.RemoveAll(ctx, pkgRepositoryPath); err != nil {
+		err = fmt.Errorf("%w; could not remove %s: %w", err, pkgRepositoryPath, pkgRepositoryErr)
+	}
+	return err
 }
 
 func cleanDir(dir string, cleanFunc func(string) error) {
