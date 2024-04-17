@@ -259,7 +259,7 @@ func injectFullIdentity(pod *corev1.Pod) bool {
 	injected := false
 	podStr := common.PodString(pod)
 	for i := range pod.Spec.Containers {
-		injected = injectIdentityInContainer(&pod.Spec.Containers[i], "", podStr)
+		injected = injectIdentityInContainer(&pod.Spec.Containers[i], "", podStr) || injected
 	}
 	for i := range pod.Spec.InitContainers {
 		injected = injectIdentityInContainer(&pod.Spec.InitContainers[i], "init.", podStr) || injected
