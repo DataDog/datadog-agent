@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test && linux
+
 package main
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -16,7 +17,7 @@ import (
 )
 
 const erroMsg = `
-The dependencies.txt file is out of date. Please run: go list -f '{{join .Deps "\n"}}' -tags serverless github.com/DataDog/datadog-agent/cmd/serverless > cmd/serverless/dependencies.txt to update it
+The dependencies.txt file is out of date. Please run: GOOS=linux go list -f '{{join .Deps "\n"}}' -tags serverless github.com/DataDog/datadog-agent/cmd/serverless > cmd/serverless/dependencies.txt to update it
 `
 
 func buildDependencyList() (string, error) {
@@ -28,7 +29,7 @@ func buildDependencyList() (string, error) {
 	arg4 := "serverless"
 	arg5 := "github.com/DataDog/datadog-agent/cmd/serverless"
 	cmd := exec.Command(run, arg0, arg1, arg2, arg3, arg4, arg5)
-	fmt.Println(cmd.String())
+
 	stdout, err := cmd.Output()
 	return string(stdout), err
 }
