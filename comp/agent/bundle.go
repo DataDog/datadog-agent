@@ -8,6 +8,7 @@ package agent
 
 import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl"
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver/expvarserverimpl"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler/metadataschedulerimpl"
@@ -23,5 +24,6 @@ func Bundle() fxutil.BundleOptions {
 		metadataschedulerimpl.Module(),
 		jmxloggerimpl.Module(),
 		expvarserverimpl.Module(),
+		cloudfoundrycontainerimpl.Module(),
 	)
 }

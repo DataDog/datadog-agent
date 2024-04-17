@@ -105,7 +105,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// The cluster-agent-cloudfoundry agent do not have settings that change are runtime
 				// still, we need to pass it to ensure the API server is proprely initialized
 				settingsimpl.Module(),
-				fx.Supply(settings.Settings{}),
+				fx.Supply(settings.Params{}),
 				autodiscoveryimpl.Module(),
 				fx.Provide(func(config config.Component) healthprobe.Options {
 					return healthprobe.Options{

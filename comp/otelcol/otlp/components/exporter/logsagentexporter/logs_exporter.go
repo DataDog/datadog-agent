@@ -36,7 +36,7 @@ func newExporter(
 	logsAgentChannel chan *message.Message,
 	attributesTranslator *attributes.Translator,
 ) (*exporter, error) {
-	translator, err := logsmapping.NewTranslator(set, attributesTranslator, cfg.otelSource)
+	translator, err := logsmapping.NewTranslator(set, attributesTranslator, cfg.OtelSource)
 	if err != nil {
 		return nil, err
 	}

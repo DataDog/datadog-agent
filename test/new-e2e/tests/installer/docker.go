@@ -7,6 +7,7 @@
 package updater
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -17,55 +18,61 @@ import (
 )
 
 // installDocker installs docker on the host
-func installDocker(distro os.Descriptor, t *testing.T, host *components.RemoteHost) {
+func installDocker(distro os.Descriptor, arch os.Architecture, t *testing.T, host *components.RemoteHost) {
 	switch distro {
-	case os.UbuntuDefault:
-		_, err := host.WriteFile("/tmp/install-docker.sh", []byte(`
+	case os.UbuntuDefault, os.DebianDefault:
+		_, err := host.WriteFile(
+			"/tmp/install-docker.sh",
+			[]byte(
+				fmt.Sprintf(`
 sudo apt-get update
 sudo apt-get install ca-certificates curl
 sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo curl -fsSL https://download.docker.com/linux/%[1]s/gpg -o /etc/apt/keyrings/docker.asc
 sudo chmod a+r /etc/apt/keyrings/docker.asc
 echo \
-	"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+	"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/%[1]s \
 	$(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
 	sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-		`))
-		require.Nil(t, err)
-		host.MustExecute(`sudo chmod +x /tmp/install-docker.sh`)
-		host.MustExecute(`sudo /tmp/install-docker.sh`)
-		err = host.Remove("/tmp/install-docker.sh")
-		require.Nil(t, err)
-	case os.DebianDefault:
-		_, err := host.WriteFile("/tmp/install-docker.sh", []byte(`
-sudo apt-get update
-sudo apt-get install ca-certificates curl
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin amazon-ecr-credential-helper
 
-# Add the repository to Apt sources:
-echo \
-	"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
-	$(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-	sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-	`))
+sudo mkdir -p /root/.docker
+echo '{"credsStore": "ecr-login"}' | sudo tee /root/.docker/config.json
+		`, distro.Flavor.String(),
+				),
+			),
+		)
 		require.Nil(t, err)
 		host.MustExecute(`sudo chmod +x /tmp/install-docker.sh`)
 		host.MustExecute(`sudo /tmp/install-docker.sh`)
 		err = host.Remove("/tmp/install-docker.sh")
 		require.Nil(t, err)
 	case os.CentOSDefault, os.RedHatDefault:
-		_, err := host.WriteFile("/tmp/install-docker.sh", []byte(`
+		_, err := host.WriteFile(
+			"/tmp/install-docker.sh",
+			[]byte(
+				fmt.Sprintf(`
 sudo yum install -y yum-utils
 sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 sudo systemctl start docker
-		`))
+
+export previous_dir=$(pwd)
+cd /usr/local
+sudo curl https://dl.google.com/go/go1.22.1.linux-%s.tar.gz --output go.tar.gz
+sudo tar -C /usr/local -xzf go.tar.gz 
+export PATH="$PATH:/usr/local/go/bin:$(go env GOPATH)/bin"
+cd $previous_dir
+
+go install github.com/awslabs/amazon-ecr-credential-helper/ecr-login/cli/docker-credential-ecr-login@latest
+
+sudo mkdir -p /root/.docker
+echo '{"credsStore": "ecr-login"}' | sudo tee /root/.docker/config.json
+		`, string(arch),
+				),
+			),
+		)
 		require.Nil(t, err)
 		host.MustExecute(`sudo chmod +x /tmp/install-docker.sh`)
 		host.MustExecute(`sudo /tmp/install-docker.sh`)
@@ -79,13 +86,12 @@ sudo systemctl start docker
 // launchJavaDockerContainer launches a small Java HTTP server in a docker container
 // and make a call to it
 func launchJavaDockerContainer(t *testing.T, host *components.RemoteHost) {
-	host.MustExecute(`sudo docker run -d -p8887:8888 baptistefoy702/message-server:latest`)
-	// for i := 0; i < 10; i++ {
+
+	host.MustExecute(`sudo docker run -d -p8887:8888 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/baptistefoy702/message-server:latest`)
 	assert.Eventually(t,
 		func() bool {
 			_, err := host.Execute(`curl -m 1 localhost:8887/messages`)
 			return err == nil
-		}, 10*time.Second, 100*time.Millisecond,
+		}, 30*time.Second, 100*time.Millisecond,
 	)
-	// }
 }

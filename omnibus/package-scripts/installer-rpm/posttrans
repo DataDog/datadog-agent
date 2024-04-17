@@ -1,12 +1,9 @@
 #!/bin/sh
-#
-# Perform necessary datadog-updater setup steps after package is installed.
-#
-# .deb: STEP 5 of 5
 
 readonly PACKAGES_DIR=/opt/datadog-packages
 readonly INSTALL_DIR=/opt/datadog-installer
 readonly BOOTSTRAP_INSTALLER=${INSTALL_DIR}/bin/installer/installer
+readonly STABLE_INSTALLER=${PACKAGES_DIR}/datadog-installer/stable/bin/installer/installer
 readonly HELPER=${INSTALL_DIR}/bin/installer/helper
 readonly LOG_DIR=/var/log/datadog
 readonly PACKAGES_LOCK_DIR=/var/run/datadog-packages
@@ -16,14 +13,10 @@ add_user_and_group() {
     # Only create group and/or user if they don't already exist
     NAME=$1
     HOME_DIR=$2
-    getent group "$NAME" >/dev/null || (echo "Creating $NAME group" && addgroup --system "$NAME" --quiet)
-    set +e
-    id -u "$NAME" >/dev/null 2>&1
-    USER_EXISTS=$?
-    set -e
-    if [ ! $USER_EXISTS -eq 0 ]; then
+    getent group "$NAME" >/dev/null || (echo "Creating $NAME group" && groupadd --system "$NAME")
+    if ! id -u "$NAME" >/dev/null 2>&1; then
         echo "Creating $NAME user"
-        adduser --system "$NAME" --disabled-login --shell /usr/sbin/nologin --home "$HOME_DIR" --no-create-home --group --quiet
+        useradd --system --shell /usr/sbin/nologin --home "$HOME_DIR" --no-create-home --no-user-group -g "$NAME" "$NAME"
     elif id -nG "$NAME" | grep --invert-match --word-regexp --quiet "$NAME"; then
         # User exists but is not part of the $NAME group
         echo "Adding $NAME user to $NAME group"
@@ -31,18 +24,10 @@ add_user_and_group() {
     fi
 }
 
-set -e
-case "$1" in
-    configure)
-        add_user_and_group 'dd-installer' $PACKAGES_DIR
-        add_user_and_group 'dd-agent' $PACKAGES_DIR/datadog-agent
-        usermod -aG dd-agent dd-installer
-    ;;
-    abort-upgrade|abort-remove|abort-deconfigure)
-    ;;
-    *)
-    ;;
-esac
+# We're in the initial install case
+add_user_and_group 'dd-installer' $PACKAGES_DIR
+add_user_and_group 'dd-agent' $PACKAGES_DIR/datadog-agent
+usermod -aG dd-agent dd-installer
 
 # Set proper rights to the dd-agent user
 chown -R dd-agent:dd-agent ${CONFIG_DIR}
@@ -82,6 +67,8 @@ fi
 chmod 750 ${HELPER}
 setcap cap_setuid+ep ${HELPER}
 
-$BOOTSTRAP_INSTALLER bootstrap --url "oci://docker.io/datadog/installer-package-dev:latest"
+$BOOTSTRAP_INSTALLER bootstrap --url "oci://public.ecr.aws/datadog/installer-package:7.54.0-devel.git.366.99b427c.pipeline.32143438-1"
+$STABLE_INSTALLER bootstrap
 
 exit 0
+
