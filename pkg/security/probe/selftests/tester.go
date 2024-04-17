@@ -182,6 +182,16 @@ func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) (
 }
 
 func (t *SelfTester) beginSelfTests(timeout time.Duration) {
+	// drain the chan
+LOOP:
+	for {
+		select {
+		case <-t.eventChan:
+		default:
+			break LOOP
+		}
+	}
+
 	t.waitingForEvent.Store(true)
 	t.selfTestRunning <- timeout
 }
@@ -217,7 +227,7 @@ func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, _ *prob
 		select {
 		case t.eventChan <- selfTestEvent:
 		default:
-			log.Errorf("self test channel is full, discarding event.\n")
+			log.Debug("self test channel is full, discarding event.")
 		}
 
 		return true
