@@ -15,3 +15,13 @@ team: ci-interfaces
 preprocess: true
 enabled_strategies:
   - go_strategy
+---
+schema-version: v1
+kind: stale-branches
+max_age: 4380h # 6 months
+excludes:
+  - main
+  - 7.*.x
+  - 6.*.x
+  - gh-pages
+  - *DO-NOT-DELETE
