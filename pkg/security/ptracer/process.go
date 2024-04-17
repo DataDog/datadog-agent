@@ -55,6 +55,7 @@ func NewProcess(pid int) *Process {
 type ProcessCache struct {
 	pid2Process map[int]*Process
 	tgid2Pid    map[int][]int
+	tgid2Span   map[int]*spanTLS
 }
 
 // NewProcessCache returns a new thread cache
@@ -62,6 +63,7 @@ func NewProcessCache() *ProcessCache {
 	return &ProcessCache{
 		pid2Process: make(map[int]*Process),
 		tgid2Pid:    make(map[int][]int),
+		tgid2Span:   make(map[int]*spanTLS),
 	}
 }
 
@@ -117,4 +119,21 @@ func (tc *ProcessCache) Remove(process *Process) {
 // Get return the process entry for the given pid
 func (tc *ProcessCache) Get(pid int) *Process {
 	return tc.pid2Process[pid]
+}
+
+// GetSpan returns the span TLS entry for the given pid
+func (tc *ProcessCache) GetSpan(tgid int) *spanTLS {
+	return tc.tgid2Span[tgid]
+}
+
+// SetSpan sets the span TLS entry for the given pid
+func (tc *ProcessCache) SetSpan(tgid int, span *spanTLS) {
+	if span != nil {
+		tc.tgid2Span[tgid] = span
+	}
+}
+
+// UnsetSpan unsets the span TLS entry for the given pid
+func (tc *ProcessCache) UnsetSpan(tgid int) {
+	delete(tc.tgid2Span, tgid)
 }

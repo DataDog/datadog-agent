@@ -273,6 +273,12 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		}
 	}
 
+	// copy span context if any
+	if syscallMsg.SpanContext != nil {
+		event.SpanContext.SpanID = syscallMsg.SpanContext.SpanID
+		event.SpanContext.TraceID = syscallMsg.SpanContext.TraceID
+	}
+
 	// use ProcessCacheEntry process context as process context
 	event.ProcessCacheEntry = p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID})
 	if event.ProcessCacheEntry == nil {

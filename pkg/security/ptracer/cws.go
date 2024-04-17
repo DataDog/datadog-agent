@@ -202,6 +202,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	syscallHandlers := make(map[int]syscallHandler)
 	PtracedSyscalls := registerFIMHandlers(syscallHandlers)
 	PtracedSyscalls = append(PtracedSyscalls, registerProcessHandlers(syscallHandlers)...)
+	PtracedSyscalls = append(PtracedSyscalls, registerSpanHandlers(syscallHandlers)...)
 
 	tracerOpts := TracerOpts{
 		Syscalls: PtracedSyscalls,
@@ -345,6 +346,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 				}
 			}
 
+			// if available, gather span
+			syscallMsg.SpanContext = fillSpanContext(tracer, process.Tgid, pid, pc.GetSpan(process.Tgid))
+
 			/* internal special cases */
 			switch nr {
 			case ExecveNr:
@@ -387,6 +391,8 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 				if process.Pid != process.Tgid {
 					pc.Add(process.Tgid, process)
 				}
+			case IoctlNr:
+				pc.SetSpan(process.Tgid, handleIoctl(tracer, process, regs))
 
 			}
 		case CallbackPostType:
@@ -412,6 +418,8 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 			case ExecveNr, ExecveatNr:
 				// now the pid is the tgid
 				process.Pid = process.Tgid
+				// remove previously registered TLS
+				pc.UnsetSpan(process.Tgid)
 			case CloneNr:
 				if flags := tracer.ReadArgUint64(regs, 0); flags&uint64(unix.SIGCHLD) == 0 {
 					pc.SetAsThreadOf(process, ppid)
