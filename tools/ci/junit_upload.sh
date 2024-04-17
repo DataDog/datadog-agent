@@ -9,12 +9,12 @@ fi
 
 DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$API_KEY_ORG2_SSM_NAME")"
 export DATADOG_API_KEY
-errors=0
+error=0
 for file in $junit_files; do
     if [[ ! -f $file ]]; then
         echo "Issue with junit file: $file"
         continue
     fi
-    inv -e junit-upload --tgz-path "$file" || ((errors++))
+    inv -e junit-upload --tgz-path "$file" || error=1
 done
-exit $errors
+exit $error
