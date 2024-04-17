@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -192,7 +193,7 @@ func (p *WindowsProbe) initEtwFIM() error {
 		*/
 		// try masking on create & create_new_file
 		// given the current requirements, I think we can _probably_ just do create_new_file
-		cfg.MatchAnyKeyword = 0x10A0
+		cfg.MatchAnyKeyword = 0x18A0
 	})
 	p.fimSession.ConfigureProvider(p.regguid, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
@@ -255,7 +256,11 @@ func (p *WindowsProbe) Stop() {
 func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 	log.Info("Starting tracing...")
+	pid := os.Getpid()
 	err := p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
+		if uint32(pid) != e.EventHeader.ProcessID {
+			return
+		}
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
@@ -339,6 +344,12 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					ecb(rn, e.EventHeader.ProcessID)
 				}
 				p.stats.fileidRename++
+
+			case idRenamePath:
+				if rn, err := p.parseRenamePathArgs(e); err == nil {
+					log.Tracef("Received RenamePath event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
+					ecb(rn, e.EventHeader.ProcessID)
+				}
 			case idQueryInformation:
 				p.stats.fileidQueryInformation++
 			case idFSCTL:

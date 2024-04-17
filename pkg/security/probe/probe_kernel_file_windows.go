@@ -600,6 +600,8 @@ func (dpa *deletePathArgs) string(t string) string {
 
 	output.WriteString(t + ": PID: " + strconv.Itoa(int(dpa.ProcessID)) + "\n")
 	output.WriteString("        Name: " + dpa.filePath + "\n")
+	output.WriteString("        OBJ: " + strconv.FormatUint(uint64(dpa.fileObject), 16) + "\n")
+	output.WriteString("        KEY: " + strconv.FormatUint(uint64(dpa.fileKey), 16) + "\n")
 	return output.String()
 
 }
