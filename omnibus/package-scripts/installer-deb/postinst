@@ -82,7 +82,7 @@ fi
 # Set helper rights
 chmod 750 ${HELPER}
 
-$BOOTSTRAP_INSTALLER bootstrap --url "oci://public.ecr.aws/datadog/installer-package:7.54.0-devel.git.366.99b427c.pipeline.32143438-1"
+$BOOTSTRAP_INSTALLER bootstrap --package "datadog-installer"
 $STABLE_INSTALLER bootstrap
 
 exit 0
