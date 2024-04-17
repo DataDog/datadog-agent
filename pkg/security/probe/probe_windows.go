@@ -49,17 +49,17 @@ type WindowsProbe struct {
 	// note that these events are zeroed out and reused on every notification
 	// what that means is that they're not thread safe; there needs to be one
 	// event for each goroutine that's doing event processing.
-	fimEvent      *model.Event // this event is used/owned by the FIM goroutine
-	procEvent     *model.Event // this event is used/owned by the process start/stop goroutine
-	ctx           context.Context
-	cancelFnc     context.CancelFunc
-	wg            sync.WaitGroup
-	probe         *Probe
-	fieldHandlers *FieldHandlers
-	pm            *procmon.WinProcmon
-	onStart       chan *procmon.ProcessStartNotification
-	onStop        chan *procmon.ProcessStopNotification
-	onError       chan bool
+	event             *model.Event
+	ctx               context.Context
+	cancelFnc         context.CancelFunc
+	wg                sync.WaitGroup
+	probe             *Probe
+	fieldHandlers     *FieldHandlers
+	pm                *procmon.WinProcmon
+	onStart           chan *procmon.ProcessStartNotification
+	onStop            chan *procmon.ProcessStopNotification
+	onError           chan bool
+	onETWNotification chan etwNotification
 
 	// ETW component for FIM
 	fileguid windows.GUID
@@ -67,6 +67,12 @@ type WindowsProbe struct {
 	//etwcomp    etw.Component
 	fimSession etw.Session
 	fimwg      sync.WaitGroup
+}
+
+type etwNotification struct {
+	arg       any
+	pid       uint32
+	eventType model.EventType
 }
 
 /*
@@ -314,69 +320,7 @@ func (p *WindowsProbe) Start() error {
 		go func() {
 			defer p.fimwg.Done()
 			err := p.setupEtw(func(n interface{}, pid uint32, eventType model.EventType) {
-				// resolve process context
-				ev := p.zeroFIMEvent()
-
-				// handle incoming events here
-				// each event will come in as a different type
-				// parse it with
-				switch eventType {
-				case model.CreateNewFileEventType:
-					cnfa := n.(*createNewFileArgs)
-					ev.Type = uint32(model.CreateNewFileEventType)
-					ev.CreateNewFile = model.CreateNewFileEvent{
-						File: model.FileEvent{
-							PathnameStr: cnfa.fileName,
-							BasenameStr: filepath.Base(cnfa.fileName),
-						},
-					}
-				case model.CreateRegistryKeyEventType:
-					cka := n.(*createKeyArgs)
-					ev.Type = uint32(model.CreateRegistryKeyEventType)
-					ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
-						Registry: model.RegistryEvent{
-							KeyPath: cka.computedFullPath,
-							KeyName: filepath.Base(cka.computedFullPath),
-						},
-					}
-				case model.OpenRegistryKeyEventType:
-					cka := n.(*createKeyArgs)
-					ev.Type = uint32(model.OpenRegistryKeyEventType)
-					ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
-						Registry: model.RegistryEvent{
-							KeyPath: cka.computedFullPath,
-							KeyName: filepath.Base(cka.computedFullPath),
-						},
-					}
-				case model.DeleteRegistryKeyEventType:
-					dka := n.(*deleteKeyArgs)
-					ev.Type = uint32(model.DeleteRegistryKeyEventType)
-					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
-						Registry: model.RegistryEvent{
-							KeyName: filepath.Base(dka.computedFullPath),
-							KeyPath: dka.computedFullPath,
-						},
-					}
-				case model.SetRegistryKeyValueEventType:
-					svka := n.(*setValueKeyArgs)
-					ev.Type = uint32(model.SetRegistryKeyValueEventType)
-					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
-						Registry: model.RegistryEvent{
-							KeyName: filepath.Base(svka.computedFullPath),
-							KeyPath: svka.computedFullPath,
-						},
-						ValueName: svka.valueName,
-					}
-				}
-				if ev.Type != uint32(model.UnknownEventType) {
-					errRes := p.setProcessContext(pid, ev)
-					if errRes != nil {
-						log.Debugf("%v", errRes)
-					}
-					// Dispatch event
-					p.DispatchEvent(ev)
-				}
-
+				p.onETWNotification <- etwNotification{n, pid, eventType}
 			})
 			log.Infof("Done StartTracing %v", err)
 		}()
@@ -391,7 +335,7 @@ func (p *WindowsProbe) Start() error {
 		for {
 			var pce *model.ProcessCacheEntry
 			var err error
-			ev := p.zeroProcEvent()
+			ev := p.zeroEvent()
 
 			select {
 			case <-p.ctx.Done():
@@ -432,6 +376,12 @@ func (p *WindowsProbe) Start() error {
 				}
 				ev.Type = uint32(model.ExecEventType)
 				ev.Exec.Process = &pce.Process
+
+				// use ProcessCacheEntry process context as process context
+				ev.ProcessCacheEntry = pce
+				ev.ProcessContext = &pce.ProcessContext
+
+				p.Resolvers.ProcessResolver.DequeueExited()
 			case stop := <-p.onStop:
 				pid := process.Pid(stop.Pid)
 				if pid == 0 {
@@ -449,20 +399,72 @@ func (p *WindowsProbe) Start() error {
 					continue
 				}
 				ev.Exit.Process = &pce.Process
+				// use ProcessCacheEntry process context as process context
+				ev.ProcessCacheEntry = pce
+				ev.ProcessContext = &pce.ProcessContext
+
+				p.Resolvers.ProcessResolver.DequeueExited()
+			case notif := <-p.onETWNotification:
+				// handle incoming events here
+				// each event will come in as a different type
+				// parse it with
+				switch notif.eventType {
+				case model.CreateNewFileEventType:
+					cnfa := notif.arg.(*createNewFileArgs)
+					ev.Type = uint32(model.CreateNewFileEventType)
+					ev.CreateNewFile = model.CreateNewFileEvent{
+						File: model.FileEvent{
+							PathnameStr: cnfa.fileName,
+							BasenameStr: filepath.Base(cnfa.fileName),
+						},
+					}
+				case model.CreateRegistryKeyEventType:
+					cka := notif.arg.(*createKeyArgs)
+					ev.Type = uint32(model.CreateRegistryKeyEventType)
+					ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
+						Registry: model.RegistryEvent{
+							KeyPath: cka.computedFullPath,
+							KeyName: filepath.Base(cka.computedFullPath),
+						},
+					}
+				case model.OpenRegistryKeyEventType:
+					cka := notif.arg.(*createKeyArgs)
+					ev.Type = uint32(model.OpenRegistryKeyEventType)
+					ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
+						Registry: model.RegistryEvent{
+							KeyPath: cka.computedFullPath,
+							KeyName: filepath.Base(cka.computedFullPath),
+						},
+					}
+				case model.DeleteRegistryKeyEventType:
+					dka := notif.arg.(*deleteKeyArgs)
+					ev.Type = uint32(model.DeleteRegistryKeyEventType)
+					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
+						Registry: model.RegistryEvent{
+							KeyName: filepath.Base(dka.computedFullPath),
+							KeyPath: dka.computedFullPath,
+						},
+					}
+				case model.SetRegistryKeyValueEventType:
+					svka := notif.arg.(*setValueKeyArgs)
+					ev.Type = uint32(model.SetRegistryKeyValueEventType)
+					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
+						Registry: model.RegistryEvent{
+							KeyName: filepath.Base(svka.computedFullPath),
+							KeyPath: svka.computedFullPath,
+						},
+						ValueName: svka.valueName,
+					}
+				}
+				if ev.Type != uint32(model.UnknownEventType) {
+					errRes := p.setProcessContext(notif.pid, ev)
+					if errRes != nil {
+						log.Debugf("%v", errRes)
+					}
+				}
 			}
-
-			if pce == nil {
-				continue
-			}
-
-			// use ProcessCacheEntry process context as process context
-			ev.ProcessCacheEntry = pce
-			ev.ProcessContext = &pce.ProcessContext
-
-			p.Resolvers.ProcessResolver.DequeueExited()
 
 			p.DispatchEvent(ev)
-
 		}
 	}()
 	return p.pm.Start()
@@ -525,15 +527,16 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
-		probe:        probe,
-		config:       config,
-		opts:         opts,
-		statsdClient: opts.StatsdClient,
-		ctx:          ctx,
-		cancelFnc:    cancelFnc,
-		onStart:      make(chan *procmon.ProcessStartNotification),
-		onStop:       make(chan *procmon.ProcessStopNotification),
-		onError:      make(chan bool),
+		probe:             probe,
+		config:            config,
+		opts:              opts,
+		statsdClient:      opts.StatsdClient,
+		ctx:               ctx,
+		cancelFnc:         cancelFnc,
+		onStart:           make(chan *procmon.ProcessStartNotification),
+		onStop:            make(chan *procmon.ProcessStopNotification),
+		onError:           make(chan bool),
+		onETWNotification: make(chan etwNotification),
 	}
 
 	var err error
@@ -544,12 +547,10 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 	p.fieldHandlers = &FieldHandlers{config: config, resolvers: p.Resolvers}
 
-	p.procEvent = p.NewEvent()
-	p.fimEvent = p.NewEvent()
+	p.event = p.NewEvent()
 
 	// be sure to zero the probe event before everything else
-	p.zeroProcEvent()
-	p.zeroFIMEvent()
+	p.zeroEvent()
 
 	return p, nil
 }
@@ -604,15 +605,10 @@ func (p *WindowsProbe) GetEventTags(_ string) []string {
 	return nil
 }
 
-func (p *WindowsProbe) zeroFIMEvent() *model.Event {
-	p.fimEvent.Zero()
-	p.fimEvent.FieldHandlers = p.fieldHandlers
-	return p.fimEvent
-}
-func (p *WindowsProbe) zeroProcEvent() *model.Event {
-	p.procEvent.Zero()
-	p.procEvent.FieldHandlers = p.fieldHandlers
-	return p.procEvent
+func (p *WindowsProbe) zeroEvent() *model.Event {
+	p.event.Zero()
+	p.event.FieldHandlers = p.fieldHandlers
+	return p.event
 }
 
 // Origin returns origin

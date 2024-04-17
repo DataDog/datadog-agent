@@ -27,19 +27,29 @@ func (ia *inventoryagent) Index() int {
 
 // JSON populates the status map
 func (ia *inventoryagent) JSON(_ bool, stats map[string]interface{}) error {
-	for k, v := range ia.Get() {
-		stats[k] = v
-	}
+	ia.populateStatus(stats)
 
 	return nil
 }
 
 // Text renders the text output
 func (ia *inventoryagent) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "inventory.tmpl", buffer, ia.Get())
+	return status.RenderText(templatesFS, "inventory.tmpl", buffer, ia.getStatusInfo())
 }
 
 // HTML renders the html output
 func (ia *inventoryagent) HTML(_ bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "inventoryHTML.tmpl", buffer, ia.Get())
+	return status.RenderHTML(templatesFS, "inventoryHTML.tmpl", buffer, ia.getStatusInfo())
+}
+
+func (ia *inventoryagent) populateStatus(stats map[string]interface{}) {
+	stats["agent_metadata"] = ia.Get()
+}
+
+func (ia *inventoryagent) getStatusInfo() map[string]interface{} {
+	stats := make(map[string]interface{})
+
+	ia.populateStatus(stats)
+
+	return stats
 }

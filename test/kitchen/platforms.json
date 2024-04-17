@@ -2,7 +2,6 @@
     "centos": {
         "azure": {
             "x86_64": {
-                "centos-610": "urn,OpenLogic:CentOS:6.10:6.10.2020042900",
                 "centos-76": "urn,OpenLogic:CentOS:7.6:7.6.201909120",
                 "centos-77": "urn,OpenLogic:CentOS:7.7:7.7.201912090",
                 "rhel-81": "urn,RedHat:RHEL:8.1:8.1.2021040910",

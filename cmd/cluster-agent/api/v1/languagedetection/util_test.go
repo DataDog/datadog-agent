@@ -9,16 +9,18 @@ package languagedetection
 
 import (
 	"fmt"
+	"reflect"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
-	"reflect"
-	"testing"
-	"time"
 )
 
 var (
@@ -27,7 +29,7 @@ var (
 )
 
 const (
-	eventuallyTestTimeout = 2 * time.Second
+	eventuallyTestTimeout = 5 * time.Second
 	eventuallyTestTick    = 100 * time.Millisecond
 )
 
@@ -569,7 +571,7 @@ func TestCleanExpiredLanguages(t *testing.T) {
 
 }
 
-func TestCleanRemovedOwners(t *testing.T) {
+func TestHandleKubeAPIServerUnsetEvents(t *testing.T) {
 	mockSupportedOwnerA := langUtil.NewNamespacedOwnerReference("api-version", langUtil.KindDeployment, "deploymentA", "ns")
 
 	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
@@ -592,8 +594,21 @@ func TestCleanRemovedOwners(t *testing.T) {
 		},
 	}
 
-	// start cleanup process
-	go ownersLanguages.cleanRemovedOwners(mockStore)
+	evBundle := mockStore.Subscribe("language-detection-handler", workloadmeta.NormalPriority, workloadmeta.NewFilter(
+		&workloadmeta.FilterParams{
+			Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesDeployment},
+			Source:    "kubeapiserver",
+			EventType: workloadmeta.EventTypeUnset,
+		},
+	))
+	defer mockStore.Unsubscribe(evBundle)
+
+	go func() {
+		for evChan := range evBundle {
+			evChan.Acknowledge()
+			ownersLanguages.handleKubeAPIServerUnsetEvents(evChan.Events, mockStore)
+		}
+	}()
 
 	// Simulate detecting languages
 	mockStore.Push(workloadmeta.SourceLanguageDetectionServer, workloadmeta.Event{

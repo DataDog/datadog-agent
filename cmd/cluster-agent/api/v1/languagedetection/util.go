@@ -10,12 +10,13 @@ package languagedetection
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
 // containersLanguageWithDirtyFlag encapsulates containers languages along with a dirty flag
@@ -149,6 +150,39 @@ func (ownersLanguages *OwnersLanguages) cleanExpiredLanguages(wlm workloadmeta.C
 	ownersLanguages.flush(wlm)
 }
 
+// handleKubeApiServerUnsetEvents handles unset events emitted by the kubeapiserver
+// events with type EventTypeSet are skipped
+// events with type EventTypeUnset are handled by deleted the corresponding owner from OwnersLanguages
+// and by pushing a new event to workloadmeta that unsets detected languages data for the concerned kubernetes resource
+// This method is thread-safe.
+func (ownersLanguages *OwnersLanguages) handleKubeAPIServerUnsetEvents(events []workloadmeta.Event, wlm workloadmeta.Component) {
+	ownersLanguages.mutex.Lock()
+	defer ownersLanguages.mutex.Unlock()
+
+	for _, event := range events {
+		kind := event.Entity.GetID().Kind
+
+		if event.Type != workloadmeta.EventTypeUnset {
+			// only unset events should be handled
+			continue
+		}
+
+		switch kind {
+		case workloadmeta.KindKubernetesDeployment:
+			// extract deployment name and namespace from entity id
+			deployment := event.Entity.(*workloadmeta.KubernetesDeployment)
+			deploymentIds := strings.Split(deployment.GetID().ID, "/")
+			namespace := deploymentIds[0]
+			deploymentName := deploymentIds[1]
+			delete(ownersLanguages.containersLanguages, langUtil.NewNamespacedOwnerReference("apps/v1", langUtil.KindDeployment, deploymentName, namespace))
+			_ = wlm.Push(workloadmeta.SourceLanguageDetectionServer, workloadmeta.Event{
+				Type:   workloadmeta.EventTypeUnset,
+				Entity: deployment,
+			})
+		}
+	}
+}
+
 // cleanRemovedOwners listens to workloadmeta kubeapiserver events and removes
 // languages of owners that are deleted.
 // It also unsets detected languages in workloadmeta store for deleted owners
@@ -164,32 +198,9 @@ func (ownersLanguages *OwnersLanguages) cleanRemovedOwners(wlm workloadmeta.Comp
 	))
 	defer wlm.Unsubscribe(evBundle)
 
-	handleEvents := func(events []workloadmeta.Event) {
-		ownersLanguages.mutex.Lock()
-		defer ownersLanguages.mutex.Unlock()
-
-		for _, event := range events {
-			kind := event.Entity.GetID().Kind
-
-			switch kind {
-			case workloadmeta.KindKubernetesDeployment:
-				// extract deployment name and namespace from entity id
-				deployment := event.Entity.(*workloadmeta.KubernetesDeployment)
-				deploymentIds := strings.Split(deployment.GetID().ID, "/")
-				namespace := deploymentIds[0]
-				deploymentName := deploymentIds[1]
-				delete(ownersLanguages.containersLanguages, langUtil.NewNamespacedOwnerReference("apps/v1", langUtil.KindDeployment, deploymentName, namespace))
-				_ = wlm.Push(workloadmeta.SourceLanguageDetectionServer, workloadmeta.Event{
-					Type:   workloadmeta.EventTypeUnset,
-					Entity: deployment,
-				})
-			}
-		}
-	}
-
 	for evChan := range evBundle {
 		evChan.Acknowledge()
-		handleEvents(evChan.Events)
+		ownersLanguages.handleKubeAPIServerUnsetEvents(evChan.Events, wlm)
 	}
 }
 
