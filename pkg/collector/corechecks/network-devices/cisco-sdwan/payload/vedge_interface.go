@@ -42,8 +42,8 @@ func (itf *VEdgeInterface) Index() (int64, error) {
 }
 
 // GetSpeedMbps returns the interface speed
-func (itf *VEdgeInterface) GetSpeedMbps() int {
-	speed, err := strconv.Atoi(itf.SpeedMbps)
+func (itf *VEdgeInterface) GetSpeedMbps() float64 {
+	speed, err := strconv.ParseFloat(itf.SpeedMbps, 64)
 	if err != nil {
 		log.Warnf("Unable to parse vEdge interface %s speed %s", itf.Ifname, itf.SpeedMbps)
 	}
