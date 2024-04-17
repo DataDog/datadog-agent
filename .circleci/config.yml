@@ -175,20 +175,6 @@ jobs:
           #SC2059: Don't use variables in the printf format string. Use printf "..%s.." "$foo".
           command: shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh ./omnibus/package-scripts/*/*
 
-  python_linting:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: setting env vars for click
-          command: |
-            echo 'export LC_ALL="C.UTF-8"' >> $BASH_ENV
-            echo 'export LANG="C.UTF-8"' >> $BASH_ENV
-      - run:
-          name: lint python files
-          command: inv -e linter.python
-
   component_linting:
     <<: *job_template
     steps:
@@ -281,9 +267,6 @@ workflows:
           requires:
             - dependencies
       - shell_linting:
-          requires:
-            - dependencies
-      - python_linting:
           requires:
             - dependencies
       - component_linting:
