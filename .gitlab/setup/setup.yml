@@ -20,9 +20,16 @@ github_rate_limit_info:
     - source /root/.bashrc
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - python3 -m pip install datadog_api_client
+    # Send stats for app 1
     - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_KEY_SSM_NAME)
     - export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_APP_ID_SSM_NAME)
     - export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_INSTALLATION_ID_SSM_NAME)
     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
-    - inv github.send-rate-limit-info-datadog --pipeline-id $CI_PIPELINE_ID
+    - inv github.send-rate-limit-info-datadog --pipeline-id $CI_PIPELINE_ID --app-instance 1
+    # Send stats for app 2
+    - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_KEY_2_SSM_NAME)
+    - export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_APP_ID_2_SSM_NAME)
+    - export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_INSTALLATION_ID_2_SSM_NAME)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - inv github.send-rate-limit-info-datadog --pipeline-id $CI_PIPELINE_ID --app-instance 2
   allow_failure: true

@@ -145,15 +145,17 @@ variables:
   S3_PERMANENT_ARTIFACTS_URI: s3://dd-ci-persistent-artefacts-build-stable/$CI_PROJECT_NAME
   S3_SBOM_STORAGE_URI: s3://sbom-root-us1-ddbuild-io/$CI_PROJECT_NAME/$CI_PIPELINE_ID
   S3_RELEASE_ARTIFACTS_URI: s3://dd-release-artifacts/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+  S3_RELEASE_INSTALLER_ARTIFACTS_URI: s3://dd-release-artifacts/datadog-installer/$CI_PIPELINE_ID
   ## comment out both lines below (S3_OMNIBUS_CACHE_BUCKET and USE_S3_CACHING) to allow
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   USE_S3_CACHING: --omnibus-s3-cache
+  OMNIBUS_GIT_CACHE_DIR: /tmp/omnibus-git-cache
   ## comment out the line below to disable integration wheels cache
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
-  BTFHUB_ARCHIVE_BRANCH: no-kmod
+  BTFHUB_ARCHIVE_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
@@ -223,6 +225,9 @@ variables:
   MACOS_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.macos_github_app_id  # agent-ci-experience
   MACOS_GITHUB_INSTALLATION_ID_SSM_NAME: ci.datadog-agent.macos_github_installation_id  # agent-ci-experience
   MACOS_GITHUB_KEY_SSM_NAME: ci.datadog-agent.macos_github_key_b64  # agent-ci-experience
+  MACOS_GITHUB_APP_ID_2_SSM_NAME: ci.datadog-agent.macos_github_app_id_2  # agent-ci-experience
+  MACOS_GITHUB_INSTALLATION_ID_2_SSM_NAME: ci.datadog-agent.macos_github_installation_id_2  # agent-ci-experience
+  MACOS_GITHUB_KEY_2_SSM_NAME: ci.datadog-agent.macos_github_key_b64_2  # agent-ci-experience
   RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
   RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
   SMP_ACCOUNT_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-account-id  # single-machine-performance
@@ -940,7 +945,7 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_updater_or_e2e_changes_or_manual:
+.on_installer_or_e2e_changes_or_manual:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_mergequeue]
@@ -954,10 +959,10 @@ workflow:
       paths:
         - .gitlab/**/*
         - omnibus/config/**/*
-        - pkg/updater/**/*
-        - cmd/updater/**/*
-        - test/new-e2e/tests/updater/**/*
-        - tasks/updater.py
+        - pkg/installer/**/*
+        - cmd/installer/**/*
+        - test/new-e2e/tests/installer/**/*
+        - tasks/installer.py
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success

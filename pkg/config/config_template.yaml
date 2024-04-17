@@ -852,281 +852,6 @@ api_key:
 #
 # secret_backend_remove_trailing_line_break: false
 
-## @param snmp_listener - custom object - optional
-## Creates and schedules a listener to automatically discover your SNMP devices.
-## Discovered devices can then be monitored with the SNMP integration by using
-## the auto_conf.yaml file provided by default.
-#
-# snmp_listener:
-
-  ## @param workers - integer - optional - default: 2
-  ## The number of concurrent tasks used to discover SNMP devices. Increasing this value
-  ## discovers devices faster but at the cost of increased resource consumption.
-  #
-  # workers: 2
-
-  ## @param discovery_interval - integer - optional - default: 3600
-  ## How often to discover new SNMP devices, in seconds. Decreasing this value
-  ## discovers devices faster (within the limit of the time taken to scan subnets)
-  ## but at the cost of increased resource consumption.
-  #
-  # discovery_interval: 3600
-
-  ## @param discovery_allowed_failures - integer - optional - default: 3
-  ## The number of failed requests to a given SNMP device before removing it from the list of monitored
-  ## devices.
-  ## If a device shuts down, the Agent stops monitoring it after `discovery_interval * discovery_allowed_failures` seconds.
-  #
-  # discovery_allowed_failures: 3
-
-  ## @param loader - string - optional - default: python
-  ## Check loader to use. Available loaders:
-  ## - core: (recommended) Uses new corecheck SNMP integration
-  ## - python: Uses legacy python SNMP integration
-  #
-  # loader: core
-
-  ## @param min_collection_interval - number - optional - default: 15
-  ## This changes the collection interval for the check instances created
-  ## from discovered SNMP devices.
-  ## For more information, see:
-  ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
-  #
-  # min_collection_interval: 15
-
-  ## @param use_device_id_as_hostname - boolean - optional - default: false
-  ## Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
-  ## for metrics and service checks (meaning that metrics and services checks will have
-  ## `host:device:<DEVICE_ID>` as tag).
-  ## This option is needed for custom tags.
-  #
-  # use_device_id_as_hostname: true
-
-  ## @param ping - custom object - optional
-  ## Configure ICMP pings for all hosts in SNMP autodiscovery
-  ## Devices will be pinged with these settings each time the SNMP
-  ## check is run.
-  ##
-  ## By default, Datadog tries to use an unprivileged UDP socket to send ICMP
-  ## pings, but some Linux systems require using a raw socket.
-  ##
-  ## If `linux.use_raw_socket` is set, you must enable the `ping` module
-  ## of system-probe for elevated privileges. See
-  ## system-probe.yaml.example for details.
-  #
-  # ping:
-  #   enabled: true             # Disabled by default
-  #   timeout: 3000             # Timeout in milliseconds
-  #   count: 2                  # Number of ping packets to send per check run
-  #   interval: 10              # Time between sending pings (up to `count` packets) in milliseconds
-  #   linux:                    # Linux-specific configuration
-  #     use_raw_socket: true    # Send pings in a privileged fashion using a raw socket.
-  #                             # This may be required if your system doesn't support
-  #                             # sending pings in an unprivileged fashion (using a UDP socket).
-  #                             # If `use_raw_socket` is set to true, you MUST also enable
-  #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
-
-  ## @param configs - list - required
-  ## The actual list of configurations used to discover SNMP devices in various subnets.
-  ## Example:
-  ## configs:
-  ##  - network_address: 10.0.0.0/24
-  ##    snmp_version: 1
-  ##    community_string: public
-  ##  - network_address: 10.0.1.0/28
-  ##    community_string: public
-  ##    ignored_ip_addresses:
-  ##      - 10.0.1.0
-  ##      - 10.0.1.1
-  #
-  # configs:
-    ## @param network_address - string - required
-    ## The subnet in CIDR format to scan for SNMP devices.
-    ## All unignored IP addresses in the CIDR range are scanned.
-    ## For optimal discovery time, be sure to use the smallest network mask
-    ## possible as is appropriate for your network topology.
-    ## Ex: 10.0.1.0/24
-    #
-    # - network_address: <NETWORK>
-
-    ## @param ignored_ip_addresses - list of strings - optional
-    ## A list of IP addresses to ignore when scanning the network.
-    #
-    # ignored_ip_addresses:
-    #   - <IP_ADDRESS_1>
-    #   - <IP_ADDRESS_2>
-
-    ## @param port - integer - optional - default: 161
-    ## The UDP port to use when connecting to SNMP devices.
-    #
-    # port: 161
-
-    ## @param snmp_version - integer - optional - default: <BEST_GUESS>
-    ## Set the version of the SNMP protocol. Available options are: `1`, `2` or `3`.
-    ## If unset, the Agent tries to guess the correct version based on other configuration
-    ## parameters, for example: if `user` is set, the Agent uses SNMP v3.
-    #
-    # snmp_version: <VERSION>
-
-    ## @param timeout - integer - optional - default: 5
-    ## The number of seconds before timing out.
-    #
-    # timeout: 5
-
-    ## @param retries - integer - optional - default: 3
-    ## The number of retries before failure.
-    #
-    # retries: 3
-
-    ## @param community_string - string - optional
-    ## Required for SNMP v1 & v2.
-    ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
-    ## Ex: 'public'
-    #
-    # community_string: '<COMMUNITY>'
-
-    ## @param user - string - optional
-    ## The username to connect to your SNMP devices.
-    ## SNMPv3 only.
-    #
-    # user: <USERNAME>
-
-    ## @param authKey - string - optional
-    ## The passphrase to use with your Authentication type.
-    ## SNMPv3 only.
-    #
-    # authKey: <AUTHENTICATION_KEY>
-
-    ## @param authProtocol - string - optional
-    ## The authentication protocol to use when connecting to your SNMP devices.
-    ## Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
-    ## Defaults to MD5 when `authentication_key` is specified.
-    ## SNMPv3 only.
-    #
-    # authProtocol: <AUTHENTICATION_PROTOCOL>
-
-    ## @param privKey - string - optional
-    ## The passphrase to use with your privacy protocol.
-    ## SNMPv3 only.
-    #
-    # privKey: <PRIVACY_KEY>
-
-    ## @param privProtocol - string - optional
-    ## The privacy protocol to use when connecting to your SNMP devices.
-    ## Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
-    ## Defaults to DES when `privacy_key` is specified.
-    ## SNMPv3 only.
-    #
-    # privProtocol: <PRIVACY_PROTOCOL>
-
-    ## @param context_name - string - optional
-    ## The name of your context (optional SNMP v3-only parameter).
-    #
-    # context_name: <CONTEXT_NAME>
-
-    ## @param tags - list of strings - optional
-    ## A list of tags to attach to every metric and service check of all devices discovered in the subnet.
-    ##
-    ## Learn more about tagging at https://docs.datadoghq.com/tagging
-    #
-    # tags:
-    #   - <KEY_1>:<VALUE_1>
-    #   - <KEY_2>:<VALUE_2>
-
-    ## @param ad_identifier - string - optional - default: snmp
-    ## A unique identifier to attach to devices from that subnetwork.
-    ## When configuring the SNMP integration in snmp.d/auto_conf.yaml,
-    ## specify the corresponding ad_identifier at the top of the file.
-    #
-    # ad_identifier: snmp
-
-    ## @param loader - string - optional - default: python
-    ## Check loader to use. Available loaders:
-    ## - core: will use corecheck SNMP integration
-    ## - python: will use python SNMP integration
-    #
-    # loader: core
-
-    ## @param min_collection_interval - number - optional - default: 15
-    ## This changes the collection interval for the check instances created from
-    ## discovered SNMP devices. It applies to each specific config from `snmp_listener.configs`
-    ## and has precedence over `snmp_listener.min_collection_interval`.
-    ## For more information, see:
-    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
-    #
-    # min_collection_interval: 15
-
-    ## @param use_device_id_as_hostname - boolean - optional - default: false
-    ## Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
-    ## for metrics and service checks (meaning that metrics and services checks will have
-    ## `host:device:<DEVICE_ID>` as tag).
-    ## This option is needed for custom tags.
-    #
-    # use_device_id_as_hostname: true
-
-    ## @param oid_batch_size - integer - optional - default: 5
-    ## The number of OIDs handled by each batch.
-    #
-    # oid_batch_size: 5
-
-    ## @param interface_configs - map - optional
-    ## This option is used to override interface inbound/outbound speed and add interface tags
-    ## Example:
-    ## interface_configs:
-    ##   "10.0.0.1":              # target device IP address
-    ##     - match_field: "name"  # (required) the field to match, can be `name` (interface name) or `index` (ifIndex)
-    ##       match_value: "eth0"  # (required) the value to match
-    ##       in_speed: 50         # (optional) inbound speed value in bits per sec, no value or 0 means no override
-    ##       out_speed: 25        # (optional) outbound speed value in bits per sec, no value or 0 means no override
-    ##       tags:                # (optional) interface level tags
-    ##         - "testTagKey:testTagValue"
-    ##         - "tagKey2:tagValue2"
-    #
-    # interface_config:
-    #   "10.0.0.1":
-    #     - match_field: name
-    #       match_value: eth0
-    #       in_speed: 50
-    #       out_speed: 25
-    #     - match_field: index
-    #       match_value: '10'
-    #       in_speed: 50
-    #       out_speed: 25
-    #   "10.0.0.2":
-    #     - match_field: name
-    #       match_value: eth3
-    #       in_speed: 50
-    #       out_speed: 25
-    #   "10.0.0.3":
-    #     - match_field: name
-    #       match_value: eth4
-    #       tags:
-    #         - "monitored:true"
-    #         - "customKey:customValue"
-
-    ## @param ping - custom object - optional
-    ## Configure ICMP pings for all hosts in SNMP autodiscovery
-    ## Devices will be pinged with these settings each time the SNMP
-    ## check is run.
-    ##
-    ## By default, Datadog tries to use an unprivileged UDP socket to send ICMP
-    ## pings, but some linux systems require using a raw socket.
-    ##
-    ## If `linux.use_raw_socket` is set, you must enable the `ping` module
-    ## of system-probe for elevated privileges. See
-    ## system-probe.yaml.example for details.
-    #
-    # ping:
-    #   enabled: true             # Disabled by default
-    #   timeout: 3000             # Timeout in milliseconds
-    #   count: 2                  # Number of ping packets to send per check run
-    #   interval: 10              # Time between sending pings (up to `count` packets) in milliseconds
-    #   linux:                    # Linux-specific configuration
-    #     use_raw_socket: true    # Send pings in a privileged fashion using a raw socket.
-    #                             # This may be required if your system doesn't support
-    #                             # sending pings in an unprivileged fashion (using a UDP socket).
-    #                             # If `use_raw_socket` is set to true, you MUST also enable
-    #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -3793,6 +3518,283 @@ api_key:
   ## This field is used by NDM features (SNMP check, SNMP Traps listener, etc).
   #
   # namespace: default
+  
+  ## @param autodiscovery - custom object - optional
+  ## Creates and schedules a listener to automatically discover your SNMP devices.
+  ## Discovered devices can then be monitored with the SNMP integration by using
+  ## the auto_conf.yaml file provided by default.
+  #
+  # autodiscovery:
+
+    ## @param workers - integer - optional - default: 2
+    ## The number of concurrent tasks used to discover SNMP devices. Increasing this value
+    ## discovers devices faster but at the cost of increased resource consumption.
+    #
+    # workers: 2
+
+    ## @param discovery_interval - integer - optional - default: 3600
+    ## How often to discover new SNMP devices, in seconds. Decreasing this value
+    ## discovers devices faster (within the limit of the time taken to scan subnets)
+    ## but at the cost of increased resource consumption.
+    #
+    # discovery_interval: 3600
+
+    ## @param discovery_allowed_failures - integer - optional - default: 3
+    ## The number of failed requests to a given SNMP device before removing it from the list of monitored
+    ## devices.
+    ## If a device shuts down, the Agent stops monitoring it after `discovery_interval * discovery_allowed_failures` seconds.
+    #
+    # discovery_allowed_failures: 3
+
+    ## @param loader - string - optional - default: python
+    ## Check loader to use. Available loaders:
+    ## - core: (recommended) Uses new corecheck SNMP integration
+    ## - python: Uses legacy python SNMP integration
+    #
+    # loader: core
+
+    ## @param min_collection_interval - number - optional - default: 15
+    ## This changes the collection interval for the check instances created
+    ## from discovered SNMP devices.
+    ## For more information, see:
+    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+    #
+    # min_collection_interval: 15
+
+    ## @param use_device_id_as_hostname - boolean - optional - default: false
+    ## Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
+    ## for metrics and service checks (meaning that metrics and services checks will have
+    ## `host:device:<DEVICE_ID>` as tag).
+    ## This option is needed for custom tags.
+    #
+    # use_device_id_as_hostname: true
+
+    ## @param ping - custom object - optional
+    ## Configure ICMP pings for all hosts in SNMP autodiscovery
+    ## Devices will be pinged with these settings each time the SNMP
+    ## check is run.
+    ##
+    ## By default, Datadog tries to use an unprivileged UDP socket to send ICMP
+    ## pings, but some Linux systems require using a raw socket.
+    ##
+    ## If `linux.use_raw_socket` is set, you must enable the `ping` module
+    ## of system-probe for elevated privileges. See
+    ## system-probe.yaml.example for details.
+    #
+    # ping:
+    #   enabled: true             # Disabled by default
+    #   timeout: 3000             # Timeout in milliseconds
+    #   count: 2                  # Number of ping packets to send per check run
+    #   interval: 10              # Time between sending pings (up to `count` packets) in milliseconds
+    #   linux:                    # Linux-specific configuration
+    #     use_raw_socket: true    # Send pings in a privileged fashion using a raw socket.
+    #                             # This may be required if your system doesn't support
+    #                             # sending pings in an unprivileged fashion (using a UDP socket).
+    #                             # If `use_raw_socket` is set to true, you MUST also enable
+    #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
+
+    ## @param configs - list - required
+    ## The actual list of configurations used to discover SNMP devices in various subnets.
+    ## Example:
+    ## configs:
+    ##  - network_address: 10.0.0.0/24
+    ##    snmp_version: 1
+    ##    community_string: public
+    ##  - network_address: 10.0.1.0/28
+    ##    community_string: public
+    ##    ignored_ip_addresses:
+    ##      - 10.0.1.0
+    ##      - 10.0.1.1
+    #
+    # configs:
+      ## @param network_address - string - required
+      ## The subnet in CIDR format to scan for SNMP devices.
+      ## All unignored IP addresses in the CIDR range are scanned.
+      ## For optimal discovery time, be sure to use the smallest network mask
+      ## possible as is appropriate for your network topology.
+      ## Ex: 10.0.1.0/24
+      #
+      # - network_address: <NETWORK>
+
+      ## @param ignored_ip_addresses - list of strings - optional
+      ## A list of IP addresses to ignore when scanning the network.
+      #
+      # ignored_ip_addresses:
+      #   - <IP_ADDRESS_1>
+      #   - <IP_ADDRESS_2>
+
+      ## @param port - integer - optional - default: 161
+      ## The UDP port to use when connecting to SNMP devices.
+      #
+      # port: 161
+
+      ## @param snmp_version - integer - optional - default: <BEST_GUESS>
+      ## Set the version of the SNMP protocol. Available options are: `1`, `2` or `3`.
+      ## If unset, the Agent tries to guess the correct version based on other configuration
+      ## parameters, for example: if `user` is set, the Agent uses SNMP v3.
+      #
+      # snmp_version: <VERSION>
+
+      ## @param timeout - integer - optional - default: 5
+      ## The number of seconds before timing out.
+      #
+      # timeout: 5
+
+      ## @param retries - integer - optional - default: 3
+      ## The number of retries before failure.
+      #
+      # retries: 3
+
+      ## @param community_string - string - optional
+      ## Required for SNMP v1 & v2.
+      ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
+      ## Ex: 'public'
+      #
+      # community_string: '<COMMUNITY>'
+
+      ## @param user - string - optional
+      ## The username to connect to your SNMP devices.
+      ## SNMPv3 only.
+      #
+      # user: <USERNAME>
+
+      ## @param authKey - string - optional
+      ## The passphrase to use with your Authentication type.
+      ## SNMPv3 only.
+      #
+      # authKey: <AUTHENTICATION_KEY>
+
+      ## @param authProtocol - string - optional
+      ## The authentication protocol to use when connecting to your SNMP devices.
+      ## Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
+      ## Defaults to MD5 when `authentication_key` is specified.
+      ## SNMPv3 only.
+      #
+      # authProtocol: <AUTHENTICATION_PROTOCOL>
+
+      ## @param privKey - string - optional
+      ## The passphrase to use with your privacy protocol.
+      ## SNMPv3 only.
+      #
+      # privKey: <PRIVACY_KEY>
+
+      ## @param privProtocol - string - optional
+      ## The privacy protocol to use when connecting to your SNMP devices.
+      ## Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
+      ## Defaults to DES when `privacy_key` is specified.
+      ## SNMPv3 only.
+      #
+      # privProtocol: <PRIVACY_PROTOCOL>
+
+      ## @param context_name - string - optional
+      ## The name of your context (optional SNMP v3-only parameter).
+      #
+      # context_name: <CONTEXT_NAME>
+
+      ## @param tags - list of strings - optional
+      ## A list of tags to attach to every metric and service check of all devices discovered in the subnet.
+      ##
+      ## Learn more about tagging at https://docs.datadoghq.com/tagging
+      #
+      # tags:
+      #   - <KEY_1>:<VALUE_1>
+      #   - <KEY_2>:<VALUE_2>
+
+      ## @param ad_identifier - string - optional - default: snmp
+      ## A unique identifier to attach to devices from that subnetwork.
+      ## When configuring the SNMP integration in snmp.d/auto_conf.yaml,
+      ## specify the corresponding ad_identifier at the top of the file.
+      #
+      # ad_identifier: snmp
+
+      ## @param loader - string - optional - default: python
+      ## Check loader to use. Available loaders:
+      ## - core: will use corecheck SNMP integration
+      ## - python: will use python SNMP integration
+      #
+      # loader: core
+
+      ## @param min_collection_interval - number - optional - default: 15
+      ## This changes the collection interval for the check instances created from
+      ## discovered SNMP devices. It applies to each specific config from `snmp_listener.configs`
+      ## and has precedence over `snmp_listener.min_collection_interval`.
+      ## For more information, see:
+      ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+      #
+      # min_collection_interval: 15
+
+      ## @param use_device_id_as_hostname - boolean - optional - default: false
+      ## Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
+      ## for metrics and service checks (meaning that metrics and services checks will have
+      ## `host:device:<DEVICE_ID>` as tag).
+      ## This option is needed for custom tags.
+      #
+      # use_device_id_as_hostname: true
+
+      ## @param oid_batch_size - integer - optional - default: 5
+      ## The number of OIDs handled by each batch.
+      #
+      # oid_batch_size: 5
+
+      ## @param interface_configs - map - optional
+      ## This option is used to override interface inbound/outbound speed and add interface tags
+      ## Example:
+      ## interface_configs:
+      ##   "10.0.0.1":              # target device IP address
+      ##     - match_field: "name"  # (required) the field to match, can be `name` (interface name) or `index` (ifIndex)
+      ##       match_value: "eth0"  # (required) the value to match
+      ##       in_speed: 50         # (optional) inbound speed value in bits per sec, no value or 0 means no override
+      ##       out_speed: 25        # (optional) outbound speed value in bits per sec, no value or 0 means no override
+      ##       tags:                # (optional) interface level tags
+      ##         - "testTagKey:testTagValue"
+      ##         - "tagKey2:tagValue2"
+      #
+      # interface_config:
+      #   "10.0.0.1":
+      #     - match_field: name
+      #       match_value: eth0
+      #       in_speed: 50
+      #       out_speed: 25
+      #     - match_field: index
+      #       match_value: '10'
+      #       in_speed: 50
+      #       out_speed: 25
+      #   "10.0.0.2":
+      #     - match_field: name
+      #       match_value: eth3
+      #       in_speed: 50
+      #       out_speed: 25
+      #   "10.0.0.3":
+      #     - match_field: name
+      #       match_value: eth4
+      #       tags:
+      #         - "monitored:true"
+      #         - "customKey:customValue"
+
+      ## @param ping - custom object - optional
+      ## Configure ICMP pings for all hosts in SNMP autodiscovery
+      ## Devices will be pinged with these settings each time the SNMP
+      ## check is run.
+      ##
+      ## By default, Datadog tries to use an unprivileged UDP socket to send ICMP
+      ## pings, but some linux systems require using a raw socket.
+      ##
+      ## If `linux.use_raw_socket` is set, you must enable the `ping` module
+      ## of system-probe for elevated privileges. See
+      ## system-probe.yaml.example for details.
+      #
+      # ping:
+      #   enabled: true             # Disabled by default
+      #   timeout: 3000             # Timeout in milliseconds
+      #   count: 2                  # Number of ping packets to send per check run
+      #   interval: 10              # Time between sending pings (up to `count` packets) in milliseconds
+      #   linux:                    # Linux-specific configuration
+      #     use_raw_socket: true    # Send pings in a privileged fashion using a raw socket.
+      #                             # This may be required if your system doesn't support
+      #                             # sending pings in an unprivileged fashion (using a UDP socket).
+      #                             # If `use_raw_socket` is set to true, you MUST also enable
+      #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
+
 
   ## @param snmp_traps - custom object - optional
   ## This section configures SNMP traps collection.

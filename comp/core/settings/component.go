@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"go.uber.org/fx"
 )
@@ -32,13 +32,18 @@ type RuntimeSettingResponse struct {
 	Hidden      bool
 }
 
-// Settings define the runtime settings the component would understand
-type Settings map[string]RuntimeSetting
+// Params that the settings component need
+type Params struct {
+	// Settings define the runtime settings the component would understand
+	Settings map[string]RuntimeSetting
+	// The config object in which the settings would apply operations
+	Config config.Component
+}
 
 // Component is the component type.
 type Component interface {
 	// RuntimeSettings returns the configurable settings
-	RuntimeSettings() Settings
+	RuntimeSettings() map[string]RuntimeSetting
 	// GetRuntimeSetting returns the value of a runtime configurable setting
 	GetRuntimeSetting(setting string) (interface{}, error)
 	// SetRuntimeSetting changes the value of a runtime configurable setting
@@ -47,7 +52,7 @@ type Component interface {
 	// API related functions
 	// Todo: (Components) Remove these functions once we can register routes using FX value groups
 	// GetFullConfig returns the full config
-	GetFullConfig(cfg config.Config, namespaces ...string) http.HandlerFunc
+	GetFullConfig(namespaces ...string) http.HandlerFunc
 	// GetValue allows to retrieve the runtime setting
 	GetValue(setting string, w http.ResponseWriter, r *http.Request)
 	// SetValue allows to modify the runtime setting
@@ -58,8 +63,8 @@ type Component interface {
 
 // RuntimeSetting represents a setting that can be changed and read at runtime.
 type RuntimeSetting interface {
-	Get() (interface{}, error)
-	Set(v interface{}, source model.Source) error
+	Get(config config.Component) (interface{}, error)
+	Set(config config.Component, v interface{}, source model.Source) error
 	Description() string
 	Hidden() bool
 }
