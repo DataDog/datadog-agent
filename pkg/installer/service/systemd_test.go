@@ -65,7 +65,7 @@ func TestAssertWorkingCommands(t *testing.T) {
 	a := &apmInjectorInstaller{
 		installPath: "/tmp/stable",
 	}
-	assert.Equal(t, successErr, a.setLDPreloadConfig(testCtx).Error())
+	assert.Equal(t, successErr, replaceLDPreload(testCtx).Error())
 	assert.Equal(t, successErr, a.setAgentConfig(testCtx).Error())
 	assert.Equal(t, successErr, a.setDockerConfig(testCtx).Error())
 }
