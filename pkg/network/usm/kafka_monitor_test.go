@@ -604,13 +604,13 @@ func appendUint32(dst []byte, u uint32) []byte {
 
 // kmsg doesn't have a ResponseFormatter so we need to add the length
 // and the correlation Id ourselves.
-func appendResponse(dst []byte, response kmsg.FetchResponse, correlationId uint32) []byte {
+func appendResponse(dst []byte, response kmsg.FetchResponse, correlationID uint32) []byte {
 	var data []byte
 	data = response.AppendTo(data)
 
 	// Length excludes the field itself
 	dst = appendUint32(dst, uint32(len(data)+4))
-	dst = appendUint32(dst, correlationId)
+	dst = appendUint32(dst, correlationID)
 	dst = append(dst, data...)
 
 	return dst
