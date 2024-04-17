@@ -24,6 +24,7 @@ var (
 	apiKey2 = "api_key2"
 
 	endpointInfoTest = endpointInfo{Endpoint: endpoints.V1ValidateEndpoint}
+	endpointProcessTest = endpointInfo{Endpoint: endpoints.ProcessStatusEndpoint}
 )
 
 func TestCreateEndpointUrl(t *testing.T) {
@@ -59,6 +60,12 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, statusCode, 400)
 	assert.Equal(t, string(responseBody), "Bad Request")
+
+	// With a different subdomain endpoint
+	statusCodeProcess, responseBodyProcess, _, errProcess := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointProcessTest, apiKey1)
+	assert.NoError(t, errProcess)
+	assert.Equal(t, statusCodeProcess, 200)
+	assert.Equal(t, string(responseBodyProcess), "OK")
 }
 
 func TestAcceptRedirection(t *testing.T) {
