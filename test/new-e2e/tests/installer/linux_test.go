@@ -80,11 +80,11 @@ func TestDebianX86(t *testing.T) {
 }
 
 func TestSuseX86(t *testing.T) {
-	runTest(t, "rpm", os.AMD64Arch, os.SuseDefault)
+	runTest(t, "rpm", os.AMD64Arch, os.SuseDefault, false)
 }
 
 func TestSuseARM(t *testing.T) {
-	runTest(t, "rpm", os.ARM64Arch, os.SuseDefault)
+	runTest(t, "rpm", os.ARM64Arch, os.SuseDefault, false)
 }
 
 func (v *vmUpdaterSuite) TestUserGroupsCreation() {
