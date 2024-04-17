@@ -8,6 +8,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../telemetry/
+	github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl => ../telemetry/telemetryimpl
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/logs => ../../../pkg/config/logs
@@ -41,7 +42,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // v2.6
 	github.com/stretchr/testify v1.9.0
-	go.uber.org/fx v1.18.2
+	go.uber.org/fx v1.21.0
 )
 
 require (
@@ -113,11 +114,11 @@ require (
 	go.opentelemetry.io/collector/confmap v0.97.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.4.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.97.0 // indirect
-	go.opentelemetry.io/otel v1.24.0 // indirect
-	go.opentelemetry.io/otel/metric v1.24.0 // indirect
-	go.opentelemetry.io/otel/trace v1.24.0 // indirect
+	go.opentelemetry.io/otel v1.25.0 // indirect
+	go.opentelemetry.io/otel/metric v1.25.0 // indirect
+	go.opentelemetry.io/otel/trace v1.25.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/dig v1.17.0 // indirect
+	go.uber.org/dig v1.17.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
