@@ -29,6 +29,7 @@ func (p *DefaultFallbackProvider) LoadPolicies(_ []rules.MacroFilter, _ []rules.
 		Version: version.AgentVersion,
 	}
 
+	// TODO: use LoadPolicy as in policy_dir.go
 	return []*rules.Policy{policy}, nil
 }
 
