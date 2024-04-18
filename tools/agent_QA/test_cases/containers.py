@@ -90,7 +90,7 @@ chentex/random-logger:<AGENT_IMAGE>
 ------
 # Test
 
-- Collect all activated => Source and service are properly set 
+- Collect all activated => Source and service are properly set
 - Collect all disabled => Source and service are properly set and only this container is collected
 - Check that processing rules are working in AD labels:  `com.datadoghq.ad.logs: '[{"source": "java", "service": "myapp", "log_processing_rules": [{"type": "multi_line", "name": "log_start_with_date", "pattern" : "\\d{4}\\-(0?[1-9]|1[012])\\-(0?[1-9]|[12][0-9]|3[01])"}]}]'``
 - `DD_LOGS_CONFIG_DOCKER_CONTAINER_USE_FILE=false` uses docker socket to collect logs
@@ -128,7 +128,7 @@ docker run --log-driver json-file --log-opt max-size=10k --log-opt max-file=1 -d
 Run a container with
 
 ```
-docker run --log-driver json-file -d centos bash -c "echo '1'; echo '2'; sleep 99999999" 
+docker run --log-driver json-file -d centos bash -c "echo '1'; echo '2'; sleep 99999999"
 ```
 
 ## Test
@@ -193,7 +193,7 @@ datadog/agent:<AGENT_IMAGE>
 ---
 # Test
 
-- All logs from all containers are collected from file and not from the docker socket (see `agent status` that will now show whether a container is tailed from the docker socket or it's log file) 
+- All logs from all containers are collected from file and not from the docker socket (see `agent status` that will now show whether a container is tailed from the docker socket or it's log file)
 - All logs are properly tagged with container metadata
 - When the agent cannot reach /var/lib/docker/containers it should fallback on tailing from the docker socket
 - Logs are properly tagged with container metadata
@@ -247,7 +247,7 @@ dd7ad06a44e6  docker.io/library/bash:latest                            -c while 
 ---
 # Test
 
-- All logs from podman containers are collected from file and not from the docker socket (see `agent status` that will now show whether a container is tailed from the docker socket or it's log file) 
+- All logs from podman containers are collected from file and not from the docker socket (see `agent status` that will now show whether a container is tailed from the docker socket or it's log file)
 - All logs are properly tagged with container metadata
 
 """
@@ -297,7 +297,7 @@ dd7ad06a44e6  docker.io/library/bash:latest                            -c while 
 ---
 To check:
 
-- All logs from podman containers are collected from the docker socket (see `agent status` that will now show whether a container is tailed from the docker socket or it's log file) 
+- All logs from podman containers are collected from the docker socket (see `agent status` that will now show whether a container is tailed from the docker socket or it's log file)
 - All logs are properly tagged with container metadata
 """
         )
@@ -305,7 +305,7 @@ To check:
 
 class ContainerScenario(TestCase):
     def __init__(self, k8s, cfgsource, cca, kcuf, dcuf):
-        super(ContainerScenario, self).__init__()
+        super().__init__()
         self.k8s = k8s
         self.cfgsource = cfgsource
         self.cca = cca

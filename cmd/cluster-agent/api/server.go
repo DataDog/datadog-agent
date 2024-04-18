@@ -32,8 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -68,7 +68,7 @@ func StartServer(w workloadmeta.Component, taggerComp tagger.Component, ac autod
 	v1.InstallMetadataEndpoints(apiRouter, w)
 
 	// API V1 Language Detection APIs
-	languagedetection.InstallLanguageDetectionEndpoints(apiRouter, w)
+	languagedetection.InstallLanguageDetectionEndpoints(apiRouter, w, cfg)
 
 	// Validate token for every request
 	router.Use(validateToken)

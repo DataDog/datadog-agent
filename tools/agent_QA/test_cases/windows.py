@@ -6,7 +6,6 @@ class TestEventLog(TestCase):
     name = "[Windows Event] Agent collect windows event as logs"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 
@@ -32,6 +31,6 @@ PS C:\\> Write-EventLog -LogName "Testing123" -Source "MyApp" -EventID 3001 -Ent
 
 # Test
 
-- check that the emitted logs show up in app. Only the `Testing123` should appear. 
+- check that the emitted logs show up in app. Only the `Testing123` should appear.
 """
         )

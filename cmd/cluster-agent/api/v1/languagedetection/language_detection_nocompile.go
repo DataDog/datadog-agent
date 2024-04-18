@@ -8,9 +8,10 @@
 package languagedetection
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/gorilla/mux"
 )
 
 // InstallLanguageDetectionEndpoints installs language detection endpoints
-func InstallLanguageDetectionEndpoints(_ *mux.Router, _ workloadmeta.Component) {}
+func InstallLanguageDetectionEndpoints(_ *mux.Router, _ workloadmeta.Component, _ config.Component) {}
