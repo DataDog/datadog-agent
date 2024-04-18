@@ -115,10 +115,6 @@
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::7")
     - tasks/run-test-kitchen.sh upgrade7-test $AGENT_MAJOR_VERSION
 
-.kitchen_test_process_agent:
-  script:
-    - tasks/run-test-kitchen.sh process-agent-test $AGENT_MAJOR_VERSION
-
 # Kitchen: Agent flavor
 # -------------------------------
 
