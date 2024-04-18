@@ -218,7 +218,6 @@ func (s *TracerSuite) TestTCPShortLived() {
 	t := s.T()
 	// Enable BPF-based system probe
 	cfg := testConfig()
-	cfg.TCPClosedTimeout = 10 * time.Millisecond
 	tr := setupTracer(t, cfg)
 
 	// Create TCP Server which sends back serverMessageSize bytes
@@ -1050,8 +1049,6 @@ func (s *TracerSuite) TestTCPEstablished() {
 	t := s.T()
 	// Ensure closed connections are flushed as soon as possible
 	cfg := testConfig()
-	cfg.TCPClosedTimeout = 500 * time.Millisecond
-
 	tr := setupTracer(t, cfg)
 
 	server := testutil.NewTCPServer(func(c net.Conn) {
@@ -1069,14 +1066,13 @@ func (s *TracerSuite) TestTCPEstablished() {
 
 	connections := getConnections(t, tr)
 	conn, ok := findConnection(laddr, raddr, connections)
-
 	require.True(t, ok)
 	assert.Equal(t, uint32(1), conn.Last.TCPEstablished)
 	assert.Equal(t, uint32(0), conn.Last.TCPClosed)
 
 	c.Close()
-	// Wait for the connection to be sent from the perf buffer
-	time.Sleep(cfg.TCPClosedTimeout)
+	// Wait for the connection to be closed
+	time.Sleep(500 * time.Millisecond)
 
 	connections = getConnections(t, tr)
 	conn, ok = findConnection(laddr, raddr, connections)
@@ -1100,14 +1096,12 @@ func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
 
 	// Ensure closed connections are flushed as soon as possible
 	cfg := testConfig()
-	cfg.TCPClosedTimeout = 500 * time.Millisecond
-
 	tr := setupTracer(t, cfg)
 
 	c.Write([]byte("hello"))
 	c.Close()
 	// Wait for the connection to be sent from the perf buffer
-	time.Sleep(cfg.TCPClosedTimeout)
+	time.Sleep(500 * time.Millisecond)
 	connections := getConnections(t, tr)
 	conn, ok := findConnection(laddr, raddr, connections)
 

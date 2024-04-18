@@ -42,7 +42,7 @@ BPF_PERF_EVENT_ARRAY_MAP(conn_fail_event, __u32)
  * or BPF_MAP_TYPE_PERCPU_ARRAY, but they are not available in
  * some of the Kernels we support (4.4 ~ 4.6)
  */
-BPF_HASH_MAP(conn_close_batch, __u32, batch_t, 1024)
+BPF_HASH_MAP(conn_close_batch, __u32, batch_t, 1)
 
 /*
  * Map to hold struct sock parameter for tcp_sendmsg calls

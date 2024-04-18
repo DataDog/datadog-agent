@@ -10,14 +10,10 @@ package failure
 
 import (
 	"sync"
-	"unsafe"
 
-	manager "github.com/DataDog/ebpf-manager"
-
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const failedConnConsumerModuleName = "network_tracer__ebpf"
@@ -25,26 +21,27 @@ const failedConnConsumerModuleName = "network_tracer__ebpf"
 // Telemetry
 var failedConnConsumerTelemetry = struct {
 	eventsReceived telemetry.Counter
-	eventsLost     telemetry.Counter
 }{
 	telemetry.NewCounter(failedConnConsumerModuleName, "failed_conn_polling_received", []string{}, "Counter measuring the number of failed connections received"),
-	telemetry.NewCounter(failedConnConsumerModuleName, "failed_conn_polling_lost", []string{}, "Counter measuring the number of failed connections lost (were transmitted from ebpf but never received)"),
 }
 
 // TCPFailedConnConsumer consumes failed connection events from the kernel
 type TCPFailedConnConsumer struct {
-	eventHandler ddebpf.EventHandler
-	once         sync.Once
-	closed       chan struct{}
-	FailedConns  *FailedConns
+	dataChan <-chan *netebpf.FailedConn
+	releaser ddsync.PoolReleaser[netebpf.FailedConn]
+
+	once        sync.Once
+	closed      chan struct{}
+	FailedConns *FailedConns
 }
 
 // NewFailedConnConsumer creates a new TCPFailedConnConsumer
-func NewFailedConnConsumer(eventHandler ddebpf.EventHandler, m *manager.Manager) *TCPFailedConnConsumer {
+func NewFailedConnConsumer(callbackCh <-chan *netebpf.FailedConn, releaser ddsync.PoolReleaser[netebpf.FailedConn], fc *FailedConns) *TCPFailedConnConsumer {
 	return &TCPFailedConnConsumer{
-		eventHandler: eventHandler,
-		closed:       make(chan struct{}),
-		FailedConns:  NewFailedConns(m),
+		releaser:    releaser,
+		dataChan:    callbackCh,
+		closed:      make(chan struct{}),
+		FailedConns: fc,
 	}
 }
 
@@ -53,18 +50,10 @@ func (c *TCPFailedConnConsumer) Stop() {
 	if c == nil {
 		return
 	}
-	c.eventHandler.Stop()
 	c.once.Do(func() {
 		close(c.closed)
 	})
 	c.FailedConns.mapCleaner.Stop()
-}
-
-func (c *TCPFailedConnConsumer) extractConn(data []byte) {
-	failedConn := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
-	failedConnConsumerTelemetry.eventsReceived.Inc()
-
-	c.FailedConns.upsertConn(failedConn)
 }
 
 // Start starts the consumer
@@ -74,34 +63,17 @@ func (c *TCPFailedConnConsumer) Start() {
 	}
 
 	go func() {
-		dataChannel := c.eventHandler.DataChannel()
-		lostChannel := c.eventHandler.LostChannel()
 		for {
 			select {
-
 			case <-c.closed:
 				return
-			case dataEvent, ok := <-dataChannel:
+			case failedConn, ok := <-c.dataChan:
 				if !ok {
 					return
 				}
-
-				l := len(dataEvent.Data)
-				switch {
-				case l >= netebpf.SizeofFailedConn:
-					c.extractConn(dataEvent.Data)
-				default:
-					log.Errorf("unknown type received from buffer, skipping. data size=%d, expecting %d", len(dataEvent.Data), netebpf.SizeofFailedConn)
-					continue
-				}
-				failedConnConsumerTelemetry.eventsLost.Inc()
-				dataEvent.Done()
-			// lost events only occur when using perf buffers
-			case lc, ok := <-lostChannel:
-				if !ok {
-					return
-				}
-				failedConnConsumerTelemetry.eventsLost.Add(float64(lc))
+				failedConnConsumerTelemetry.eventsReceived.Inc()
+				c.FailedConns.upsertConn(failedConn)
+				c.releaser.Put(failedConn)
 			}
 		}
 	}()

@@ -222,7 +222,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 // start starts the tracer. This function is present to separate
 // the creation from the start of the tracer for tests
 func (t *Tracer) start() error {
-	err := t.ebpfTracer.Start(t.storeClosedConnections)
+	err := t.ebpfTracer.Start(t.storeClosedConnection)
 	if err != nil {
 		t.Stop()
 		return fmt.Errorf("could not start ebpf tracer: %s", err)
@@ -290,37 +290,31 @@ func newReverseDNS(c *config.Config, telemetrycomp telemetryComponent.Component)
 	return rdns
 }
 
-// storeClosedConnections is triggered when:
+// storeClosedConnection is triggered when:
 // * the current closed connection batch fills up
 // * the client asks for the current connections
 // this function is responsible for storing the closed connections in the state and
 // matching failed connections to closed connections
-func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
-	var rejected int
-	for i := range connections {
-		cs := &connections[i]
-		cs.IsClosed = true
-		if t.shouldSkipConnection(cs) {
-			connections[rejected], connections[i] = connections[i], connections[rejected]
-			rejected++
-			tracerTelemetry.skippedConns.IncWithTags(cs.Type.Tags())
-			continue
-		}
-
-		cs.IPTranslation = t.conntracker.GetTranslationForConn(*cs)
-		t.connVia(cs)
-		if cs.IPTranslation != nil {
-			t.conntracker.DeleteTranslation(*cs)
-		}
-
-		t.addProcessInfo(cs)
-
-		tracerTelemetry.closedConns.IncWithTags(cs.Type.Tags())
-		t.ebpfTracer.GetFailedConnections().MatchFailedConn(cs)
+func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
+	cs.IsClosed = true
+	if t.shouldSkipConnection(cs) {
+		tracerTelemetry.skippedConns.IncWithTags(cs.Type.Tags())
+		return
 	}
 
-	connections = connections[rejected:]
-	t.state.StoreClosedConnections(connections)
+	cs.IPTranslation = t.conntracker.GetTranslationForConn(*cs)
+	t.connVia(cs)
+	if cs.IPTranslation != nil {
+		t.conntracker.DeleteTranslation(*cs)
+	}
+
+	t.addProcessInfo(cs)
+
+	tracerTelemetry.closedConns.IncWithTags(cs.Type.Tags())
+	t.ebpfTracer.GetFailedConnections().MatchFailedConn(cs)
+
+	// intentional allocation to create copy of connection for storage
+	t.state.StoreClosedConnection(*cs)
 }
 
 func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {

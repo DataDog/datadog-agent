@@ -8,6 +8,16 @@ package sync
 
 import "sync"
 
+// PoolReleaser is interface that wraps a sync.Pool Put function
+type PoolReleaser[K any] interface {
+	Put(*K)
+}
+
+// PoolGetter is interface that wraps a sync.Pool Get function
+type PoolGetter[K any] interface {
+	Get() *K
+}
+
 // TypedPool is a type-safe version of sync.Pool
 type TypedPool[K any] struct {
 	p sync.Pool

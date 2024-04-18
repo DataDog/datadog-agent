@@ -11,15 +11,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
 func TestTcpCloseConsumerStopRace(t *testing.T) {
-	pf := ebpf.NewPerfHandler(10)
-	require.NotNil(t, pf)
-
-	c := newTCPCloseConsumer(pf, nil)
+	c := newTCPCloseConsumer(nil, nil, nil)
 	require.NotNil(t, c)
 
 	c.Stop()

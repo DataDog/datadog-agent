@@ -18,11 +18,14 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/encoding"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
@@ -38,32 +41,39 @@ const (
 
 var traceTypes = []string{"enter", "exit"}
 
+var libPathPool = ddsync.NewDefaultTypedPool[libPath]()
+
 type ebpfProgram struct {
-	cfg         *config.Config
-	perfHandler *ddebpf.PerfHandler
+	cfg          *config.Config
+	eventHandler *perf.EventHandler
+	eventChannel <-chan *libPath
 	*ddebpf.Manager
 }
 
 func newEBPFProgram(c *config.Config) *ebpfProgram {
-	perfHandler := ddebpf.NewPerfHandler(100)
-	pm := &manager.PerfMap{
-		Map: manager.Map{
-			Name: sharedLibrariesPerfMap,
-		},
-		PerfMapOptions: manager.PerfMapOptions{
-			PerfRingBufferSize: 8 * os.Getpagesize(),
-			Watermark:          1,
-			RecordHandler:      perfHandler.RecordHandler,
-			LostHandler:        perfHandler.LostHandler,
-			RecordGetter:       perfHandler.RecordGetter,
-			TelemetryEnabled:   c.InternalTelemetryEnabled,
+	callback, callbackCh := ddsync.CallbackChannel[*libPath](100)
+	ehopts := perf.EventHandlerOptions{
+		MapName:          sharedLibrariesPerfMap,
+		TelemetryEnabled: c.InternalTelemetryEnabled,
+		UseRingBuffer:    false,
+		Handler: encoding.BinaryUnmarshalCallback(libPathPool.Get, func(b *libPath, err error) {
+			if err != nil {
+				log.Debug(err.Error())
+				return
+			}
+			callback(b)
+		}),
+		PerfOptions: perf.PerfBufferOptions{
+			BufferSize: 8 * os.Getpagesize(),
+			Watermark:  1,
 		},
 	}
-	mgr := &manager.Manager{
-		PerfMaps: []*manager.PerfMap{pm},
+	eh, err := perf.NewEventHandler(ehopts)
+	if err != nil {
+		return nil
 	}
-	ebpftelemetry.ReportPerfMapTelemetry(pm)
 
+	mgr := &manager.Manager{}
 	probeIDs := getSysOpenHooksIdentifiers()
 	for _, identifier := range probeIDs {
 		mgr.Probes = append(mgr.Probes,
@@ -73,11 +83,13 @@ func newEBPFProgram(c *config.Config) *ebpfProgram {
 			},
 		)
 	}
+	emgr := ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	return &ebpfProgram{
-		cfg:         c,
-		Manager:     ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
-		perfHandler: perfHandler,
+		cfg:          c,
+		Manager:      emgr,
+		eventHandler: eh,
+		eventChannel: callbackCh,
 	}
 }
 
@@ -110,17 +122,20 @@ func (e *ebpfProgram) Init() error {
 	return e.initPrebuilt()
 }
 
-func (e *ebpfProgram) GetPerfHandler() *ddebpf.PerfHandler {
-	return e.perfHandler
+func (e *ebpfProgram) GetPerfHandler() <-chan *libPath {
+	return e.eventChannel
 }
 
 func (e *ebpfProgram) Stop() {
 	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
-	e.Manager.Stop(manager.CleanAll) //nolint:errcheck
-	e.perfHandler.Stop()
+	_ = e.Manager.Stop(manager.CleanAll)
 }
 
 func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
+	if err := e.Manager.LoadELF(buf); err != nil {
+		return err
+	}
+
 	options.RLimit = &unix.Rlimit{
 		Cur: math.MaxUint64,
 		Max: math.MaxUint64,
@@ -135,7 +150,11 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	options.BypassEnabled = e.cfg.BypassEnabled
-	return e.InitWithOptions(buf, &options)
+
+	if err := e.eventHandler.Init(e.Manager.Manager, &options); err != nil {
+		return err
+	}
+	return e.InitWithOptions(nil, &options)
 }
 
 func (e *ebpfProgram) initCORE() error {
