@@ -11,10 +11,16 @@ type (
 	// of Traceroute
 	Config struct {
 		// TODO: add common configuration
+		// Destination Hostname
 		DestHostname string
-		DestPort     uint16
-		MaxTTL       uint8
-		TimeoutMs    uint
+		// Destination Port number
+		DestPort uint16
+		// Max number of hops to try
+		MaxTTL uint8
+		// Wait time per request
+		WaitTimeMs uint
+		// Total timeout for traceroute
+		TimeoutMs uint
 	}
 
 	// Traceroute defines an interface for running

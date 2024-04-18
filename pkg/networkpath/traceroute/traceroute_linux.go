@@ -8,7 +8,9 @@
 package traceroute
 
 import (
+	"context"
 	"encoding/json"
+	"time"
 
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -42,7 +44,14 @@ func (l *LinuxTraceroute) Run() (NetworkPath, error) {
 		log.Warnf("could not initialize system-probe connection: %s", err.Error())
 		return NetworkPath{}, err
 	}
-	resp, err := tu.GetTraceroute(clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.MaxTTL, l.cfg.TimeoutMs)
+
+	var cancel context.CancelFunc
+	ctx := context.Background()
+	if l.cfg.TimeoutMs > 0 {
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(l.cfg.TimeoutMs)*time.Millisecond)
+		defer cancel()
+	}
+	resp, err := tu.GetTraceroute(ctx, clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.MaxTTL, l.cfg.TimeoutMs)
 	if err != nil {
 		return NetworkPath{}, err
 	}

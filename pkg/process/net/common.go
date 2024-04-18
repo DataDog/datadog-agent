@@ -56,8 +56,9 @@ type RemoteSysProbeUtil struct {
 	// Retrier used to setup system probe
 	initRetry retry.Retrier
 
-	path       string
-	httpClient http.Client
+	path                  string
+	httpClient            http.Client
+	extendedTimeoutClient http.Client
 }
 
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
@@ -195,14 +196,14 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 }
 
 // GetTraceroute returns the results of a traceroute to a host
-func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, maxTTL uint8, timeout uint) ([]byte, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d", tracerouteURL, host, clientID, port, maxTTL, timeout), nil)
+func (r *RemoteSysProbeUtil) GetTraceroute(ctx context.Context, clientID string, host string, port uint16, maxTTL uint8, timeout uint) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d", tracerouteURL, host, clientID, port, maxTTL, timeout), nil)
 	if err != nil {
 		return nil, err
 	}
 
 	req.Header.Set("Accept", "application/json")
-	resp, err := r.httpClient.Do(req)
+	resp, err := r.extendedTimeoutClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -289,6 +290,19 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 				},
 				TLSHandshakeTimeout:   1 * time.Second,
 				ResponseHeaderTimeout: 5 * time.Second,
+				ExpectContinueTimeout: 50 * time.Millisecond,
+			},
+		},
+		extendedTimeoutClient: http.Client{
+			Timeout: 120 * time.Second,
+			Transport: &http.Transport{
+				MaxIdleConns:    2,
+				IdleConnTimeout: 100 * time.Second,
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial(netType, path)
+				},
+				TLSHandshakeTimeout:   1 * time.Second,
+				ResponseHeaderTimeout: 100 * time.Second,
 				ExpectContinueTimeout: 50 * time.Millisecond,
 			},
 		},
