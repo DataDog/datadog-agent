@@ -39,6 +39,8 @@ type TCPConnection struct {
 	// Sourced from /proc/<PID>/fd
 	PID uint32
 	FD  uint32
+	// Sourced from /proc/<PID>/ns
+	NetNS uint32
 }
 
 // GetTCPConnections returns a list of all existing TCP connections
@@ -99,6 +101,11 @@ func matchFDWithSocket(procRoot string, pid int, connByInode map[int]TCPConnecti
 		return conns
 	}
 
+	netNS, err := kernel.GetNetNsInoFromPid(procRoot, pid)
+	if err != nil {
+		return conns
+	}
+
 	for _, fd := range fds {
 		info, err := os.Stat(filepath.Join(fdsDir, fd.Name()))
 		if err != nil {
@@ -122,6 +129,7 @@ func matchFDWithSocket(procRoot string, pid int, connByInode map[int]TCPConnecti
 
 		conn.PID = uint32(pid)
 		conn.FD = uint32(fdNum)
+		conn.NetNS = netNS
 		conns = append(conns, conn)
 	}
 
