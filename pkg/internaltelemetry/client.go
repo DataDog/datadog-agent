@@ -174,35 +174,42 @@ func (c *client) sendPayload(requestType RequestType, payload interface{}) {
 		log.Errorf("failed to serialize payload: %v", err)
 		return
 	}
+	group := sync.WaitGroup{}
 	for _, endpoint := range c.endpoints {
-		url := fmt.Sprintf("%s%s", endpoint.Host, telemetryEndpoint)
-		req, err := http.NewRequest("POST", url, bytes.NewReader(serializedPayload))
-		if err != nil {
-			log.Errorf("failed to create request for endpoint %s: %v", url, err)
-			continue
-		}
-		req.Header.Add("dd-api-key", endpoint.APIKey)
-		req.Header.Add("content-type", "application/json")
-		req.Header.Add("dd-telemetry-api-version", "v2")
-		req.Header.Add("dd-telemetry-request-type", string(event.RequestType))
-		req.Header.Add("dd-telemetry-origin", event.Origin)
-		req.Header.Add("dd-client-library-language", event.Application.LanguageName)
-		req.Header.Add("dd-client-library-version", event.Application.TracerVersion)
-		req.Header.Add("dd-telemetry-debug-enabled", strconv.FormatBool(event.DebugFlag))
-		req.Header.Add("dd-agent-hostname", event.Host.Hostname)
+		group.Add(1)
+		go func(endpoint *config.Endpoint) {
+			defer group.Done()
+			url := fmt.Sprintf("%s%s", endpoint.Host, telemetryEndpoint)
+			req, err := http.NewRequest("POST", url, bytes.NewReader(serializedPayload))
+			if err != nil {
+				log.Errorf("failed to create request for endpoint %s: %v", url, err)
+				return
+			}
+			req.Header.Add("dd-api-key", endpoint.APIKey)
+			req.Header.Add("content-type", "application/json")
+			req.Header.Add("dd-telemetry-api-version", "v2")
+			req.Header.Add("dd-telemetry-request-type", string(event.RequestType))
+			req.Header.Add("dd-telemetry-origin", event.Origin)
+			req.Header.Add("dd-client-library-language", event.Application.LanguageName)
+			req.Header.Add("dd-client-library-version", event.Application.TracerVersion)
+			req.Header.Add("dd-telemetry-debug-enabled", strconv.FormatBool(event.DebugFlag))
+			req.Header.Add("dd-agent-hostname", event.Host.Hostname)
 
-		ctx, cancel := context.WithTimeout(context.Background(), c.sendPayloadTimeout)
-		req = req.WithContext(ctx)
-		resp, err := c.client.Do(req)
-		cancel()
-		if err != nil {
-			log.Warnf("failed to send telemetry payload to endpoint %s: %v", url, err)
-			continue
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			log.Warnf("failed to send telemetry payload to endpoint %s: %s", url, resp.Status)
-		}
-		_, _ = io.Copy(io.Discard, resp.Body)
+			ctx, cancel := context.WithTimeout(context.Background(), c.sendPayloadTimeout)
+			req = req.WithContext(ctx)
+			resp, err := c.client.Do(req)
+			cancel()
+			if err != nil {
+				log.Warnf("failed to send telemetry payload to endpoint %s: %v", url, err)
+				return
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				log.Warnf("failed to send telemetry payload to endpoint %s: %s", url, resp.Status)
+			}
+			_, _ = io.Copy(io.Discard, resp.Body)
+
+		}(endpoint)
 	}
+	group.Wait()
 }
