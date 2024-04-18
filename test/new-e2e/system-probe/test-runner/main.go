@@ -46,14 +46,11 @@ type testConfig struct {
 	verbose           bool
 	packagesRunConfig map[string]packageRunConfiguration
 	testDirRoot       string
+	testingTools      string
 	extraParams       string
 }
 
 const ciVisibility = "/ci-visibility"
-const dependenciesDir = "/opt/kmt-ramfs/testing-tools"
-
-var gotestsum = fmt.Sprintf("%s/go/bin/gotestsum", dependenciesDir)
-var test2json = fmt.Sprintf("%s/go/bin/test2json", dependenciesDir)
 
 var baseEnv = []string{
 	"GITLAB_CI=true", // force color output support to be detected
@@ -110,6 +107,7 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 	if testConfig.verbose {
 		verbosity = "standard-verbose"
 	}
+
 	args := []string{
 		"--format", verbosity,
 		"--junitfile", xmlpath,
@@ -117,7 +115,7 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 		fmt.Sprintf("--rerun-fails=%d", testConfig.retryCount),
 		"--rerun-fails-max-failures=100",
 		"--raw-command", "--",
-		test2json, "-t", "-p", pkg, file, "-test.v", fmt.Sprintf("-test.count=%d", testConfig.runCount), "-test.timeout=" + getTimeout(pkg).String(),
+		fmt.Sprintf("%s/go/bin/test2json", testConfig.testingTools), "-t", "-p", pkg, file, "-test.v", fmt.Sprintf("-test.count=%d", testConfig.runCount), "-test.timeout=" + getTimeout(pkg).String(),
 	}
 
 	if testConfig.extraParams != "" {
@@ -208,7 +206,7 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
 		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuite, testConfig)
 
-		cmd := exec.Command(gotestsum, args...)
+		cmd := exec.Command(fmt.Sprintf("%s/go/bin/gotestsum", testConfig.testingTools), args...)
 		baseEnv = append(
 			baseEnv,
 			"DD_SYSTEM_PROBE_BPF_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/ebpf/bytecode/build"),
@@ -241,6 +239,7 @@ func buildTestConfiguration() (*testConfig, error) {
 	verbose := flag.Bool("verbose", false, "if set to true verbosity level is 'standard-verbose', otherwise it is 'testname'")
 	runCount := flag.Int("run-count", 1, "number of times to run the test")
 	testRoot := flag.String("test-root", "/opt/system-probe-tests", "directory containing test packages")
+	testTools := flag.String("test-tools", "/opt/testing-tools", "directory containing test tools")
 	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
 
 	flag.Parse()
@@ -266,6 +265,7 @@ func buildTestConfiguration() (*testConfig, error) {
 		retryCount:        *retryPtr,
 		packagesRunConfig: breakdown,
 		testDirRoot:       *testRoot,
+		testingTools:      *testTools,
 		extraParams:       *extraParams,
 	}, nil
 }

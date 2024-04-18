@@ -457,11 +457,12 @@ def prepare(
     ci=False,
 ):
 
-    stack = "ci"
     if not ci:
         stack = check_and_get_stack(stack)
         if not stacks.stack_exists(stack):
             raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+    else:
+        stack = "ci"
 
     go_root = os.getenv("GOROOT")
     if not ci:
@@ -490,7 +491,6 @@ def prepare(
         f"{go_root}/bin/gotestsum": f"{paths.dependencies}/go/bin/gotestsum",
         "/opt/datadog-agent/embedded/bin/clang-bpf": f"{paths.arch_dir}/opt/datadog-agent/embedded/bin/clang-bpf",
         "/opt/datadog-agent/embedded/bin/llc-bpf": f"{paths.arch_dir}/opt/datadog-agent/embedded/bin/llc-bpf",
-        f"{os.getcwd()}/test/new-e2e/system-probe/test/micro-vm-init.sh": f"{paths.arch_dir}/opt/micro-vm-init.sh",
     }
 
     for sf, df in copy_executables.items():
@@ -655,6 +655,13 @@ def kmt_prepare(
             },
         )
 
+        nw.build(
+            rule="copyfiles",
+            outputs=[f"{kmt_paths.arch_dir}/opt/micro-vm-init.sh"],
+            inputs=[f"{os.getcwd()}/test/new-e2e/system-probe/test/micro-vm-init.sh"],
+            variables={"mode": "-m744"},
+        )
+
         # copy object files
         object_files = [
             os.path.abspath(i) for i in glob("**/*.o", recursive=True) if i.split('/')[0] == "pkg" and "build" in i
@@ -794,6 +801,7 @@ def test(
             f"-run-count {run_count}",
             "-test-root /opt/system-probe-tests",
             f"-extra-params {test_extra_arguments}" if test_extra_arguments is not None else "",
+            "-test-tools /opt/testing-tools",
         ]
         for d in domains:
             info(f"[+] Running tests on {d}")
