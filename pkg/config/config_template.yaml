@@ -3569,6 +3569,11 @@ api_key:
     #
     # use_device_id_as_hostname: true
 
+    ## @param collect_topology - boolean - optional - default: true
+    ## Enable the collection of topology (LLDP/CDP) data
+    #
+    # collect_topology: true
+
     ## @param ping - custom object - optional
     ## Configure ICMP pings for all hosts in SNMP autodiscovery
     ## Devices will be pinged with these settings each time the SNMP
