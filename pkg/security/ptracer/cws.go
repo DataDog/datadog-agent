@@ -302,6 +302,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		go func() {
 			defer wg.Done()
 
+			// introduce a delay before starting to scan procfs to let the tracer event first
+			time.Sleep(2 * time.Second)
+
 			scanProcfs(ctx, tracer.PID, send, every, logger)
 		}()
 	}
