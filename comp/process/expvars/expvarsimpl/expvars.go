@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -55,15 +54,10 @@ type dependencies struct {
 
 func newExpvarServer(deps dependencies) (optional.Option[expvars.Component], error) {
 	// Initialize status
-	err := initStatus(deps)
+	err := InitProcessStatus(deps.Config, deps.SysProbeConfig, deps.HostInfo, deps.Log, deps.Telemetry)
 	if err != nil {
 		_ = deps.Log.Critical("Failed to initialize status server:", err)
 		return optional.NewNoneOption[expvars.Component](), err
-	}
-
-	if flavor.GetFlavor() != flavor.ProcessAgent {
-		// Don't run the server outside of the process agent
-		return optional.NewNoneOption[expvars.Component](), nil
 	}
 
 	expvarPort := getExpvarPort(deps)
@@ -99,21 +93,28 @@ func getExpvarPort(deps dependencies) int {
 	return expVarPort
 }
 
-func initStatus(deps dependencies) error {
+// InitProcessStatus initializes the data required for the process status
+func InitProcessStatus(
+	Config config.Component,
+	SysProbeConfig sysprobeconfig.Component,
+	HostInfo hostinfo.Component,
+	Log log.Component,
+	Telemetry telemetry.Component,
+) error {
 	// update docker socket path in info
 	dockerSock, err := util.GetDockerSocketPath()
 	if err != nil {
-		deps.Log.Debugf("Docker is not available on this host")
+		Log.Debugf("Docker is not available on this host")
 	}
 	status.UpdateDockerSocket(dockerSock)
 
 	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-	_, processModuleEnabled := deps.SysProbeConfig.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
-	eps, err := endpoint.GetAPIEndpoints(deps.Config)
+	_, processModuleEnabled := SysProbeConfig.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
+	eps, err := endpoint.GetAPIEndpoints(Config)
 	if err != nil {
-		_ = deps.Log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
+		_ = Log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
 	}
-	languageDetectionEnabled := deps.Config.GetBool("language_detection.enabled")
-	status.InitExpvars(deps.Config, deps.Telemetry, deps.HostInfo.Object().HostName, processModuleEnabled, languageDetectionEnabled, eps)
+	languageDetectionEnabled := Config.GetBool("language_detection.enabled")
+	status.InitExpvars(Config, Telemetry, HostInfo.Object().HostName, processModuleEnabled, languageDetectionEnabled, eps)
 	return nil
 }

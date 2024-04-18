@@ -12,7 +12,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
+	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/expvarsimpl"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -40,12 +44,15 @@ func Module() fxutil.Module {
 type processAgentParams struct {
 	fx.In
 
-	Lc        fx.Lifecycle
-	Log       logComponent.Component
-	Config    config.Component
-	Checks    []types.CheckComponent `group:"check"`
-	Runner    runner.Component
-	Submitter submitterComp.Component
+	Lc             fx.Lifecycle
+	Log            logComponent.Component
+	Config         config.Component
+	Checks         []types.CheckComponent `group:"check"`
+	Runner         runner.Component
+	Submitter      submitterComp.Component
+	SysProbeConfig sysprobeconfig.Component
+	HostInfo       hostinfo.Component
+	Telemetry      telemetry.Component
 }
 
 type processAgent struct {
@@ -97,6 +104,10 @@ func newProcessAgent(p processAgentParams) provides {
 	if flavor.GetFlavor() != flavor.ProcessAgent {
 		// We return a status provider when the component is used outside of the process agent
 		// as the component status is unique from the typical agent status in this case.
+		err := expvars.InitProcessStatus(p.Config, p.SysProbeConfig, p.HostInfo, p.Log, p.Telemetry)
+		if err != nil {
+			_ = deps.Log.Critical("Failed to initialize process status server:", err)
+		}
 		return provides{
 			Comp:           processAgentComponent,
 			StatusProvider: statusComponent.NewInformationProvider(agent.NewStatusProvider(p.Config)),
