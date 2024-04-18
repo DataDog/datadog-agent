@@ -7,25 +7,30 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	// component dependencies
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -45,14 +50,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	// package dependencies
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/DataDog/datadog-agent/pkg/version"
 
 	// third-party dependencies
 	"github.com/gorilla/mux"
@@ -62,7 +64,6 @@ import (
 type handlerdeps struct {
 	fx.In
 
-	FlareComp             flare.Component
 	Server                dogstatsdServer.Component
 	ServerDebug           dogstatsddebug.Component
 	Wmeta                 workloadmeta.Component
@@ -78,6 +79,9 @@ type handlerdeps struct {
 	Collector             optional.Option[collector.Component]
 	EventPlatformReceiver eventplatformreceiver.Component
 	Ac                    autodiscovery.Mock
+	Gui                   optional.Option[gui.Component]
+	Settings              settings.Component
+	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 func getComponentDeps(t *testing.T) handlerdeps {
@@ -115,6 +119,8 @@ func getComponentDeps(t *testing.T) handlerdeps {
 			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
 			autodiscoveryimpl.MockModule(),
 		),
+		fx.Supply(optional.NewNoneOption[gui.Component]()),
+		settingsimpl.MockModule(),
 	)
 }
 
@@ -125,7 +131,6 @@ func setupRoutes(t *testing.T) *mux.Router {
 	router := mux.NewRouter()
 	SetupHandlers(
 		router,
-		deps.FlareComp,
 		deps.Server,
 		deps.ServerDebug,
 		deps.Wmeta,
@@ -142,27 +147,44 @@ func setupRoutes(t *testing.T) *mux.Router {
 		deps.Collector,
 		deps.EventPlatformReceiver,
 		deps.Ac,
+		deps.Gui,
+		deps.Settings,
+		deps.EndpointProviders,
 	)
 
 	return router
 }
 
 func TestSetupHandlers(t *testing.T) {
+	testcases := []struct {
+		route    string
+		method   string
+		wantCode int
+	}{
+		{
+			route:    "/version",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/flare",
+			method:   "POST",
+			wantCode: 200,
+		},
+	}
 	router := setupRoutes(t)
 	ts := httptest.NewServer(router)
 	defer ts.Close()
 
-	res, err := http.Get(ts.URL + "/version")
-	require.NoError(t, err)
+	for _, tc := range testcases {
+		req, err := http.NewRequest(tc.method, ts.URL+tc.route, nil)
+		require.NoError(t, err)
 
-	want, err := version.Agent()
-	require.NoError(t, err)
+		resp, err := ts.Client().Do(req)
+		require.NoError(t, err)
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
 
-	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-
-	wantjson, _ := json.Marshal(want)
-
-	assert.Equal(t, string(wantjson), string(body))
+		assert.Equal(t, tc.wantCode, resp.StatusCode)
+	}
 }

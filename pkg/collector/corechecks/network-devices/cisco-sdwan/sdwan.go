@@ -25,7 +25,7 @@ import (
 
 const (
 	// CheckName is the name of the check
-	CheckName            = "ciscosdwan"
+	CheckName            = "cisco_sdwan"
 	defaultCheckInterval = 1 * time.Minute
 )
 
@@ -111,6 +111,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	devicesMetadata := payload.GetDevicesMetadata(c.config.Namespace, devices)
 	deviceTags := payload.GetDevicesTags(c.config.Namespace, devices)
 	uptimes := payload.GetDevicesUptime(devices)
+	deviceStatus := payload.GetDevicesStatus(devices)
 
 	interfaces := payload.ConvertInterfaces(vEdgeInterfaces, cEdgeInterfaces)
 	interfacesMetadata, interfacesMap := payload.GetInterfacesMetadata(c.config.Namespace, interfaces)
@@ -129,6 +130,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	c.metricsSender.SendOMPPeerMetrics(ompPeersState)
 	c.metricsSender.SendBFDSessionMetrics(bfdSessionsState)
 	c.metricsSender.SendDeviceCountersMetrics(deviceCounters)
+	c.metricsSender.SendDeviceStatusMetrics(deviceStatus)
 
 	// Commit
 	c.metricsSender.Commit()

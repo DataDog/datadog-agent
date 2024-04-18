@@ -57,6 +57,7 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	}
 
 	otelAgentCmd.PersistentFlags().StringSliceVarP(&globalParams.ConfPaths, "config", "c", []string{defaultConfigPath}, "path to the configuration file")
+	otelAgentCmd.PersistentFlags().StringSliceVarP(&globalParams.FeatureGates, "feature-gates", "", []string{}, "comma-separated list of feature gates to enable")
 
 	return &otelAgentCmd
 }

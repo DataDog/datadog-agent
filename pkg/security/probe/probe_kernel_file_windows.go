@@ -7,7 +7,9 @@
 package probe
 
 import (
+	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -40,6 +42,10 @@ const (
 )
 
 type fileObjectPointer uint64
+
+var (
+	errDiscardedPath = errors.New("discarded path")
+)
 
 /*
 		<template tid="CreateArgs">
@@ -152,17 +158,21 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	if ca.fileName != "" {
-		wp.filePathResolverLock.Lock()
-		defer wp.filePathResolverLock.Unlock()
-
-		if _, ok := wp.filePathResolver[ca.fileObject]; ok {
-			wp.stats.filePathOverwrites++
-		} else {
-			wp.stats.filePathNewWrites++
-		}
-		wp.filePathResolver[ca.fileObject] = ca.fileName
+	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
+		wp.stats.fileCreateSkippedDiscardedPaths++
+		return nil, errDiscardedPath
 	}
+
+	// not amazing to double compute the basename..
+	basename := filepath.Base(ca.fileName)
+	if _, ok := wp.discardedBasenames.Get(basename); ok {
+		wp.stats.fileCreateSkippedDiscardedBasenames++
+		return nil, errDiscardedPath
+	}
+
+	wp.filePathResolverLock.Lock()
+	defer wp.filePathResolverLock.Unlock()
+	wp.filePathResolver[ca.fileObject] = ca.fileName
 
 	return ca, nil
 }
@@ -176,19 +186,25 @@ func (wp *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNew
 }
 
 // nolint: unused
-func (ca *createHandleArgs) String() string {
+func (ca *createHandleArgs) string(t string) string {
 	var output strings.Builder
 
-	output.WriteString("  Create PID: " + strconv.Itoa(int(ca.ProcessID)) + "\n")
+	output.WriteString(t + " PID: " + strconv.Itoa(int(ca.ProcessID)) + "\n")
 	output.WriteString("         Name: " + ca.fileName + "\n")
 	output.WriteString("         Opts: " + strconv.FormatUint(uint64(ca.createOptions), 16) + " Share: " + strconv.FormatUint(uint64(ca.shareAccess), 16) + "\n")
 	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
+
 	return output.String()
 }
 
 // nolint: unused
+func (ca *createHandleArgs) String() string {
+	return ca.string("CREATE")
+}
+
+// nolint: unused
 func (ca *createNewFileArgs) String() string {
-	return (*createHandleArgs)(ca).String()
+	return (*createHandleArgs)(ca).string("CREATE_NEW_FILE")
 }
 
 /*
@@ -257,14 +273,22 @@ func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformat
 }
 
 // nolint: unused
-func (sia *setInformationArgs) String() string {
+func (sia *setInformationArgs) string(t string) string {
 	var output strings.Builder
 
-	output.WriteString("  SIA TID: " + strconv.Itoa(int(sia.threadID)) + "\n")
+	output.WriteString(t + " TID: " + strconv.Itoa(int(sia.threadID)) + "\n")
 	output.WriteString("      Name: " + sia.fileName + "\n")
 	output.WriteString("      InfoClass: " + strconv.FormatUint(uint64(sia.infoClass), 16) + "\n")
+	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(sia.fileObject), 16) + "\n")
+	output.WriteString("         KEY:  " + strconv.FormatUint(uint64(sia.fileKey), 16) + "\n")
+
 	return output.String()
 
+}
+
+// nolint: unused
+func (sia *setInformationArgs) String() string {
+	return sia.string("SET_INFORMATION")
 }
 
 /*
@@ -346,22 +370,28 @@ func (wp *WindowsProbe) parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error)
 }
 
 // nolint: unused
-func (ca *cleanupArgs) String() string {
+func (ca *cleanupArgs) string(t string) string {
 	var output strings.Builder
 
-	output.WriteString("  CLEANUP: TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
+	output.WriteString(t + ": TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
 	output.WriteString("           Name: " + ca.fileName + "\n")
 	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
+	output.WriteString("         KEY:  " + strconv.FormatUint(uint64(ca.fileKey), 16) + "\n")
 	return output.String()
 
 }
 
 // nolint: unused
+func (ca *cleanupArgs) String() string {
+	return ca.string("CLEANUP")
+}
+
+// nolint: unused
 func (ca *closeArgs) String() string {
-	return (*cleanupArgs)(ca).String()
+	return (*cleanupArgs)(ca).string("CLOSE")
 }
 
 // nolint: unused
 func (fa *flushArgs) String() string {
-	return (*cleanupArgs)(fa).String()
+	return (*cleanupArgs)(fa).string("FLUSH")
 }
