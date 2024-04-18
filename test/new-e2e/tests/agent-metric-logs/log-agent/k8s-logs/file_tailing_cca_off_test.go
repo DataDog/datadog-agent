@@ -6,15 +6,15 @@ package k8sfiletailing
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 
@@ -28,56 +28,7 @@ type myKindSuite2 struct {
 }
 
 func TestMyKindSuite2(t *testing.T) {
-	helmValues := `
-datadog:
-  envDict:
-    DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: "false"
-  kubelet:
-    tlsVerify: false
-  clusterName: "random-cluster-name"
-  agents:
-    useHostNetwork: true
-`
-
-	e2e.Run(t, &myKindSuite2{}, e2e.WithProvisioner(customkind.Provisioner(customkind.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)))))
-}
-
-func (v *myKindSuite2) TestCCAOff() {
-	v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	var backOffLimit int32 = 4
-	testLogMessage := "Test pod"
-
-	jobSpcec := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cca-off-job",
-			Namespace: "default",
-		},
-		Spec: batchv1.JobSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:    "cca-off-job",
-							Image:   "ubuntu",
-							Command: []string{"echo", testLogMessage},
-						},
-					},
-					RestartPolicy: corev1.RestartPolicyNever,
-				},
-			},
-			BackoffLimit: &backOffLimit,
-		},
-	}
-
-	_, err := v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpcec, metav1.CreateOptions{})
-	assert.NoError(v.T(), err, "Could not start job")
-
-	v.EventuallyWithT(func(c *assert.CollectT) {
-		logsServiceNames, err := v.Env().FakeIntake.Client().GetLogServiceNames()
-		assert.NoError(c, err, "Error starting job")
-		assert.NotContains(c, logsServiceNames, "ubuntu", "Ubuntu service found with autodiscovery off")
-	}, 1*time.Minute, 10*time.Second)
-
+	e2e.Run(t, &myKindSuite2{}, e2e.WithProvisioner(customkind.Provisioner(customkind.WithAgentOptions(kubernetesagentparams.WithoutLogsContainerCollectAll()))))
 }
 
 func (v *myKindSuite2) TestADAnnotations() {
@@ -125,5 +76,51 @@ func (v *myKindSuite2) TestADAnnotations() {
 			assert.NoError(c, err, "Error filtering logs")
 			assert.Equal(c, testLogMessage, filteredLogs[0].Message, "Test log doesn't match")
 		}
+	}, 1*time.Minute, 10*time.Second)
+}
+
+func (v *myKindSuite2) TestCCAOff() {
+	v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	var backOffLimit int32 = 4
+	testLogMessage := "Test pod"
+
+	jobSpcec := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cca-off-job",
+			Namespace: "default",
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:    "cca-off-job",
+							Image:   "ubuntu",
+							Command: []string{"echo", testLogMessage},
+						},
+					},
+					RestartPolicy: corev1.RestartPolicyNever,
+				},
+			},
+			BackoffLimit: &backOffLimit,
+		},
+	}
+
+	_, err := v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpcec, metav1.CreateOptions{})
+	assert.NoError(v.T(), err, "Could not start job")
+
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		logsServiceNames, err := v.Env().FakeIntake.Client().GetLogServiceNames()
+		assert.NoError(c, err, "Error starting job")
+		// assert.NotContains(c, logsServiceNames, "ubuntu", "Ubuntu service found with container collect all off")
+
+		if slices.Contains(logsServiceNames, "ubuntu") {
+			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("ubuntu")
+			assert.NoError(c, err, "Error filtering logs")
+			fmt.Println("LOGS here:")
+			fmt.Printf("%s\n", filteredLogs[0].Message)
+			assert.Nil(c, filteredLogs, "Filtered logs is not nil")
+		}
+
 	}, 1*time.Minute, 10*time.Second)
 }
