@@ -44,7 +44,7 @@ func (r scanRequest) Collector() string {
 }
 
 // Type returns the scan request type
-func (r scanRequest) Type() string {
+func (r scanRequest) Type(sbom.ScanOptions) string {
 	return sbom.ScanDaemonType
 }
 

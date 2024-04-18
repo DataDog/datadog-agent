@@ -36,6 +36,7 @@ type ScanOptions struct {
 	Fast             bool
 	NoCache          bool // Caching doesn't really provide any value when scanning filesystem as the filesystem has to be walked to compute the keys
 	CollectFiles     bool
+	UseMount         bool
 }
 
 // ScanOptionsFromConfig loads the scanning options from the configuration
@@ -46,6 +47,7 @@ func ScanOptionsFromConfig(cfg config.Component, containers bool) (scanOpts Scan
 		scanOpts.Timeout = time.Duration(cfg.GetInt("sbom.container_image.scan_timeout")) * time.Second
 		scanOpts.WaitAfter = time.Duration(cfg.GetInt("sbom.container_image.scan_interval")) * time.Second
 		scanOpts.Analyzers = cfg.GetStringSlice("sbom.container_image.analyzers")
+		scanOpts.UseMount = cfg.GetBool("sbom.container_image.use_mount")
 	} else {
 		scanOpts.NoCache = true
 	}
@@ -60,7 +62,7 @@ func ScanOptionsFromConfig(cfg config.Component, containers bool) (scanOpts Scan
 // ScanRequest defines the scan request interface
 type ScanRequest interface {
 	Collector() string
-	Type() string
+	Type(ScanOptions) string
 	ID() string
 }
 

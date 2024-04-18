@@ -43,7 +43,7 @@ func (s *scanRequest) Collector() string {
 }
 
 // Type returns the scan request type
-func (s *scanRequest) Type() string {
+func (s *scanRequest) Type(sbom.ScanOptions) string {
 	return s.scanRequestType
 }
 

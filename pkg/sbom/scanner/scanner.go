@@ -222,13 +222,14 @@ func (s *Scanner) handleScanRequest(ctx context.Context, r interface{}) {
 		return
 	}
 
-	telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
 	collector, ok := s.collectors[request.Collector()]
 	if !ok {
 		_ = log.Errorf("invalid collector '%s'", request.Collector())
 		s.scanQueue.Forget(request)
 		return
 	}
+
+	telemetry.SBOMAttempts.Inc(request.Collector(), request.Type(collector.Options()))
 
 	var imgMeta *workloadmeta.ContainerImageMetadata
 	if collector.Type() == collectors.ContainerImageScanType {
@@ -304,19 +305,19 @@ func (s *Scanner) performScan(ctx context.Context, request sbom.ScanRequest, col
 
 func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, request sbom.ScanRequest, collector collectors.Collector, errorType string) {
 	if scanResult == nil {
-		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "nil_scan_result")
+		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(collector.Options()), "nil_scan_result")
 		log.Errorf("nil scan result for '%s'", request.ID())
 		return
 	}
 	if scanResult.Error != nil {
-		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), errorType)
+		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(collector.Options()), errorType)
 		if collector.Type() == collectors.ContainerImageScanType {
 			s.scanQueue.AddRateLimited(request)
 		}
 		return
 	}
 
-	telemetry.SBOMGenerationDuration.Observe(scanResult.Duration.Seconds(), request.Collector(), request.Type())
+	telemetry.SBOMGenerationDuration.Observe(scanResult.Duration.Seconds(), request.Collector(), request.Type(collector.Options()))
 	s.scanQueue.Forget(request)
 }
 
