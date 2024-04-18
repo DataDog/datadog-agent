@@ -31,7 +31,7 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
     }                                                                                                                                       \
 
 #ifdef EXTRA_DEBUG
-#define extra_debug log_debug
+#define extra_debug(fmt, ...) log_debug("kafka: " fmt, ##__VA_ARGS__)
 #else
 #define extra_debug(fmt, ...)
 #endif
@@ -251,7 +251,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
                 // would wait for the end of the aborted_transactions list. So add a limit
                 // as a heuristic.
                 if (aborted_transactions >= KAFKA_MAX_ABORTED_TRANSACTIONS) {
-                    extra_debug("kafka: Possibly invalid aborted_transactions %d", aborted_transactions);
+                    extra_debug("Possibly invalid aborted_transactions %d", aborted_transactions);
                     return RET_ERR;
                 }
                 if (aborted_transactions >= 0) {
@@ -409,7 +409,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
         case KAFKA_FETCH_RESPONSE_PARTITION_END:
             response->partitions_count--;
             if (response->partitions_count == 0) {
-                extra_debug("kafka: enqueue, records_count %d",  response->transaction.records_count);
+                extra_debug("enqueue, records_count %d",  response->transaction.records_count);
                 kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
                 return RET_DONE;
             }
@@ -477,7 +477,7 @@ static __always_inline void kafka_call_response_parser(conn_tuple_t *tup, struct
 
     // The only reason we would get here if the tail call failed due to too
     // many tail calls.
-    extra_debug("kafka: failed to call response parser");
+    extra_debug("failed to call response parser");
     bpf_map_delete_elem(&kafka_response, tup);
 }
 
@@ -523,7 +523,7 @@ int socket__kafka_response_parser(struct __sk_buff *skb) {
         // If we failed (due to exceeding tail calls), at least flush what
         // we have.
         if (response->transaction.records_count) {
-            extra_debug("kafka: enqueue (loop exceeded), records_count %d", response->transaction.records_count);
+            extra_debug("enqueue (loop exceeded), records_count %d", response->transaction.records_count);
             kafka_batch_enqueue_wrapper(kafka, &tup, &response->transaction);
         }
         break;
@@ -561,7 +561,7 @@ static __always_inline bool kafka_process_new_response(conn_tuple_t *tup, kafka_
 
     request = &kafka->response.transaction;
 
-    extra_debug("kafka: Received response for request with correlation id %d", correlation_id);
+    extra_debug("Received response for request with correlation id %d", correlation_id);
 
     if (request->request_api_version >= 1) {
         offset += sizeof(s32); // Skip throttle_time_ms
@@ -628,7 +628,7 @@ static __always_inline bool kafka_process_response(conn_tuple_t *tup, kafka_info
         // The comparison is done this way to handle wraparound of sequence numbers.
         s32 diff = skb_info->tcp_seq - response->expected_tcp_seq;
         if (diff < 0) {
-            extra_debug("kafka: skip old TCP segment");
+            extra_debug("skip old TCP segment");
             // It's on the response path, so no need to parser as a request.
             return true;
         }
@@ -637,12 +637,12 @@ static __always_inline bool kafka_process_response(conn_tuple_t *tup, kafka_info
         // No point in parsing this as a response continuation since it may
         // yield bogus values. Flush what we have and forget about this current
         // response.
-        extra_debug("kafka: lost response TCP segments, expected %u got %u",
+        extra_debug("lost response TCP segments, expected %u got %u",
                     response->expected_tcp_seq,
                     skb_info->tcp_seq);
 
         if (response->transaction.records_count) {
-            extra_debug("kafka: enqueue (broken stream), records_count %d", response->transaction.records_count);
+            extra_debug("enqueue (broken stream), records_count %d", response->transaction.records_count);
             kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
         }
 
