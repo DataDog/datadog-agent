@@ -815,7 +815,7 @@ def clean_build(ctx):
         return True
 
     # if this build happens on a new commit do it cleanly
-    with open(BUILD_COMMIT, 'r') as f:
+    with open(BUILD_COMMIT) as f:
         build_commit = f.read().rstrip()
         curr_commit = ctx.run("git rev-parse HEAD", hide=True).stdout.rstrip()
         if curr_commit != build_commit:
@@ -938,13 +938,13 @@ def kitchen_test(ctx, target=None, provider=None):
     # Retrieve a list of all available vagrant images
     images = {}
     platform_file = os.path.join(KITCHEN_DIR, "platforms.json")
-    with open(platform_file, 'r') as f:
+    with open(platform_file) as f:
         for kplatform, by_provider in json.load(f).items():
             if "vagrant" in by_provider and vagrant_arch in by_provider["vagrant"]:
                 for image in by_provider["vagrant"][vagrant_arch]:
                     images[image] = kplatform
 
-    if not (target in images):
+    if target not in images:
         print(
             f"please run inv -e system-probe.kitchen-test --target <IMAGE>, where <IMAGE> is one of the following:\n{list(images.keys())}"
         )
@@ -1816,7 +1816,7 @@ def _test_docker_image_list():
 
     images = set()
     for docker_compose_path in docker_compose_paths:
-        with open(docker_compose_path, "r") as f:
+        with open(docker_compose_path) as f:
             docker_compose = yaml.safe_load(f.read())
         for component in docker_compose["services"]:
             images.add(docker_compose["services"][component]["image"])
@@ -1891,7 +1891,7 @@ def save_build_outputs(ctx, destfile):
     absdest = os.path.abspath(destfile)
     count = 0
     with tempfile.TemporaryDirectory() as stagedir:
-        with open("compile_commands.json", "r") as compiledb:
+        with open("compile_commands.json") as compiledb:
             for outputitem in json.load(compiledb):
                 if "output" not in outputitem:
                     continue

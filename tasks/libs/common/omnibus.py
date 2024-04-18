@@ -5,7 +5,7 @@ import sys
 from datetime import datetime
 
 import requests
-from release import _get_release_json_value
+from tasks.release import _get_release_json_value
 
 
 def _get_build_images(ctx):
@@ -43,6 +43,7 @@ def _get_environment_for_cache() -> dict:
             'CLUSTER_AGENT_',
             'DATADOG_AGENT_',
             'DD_',
+            'DDR_',
             'DEB_',
             'DESTINATION_',
             'DOCKER_',
@@ -60,7 +61,7 @@ def _get_environment_for_cache() -> dict:
             'MACOS_GITHUB_',
             'OMNIBUS_',
             'POD_',
-            'RELEASE_VERSION',
+            'PROCESSOR_',
             'RPM_',
             'RUN_',
             'S3_',
@@ -76,15 +77,18 @@ def _get_environment_for_cache() -> dict:
             '_VERSION',
         ]
         excluded_values = [
+            "ARTIFACT_DOWNLOAD_ATTEMPTS",
             "AVAILABILITY_ZONE",
             "BENCHMARKS_CI_IMAGE",
             "BUCKET_BRANCH",
-            "BUNDLER_VERSION",
             "CHANGELOG_COMMIT_SHA_SSM_NAME",
             "CLANG_LLVM_VER",
             "CHANNEL",
             "CI",
-            "COMPUTERNAME" "CONSUL_HTTP_ADDR",
+            "COMPUTERNAME",
+            "CONDA_PROMPT_MODIFIER",
+            "CONSUL_HTTP_ADDR",
+            "DEPLOY_AGENT",
             "DOGSTATSD_BINARIES_DIR",
             "EXPERIMENTS_EVALUATION_ADDRESS",
             "GCE_METADATA_HOST",
@@ -98,20 +102,23 @@ def _get_environment_for_cache() -> dict:
             "INTEGRATION_WHEELS_CACHE_BUCKET",
             "IRBRC",
             "KITCHEN_INFRASTRUCTURE_FLAKES_RETRY",
+            "LANG",
             "LESSCLOSE",
             "LESSOPEN",
             "LC_CTYPE",
             "LS_COLORS",
             "MACOS_S3_BUCKET",
+            "MANPATH",
             "MESSAGE",
             "OLDPWD",
+            "PCP_DIR",
             "PROCESS_S3_BUCKET",
             "PWD",
+            "PROMPT",
             "PYTHON_RUNTIMES",
             "RESTORE_CACHE_ATTEMPTS",
             "RUNNER_TEMP_PROJECT_DIR",
             "RUSTC_SHA256",
-            "RUST_VERSION",
             "SHLVL",
             "STATIC_BINARIES_DIR",
             "STATSD_URL",
@@ -142,12 +149,29 @@ def _get_environment_for_cache() -> dict:
     return dict(filter(env_filter, sorted(os.environ.items())))
 
 
+def _last_omnibus_changes(ctx):
+    omnibus_invalidating_files = ['omnibus/config/', 'omnibus/lib/', 'omnibus/omnibus.rb']
+    omnibus_last_commit = ctx.run(
+        f'git log -n 1 --pretty=format:%H {" ".join(omnibus_invalidating_files)}', hide='stdout'
+    ).stdout
+    # The commit sha1 is likely to change between a PR and its merge to main
+    # In order to work around this, we hash the commit diff so that the result
+    # can be reproduced on different branches with different sha1
+    omnibus_last_changes = ctx.run(
+        f'git diff {omnibus_last_commit}~ {omnibus_last_commit} {" ".join(omnibus_invalidating_files)}'
+    ).stdout
+    hash = hashlib.sha1()
+    hash.update(str.encode(omnibus_last_changes))
+    result = hash.hexdigest()
+    print(f'Hash for last omnibus changes is {result}')
+    return result
+
+
 def omnibus_compute_cache_key(ctx):
     print('Computing cache key')
     h = hashlib.sha1()
-    omnibus_last_commit = ctx.run('git log -n 1 --pretty=format:%H omnibus/', hide='stdout').stdout
-    h.update(str.encode(omnibus_last_commit))
-    print(f'\tLast omnibus commit is {omnibus_last_commit}')
+    omnibus_last_changes = _last_omnibus_changes(ctx)
+    h.update(str.encode(omnibus_last_changes))
     buildimages_hash = _get_build_images(ctx)
     for img_hash in buildimages_hash:
         h.update(str.encode(img_hash))

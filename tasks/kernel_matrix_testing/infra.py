@@ -4,7 +4,7 @@ import glob
 import json
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING
 
 from invoke.context import Context
 
@@ -26,7 +26,7 @@ SSH_OPTIONS = {
 }
 
 
-def ssh_options_command(extra_opts: Optional[Dict[str, str]] = None):
+def ssh_options_command(extra_opts: dict[str, str] | None = None):
     opts = SSH_OPTIONS.copy()
     if extra_opts is not None:
         opts.update(extra_opts)
@@ -36,7 +36,7 @@ def ssh_options_command(extra_opts: Optional[Dict[str, str]] = None):
 
 class LocalCommandRunner:
     @staticmethod
-    def run_cmd(ctx: Context, _: 'HostInstance', cmd: str, allow_fail: bool, verbose: bool):
+    def run_cmd(ctx: Context, _: HostInstance, cmd: str, allow_fail: bool, verbose: bool):
         res = ctx.run(cmd.format(proxy_cmd=""), hide=(not verbose), warn=allow_fail)
         if res is not None and res.ok:
             return True
@@ -49,9 +49,7 @@ class LocalCommandRunner:
         raise Exit("command failed")
 
     @staticmethod
-    def move_to_shared_directory(
-        ctx: Context, _: 'HostInstance', source: PathOrStr, subdir: Optional[PathOrStr] = None
-    ):
+    def move_to_shared_directory(ctx: Context, _: HostInstance, source: PathOrStr, subdir: PathOrStr | None = None):
         recursive = ""
         if os.path.isdir(source):
             recursive = "-R"
@@ -65,7 +63,7 @@ class LocalCommandRunner:
 
 class RemoteCommandRunner:
     @staticmethod
-    def run_cmd(ctx: Context, instance: 'HostInstance', cmd: str, allow_fail: bool, verbose: bool):
+    def run_cmd(ctx: Context, instance: HostInstance, cmd: str, allow_fail: bool, verbose: bool):
         ssh_key_arg = f"-i {instance.ssh_key_path}" if instance.ssh_key_path is not None else ""
         res = ctx.run(
             cmd.format(
@@ -86,7 +84,7 @@ class RemoteCommandRunner:
 
     @staticmethod
     def move_to_shared_directory(
-        ctx: Context, instance: 'HostInstance', source: PathOrStr, subdir: Optional[PathOrStr] = None
+        ctx: Context, instance: HostInstance, source: PathOrStr, subdir: PathOrStr | None = None
     ):
         full_target = get_kmt_os().shared_dir
         if subdir is not None:
@@ -119,9 +117,9 @@ class LibvirtDomain:
         ip: str,
         domain_id: str,
         tag: str,
-        vmset_tags: List[str],
-        ssh_key_path: Optional[str],
-        instance: 'HostInstance',
+        vmset_tags: list[str],
+        ssh_key_path: str | None,
+        instance: HostInstance,
     ):
         self.ip = ip
         self.name = domain_id
@@ -156,35 +154,35 @@ class LibvirtDomain:
 
 
 class HostInstance:
-    def __init__(self, ip: str, arch: ArchOrLocal, ssh_key_path: Optional[str]):
+    def __init__(self, ip: str, arch: ArchOrLocal, ssh_key_path: str | None):
         self.ip: str = ip
         self.arch: ArchOrLocal = arch
-        self.ssh_key_path: Optional[str] = ssh_key_path
-        self.microvms: List[LibvirtDomain] = []
+        self.ssh_key_path: str | None = ssh_key_path
+        self.microvms: list[LibvirtDomain] = []
         self.runner = get_instance_runner(arch)
 
     def add_microvm(self, domain: LibvirtDomain):
         self.microvms.append(domain)
 
-    def copy_to_all_vms(self, ctx: Context, path: PathOrStr, subdir: Optional[PathOrStr] = None):
+    def copy_to_all_vms(self, ctx: Context, path: PathOrStr, subdir: PathOrStr | None = None):
         self.runner.move_to_shared_directory(ctx, self, path, subdir)
 
     def __repr__(self):
         return f"<HostInstance> {self.ip} {self.arch}"
 
 
-def build_infrastructure(stack: str, ssh_key_obj: Optional[SSHKey] = None):
+def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
     stack_output = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
     if not os.path.exists(stack_output):
         raise Exit(f"no stack.output file present at {stack_output}")
 
-    with open(stack_output, 'r') as f:
+    with open(stack_output) as f:
         try:
             infra_map: StackOutput = json.load(f)
         except json.decoder.JSONDecodeError:
             raise Exit(f"{stack_output} file is not a valid json file")
 
-    infra: Dict[ArchOrLocal, HostInstance] = dict()
+    infra: dict[ArchOrLocal, HostInstance] = dict()
     for arch in infra_map:
         key = ssh_key_obj['path'] if ssh_key_obj is not None else None
         instance = HostInstance(infra_map[arch]["ip"], arch, key)
@@ -212,14 +210,14 @@ def ask_for_ssh() -> bool:
     )
 
 
-def get_ssh_key_name(pubkey: Path) -> Optional[str]:
+def get_ssh_key_name(pubkey: Path) -> str | None:
     parts = pubkey.read_text().split()
     if len(parts) != 3:
         return None
     return parts[2]
 
 
-def get_ssh_agent_key_names(ctx: Context) -> List[str]:
+def get_ssh_agent_key_names(ctx: Context) -> list[str]:
     """Return the key names found in the SSH agent"""
     agent_output = ctx.run("ssh-add -l")
     if agent_output is None or not agent_output.ok:
@@ -228,14 +226,14 @@ def get_ssh_agent_key_names(ctx: Context) -> List[str]:
     return [parts[2] for parts in output_parts if len(parts) >= 3]
 
 
-def try_get_ssh_key(ctx: Context, key_hint: Optional[str]) -> Optional[SSHKey]:
+def try_get_ssh_key(ctx: Context, key_hint: str | None) -> SSHKey | None:
     """Return a SSHKey object, either using the hint provided
     or using the configuration.
 
     The hint can either be a file path, a key name or a name of a file in ~/.ssh
     """
     if key_hint is not None:
-        checked_paths: List[str] = []
+        checked_paths: list[str] = []
         possible_paths = map(Path, [key_hint, f"~/.ssh/{key_hint}", f"~/.ssh/{key_hint}.pem"])
         for path in possible_paths:
             checked_paths.append(os.fspath(path))
