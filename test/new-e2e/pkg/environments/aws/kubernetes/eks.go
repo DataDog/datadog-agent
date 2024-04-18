@@ -32,9 +32,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// eksNodeSelector is the label used to select the node group for tracegen
-const eksNodeSelector = "eks.amazonaws.com/nodegroup"
-
 // EKSProvisioner creates a new provisioner
 func EKSProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.

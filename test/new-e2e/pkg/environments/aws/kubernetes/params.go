@@ -123,7 +123,7 @@ func WithEKSBottlerocketNodeGroup() ProvisionerOption {
 	}
 }
 
-// WithECSWindowsNodeGroup enable Windows node group
+// WithEKSWindowsNodeGroup enable Windows node group
 func WithEKSWindowsNodeGroup() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.eksWindowsNodeGroup = true
