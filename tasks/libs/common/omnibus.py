@@ -77,6 +77,7 @@ def _get_environment_for_cache() -> dict:
             '_VERSION',
         ]
         excluded_values = [
+            "ARTIFACT_DOWNLOAD_ATTEMPTS",
             "AVAILABILITY_ZONE",
             "BENCHMARKS_CI_IMAGE",
             "BUCKET_BRANCH",
