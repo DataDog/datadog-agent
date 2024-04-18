@@ -164,9 +164,6 @@ class HostInstance:
     def add_microvm(self, domain: LibvirtDomain):
         self.microvms.append(domain)
 
-    def copy_to_all_vms(self, ctx: Context, path: PathOrStr, subdir: PathOrStr | None = None):
-        self.runner.move_to_shared_directory(ctx, self, path, subdir)
-
     def __repr__(self):
         return f"<HostInstance> {self.ip} {self.arch}"
 
