@@ -244,8 +244,9 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 	return nil
 }
 
-// PostStart is a no-op.
+// PostStart registers the goTLS program to the attacher list.
 func (p *goTLSProgram) PostStart(*manager.Manager) error {
+	utils.AddAttacher(p.Name(), p)
 	return nil
 }
 
@@ -307,13 +308,28 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 	}
 }
 
+// DetachPID detaches the provided PID from the eBPF program.
+func (p *goTLSProgram) DetachPID(pid uint32) error {
+	return p.registry.Unregister(pid)
+}
+
 func (p *goTLSProgram) handleProcessExit(pid pid) {
-	_ = p.registry.Unregister(pid)
+	_ = p.DetachPID(pid)
 }
 
 func (p *goTLSProgram) handleProcessStart(pid pid) {
+	_ = p.AttachPID(pid)
+}
+
+var (
+	errSelfExcluded                = errors.New("self-excluded")
+	errInternalDDogProcessRejected = errors.New("internal datadog process rejected")
+)
+
+// AttachPID attaches the provided PID to the eBPF program.
+func (p *goTLSProgram) AttachPID(pid uint32) error {
 	if p.cfg.GoTLSExcludeSelf && pid == uint32(os.Getpid()) {
-		return
+		return errSelfExcluded
 	}
 
 	pidAsStr := strconv.FormatUint(uint64(pid), 10)
@@ -334,7 +350,7 @@ func (p *goTLSProgram) handleProcessStart(pid pid) {
 	if err != nil {
 		// we can't access to the binary path here (pid probably ended already)
 		// there are not much we can do, and we don't want to flood the logs
-		return
+		return err
 	}
 
 	// Check if the process is datadog's internal process, if so, we don't want to hook the process.
@@ -342,12 +358,12 @@ func (p *goTLSProgram) handleProcessStart(pid pid) {
 		if log.ShouldLog(seelog.DebugLvl) {
 			log.Debugf("ignoring pid %d, as it is an internal datadog component (%q)", pid, binPath)
 		}
-		return
+		return errInternalDDogProcessRejected
 	}
 
 	// Check go process
 	probeList := make([]manager.ProbeIdentificationPair, 0)
-	p.registry.Register(binPath, pid, registerCBCreator(p.manager, p.offsetsDataMap, &probeList, p.binAnalysisMetric), unregisterCBCreator(p.manager, &probeList, p.offsetsDataMap))
+	return p.registry.Register(binPath, pid, registerCBCreator(p.manager, p.offsetsDataMap, &probeList, p.binAnalysisMetric), unregisterCBCreator(p.manager, &probeList, p.offsetsDataMap))
 }
 
 // addInspectionResultToMap runs a binary inspection and adds the result to the
