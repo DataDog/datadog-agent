@@ -2,7 +2,7 @@ package collectorContrib
 
 import (
 	collectorContrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
+	//"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/fileexporter"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/exporter"
@@ -61,7 +61,7 @@ func (c *collectorContribImpl) OTelComponentFactories() (otelcol.Factories, erro
 		debugexporter.NewFactory(),
 		fileexporter.NewFactory(),
 		otlpexporter.NewFactory(),
-		datadogexporter.NewFactory(),
+		//datadogexporter.NewFactory(),
 	}
 	exporters, err := exporter.MakeFactoryMap(exporterList...)
 	if err != nil {
