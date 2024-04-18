@@ -168,7 +168,7 @@ func TestStatusProvider(t *testing.T) {
 				flavor.SetFlavor(originalFlavor)
 			}()
 
-			deps := fxutil.Test[processAgentParams](t, fx.Options(
+			deps := fxutil.Test[dependencies](t, fx.Options(
 				runnerimpl.Module(),
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
