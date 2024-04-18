@@ -148,14 +148,6 @@ lint_flavor_heroku_linux-x64:
   variables:
     FLAVORS: '--flavors heroku'
 
-lint_python:
-  stage: source_test
-  image: gcr.io/datadoghq/agent-circleci-runner:v31988376-bfbb3afb
-  tags: ["arch:amd64"]
-  needs: []
-  script:
-    - inv -e linter.python
-
 # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
 # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
 # This is OK because the test on systemd still runs on the debian image above

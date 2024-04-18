@@ -22,6 +22,7 @@ from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME, color_mess
 from tasks.libs.types.copyright import CopyrightLinter
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
+from tasks.update_go import _update_go_mods, _update_references
 
 
 @task
@@ -418,3 +419,9 @@ def releasenote(ctx):
             ctx.run("reno lint")
         else:
             print("'changelog/no-changelog' label found on the PR: skipping linting")
+
+
+@task
+def update_go(_):
+    _update_references(warn=False, version="1.2.3", dry_run=True)
+    _update_go_mods(warn=False, version="1.2.3", include_otel_modules=True, dry_run=True)
