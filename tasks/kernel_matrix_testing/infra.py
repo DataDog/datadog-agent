@@ -48,18 +48,6 @@ class LocalCommandRunner:
             print_failed(res.stderr)
         raise Exit("command failed")
 
-    @staticmethod
-    def move_to_shared_directory(ctx: Context, _: HostInstance, source: PathOrStr, subdir: PathOrStr | None = None):
-        recursive = ""
-        if os.path.isdir(source):
-            recursive = "-R"
-
-        full_target = get_kmt_os().shared_dir
-        if subdir is not None:
-            full_target = os.path.join(get_kmt_os().shared_dir, subdir)
-            ctx.run(f"mkdir -p {full_target}")
-        ctx.run(f"cp {recursive} {source} {full_target}")
-
 
 class RemoteCommandRunner:
     @staticmethod
@@ -81,20 +69,6 @@ class RemoteCommandRunner:
         if res is not None:
             print_failed(res.stderr)
         raise Exit("command failed")
-
-    @staticmethod
-    def move_to_shared_directory(
-        ctx: Context, instance: HostInstance, source: PathOrStr, subdir: PathOrStr | None = None
-    ):
-        full_target = get_kmt_os().shared_dir
-        if subdir is not None:
-            full_target = os.path.join(get_kmt_os().shared_dir, subdir)
-            RemoteCommandRunner.run_cmd(ctx, instance, f"mkdir -p {full_target}", False, False)
-
-        ssh_key_arg = f"-i {instance.ssh_key_path}" if instance.ssh_key_path is not None else ""
-        ctx.run(
-            f"rsync -e \"ssh {ssh_options_command()} {ssh_key_arg}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance.ip}:{full_target}"
-        )
 
 
 def get_instance_runner(arch: ArchOrLocal):
