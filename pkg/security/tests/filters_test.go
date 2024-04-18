@@ -394,32 +394,6 @@ func TestFilterDiscarderMask(t *testing.T) {
 	}))
 }
 
-func TestFilterDiscarderMeta(t *testing.T) {
-	ruleDefs := []*rules.RuleDefinition{
-		{
-			ID:         "test_mask_open",
-			Expression: `open.file.path == "{{.Root}}/do_not_match/test-mask"`,
-		},
-		{
-			ID:         "test_mask_chmod",
-			Expression: `chmod.file.path == "{{.Root}}/test-mask"`,
-		},
-	}
-
-	test, err := newTestModule(t, nil, ruleDefs)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	time.Sleep(probe.DiscardRetention)
-
-	path, _, err := test.CreateWithOptions("test-mask", 98, 99, 0o447)
-	t.Cleanup(func() {
-		os.Remove(path)
-	})
-}
-
 func TestFilterRenameFileDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
 
