@@ -66,7 +66,7 @@ func purgeFxWrapper(ctx context.Context, params *cliParams) error {
 }
 
 func purge(ctx context.Context, params *cliParams, _ log.Component, _ telemetry.Component) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "cmd/purge")
+	span, ctx := tracer.StartSpanFromContext(ctx, "cmd_purge")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 
 	span.SetTag("params.pkg", params.pkg)
