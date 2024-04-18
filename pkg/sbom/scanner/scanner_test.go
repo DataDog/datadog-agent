@@ -106,7 +106,7 @@ func TestRetryLogic_Error(t *testing.T) {
 	// Set up the configuration as the default one is too slow
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
-	cfg.Set("sbom.scan_queue.max_backoff", "600s", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 
 	// Create a scanner and start it
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
@@ -172,7 +172,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	// Set up the configuration as the default one is too slow
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
-	cfg.Set("sbom.scan_queue.max_backoff", "600s", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 
 	// Create a scanner and start it
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
@@ -218,7 +218,7 @@ func TestRetryLogic_Host(t *testing.T) {
 	// Set up the configuration as the default one is too slow
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
-	cfg.Set("sbom.scan_queue.max_backoff", "600s", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 
 	// Create a scanner and start it
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewNoneOption[workloadmeta.Component]())
@@ -277,7 +277,7 @@ func TestRetryChannelFull(t *testing.T) {
 	// Set up the configuration
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
-	cfg.Set("sbom.scan_queue.max_backoff", "600s", model.SourceAgentRuntime)
+	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 
 	// Create a scanner and start it
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
