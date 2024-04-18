@@ -8,7 +8,6 @@
 .build_sysprobe_artifacts:
   # kitchen prepare also builds object files
   - inv -e system-probe.kitchen-prepare --ci
-  - inv -e kmt.prepare --ci
 
 # Run tests for eBPF code
 .tests_linux_ebpf:
@@ -55,6 +54,7 @@ tests_ebpf_arm64:
     paths:
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
+      - $CI_PROJECT_DIR/kmt-deps
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
