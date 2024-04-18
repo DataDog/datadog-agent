@@ -43,6 +43,7 @@ def _get_environment_for_cache() -> dict:
             'CLUSTER_AGENT_',
             'DATADOG_AGENT_',
             'DD_',
+            'DDR_',
             'DEB_',
             'DESTINATION_',
             'DOCKER_',
@@ -60,7 +61,7 @@ def _get_environment_for_cache() -> dict:
             'MACOS_GITHUB_',
             'OMNIBUS_',
             'POD_',
-            'RELEASE_VERSION',
+            'PROCESSOR_',
             'RPM_',
             'RUN_',
             'S3_',
@@ -79,12 +80,14 @@ def _get_environment_for_cache() -> dict:
             "AVAILABILITY_ZONE",
             "BENCHMARKS_CI_IMAGE",
             "BUCKET_BRANCH",
-            "BUNDLER_VERSION",
             "CHANGELOG_COMMIT_SHA_SSM_NAME",
             "CLANG_LLVM_VER",
             "CHANNEL",
             "CI",
-            "COMPUTERNAME" "CONSUL_HTTP_ADDR",
+            "COMPUTERNAME",
+            "CONDA_PROMPT_MODIFIER",
+            "CONSUL_HTTP_ADDR",
+            "DEPLOY_AGENT",
             "DOGSTATSD_BINARIES_DIR",
             "EXPERIMENTS_EVALUATION_ADDRESS",
             "GCE_METADATA_HOST",
@@ -98,20 +101,23 @@ def _get_environment_for_cache() -> dict:
             "INTEGRATION_WHEELS_CACHE_BUCKET",
             "IRBRC",
             "KITCHEN_INFRASTRUCTURE_FLAKES_RETRY",
+            "LANG",
             "LESSCLOSE",
             "LESSOPEN",
             "LC_CTYPE",
             "LS_COLORS",
             "MACOS_S3_BUCKET",
+            "MANPATH",
             "MESSAGE",
             "OLDPWD",
+            "PCP_DIR",
             "PROCESS_S3_BUCKET",
             "PWD",
+            "PROMPT",
             "PYTHON_RUNTIMES",
             "RESTORE_CACHE_ATTEMPTS",
             "RUNNER_TEMP_PROJECT_DIR",
             "RUSTC_SHA256",
-            "RUST_VERSION",
             "SHLVL",
             "STATIC_BINARIES_DIR",
             "STATSD_URL",
@@ -145,7 +151,10 @@ def _get_environment_for_cache() -> dict:
 def omnibus_compute_cache_key(ctx):
     print('Computing cache key')
     h = hashlib.sha1()
-    omnibus_last_commit = ctx.run('git log -n 1 --pretty=format:%H omnibus/', hide='stdout').stdout
+    omnibus_invalidating_files = ['omnibus/config/', 'omnibus/lib/', 'omnibus/omnibus.rb']
+    omnibus_last_commit = ctx.run(
+        f'git log -n 1 --pretty=format:%H {" ".join(omnibus_invalidating_files)}', hide='stdout'
+    ).stdout
     h.update(str.encode(omnibus_last_commit))
     print(f'\tLast omnibus commit is {omnibus_last_commit}')
     buildimages_hash = _get_build_images(ctx)
