@@ -41,10 +41,5 @@ build do
   mkdir runtime_dir
 
   # Copy config files for runtime
-  block do
-    Dir.glob("#{project_dir}/runtime/*").each do |file|
-      next if !File.file?(file)
-      copy file, "#{runtime_dir}/"
-    end
-  end
+  copy "pkg/security/rules/default.policy", "#{runtime_dir}"
 end
