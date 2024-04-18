@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -79,7 +78,6 @@ type handlerdeps struct {
 	Collector             optional.Option[collector.Component]
 	EventPlatformReceiver eventplatformreceiver.Component
 	Ac                    autodiscovery.Mock
-	Gui                   optional.Option[gui.Component]
 	Settings              settings.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
@@ -119,7 +117,6 @@ func getComponentDeps(t *testing.T) handlerdeps {
 			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
 			autodiscoveryimpl.MockModule(),
 		),
-		fx.Supply(optional.NewNoneOption[gui.Component]()),
 		settingsimpl.MockModule(),
 	)
 }
@@ -147,7 +144,6 @@ func setupRoutes(t *testing.T) *mux.Router {
 		deps.Collector,
 		deps.EventPlatformReceiver,
 		deps.Ac,
-		deps.Gui,
 		deps.Settings,
 		deps.EndpointProviders,
 	)

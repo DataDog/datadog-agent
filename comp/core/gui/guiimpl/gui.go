@@ -7,11 +7,8 @@ package guiimpl
 
 import (
 	"context"
-	"crypto/rand"
 	"embed"
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"mime"
 	"net"
@@ -36,8 +33,8 @@ import (
 	guicomp "github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -52,13 +49,11 @@ func Module() fxutil.Module {
 type gui struct {
 	logger log.Component
 
-	port      string
-	listener  net.Listener
-	router    *mux.Router
-	authToken string
+	port     string
+	listener net.Listener
+	router   *mux.Router
 
-	// CsrfToken is a session-specific token passed to the GUI's authentication endpoint by app.launchGui
-	CsrfToken string
+	auth authenticator
 
 	// To compute uptime
 	startTimestamp int64
@@ -86,6 +81,8 @@ type dependencies struct {
 	Lc        fx.Lifecycle
 }
 
+type tokenValidator func(rawToken string) error
+
 // GUI component implementation constructor
 // @param deps dependencies needed to construct the gui, bundled in a struct
 // @return an optional, depending of "GUI_port" configuration value
@@ -103,25 +100,17 @@ func newGui(deps dependencies) optional.Option[guicomp.Component] {
 		logger: deps.Log,
 	}
 
-	// Create a CSRF token (unique to each session)
-	e := g.createCSRFToken()
-	if e != nil {
-		g.logger.Errorf("GUI server initialization failed (unable to create CSRF token): ", e)
-		return optional.NewNoneOption[guicomp.Component]()
-	}
+	// Instantiate the gorilla/mux router
+	router := mux.NewRouter()
 
 	// Fetch the authentication token (persists across sessions)
-	g.authToken, e = security.FetchAuthToken(deps.Config)
+	authToken, e := security.FetchAuthToken(deps.Config)
 	if e != nil {
 		g.logger.Errorf("GUI server initialization failed (unable to get the AuthToken): ", e)
 		return optional.NewNoneOption[guicomp.Component]()
 	}
 
-	// Instantiate the gorilla/mux router
-	router := mux.NewRouter()
-
-	// Serve the only public file at the authentication endpoint
-	router.HandleFunc("/authenticate", g.generateAuthEndpoint)
+	g.auth = newAuthenticator(authToken)
 
 	// Serve the (secured) index page on the default endpoint
 	router.Handle("/", g.authorizeAccess(http.HandlerFunc(generateIndex)))
@@ -172,16 +161,6 @@ func (g *gui) stop(_ context.Context) error {
 	return nil
 }
 
-func (g *gui) createCSRFToken() error {
-	key := make([]byte, 32)
-	_, e := rand.Read(key)
-	if e != nil {
-		return fmt.Errorf("error creating CSRF token: " + e.Error())
-	}
-	g.CsrfToken = hex.EncodeToString(key)
-	return nil
-}
-
 func generateIndex(w http.ResponseWriter, _ *http.Request) {
 	data, err := viewsFS.ReadFile("views/templates/index.tmpl")
 	if err != nil {
@@ -195,25 +174,6 @@ func generateIndex(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	e = t.Execute(w, map[string]bool{"restartEnabled": restartEnabled()})
-	if e != nil {
-		http.Error(w, e.Error(), http.StatusInternalServerError)
-		return
-	}
-}
-
-func (g *gui) generateAuthEndpoint(w http.ResponseWriter, _ *http.Request) {
-	data, err := viewsFS.ReadFile("views/templates/auth.tmpl")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	t, e := template.New("auth.tmpl").Parse(string(data))
-	if e != nil {
-		http.Error(w, e.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	e = t.Execute(w, map[string]interface{}{"csrf": g.CsrfToken})
 	if e != nil {
 		http.Error(w, e.Error(), http.StatusInternalServerError)
 		return
@@ -246,21 +206,37 @@ func (g *gui) authorizeAccess(h http.Handler) http.Handler {
 		// Disable caching
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 
-		cookie, _ := r.Cookie("authToken")
-		if cookie == nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			http.Error(w, "no authorization token", 401)
-			return
-		}
+		authToken := r.URL.Query().Get("authToken")
+		// authToken is present in the query when the GUI is opened from the CLI
+		if authToken != "" {
+			accessToken, err := g.auth.Authenticate(authToken)
+			if err != nil {
+				w.WriteHeader(http.StatusUnauthorized)
+				http.Error(w, "invalid authToken", 401)
+				return
+			}
+			// if authToken is valid, set the accessToken as a cookie and redirect the user to root page
+			http.SetCookie(w, &http.Cookie{Name: "accessToken", Value: accessToken, Path: "/"})
+			http.Redirect(w, r, "/", http.StatusFound)
+		} else {
+			cookie, _ := r.Cookie("accessToken")
+			if cookie == nil {
+				w.WriteHeader(http.StatusUnauthorized)
+				http.Error(w, "no accessToken token", 401)
+				return
+			}
 
-		if cookie.Value != g.authToken {
-			w.WriteHeader(http.StatusUnauthorized)
-			http.Error(w, "invalid authorization token", 401)
-			return
-		}
+			// check accessToken is valid (same key, same sessionId)
+			err := g.auth.Authorize(cookie.Value)
+			if err != nil {
+				w.WriteHeader(http.StatusUnauthorized)
+				http.Error(w, "invalid accessToken", 401)
+				return
+			}
 
-		// Token was valid: serve the requested resource
-		h.ServeHTTP(w, r)
+			// Token was valid: serve the requested resource
+			h.ServeHTTP(w, r)
+		}
 	})
 }
 
@@ -274,9 +250,12 @@ func (g *gui) authorizePOST(w http.ResponseWriter, r *http.Request, next http.Ha
 	}
 
 	token := strings.Split(authHeader[0], " ")[1]
-	if token != g.authToken {
+
+	// check accessToken is valid (same key, same sessionId)
+	err := g.auth.Authorize(token)
+	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		http.Error(w, "invalid authorization token", 401)
+		http.Error(w, "invalid accessToken", 401)
 		return
 	}
 
@@ -297,8 +276,4 @@ func parseBody(r *http.Request) (Payload, error) {
 	}
 
 	return p, nil
-}
-
-func (g gui) GetCSRFToken() string {
-	return g.CsrfToken
 }

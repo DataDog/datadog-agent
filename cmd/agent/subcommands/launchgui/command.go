@@ -7,9 +7,10 @@
 package launchgui
 
 import (
-	"encoding/json"
 	"fmt"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -62,31 +62,20 @@ func launchGui(config config.Component, _ *cliParams) error {
 		return err
 	}
 
-	// Get the CSRF token from the agent
-	c := util.GetClient(false) // FIX: get certificates right then make this true
-	ipcAddress, err := pkgconfig.GetIPCAddress()
-	if err != nil {
-		return err
-	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/gui/csrf-token", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
-	err = util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
+	// Create a new token object, specifying signing method and the claims
+	// you would like it to contain.
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+	})
 
-	csrfToken, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
+	// Sign and get the complete encoded token as a string using the secret
+	tokenString, err := token.SignedString([]byte(authToken))
 	if err != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(csrfToken, &errMap) //nolint:errcheck
-		if e, found := errMap["error"]; found {
-			err = fmt.Errorf(e)
-		}
-		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before attempting to open the GUI.\n", err)
-		return err
+		return fmt.Errorf("error generating JWT: " + err.Error())
 	}
 
 	// Open the GUI in a browser, passing the authorization tokens as parameters
-	err = open("http://127.0.0.1:" + guiPort + "/authenticate?authToken=" + authToken + "&csrf=" + string(csrfToken))
+	err = open("http://127.0.0.1:" + guiPort + "/?authToken=" + tokenString)
 	if err != nil {
 		return fmt.Errorf("error opening GUI: " + err.Error())
 	}

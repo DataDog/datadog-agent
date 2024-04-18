@@ -13,16 +13,21 @@ if (!String.prototype.endsWith) {
 }
 
 // Attempts to fetch the API key from the browsers cookies
-function getAuthToken() {
-  var cookies = document.cookie.split(';');
-  for (var i = 0; i < cookies.length; i++) {
-      var c = cookies[i];
-      while (c.charAt(0) == ' ') c = c.substring(1, c.length);
-      if (c.indexOf("authToken=") == 0) {
-        return c.substring(10, c.length);
-      }
+function getAccessToken() {
+  let name = "accessToken=";
+  let decodedCookie = decodeURIComponent(document.cookie);
+  let ca = decodedCookie.split(';');
+  for(let i = 0; i <ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) == ' ') {
+      c = c.substring(1);
+    }
+    if (c.indexOf(name) == 0) {
+      return c.substring(name.length, c.length);
+    }
   }
-  return null;
+
+  return "";
 }
 
 // Sends a message to the GUI server with the correct authorization/format
@@ -32,7 +37,7 @@ function sendMessage(endpoint, data, method, callback, callbackErr){
     type: method,
     data: data,
     headers: {
-        Authorization: 'Bearer ' + getAuthToken()
+        Authorization: 'Bearer ' + getAccessToken()
     },
     success: callback,
     error: callbackErr

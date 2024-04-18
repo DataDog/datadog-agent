@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -89,7 +88,6 @@ func StartServers(
 	collector optional.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
-	gui optional.Option[gui.Component],
 	settings settings.Component,
 	providers []api.EndpointProvider,
 ) error {
@@ -142,7 +140,6 @@ func StartServers(
 		collector,
 		eventPlatformReceiver,
 		ac,
-		gui,
 		settings,
 		providers,
 	); err != nil {

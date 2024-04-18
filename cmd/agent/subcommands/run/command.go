@@ -50,6 +50,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -234,6 +235,7 @@ func run(log log.Component,
 	_ healthprobe.Component,
 	_ autoexit.Component,
 	settings settings.Component,
+	_ optional.Option[gui.Component],
 ) error {
 	defer func() {
 		stopAgent(agentAPI)

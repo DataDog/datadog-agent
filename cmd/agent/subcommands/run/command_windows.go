@@ -47,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -126,6 +127,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			metadatascheduler metadatascheduler.Component,
 			jmxlogger jmxlogger.Component,
 			settings settings.Component,
+			_ optional.Option[gui.Component],
 		) error {
 
 			defer StopAgentWithDefaults(agentAPI)
