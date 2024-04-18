@@ -163,6 +163,9 @@ func (c *client) SendTraces(traces pb.Traces) {
 }
 
 func (c *client) sendPayload(requestType RequestType, payload interface{}) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.sendPayloadTimeout)
+	defer cancel()
+
 	event := c.baseEvent
 	event.RequestType = requestType
 	event.SequenceID = sequenceID.Add(1)
@@ -195,10 +198,7 @@ func (c *client) sendPayload(requestType RequestType, payload interface{}) {
 			req.Header.Add("dd-telemetry-debug-enabled", strconv.FormatBool(event.DebugFlag))
 			req.Header.Add("dd-agent-hostname", event.Host.Hostname)
 
-			ctx, cancel := context.WithTimeout(context.Background(), c.sendPayloadTimeout)
-			req = req.WithContext(ctx)
-			resp, err := c.client.Do(req)
-			cancel()
+			resp, err := c.client.Do(req.WithContext(ctx))
 			if err != nil {
 				log.Warnf("failed to send telemetry payload to endpoint %s: %v", url, err)
 				return
