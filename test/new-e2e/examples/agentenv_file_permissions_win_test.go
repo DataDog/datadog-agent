@@ -9,14 +9,15 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	perms "github.com/DataDog/test-infra-definitions/components/datadog/agentparams/filepermissions"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
 type filePermissionsWindowsTestSuite struct {
@@ -30,7 +31,7 @@ func (v *filePermissionsWindowsTestSuite) updateEnvWithWindows(opt awshost.Provi
 }
 
 func TestFilePermissionsWindows(t *testing.T) {
-	e2e.Run(t, &filePermissionsWindowsTestSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
+	e2e.Run(t, &filePermissionsWindowsTestSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))), e2e.WithDevMode())
 }
 
 func (v *filePermissionsWindowsTestSuite) TestDefaultPermissions() {
