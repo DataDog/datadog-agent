@@ -8,122 +8,25 @@
 package languagedetection
 
 import (
-	"fmt"
-	"io"
-	"net/http"
-	"sync"
-	"time"
+	"github.com/gorilla/mux"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-
-	"github.com/gorilla/mux"
-	"google.golang.org/protobuf/proto"
 )
 
 const pldHandlerName = "language-detection-handler"
 
-var (
-	// statusSuccess is the value for the "status" tag that represents a successful operation
-	statusSuccess = "success"
-	// statusError is the value for the "status" tag that represents an error
-	statusError = "error"
-)
-
 // InstallLanguageDetectionEndpoints installs language detection endpoints
-func InstallLanguageDetectionEndpoints(r *mux.Router, wmeta workloadmeta.Component) {
+func InstallLanguageDetectionEndpoints(r *mux.Router, wmeta workloadmeta.Component, cfg config.Component) {
+	service := newLanguageDetectionHandler(wmeta, cfg)
+
+	service.startCleanupInBackground()
+
 	handler := api.WithLeaderProxyHandler(
 		pldHandlerName,
-		preHandler,
-		func(w http.ResponseWriter, r *http.Request) {
-			leaderHandler(w, r, wmeta)
-		},
+		service.preHandler,
+		service.leaderHandler,
 	)
 	r.HandleFunc("/languagedetection", api.WithTelemetryWrapper(pldHandlerName, handler)).Methods("POST")
-}
-
-var ownersLanguages OwnersLanguages
-var ownersLanguagesOnce sync.Once
-
-var languageTTL time.Duration
-var languageTTLOnce sync.Once
-
-func loadOwnersLanguages(wlm workloadmeta.Component) *OwnersLanguages {
-	ownersLanguagesOnce.Do(func() {
-		ownersLanguages = *newOwnersLanguages()
-		cleanupPeriod := config.Datadog.GetDuration("cluster_agent.language_detection.cleanup.period")
-
-		// Launch periodic cleanup mechanism
-		go func() {
-			cleanupTicker := time.NewTicker(cleanupPeriod)
-			for range cleanupTicker.C {
-				ownersLanguages.cleanExpiredLanguages(wlm)
-			}
-		}()
-
-		// Remove any owner when its corresponding resource is deleted
-		go ownersLanguages.cleanRemovedOwners(wlm)
-	})
-	return &ownersLanguages
-}
-
-func loadLanguageTTL() time.Duration {
-	languageTTLOnce.Do(func() {
-		languageTTL = config.Datadog.GetDuration("cluster_agent.language_detection.cleanup.language_ttl")
-	})
-	return languageTTL
-}
-
-// preHandler is called by both leader and followers and returns true if the request should be forwarded or handled by the leader
-func preHandler(w http.ResponseWriter, r *http.Request) bool {
-	if !config.Datadog.GetBool("language_detection.enabled") {
-		ProcessedRequests.Inc(statusError)
-		http.Error(w, "Language detection feature is disabled on the cluster agent", http.StatusServiceUnavailable)
-		return false
-	}
-
-	// Reject if no body
-	if r.Body == nil {
-		ProcessedRequests.Inc(statusError)
-		http.Error(w, "Request body is empty", http.StatusBadRequest)
-		return false
-	}
-
-	return true
-}
-
-// leaderHandler is called only by the leader and used to patch the annotations
-func leaderHandler(w http.ResponseWriter, r *http.Request, wlm workloadmeta.Component) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
-		ProcessedRequests.Inc(statusError)
-		return
-	}
-
-	// Create a new instance of the protobuf message type
-	requestData := &pbgo.ParentLanguageAnnotationRequest{}
-
-	// Unmarshal the request body into the protobuf message
-	err = proto.Unmarshal(body, requestData)
-	if err != nil {
-		http.Error(w, "Failed to unmarshal request body", http.StatusBadRequest)
-		ProcessedRequests.Inc(statusError)
-		return
-	}
-
-	ownersLanguagesFromRequest := getOwnersLanguages(requestData, time.Now().Add(loadLanguageTTL()))
-
-	ownersLanguage := loadOwnersLanguages(wlm)
-	err = ownersLanguage.mergeAndFlush(ownersLanguagesFromRequest, wlm)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to store some (or all) languages in workloadmeta store: %s", err), http.StatusInternalServerError)
-		ProcessedRequests.Inc(statusError)
-		return
-	}
-
-	ProcessedRequests.Inc(statusSuccess)
-	w.WriteHeader(http.StatusOK)
 }
