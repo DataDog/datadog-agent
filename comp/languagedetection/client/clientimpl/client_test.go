@@ -102,7 +102,7 @@ func TestClientEnabled(t *testing.T) {
 						"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,
 						"cluster_agent.enabled":                testCase.clusterAgentEnabled,
 					}}),
-					telemetry.MockModule(),
+					telemetryimpl.MockModule(),
 					logimpl.MockModule(),
 					fx.Supply(workloadmeta.NewParams()),
 					workloadmeta.MockModuleV2(),
