@@ -15,8 +15,8 @@ build do
     end
     # Omnibus hardcodes the template rendering to be in config/templates/<software-name>
     # so we need to move the input to its expected location
-    move "#{Omnibus::Config.project_root}/config/templates/installer/README.md.erb",
-      "#{Omnibus::Config.project_root}/config/templates/package-artifacts/README.md.erb"
+    mkdir "#{Omnibus::Config.project_root}/config/templates/package-artifacts/"
+    move "#{Omnibus::Config.project_root}/config/templates/installer/README.md.erb", "#{Omnibus::Config.project_root}/config/templates/package-artifacts/README.md.erb"
     erb source: "README.md.erb",
        dest: "#{install_dir}/README.md",
        mode: 0644,
