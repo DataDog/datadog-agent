@@ -7,4 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 ---
 fixes:
-  - Fixed initialisation of language expiration time for detected languages.
+  - Fixed initialization of language expiration time for detected languages.
