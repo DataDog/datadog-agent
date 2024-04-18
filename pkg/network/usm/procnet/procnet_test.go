@@ -61,3 +61,13 @@ func TestGetTCPConnections(t *testing.T) {
 		return false
 	})
 }
+
+// This benchmark is mostly intended to be executed as a source of pprof data:
+// go test -tags=linux_bpf -bench=BenchmarkGetTCPConnections -benchmem -cpuprofile cpu.prof -memprofile mem.prof
+func BenchmarkGetTCPConnections(b *testing.B) {
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		GetTCPConnections()
+	}
+}
