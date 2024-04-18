@@ -16,6 +16,8 @@ func init() {
 					EventType: "create",
 				},
 			},
+			FinalField:     "create.file.path",
+			FinalEventType: "create",
 		},
 		{
 			Entries: []rules.MultiDiscarderEntry{
@@ -24,6 +26,8 @@ func init() {
 					EventType: "create",
 				},
 			},
+			FinalField:     "create.file.name",
+			FinalEventType: "create",
 		},
 	}
 }
