@@ -13,13 +13,13 @@ import (
 )
 
 type authenticator struct {
-	sessionId  string
+	sessionID  string
 	signingKey []byte
 }
 
 func newAuthenticator(authToken string) authenticator {
 	return authenticator{
-		sessionId:  uuid.New().String(),
+		sessionID:  uuid.New().String(),
 		signingKey: []byte(authToken),
 	}
 }
@@ -42,7 +42,7 @@ func (a *authenticator) Authenticate(rawToken string) (string, error) {
 	// Create the accessToken that the user will register as a cookie
 	// with the current session ID
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, &jwt.RegisteredClaims{
-		Subject: a.sessionId,
+		Subject: a.sessionID,
 	})
 
 	// Sign and get the complete encoded token as a string using the secret
@@ -60,7 +60,7 @@ func (a *authenticator) Authorize(rawToken string) error {
 	_, err := jwt.Parse(
 		rawToken,
 		a.getSigningKey,
-		jwt.WithSubject(a.sessionId),
+		jwt.WithSubject(a.sessionID),
 		jwt.WithValidMethods([]string{"HS256"}),
 	)
 
