@@ -605,6 +605,8 @@ workflow:
       paths:
         - pkg/installer/**/*
       compare_to: main
+    variables:
+      FAST_TESTS: "true"
 
 .except_main_or_release_branch:
   - <<: *if_main_branch
