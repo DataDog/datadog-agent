@@ -139,12 +139,12 @@ class LibvirtDomain:
         run = f"ssh {ssh_options_command(extra_opts)} -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
         return self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
 
-    def copy(self, ctx: Context, source: PathOrStr, target: PathOrStr, exclude: PathOrStr = None):
+    def copy(self, ctx: Context, source: PathOrStr, target: PathOrStr, exclude: PathOrStr = None, verbose: bool = False):
         exclude_arg = ""
         if exclude is not None:
             exclude_arg = f"--exclude '{exclude}'"
-        run = f"rsync -e \"ssh {ssh_options_command()} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore' {source} root@{self.ip}:{target}"
-        return self.instance.runner.run_cmd(ctx, self.instance, run, False, False)
+        run = f"rsync -v -e \"ssh {ssh_options_command()} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore' {source} root@{self.ip}:{target}"
+        return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
 
     def __repr__(self):
         return f"<LibvirtDomain> {self.name} {self.ip}"
