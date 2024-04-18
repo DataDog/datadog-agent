@@ -11,6 +11,7 @@ package sds
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -25,17 +26,17 @@ const ScannedTag = "sds_agent:true"
 const SDSEnabled = true
 
 var (
-	tlmSDSConfiguredRules = telemetry.NewCounterWithOpts("sds", "rules_configured", []string{},
+	tlmSDSConfiguredRules = telemetry.NewCounterWithOpts("sds", "rules_configured", []string{"pipeline"},
 		"Number of configured rules.", telemetry.Options{DefaultMetric: true})
-	tlmSDSMalformedRules = telemetry.NewCounterWithOpts("sds", "rules_malformed", []string{},
+	tlmSDSMalformedRules = telemetry.NewCounterWithOpts("sds", "rules_malformed", []string{"pipeline"},
 		"Number of malformed rules received through RC.", telemetry.Options{DefaultMetric: true})
-	tlmSDSDisabledRules = telemetry.NewCounterWithOpts("sds", "rules_disabled", []string{},
+	tlmSDSDisabledRules = telemetry.NewCounterWithOpts("sds", "rules_disabled", []string{"pipeline"},
 		"Rules received but disabled while applying user config.", telemetry.Options{DefaultMetric: true})
-	tlmSDSUnknownStdRule = telemetry.NewCounterWithOpts("sds", "rules_unknown", []string{},
+	tlmSDSUnknownStdRule = telemetry.NewCounterWithOpts("sds", "rules_unknown", []string{"pipeline"},
 		"Unknown standard rules while applying user config.", telemetry.Options{DefaultMetric: true})
-	tlmSDSReconfigError = telemetry.NewCounterWithOpts("sds", "reconfiguration_error", []string{"type", "error_type"},
+	tlmSDSReconfigError = telemetry.NewCounterWithOpts("sds", "reconfiguration_error", []string{"pipeline", "type", "error_type"},
 		"Count of SDS reconfiguration error.", telemetry.Options{DefaultMetric: true})
-	tlmSDSReconfigSuccess = telemetry.NewCounterWithOpts("sds", "reconfiguration_success", []string{"type"},
+	tlmSDSReconfigSuccess = telemetry.NewCounterWithOpts("sds", "reconfiguration_success", []string{"pipeline", "type"},
 		"Count of SDS reconfiguration success.", telemetry.Options{DefaultMetric: true})
 )
 
@@ -56,12 +57,15 @@ type Scanner struct {
 	// configuredRules are stored on configuration to retrieve rules
 	// information on match. Use this read-only.
 	configuredRules []RuleConfig
+	// pipelineID is the logs pipeline ID for which we've created this scanner,
+	// stored as string as it is only used in the telemetry.
+	pipelineID string
 }
 
 // CreateScanner creates an SDS scanner.
 // Use `Reconfigure` to configure it manually.
-func CreateScanner() *Scanner {
-	scanner := &Scanner{}
+func CreateScanner(pipelineID int) *Scanner {
+	scanner := &Scanner{pipelineID: strconv.Itoa(pipelineID)}
 	log.Debugf("creating a new SDS scanner (internal id: %p)", scanner)
 	return scanner
 }
@@ -125,13 +129,13 @@ func (s *Scanner) Reconfigure(order ReconfigureOrder) error {
 // This method is NOT thread safe, the caller has to ensure the thread safety.
 func (s *Scanner) reconfigureStandardRules(rawConfig []byte) error {
 	if rawConfig == nil {
-		tlmSDSReconfigError.Inc(string(StandardRules), "nil_config")
+		tlmSDSReconfigError.Inc(s.pipelineID, string(StandardRules), "nil_config")
 		return fmt.Errorf("Invalid nil raw configuration for standard rules")
 	}
 
 	var unmarshaled StandardRulesConfig
 	if err := json.Unmarshal(rawConfig, &unmarshaled); err != nil {
-		tlmSDSReconfigError.Inc(string(StandardRules), "cant_unmarshal")
+		tlmSDSReconfigError.Inc(s.pipelineID, string(StandardRules), "cant_unmarshal")
 		return fmt.Errorf("Can't unmarshal raw configuration: %v", err)
 	}
 
@@ -142,7 +146,7 @@ func (s *Scanner) reconfigureStandardRules(rawConfig []byte) error {
 	}
 	s.standardRules = standardRules
 
-	tlmSDSReconfigSuccess.Inc(string(StandardRules))
+	tlmSDSReconfigSuccess.Inc(s.pipelineID, string(StandardRules))
 	log.Info("Reconfigured SDS standard rules.")
 	return nil
 }
@@ -153,21 +157,21 @@ func (s *Scanner) reconfigureStandardRules(rawConfig []byte) error {
 // This method is NOT thread safe, caller has to ensure the thread safety.
 func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	if rawConfig == nil {
-		tlmSDSReconfigError.Inc(string(AgentConfig), "nil_config")
+		tlmSDSReconfigError.Inc(s.pipelineID, string(AgentConfig), "nil_config")
 		return fmt.Errorf("Invalid nil raw configuration received for user configuration")
 	}
 
 	if s.standardRules == nil || len(s.standardRules) == 0 {
 		// store it for the next try
 		s.rawConfig = rawConfig
-		tlmSDSReconfigError.Inc(string(AgentConfig), "no_std_rules")
+		tlmSDSReconfigError.Inc(s.pipelineID, string(AgentConfig), "no_std_rules")
 		log.Info("Received an user configuration but no SDS standard rules available.")
 		return nil
 	}
 
 	var config RulesConfig
 	if err := json.Unmarshal(rawConfig, &config); err != nil {
-		tlmSDSReconfigError.Inc(string(AgentConfig), "cant_unmarshal")
+		tlmSDSReconfigError.Inc(s.pipelineID, string(AgentConfig), "cant_unmarshal")
 		return fmt.Errorf("Can't unmarshal raw configuration: %v", err)
 	}
 
@@ -186,7 +190,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 			s.Scanner = nil
 			s.rawConfig = rawConfig
 			s.configuredRules = nil
-			tlmSDSReconfigSuccess.Inc("shutdown")
+			tlmSDSReconfigSuccess.Inc(s.pipelineID, "shutdown")
 		}
 		return nil
 	}
@@ -199,7 +203,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 		standardRule, found := s.standardRules[userRule.Definition.StandardRuleID]
 		if !found {
 			log.Warnf("Referencing an unknown standard rule, id: %v", userRule.Definition.StandardRuleID)
-			tlmSDSUnknownStdRule.Inc()
+			tlmSDSUnknownStdRule.Inc(s.pipelineID)
 			continue
 		}
 
@@ -214,14 +218,14 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	}
 
 	if malformedRulesCount > 0 {
-		tlmSDSMalformedRules.Add(float64(malformedRulesCount))
+		tlmSDSMalformedRules.Add(float64(malformedRulesCount), s.pipelineID)
 	}
 
 	// create the new SDS Scanner
 	var scanner *sds.Scanner
 	var err error
 	if scanner, err = sds.CreateScanner(sdsRules); err != nil {
-		tlmSDSReconfigError.Inc(string(AgentConfig), "scanner_error")
+		tlmSDSReconfigError.Inc(s.pipelineID, string(AgentConfig), "scanner_error")
 		return fmt.Errorf("while configuring an SDS Scanner: %v", err)
 	}
 
@@ -231,7 +235,6 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 		s.Scanner = nil
 	}
 
-
 	// store the raw configuration for a later refresh
 	// if we receive new standard rules
 	s.rawConfig = rawConfig
@@ -240,9 +243,9 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	log.Infof("Created an SDS scanner with %d enabled rules.", len(scanner.Rules))
 	s.Scanner = scanner
 
-	tlmSDSConfiguredRules.Add(float64(len(sdsRules)))
-	tlmSDSDisabledRules.Add(float64(totalRulesReceived - len(config.Rules)))
-	tlmSDSReconfigSuccess.Inc(string(AgentConfig))
+	tlmSDSConfiguredRules.Add(float64(len(sdsRules)), s.pipelineID)
+	tlmSDSDisabledRules.Add(float64(totalRulesReceived-len(config.Rules)), s.pipelineID)
+	tlmSDSReconfigSuccess.Inc(s.pipelineID, string(AgentConfig))
 
 	return nil
 }
