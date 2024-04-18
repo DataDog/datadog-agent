@@ -765,7 +765,13 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 	if shouldCheckMetaDiscardersOn != "" {
 		for _, field := range metaDiscardersPathFields {
 			bucketIndex, _, _ := strings.Cut(field, ".")
+			rs.logger.Errorf("bucket index %s, field %s, path %s", bucketIndex, field, shouldCheckMetaDiscardersOn)
 			bucket := rs.eventRuleBuckets[bucketIndex]
+			if bucket == nil {
+				rs.logger.Errorf("bucket %s not found", bucketIndex)
+				continue
+			}
+
 			dctx := buildDiscarderCtx(field, shouldCheckMetaDiscardersOn)
 			if isDiscarder, _ := IsDiscarder(dctx, field, bucket.rules); isDiscarder {
 				rs.logger.Errorf("%s meta discarder from open %s %s", bucketIndex, field, shouldCheckMetaDiscardersOn)
