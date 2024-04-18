@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package telemetryimpl implements the telemtry component interface.
+// Package telemetryimpl implements the telemetry component interface.
 package telemetryimpl
 
 import (
