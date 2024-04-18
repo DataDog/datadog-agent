@@ -18,10 +18,10 @@ enabled_strategies:
 ---
 schema-version: v1
 kind: stale-branches
-max_age: 4380h # 6 months
+max_age: 4380h  # 6 months
 excludes:
   - main
-  - 7.*.x
-  - 6.*.x
+  - 7\.[0-9]+\.x
+  - 6\.[0-9]+\.x
   - gh-pages
-  - *DO-NOT-DELETE
+  - .*DO-NOT-DELETE
