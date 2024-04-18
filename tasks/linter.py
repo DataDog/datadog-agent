@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 from collections import defaultdict
@@ -8,6 +9,7 @@ from invoke import Exit, task
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab import (
     Gitlab,
     generate_gitlab_full_configuration,
@@ -16,7 +18,7 @@ from tasks.libs.ciproviders.gitlab import (
     load_context,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
-from tasks.libs.common.utils import DEFAULT_BRANCH, color_message
+from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME, color_message, is_pr_context
 from tasks.libs.types.copyright import CopyrightLinter
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
@@ -35,9 +37,7 @@ def python(ctx):
     https://github.com/DataDog/datadog-agent/blob/{DEFAULT_BRANCH}/docs/dev/agent_dev_env.md#pre-commit-hooks"""
     )
 
-    ctx.run("flake8 .")
-    ctx.run("black --check --diff .")
-    ctx.run("isort --check-only --diff .")
+    ctx.run("ruff check --fix .")
     ctx.run("vulture --ignore-decorators @task --ignore-names 'test_*,Test*' tasks")
 
 
@@ -105,6 +105,7 @@ def go(
     timeout: int = None,
     golangci_lint_kwargs="",
     headless_mode=False,
+    include_sds=False,
 ):
     """
     Run go linters on the given module and targets.
@@ -138,6 +139,7 @@ def go(
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
+        include_sds=include_sds,
     )
 
 
@@ -157,6 +159,7 @@ def _lint_go(
     timeout,
     golangci_lint_kwargs,
     headless_mode,
+    include_sds,
 ):
     if not check_tools_version(ctx, ['go', 'golangci-lint']):
         print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
@@ -185,6 +188,7 @@ def _lint_go(
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
+        include_sds=include_sds,
     )
 
     success = process_module_results(modules_results_per_phase)
@@ -212,13 +216,19 @@ def run_lint_go(
     timeout=None,
     golangci_lint_kwargs="",
     headless_mode=False,
+    include_sds=False,
 ):
     modules, flavors = process_input_args(module, targets, flavors, headless_mode)
 
     linter_tags = {
         f: build_tags
         or compute_build_tags_for_flavor(
-            flavor=f, build=build, arch=arch, build_include=build_include, build_exclude=build_exclude
+            flavor=f,
+            build=build,
+            arch=arch,
+            build_include=build_include,
+            build_exclude=build_exclude,
+            include_sds=include_sds,
         )
         for f in flavors
     }
@@ -383,3 +393,28 @@ def gitlab_ci(_, test="all", custom_context=None):
         if not res["valid"]:
             print(color_message(f"Errors: {res['errors']}", "red"), file=sys.stderr)
             raise Exit(code=1)
+
+
+@task
+def releasenote(ctx):
+    """
+    Lint release notes with Reno
+    """
+    branch = os.environ.get("BRANCH_NAME")
+    pr_id = os.environ.get("PR_ID")
+
+    run_check = is_pr_context(branch, pr_id, "release note")
+    if run_check:
+        github = GithubAPI(repository=GITHUB_REPO_NAME, public_repo=True)
+        if github.is_release_note_needed(pr_id):
+            if not github.contains_release_note(pr_id):
+                print(
+                    f"{color_message('Error', 'red')}: No releasenote was found for this PR. Please add one using 'reno'"
+                    ", see https://github.com/DataDog/datadog-agent/blob/main/docs/dev/contributing.md#reno"
+                    ", or apply the label 'changelog/no-changelog' to the PR.",
+                    file=sys.stderr,
+                )
+                raise Exit(code=1)
+            ctx.run("reno lint")
+        else:
+            print("'changelog/no-changelog' label found on the PR: skipping linting")

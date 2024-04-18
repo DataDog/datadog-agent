@@ -33,21 +33,10 @@
   - filename=$(ls datadog-signing-keys*.deb); mv $filename datadog-signing-keys_${DD_PIPELINE_ID}.deb
   - popd
 
-# Avoid simultaneous writes on the repo metadata file that made kitchen tests fail before
-.deploy_deb_resource_group-a6: &deploy_deb_resource_group-a6
-  resource_group: deploy_deb_a6
-
-.deploy_deb_resource_group-a7: &deploy_deb_resource_group-a7
-  resource_group: deploy_deb_a7
-
-.deploy_deb_resource_group-i7: &deploy_deb_resource_group-i7
-  resource_group: deploy_deb_i7
-
 .deploy_deb_testing-a6:
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
-  <<: *deploy_deb_resource_group-a6
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
@@ -58,7 +47,6 @@
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
-  <<: *deploy_deb_resource_group-i7
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-i7
   before_script:
@@ -104,7 +92,6 @@ deploy_deb_testing-a6_arm64:
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
-  <<: *deploy_deb_resource_group-a7
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
@@ -373,7 +360,6 @@ deploy_windows_testing-a7:
   rules:
     - !reference [.except_no_tests_no_deploy]
     - !reference [.except_mergequeue]
-    - !reference [.on_windows_installer_changes_or_manual]
     - when: on_success
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS

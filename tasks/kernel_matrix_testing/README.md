@@ -143,6 +143,12 @@ Then connect to the VM as follows
 ssh -i /home/kernel-version-testing/ddvm_rsa -o StrictHostKeyChecking=no root@<ip>
 ```
 
+#### Connecting to all VMs with tmux
+
+You can connect to all VMs at once using the `kmt.tmux` task. It will automatically create a new session for your stack (deleting it if it already exists), will open a new window for each instance, and a new panel for each VM in the window.
+
+A useful command for tmux in these cases is `:set synchronize-panes on`, which will send the same command to all panes at once. This is useful for running the same command in all VMs at once, specially running system-probe all at once.
+
 ### Destroy stack
 
 Tear down the stack

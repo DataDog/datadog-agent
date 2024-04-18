@@ -102,8 +102,8 @@ min_collection_interval: 180
 
 	sender.AssertMetricWithTimestamp(t, "CountWithTimestamp", "cisco_sdwan.interface.tx_bits", 32, "", tags, ts)
 	sender.AssertMetricWithTimestamp(t, "CountWithTimestamp", "cisco_sdwan.interface.rx_bits", 184, "", tags, ts)
-	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.interface.rx_kbps", 10.4, "", tags, ts)
-	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.interface.tx_kbps", 9.8, "", tags, ts)
+	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.interface.rx_bps", 10400, "", tags, ts)
+	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.interface.tx_bps", 9800, "", tags, ts)
 	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.interface.rx_bandwidth_usage", 0, "", tags, ts)
 	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.interface.tx_bandwidth_usage", 0.8, "", tags, ts)
 	sender.AssertMetricWithTimestamp(t, "CountWithTimestamp", "cisco_sdwan.interface.rx_errors", 2, "", tags, ts)
@@ -146,6 +146,9 @@ min_collection_interval: 180
 	// Assert device counters metrics
 	sender.AssertMetric(t, "MonotonicCount", "cisco_sdwan.crash.count", 0, "", []string{"system_ip:10.10.1.12"})
 	sender.AssertMetric(t, "MonotonicCount", "cisco_sdwan.reboot.count", 3, "", []string{"system_ip:10.10.1.12"})
+
+	// Assert device status metrics
+	sender.AssertMetric(t, "Gauge", "cisco_sdwan.device.reachable", 1, "", []string{"device_vendor:cisco", "device_namespace:test", "hostname:Manager", "system_ip:10.10.1.1", "site_id:101", "type:vmanage"})
 
 	// Assert metadata
 	// language=json
