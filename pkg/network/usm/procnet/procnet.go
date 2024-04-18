@@ -95,19 +95,25 @@ func populateIndex(connByInode map[int]TCPConnection, file string) {
 // original `connsByInode` map size because one TCP socket can potentially "map"
 // to multiple (PID, FD) pairs (eg. forked processes etc).
 func matchFDWithSocket(procRoot string, pid int, connByInode map[int]TCPConnection, conns []TCPConnection) []TCPConnection {
-	fdsDir := filepath.Join(procRoot, fmt.Sprintf("%d", pid), "fd")
-	fds, err := os.ReadDir(fdsDir)
-	if err != nil {
-		return conns
-	}
-
 	netNS, err := kernel.GetNetNsInoFromPid(procRoot, pid)
 	if err != nil {
 		return conns
 	}
 
+	fdsPath := filepath.Join(procRoot, fmt.Sprintf("%d", pid), "fd")
+	fdsDir, err := os.Open(fdsPath)
+	if err != nil {
+		return conns
+	}
+	defer fdsDir.Close()
+
+	fds, err := fdsDir.Readdirnames(-1)
+	if err != nil {
+		return conns
+	}
+
 	for _, fd := range fds {
-		info, err := os.Stat(filepath.Join(fdsDir, fd.Name()))
+		info, err := os.Stat(filepath.Join(fdsPath, fd))
 		if err != nil {
 			continue
 		}
@@ -122,7 +128,7 @@ func matchFDWithSocket(procRoot string, pid int, connByInode map[int]TCPConnecti
 			continue
 		}
 
-		fdNum, err := strconv.Atoi(fd.Name())
+		fdNum, err := strconv.Atoi(fd)
 		if err != nil {
 			continue
 		}
