@@ -153,14 +153,16 @@ if linux_target?
   else
     # This file depends on the type of package and must therefor be generated during
     # packaging, not building.
-    uninstall_command="sudo yum remove datadog-installer"
-    if debian_target?
-        uninstall_command="sudo apt-get remove datadog-installer"
+    build do
+      uninstall_command="sudo yum remove datadog-installer"
+      if debian_target?
+          uninstall_command="sudo apt-get remove datadog-installer"
+      end
+      erb source: "README.md.erb",
+         dest: "#{install_dir}/README.md",
+         mode: 0644,
+         vars: { uninstall_command: uninstall_command}
     end
-    erb source: "README.md.erb",
-       dest: "#{install_dir}/README.md",
-       mode: 0644,
-       vars: { uninstall_command: uninstall_command}
   end
   if debian_target?
       package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/installer-deb"
