@@ -127,7 +127,7 @@ func bootstrap(ctx context.Context, params *cliParams, installScriptParams *inst
 		spanOptions = append(spanOptions, tracer.ChildOf(spanCtx))
 	}
 
-	span, ctx := tracer.StartSpanFromContext(ctx, "cmd/bootstrap", spanOptions...)
+	span, ctx := tracer.StartSpanFromContext(ctx, "cmd_bootstrap", spanOptions...)
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag(ext.ManualKeep, true)
 	span.SetTag("params.pkg", params.pkg)
