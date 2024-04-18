@@ -562,6 +562,7 @@ def prepare(
         info("[+] Dependencies already present in VMs")
         packages_with_ebpf = packages.split(",")
         packages_with_ebpf.append("./pkg/ebpf/bytecode")
+        packages_with_ebpf.append("./pkg/ebpf/bytecode/runtime")
         constrain_pkgs = f"--packages={','.join(set(packages_with_ebpf))}"
     else:
         warn("[!] Dependencies need to be rebuilt")
