@@ -4,7 +4,6 @@ go 1.21
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry/
-	github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl => ../../comp/core/telemetry/telemetryimpl
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model/
 	github.com/DataDog/datadog-agent/pkg/tagset => ../tagset/
