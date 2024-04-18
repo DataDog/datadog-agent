@@ -109,17 +109,17 @@ enum parse_result {
 // field happens to straddles the segment boundary, we need to read
 // some bytes from the old packet and the rest from the new packet.
 static __always_inline enum parse_result read_with_remainder(kafka_response_context_t *response, const struct __sk_buff *skb,
-                                                             u32 *offset, s32 *val, bool first)
+                                                             u32 *offset, u32 data_end, s32 *val, bool first)
 {
-    if (*offset >= skb->len) {
+    if (*offset >= data_end) {
         // The offset we want to read is completely outside of the current
         // packet. No remainder to save, we just need to save the offset
         // at which we need to start reading the next packet from.
-        response->carry_over_offset = *offset - skb->len;
+        response->carry_over_offset = *offset - data_end;
         return RET_EOP;
     }
 
-    u32 avail = skb->len - *offset;
+    u32 avail = data_end - *offset;
     u32 remainder = response->remainder;
     u32 want = sizeof(s32);
 
@@ -146,7 +146,7 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
 
         // This is negative and so kafka_continue_parse_response() will save
         // remainder.
-        response->carry_over_offset = *offset - skb->len;
+        response->carry_over_offset = *offset - data_end;
         return RET_EOP;
     }
 
@@ -197,7 +197,8 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
 static __always_inline enum parse_result kafka_continue_parse_response_loop(kafka_info_t *kafka,
                                                                             conn_tuple_t *tup,
                                                                             kafka_response_context_t *response,
-                                                                            struct __sk_buff *skb, u32 offset)
+                                                                            struct __sk_buff *skb, u32 offset,
+                                                                            u32 data_end)
 {
     u32 orig_offset = offset;
     kafka_transaction_t *request = &response->transaction;
@@ -237,7 +238,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
         case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
             if (request->request_api_version >= 4) {
                 s32 aborted_transactions = 0;
-                ret = read_with_remainder(response, skb, &offset, &aborted_transactions, first);
+                ret = read_with_remainder(response, skb, &offset, data_end, &aborted_transactions, first);
                 if (ret != RET_DONE) {
                     return ret;
                 }
@@ -268,7 +269,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
             // fallthrough
 
         case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START:
-            ret = read_with_remainder(response, skb, &offset, &response->record_batches_num_bytes, first);
+            ret = read_with_remainder(response, skb, &offset, data_end, &response->record_batches_num_bytes, first);
             if (ret != RET_DONE) {
                 return ret;
             }
@@ -289,7 +290,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
             // fallthrough
 
         case KAFKA_FETCH_RESPONSE_RECORD_BATCH_LENGTH:
-            ret = read_with_remainder(response, skb, &offset, &response->record_batch_length, first);
+            ret = read_with_remainder(response, skb, &offset, data_end, &response->record_batch_length, first);
             if (ret != RET_DONE) {
                 return ret;
             }
@@ -326,8 +327,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
             // fallthrough
 
         case KAFKA_FETCH_RESPONSE_RECORD_BATCH_MAGIC:
-            if (offset + sizeof(s8) > skb->len) {
-                response->carry_over_offset = offset - skb->len;
+            if (offset + sizeof(s8) > data_end) {
+                response->carry_over_offset = offset - data_end;
                 return RET_EOP;
             }
 
@@ -351,7 +352,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
         case KAFKA_FETCH_RESPONSE_RECORD_BATCH_RECORDS_COUNT:
             {
                 s32 records_count = 0;
-                ret = read_with_remainder(response, skb, &offset, &records_count, first);
+                ret = read_with_remainder(response, skb, &offset, data_end, &records_count, first);
                 if (ret != RET_DONE) {
                     return ret;
                 }
@@ -389,8 +390,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
             // fallthrough
 
         case KAFKA_FETCH_RESPONSE_RECORD_BATCH_END:
-            if (offset > skb->len) {
-                response->carry_over_offset = offset - skb->len;
+            if (offset > data_end) {
+                response->carry_over_offset = offset - data_end;
                 return RET_EOP;
             }
 
@@ -431,11 +432,12 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
 static __always_inline enum parse_result kafka_continue_parse_response(kafka_info_t *kafka,
                                                                        conn_tuple_t *tup,
                                                                        kafka_response_context_t *response,
-                                                                       struct __sk_buff *skb, u32 offset)
+                                                                       struct __sk_buff *skb, u32 offset,
+                                                                       u32 data_end)
 {
     enum parse_result ret;
 
-    ret = kafka_continue_parse_response_loop(kafka, tup, response, skb, offset);
+    ret = kafka_continue_parse_response_loop(kafka, tup, response, skb, offset, data_end);
     if (ret != RET_EOP) {
         return ret;
     }
@@ -449,13 +451,13 @@ static __always_inline enum parse_result kafka_continue_parse_response(kafka_inf
 
         switch (response->carry_over_offset) {
         case -1:
-            bpf_skb_load_bytes(skb, skb->len - 1, &response->remainder_buf, 1);
+            bpf_skb_load_bytes(skb, data_end - 1, &response->remainder_buf, 1);
             break;
         case -2:
-            bpf_skb_load_bytes(skb, skb->len - 2, &response->remainder_buf, 2);
+            bpf_skb_load_bytes(skb, data_end - 2, &response->remainder_buf, 2);
             break;
         case -3:
-            bpf_skb_load_bytes(skb, skb->len - 3, &response->remainder_buf, 3);
+            bpf_skb_load_bytes(skb, data_end - 3, &response->remainder_buf, 3);
             break;
         default:
             // read_with_remainder() only reads 4 byte values, so the remainder
@@ -500,7 +502,7 @@ int socket__kafka_response_parser(struct __sk_buff *skb) {
         return 0;
     }
 
-    enum parse_result result = kafka_continue_parse_response(kafka, &tup, response, skb, skb_info.data_off);
+    enum parse_result result = kafka_continue_parse_response(kafka, &tup, response, skb, skb_info.data_off, skb_info.data_end);
     switch (result) {
     case RET_EOP:
         // This packet parsed successfully but more data needed, nothing
