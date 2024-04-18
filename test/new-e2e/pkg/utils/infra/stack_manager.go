@@ -194,29 +194,29 @@ func (sm *StackManager) getLoggingOptions() (debug.LoggingOptions, error) {
 	}, nil
 }
 
-func (sm *StackManager) getProgressStreamsOnUp(logger io.Writer) (optup.Option, error) {
+func (sm *StackManager) getProgressStreamsOnUp(logger io.Writer) optup.Option {
 	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
 	if err != nil {
-		return optup.ProgressStreams(logger), err
+		return optup.ErrorProgressStreams(logger)
 	}
 
 	if progressStreams {
-		return optup.ProgressStreams(logger), nil
+		return optup.ProgressStreams(logger)
 	}
 
-	return optup.ErrorProgressStreams(logger), nil
+	return optup.ErrorProgressStreams(logger)
 }
 
-func (sm *StackManager) getProgressStreamsOnDestroy(logger io.Writer) (optdestroy.Option, error) {
+func (sm *StackManager) getProgressStreamsOnDestroy(logger io.Writer) optdestroy.Option {
 	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
 	if err != nil {
-		return optdestroy.ProgressStreams(logger), err
+		return optdestroy.ErrorProgressStreams(logger)
 	}
 
 	if progressStreams {
-		return optdestroy.ProgressStreams(logger), nil
+		return optdestroy.ProgressStreams(logger)
 	}
-	return optdestroy.ErrorProgressStreams(logger), nil
+	return optdestroy.ErrorProgressStreams(logger)
 }
 
 func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *auto.Stack, logWriter io.Writer) error {
@@ -237,10 +237,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	} else {
 		logger = logWriter
 	}
-	progressStreamsDestroyOption, err := sm.getProgressStreamsOnDestroy(logger)
-	if err != nil {
-		return err
-	}
+	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
 
 	_, err = stack.Destroy(destroyContext, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 	cancel()
@@ -303,14 +300,8 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		logger = logWriter
 	}
 
-	progressStreamsUpOption, err := sm.getProgressStreamsOnUp(logger)
-	if err != nil {
-		return nil, auto.UpResult{}, err
-	}
-	progressStreamsDestroyOption, err := sm.getProgressStreamsOnDestroy(logger)
-	if err != nil {
-		return nil, auto.UpResult{}, err
-	}
+	progressStreamsUpOption := sm.getProgressStreamsOnUp(logger)
+	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
 
 	var upResult auto.UpResult
 
