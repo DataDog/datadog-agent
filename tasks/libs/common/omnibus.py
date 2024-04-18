@@ -148,15 +148,29 @@ def _get_environment_for_cache() -> dict:
     return dict(filter(env_filter, sorted(os.environ.items())))
 
 
-def omnibus_compute_cache_key(ctx):
-    print('Computing cache key')
-    h = hashlib.sha1()
+def _last_omnibus_changes(ctx):
     omnibus_invalidating_files = ['omnibus/config/', 'omnibus/lib/', 'omnibus/omnibus.rb']
     omnibus_last_commit = ctx.run(
         f'git log -n 1 --pretty=format:%H {" ".join(omnibus_invalidating_files)}', hide='stdout'
     ).stdout
-    h.update(str.encode(omnibus_last_commit))
-    print(f'\tLast omnibus commit is {omnibus_last_commit}')
+    # The commit sha1 is likely to change between a PR and its merge to main
+    # In order to work around this, we hash the commit diff so that the result
+    # can be reproduced on different branches with different sha1
+    omnibus_last_changes = ctx.run(
+        f'git diff {omnibus_last_commit}~ {omnibus_last_commit} {" ".join(omnibus_invalidating_files)}'
+    ).stdout
+    hash = hashlib.sha1()
+    hash.update(str.encode(omnibus_last_changes))
+    result = hash.hexdigest()
+    print(f'Hash for last omnibus changes is {result}')
+    return result
+
+
+def omnibus_compute_cache_key(ctx):
+    print('Computing cache key')
+    h = hashlib.sha1()
+    omnibus_last_changes = _last_omnibus_changes(ctx)
+    h.update(str.encode(omnibus_last_changes))
     buildimages_hash = _get_build_images(ctx)
     for img_hash in buildimages_hash:
         h.update(str.encode(img_hash))
