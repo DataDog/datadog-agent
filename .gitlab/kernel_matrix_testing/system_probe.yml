@@ -158,8 +158,8 @@ kmt_setup_env_sysprobe_x64:
     TEST_ARCHIVE_NAME: tests-$ARCH.tar.gz
   artifacts:
     when: always
-      - $CI_PROJECT_DIR/connector-${ARCH}
     paths:
+      - $CI_PROJECT_DIR/connector-${ARCH}
 
 upload_sysprobe_tests_x64:
   extends:
