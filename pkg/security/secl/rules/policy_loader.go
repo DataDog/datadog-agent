@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	PolicyProviderTypeDir     = "file"          // PolicyProviderTypeDir defines directory policy provider
-	PolicyProviderTypeRC      = "remote-config" // PolicyProviderTypeRC defines RC policy provider
-	PolicyProviderTypeBundled = "bundled"       // PolicyProviderTypeBundled defines the bundled policy provider
+	PolicyProviderTypeDir           = "file"           // PolicyProviderTypeDir defines directory policy provider
+	PolicyProviderTypeRC            = "remote-config"  // PolicyProviderTypeRC defines RC policy provider
+	PolicyProviderTypeBundled       = "bundled"        // PolicyProviderTypeBundled defines the bundled policy provider
+	PolicyProviderTypeEmbedFallback = "embed-fallback" // PolicyProviderTypeEmbedFallback defines the embed fallback policy provider
 )
 
 var (
