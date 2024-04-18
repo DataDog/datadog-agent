@@ -72,5 +72,4 @@ typedef struct kafka_info_t {
     kafka_response_context_t response;
 } kafka_info_t;
 
-
 #endif
