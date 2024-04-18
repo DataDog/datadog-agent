@@ -211,7 +211,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 		case <-time.After(time.Second):
 			return true
 		}
-	}, 15*time.Second, 1*time.Second)
+	}, 5*time.Second, 200*time.Millisecond)
 	cancel()
 	// Ensure the collector is stopped
 	shutdown.WaitUntil(time.After(5 * time.Second))
@@ -263,7 +263,7 @@ func TestRetryChannelFull(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Wait long enough for the `sendResult` function to fail
-	time.Sleep(sendTimeout + 1*time.Second)
+	time.Sleep(sendTimeout + 50*time.Millisecond)
 
 	// Make sure we recover
 	res := <-resultCh
@@ -273,7 +273,7 @@ func TestRetryChannelFull(t *testing.T) {
 	select {
 	case res := <-resultCh:
 		t.Errorf("unexpected result received %v", res)
-	case <-time.After(time.Second):
+	case <-time.After(600 * time.Millisecond):
 	}
 
 	cancel()
