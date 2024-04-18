@@ -44,6 +44,7 @@ func NewEBPFLessModel() *model.Model {
 				!strings.HasPrefix(field, "unload_module.") &&
 				!strings.HasPrefix(field, "container.") &&
 				!strings.HasPrefix(field, "hash.") &&
+				!strings.HasPrefix(field, "chdir.") &&
 				!strings.HasPrefix(field, "event.") {
 				return rules.ErrEventTypeNotEnabled
 			}

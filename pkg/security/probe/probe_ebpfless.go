@@ -266,6 +266,11 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		if !syscallMsg.LoadModule.LoadedFromMemory {
 			copyFileAttributes(&syscallMsg.LoadModule.File, &event.LoadModule.File)
 		}
+
+	case ebpfless.SyscallTypeChdir:
+		event.Type = uint32(model.FileChdirEventType)
+		event.LoadModule.Retval = syscallMsg.Retval
+		copyFileAttributes(&syscallMsg.Chdir.Dir, &event.Chdir.File)
 	}
 
 	// container context

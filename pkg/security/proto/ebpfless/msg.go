@@ -70,6 +70,8 @@ const (
 	SyscallTypeLoadModule
 	// SyscallTypeUnloadModule delete_module type
 	SyscallTypeUnloadModule
+	// SyscallTypeChdir chdir/fchdir type
+	SyscallTypeChdir
 )
 
 // ContainerContext defines a container context
@@ -144,9 +146,9 @@ type DupSyscallFakeMsg struct {
 	OldFd int32
 }
 
-// ChdirSyscallFakeMsg defines a chdir message
-type ChdirSyscallFakeMsg struct {
-	Path string
+// ChdirSyscallMsg defines a chdir message
+type ChdirSyscallMsg struct {
+	Dir FileSyscallMsg
 }
 
 // SetUIDSyscallMsg defines a setreuid message
@@ -291,10 +293,10 @@ type SyscallMsg struct {
 	Chown        *ChownSyscallMsg        `json:",omitempty"`
 	LoadModule   *LoadModuleSyscallMsg   `json:",omitempty"`
 	UnloadModule *UnloadModuleSyscallMsg `json:",omitempty"`
+	Chdir        *ChdirSyscallMsg        `json:",omitempty"`
 
 	// internals
-	Dup   *DupSyscallFakeMsg   `json:",omitempty"`
-	Chdir *ChdirSyscallFakeMsg `json:",omitempty"`
+	Dup *DupSyscallFakeMsg `json:",omitempty"`
 }
 
 // String returns string representation
