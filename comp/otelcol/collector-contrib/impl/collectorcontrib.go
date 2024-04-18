@@ -4,11 +4,34 @@ import (
 	collectorContrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/fileexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/ackextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/asapauthextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/awsproxy"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/bearertokenauthextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/headerssetterextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/httpforwarderextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/jaegerremotesampling"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/oauth2clientauthextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecstaskobserver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/oidcauthextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/sigv4authextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/dbstorage"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/extension/ballastextension"
+	"go.opentelemetry.io/collector/extension/zpagesextension"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver"
@@ -34,7 +57,29 @@ func (c *collectorContribImpl) OTelComponentFactories() (otelcol.Factories, erro
 	}
 
 	extensionsList := []extension.Factory{
-		// TODO: all of the extensions from Core collector & collector contrib
+		zpagesextension.NewFactory(),
+		ballastextension.NewFactory(),
+		ackextension.NewFactory(),
+		asapauthextension.NewFactory(),
+		awsproxy.NewFactory(),
+		basicauthextension.NewFactory(),
+		bearertokenauthextension.NewFactory(),
+		headerssetterextension.NewFactory(),
+		healthcheckextension.NewFactory(),
+		httpforwarderextension.NewFactory(),
+		jaegerremotesampling.NewFactory(),
+		oauth2clientauthextension.NewFactory(),
+		dockerobserver.NewFactory(),
+		ecsobserver.NewFactory(),
+		ecstaskobserver.NewFactory(),
+		hostobserver.NewFactory(),
+		k8sobserver.NewFactory(),
+		oidcauthextension.NewFactory(),
+		opampextension.NewFactory(),
+		pprofextension.NewFactory(),
+		sigv4authextension.NewFactory(),
+		filestorage.NewFactory(),
+		dbstorage.NewFactory(),
 	}
 	extensions, err := extension.MakeFactoryMap(extensionsList...)
 	if err != nil {
