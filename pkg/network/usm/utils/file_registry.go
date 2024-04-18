@@ -13,7 +13,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	"go.uber.org/atomic"
@@ -103,38 +102,40 @@ func NewFileRegistry(programName string) *FileRegistry {
 	return r
 }
 
+var (
+	errPidIsNotRegistered      = errors.New("pid is not registered")
+	errCallbackIsMissing       = errors.New("activationCB and deactivationCB must be both non-nil")
+	errAlreadyStopped          = errors.New("registry already stopped")
+	errPathIsBlocked           = errors.New("path is blocked")
+	errPathIsAlreadyRegistered = errors.New("path is already registered")
+)
+
 // Register inserts or updates a new file registration within to the `FileRegistry`;
 //
 // If no current registration exists for the given `PathIdentifier`, we execute
 // its *activation* callback. Otherwise, we increment the reference counter for
 // the existing registration if and only if `pid` is new;
-func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB callback) {
+func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB callback) error {
 	if activationCB == nil || deactivationCB == nil {
-		log.Errorf("activationCB and deactivationCB must be both non-nil")
-		return
+		return errCallbackIsMissing
 	}
 
 	path, err := NewFilePath(r.procRoot, namespacedPath, pid)
 	if err != nil {
-		// short living process can hit here
-		// as we receive the openat() syscall info after receiving the EXIT netlink process
-		if log.ShouldLog(seelog.TraceLvl) {
-			log.Tracef("can't create path identifier %s", err)
-		}
-		return
+		return err
 	}
 
 	pathID := path.ID
 	r.m.Lock()
 	defer r.m.Unlock()
 	if r.stopped {
-		return
+		return errAlreadyStopped
 	}
 
 	if r.blocklistByID != nil {
 		if _, found := r.blocklistByID.Get(pathID); found {
 			r.telemetry.fileBlocked.Add(1)
-			return
+			return errPathIsBlocked
 		}
 	}
 
@@ -148,25 +149,25 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 			r.byPID[pid][pathID] = struct{}{}
 		}
 		r.telemetry.fileAlreadyRegistered.Add(1)
-		return
+		return errPathIsAlreadyRegistered
 	}
 
 	if err := activationCB(path); err != nil {
 		// short living process would be hard to catch and will failed when we try to open the library
 		// so let's failed silently
 		if errors.Is(err, os.ErrNotExist) {
-			return
+			return err
 		}
 
 		// we are calling `deactivationCB` here as some uprobes could be already attached
-		_ = deactivationCB(FilePath{ID: pathID})
+		err = deactivationCB(FilePath{ID: pathID})
 		if r.blocklistByID != nil {
 			// add `pathID` to blocklist so we don't attempt to re-register files
 			// that are problematic for some reason
 			r.blocklistByID.Add(pathID, struct{}{})
 		}
 		r.telemetry.fileHookFailed.Add(1)
-		return
+		return err
 	}
 
 	reg := r.newRegistration(namespacedPath, deactivationCB)
@@ -179,6 +180,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	r.telemetry.totalFiles.Set(int64(len(r.byID)))
 	r.telemetry.totalPIDs.Set(int64(len(r.byPID)))
 	log.Debugf("registering file %s path %s by pid %d", pathID.String(), path.HostPath, pid)
+	return nil
 }
 
 // Unregister a PID if it exists
@@ -187,16 +189,16 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 // reference counters decremented by one. For any file for the number of
 // references drops to zero, we'll execute the *deactivationCB* previously
 // supplied during the `Register` call.
-func (r *FileRegistry) Unregister(pid uint32) {
+func (r *FileRegistry) Unregister(pid uint32) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 	if r.stopped {
-		return
+		return errAlreadyStopped
 	}
 
 	paths, found := r.byPID[pid]
 	if !found {
-		return
+		return errPidIsNotRegistered
 	}
 
 	for pathID := range paths {
@@ -213,6 +215,7 @@ func (r *FileRegistry) Unregister(pid uint32) {
 	delete(r.byPID, pid)
 	r.telemetry.totalFiles.Set(int64(len(r.byID)))
 	r.telemetry.totalPIDs.Set(int64(len(r.byPID)))
+	return nil
 }
 
 // GetRegisteredProcesses returns a set with all PIDs currently being tracked by

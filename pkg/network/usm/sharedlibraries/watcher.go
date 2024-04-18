@@ -161,7 +161,7 @@ func (w *Watcher) Start() {
 			// Iterate over the rule, and look for a match.
 			for _, r := range w.rules {
 				if r.Re.MatchString(path) {
-					w.registry.Register(path, uint32(pid), r.RegisterCB, r.UnregisterCB)
+					_ = w.registry.Register(path, uint32(pid), r.RegisterCB, r.UnregisterCB)
 					break
 				}
 			}
@@ -171,7 +171,7 @@ func (w *Watcher) Start() {
 		return nil
 	})
 
-	cleanupExit := w.processMonitor.SubscribeExit(w.registry.Unregister)
+	cleanupExit := w.processMonitor.SubscribeExit(func(pid uint32) { _ = w.registry.Unregister(pid) })
 
 	w.wg.Add(1)
 	go func() {
@@ -199,7 +199,7 @@ func (w *Watcher) Start() {
 				processSet := w.registry.GetRegisteredProcesses()
 				deletedPids := monitor.FindDeletedProcesses(processSet)
 				for deletedPid := range deletedPids {
-					w.registry.Unregister(deletedPid)
+					_ = w.registry.Unregister(deletedPid)
 				}
 			case event, ok := <-dataChannel:
 				if !ok {
@@ -218,7 +218,7 @@ func (w *Watcher) Start() {
 				for _, r := range w.rules {
 					if r.Re.Match(path) {
 						w.libMatches.Add(1)
-						w.registry.Register(string(path), lib.Pid, r.RegisterCB, r.UnregisterCB)
+						_ = w.registry.Register(string(path), lib.Pid, r.RegisterCB, r.UnregisterCB)
 						break
 					}
 				}

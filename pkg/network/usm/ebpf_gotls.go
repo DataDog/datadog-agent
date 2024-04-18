@@ -212,7 +212,7 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 
 	procMonitor := monitor.GetProcessMonitor()
 	cleanupExec := procMonitor.SubscribeExec(p.handleProcessStart)
-	cleanupExit := procMonitor.SubscribeExit(p.registry.Unregister)
+	cleanupExit := procMonitor.SubscribeExit(p.handleProcessExit)
 
 	p.wg.Add(1)
 	go func() {
@@ -235,7 +235,7 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 				processSet := p.registry.GetRegisteredProcesses()
 				deletedPids := monitor.FindDeletedProcesses(processSet)
 				for deletedPid := range deletedPids {
-					p.registry.Unregister(deletedPid)
+					_ = p.registry.Unregister(deletedPid)
 				}
 			}
 		}
@@ -305,6 +305,10 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 		log.Debugf("attached hooks on %s (%v) in %s", filePath.HostPath, filePath.ID, elapsed)
 		return nil
 	}
+}
+
+func (p *goTLSProgram) handleProcessExit(pid pid) {
+	_ = p.registry.Unregister(pid)
 }
 
 func (p *goTLSProgram) handleProcessStart(pid pid) {
