@@ -597,20 +597,24 @@ def kmt_prepare(
             env_str += f"{key}='{new_val}' "
         env_str.rstrip()
 
+        test_runner_files = glob("test/new-e2e/system-probe/test-runner/*.go")
         nw.build(
             rule="gobin",
             pool="gobuild",
             outputs=[os.path.join(kmt_paths.dependencies, "test-runner")],
+            implicit=test_runner_files,
             variables={
                 "go": go_path,
                 "chdir": "cd test/new-e2e/system-probe/test-runner",
             },
         )
 
+        test_json_files = glob("test/new-e2e/system-probe/test-json-review/*.go")
         nw.build(
             rule="gobin",
             pool="gobuild",
             outputs=[os.path.join(kmt_paths.dependencies, "test-json-review")],
+            implicit=test_json_files,
             variables={
                 "go": go_path,
                 "chdir": "cd test/new-e2e/system-probe/test-json-review/",
@@ -638,7 +642,6 @@ def kmt_prepare(
             out = f"{kmt_paths.sysprobe_tests}/{os.path.relpath(file)}"
             nw.build(inputs=[file], outputs=[out], rule="copyfiles", variables={"mode": "-m744"})
 
-        print(f"ALl packages: {target_packages}")
         for pkg in target_packages:
             target_path = os.path.join(kmt_paths.sysprobe_tests, os.path.relpath(pkg, os.getcwd()))
             output_path = os.path.join(target_path, "testsuite")
@@ -653,7 +656,7 @@ def kmt_prepare(
             if extra_arguments:
                 variables["extra_arguments"] = extra_arguments
 
-            go_files = [os.path.abspath(i) for i in glob(f"{pkg}/*.go", recursive=True)]
+            go_files = [os.path.abspath(i) for i in glob(f"{pkg}/*.go")]
             nw.build(
                 inputs=[pkg],
                 outputs=[output_path],
