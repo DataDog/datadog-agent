@@ -15,6 +15,15 @@ import (
 	otherutils "github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 )
 
+// Attacher is the interface that represents a PID attacher/detacher.
+// It is used to attach/detach a PID to/from an eBPF program.
+type Attacher interface {
+	// AttachPID attaches the provided PID to the eBPF program.
+	AttachPID(pid uint32) error
+	// DetachPID detaches the provided PID from the eBPF program.
+	DetachPID(pid uint32) error
+}
+
 // TracedProgram represents an active uprobe-based program and its used
 // for the purposes of generating JSON content in our debugging endpoint
 type TracedProgram struct {
