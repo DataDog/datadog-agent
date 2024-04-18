@@ -94,10 +94,9 @@
 
 /.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-ci-experience
 /.gitlab/functional_test/serverless.yml              @DataDog/serverless @DataDog/agent-ci-experience
-/.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/ebpf-platform @DataDog/agent-ci-experience
+/.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/windows-kernel-integrations @DataDog/agent-ci-experience
 /.gitlab/functional_test/system_probe_windows.yml    @DataDog/agent-ci-experience @DataDog/windows-kernel-integrations
-/.gitlab/functional_test/common.yml                  @DataDog/agent-ci-experience @DataDog/windows-kernel-integrations @DataDog/ebpf-platform
-/.gitlab/functional_test_sysprobe/system_probe.yml   @DataDog/ebpf-platform @DataDog/agent-ci-experience
+/.gitlab/functional_test/common.yml                  @DataDog/agent-ci-experience @DataDog/windows-kernel-integrations
 /.gitlab/choco_build/choco_build.yml                 @DataDog/agent-build-and-releases @DataDog/windows-agent
 /.gitlab/choco_deploy/choco_deploy.yml               @DataDog/agent-build-and-releases @DataDog/windows-agent
 
@@ -347,7 +346,7 @@
 /pkg/config/config_template.yaml        @DataDog/agent-shared-components @DataDog/documentation
 /pkg/config/setup/apm.go                @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
-/pkg/config/env                         @DataDog/container-integrations @DataDog/container-app
+/pkg/config/env                         @DataDog/container-integrations
 /pkg/config/logs                        @Datadog/agent-shared-components
 /pkg/config/logs/internal/seelog/seelog_config.go          @Datadog/agent-shared-components
 /pkg/config/setup                            @DataDog/agent-shared-components
@@ -543,10 +542,7 @@
 /test/kitchen/site-cookbooks/dd-security-agent-check/ @DataDog/agent-security
 /test/kitchen/test/integration/security-agent-stress/ @DataDog/agent-security
 /test/kitchen/test/integration/security-agent-test/ @DataDog/agent-security
-/test/kitchen/kitchen-azure-system-probe-test.yml @DataDog/ebpf-platform
-/test/kitchen/kitchen-vagrant-system-probe.yml @DataDog/ebpf-platform
-/test/kitchen/site-cookbooks/dd-system-probe-check/ @DataDog/ebpf-platform
-/test/kitchen/test/integration/system-probe-test/ @DataDog/ebpf-platform
+/test/kitchen/site-cookbooks/dd-system-probe-check/ @DataDog/windows-kernel-integrations
 /test/kitchen/test/integration/win-all-subservices/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-alt-dir/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-install-fail/ @DataDog/windows-agent
