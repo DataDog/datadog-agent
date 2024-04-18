@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import platform
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, cast
+from typing import TYPE_CHECKING, cast
 
 from invoke.context import Context
 from invoke.runners import Result
@@ -52,7 +52,7 @@ def _get_active_branch_name() -> str:
     raise Exit("Could not find active branch name")
 
 
-def check_and_get_stack(stack: Optional[str]) -> str:
+def check_and_get_stack(stack: str | None) -> str:
     if stack is None:
         stack = _get_active_branch_name()
 
@@ -70,7 +70,7 @@ def vm_config_exists(stack: str):
     return os.path.exists(f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}")
 
 
-def create_stack(ctx: Context, stack: Optional[str] = None):
+def create_stack(ctx: Context, stack: str | None = None):
     if not os.path.exists(f"{get_kmt_os().stacks_dir}"):
         raise Exit("Kernel matrix testing environment not correctly setup. Run 'inv kmt.init'.")
 
@@ -184,7 +184,7 @@ def check_env(ctx: Context):
 
 
 def launch_stack(
-    ctx: Context, stack: Optional[str], ssh_key: Optional[str], x86_ami: str, arm_ami: str, provision_microvms: bool
+    ctx: Context, stack: str | None, ssh_key: str | None, x86_ami: str, arm_ami: str, provision_microvms: bool
 ):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
@@ -245,7 +245,7 @@ def launch_stack(
     info(f"[+] Stack {stack} successfully setup")
 
 
-def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: Optional[str]):
+def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: str | None):
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
     if ssh_key_obj is not None:
         ensure_key_in_agent(ctx, ssh_key_obj)
@@ -269,7 +269,7 @@ def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: Optional[str]):
     )
 
 
-def ec2_instance_ids(ctx: Context, ip_list: List[str]) -> List[str]:
+def ec2_instance_ids(ctx: Context, ip_list: list[str]) -> list[str]:
     ip_addresses = ','.join(ip_list)
     list_instances_cmd = f"aws-vault exec sso-sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={ip_addresses}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text"
 
@@ -287,7 +287,7 @@ def destroy_ec2_instances(ctx: Context, stack: str):
         return
 
     infra = build_infrastructure(stack)
-    ips: List[str] = list()
+    ips: list[str] = list()
     for arch, instance in infra.items():
         if arch != "local":
             ips.append(instance.ip)
@@ -371,7 +371,7 @@ def destroy_stack_force(ctx: Context, stack: str):
     )
 
 
-def destroy_stack(ctx: Context, stack: Optional[str], pulumi: bool, ssh_key: Optional[str]):
+def destroy_stack(ctx: Context, stack: str | None, pulumi: bool, ssh_key: str | None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -385,7 +385,7 @@ def destroy_stack(ctx: Context, stack: Optional[str], pulumi: bool, ssh_key: Opt
     ctx.run(f"rm -r {get_kmt_os().stacks_dir}/{stack}")
 
 
-def pause_stack(stack: Optional[str] = None):
+def pause_stack(stack: str | None = None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")

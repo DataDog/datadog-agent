@@ -160,7 +160,7 @@ func stagingPackageURL(pkg string, version string) string {
 }
 
 func prodPackageURL(pkg string, version string) string {
-	return fmt.Sprintf("oci://public.ecr.aws/datadoghq/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+	return fmt.Sprintf("oci://public.ecr.aws/datadog/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 }
 
 func readInstallScriptParams() (*installScriptParams, error) {
