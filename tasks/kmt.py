@@ -497,8 +497,8 @@ def prepare(
         target_instances.append(d.instance)
 
     for d in domains:
-        d.copy(ctx, paths.dependencies, "/opt/")
-        d.copy(ctx, f"{paths.arch_dir}/opt/*", "/opt/", exclude="*.ninja")
+        d.copy(ctx, paths.dependencies, "/opt/", verbose=verbose)
+        d.copy(ctx, f"{paths.arch_dir}/opt/*", "/opt/", exclude="*.ninja", verbose=verbose)
         info(f"[+] Tests packages setup in target VM {d}")
 
 
@@ -638,6 +638,7 @@ def kmt_prepare(
             out = f"{kmt_paths.sysprobe_tests}/{os.path.relpath(file)}"
             nw.build(inputs=[file], outputs=[out], rule="copyfiles", variables={"mode": "-m744"})
 
+        print(f"ALl packages: {target_packages}")
         for pkg in target_packages:
             target_path = os.path.join(kmt_paths.sysprobe_tests, os.path.relpath(pkg, os.getcwd()))
             output_path = os.path.join(target_path, "testsuite")
@@ -652,9 +653,11 @@ def kmt_prepare(
             if extra_arguments:
                 variables["extra_arguments"] = extra_arguments
 
+            go_files = [os.path.abspath(i) for i in glob(f"{pkg}/*.go", recursive=True)]
             nw.build(
                 inputs=[pkg],
                 outputs=[output_path],
+                implicit=go_files,
                 rule="gotestsuite",
                 pool="gobuild",
                 variables=variables,
