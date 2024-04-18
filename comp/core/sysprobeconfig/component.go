@@ -27,7 +27,7 @@ import (
 
 // Component is the component type.
 type Component interface {
-	config.Reader
+	config.ReaderWriter
 
 	// Warnings returns config warnings collected during setup.
 	Warnings() *config.Warnings

@@ -62,7 +62,7 @@ func (i internalError) Error() string {
 type StackManager struct {
 	stacks *safeStackMap
 
-	retriableErrors []retriableError
+	knownErrors []knownError
 }
 
 type safeStackMap struct {
@@ -114,8 +114,8 @@ func GetStackManager() *StackManager {
 
 func newStackManager() (*StackManager, error) {
 	return &StackManager{
-		stacks:          newSafeStackMap(),
-		retriableErrors: getKnownRetriableErrors(),
+		stacks:      newSafeStackMap(),
+		knownErrors: getKnownErrors(),
 	}, nil
 }
 
@@ -229,6 +229,31 @@ func (sm *StackManager) getLoggingOptions() (debug.LoggingOptions, error) {
 	}, nil
 }
 
+func (sm *StackManager) getProgressStreamsOnUp(logger io.Writer) optup.Option {
+	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
+	if err != nil {
+		return optup.ErrorProgressStreams(logger)
+	}
+
+	if progressStreams {
+		return optup.ProgressStreams(logger)
+	}
+
+	return optup.ErrorProgressStreams(logger)
+}
+
+func (sm *StackManager) getProgressStreamsOnDestroy(logger io.Writer) optdestroy.Option {
+	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
+	if err != nil {
+		return optdestroy.ErrorProgressStreams(logger)
+	}
+
+	if progressStreams {
+		return optdestroy.ProgressStreams(logger)
+	}
+	return optdestroy.ErrorProgressStreams(logger)
+}
+
 func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *auto.Stack, logWriter io.Writer) error {
 	if stack == nil {
 		return fmt.Errorf("unable to find stack, skipping deletion of: %s", stackID)
@@ -247,7 +272,9 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	} else {
 		logger = logWriter
 	}
-	_, err = stack.Destroy(destroyContext, optdestroy.ProgressStreams(logger), optdestroy.DebugLogging(loggingOptions))
+	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
+
+	_, err = stack.Destroy(destroyContext, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 	cancel()
 	if err != nil {
 		return err
@@ -308,36 +335,42 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		logger = logWriter
 	}
 
+	progressStreamsUpOption := sm.getProgressStreamsOnUp(logger)
+	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
+
 	var upResult auto.UpResult
 
 	for retry := 0; retry < stackUpRetry; retry++ {
 		upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
-		upResult, err = stack.Up(upCtx, optup.ProgressStreams(logger), optup.DebugLogging(loggingOptions))
+		upResult, err = stack.Up(upCtx, progressStreamsUpOption, optup.DebugLogging(loggingOptions))
 		cancel()
 
 		if err == nil {
 			break
 		}
-		if retryStrategy := sm.getRetryStrategyFrom(err); retryStrategy != noRetry {
-			fmt.Fprintf(logger, "Got error that should be retried during stack up, retrying with %s strategy", retryStrategy)
-			err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : retrying Pulumi stack up", name), err.Error(), []string{"operation:up", fmt.Sprintf("retry:%s", retryStrategy)}, logger)
-			if err != nil {
-				fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
-			}
 
-			if retryStrategy == reCreate {
-				// If we are recreating the stack, we should destroy the stack first
-				destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
-				_, err := stack.Destroy(destroyCtx, optdestroy.ProgressStreams(logger), optdestroy.DebugLogging(loggingOptions))
-				cancel()
-				if err != nil {
-					return stack, auto.UpResult{}, err
-				}
+		retryStrategy := sm.getRetryStrategyFrom(err)
+		err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), err.Error(), []string{"operation:up", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name())}, logger)
+		if err != nil {
+			fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
+		}
+		switch retryStrategy {
+		case reUp:
+			fmt.Fprint(logger, "Got error during stack up, retrying")
+		case reCreate:
+			fmt.Fprint(logger, "Got error during stack up, recreating stack")
+			destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
+			_, err := stack.Destroy(destroyCtx, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
+			cancel()
+			if err != nil {
+				return stack, auto.UpResult{}, err
 			}
-		} else {
-			break
+		case noRetry:
+			fmt.Fprint(logger, "Got error during stack up, giving up")
+			return stack, upResult, err
 		}
 	}
+
 	return stack, upResult, err
 }
 
@@ -390,12 +423,12 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 }
 
 func (sm *StackManager) getRetryStrategyFrom(err error) retryType {
-	for _, retriableError := range sm.retriableErrors {
-		if strings.Contains(err.Error(), retriableError.errorMessage) {
-			return retriableError.retryType
+	for _, knownError := range sm.knownErrors {
+		if strings.Contains(err.Error(), knownError.errorMessage) {
+			return knownError.retryType
 		}
 	}
-	return noRetry
+	return reUp
 }
 
 // sendEventToDatadog sends an event to Datadog, it will use the API Key from environment variable DD_API_KEY if present, otherwise it will use the one from SSM Parameter Store

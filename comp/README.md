@@ -14,6 +14,12 @@ Package agent implements the "agent" bundle,
 
 Package autoexit lets setup automatic shutdown mechanism if necessary
 
+### [comp/agent/cloudfoundrycontainer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer)
+
+*Datadog Team*: platform-integrations
+
+Package cloudfoundrycontainer provides the cloud foundry container component.
+
 ### [comp/agent/expvarserver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/expvarserver)
 
 Package expvarserver contains the component type for the expVar server.
@@ -23,10 +29,6 @@ Package expvarserver contains the component type for the expVar server.
 *Datadog Team*: agent-metrics-logs
 
 Package jmxlogger implements the logger for JMX.
-
-### [comp/agent/metadatascheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/metadatascheduler)
-
-Package metadatascheduler provides the metadata scheduler component.
 
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 
@@ -520,6 +522,10 @@ Package localapi is the updater local api component.
 ### [comp/updater/localapiclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapiclient)
 
 Package localapiclient provides the local API client component.
+
+### [comp/updater/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/telemetry)
+
+Package telemetry provides the installer telemetry component.
 
 ### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
 
