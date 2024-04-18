@@ -4,7 +4,7 @@ from typing import Any, List
 def read_owners(owners_file: str) -> Any:
     from codeowners import CodeOwners
 
-    with open(owners_file, 'r') as f:
+    with open(owners_file) as f:
         return CodeOwners(f.read())
 
 

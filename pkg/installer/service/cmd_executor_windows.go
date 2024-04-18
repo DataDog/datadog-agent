@@ -25,8 +25,3 @@ func RemoveAll(_ context.Context, path string) error {
 func BuildHelperForTests(_, _ string, _ bool) error {
 	return nil
 }
-
-// SetCapHelper sets cap setuid on the newly installed helper
-func SetCapHelper(_ context.Context, _ string) error {
-	return nil
-}
