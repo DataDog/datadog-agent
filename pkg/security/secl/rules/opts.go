@@ -22,12 +22,13 @@ type VariableProviderFactory func() VariableProvider
 
 // Opts defines rules set options
 type Opts struct {
-	RuleSetTag          map[string]eval.RuleSetTagValue
-	SupportedDiscarders map[eval.Field]bool
-	ReservedRuleIDs     []RuleID
-	EventTypeEnabled    map[eval.EventType]bool
-	StateScopes         map[Scope]VariableProviderFactory
-	Logger              log.Logger
+	RuleSetTag              map[string]eval.RuleSetTagValue
+	SupportedDiscarders     map[eval.Field]bool
+	SupportedMultiDiscarder *MultiDiscarder
+	ReservedRuleIDs         []RuleID
+	EventTypeEnabled        map[eval.EventType]bool
+	StateScopes             map[Scope]VariableProviderFactory
+	Logger                  log.Logger
 }
 
 // WithRuleSetTag sets the rule set tag with the value of the tag of the rules that belong in this rule set
@@ -42,6 +43,11 @@ func (o *Opts) WithRuleSetTag(tagValue eval.RuleSetTagValue) *Opts {
 // WithSupportedDiscarders set supported discarders
 func (o *Opts) WithSupportedDiscarders(discarders map[eval.Field]bool) *Opts {
 	o.SupportedDiscarders = discarders
+	return o
+}
+
+func (o *Opts) WithSupportedMultiDiscarder(discarders *MultiDiscarder) *Opts {
+	o.SupportedMultiDiscarder = discarders
 	return o
 }
 
@@ -95,4 +101,17 @@ func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
 		WithVariables(model.SECLVariables)
 
 	return &ruleOpts, &evalOpts
+}
+
+type MultiDiscarder struct {
+// MultiDiscarder represents a multi discarder, i.e. a discarder across multiple rule buckets
+	Entries        []MultiDiscarderEntry
+	FinalField     string
+	FinalEventType string
+}
+
+type MultiDiscarderEntry struct {
+// MultiDiscarder represents a multi discarder entry (a field, and associated event type)
+	Field     string
+	EventType string
 }

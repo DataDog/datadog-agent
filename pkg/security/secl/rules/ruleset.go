@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -735,11 +734,10 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 		rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
 	}
 
-	metaDiscardersPathFields := []string{"open.file.path", "chmod.file.path"}
 	shouldCheckMetaDiscardersOn := ""
 
 	for _, field := range bucket.fields {
-		if slices.Contains(metaDiscardersPathFields, field) {
+		if rs.isValidMultiDiscarders(field) {
 			path, err := event.GetFieldValue(field)
 			if err != nil {
 				rs.logger.Debugf("Failed to get field value for %s: %s", field, err)
@@ -762,22 +760,39 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 		}
 	}
 
-	if shouldCheckMetaDiscardersOn != "" {
-		for _, field := range metaDiscardersPathFields {
-			bucketIndex, _, _ := strings.Cut(field, ".")
-			rs.logger.Errorf("bucket index %s, field %s, path %s", bucketIndex, field, shouldCheckMetaDiscardersOn)
-			bucket := rs.eventRuleBuckets[bucketIndex]
+	if rs.opts.SupportedMultiDiscarder != nil && shouldCheckMetaDiscardersOn != "" {
+		isMultiDiscarder := true
+		for _, entry := range rs.opts.SupportedMultiDiscarder.Entries {
+			bucket := rs.eventRuleBuckets[entry.EventType]
 			if bucket == nil {
-				rs.logger.Errorf("bucket %s not found", bucketIndex)
+				rs.logger.Errorf("bucket %s not found", entry.EventType)
 				continue
 			}
 
-			dctx := buildDiscarderCtx(field, shouldCheckMetaDiscardersOn)
-			if isDiscarder, _ := IsDiscarder(dctx, field, bucket.rules); isDiscarder {
-				rs.logger.Errorf("%s meta discarder from open %s %s", bucketIndex, field, shouldCheckMetaDiscardersOn)
+			dctx := buildDiscarderCtx(entry.Field, shouldCheckMetaDiscardersOn)
+			if isDiscarder, _ := IsDiscarder(dctx, entry.Field, bucket.rules); !isDiscarder {
+				isMultiDiscarder = false
+				break
 			}
 		}
+
+		if isMultiDiscarder {
+			rs.logger.Errorf("meta discarder -> %v %s", rs.opts.SupportedMultiDiscarder, shouldCheckMetaDiscardersOn)
+		}
 	}
+}
+
+func (rs *RuleSet) isValidMultiDiscarders(field string) bool {
+	if rs.opts.SupportedMultiDiscarder == nil {
+		return false
+	}
+
+	for _, entry := range rs.opts.SupportedMultiDiscarder.Entries {
+		if entry.Field == field {
+			return true
+		}
+	}
+	return false
 }
 
 func buildDiscarderCtx(field string, value interface{}) *eval.Context {
