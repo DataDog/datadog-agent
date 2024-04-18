@@ -62,6 +62,7 @@ def _get_environment_for_cache() -> dict:
             'OMNIBUS_',
             'POD_',
             'PROCESSOR_',
+            'RELEASE_VERSION',
             'RPM_',
             'RUN_',
             'S3_',
