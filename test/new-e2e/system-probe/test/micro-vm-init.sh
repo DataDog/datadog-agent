@@ -15,7 +15,7 @@ fi
 
 # Start tests
 code=0
-/test-runner $runner_config || code=$?
+/opt/testing-tools/test-runner $runner_config || code=$?
 
 if [[ -f "/job_env.txt" ]]; then
     cp /job_env.txt /ci-visibility/junit/

@@ -50,6 +50,10 @@ type testConfig struct {
 }
 
 const ciVisibility = "/ci-visibility"
+const dependenciesDir = "/opt/testing-tools"
+
+var gotestsum = fmt.Sprintf("%s/go/bin/gotestsum", dependenciesDir)
+var test2json = fmt.Sprintf("%s/go/bin/test2json", dependenciesDir)
 
 var baseEnv = []string{
 	"GITLAB_CI=true", // force color output support to be detected
@@ -113,7 +117,7 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 		fmt.Sprintf("--rerun-fails=%d", testConfig.retryCount),
 		"--rerun-fails-max-failures=100",
 		"--raw-command", "--",
-		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", fmt.Sprintf("-test.count=%d", testConfig.runCount), "-test.timeout=" + getTimeout(pkg).String(),
+		test2json, "-t", "-p", pkg, file, "-test.v", fmt.Sprintf("-test.count=%d", testConfig.runCount), "-test.timeout=" + getTimeout(pkg).String(),
 	}
 
 	if testConfig.extraParams != "" {
@@ -204,7 +208,7 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
 		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuite, testConfig)
 
-		cmd := exec.Command("/go/bin/gotestsum", args...)
+		cmd := exec.Command(gotestsum, args...)
 		baseEnv = append(
 			baseEnv,
 			"DD_SYSTEM_PROBE_BPF_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/ebpf/bytecode/build"),

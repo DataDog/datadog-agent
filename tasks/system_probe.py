@@ -1874,9 +1874,10 @@ def start_microvms(
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))
-    ctx.run(
-        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go {go_args}",
-    )
+
+    # building the binary improves start up time for local usage where we invoke this multiple times.
+    ctx.run("cd ./test/new-e2e && go build -o start-microvms ./scenarios/system-probe/main.go")
+    ctx.run(f"./test/new-e2e/start-microvms {go_args}")
 
 
 @task

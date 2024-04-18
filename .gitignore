@@ -214,6 +214,7 @@ test/fakeintake/build/*
 kmt-deps/
 test/new-e2e/system-probe/test-json-review/test-json-review
 test/new-e2e/system-probe/test-runner/test-runner
+test/new-e2e/start-microvms
 
 # trace-agent generates install.json files during tests
 pkg/serverless/trace/install.json

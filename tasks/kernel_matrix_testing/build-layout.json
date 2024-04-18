@@ -1,0 +1,10 @@
+{
+    "layout": [
+        "/etc/datadog-agent",
+        "/opt/datadog-agent/run"
+    ],
+    "copy": {
+        "tasks/kernel_matrix_testing/default-system-probe.yaml": "/etc/datadog-agent/system-probe.yaml"
+    },
+    "run": []
+}

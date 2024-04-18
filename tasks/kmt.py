@@ -5,7 +5,6 @@ import json
 import os
 import platform
 import re
-import shutil
 import tempfile
 from collections import defaultdict
 from glob import glob
@@ -35,7 +34,17 @@ from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_syst
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
-from tasks.system_probe import EMBEDDED_SHARE_DIR, TEST_PACKAGES_LIST, check_for_ninja, go_package_dirs, NPM_TAG, BPF_TAG, get_sysprobe_buildtags, get_test_timeout, ninja_generate
+from tasks.system_probe import (
+    EMBEDDED_SHARE_DIR,
+    TEST_PACKAGES_LIST,
+    check_for_ninja,
+    go_package_dirs,
+    NPM_TAG,
+    BPF_TAG,
+    get_sysprobe_buildtags,
+    get_test_timeout,
+    ninja_generate,
+)
 from tasks.libs.common.utils import get_build_flags
 
 if TYPE_CHECKING:
@@ -364,9 +373,7 @@ TOOLS_PATH = f"{CONTAINER_AGENT_PATH}/internal/tools"
 GOTESTSUM = "gotest.tools/gotestsum"
 
 
-def download_gotestsum(ctx: Context, arch: Arch):
-    fgotestsum = "./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/gotestsum"
-
+def download_gotestsum(ctx: Context, arch: Arch, fgotestsum: PathOrStr):
     if os.path.isfile(fgotestsum):
         file_arch = get_binary_target_arch(ctx, fgotestsum)
         if file_arch == arch:
@@ -417,114 +424,19 @@ class KMTPaths:
 
     @property
     def dependencies(self):
-        return self.arch_dir / "dependencies"
-
-    @property
-    def dependencies_archive(self):
-        return self.arch_dir / f"dependencies-{self.arch}.tar.gz"
-
-    @property
-    def tests_archive(self):
-        return self.arch_dir / f"tests-{self.arch}.tar.gz"
+        return self.arch_dir / "testing-tools"
 
     @property
     def sysprobe_tests(self):
-        return self.arch_dir / "opt/system_probe_tests"
+        return self.arch_dir / "opt/system-probe-tests"
 
     @property
     def tools(self):
         return self.root / self.arch / "tools"
 
 
-def build_tests_package(ctx: Context, source_dir: str, stack: str, arch: Arch, ci: bool, verbose=True):
-    paths = KMTPaths(stack, arch)
-    tests_archive = paths.tests_archive
-    if not ci:
-        system_probe_tests = paths.sysprobe_tests
-        test_pkgs = os.path.join(
-            source_dir, "test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg"
-        )
-        ctx.run(f"rm -rf {system_probe_tests} && mkdir -p {system_probe_tests}", hide=(not verbose))
-        ctx.run(f"cp -R {test_pkgs} {system_probe_tests}", hide=(not verbose))
-        with ctx.cd(tests_archive.parent):
-            ctx.run(f"tar czvf {tests_archive.name} opt", hide=(not verbose))
-
-
-@task
-def build_dependencies(
-    ctx: Context,
-    arch: Arch,
-    layout_file: PathOrStr,
-    source_dir: PathOrStr,
-    ci=False,
-    stack: Optional[str] = None,
-    verbose=True,
-) -> None:
-    if stack is None:
-        raise Exit("no stack name provided")
-    info(f"[+] Building dependencies for {arch} in stack {stack}")
-    paths = KMTPaths(stack, arch)
-    source_dir = Path(source_dir)
-    if not ci:
-        # in the CI we can rely on gotestsum being present
-        download_gotestsum(ctx, arch)
-
-    if paths.dependencies.exists():
-        shutil.rmtree(paths.dependencies)
-
-    ctx.run(f"mkdir -p {paths.dependencies}")
-
-    with open(layout_file) as f:
-        deps_layout: DependenciesLayout = cast('DependenciesLayout', json.load(f))
-    with ctx.cd(paths.dependencies):
-        for new_dirs in deps_layout["layout"]:
-            ctx.run(f"mkdir -p {new_dirs}", hide=(not verbose))
-
-    for source in deps_layout["copy"]:
-        target = deps_layout["copy"][source]
-        ctx.run(f"cp {source_dir / source} {paths.dependencies / target}", hide=(not verbose))
-
-    cc = get_compiler(ctx, arch)
-
-    for build in deps_layout["build"]:
-        directory = deps_layout["build"][build]["directory"]
-        command = deps_layout["build"][build]["command"]
-        artifact = source_dir / deps_layout["build"][build]["artifact"]
-        if ci:
-            ctx.run(f"cd {source_dir / directory} && {command}", hide=(not verbose))
-        else:
-            cc.exec(command, run_dir=os.path.join(CONTAINER_AGENT_PATH, directory), verbose=verbose)
-        ctx.run(f"cp {artifact} {paths.dependencies}", hide=(not verbose))
-
-    with ctx.cd(paths.dependencies.parent):
-        ctx.run(f"tar czvf {paths.dependencies_archive.name} {paths.dependencies.name}", hide=(not verbose))
-
-
 def is_root():
     return os.getuid() == 0
-
-
-def vms_have_correct_deps(ctx: Context, domains: List[LibvirtDomain], depsfile: PathOrStr):
-    deps_dir = os.path.dirname(depsfile)
-    sha256sum = ctx.run(f"cd {deps_dir} && sha256sum {os.path.basename(depsfile)}", warn=True)
-    if sha256sum is None or not sha256sum.ok:
-        return False
-
-    check = sha256sum.stdout.rstrip('\n')
-    for d in domains:
-        if not d.run_cmd(ctx, f"cd / && echo \"{check}\" | sha256sum --check", allow_fail=True):
-            warn(f"[-] VM {d} does not have dependencies.")
-            return False
-
-    return True
-
-
-def needs_build_from_scratch(ctx: Context, paths: KMTPaths, domains: "list[LibvirtDomain]", full_rebuild: bool):
-    return (
-        full_rebuild
-        or (not paths.dependencies.exists())
-        or (not vms_have_correct_deps(ctx, domains, paths.dependencies_archive))
-    )
 
 
 @task
@@ -534,13 +446,17 @@ def prepare(
     stack: Optional[str] = None,
     arch: Optional[Arch] = None,
     ssh_key: Optional[str] = None,
-    full_rebuild=False,
-    packages="",
+    packages=None,
     verbose=True,
+    ci=False,
 ):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+
+    go_root = os.getenv("GOROOT")
+    if not ci:
+        download_gotestsum(ctx, arch, f"{go_root}/bin/gotestsum")
 
     if vms == "":
         raise Exit("No vms specified to sync with")
@@ -555,48 +471,34 @@ def prepare(
     paths = KMTPaths(stack, arch)
     cc = get_compiler(ctx, arch)
 
-    info("[+] Checking if we need a full rebuild...")
-    build_from_scratch = needs_build_from_scratch(ctx, paths, domains, full_rebuild)
-
-    constrain_pkgs = ""
-    if not build_from_scratch and packages != "":
-        info("[+] Dependencies already present in VMs")
-        packages_with_ebpf = packages.split(",")
-        packages_with_ebpf.append("./pkg/ebpf/bytecode")
-        constrain_pkgs = f"--packages={','.join(set(packages_with_ebpf))}"
-    else:
-        warn("[!] Dependencies need to be rebuilt")
-
     info(f"[+] Compiling test binaries for {arch}")
+
+    pkgs = ""
+    if packages:
+        pkgs = f"--packages {packages}"
     cc.exec(
-        f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e system-probe.kitchen-prepare --ci {constrain_pkgs}",
+        f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e kmt.kmt-prepare --stack={stack} {pkgs}",
         run_dir=CONTAINER_AGENT_PATH,
     )
+
+    copy_executables = {
+        f"{go_root}/bin/gotestsum": f"{paths.dependencies}/go/bin/gotestsum",
+        "/opt/datadog-agent/embedded/bin/clang-bpf": f"{paths.arch_dir}/opt/datadog-agent/embedded/bin/clang-bpf",
+        "/opt/datadog-agent/embedded/bin/llc-bpf": f"{paths.arch_dir}/opt/datadog-agent/embedded/bin/llc-bpf",
+        f"{os.getcwd()}/test/new-e2e/system-probe/test/micro-vm-init.sh": f"{paths.arch_dir}/opt/micro-vm-init.sh",
+    }
+
+    for sf, df in copy_executables.items():
+        if os.path.exists(sf) and not os.path.exists(df):
+            ctx.run(f"install -D {sf} {df}")
 
     target_instances: List[HostInstance] = list()
     for d in domains:
         target_instances.append(d.instance)
 
-    if build_from_scratch:
-        info("[+] Building all dependencies from scratch")
-        build_dependencies(
-            ctx, arch, "test/new-e2e/system-probe/test-runner/files/system-probe-dependencies.json", "./", stack=stack
-        )
-
-        for instance in target_instances:
-            instance.copy_to_all_vms(ctx, paths.dependencies_archive)
-
-        for d in domains:
-            if not d.run_cmd(ctx, f"/root/fetch_dependencies.sh {arch}", allow_fail=True, verbose=verbose):
-                raise Exit(f"failed to fetch dependencies for domain {d}")
-
-            info(f"[+] Dependencies shared with target VM {d}")
-
-    info("[+] Building tests package")
-    build_tests_package(ctx, "./", stack, arch, False)
     for d in domains:
-        d.copy(ctx, paths.tests_archive, "/")
-        d.run_cmd(ctx, f"cd / && tar xzf {paths.tests_archive.name}")
+        d.copy(ctx, paths.dependencies, "/opt/")
+        d.copy(ctx, f"{paths.arch_dir}/opt/*", "/opt/", exclude="*.ninja")
         info(f"[+] Tests packages setup in target VM {d}")
 
 
@@ -617,24 +519,40 @@ def build_run_config(run: Optional[str], packages: List[str]):
     return c
 
 
-@task
-def kmt_prepare(ctx, stack=None, kernel_release=None, full_rebuild=False, packages="", arch=None, extra_arguments=None):
-    stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+def build_target_packages(filter_packages):
+    all_packages = go_package_dirs(TEST_PACKAGES_LIST, [NPM_TAG, BPF_TAG])
+    if filter_packages == []:
+        return all_packages
 
-    if arch == None:
+    filtered = list()
+    for pkg in all_packages:
+        if os.path.relpath(pkg) in filter_packages:
+            filtered.append(pkg)
+
+    return filtered
+
+
+@task
+def kmt_prepare(ctx, stack=None, kernel_release=None, packages=None, arch=None, extra_arguments=None):
+    if stack is None:
+        raise Exit("A stack name must be provided")
+
+    if arch is None:
         arch = full_arch("local")
 
     check_for_ninja(ctx)
-    target_packages = go_package_dirs(TEST_PACKAGES_LIST, [NPM_TAG, BPF_TAG])
+
+    filter_pkgs = []
+    if packages:
+        filter_pkgs = [os.path.relpath(p) for p in packages.split(",")]
+    target_packages = build_target_packages(filter_pkgs)
+    # target_packages = go_package_dirs(TEST_PACKAGES_LIST, [NPM_TAG, BPF_TAG])
     kmt_paths = KMTPaths(stack, arch)
     nf_path = os.path.join(kmt_paths.arch_dir, "kmt.ninja")
     object_files_nf_path = os.path.join(kmt_paths.arch_dir, "kmt-object-files.ninja")
 
     kmt_paths.arch_dir.mkdir(exist_ok=True, parents=True)
     kmt_paths.dependencies.mkdir(exist_ok=True, parents=True)
-
 
     go_path = "go"
     go_root = os.getenv("GOROOT")
@@ -654,7 +572,7 @@ def kmt_prepare(ctx, stack=None, kernel_release=None, full_rebuild=False, packag
 
         nw.rule(
             name="gotestsuite",
-            command = "$env $go test -mod=mod -v $timeout -tags \"$build_tags\" $extra_arguments -c -o $out $in",
+            command="$env $go test -mod=mod -v $timeout -tags \"$build_tags\" $extra_arguments -c -o $out $in",
         )
         nw.rule(name="copyextra", command="cp -r $in $out")
         nw.rule(
@@ -663,7 +581,7 @@ def kmt_prepare(ctx, stack=None, kernel_release=None, full_rebuild=False, packag
         )
         nw.rule(name="copyfiles", command="install -D $in $out $mode")
 
-        _,_, env = get_build_flags(ctx)
+        _, _, env = get_build_flags(ctx)
         env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
 
         env_str = ""
@@ -705,10 +623,18 @@ def kmt_prepare(ctx, stack=None, kernel_release=None, full_rebuild=False, packag
             },
         )
 
-        for i, pkg in enumerate(target_packages):
+        # copy object files
+        object_files = [
+            os.path.abspath(i) for i in glob("**/*.o", recursive=True) if i.split('/')[0] == "pkg" and "build" in i
+        ]
+        for file in object_files:
+            out = f"{kmt_paths.sysprobe_tests}/{os.path.relpath(file)}"
+            nw.build(inputs=[file], outputs=[out], rule="copyfiles", variables={"mode": "-m744"})
+
+        for pkg in target_packages:
             target_path = os.path.join(kmt_paths.sysprobe_tests, os.path.relpath(pkg, os.getcwd()))
             output_path = os.path.join(target_path, "testsuite")
-            variables={
+            variables = {
                 "env": env_str,
                 "go": go_path,
                 "build_tags": get_sysprobe_buildtags(False, False),
@@ -727,20 +653,24 @@ def kmt_prepare(ctx, stack=None, kernel_release=None, full_rebuild=False, packag
                 variables=variables,
             )
 
-            for extra in ["testdata", "build"]:
-                sp = os.path.join(pkg, extra)
-                dp = os.path.join(target_path, extra)
-                if os.path.isdir(sp):
-                    nw.build(inputs=[sp], outputs=[dp], rule="copyextra")
+            testdata = os.path.join(pkg, "testdata")
+            if os.path.exists(testdata):
+                nw.build(inputs=[testdata], outputs=[os.path.join(target_path, "testdata")], rule="copyextra")
 
             if pkg.endswith("java"):
                 nw.build(
-                    inputs=[os.path.join(pkg,"agent-usm.jar")],
+                    inputs=[os.path.join(pkg, "agent-usm.jar")],
                     outputs=[os.path.join(target_path, "agent-usm.jar")],
                     rule="copyfiles",
                 )
 
-            for gobin in ["gotls_client", "grpc_external_server", "external_unix_proxy_server", "fmapper", "prefetch_file"]:
+            for gobin in [
+                "gotls_client",
+                "grpc_external_server",
+                "external_unix_proxy_server",
+                "fmapper",
+                "prefetch_file",
+            ]:
                 src_file_path = os.path.join(pkg, f"{gobin}.go")
                 if os.path.isdir(pkg) and os.path.isfile(src_file_path):
                     binary_path = os.path.join(target_path, gobin)
@@ -757,18 +687,6 @@ def kmt_prepare(ctx, stack=None, kernel_release=None, full_rebuild=False, packag
                         },
                     )
 
-        gopath = os.getenv("GOPATH")
-        copy_executables = {
-            f"{gopath}/bin/gotestsum": f"{kmt_paths.dependencies}/go/bin/gotestsum",
-            "/opt/datadog-agent/embedded/bin/clang-bpf": f"{kmt_paths.arch_dir}/opt/datadog-agent/embedded/bin/clang-bpf",
-            "/opt/datadog-agent/embedded/bin/llc-bpf": f"{kmt_paths.arch_dir}/opt/datadog-agent/embedded/bin/llc-bpf",
-            f"{os.getcwd()}/test/new-e2e/system-probe/test/micro-vm-init.sh": f"{kmt_paths.arch_dir}/opt/micro-vm-init.sh",
-        }
-
-        for sf, df in copy_executables.items():
-            if os.path.exists(sf):
-                nw.build(inputs=[sf], outputs=[df], rule="copyfiles", variables={"mode": "-m777"})
-
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
@@ -781,7 +699,6 @@ def kmt_prepare(ctx, stack=None, kernel_release=None, full_rebuild=False, packag
         "quick": "Assume no need to rebuild anything, and directly run the tests",
         "retry": "Number of times to retry a failing test",
         "run-count": "Number of times to run a tests regardless of status",
-        "full-rebuild": "Do a full rebuild of all test dependencies to share with VMs, before running tests. Useful when changes are not being picked up correctly",
         "ssh-key": "SSH key to use for connecting to a remote EC2 instance hosting the target VM. Can be either a name of a file in ~/.ssh, a key name (the comment in the public key) or a full path",
         "verbose": "Enable full output of all commands executed",
         "test-logs": "Set 'gotestsum' verbosity to 'standard-verbose' to print all test logs. Default is 'testname'",
@@ -797,12 +714,10 @@ def test(
     quick=False,
     retry=2,
     run_count=1,
-    full_rebuild=False,
     ssh_key: Optional[str] = None,
     verbose=True,
     test_logs=False,
     test_extra_arguments=None,
-    generate_minimized_btf=False,
 ):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
@@ -820,7 +735,7 @@ def test(
 
     if not quick:
         for arch in used_archs:
-            prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, full_rebuild=full_rebuild, packages=packages, arch=arch)
+            prepare(ctx, stack=stack, vms=vms, packages=packages, ssh_key=ssh_key, arch=arch)
 
     if run is not None and packages is None:
         raise Exit("Package must be provided when specifying test")
@@ -841,13 +756,12 @@ def test(
             "-verbose" if test_logs else "",
             f"-run-count {run_count}",
             "-test-root /opt/system-probe-tests",
-            "-embedded-btfs /opt/btf",
             f"-extra-params {test_extra_arguments}" if test_extra_arguments is not None else "",
         ]
         for d in domains:
             info(f"[+] Running tests on {d}")
             d.copy(ctx, f"{tmp.name}", remote_tmp)
-            d.run_cmd(ctx, f"bash /micro-vm-init.sh {' '.join(args)}", verbose=verbose)
+            d.run_cmd(ctx, f"/opt/micro-vm-init.sh {' '.join(args)}", verbose=verbose)
 
 
 @task(
@@ -858,6 +772,7 @@ def test(
         "full-rebuild": "Do a full rebuild of all test dependencies to share with VMs, before running tests. Useful when changes are not being picked up correctly",
         "verbose": "Enable full output of all commands executed",
         "arch": "Architecture to build the system-probe for",
+        "layout": "Path to file specifying the expected layout on the target VMs",
     }
 )
 def build(
@@ -865,9 +780,9 @@ def build(
     vms: str,
     stack: Optional[str] = None,
     ssh_key: Optional[str] = None,
-    full_rebuild=False,
     verbose=True,
     arch: Optional[ArchOrLocal] = None,
+    layout: Optional[str] = "tasks/kernel_matrix_testing/build-layout.json",
 ):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
@@ -875,6 +790,9 @@ def build(
 
     if arch is None:
         arch = "local"
+
+    if not os.path.exists(layout):
+        raise Exit(f"File {layout} does not exist")
 
     arch = full_arch(arch)
     paths = KMTPaths(stack, arch)
@@ -885,32 +803,34 @@ def build(
     domains = filter_target_domains(vms, infra, arch)
     cc = get_compiler(ctx, arch)
 
-    build_from_scratch = needs_build_from_scratch(ctx, paths, domains, full_rebuild)
-
-    if build_from_scratch:
-        build_dependencies(
-            ctx, arch, "test/new-e2e/system-probe/test-runner/files/system-probe-dependencies.json", "./", stack=stack
-        )
-
-        target_instances: List[HostInstance] = list()
-        for d in domains:
-            target_instances.append(d.instance)
-
-        for instance in target_instances:
-            instance.copy_to_all_vms(ctx, f"kmt-deps/{stack}/dependencies-{full_arch(instance.arch)}.tar.gz")
-
-        for d in domains:
-            d.run_cmd(ctx, f"/root/fetch_dependencies.sh {arch_mapping[platform.machine()]}")
-            info(f"[+] Dependencies shared with target VM {d}")
-
     cc.exec(
         f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e system-probe.build --no-bundle",
     )
-    cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/shared.tar {EMBEDDED_SHARE_DIR}")
+    cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
+
+    with open(layout, 'r') as lf:
+        todo: DependenciesLayout = cast('DependenciesLayout', json.load(lf))
+
     for d in domains:
-        d.copy(ctx, "./bin/system-probe", "/root")
-        d.copy(ctx, f"kmt-deps/{stack}/shared.tar", "/")
-        d.run_cmd(ctx, "tar xf /shared.tar -C /", verbose=verbose)
+        mkdir = list()
+        for dirs in todo["layout"]:
+            mkdir.append(f"mkdir -p {dirs} &&")
+
+        cmd = ' '.join(mkdir)
+        d.run_cmd(ctx, cmd.rstrip(" &&"), verbose)
+
+        for src, dst in todo["copy"].items():
+            if not os.path.exists(src):
+                raise Exit(f"File {src} specified in {layout} does not exist")
+
+            d.copy(ctx, src, dst)
+
+        for cmd in todo["run"]:
+            d.run_cmd(ctx, cmd, verbose)
+
+        d.copy(ctx, "./bin/system-probe", "/root/")
+        d.copy(ctx, f"kmt-deps/{stack}/build-embedded-dir.tar", "/")
+        d.run_cmd(ctx, "tar xf /build-embedded-dir.tar -C /", verbose=verbose)
         info(f"[+] system-probe built for {d.name} @ /root")
 
 

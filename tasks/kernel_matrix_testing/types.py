@@ -14,16 +14,10 @@ PathOrStr = Union[os.PathLike, str]
 Component = Literal['system-probe', 'security-agent']
 
 
-class DependencyBuild(TypedDict):  # We cannot do 'TypedDict' as a string import as it's a base class here
-    directory: str
-    command: str
-    artifact: str
-
-
 class DependenciesLayout(TypedDict):  # noqa: F841
     layout: List[str]  # noqa: F841
     copy: Dict[str, str]
-    build: Dict[str, DependencyBuild]
+    run: List[str]
 
 
 class Platforms(TypedDict):  # noqa: F841
