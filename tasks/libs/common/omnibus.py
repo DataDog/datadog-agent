@@ -114,6 +114,7 @@ def _get_environment_for_cache() -> dict:
             "OLDPWD",
             "PCP_DIR",
             "PACKAGE_ARCH",
+            "PIP_INDEX_URL",
             "PROCESS_S3_BUCKET",
             "PWD",
             "PROMPT",
