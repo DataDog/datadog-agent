@@ -1,3 +1,5 @@
+import sys
+
 from invoke.exceptions import Exit
 
 
@@ -48,7 +50,9 @@ def send_metrics(series):
         response = api_instance.submit_metrics(body=MetricPayload(series=series))
 
         if response["errors"]:
-            print(f"Error(s) while sending pipeline metrics to the Datadog backend: {response['errors']}", file=sys.stderr)
+            print(
+                f"Error(s) while sending pipeline metrics to the Datadog backend: {response['errors']}", file=sys.stderr
+            )
             raise Exit(code=1)
 
         return response
