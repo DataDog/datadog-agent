@@ -1,9 +1,193 @@
+import hashlib
 import json
 import os
 import sys
 from datetime import datetime
 
 import requests
+from tasks.release import _get_release_json_value
+
+
+def _get_build_images(ctx):
+    # We intentionally include both build images & their test suffixes in the pattern
+    # as a test image and the merged version shouldn't share their cache
+    tags = ctx.run("grep -E 'DATADOG_AGENT_.*BUILDIMAGES' .gitlab-ci.yml | cut -d ':' -f 2", hide='stdout').stdout
+    return (t.strip() for t in tags.splitlines())
+
+
+def _get_omnibus_commits(field):
+    if 'RELEASE_VERSION' in os.environ:
+        release_version = os.environ['RELEASE_VERSION']
+    else:
+        release_version = os.environ['RELEASE_VERSION_7']
+    return _get_release_json_value(f'{release_version}::{field}')
+
+
+def _get_environment_for_cache() -> dict:
+    """
+    Compute a hash from the environment after excluding irrelevant/insecure
+    environment variables to ensure we don't omit a variable
+    """
+
+    def env_filter(item):
+        key = item[0]
+        excluded_prefixes = [
+            'AGENT_',
+            'API_KEY_',
+            'APP_KEY_',
+            'ARTIFACTORY_',
+            'AWS_',
+            'BUILDENV_',
+            'CI_',
+            'CHOCOLATEY_',
+            'CLUSTER_AGENT_',
+            'DATADOG_AGENT_',
+            'DD_',
+            'DDR_',
+            'DEB_',
+            'DESTINATION_',
+            'DOCKER_',
+            'E2E_TESTS_',
+            'EMISSARY_',
+            'EXECUTOR_',
+            'FF_',
+            'GITLAB_',
+            'GIT_',
+            'JIRA_',
+            'K8S_',
+            'KITCHEN_',
+            'KERNEL_MATRIX_TESTING_',
+            'KUBERNETES_',
+            'MACOS_GITHUB_',
+            'OMNIBUS_',
+            'POD_',
+            'PROCESSOR_',
+            'RPM_',
+            'RUN_',
+            'S3_',
+            'SMP_',
+            'SSH_',
+            'TEST_INFRA_',
+            'USE_',
+            'VAULT_',
+            'WINDOWS_',
+        ]
+        excluded_suffixes = [
+            '_SHA256',
+            '_VERSION',
+        ]
+        excluded_values = [
+            "ARTIFACT_DOWNLOAD_ATTEMPTS",
+            "AVAILABILITY_ZONE",
+            "BENCHMARKS_CI_IMAGE",
+            "BUCKET_BRANCH",
+            "CHANGELOG_COMMIT_SHA_SSM_NAME",
+            "CLANG_LLVM_VER",
+            "CHANNEL",
+            "CI",
+            "COMPUTERNAME",
+            "CONDA_PROMPT_MODIFIER",
+            "CONSUL_HTTP_ADDR",
+            "DEPLOY_AGENT",
+            "DOGSTATSD_BINARIES_DIR",
+            "EXPERIMENTS_EVALUATION_ADDRESS",
+            "GCE_METADATA_HOST",
+            "GENERAL_ARTIFACTS_CACHE_BUCKET_URL",
+            "GET_SOURCES_ATTEMPTS",
+            "GO_TEST_SKIP_FLAKE",
+            "HOME",
+            "HOSTNAME",
+            "HOST_IP",
+            "INSTALL_SCRIPT_API_KEY_SSM_NAME",
+            "INTEGRATION_WHEELS_CACHE_BUCKET",
+            "IRBRC",
+            "KITCHEN_INFRASTRUCTURE_FLAKES_RETRY",
+            "LANG",
+            "LESSCLOSE",
+            "LESSOPEN",
+            "LC_CTYPE",
+            "LS_COLORS",
+            "MACOS_S3_BUCKET",
+            "MANPATH",
+            "MESSAGE",
+            "OLDPWD",
+            "PCP_DIR",
+            "PROCESS_S3_BUCKET",
+            "PWD",
+            "PROMPT",
+            "PYTHON_RUNTIMES",
+            "RESTORE_CACHE_ATTEMPTS",
+            "RUNNER_TEMP_PROJECT_DIR",
+            "RUSTC_SHA256",
+            "SHLVL",
+            "STATIC_BINARIES_DIR",
+            "STATSD_URL",
+            "SYSTEM_PROBE_BINARIES_DIR",
+            "TRACE_AGENT_URL",
+            "USE_CACHING_PROXY_PYTHON",
+            "USE_CACHING_PROXY_RUBY",
+            "USE_S3_CACHING",
+            "USERDOMAIN",
+            "USERNAME",
+            "USERPROFILE",
+            "VCPKG_BLOB_SAS_URL_SSM_NAME",
+            "WIN_S3_BUCKET",
+            "WINGET_PAT_SSM_NAME",
+            "_",
+            "build_before",
+        ]
+        for p in excluded_prefixes:
+            if key.startswith(p):
+                return False
+        for s in excluded_suffixes:
+            if key.endswith(s):
+                return False
+        if key in excluded_values:
+            return False
+        return True
+
+    return dict(filter(env_filter, sorted(os.environ.items())))
+
+
+def _last_omnibus_changes(ctx):
+    omnibus_invalidating_files = ['omnibus/config/', 'omnibus/lib/', 'omnibus/omnibus.rb']
+    omnibus_last_commit = ctx.run(
+        f'git log -n 1 --pretty=format:%H {" ".join(omnibus_invalidating_files)}', hide='stdout'
+    ).stdout
+    # The commit sha1 is likely to change between a PR and its merge to main
+    # In order to work around this, we hash the commit diff so that the result
+    # can be reproduced on different branches with different sha1
+    omnibus_last_changes = ctx.run(
+        f'git diff {omnibus_last_commit}~ {omnibus_last_commit} {" ".join(omnibus_invalidating_files)}'
+    ).stdout
+    hash = hashlib.sha1()
+    hash.update(str.encode(omnibus_last_changes))
+    result = hash.hexdigest()
+    print(f'Hash for last omnibus changes is {result}')
+    return result
+
+
+def omnibus_compute_cache_key(ctx):
+    print('Computing cache key')
+    h = hashlib.sha1()
+    omnibus_last_changes = _last_omnibus_changes(ctx)
+    h.update(str.encode(omnibus_last_changes))
+    buildimages_hash = _get_build_images(ctx)
+    for img_hash in buildimages_hash:
+        h.update(str.encode(img_hash))
+    omnibus_ruby_commit = _get_omnibus_commits('OMNIBUS_RUBY_VERSION')
+    omnibus_software_commit = _get_omnibus_commits('OMNIBUS_SOFTWARE_VERSION')
+    print(f'Omnibus ruby commit: {omnibus_ruby_commit}')
+    print(f'Omnibus software commit: {omnibus_software_commit}')
+    h.update(str.encode(omnibus_ruby_commit))
+    h.update(str.encode(omnibus_software_commit))
+    environment = _get_environment_for_cache()
+    for k, v in environment.items():
+        print(f'\tUsing environment variable {k} to compute cache key')
+        h.update(str.encode(f'{k}={v}'))
+    cache_key = h.hexdigest()
+    print(f'Cache key: {cache_key}')
+    return cache_key
 
 
 def should_retry_bundle_install(res):
@@ -110,3 +294,17 @@ def send_build_metrics(ctx, overall_duration):
     else:
         print(f'Failed to send build metrics to DataDog: {r.status_code}')
         print(r.text)
+
+
+def install_dir_for_project(project):
+    if project == "agent" or project == "iot-agent":
+        folder = 'datadog-agent'
+    elif project == 'dogstatsd':
+        folder = 'datadog-dogstatsd'
+    elif project == 'agentless-scanner':
+        folder = os.path.join('datadog', 'agentless-scanner')
+    elif project == 'installer':
+        folder = 'datadog-installer'
+    else:
+        raise NotImplementedError(f'Unknown project {project}')
+    return os.path.join('opt', folder)

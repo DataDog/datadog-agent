@@ -109,7 +109,7 @@ def trigger_macos_workflow(
                     if recent_run.id in might_be_waiting:
                         might_be_waiting.remove(recent_run.id)
                     for job in jobs:
-                        if any([step.name == workflow_id for step in job.steps]):
+                        if any(step.name == workflow_id for step in job.steps):
                             return recent_run
                 else:
                     might_be_waiting.add(recent_run.id)
@@ -232,7 +232,7 @@ def parse_log_file(log_file):
 
     error_regex = re.compile(r'\[error\]|(Linter|Test) failures|Traceback')
 
-    with open(log_file, 'r') as f:
+    with open(log_file) as f:
         lines = f.readlines()
         for line_number, line in enumerate(lines):
             if error_regex.search(line):

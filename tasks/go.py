@@ -76,7 +76,13 @@ def run_golangci_lint(
 
 @task
 def golangci_lint(
-    ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None  # noqa: U100
+    ctx,
+    targets,
+    rtloader_root=None,
+    build_tags=None,
+    build="test",
+    arch="x64",
+    concurrency=None,  # noqa: U100
 ):
     """
     Run golangci-lint on targets using .golangci.yml configuration.
@@ -149,7 +155,7 @@ def lint_licenses(ctx):
 
     licenses = []
     file = 'LICENSE-3rdparty.csv'
-    with open(file, 'r', encoding='utf-8') as f:
+    with open(file, encoding='utf-8') as f:
         next(f)
         for line in f:
             licenses.append(line.rstrip())

@@ -13,7 +13,7 @@ def expected_go_repo_v() -> str:
     """
     Returns the repository go version by reading the .go-version file.
     """
-    with open(GO_VPATH, 'r', encoding='utf-8') as f:
+    with open(GO_VPATH, encoding='utf-8') as f:
         return f.read().strip()
 
 

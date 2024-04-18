@@ -286,7 +286,6 @@
 /pkg/forwarder/                         @DataDog/agent-processing-and-routing
 /pkg/gohai                              @DataDog/agent-shared-components
 /pkg/jmxfetch/                          @DataDog/agent-metrics-logs
-/pkg/metadata/                          @DataDog/agent-shared-components
 /pkg/metrics/                           @DataDog/agent-metrics-logs
 /pkg/serializer/                        @DataDog/agent-processing-and-routing
 /pkg/serverless/                        @DataDog/serverless
@@ -523,6 +522,8 @@
 /tasks/components.py                    @DataDog/agent-shared-components
 /tasks/components_templates             @DataDog/agent-shared-components
 /tasks/updater.py                       @DataDog/fleet
+/tasks/libs/common/omnibus.py           @DataDog/agent-build-and-releases
+/tasks/omnibus.py                       @DataDog/agent-build-and-releases
 /tasks/installer.py                     @DataDog/fleet
 /test/                                  @DataDog/agent-developer-tools
 /test/benchmarks/                       @DataDog/agent-metrics-logs
