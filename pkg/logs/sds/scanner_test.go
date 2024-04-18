@@ -67,7 +67,7 @@ func TestCreateScanner(t *testing.T) {
 	// scanner creation
 	// -----
 
-	s := CreateScanner()
+	s := CreateScanner(0)
 
 	require.NotNil(s, "the scanner should not be nil after a creation")
 
@@ -246,7 +246,7 @@ func TestIsReady(t *testing.T) {
 	// scanner creation
 	// -----
 
-	s := CreateScanner()
+	s := CreateScanner(0)
 
 	require.NotNil(s, "the scanner should not be nil after a creation")
 	require.False(s.IsReady(), "at this stage, the scanner should not be considered ready, no definitions received")
@@ -314,7 +314,7 @@ func TestScan(t *testing.T) {
 	// scanner creation
 	// -----
 
-	s := CreateScanner()
+	s := CreateScanner(0)
 	require.NotNil(s, "the returned scanner should not be nil")
 
 	_ = s.Reconfigure(ReconfigureOrder{
@@ -398,7 +398,7 @@ func TestCloseCycleScan(t *testing.T) {
 	// -----
 
 	for i := 0; i < 10; i++ {
-		s := CreateScanner()
+		s := CreateScanner(0)
 		require.NotNil(s, "the returned scanner should not be nil")
 
 		_ = s.Reconfigure(ReconfigureOrder{

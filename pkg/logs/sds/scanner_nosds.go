@@ -24,7 +24,7 @@ type Match struct {
 }
 
 // CreateScanner creates a scanner for unsupported platforms/architectures.
-func CreateScanner() *Scanner {
+func CreateScanner(_ int) *Scanner {
 	return nil
 }
 
