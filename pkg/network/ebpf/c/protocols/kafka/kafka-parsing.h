@@ -45,8 +45,11 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         log_debug("socket__kafka_filter: kafka_transaction state is NULL");
         return 0;
     }
-    bpf_memset(&kafka->transaction, 0, sizeof(kafka_transaction_t));
+    bpf_memset(&kafka->event.transaction, 0, sizeof(kafka_transaction_t));
 
+    // Put this on the stack instead of using the one in in kafka_info_t.event
+    // since it's used for map lookups in a few different places and 4.14 complains
+    // if it's not on the stack.
     conn_tuple_t tup;
 
     if (!fetch_dispatching_arguments(&tup, &skb_info)) {
@@ -67,9 +70,6 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    kafka->transaction.tup = tup;
-    normalize_tuple(&kafka->transaction.tup);
-
     if (kafka_process_response(&tup, kafka, skb, &skb_info)) {
         return 0;
     }
@@ -79,6 +79,19 @@ int socket__kafka_filter(struct __sk_buff* skb) {
 }
 
 READ_INTO_BUFFER(topic_name_parser, TOPIC_NAME_MAX_STRING_SIZE, BLK_SIZE)
+
+static __always_inline void kafka_batch_enqueue_wrapper(kafka_info_t *kafka, conn_tuple_t *tup, kafka_transaction_t *transaction) {
+    kafka_event_t *event = &kafka->event;
+
+    bpf_memcpy(&event->tup, tup, sizeof(conn_tuple_t));
+    normalize_tuple(&event->tup);
+
+    if (transaction != &event->transaction) {
+        bpf_memcpy(&event->transaction, transaction, sizeof(kafka_transaction_t));
+    }
+
+    kafka_batch_enqueue(event);
+}
 
 enum parse_result {
     // End of packet. This packet parsed successfully, but more data is needed
@@ -181,7 +194,9 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
     return RET_DONE;
 }
 
-static __always_inline enum parse_result kafka_continue_parse_response_loop(kafka_response_context_t *response,
+static __always_inline enum parse_result kafka_continue_parse_response_loop(kafka_info_t *kafka,
+                                                                            conn_tuple_t *tup,
+                                                                            kafka_response_context_t *response,
                                                                             struct __sk_buff *skb, u32 offset)
 {
     u32 orig_offset = offset;
@@ -395,7 +410,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
             response->partitions_count--;
             if (response->partitions_count == 0) {
                 extra_debug("kafka: enqueue, records_count %d",  response->transaction.records_count);
-                kafka_batch_enqueue(&response->transaction);
+                kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
                 return RET_DONE;
             }
 
@@ -413,11 +428,14 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
     return RET_LOOP_END;
 }
 
-static __always_inline enum parse_result kafka_continue_parse_response(kafka_response_context_t *response, struct __sk_buff *skb, u32 offset)
+static __always_inline enum parse_result kafka_continue_parse_response(kafka_info_t *kafka,
+                                                                       conn_tuple_t *tup,
+                                                                       kafka_response_context_t *response,
+                                                                       struct __sk_buff *skb, u32 offset)
 {
     enum parse_result ret;
 
-    ret = kafka_continue_parse_response_loop(response, skb, offset);
+    ret = kafka_continue_parse_response_loop(kafka, tup, response, skb, offset);
     if (ret != RET_EOP) {
         return ret;
     }
@@ -472,7 +490,7 @@ int socket__kafka_response_parser(struct __sk_buff *skb) {
     }
 
     skb_info_t skb_info;
-    conn_tuple_t tup = {};
+    conn_tuple_t tup;
     if (!fetch_dispatching_arguments(&tup, &skb_info)) {
         return 0;
     }
@@ -482,7 +500,7 @@ int socket__kafka_response_parser(struct __sk_buff *skb) {
         return 0;
     }
 
-    enum parse_result result = kafka_continue_parse_response(response, skb, skb_info.data_off);
+    enum parse_result result = kafka_continue_parse_response(kafka, &tup, response, skb, skb_info.data_off);
     switch (result) {
     case RET_EOP:
         // This packet parsed successfully but more data needed, nothing
@@ -506,7 +524,7 @@ int socket__kafka_response_parser(struct __sk_buff *skb) {
         // we have.
         if (response->transaction.records_count) {
             extra_debug("kafka: enqueue (loop exceeded), records_count %d", response->transaction.records_count);
-            kafka_batch_enqueue(&response->transaction);
+            kafka_batch_enqueue_wrapper(kafka, &tup, &response->transaction);
         }
         break;
     }
@@ -625,7 +643,7 @@ static __always_inline bool kafka_process_response(conn_tuple_t *tup, kafka_info
 
         if (response->transaction.records_count) {
             extra_debug("kafka: enqueue (broken stream), records_count %d", response->transaction.records_count);
-            kafka_batch_enqueue(&response->transaction);
+            kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
         }
 
         bpf_map_delete_elem(&kafka_response, tup);
@@ -640,7 +658,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         We perform Kafka request validation as we can get kafka traffic that is not relevant for parsing (unsupported requests, responses, etc)
     */
 
-    kafka_transaction_t *kafka_transaction = &kafka->transaction;
+    kafka_transaction_t *kafka_transaction = &kafka->event.transaction;
     kafka_header_t kafka_header;
     bpf_memset(&kafka_header, 0, sizeof(kafka_header));
     bpf_skb_load_bytes_with_telemetry(skb, offset, (char *)&kafka_header, sizeof(kafka_header));
@@ -754,10 +772,11 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
      }
 
     if (kafka_header.api_key == KAFKA_FETCH) {
+        // Copy to stack required by 4.14 verifier.
         kafka_transaction_t transaction;
         kafka_transaction_key_t key;
         bpf_memset(&key, 0, sizeof(key));
-        bpf_memcpy(&transaction, &kafka->transaction, sizeof(transaction));
+        bpf_memcpy(&transaction, kafka_transaction, sizeof(transaction));
         key.correlation_id = kafka_header.correlation_id;
         bpf_memcpy(&key.tuple, tup, sizeof(key.tuple));
         // Flip the tuple for the response path.
@@ -766,7 +785,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         return true;
     }
 
-    kafka_batch_enqueue(kafka_transaction);
+    kafka_batch_enqueue_wrapper(kafka, tup, kafka_transaction);
     return true;
 }
 

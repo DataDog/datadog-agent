@@ -19,7 +19,6 @@ typedef struct {
 #define KAFKA_MIN_LENGTH (sizeof(kafka_header_t))
 
 typedef struct kafka_transaction_t {
-    conn_tuple_t tup;
     __u64 request_started;
     // Request API key and version are 16-bit in the protocol but we store
     // them as u8 to reduce memory usage of the map since the APIs and
@@ -30,6 +29,11 @@ typedef struct kafka_transaction_t {
     __u16 topic_name_size;
     __u32 records_count;
 } kafka_transaction_t;
+
+typedef struct kafka_event_t {
+    conn_tuple_t tup;
+    kafka_transaction_t transaction;
+} kafka_event_t;
 
 typedef struct kafka_transaction_key_t {
     conn_tuple_t tuple;
@@ -67,9 +71,10 @@ typedef struct kafka_response_context_t {
     kafka_transaction_t transaction;
 } kafka_response_context_t;
 
+// Used as a scratch buffer, one per CPU.
 typedef struct kafka_info_t {
-    kafka_transaction_t transaction;
     kafka_response_context_t response;
+    kafka_event_t event;
 } kafka_info_t;
 
 #endif

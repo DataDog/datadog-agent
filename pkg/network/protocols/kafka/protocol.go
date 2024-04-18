@@ -173,7 +173,7 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 func (p *protocol) processKafka(events []EbpfTx) {
 	for i := range events {
 		tx := &events[i]
-		p.telemetry.Count(tx)
+		p.telemetry.Count(&tx.Transaction)
 		p.statkeeper.Process(tx)
 	}
 }
