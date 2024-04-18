@@ -134,12 +134,12 @@ func (p *protocol) PreStart(mgr *manager.Manager) error {
 	return nil
 }
 
-// PostStart empty implementation.
+// PostStart starts the map cleaner.
 func (p *protocol) PostStart(mgr *manager.Manager) error {
 	return p.setupInFlightMapCleaner(mgr)
 }
 
-// Stop stops the kafka events consumer.
+// Stop stops the kafka events consumer and the map cleaner.
 func (p *protocol) Stop(*manager.Manager) {
 	// inFlightMapCleaner handles nil receiver pointers.
 	p.inFlightMapCleaner.Stop()
