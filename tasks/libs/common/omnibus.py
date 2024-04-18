@@ -5,7 +5,7 @@ import sys
 from datetime import datetime
 
 import requests
-from release import _get_release_json_value
+from tasks.release import _get_release_json_value
 
 
 def _get_build_images(ctx):
