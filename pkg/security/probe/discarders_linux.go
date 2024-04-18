@@ -753,19 +753,4 @@ func init() {
 			return "chdir.file.path", &event.Open.File, false
 		}))
 	SupportedDiscarders["chdir.file.path"] = true
-
-	SupportedMultiDiscarder = []*rules.MultiDiscarder{
-		{
-			Entries: []rules.MultiDiscarderEntry{
-				{
-					Field:     "open.file.path",
-					EventType: "open",
-				},
-				{
-					Field:     "chmod.file.path",
-					EventType: "chmod",
-				},
-			},
-		},
-	}
 }
