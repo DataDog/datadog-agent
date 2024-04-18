@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -734,7 +735,22 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 		rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
 	}
 
+	metaDiscardersPathFields := []string{"open.file.path", "chmod.file.path"}
+	shouldCheckMetaDiscardersOn := ""
+
 	for _, field := range bucket.fields {
+		if slices.Contains(metaDiscardersPathFields, field) {
+			path, err := event.GetFieldValue(field)
+			if err != nil {
+				rs.logger.Debugf("Failed to get field value for %s: %s", field, err)
+				continue
+			}
+
+			if pathStr, ok := path.(string); ok {
+				shouldCheckMetaDiscardersOn = pathStr
+			}
+		}
+
 		if rs.opts.SupportedDiscarders != nil {
 			if _, exists := rs.opts.SupportedDiscarders[field]; !exists {
 				continue
@@ -744,19 +760,15 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 		if isDiscarder, _ := IsDiscarder(ctx, field, bucket.rules); isDiscarder {
 			rs.NotifyDiscarderFound(event, field, eventType)
 		}
+	}
 
-		if field == "open.file.path" {
-			path, err := event.GetFieldValue(field)
-			if err != nil {
-				panic(err)
-			}
-
-			chmodBucket := rs.eventRuleBuckets["chmod"]
-			chmodField := "chmod.file.path"
-			dctx := buildDiscarderCtx(chmodField, path)
-
-			if isDiscarder, _ := IsDiscarder(dctx, chmodField, chmodBucket.rules); isDiscarder {
-				rs.logger.Errorf("chmod meta discarder from open %s %s", field, path)
+	if shouldCheckMetaDiscardersOn != "" {
+		for _, field := range metaDiscardersPathFields {
+			bucketIndex, _, _ := strings.Cut(field, ".")
+			bucket := rs.eventRuleBuckets[bucketIndex]
+			dctx := buildDiscarderCtx(field, shouldCheckMetaDiscardersOn)
+			if isDiscarder, _ := IsDiscarder(dctx, field, bucket.rules); isDiscarder {
+				rs.logger.Errorf("%s meta discarder from open %s %s", bucketIndex, field, shouldCheckMetaDiscardersOn)
 			}
 		}
 	}
