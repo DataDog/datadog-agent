@@ -151,6 +151,7 @@ func sendResult(ctx context.Context, requestID string, result *sbom.ScanResult, 
 		result.Error = fmt.Errorf("context cancelled while sending scan result for '%s'", requestID)
 	case <-time.After(sendTimeout):
 		result.Error = fmt.Errorf("timeout while sending scan result for '%s'", requestID)
+		log.Errorf("%s", result.Error)
 	}
 }
 
