@@ -139,7 +139,9 @@ class LibvirtDomain:
         run = f"ssh {ssh_options_command(extra_opts)} -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
         return self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
 
-    def copy(self, ctx: Context, source: PathOrStr, target: PathOrStr, exclude: PathOrStr = None, verbose: bool = False):
+    def copy(
+        self, ctx: Context, source: PathOrStr, target: PathOrStr, exclude: PathOrStr = None, verbose: bool = False
+    ):
         exclude_arg = ""
         if exclude is not None:
             exclude_arg = f"--exclude '{exclude}'"

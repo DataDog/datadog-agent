@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, Tupl
 from invoke.context import Context
 from invoke.tasks import task
 
-from tasks.libs.build.ninja import NinjaWriter
 from tasks.kernel_matrix_testing import stacks, vmconfig
 from tasks.kernel_matrix_testing.ci import KMTTestRunJob, get_all_jobs_for_pipeline
 from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, all_compilers, get_compiler
@@ -34,18 +33,19 @@ from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_syst
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
+from tasks.libs.build.ninja import NinjaWriter
+from tasks.libs.common.utils import get_build_flags
 from tasks.system_probe import (
+    BPF_TAG,
     EMBEDDED_SHARE_DIR,
+    NPM_TAG,
     TEST_PACKAGES_LIST,
     check_for_ninja,
-    go_package_dirs,
-    NPM_TAG,
-    BPF_TAG,
     get_sysprobe_buildtags,
     get_test_timeout,
+    go_package_dirs,
     ninja_generate,
 )
-from tasks.libs.common.utils import get_build_flags
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import (  # noqa: F401
@@ -442,9 +442,6 @@ def is_root():
     return os.getuid() == 0
 
 
-def select_exec_environment(ctx, vms, ci):
-    pass
-
 @task
 def prepare(
     ctx: Context,
@@ -456,7 +453,6 @@ def prepare(
     verbose=True,
     ci=False,
 ):
-
     if not ci:
         stack = check_and_get_stack(stack)
         if not stacks.stack_exists(stack):
@@ -566,7 +562,7 @@ def kmt_prepare(
         raise Exit("A stack name must be provided")
 
     if arch is None or arch == "local":
-        raise Exit(f"No architecture provided")
+        raise Exit("No architecture provided")
 
     check_for_ninja(ctx)
 
@@ -876,9 +872,6 @@ def build(
         f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e system-probe.build --no-bundle",
     )
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
-
-    with open(layout, 'r') as lf:
-        todo: DependenciesLayout = cast('DependenciesLayout', json.load(lf))
 
     build_layout(ctx, domains, layout, verbose)
     for d in domains:
