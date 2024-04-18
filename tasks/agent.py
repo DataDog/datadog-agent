@@ -322,8 +322,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         # Ensure the config folders are not world writable
         os.chmod(check_dir, mode=0o755)
 
-    ## add additional windows-only corechecks, only on windows. Otherwise the check loader
-    ## on linux will throw an error because the module is not found, but the config is.
+    # add additional windows-only corechecks, only on windows. Otherwise the check loader
+    # on linux will throw an error because the module is not found, but the config is.
     if sys.platform == 'win32':
         for check in WINDOWS_CORECHECKS:
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
@@ -634,7 +634,7 @@ def check_supports_python_version(_, check_dir, python):
     project_file = os.path.join(check_dir, 'pyproject.toml')
     setup_file = os.path.join(check_dir, 'setup.py')
     if os.path.isfile(project_file):
-        with open(project_file, 'r') as f:
+        with open(project_file) as f:
             data = toml.loads(f.read())
 
         project_metadata = data['project']
@@ -651,7 +651,7 @@ def check_supports_python_version(_, check_dir, python):
         else:
             print('False', end='')
     elif os.path.isfile(setup_file):
-        with open(setup_file, 'r') as f:
+        with open(setup_file) as f:
             tree = ast.parse(f.read(), filename=setup_file)
 
         prefix = f'Programming Language :: Python :: {python}'

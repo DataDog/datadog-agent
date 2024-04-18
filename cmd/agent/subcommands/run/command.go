@@ -60,7 +60,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/agent"
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
-	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -142,9 +141,6 @@ import (
 
 	// runtime init routines
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
-
-	// register metadata providers
-	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
 )
 
 type cliParams struct {
@@ -229,7 +225,6 @@ func run(log log.Component,
 	cloudfoundrycontainer cloudfoundrycontainer.Component,
 	_ expvarserver.Component,
 	_ pid.Component,
-	metadatascheduler metadatascheduler.Component,
 	jmxlogger jmxlogger.Component,
 	_ healthprobe.Component,
 	_ autoexit.Component,
@@ -298,7 +293,6 @@ func run(log log.Component,
 		collector,
 		cfg,
 		cloudfoundrycontainer,
-		metadatascheduler,
 		jmxlogger,
 		settings,
 	); err != nil {
@@ -415,6 +409,9 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
 		}),
+		fx.Provide(func(ms serializer.MetricSerializer) optional.Option[serializer.MetricSerializer] {
+			return optional.NewOption[serializer.MetricSerializer](ms)
+		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
 		snmptraps.Bundle(),
@@ -475,11 +472,9 @@ func startAgent(
 	collector collector.Component,
 	cfg config.Component,
 	_ cloudfoundrycontainer.Component,
-	_ metadatascheduler.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
 ) error {
-
 	var err error
 
 	if flavor.GetFlavor() == flavor.IotAgent {

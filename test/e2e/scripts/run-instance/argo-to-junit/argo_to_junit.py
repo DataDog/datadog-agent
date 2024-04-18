@@ -48,7 +48,7 @@ def main():
     parser.add_argument("-o", "--output-file", default="junit.xml", help="The junit xml file")
     args = parser.parse_args()
 
-    with open(args.input_file, "r") as f:
+    with open(args.input_file) as f:
         crd = json.loads(f.read())
     crd_name = crd.get("metadata", {}).get("name")
     nodes = crd.get("status", {}).get("nodes")

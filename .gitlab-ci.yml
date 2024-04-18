@@ -95,7 +95,6 @@ stages:
   - e2e
   - kitchen_cleanup
   - functional_test
-  - functional_test_sysprobe
   - functional_test_cleanup
   - junit_upload
   - internal_kubernetes_deploy
@@ -145,10 +144,12 @@ variables:
   S3_PERMANENT_ARTIFACTS_URI: s3://dd-ci-persistent-artefacts-build-stable/$CI_PROJECT_NAME
   S3_SBOM_STORAGE_URI: s3://sbom-root-us1-ddbuild-io/$CI_PROJECT_NAME/$CI_PIPELINE_ID
   S3_RELEASE_ARTIFACTS_URI: s3://dd-release-artifacts/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+  S3_RELEASE_INSTALLER_ARTIFACTS_URI: s3://dd-release-artifacts/datadog-installer/$CI_PIPELINE_ID
   ## comment out both lines below (S3_OMNIBUS_CACHE_BUCKET and USE_S3_CACHING) to allow
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   USE_S3_CACHING: --omnibus-s3-cache
+  OMNIBUS_GIT_CACHE_DIR: /tmp/omnibus-git-cache
   ## comment out the line below to disable integration wheels cache
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
@@ -163,15 +164,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v31988376-bfbb3afb
+  DATADOG_AGENT_BUILDIMAGES: v32368242-2e3b6ef4
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v31988376-bfbb3afb
+  DATADOG_AGENT_WINBUILDIMAGES: v32368242-2e3b6ef4
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v31988376-bfbb3afb
+  DATADOG_AGENT_ARMBUILDIMAGES: v32368242-2e3b6ef4
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v31988376-bfbb3afb
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v32368242-2e3b6ef4
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v31988376-bfbb3afb
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v32368242-2e3b6ef4
   DATADOG_AGENT_BUILDERS: v28719426-b6a4fd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -732,10 +733,8 @@ workflow:
   - pkg/process/monitor/*
   - pkg/util/kernel/**/*
   - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
-  - test/kitchen/test/integration/system-probe-test/**/*
   - test/kitchen/test/integration/win-sysprobe-test/**/*
   - .gitlab/functional_test/system_probe_windows.yml
-  - .gitlab/functional_test_sysprobe/system_probe.yml
   - .gitlab/kernel_matrix_testing/system_probe.yml
   - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
