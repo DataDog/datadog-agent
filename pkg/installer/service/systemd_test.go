@@ -42,10 +42,9 @@ func TestInvalidCommands(t *testing.T) {
 }
 
 func TestAssertWorkingCommands(t *testing.T) {
+	// Add a fake comment here on top
 	if runtime.GOOS != "darwin" {
 		t.Skip("Skipping test on non-darwin OS")
-	} else {
-		t.Skip("TOFIX")
 	}
 	testSetup(t)
 
