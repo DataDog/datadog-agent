@@ -132,8 +132,16 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/windowsperfcountersreceiver"
 
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector"
+	//"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/servicegraphconnector"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zookeeperreceiver"
 	"go.opentelemetry.io/collector/connector"
+	"go.opentelemetry.io/collector/connector/forwardconnector"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
@@ -161,7 +169,14 @@ func (c *collectorContribImpl) OTelComponentFactories() (otelcol.Factories, erro
 	var errs error
 
 	connectorsList := []connector.Factory{
-		// TODO: all of the connectors from Core collector & collector contrib
+		forwardconnector.NewFactory(),
+		countconnector.NewFactory(),
+		//datadogconnector.NewFactory(),
+		exceptionsconnector.NewFactory(),
+		grafanacloudconnector.NewFactory(),
+		routingconnector.NewFactory(),
+		servicegraphconnector.NewFactory(),
+		spanmetricsconnector.NewFactory(),
 	}
 	connectors, err := connector.MakeFactoryMap(connectorsList...)
 	if err != nil {
