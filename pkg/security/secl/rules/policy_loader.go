@@ -48,14 +48,15 @@ func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierr
 	defer p.RUnlock()
 
 	var (
-		errs          *multierror.Error
-		allPolicies   []*Policy
-		defaultPolicy *Policy
+		errs                         *multierror.Error
+		allPolicies                  []*Policy
+		defaultPolicy                *Policy
+		hasAlreadyLoadedUserPolicies bool
 	)
 
 	p.remoteConfigProvidersFirst()
 	for _, provider := range p.Providers {
-		policies, err := provider.LoadPolicies(opts.MacroFilters, opts.RuleFilters, len(allPolicies) != 0)
+		policies, err := provider.LoadPolicies(opts.MacroFilters, opts.RuleFilters, hasAlreadyLoadedUserPolicies)
 		if err.ErrorOrNil() != nil {
 			errs = multierror.Append(errs, err)
 		}
@@ -71,6 +72,10 @@ func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierr
 				}
 			} else {
 				allPolicies = append(allPolicies, policy)
+			}
+
+			if !policy.IsInternal {
+				hasAlreadyLoadedUserPolicies = true
 			}
 		}
 	}

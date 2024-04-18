@@ -467,7 +467,7 @@ type dummyDirProvider struct {
 	dummyLoadPoliciesFunc func() ([]*Policy, *multierror.Error)
 }
 
-func (d dummyDirProvider) LoadPolicies(_ []MacroFilter, _ []RuleFilter) ([]*Policy, *multierror.Error) {
+func (d dummyDirProvider) LoadPolicies(_ []MacroFilter, _ []RuleFilter, _ bool) ([]*Policy, *multierror.Error) {
 	return d.dummyLoadPoliciesFunc()
 }
 
@@ -487,7 +487,7 @@ type dummyRCProvider struct {
 	dummyLoadPoliciesFunc func() ([]*Policy, *multierror.Error)
 }
 
-func (d dummyRCProvider) LoadPolicies(_ []MacroFilter, _ []RuleFilter) ([]*Policy, *multierror.Error) {
+func (d dummyRCProvider) LoadPolicies(_ []MacroFilter, _ []RuleFilter, _ bool) ([]*Policy, *multierror.Error) {
 	return d.dummyLoadPoliciesFunc()
 }
 
