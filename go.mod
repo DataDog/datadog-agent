@@ -261,7 +261,7 @@ require (
 	go.opentelemetry.io/collector/confmap v0.98.0
 	go.opentelemetry.io/collector/exporter v0.98.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.97.0
-	go.opentelemetry.io/collector/exporter/otlpexporter v0.97.0
+	go.opentelemetry.io/collector/exporter/otlpexporter v0.98.0
 	go.opentelemetry.io/collector/pdata v1.5.0
 	go.opentelemetry.io/collector/processor/batchprocessor v0.98.0
 	go.opentelemetry.io/collector/receiver v0.98.0
@@ -706,6 +706,25 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/sigv4authextension v0.98.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/dbstorage v0.98.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatorateprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbytraceprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricsgenerationprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricstransformprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/redactionprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/remotetapprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/sumologicprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.98.0
 	github.com/planetscale/vtprotobuf v0.6.0
 	github.com/prometheus-community/pro-bing v0.3.0
 	github.com/rickar/props v1.0.0
@@ -723,6 +742,7 @@ require (
 	go.opentelemetry.io/collector/extension/zpagesextension v0.98.0
 	go.opentelemetry.io/collector/otelcol v0.98.0
 	go.opentelemetry.io/collector/processor v0.98.0
+	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.95.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	gotest.tools v2.2.0+incompatible
 )
@@ -741,10 +761,13 @@ require (
 	github.com/DataDog/go-sqllexer v0.0.9 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.14.0 // indirect
 	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.22.0 // indirect
 	github.com/Intevation/gval v1.3.0 // indirect
 	github.com/Intevation/jsonpath v0.2.1 // indirect
 	github.com/SermoDigital/jose v0.9.2-0.20180104203859-803625baeddc // indirect
+	github.com/Showmax/go-fqdn v1.0.0 // indirect
 	github.com/VividCortex/ewma v1.2.0 // indirect
+	github.com/alecthomas/participle/v2 v2.1.1 // indirect
 	github.com/anchore/go-struct-converter v0.0.0-20221118182256-c68fdcfa2092 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df // indirect
 	github.com/apache/thrift v0.19.0 // indirect
@@ -768,6 +791,7 @@ require (
 	github.com/elastic/go-licenser v0.4.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
+	github.com/expr-lang/expr v1.16.3 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.0.0-alpha.1 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
@@ -779,6 +803,7 @@ require (
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/hashicorp/go-getter v1.7.3 // indirect
 	github.com/hashicorp/go-safetemp v1.0.0 // indirect
+	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.14.3 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
@@ -801,9 +826,14 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/proxy v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.98.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/docker v0.98.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sconfig v0.98.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.98.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.98.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.98.0 // indirect
 	github.com/openshift/client-go v0.0.0-20210521082421-73d9475a9142 // indirect
 	github.com/openvex/go-vex v0.2.5 // indirect
