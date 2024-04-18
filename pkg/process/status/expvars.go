@@ -53,6 +53,9 @@ var (
 	infoWlmExtractorCacheSize    atomic.Int64
 	infoWlmExtractorStaleDiffs   atomic.Int64
 	infoWlmExtractorDiffsDropped atomic.Int64
+
+	// ProcessExpvars contains metrics for the process agent.
+	ProcessExpvars *expvar.Map
 )
 
 func publishUptime() interface{} {
@@ -250,34 +253,39 @@ func publishDropCheckPayloads() interface{} {
 // InitExpvars initializes expvars
 func InitExpvars(config ddconfig.Reader, telemetry telemetry.Component, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
 	infoOnce.Do(func() {
-		expvar.NewString("host").Set(hostname)
-		expvar.NewInt("pid").Set(int64(os.Getpid()))
-		expvar.Publish("uptime", expvar.Func(publishUptime))
-		expvar.Publish("uptime_nano", expvar.Func(publishUptimeNano))
-		expvar.Publish("version", expvar.Func(publishVersion))
-		expvar.Publish("docker_socket", expvar.Func(publishDockerSocket))
-		expvar.Publish("last_collect_time", expvar.Func(publishLastCollectTime))
-		expvar.Publish("process_count", publishInt(&infoProcCount))
-		expvar.Publish("container_count", publishInt(&infoContainerCount))
-		expvar.Publish("process_queue_size", publishInt(&infoProcessQueueSize))
-		expvar.Publish("rtprocess_queue_size", publishInt(&infoRTProcessQueueSize))
-		expvar.Publish("connections_queue_size", publishInt(&infoConnectionsQueueSize))
-		expvar.Publish("event_queue_size", publishInt(&infoEventQueueSize))
-		expvar.Publish("pod_queue_size", publishInt(&infoPodQueueSize))
-		expvar.Publish("process_queue_bytes", publishInt(&infoProcessQueueBytes))
-		expvar.Publish("rtprocess_queue_bytes", publishInt(&infoRTProcessQueueBytes))
-		expvar.Publish("connections_queue_bytes", publishInt(&infoConnectionsQueueBytes))
-		expvar.Publish("event_queue_bytes", publishInt(&infoEventQueueBytes))
-		expvar.Publish("pod_queue_bytes", publishInt(&infoPodQueueBytes))
-		expvar.Publish("container_id", expvar.Func(publishContainerID))
-		expvar.Publish("enabled_checks", expvar.Func(publishEnabledChecks))
-		expvar.Publish("endpoints", expvar.Func(publishEndpoints(eps)))
-		expvar.Publish("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
-		expvar.Publish("system_probe_process_module_enabled", publishBool(processModuleEnabled))
-		expvar.Publish("language_detection_enabled", publishBool(languageDetectionEnabled))
-		expvar.Publish("workloadmeta_extractor_cache_size", publishInt(&infoWlmExtractorCacheSize))
-		expvar.Publish("workloadmeta_extractor_stale_diffs", publishInt(&infoWlmExtractorStaleDiffs))
-		expvar.Publish("workloadmeta_extractor_diffs_dropped", publishInt(&infoWlmExtractorDiffsDropped))
+		ProcessExpvars = expvar.NewMap("process_agent")
+		hostString := expvar.NewString("host")
+		hostString.Set(hostname)
+		ProcessExpvars.Set("host", hostString)
+		pid := expvar.NewInt("pid")
+		pid.Set(int64(os.Getpid()))
+		ProcessExpvars.Set("pid", pid)
+		ProcessExpvars.Set("uptime", expvar.Func(publishUptime))
+		ProcessExpvars.Set("uptime_nano", expvar.Func(publishUptimeNano))
+		ProcessExpvars.Set("version", expvar.Func(publishVersion))
+		ProcessExpvars.Set("docker_socket", expvar.Func(publishDockerSocket))
+		ProcessExpvars.Set("last_collect_time", expvar.Func(publishLastCollectTime))
+		ProcessExpvars.Set("process_count", publishInt(&infoProcCount))
+		ProcessExpvars.Set("container_count", publishInt(&infoContainerCount))
+		ProcessExpvars.Set("process_queue_size", publishInt(&infoProcessQueueSize))
+		ProcessExpvars.Set("rtprocess_queue_size", publishInt(&infoRTProcessQueueSize))
+		ProcessExpvars.Set("connections_queue_size", publishInt(&infoConnectionsQueueSize))
+		ProcessExpvars.Set("event_queue_size", publishInt(&infoEventQueueSize))
+		ProcessExpvars.Set("pod_queue_size", publishInt(&infoPodQueueSize))
+		ProcessExpvars.Set("process_queue_bytes", publishInt(&infoProcessQueueBytes))
+		ProcessExpvars.Set("rtprocess_queue_bytes", publishInt(&infoRTProcessQueueBytes))
+		ProcessExpvars.Set("connections_queue_bytes", publishInt(&infoConnectionsQueueBytes))
+		ProcessExpvars.Set("event_queue_bytes", publishInt(&infoEventQueueBytes))
+		ProcessExpvars.Set("pod_queue_bytes", publishInt(&infoPodQueueBytes))
+		ProcessExpvars.Set("container_id", expvar.Func(publishContainerID))
+		ProcessExpvars.Set("enabled_checks", expvar.Func(publishEnabledChecks))
+		ProcessExpvars.Set("endpoints", expvar.Func(publishEndpoints(eps)))
+		ProcessExpvars.Set("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
+		ProcessExpvars.Set("system_probe_process_module_enabled", publishBool(processModuleEnabled))
+		ProcessExpvars.Set("language_detection_enabled", publishBool(languageDetectionEnabled))
+		ProcessExpvars.Set("workloadmeta_extractor_cache_size", publishInt(&infoWlmExtractorCacheSize))
+		ProcessExpvars.Set("workloadmeta_extractor_stale_diffs", publishInt(&infoWlmExtractorStaleDiffs))
+		ProcessExpvars.Set("workloadmeta_extractor_diffs_dropped", publishInt(&infoWlmExtractorDiffsDropped))
 	})
 
 	// Run a profile & telemetry server.
