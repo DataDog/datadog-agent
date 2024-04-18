@@ -98,7 +98,7 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
 
     # Send messages
     metrics = []
-    timestamp = int(datetime.now().timestamp())
+    timestamp = int(datetime.now(timezone.utc).timestamp())
     for owner, message in messages_to_send.items():
         channel = GITHUB_SLACK_MAP.get(owner.lower(), None)
         message.base_message = base
