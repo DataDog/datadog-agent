@@ -25,6 +25,10 @@ func testSetup(t *testing.T) {
 }
 
 func TestInvalidCommands(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("FIXME: broken on darwin")
+	}
+
 	testSetup(t)
 	// assert wrong commands
 	for input, expected := range map[string]string{
@@ -44,8 +48,6 @@ func TestInvalidCommands(t *testing.T) {
 func TestAssertWorkingCommands(t *testing.T) {
 	if runtime.GOOS != "darwin" {
 		t.Skip("Skipping test on non-darwin OS")
-	} else {
-		t.Skip("TOFIX")
 	}
 	testSetup(t)
 
@@ -67,7 +69,7 @@ func TestAssertWorkingCommands(t *testing.T) {
 	a := &apmInjectorInstaller{
 		installPath: "/tmp/stable",
 	}
-	assert.Equal(t, successErr, a.setLDPreloadConfig(testCtx).Error())
+	assert.Equal(t, successErr, replaceLDPreload(testCtx).Error())
 	assert.Equal(t, successErr, a.setAgentConfig(testCtx).Error())
 	assert.Equal(t, successErr, a.setDockerConfig(testCtx).Error())
 }

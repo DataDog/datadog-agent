@@ -223,7 +223,7 @@ def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> List[str]:
 def _get_team_labels():
     import toml
 
-    with open('.ddqa/config.toml', 'r') as f:
+    with open('.ddqa/config.toml') as f:
         data = toml.loads(f.read())
 
     labels = []

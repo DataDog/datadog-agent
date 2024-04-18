@@ -127,7 +127,7 @@ func bootstrap(ctx context.Context, params *cliParams, installScriptParams *inst
 		spanOptions = append(spanOptions, tracer.ChildOf(spanCtx))
 	}
 
-	span, ctx := tracer.StartSpanFromContext(ctx, "cmd/bootstrap", spanOptions...)
+	span, ctx := tracer.StartSpanFromContext(ctx, "cmd_bootstrap", spanOptions...)
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag(ext.ManualKeep, true)
 	span.SetTag("params.pkg", params.pkg)
@@ -160,7 +160,7 @@ func stagingPackageURL(pkg string, version string) string {
 }
 
 func prodPackageURL(pkg string, version string) string {
-	return fmt.Sprintf("oci://public.ecr.aws/datadoghq/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+	return fmt.Sprintf("oci://public.ecr.aws/datadog/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 }
 
 func readInstallScriptParams() (*installScriptParams, error) {
