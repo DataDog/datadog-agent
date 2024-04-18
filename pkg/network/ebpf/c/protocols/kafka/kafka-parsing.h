@@ -34,7 +34,7 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
 #define extra_debug log_debug
 #else
 #define extra_debug(fmt, ...)
-#endif                                                                                                                  \
+#endif
 
 SEC("socket/kafka_filter")
 int socket__kafka_filter(struct __sk_buff* skb) {
