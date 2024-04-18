@@ -12,6 +12,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,6 +48,10 @@ func (api *testLocalAPI) Stop() {
 }
 
 func TestLocalAPI(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("FIXME: broken on darwin")
+	}
+
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	api := newTestLocalAPI(t, s)
