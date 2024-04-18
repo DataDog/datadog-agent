@@ -80,6 +80,7 @@ def _get_environment_for_cache() -> dict:
             "ARTIFACT_DOWNLOAD_ATTEMPTS",
             "AVAILABILITY_ZONE",
             "BENCHMARKS_CI_IMAGE",
+            "BUNDLE_MIRROR__RUBYGEMS__ORG",
             "BUCKET_BRANCH",
             "CHANGELOG_COMMIT_SHA_SSM_NAME",
             "CLANG_LLVM_VER",
