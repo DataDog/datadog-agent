@@ -134,6 +134,7 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
     __u16 l3_proto = __load_half(skb, offsetof(struct ethhdr, h_proto));
     info->data_end = ETH_HLEN;
     __u8 l4_proto = 0;
+    
     switch (l3_proto) {
     case ETH_P_IP:
     {
@@ -192,6 +193,9 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
 __maybe_unused static __always_inline __u64 read_conn_tuple_skb_cgroup(struct __sk_buff *skb, skb_info_t *info, conn_tuple_t *tup) {
     bpf_memset(info, 0, sizeof(skb_info_t));
     __u8 l4_proto = 0;
+    __u8 l4_proto_alt = 0;
+    
+    info->data_off = ETH_HLEN;
     switch (skb->protocol) {
     case 8:
         tup->saddr_l = skb->local_ip4;
@@ -202,11 +206,14 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb_cgroup(struct __
         tup->dport = bpf_htonl(skb->remote_port);
         tup->metadata |= CONN_V4;
         __u8 ipv4_hdr_len = (__load_byte(skb, 0) & 0x0f) << 2;
+        log_debug("dispatch ipv4_hdr_len %d", ipv4_hdr_len);
         if (ipv4_hdr_len < sizeof(struct iphdr)) {
             return 0;
         }
         info->data_end = __load_half(skb, offsetof(struct iphdr, tot_len));
         l4_proto = __load_byte(skb, offsetof(struct iphdr, protocol));
+        l4_proto_alt = __load_byte(skb, ETH_HLEN + offsetof(struct iphdr, protocol));
+
         info->data_off += ipv4_hdr_len;
         break;
     case ETH_P_IPV6:
@@ -218,6 +225,8 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb_cgroup(struct __
     default:
         return 0;
     }
+
+    log_debug("dispatch l4_proto %d alt %d", l4_proto, l4_proto_alt);
 
     switch (l4_proto) {
     case __IPPROTO_UDP:

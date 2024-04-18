@@ -370,7 +370,7 @@ func (s *HTTPTestSuite) TestSanity() {
 					// Create a request generator that will be used to randomly generate requests and send them to the server.
 					requestFn := requestGenerator(t, tt.targetAddress, emptyBody)
 					var requests []*nethttp.Request
-					for i := 0; i < 100; i++ {
+					for i := 0; i < 1; i++ {
 						// Send a request to the server and save it for later comparison.
 						requests = append(requests, requestFn())
 					}

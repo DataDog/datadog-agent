@@ -90,21 +90,26 @@ static __always_inline void dispatcher_delete_protocol_stack(conn_tuple_t *tuple
 static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb) {
     skb_info_t skb_info = {0};
     conn_tuple_t skb_tup = {0};
+    
+    log_debug("dispatch");
 
     // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
     if (!read_conn_tuple_skb_cgroup(skb, &skb_info, &skb_tup)) {
+        log_debug("dispatch no read conn");
         return;
     }
 
     bool tcp_termination = is_tcp_termination(&skb_info);
     // We don't process non tcp packets, nor empty tcp packets which are not tcp termination packets.
     if (!is_tcp(&skb_tup) || (is_payload_empty(&skb_info) && !tcp_termination)) {
+        log_debug("dispatch no tcp");
         return;
     }
 
     // Making sure we've not processed the same tcp segment, which can happen when a single packet travels different
     // interfaces.
     if (has_sequence_seen_before(&skb_tup, &skb_info)) {
+        log_debug("dispatch seen before");
         return;
     }
 

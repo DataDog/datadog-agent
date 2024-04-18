@@ -182,6 +182,7 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
 
     http = http_fetch_state(tuple, http, packet_type);
     if (!http || http_seen_before(http, skb_info, packet_type)) {
+         log_debug("!http / seen_before");
         return;
     }
 
@@ -235,25 +236,28 @@ static __always_inline bool http_allow_packet(conn_tuple_t *tuple, struct __sk_b
     return true;
 }
 
-SEC("socket/http_filter")
+SEC("sk_skb/stream_verdict/http_filter")
 int socket__http_filter(struct __sk_buff* skb) {
     skb_info_t skb_info;
     http_event_t event;
+
+    log_debug("http_filter");
     bpf_memset(&event, 0, sizeof(http_event_t));
 
     if (!fetch_dispatching_arguments(&event.tuple, &skb_info)) {
         log_debug("http_filter failed to fetch arguments for tail call");
-        return 0;
+        return SK_PASS;
     }
 
     if (!http_allow_packet(&event.tuple, skb, &skb_info)) {
-        return 0;
+        log_debug("http not allowed");
+        return SK_PASS;
     }
     normalize_tuple(&event.tuple);
 
     read_into_buffer_skb((char *)event.http.request_fragment, skb, skb_info.data_off);
     http_process(&event, &skb_info, NO_TAGS);
-    return 0;
+    return SK_PASS;
 }
 
 SEC("uprobe/http_process")
