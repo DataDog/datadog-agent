@@ -1,9 +1,11 @@
 #ifndef __CONNTRACK_HELPERS_H
 #define __CONNTRACK_HELPERS_H
 
+#ifndef COMPILE_CORE
 #include <net/netfilter/nf_conntrack.h>
 #include <linux/types.h>
 #include <linux/sched.h>
+#endif
 
 #include "bpf_builtins.h"
 
@@ -36,8 +38,6 @@ static __always_inline void print_translation(const conntrack_tuple_t *t) {
 }
 
 static __always_inline int nf_conntrack_tuple_to_conntrack_tuple(conntrack_tuple_t *t, const struct nf_conntrack_tuple *ct) {
-    bpf_memset(t, 0, sizeof(conntrack_tuple_t));
-
     switch (ct->dst.protonum) {
     case IPPROTO_TCP:
         t->metadata = CONN_TYPE_TCP;

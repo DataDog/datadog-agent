@@ -257,6 +257,7 @@
 /comp/systray @DataDog/windows-agent
 /comp/trace @DataDog/agent-apm
 /comp/updater @DataDog/fleet
+/comp/agent/cloudfoundrycontainer @DataDog/platform-integrations
 /comp/agent/jmxlogger @DataDog/agent-metrics-logs
 /comp/aggregator/diagnosesendermanager @DataDog/agent-shared-components
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
@@ -522,6 +523,8 @@
 /tasks/components.py                    @DataDog/agent-shared-components
 /tasks/components_templates             @DataDog/agent-shared-components
 /tasks/updater.py                       @DataDog/fleet
+/tasks/libs/common/omnibus.py           @DataDog/agent-build-and-releases
+/tasks/omnibus.py                       @DataDog/agent-build-and-releases
 /tasks/installer.py                     @DataDog/fleet
 /test/                                  @DataDog/agent-developer-tools
 /test/benchmarks/                       @DataDog/agent-metrics-logs

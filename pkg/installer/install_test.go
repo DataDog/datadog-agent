@@ -10,6 +10,7 @@ package installer
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -21,6 +22,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/installer/repository"
 )
+
+var testCtx = context.TODO()
 
 func assertEqualFS(t *testing.T, expected fs.FS, actual fs.FS) {
 	t.Helper()
@@ -95,7 +98,7 @@ func TestInstallStable(t *testing.T) {
 	defer s.Close()
 	installer := newTestPackageManager(t)
 
-	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
+	err := installer.installStable(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)
 	r := installer.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
@@ -111,9 +114,9 @@ func TestInstallExperiment(t *testing.T) {
 	defer s.Close()
 	installer := newTestPackageManager(t)
 
-	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
+	err := installer.installStable(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)
-	err = installer.installExperiment(fixtureSimpleV1.pkg, fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
+	err = installer.installExperiment(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
 	assert.NoError(t, err)
 	r := installer.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
@@ -130,11 +133,11 @@ func TestInstallPromoteExperiment(t *testing.T) {
 	defer s.Close()
 	installer := newTestPackageManager(t)
 
-	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
+	err := installer.installStable(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)
-	err = installer.installExperiment(fixtureSimpleV1.pkg, fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
+	err = installer.installExperiment(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
 	assert.NoError(t, err)
-	err = installer.promoteExperiment(fixtureSimpleV1.pkg)
+	err = installer.promoteExperiment(testCtx, fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	r := installer.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
@@ -150,11 +153,11 @@ func TestUninstallExperiment(t *testing.T) {
 	defer s.Close()
 	installer := newTestPackageManager(t)
 
-	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
+	err := installer.installStable(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)
-	err = installer.installExperiment(fixtureSimpleV1.pkg, fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
+	err = installer.installExperiment(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
 	assert.NoError(t, err)
-	err = installer.uninstallExperiment(fixtureSimpleV1.pkg)
+	err = installer.uninstallExperiment(testCtx, fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	r := installer.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()

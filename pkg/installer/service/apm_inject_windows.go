@@ -8,12 +8,14 @@
 // Package service provides a way to interact with os services
 package service
 
+import "context"
+
 // SetupAPMInjector noop
-func SetupAPMInjector() error {
+func SetupAPMInjector(_ context.Context) error {
 	return nil
 }
 
 // RemoveAPMInjector noop
-func RemoveAPMInjector() error {
+func RemoveAPMInjector(_ context.Context) error {
 	return nil
 }

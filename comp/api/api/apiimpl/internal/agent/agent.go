@@ -99,17 +99,19 @@ func SetupHandlers(
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("GET")
+	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		getStatus(w, r, statusComponent, "")
+	}).Methods("GET")
 	r.HandleFunc("/stream-event-platform", streamEventPlatform(eventPlatformReceiver)).Methods("POST")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
-	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
+	r.HandleFunc("/{component}/status", func(w http.ResponseWriter, r *http.Request) { componentStatusGetterHandler(w, r, statusComponent) }).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", func(w http.ResponseWriter, _ *http.Request) { getCSRFToken(w, gui) }).Methods("GET")
 	r.HandleFunc("/config-check", func(w http.ResponseWriter, r *http.Request) {
 		getConfigCheck(w, r, ac)
 	}).Methods("GET")
-	r.HandleFunc("/config", settings.GetFullConfig(config.Datadog, "")).Methods("GET")
+	r.HandleFunc("/config", settings.GetFullConfig("")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -186,14 +188,14 @@ func componentConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func componentStatusGetterHandler(w http.ResponseWriter, r *http.Request) {
+func componentStatusGetterHandler(w http.ResponseWriter, r *http.Request, status status.Component) {
 	vars := mux.Vars(r)
 	component := vars["component"]
 	switch component {
 	case "py":
 		getPythonStatus(w, r)
 	default:
-		http.Error(w, log.Errorf("bad url or resource does not exist").Error(), 404)
+		getStatus(w, r, status, component)
 	}
 }
 
@@ -208,11 +210,12 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {
+func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component, section string) {
 	log.Info("Got a request for the status. Making status.")
 	verbose := r.URL.Query().Get("verbose") == "true"
 	format := r.URL.Query().Get("format")
 	var contentType string
+	var s []byte
 
 	contentType, ok := mimeTypeMap[format]
 
@@ -223,7 +226,12 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	}
 	w.Header().Set("Content-Type", contentType)
 
-	s, err := statusComponent.GetStatus(format, verbose)
+	var err error
+	if len(section) > 0 {
+		s, err = statusComponent.GetStatusBySection(section, format, verbose)
+	} else {
+		s, err = statusComponent.GetStatus(format, verbose)
+	}
 
 	if err != nil {
 		if format == "text" {
