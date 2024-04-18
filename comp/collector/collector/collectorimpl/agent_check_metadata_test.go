@@ -3,15 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agentchecks
+package collectorimpl
 
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func TestExternalHostTags(t *testing.T) {
@@ -25,8 +33,18 @@ func TestExternalHostTags(t *testing.T) {
 	externalhost.SetExternalTags(host1, sourceType, tags1)
 	externalhost.SetExternalTags(host2, sourceType, tags2)
 
-	pl := GetPayload(context.Background())
-	hpl := pl.ExternalHostPayload.Payload
+	c := newCollector(fxutil.Test[dependencies](t,
+		core.MockBundle(),
+		demultiplexerimpl.MockModule(),
+		fx.Provide(func() optional.Option[serializer.MetricSerializer] {
+			return optional.NewNoneOption[serializer.MetricSerializer]()
+		}),
+		fx.Replace(config.MockParams{
+			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},
+		})))
+
+	pl := c.GetPayload(context.Background())
+	hpl := pl.ExternalhostTags
 	assert.Len(t, hpl, 2)
 	for _, elem := range hpl {
 		if elem[0] == host1 {

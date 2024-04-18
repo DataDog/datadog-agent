@@ -30,10 +30,6 @@ Package expvarserver contains the component type for the expVar server.
 
 Package jmxlogger implements the logger for JMX.
 
-### [comp/agent/metadatascheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/metadatascheduler)
-
-Package metadatascheduler provides the metadata scheduler component.
-
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 
 *Datadog Team*: agent-metrics-logs
