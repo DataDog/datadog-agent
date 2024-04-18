@@ -73,8 +73,8 @@ func newHaRemoteConfigService(deps dependencies) (rcserviceha.Component, error) 
 		remoteconfig.WithAPIKey(apiKey),
 		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
 		remoteconfig.WithDatabaseFileName("remote-config-ha.db"),
-		remoteconfig.WithConfigRootOverride(deps.Cfg.GetString("ha.remote_configuration.config_root")),
-		remoteconfig.WithDirectorRootOverride(deps.Cfg.GetString("ha.remote_configuration.director_root")),
+		remoteconfig.WithConfigRootOverride(deps.Cfg.GetString("ha.site"), deps.Cfg.GetString("ha.remote_configuration.config_root")),
+		remoteconfig.WithDirectorRootOverride(deps.Cfg.GetString("ha.site"), deps.Cfg.GetString("ha.remote_configuration.director_root")),
 		remoteconfig.WithRcKey(deps.Cfg.GetString("ha.remote_configuration.key")),
 	}
 	if deps.Cfg.IsSet("ha.remote_configuration.refresh_interval") {
