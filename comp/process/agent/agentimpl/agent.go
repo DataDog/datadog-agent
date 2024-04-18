@@ -41,7 +41,7 @@ func Module() fxutil.Module {
 		fx.Provide(newProcessAgent))
 }
 
-type processAgentParams struct {
+type dependencies struct {
 	fx.In
 
 	Lc             fx.Lifecycle
@@ -68,8 +68,8 @@ type provides struct {
 	StatusProvider statusComponent.InformationProvider
 }
 
-func newProcessAgent(p processAgentParams) provides {
-	if !agent.Enabled(p.Config, p.Checks, p.Log) {
+func newProcessAgent(deps dependencies) provides {
+	if !agent.Enabled(deps.Config, deps.Checks, deps.Log) {
 		return provides{
 			Comp: processAgent{
 				enabled: false,
@@ -77,8 +77,8 @@ func newProcessAgent(p processAgentParams) provides {
 		}
 	}
 
-	enabledChecks := make([]checks.Check, 0, len(p.Checks))
-	for _, c := range fxutil.GetAndFilterGroup(p.Checks) {
+	enabledChecks := make([]checks.Check, 0, len(deps.Checks))
+	for _, c := range fxutil.GetAndFilterGroup(deps.Checks) {
 		check := c.Object()
 		if check.IsEnabled() {
 			enabledChecks = append(enabledChecks, check)
@@ -87,7 +87,7 @@ func newProcessAgent(p processAgentParams) provides {
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if len(enabledChecks) == 0 {
-		p.Log.Info(agentDisabledMessage)
+		deps.Log.Info(agentDisabledMessage)
 		return provides{
 			Comp: processAgent{
 				enabled: false,
@@ -98,19 +98,19 @@ func newProcessAgent(p processAgentParams) provides {
 	processAgentComponent := processAgent{
 		enabled: true,
 		Checks:  enabledChecks,
-		Log:     p.Log,
+		Log:     deps.Log,
 	}
 
 	if flavor.GetFlavor() != flavor.ProcessAgent {
 		// We return a status provider when the component is used outside of the process agent
 		// as the component status is unique from the typical agent status in this case.
-		err := expvars.InitProcessStatus(p.Config, p.SysProbeConfig, p.HostInfo, p.Log, p.Telemetry)
+		err := expvars.InitProcessStatus(deps.Config, deps.SysProbeConfig, deps.HostInfo, deps.Log, deps.Telemetry)
 		if err != nil {
 			_ = deps.Log.Critical("Failed to initialize process status server:", err)
 		}
 		return provides{
 			Comp:           processAgentComponent,
-			StatusProvider: statusComponent.NewInformationProvider(agent.NewStatusProvider(p.Config)),
+			StatusProvider: statusComponent.NewInformationProvider(agent.NewStatusProvider(deps.Config)),
 		}
 	}
 
