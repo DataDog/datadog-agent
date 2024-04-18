@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type protocol struct {
@@ -182,7 +181,6 @@ func (p *protocol) processKafka(events []EbpfTx) {
 func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) error {
 	inFlightMap, _, err := mgr.GetMap(inFlightMap)
 	if err != nil {
-		log.Errorf("error getting %q map: %s", inFlightMap, err)
 		return err
 	}
 	// Disable batching as a temporary workaround since enabling it leads to
@@ -190,7 +188,6 @@ func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) error {
 	// the values inserted into the map.
 	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](inFlightMap, 1)
 	if err != nil {
-		log.Errorf("error creating map cleaner: %s", err)
 		return err
 	}
 
