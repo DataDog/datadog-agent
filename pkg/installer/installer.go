@@ -68,7 +68,6 @@ type installerImpl struct {
 	repositories   *repository.Repositories
 	downloader     *downloader
 	packageManager *packageManager
-	telemetry      *telemetry
 
 	remoteUpdates     bool
 	rc                *remoteConfig
@@ -102,21 +101,93 @@ func BootstrapURL(ctx context.Context, url string, config config.Reader) error {
 	return i.BootstrapURL(ctx, url)
 }
 
-// Purge removes files installed by the installer
-func Purge() {
-	purge(defaultLocksPath, defaultRepositoriesPath)
+// Bootstrap is the generic installer bootstrap.
+func Bootstrap(ctx context.Context, config config.Reader) error {
+	rc := newNoopRemoteConfig()
+	i, err := newInstaller(rc, defaultRepositoriesPath, defaultLocksPath, config)
+	if err != nil {
+		return fmt.Errorf("could not create installer: %w", err)
+	}
+	err = i.Start(ctx)
+	if err != nil {
+		return fmt.Errorf("could not start installer: %w", err)
+	}
+	defer func() {
+		err := i.Stop(ctx)
+		if err != nil {
+			log.Errorf("could not stop installer: %v", err)
+		}
+	}()
+	return i.Bootstrap(ctx)
 }
 
-func purge(locksPath, repositoryPath string) {
-	var err error
-	span, ctx := tracer.StartSpanFromContext(context.Background(), "purge")
+// Purge removes files installed by the installer
+func Purge(ctx context.Context) error {
+	return purge(ctx, defaultLocksPath, defaultRepositoriesPath)
+}
+
+// PurgePackage removes an individual package
+func PurgePackage(ctx context.Context, pkg string) error {
+	return purgePackage(ctx, pkg, defaultLocksPath, defaultRepositoriesPath)
+}
+
+func purgePackage(ctx context.Context, pkg string, locksPath, repositoryPath string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "purge_pkg")
 	defer span.Finish(tracer.WithError(err))
-	service.RemoveAgentUnits(ctx)
-	if err = service.RemoveAPMInjector(ctx); err != nil {
-		log.Warnf("installer: could not remove APM injector: %v", err)
+
+	switch pkg {
+	case "datadog-installer":
+		service.RemoveInstallerUnits(ctx)
+	case "datadog-agent":
+		service.RemoveAgentUnits(ctx)
+	case "datadog-apm-inject":
+		// todo(paullgdc): should we continue with removing the pkg directories if we failed here
+		// or should exit early?
+		if err = service.RemoveAPMInjector(ctx); err != nil {
+			log.Warnf("installer: could not remove APM injector: %v", err)
+		}
+	default:
+		log.Warnf("installer: unrecognized package purge")
+		return nil
 	}
+	if err = removePkgDirs(ctx, pkg, locksPath, repositoryPath); err != nil {
+		log.Warnf("installer: %v", err)
+		return err
+	}
+	return nil
+}
+
+func purge(ctx context.Context, locksPath, repositoryPath string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "purge")
+	defer span.Finish(tracer.WithError(err))
+
+	service.RemoveInstallerUnits(ctx)
+
+	// todo(paullgdc): The APM injection removal already checks that the LD_PRELOAD points to the injector
+	// in /opt/datadog-packages before removal, so this should not impact previous deb installations
+	// of the injector, but since customers won't use install apm injectors, this codepath is not useful
+	// so it's safer to comment it out until we decide to install the apm-injector on boostrap
+
+	// if err = service.RemoveAPMInjector(ctx); err != nil {
+	// 	log.Warnf("installer: could not remove APM injector: %v", err)
+	// }
+
 	cleanDir(locksPath, os.RemoveAll)
 	cleanDir(repositoryPath, func(path string) error { return service.RemoveAll(ctx, path) })
+	return nil
+}
+
+func removePkgDirs(ctx context.Context, pkg string, locksPath, repositoryPath string) (err error) {
+	pkgLockPath := filepath.Join(locksPath, pkg)
+	if lockPathErr := os.RemoveAll(pkgLockPath); lockPathErr != nil {
+		err = fmt.Errorf("could not remove %s: %w", pkgLockPath, lockPathErr)
+	}
+
+	pkgRepositoryPath := filepath.Join(repositoryPath, pkg)
+	if pkgRepositoryErr := service.RemoveAll(ctx, pkgRepositoryPath); err != nil {
+		err = fmt.Errorf("%w; could not remove %s: %w", err, pkgRepositoryPath, pkgRepositoryErr)
+	}
+	return err
 }
 
 func cleanDir(dir string, cleanFunc func(string) error) {
@@ -147,19 +218,12 @@ func newInstaller(rc *remoteConfig, repositoriesPath string, locksPath string, c
 	repositories := repository.NewRepositories(repositoriesPath, locksPath)
 	remoteRegistryOverride := config.GetString("updater.registry")
 	rcClient := rc
-
-	telemetry, err := newTelemetry(config, repositoriesPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not create telemetry: %w", err)
-	}
-
 	i := &installerImpl{
 		remoteUpdates:     config.GetBool("updater.remote_updates"),
 		rc:                rcClient,
 		repositories:      repositories,
 		downloader:        newDownloader(config, http.DefaultClient, remoteRegistryOverride),
 		packageManager:    newPackageManager(repositories),
-		telemetry:         telemetry,
 		requests:          make(chan remoteAPIRequest, 32),
 		catalog:           catalog{},
 		bootstrapVersions: bootstrapVersions{},
@@ -175,8 +239,7 @@ func (i *installerImpl) GetState() (map[string]repository.State, error) {
 }
 
 // Start starts remote config and the garbage collector.
-func (i *installerImpl) Start(ctx context.Context) error {
-	i.telemetry.Start(ctx)
+func (i *installerImpl) Start(_ context.Context) error {
 	go func() {
 		for {
 			select {
@@ -206,9 +269,8 @@ func (i *installerImpl) Start(ctx context.Context) error {
 }
 
 // Stop stops the garbage collector.
-func (i *installerImpl) Stop(ctx context.Context) error {
+func (i *installerImpl) Stop(_ context.Context) error {
 	i.rc.Close()
-	i.telemetry.Stop(ctx)
 	close(i.stopChan)
 	i.requestsWG.Wait()
 	close(i.requests)
@@ -245,6 +307,22 @@ func (i *installerImpl) BootstrapVersion(ctx context.Context, pkg string, versio
 		return fmt.Errorf("could not get package '%s' version '%s' for arch '%s' and platform '%s'", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
 	return i.bootstrapPackage(ctx, stablePackage.URL, stablePackage.Name, stablePackage.Version)
+}
+
+// Bootstrap is the generic bootstrap of the installer
+func (i *installerImpl) Bootstrap(ctx context.Context) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	i.m.Lock()
+	defer i.m.Unlock()
+	i.refreshState(ctx)
+	defer i.refreshState(ctx)
+
+	if err = i.setupInstallerUnits(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // BootstrapURL installs the stable version of the package.
@@ -352,6 +430,26 @@ func (i *installerImpl) StopExperiment(ctx context.Context, pkg string) (err err
 	}
 	log.Infof("Installer: Successfully stopped experiment for package %s", pkg)
 	return nil
+}
+
+func (i *installerImpl) setupInstallerUnits(ctx context.Context) (err error) {
+	systemdRunning, err := service.IsSystemdRunning()
+	if err != nil {
+		return fmt.Errorf("error checking if systemd is running: %w", err)
+	}
+	if !systemdRunning {
+		log.Infof("Installer: Systemd is not running, skipping unit setup")
+		return nil
+	}
+	err = service.SetupInstallerUnits(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to setup datadog-installer systemd units: %w", err)
+	}
+	if !i.remoteUpdates {
+		service.RemoveInstallerUnits(ctx)
+		return
+	}
+	return service.StartInstallerStable(ctx)
 }
 
 func (i *installerImpl) handleCatalogUpdate(c catalog) error {
