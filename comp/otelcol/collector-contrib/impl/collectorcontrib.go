@@ -1,7 +1,7 @@
-package collectorContrib
+package collectorcontrib
 
 import (
-	collectorContrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
+	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector"
@@ -156,14 +156,14 @@ import (
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
 )
 
-type collectorContribImpl struct{}
+type collectorcontribImpl struct{}
 
-func NewComponent() collectorContrib.Component {
-	return &collectorContribImpl{}
+func NewComponent() collectorcontrib.Component {
+	return &collectorcontribImpl{}
 }
 
 // OTelComponentFactories returns all of the otel collector components that the collector-contrib supports
-func (c *collectorContribImpl) OTelComponentFactories() (otelcol.Factories, error) {
+func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, error) {
 	var errs error
 
 	connectorsList := []connector.Factory{

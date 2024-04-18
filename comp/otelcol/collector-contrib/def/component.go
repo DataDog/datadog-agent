@@ -1,4 +1,4 @@
-package collectorContrib
+package collectorcontrib
 
 import (
 	"go.opentelemetry.io/collector/otelcol"
