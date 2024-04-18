@@ -81,8 +81,6 @@ type dependencies struct {
 	Lc        fx.Lifecycle
 }
 
-type tokenValidator func(rawToken string) error
-
 // GUI component implementation constructor
 // @param deps dependencies needed to construct the gui, bundled in a struct
 // @return an optional, depending of "GUI_port" configuration value
