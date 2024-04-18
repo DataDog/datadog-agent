@@ -95,7 +95,6 @@ stages:
   - e2e
   - kitchen_cleanup
   - functional_test
-  - functional_test_sysprobe
   - functional_test_cleanup
   - junit_upload
   - internal_kubernetes_deploy
@@ -734,10 +733,8 @@ workflow:
   - pkg/process/monitor/*
   - pkg/util/kernel/**/*
   - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
-  - test/kitchen/test/integration/system-probe-test/**/*
   - test/kitchen/test/integration/win-sysprobe-test/**/*
   - .gitlab/functional_test/system_probe_windows.yml
-  - .gitlab/functional_test_sysprobe/system_probe.yml
   - .gitlab/kernel_matrix_testing/system_probe.yml
   - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*

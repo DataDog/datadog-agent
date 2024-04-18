@@ -104,11 +104,10 @@ trigger_auto_staging_release           @DataDog/agent-build-and-releases
 integration_tests_windows*    @DataDog/windows-agent
 
 # Functional test
-kitchen_*_system_probe*                        @DataDog/ebpf-platform
 kitchen_*_system_probe_windows*                @DataDog/windows-kernel-integrations
 kitchen_*_security_agent*                      @DataDog/agent-security
 kitchen_*_process_agent*                       @DataDog/processes
-cleanup_kitchen_functional_test                @DataDog/ebpf-platform @DataDog/agent-security
+cleanup_kitchen_functional_test                @DataDog/windows-kernel-integrations @DataDog/agent-security
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
 
 # E2E
