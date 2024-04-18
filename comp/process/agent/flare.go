@@ -32,8 +32,6 @@ func (fh *FlareHelper) FillFlare(fb flaretypes.FlareBuilder) error {
 	fh.m.Lock()
 	defer fh.m.Unlock()
 
-	fmt.Fprintln(color.Output, color.BlueString("Hi"))
-
 	for _, check := range fh.Checks {
 		checkName := check.Name()
 		filename := fmt.Sprintf("%s_check_output.json", checkName)
