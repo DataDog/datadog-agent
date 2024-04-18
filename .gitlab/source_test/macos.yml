@@ -2,12 +2,7 @@ tests_macos:
   stage: source_test
   # HACK: Run macOS unit tests only on full pipelines, to limit the use of macOS GitHub runners.
   rules:
-    - !reference [.on_main_or_release_branch_or_all_builds]
-    # HACK: Run on pkg/installer changes, these have a high chance of impacting macOS tests
-    - changes:
-      paths:
-        - pkg/installer/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    - !reference [.on_main_or_release_branch_or_all_builds_or_pkg_installer_changes]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
