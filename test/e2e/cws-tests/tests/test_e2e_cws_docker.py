@@ -153,7 +153,7 @@ class TestE2EDocker(unittest.TestCase):
         with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)
 
-        with Step(msg="wait for datadog.security_agent.runtime.running metric", emoji="\N{beer mug}"):
+        with Step(msg="wait for datadog.security_agent.runtime.running metric", emoji="\N{BEER MUG}"):  # fmt: off
             self.app.wait_for_metric("datadog.security_agent.runtime.running", host=socket.gethostname())
 
         with Step(msg="check agent event", emoji=":check_mark_button:"):
@@ -164,8 +164,6 @@ class TestE2EDocker(unittest.TestCase):
                 self.docker_helper,
                 f"Sending event message for rule `{agent_rule_name}`",
             )
-
-            wait_agent_log("security-agent", self.docker_helper, "Successfully posted payload to")
 
         with Step(msg="check app event", emoji=":chart_increasing_with_yen:"):
             event = self.app.wait_app_log(f"rule_id:{agent_rule_name}")
@@ -186,7 +184,7 @@ class TestE2EDocker(unittest.TestCase):
                 "unable to find rule_id tag attribute",
             )
 
-        with Step(msg="wait for datadog.security_agent.runtime.containers_running metric", emoji="\N{beer mug}"):
+        with Step(msg="wait for datadog.security_agent.runtime.containers_running metric", emoji="\N{BEER MUG}"):  # fmt: off
             self.app.wait_for_metric("datadog.security_agent.runtime.containers_running", host=socket.gethostname())
 
 

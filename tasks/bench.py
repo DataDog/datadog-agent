@@ -2,7 +2,6 @@
 Benchmarking tasks
 """
 
-
 import os
 
 from invoke import task

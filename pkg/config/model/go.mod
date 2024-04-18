@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/config/model
 
-go 1.21.8
+go 1.21.9
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log/
@@ -9,7 +9,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
 	github.com/DataDog/viper v1.13.0
 	github.com/spf13/afero v1.1.2
 	github.com/spf13/pflag v1.0.3
@@ -18,7 +18,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
@@ -30,8 +30,8 @@ require (
 	github.com/spf13/cast v1.3.0 // indirect
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/sys v0.5.0 // indirect
-	golang.org/x/text v0.3.0 // indirect
+	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

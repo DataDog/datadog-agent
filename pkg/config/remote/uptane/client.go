@@ -81,10 +81,10 @@ func WithConfigRootOverride(site string, configRootOverride string) ClientOption
 type OrgUUIDProvider func() (string, error)
 
 // NewClient creates a new uptane client
-func NewClient(cacheDB *bbolt.DB, cacheKey string, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *Client, err error) {
+func NewClient(cacheDB *bbolt.DB, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *Client, err error) {
 	transactionalStore := newTransactionalStore(cacheDB)
-	targetStore := newTargetStore(transactionalStore, cacheKey)
-	orgStore := newOrgStore(transactionalStore, cacheKey)
+	targetStore := newTargetStore(transactionalStore)
+	orgStore := newOrgStore(transactionalStore)
 
 	c = &Client{
 		configRemoteStore:   newRemoteStoreConfig(targetStore),
@@ -99,11 +99,11 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgUUIDProvider OrgUUIDProvid
 		o(c)
 	}
 
-	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, cacheKey, c.site, c.configRootOverride); err != nil {
+	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, c.site, c.configRootOverride); err != nil {
 		return nil, err
 	}
 
-	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, cacheKey, c.site, c.directorRootOverride); err != nil {
+	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, c.site, c.directorRootOverride); err != nil {
 		return nil, err
 	}
 
@@ -192,7 +192,7 @@ func (c *Client) unsafeTargetFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	buffer := &bufferDestination{}
-	err = c.configTUFClient.Download(path, buffer)
+	err = c.directorTUFClient.Download(path, buffer)
 	if err != nil {
 		return nil, err
 	}

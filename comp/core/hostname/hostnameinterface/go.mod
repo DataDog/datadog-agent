@@ -1,11 +1,11 @@
 module github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface
 
-go 1.21.8
+go 1.21.9
 
 replace github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
 )
@@ -20,6 +20,6 @@ require (
 	go.uber.org/dig v1.17.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.23.0 // indirect
-	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect
+	golang.org/x/sys v0.19.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

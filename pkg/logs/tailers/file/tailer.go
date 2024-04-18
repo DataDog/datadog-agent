@@ -311,9 +311,9 @@ func (t *Tailer) readForever() {
 
 // buildTailerTags groups the file tag, directory (if wildcard path) and user tags
 func (t *Tailer) buildTailerTags() []string {
-	tags := []string{fmt.Sprintf("filename:%s", filepath.Base(t.file.Path))}
-	if t.file.IsWildcardPath {
-		tags = append(tags, fmt.Sprintf("dirname:%s", filepath.Dir(t.file.Path)))
+	tags := []string{
+		fmt.Sprintf("filename:%s", filepath.Base(t.file.Path)),
+		fmt.Sprintf("dirname:%s", filepath.Dir(t.file.Path)),
 	}
 	return tags
 }
