@@ -2,7 +2,12 @@ package collectorContrib
 
 import (
 	collectorContrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
-	//"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/servicegraphconnector"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/fileexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/ackextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/asapauthextension"
@@ -49,8 +54,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/apachereceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/apachesparkreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awscloudwatchreceiver"
-
-	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awscontainerinsightreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsecscontainermetricsreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsxrayreceiver"
@@ -79,8 +82,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/httpcheckreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/iisreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/influxdbreceiver"
-
-	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jmxreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/journaldreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver"
@@ -130,15 +131,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/webhookeventreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/windowseventlogreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/windowsperfcountersreceiver"
-
-	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector"
-	//"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/servicegraphconnector"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zookeeperreceiver"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/connector/forwardconnector"
@@ -156,6 +148,12 @@ import (
 	"go.opentelemetry.io/collector/receiver/nopreceiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.uber.org/multierr"
+	// temporarily disabled
+	//"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
+	//"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
+	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awscontainerinsightreceiver"
+	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
+	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
 )
 
 type collectorContribImpl struct{}
@@ -337,10 +335,10 @@ func (c *collectorContribImpl) OTelComponentFactories() (otelcol.Factories, erro
 	}
 
 	exporterList := []exporter.Factory{
+		//datadogexporter.NewFactory(),
 		debugexporter.NewFactory(),
 		fileexporter.NewFactory(),
 		otlpexporter.NewFactory(),
-		//datadogexporter.NewFactory(),
 	}
 	exporters, err := exporter.MakeFactoryMap(exporterList...)
 	if err != nil {
