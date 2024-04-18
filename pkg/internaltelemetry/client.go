@@ -8,6 +8,7 @@ package internaltelemetry
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,7 +28,8 @@ import (
 )
 
 const (
-	telemetryEndpoint = "/api/v2/apmtelemetry"
+	telemetryEndpoint         = "/api/v2/apmtelemetry"
+	defaultSendPayloadTimeout = time.Second * 10
 )
 
 // Client defines the interface for a telemetry client
@@ -37,9 +39,10 @@ type Client interface {
 }
 
 type client struct {
-	m         sync.Mutex
-	client    httpClient
-	endpoints []*config.Endpoint
+	m                  sync.Mutex
+	client             httpClient
+	endpoints          []*config.Endpoint
+	sendPayloadTimeout time.Duration
 
 	// we can pre-calculate the host payload structure at init time
 	baseEvent Event
@@ -114,8 +117,9 @@ type httpClient interface {
 func NewClient(httpClient httpClient, endpoints []*config.Endpoint, service string, debug bool) Client {
 	info := metadatautils.GetInformation()
 	return &client{
-		client:    httpClient,
-		endpoints: endpoints,
+		client:             httpClient,
+		endpoints:          endpoints,
+		sendPayloadTimeout: defaultSendPayloadTimeout,
 		baseEvent: Event{
 			APIVersion: "v2",
 			DebugFlag:  debug,
@@ -186,7 +190,11 @@ func (c *client) sendPayload(requestType RequestType, payload interface{}) {
 		req.Header.Add("dd-client-library-version", event.Application.TracerVersion)
 		req.Header.Add("dd-telemetry-debug-enabled", strconv.FormatBool(event.DebugFlag))
 		req.Header.Add("dd-agent-hostname", event.Host.Hostname)
+
+		ctx, cancel := context.WithTimeout(context.Background(), c.sendPayloadTimeout)
+		req = req.WithContext(ctx)
 		resp, err := c.client.Do(req)
+		cancel()
 		if err != nil {
 			log.Warnf("failed to send telemetry payload to endpoint %s: %v", url, err)
 			continue
