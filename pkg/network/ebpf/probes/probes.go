@@ -85,11 +85,12 @@ const (
 	// TCPDone traces the tcp_done() system call
 	TCPDone ProbeFuncName = "kprobe__tcp_done"
 	// TCPDoneFlushReturn traces the return of the tcp_done() system call
-	TCPDoneFlushReturn ProbeFuncName = "kretprobe__tcp_done_flush"
+	//TCPDoneFlushReturn ProbeFuncName = "kretprobe__tcp_done_flush"
+
 	// TCPCloseCleanProtocolsReturn traces the return of tcp_close() system call
 	TCPCloseCleanProtocolsReturn ProbeFuncName = "kretprobe__tcp_close_clean_protocols"
 	// TCPCloseFlushReturn traces the return of tcp_close() system call
-	TCPCloseFlushReturn ProbeFuncName = "kretprobe__tcp_close_flush"
+	//TCPCloseFlushReturn ProbeFuncName = "kretprobe__tcp_close_flush"
 
 	// We use the following two probes for UDP sends
 
@@ -144,12 +145,12 @@ const (
 	// UDPDestroySock traces the udp_destroy_sock() function
 	UDPDestroySock ProbeFuncName = "kprobe__udp_destroy_sock"
 	// UDPDestroySockReturn traces the return of the udp_destroy_sock() system call
-	UDPDestroySockReturn ProbeFuncName = "kretprobe__udp_destroy_sock"
+	//UDPDestroySockReturn ProbeFuncName = "kretprobe__udp_destroy_sock"
 
 	// UDPv6DestroySock traces the udpv6_destroy_sock() system call
 	UDPv6DestroySock ProbeFuncName = "kprobe__udpv6_destroy_sock"
 	// UDPv6DestroySockReturn traces the return of the udpv6_destroy_sock() system call
-	UDPv6DestroySockReturn ProbeFuncName = "kretprobe__udpv6_destroy_sock"
+	//UDPv6DestroySockReturn ProbeFuncName = "kretprobe__udpv6_destroy_sock"
 
 	// TCPRetransmit traces the params for the tcp_retransmit_skb() system call
 	TCPRetransmit ProbeFuncName = "kprobe__tcp_retransmit_skb"
@@ -211,7 +212,8 @@ const (
 	// TelemetryMap is the map storing telemetry data
 	TelemetryMap BPFMapName = "telemetry"
 	// ConnCloseBatchMap is the map storing connection close batch events
-	ConnCloseBatchMap BPFMapName = "conn_close_batch"
+	//ConnCloseBatchMap BPFMapName = "conn_close_batch"
+
 	// ConntrackMap is the map storing conntrack entries
 	ConntrackMap BPFMapName = "conntrack"
 	// ConntrackTelemetryMap is the map storing conntrack telemetry

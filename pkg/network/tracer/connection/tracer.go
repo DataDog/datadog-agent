@@ -283,12 +283,12 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 	m.DumpHandler = dumpMapsHandler
 	ddebpf.AddNameMappings(m, "npm_tracer")
 
-	batchMgr, err := newConnBatchManager(m)
-	if err != nil {
-		return nil, fmt.Errorf("could not create connection batch manager: %w", err)
-	}
+	//batchMgr, err := newConnBatchManager(m)
+	//if err != nil {
+	//	return nil, fmt.Errorf("could not create connection batch manager: %w", err)
+	//}
 
-	closeConsumer := newTCPCloseConsumer(connCloseEventHandler, batchMgr)
+	closeConsumer := newTCPCloseConsumer(connCloseEventHandler)
 
 	var failedConnConsumer *failure.TCPFailedConnConsumer
 	// Failed connections are not supported on prebuilt

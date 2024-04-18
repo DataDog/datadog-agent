@@ -97,6 +97,8 @@ func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config
 				RingBufferSize: ringSize,
 			},
 		}
+
+		handler.SetFlushable(rb)
 		mgr.RingBuffers = append(mgr.RingBuffers, rb)
 		ebpftelemetry.ReportRingBufferTelemetry(rb)
 	case *ebpf.PerfHandler:
@@ -105,14 +107,16 @@ func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config
 			Map: manager.Map{Name: mapName},
 			PerfMapOptions: manager.PerfMapOptions{
 				PerfRingBufferSize: perfSize,
-				Watermark:          1,
+				WakeupEvents:       netebpf.BatchSize,
 				RecordHandler:      handler.RecordHandler,
 				LostHandler:        handler.LostHandler,
 				RecordGetter:       handler.RecordGetter,
 				TelemetryEnabled:   cfg.InternalTelemetryEnabled,
 			},
 		}
+		handler.SetFlushable(pm)
 		mgr.PerfMaps = append(mgr.PerfMaps, pm)
+		ebpftelemetry.ReportPerfMapTelemetry(pm)
 		helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
 		err := helperCallRemover.BeforeInit(mgr.Manager, nil)
 		if err != nil {

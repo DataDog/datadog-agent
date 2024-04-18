@@ -15,9 +15,16 @@ import (
 // EventHandler is the common interface shared across perf map and perf ring
 // buffer handlers
 type EventHandler interface {
+	Flushable
 	DataChannel() <-chan *DataEvent
 	LostChannel() <-chan uint64
+	SetFlushable(f Flushable)
 	Stop()
+}
+
+// Flushable is an object that can be flush pending data to be read
+type Flushable interface {
+	Flush()
 }
 
 // DataEvent encapsulates a single event read from a perf buffer

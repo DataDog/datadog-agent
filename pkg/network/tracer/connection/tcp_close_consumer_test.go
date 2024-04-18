@@ -19,7 +19,7 @@ func TestTcpCloseConsumerStopRace(t *testing.T) {
 	pf := ebpf.NewPerfHandler(10)
 	require.NotNil(t, pf)
 
-	c := newTCPCloseConsumer(pf, nil)
+	c := newTCPCloseConsumer(pf)
 	require.NotNil(t, c)
 
 	c.Stop()

@@ -141,7 +141,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/DataDog/datadog-operator v0.7.1-0.20240522081847-e83dd785258a
-	github.com/DataDog/ebpf-manager v0.6.1
+	github.com/DataDog/ebpf-manager v0.6.1-0.20240624185919-d6dcdc70320a
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.4
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1
@@ -170,7 +170,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.15.0
+	github.com/cilium/ebpf v0.15.1-0.20240624161703-13a828e0263f
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/containerd v1.7.17
 	github.com/containernetworking/cni v1.2.0

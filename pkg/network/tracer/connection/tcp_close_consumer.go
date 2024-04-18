@@ -33,22 +33,23 @@ var closeConsumerTelemetry = struct {
 
 type tcpCloseConsumer struct {
 	eventHandler ddebpf.EventHandler
-	batchManager *perfBatchManager
-	requests     chan chan struct{}
-	buffer       *network.ConnectionBuffer
-	once         sync.Once
-	closed       chan struct{}
-	ch           *cookieHasher
+	//batchManager *perfBatchManager
+	requests chan chan struct{}
+	buffer   *network.ConnectionBuffer
+	once     sync.Once
+	closed   chan struct{}
+	ch       *cookieHasher
 }
 
-func newTCPCloseConsumer(eventHandler ddebpf.EventHandler, batchManager *perfBatchManager) *tcpCloseConsumer {
+func newTCPCloseConsumer(eventHandler ddebpf.EventHandler) *tcpCloseConsumer {
 	return &tcpCloseConsumer{
 		eventHandler: eventHandler,
-		batchManager: batchManager,
-		requests:     make(chan chan struct{}),
-		buffer:       network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
-		closed:       make(chan struct{}),
-		ch:           newCookieHasher(),
+		//batchManager: batchManager,
+		requests: make(chan chan struct{}),
+		//buffer:   network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
+		buffer: network.NewConnectionBuffer(1, 1),
+		closed: make(chan struct{}),
+		ch:     newCookieHasher(),
 	}
 }
 
@@ -110,6 +111,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 
 		dataChannel := c.eventHandler.DataChannel()
 		lostChannel := c.eventHandler.LostChannel()
+		flushChannel := make(chan chan struct{}, 1)
 		for {
 			select {
 
@@ -121,17 +123,38 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 					return
 				}
 
-				l := len(batchData.Data)
-				switch {
-				case l >= netebpf.SizeofBatch:
-					batch := netebpf.ToBatch(batchData.Data)
-					c.batchManager.ExtractBatchInto(c.buffer, batch)
-				case l >= netebpf.SizeofConn:
-					c.extractConn(batchData.Data)
-				default:
-					log.Errorf("unknown type received from perf buffer, skipping. data size=%d, expecting %d or %d", len(batchData.Data), netebpf.SizeofConn, netebpf.SizeofBatch)
+				// sentinel record indicating end of flush pending records
+				if len(batchData.Data) == 0 {
+					request := <-flushChannel
+					close(request)
+
+					now := time.Now()
+					elapsed := now.Sub(then)
+					then = now
+					log.Debugf(
+						"tcp close summary: closed_count=%d elapsed=%s closed_rate=%.2f/s lost_samples_count=%d",
+						closedCount,
+						elapsed,
+						float64(closedCount)/elapsed.Seconds(),
+						lostSamplesCount,
+					)
+					closedCount = 0
+					lostSamplesCount = 0
+
 					continue
 				}
+
+				//l := len(batchData.Data)
+				//switch {
+				////case l >= netebpf.SizeofBatch:
+				////	batch := netebpf.ToBatch(batchData.Data)
+				////	c.batchManager.ExtractBatchInto(c.buffer, batch)
+				//case l >= netebpf.SizeofConn:
+				c.extractConn(batchData.Data)
+				//default:
+				//	log.Errorf("unknown type received from perf buffer, skipping. data size=%d, expecting %d or %d", len(batchData.Data), netebpf.SizeofConn, netebpf.SizeofBatch)
+				//	continue
+				//}
 
 				closeConsumerTelemetry.perfReceived.Add(float64(c.buffer.Len()))
 				closedCount += uint64(c.buffer.Len())
@@ -146,24 +169,13 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				closeConsumerTelemetry.perfLost.Add(float64(lc))
 				lostSamplesCount += lc
 			case request := <-c.requests:
-				oneTimeBuffer := network.NewConnectionBuffer(32, 32)
-				c.batchManager.GetPendingConns(oneTimeBuffer)
-				callback(oneTimeBuffer.Connections())
-				close(request)
+				c.eventHandler.Flush()
+				flushChannel <- request
 
-				closedCount += uint64(oneTimeBuffer.Len())
-				now := time.Now()
-				elapsed := now.Sub(then)
-				then = now
-				log.Debugf(
-					"tcp close summary: closed_count=%d elapsed=%s closed_rate=%.2f/s lost_samples_count=%d",
-					closedCount,
-					elapsed,
-					float64(closedCount)/elapsed.Seconds(),
-					lostSamplesCount,
-				)
-				closedCount = 0
-				lostSamplesCount = 0
+				//oneTimeBuffer := network.NewConnectionBuffer(1, 1)
+				//c.batchManager.GetPendingConns(oneTimeBuffer)
+				//callback(oneTimeBuffer.Connections())
+				//closedCount += uint64(oneTimeBuffer.Len())
 			}
 		}
 	}()

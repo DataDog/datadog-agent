@@ -31,6 +31,7 @@ type RingBufferHandler struct {
 	lostChannel chan uint64
 	once        sync.Once
 	closed      bool
+	flushable   Flushable
 }
 
 // NewRingBufferHandler creates a RingBufferHandler
@@ -64,6 +65,16 @@ func (c *RingBufferHandler) DataChannel() <-chan *DataEvent {
 // LostChannel returns the channel with lost events
 func (c *RingBufferHandler) LostChannel() <-chan uint64 {
 	return c.lostChannel
+}
+
+// SetFlushable sets the Flushable object
+func (c *RingBufferHandler) SetFlushable(f Flushable) {
+	c.flushable = f
+}
+
+// Flush flushes the Flushable object
+func (c *RingBufferHandler) Flush() {
+	c.flushable.Flush()
 }
 
 // Stop stops the perf handler and closes both channels

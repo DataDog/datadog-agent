@@ -57,11 +57,11 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.TCPReadSock)
 		enableProbe(enabled, probes.TCPReadSockReturn)
 		enableProbe(enabled, probes.TCPClose)
-		enableProbe(enabled, probes.TCPCloseFlushReturn)
+		//enableProbe(enabled, probes.TCPCloseFlushReturn)
 		enableProbe(enabled, probes.TCPConnect)
 		if c.FailedConnectionsSupported() && (runtimeTracer || coreTracer) {
 			enableProbe(enabled, probes.TCPDone)
-			enableProbe(enabled, probes.TCPDoneFlushReturn)
+			//enableProbe(enabled, probes.TCPDoneFlushReturn)
 		}
 		enableProbe(enabled, probes.TCPFinishConnect)
 		enableProbe(enabled, probes.InetCskAcceptReturn)
@@ -76,7 +76,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	if c.CollectUDPv4Conns {
 		enableProbe(enabled, probes.UDPDestroySock)
-		enableProbe(enabled, probes.UDPDestroySockReturn)
+		//enableProbe(enabled, probes.UDPDestroySockReturn)
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IPMakeSkb, probes.IPMakeSkbPre4180, kv4180))
 		enableProbe(enabled, probes.IPMakeSkbReturn)
 		enableProbe(enabled, probes.InetBind)
@@ -99,7 +99,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	if c.CollectUDPv6Conns {
 		enableProbe(enabled, probes.UDPv6DestroySock)
-		enableProbe(enabled, probes.UDPv6DestroySockReturn)
+		//enableProbe(enabled, probes.UDPv6DestroySockReturn)
 		if kv >= kv5180 || runtimeTracer {
 			// prebuilt shouldn't arrive here with 5.18+ and UDPv6 enabled
 			if !coreTracer && !runtimeTracer {

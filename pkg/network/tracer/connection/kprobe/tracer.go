@@ -72,14 +72,14 @@ var (
 				UID:          probeUID,
 			},
 		},
-		{
-			ProgArrayName: probes.TCPCloseProgsMap,
-			Key:           0,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.TCPCloseFlushReturn,
-				UID:          probeUID,
-			},
-		},
+		//{
+		//	ProgArrayName: probes.TCPCloseProgsMap,
+		//	Key:           0,
+		//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+		//		EBPFFuncName: probes.TCPCloseFlushReturn,
+		//		UID:          probeUID,
+		//	},
+		//},
 	}
 
 	// these primarily exist for mocking out in tests

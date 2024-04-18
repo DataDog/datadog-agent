@@ -36,7 +36,7 @@ const (
 	// tcpClose traces the tcp_close() system call
 	tcpClose = "tcp_close"
 	// tcpCloseReturn traces the return of tcp_close() system call
-	tcpCloseReturn = "tcp_close_exit"
+	//tcpCloseReturn = "tcp_close_exit"
 
 	// We use the following two probes for UDP
 	udpRecvMsg              = "udp_recvmsg"
@@ -60,10 +60,10 @@ const (
 	// udpDestroySock traces the udp_destroy_sock() function
 	udpDestroySock = "udp_destroy_sock"
 	// udpDestroySockReturn traces the return of the udp_destroy_sock() system call
-	udpDestroySockReturn = "udp_destroy_sock_exit"
+	//udpDestroySockReturn = "udp_destroy_sock_exit"
 
-	udpv6DestroySock       = "udpv6_destroy_sock"
-	udpv6DestroySockReturn = "udpv6_destroy_sock_exit"
+	udpv6DestroySock = "udpv6_destroy_sock"
+	//udpv6DestroySockReturn = "udpv6_destroy_sock_exit"
 
 	// tcpRetransmit traces the tcp_retransmit_skb() kernel function
 	tcpRetransmit = "tcp_retransmit_skb"
@@ -84,34 +84,34 @@ const (
 )
 
 var programs = map[string]struct{}{
-	inetBind:                  {},
-	inet6Bind:                 {},
-	inet6BindRet:              {},
-	inetBindRet:               {},
-	inetCskAcceptReturn:       {},
-	inetCskListenStop:         {},
-	tcpRecvMsgReturn:          {},
-	tcpClose:                  {},
-	tcpCloseReturn:            {},
-	tcpConnect:                {},
-	tcpFinishConnect:          {},
-	tcpRetransmit:             {},
-	tcpRetransmitRet:          {},
-	tcpSendMsgReturn:          {},
-	tcpSendPageReturn:         {},
-	udpDestroySock:            {},
-	udpDestroySockReturn:      {},
-	udpRecvMsg:                {},
-	udpRecvMsgReturn:          {},
-	udpSendMsgReturn:          {},
-	udpSendPageReturn:         {},
-	udpSendSkb:                {},
-	udpv6RecvMsg:              {},
-	udpv6RecvMsgReturn:        {},
-	udpv6SendMsgReturn:        {},
-	udpv6SendSkb:              {},
-	udpv6DestroySock:          {},
-	udpv6DestroySockReturn:    {},
+	inetBind:            {},
+	inet6Bind:           {},
+	inet6BindRet:        {},
+	inetBindRet:         {},
+	inetCskAcceptReturn: {},
+	inetCskListenStop:   {},
+	tcpRecvMsgReturn:    {},
+	tcpClose:            {},
+	//tcpCloseReturn:      {},
+	tcpConnect:        {},
+	tcpFinishConnect:  {},
+	tcpRetransmit:     {},
+	tcpRetransmitRet:  {},
+	tcpSendMsgReturn:  {},
+	tcpSendPageReturn: {},
+	udpDestroySock:    {},
+	//udpDestroySockReturn:      {},
+	udpRecvMsg:         {},
+	udpRecvMsgReturn:   {},
+	udpSendMsgReturn:   {},
+	udpSendPageReturn:  {},
+	udpSendSkb:         {},
+	udpv6RecvMsg:       {},
+	udpv6RecvMsgReturn: {},
+	udpv6SendMsgReturn: {},
+	udpv6SendSkb:       {},
+	udpv6DestroySock:   {},
+	//udpv6DestroySockReturn:    {},
 	skbFreeDatagramLocked:     {},
 	__skbFreeDatagramLocked:   {},
 	skbConsumeUdp:             {},
@@ -140,7 +140,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, tcpSendPageReturn)
 		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, tcpClose)
-		enableProgram(enabled, tcpCloseReturn)
+		//enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
 		enableProgram(enabled, tcpFinishConnect)
 		enableProgram(enabled, inetCskAcceptReturn)
@@ -160,7 +160,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 	if c.CollectUDPv4Conns {
 		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpDestroySock)
-		enableProgram(enabled, udpDestroySockReturn)
+		//enableProgram(enabled, udpDestroySockReturn)
 		enableProgram(enabled, inetBind)
 		enableProgram(enabled, inetBindRet)
 		enableProgram(enabled, udpRecvMsg)
@@ -172,7 +172,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 	if c.CollectUDPv6Conns {
 		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpv6DestroySock)
-		enableProgram(enabled, udpv6DestroySockReturn)
+		//enableProgram(enabled, udpv6DestroySockReturn)
 		enableProgram(enabled, inet6Bind)
 		enableProgram(enabled, inet6BindRet)
 		enableProgram(enabled, udpv6RecvMsg)

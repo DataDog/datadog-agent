@@ -247,11 +247,11 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     return 0;
 }
 
-SEC("kretprobe/tcp_done")
-int BPF_KRETPROBE(kretprobe__tcp_done_flush) {
-    flush_conn_close_if_full(ctx);
-    return 0;
-}
+//SEC("kretprobe/tcp_done")
+//int BPF_KRETPROBE(kretprobe__tcp_done_flush) {
+//    flush_conn_close_if_full(ctx);
+//    return 0;
+//}
 
 SEC("kprobe/tcp_close")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
@@ -304,11 +304,11 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_close_clean_protocols) {
     return 0;
 }
 
-SEC("kretprobe/tcp_close")
-int BPF_KRETPROBE(kretprobe__tcp_close_flush) {
-    flush_conn_close_if_full(ctx);
-    return 0;
-}
+//SEC("kretprobe/tcp_close")
+//int BPF_KRETPROBE(kretprobe__tcp_close_flush) {
+//    flush_conn_close_if_full(ctx);
+//    return 0;
+//}
 
 #if !defined(COMPILE_RUNTIME) || defined(FEATURE_UDPV6_ENABLED)
 
@@ -1050,17 +1050,17 @@ int BPF_BYPASSABLE_KPROBE(kprobe__udpv6_destroy_sock, struct sock *sk) {
     return handle_udp_destroy_sock(ctx, sk);
 }
 
-SEC("kretprobe/udp_destroy_sock")
-int BPF_BYPASSABLE_KRETPROBE(kretprobe__udp_destroy_sock) {
-    flush_conn_close_if_full(ctx);
-    return 0;
-}
+//SEC("kretprobe/udp_destroy_sock")
+//int BPF_BYPASSABLE_KRETPROBE(kretprobe__udp_destroy_sock) {
+//    flush_conn_close_if_full(ctx);
+//    return 0;
+//}
 
-SEC("kretprobe/udpv6_destroy_sock")
-int BPF_BYPASSABLE_KRETPROBE(kretprobe__udpv6_destroy_sock) {
-    flush_conn_close_if_full(ctx);
-    return 0;
-}
+//SEC("kretprobe/udpv6_destroy_sock")
+//int BPF_BYPASSABLE_KRETPROBE(kretprobe__udpv6_destroy_sock) {
+//    flush_conn_close_if_full(ctx);
+//    return 0;
+//}
 
 SEC("kprobe/inet_bind")
 int BPF_BYPASSABLE_KPROBE(kprobe__inet_bind, struct socket *sock, struct sockaddr *addr) {
