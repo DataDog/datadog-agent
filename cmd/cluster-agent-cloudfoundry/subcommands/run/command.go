@@ -121,7 +121,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func run(log log.Component,
+func run(
+	config config.Component,
+	log log.Component,
 	taggerComp tagger.Component,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
@@ -173,7 +175,7 @@ func run(log log.Component,
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver, settings); err != nil {
+	if err = api.StartServer(wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver, settings, config); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
