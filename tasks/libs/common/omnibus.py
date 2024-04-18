@@ -110,6 +110,7 @@ def _get_environment_for_cache() -> dict:
             "MANPATH",
             "MESSAGE",
             "OLDPWD",
+            "PCP_DIR",
             "PROCESS_S3_BUCKET",
             "PWD",
             "PROMPT",
