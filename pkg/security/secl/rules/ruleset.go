@@ -734,18 +734,20 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 		rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
 	}
 
-	shouldCheckMetaDiscardersOn := ""
+	var mdiscsToCheck []*multiDiscarderCheck
 
 	for _, field := range bucket.fields {
-		if rs.isValidMultiDiscarders(field) {
-			path, err := event.GetFieldValue(field)
+		if check := rs.getValidMultiDiscarder(field); check != nil {
+			value, err := event.GetFieldValue(field)
 			if err != nil {
 				rs.logger.Debugf("Failed to get field value for %s: %s", field, err)
 				continue
 			}
 
-			if pathStr, ok := path.(string); ok {
-				shouldCheckMetaDiscardersOn = pathStr
+			// currently only support string values
+			if valueStr, ok := value.(string); ok {
+				check.value = valueStr
+				mdiscsToCheck = append(mdiscsToCheck, check)
 			}
 		}
 
@@ -760,15 +762,21 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 		}
 	}
 
-	if rs.opts.SupportedMultiDiscarder != nil && shouldCheckMetaDiscardersOn != "" {
+	for _, check := range mdiscsToCheck {
 		isMultiDiscarder := true
-		for _, entry := range rs.opts.SupportedMultiDiscarder.Entries {
+		for _, entry := range check.mdisc.Entries {
 			bucket := rs.eventRuleBuckets[entry.EventType]
 			if bucket == nil {
 				continue
 			}
 
-			dctx := buildDiscarderCtx(entry.Field, shouldCheckMetaDiscardersOn)
+			dctx, err := buildDiscarderCtx(entry.Field, check.value)
+			if err != nil {
+				rs.logger.Errorf("failed to build discarder context: %v", err)
+				isMultiDiscarder = false
+				break
+			}
+
 			if isDiscarder, _ := IsDiscarder(dctx, entry.Field, bucket.rules); !isDiscarder {
 				isMultiDiscarder = false
 				break
@@ -776,36 +784,42 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 		}
 
 		if isMultiDiscarder {
-			rs.NotifyDiscarderFound(event, rs.opts.SupportedMultiDiscarder.FinalField, rs.opts.SupportedMultiDiscarder.FinalEventType)
+			rs.NotifyDiscarderFound(event, check.mdisc.FinalField, check.mdisc.FinalEventType)
 		}
 	}
 }
 
-func (rs *RuleSet) isValidMultiDiscarders(field string) bool {
-	if rs.opts.SupportedMultiDiscarder == nil {
-		return false
-	}
-
-	for _, entry := range rs.opts.SupportedMultiDiscarder.Entries {
-		if entry.Field == field {
-			return true
+func (rs *RuleSet) getValidMultiDiscarder(field string) *multiDiscarderCheck {
+	for _, mdisc := range rs.opts.SupportedMultiDiscarders {
+		for _, entry := range mdisc.Entries {
+			if entry.Field == field {
+				return &multiDiscarderCheck{
+					mdisc: mdisc,
+				}
+			}
 		}
 	}
-	return false
+
+	return nil
 }
 
-func buildDiscarderCtx(field string, value interface{}) *eval.Context {
-	ev := model.NewFakeEvent()
-	ev.SetFieldValue(field, value)
-	return eval.NewContext(ev)
+type multiDiscarderCheck struct {
+	mdisc *MultiDiscarder
+	value string
 }
 
 func buildDiscarderCtx(field string, value interface{}) (*eval.Context, error) {
-func (rs *RuleSet) GetEventTypes() []eval.EventType {
+	ev := model.NewFakeEvent()
 	if err := ev.SetFieldValue(field, value); err != nil {
 		return nil, err
 	}
 	return eval.NewContext(ev), nil
+}
+
+// GetEventTypes returns all the event types handled by the ruleset
+func (rs *RuleSet) GetEventTypes() []eval.EventType {
+	eventTypes := make([]string, 0, len(rs.eventRuleBuckets))
+	for eventType := range rs.eventRuleBuckets {
 		eventTypes = append(eventTypes, eventType)
 	}
 	return eventTypes
