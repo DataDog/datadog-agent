@@ -189,6 +189,59 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
     return 1;
 }
 
+__maybe_unused static __always_inline __u64 read_conn_tuple_skb_cgroup(struct __sk_buff *skb, skb_info_t *info, conn_tuple_t *tup) {
+    bpf_memset(info, 0, sizeof(skb_info_t));
+    __u8 l4_proto = 0;
+    switch (skb->protocol) {
+    case 8:
+        tup->saddr_l = skb->local_ip4;
+        tup->saddr_h = 0;
+        tup->daddr_l = skb->remote_ip4;
+        tup->daddr_h = 0;
+        tup->sport = skb->local_port;
+        tup->dport = bpf_htonl(skb->remote_port);
+        tup->metadata |= CONN_V4;
+        __u8 ipv4_hdr_len = (__load_byte(skb, 0) & 0x0f) << 2;
+        if (ipv4_hdr_len < sizeof(struct iphdr)) {
+            return 0;
+        }
+        info->data_end = __load_half(skb, offsetof(struct iphdr, tot_len));
+        l4_proto = __load_byte(skb, offsetof(struct iphdr, protocol));
+        info->data_off += ipv4_hdr_len;
+        break;
+    case ETH_P_IPV6:
+        tup->sport = skb->local_port;
+        tup->dport = bpf_htonl(skb->remote_port);
+        tup->metadata |= CONN_V6;
+        info->data_end = sizeof(struct ipv6hdr) + __load_half(skb, offsetof(struct ipv6hdr, payload_len));
+        break;
+    default:
+        return 0;
+    }
+
+    switch (l4_proto) {
+    case __IPPROTO_UDP:
+        tup->metadata |= CONN_TYPE_UDP;
+        tup->sport = __load_half(skb, info->data_off + offsetof(struct udphdr, source));
+        tup->dport = __load_half(skb, info->data_off + offsetof(struct udphdr, dest));
+        info->data_off += sizeof(struct udphdr);
+        break;
+    case __IPPROTO_TCP:
+        tup->metadata |= CONN_TYPE_TCP;
+        tup->sport = __load_half(skb, info->data_off + offsetof(struct __tcphdr, source));
+        tup->dport = __load_half(skb, info->data_off + offsetof(struct __tcphdr, dest));
+
+        info->tcp_seq = __load_word(skb, info->data_off + offsetof(struct __tcphdr, seq));
+        info->tcp_flags = __load_byte(skb, info->data_off + TCP_FLAGS_OFFSET);
+        info->data_off += ((__load_byte(skb, info->data_off + offsetof(struct __tcphdr, ack_seq) + 4) & 0xF0) >> 4) * 4;
+        break;
+    default:
+        return 0;
+    }
+
+    return 1;
+}
+
 __maybe_unused static __always_inline bool is_equal(conn_tuple_t *t, conn_tuple_t *t2) {
     bool match = !bpf_memcmp(t, t2, sizeof(conn_tuple_t));
     return match;

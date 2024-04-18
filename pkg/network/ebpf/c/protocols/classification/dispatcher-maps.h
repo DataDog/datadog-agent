@@ -6,6 +6,15 @@
 #include "protocols/classification/defs.h"
 #include "protocols/classification/shared-tracer-maps.h"
 
+    struct sockhash_key {
+        	__u32 remote_ip4;	/* Stored in network byte order */
+	__u32 local_ip4;	/* Stored in network byte order */
+	__u32 remote_port;	/* Stored in network byte order */
+	__u32 local_port;	/* stored in host byte order */
+    };
+
+BPF_MAP(sockhash, BPF_MAP_TYPE_SOCKHASH, struct sockhash_key, struct bpf_sock *, 5000, 0, 0);
+
 // Maps a connection tuple to latest tcp segment we've processed. Helps to detect same packets that travels multiple
 // interfaces or retransmissions.
 BPF_HASH_MAP(connection_states, conn_tuple_t, u32, 0)

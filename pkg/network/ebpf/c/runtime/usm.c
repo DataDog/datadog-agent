@@ -32,7 +32,7 @@
 // The entrypoint for all packets classification & decoding in universal service monitoring.
 SEC("socket/protocol_dispatcher")
 int socket__protocol_dispatcher(struct __sk_buff *skb) {
-    protocol_dispatcher_entrypoint(skb);
+    //protocol_dispatcher_entrypoint(skb);
     return 0;
 }
 
@@ -40,7 +40,63 @@ int socket__protocol_dispatcher(struct __sk_buff *skb) {
 // See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
 SEC("socket/protocol_dispatcher_kafka")
 int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
-    dispatch_kafka(skb);
+    //dispatch_kafka(skb);
+    return 0;
+}
+
+
+SEC("sk_skb/stream_parser/parser")
+int sk_skb__kafka_stream_parser(struct __sk_buff* skb) {
+    log_debug("%s: sockops stream parser skb len %p %u", __func__, skb, skb->len);
+    return skb->len;
+}
+
+SEC("sk_skb/stream_verdict/verdict")
+int sk_skb__kafka_stream_verdict(struct __sk_buff* skb) {
+    log_debug("%s: sockops stream verdict skb %p len %u", __func__, skb, skb->len);
+    // u32 val  = 0xdead;
+    // long ret = bpf_skb_load_bytes(skb, skb->len - sizeof(val), &val, sizeof(val));
+    // if (ret != 1000) {
+    //     log_debug("%s:bpf_skb_load_bytes %ld val=%x", __func__, ret, val);
+    // }
+    protocol_dispatcher_entrypoint(skb);
+    return SK_PASS;
+}
+
+
+SEC("sockops/sockops")
+int sockops__sockops(struct bpf_sock_ops *skops) {
+    int op = (int) skops->op;
+
+    if (op != BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB && op != BPF_SOCK_OPS_ACTIVE_ESTABLISHED_CB) {
+        return 0;
+    }
+
+    struct sockhash_key key = {
+        .remote_ip4 = skops->remote_ip4,
+        .local_ip4 = skops->local_ip4,
+        .remote_port = skops->remote_port,
+        .local_port = skops->local_port,
+    };
+
+    log_debug("sockops op %u", skops->op);
+    log_debug("sockops local_port %u", skops->local_port);
+    log_debug("sockops remote_port %u", bpf_ntohl(skops->remote_port));
+
+
+
+    long ret = bpf_sock_hash_update(skops, &sockhash, &key, BPF_NOEXIST);
+    if (ret != 1000) {
+        log_debug("sockops ret %ld", ret);
+    }
+
+    // case (op) {
+    // case BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB:
+
+    // }
+
+    
+
     return 0;
 }
 

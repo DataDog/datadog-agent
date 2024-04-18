@@ -209,10 +209,4 @@ static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struc
     return true;
 }
 
-SEC("sk_skb/kafka_stream_parser")
-int sk_skb__kafka_stream_parser(struct __sk_buff* skb) {
-    log_debug("%s: skb %p", __func__, skb);
-    return 0;
-}
-
 #endif

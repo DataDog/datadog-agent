@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -24,6 +26,7 @@ import (
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -56,6 +59,33 @@ type Monitor struct {
 	closeFilterFn func()
 
 	lastUpdateTime *atomic.Int64
+}
+
+func findScopeFiles(root string) ([]string, error) {
+	var scopeFiles []string
+
+	// Walk through the directory tree starting from the root path
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		// Check if the path matches the pattern "*.scope"
+		matched, err := filepath.Match("*.scope", info.Name())
+		if err != nil {
+			return err
+		}
+		// If the path matches, add it to the scopeFiles slice
+		if matched {
+			scopeFiles = append(scopeFiles, path)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return scopeFiles, nil
 }
 
 // NewMonitor returns a new Monitor instance
@@ -93,6 +123,67 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, 
 	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
 	if err != nil {
 		return nil, fmt.Errorf("error enabling traffic inspection: %s", err)
+	}
+
+	sockmap, found, _ := mgr.GetMap("sockhash")
+	if found {
+		fmt.Println("sockhash", sockmap)
+
+		probe, found := mgr.GetProbe(manager.ProbeIdentificationPair{
+			EBPFFuncName: kafkaStreamVerdict,
+			UID:          probeUID,
+		})
+		if found {
+			probe.SockMap = sockmap
+		}
+
+		// probe, found := mgr.GetProbe(manager.ProbeIdentificationPair{
+		// 	EBPFFuncName: kafkaStreamParser,
+		// 	UID:          probeUID,
+		// })
+		// if found {
+		// 	probe.SockMap = sockmap
+		// }
+	} else {
+		fmt.Println("no sockhash")
+	}
+
+	// sockmap, found, _ := mgr.GetMap("sockhash")
+	// if found {
+	// 	probe := &manager.Probe{
+	// 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+	// 			EBPFFuncName: "sk_skb__kafka_stream_parser",
+	// 		},
+	// 		SockMap: sockmap,
+	// 	}
+	// 	if err := mgr.AddHook("", probe); err != nil {
+	// 		log.Errorf("error adding hook: %s", err)
+	// 	}
+	// 	fmt.Println("sockhash", sockmap)
+	// } else {
+	// 	fmt.Println("no sockhash")
+	// }
+
+	cgroupList, err := findScopeFiles("/sys/fs/cgroup")
+	if err != nil {
+		return nil, fmt.Errorf("error finding cgroup scope files: %s", err)
+	}
+
+	sockops, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: sockopsFunction, UID: probeUID})
+	sockops.CGroupPath = "/sys/fs/cgroup"
+	for _, cgroup := range cgroupList {
+		uid, _ := utils.NewPathIdentifier(cgroup)
+		probe := &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sockopsFunction,
+				UID:          uid.Key()[:10],
+			},
+			CGroupPath: cgroup,
+		}
+		fmt.Println(cgroup)
+		if err := mgr.AddHook("", probe); err != nil {
+			log.Errorf("error adding hook: %s", err)
+		}
 	}
 
 	processMonitor := monitor.GetProcessMonitor()
