@@ -145,7 +145,10 @@ def _get_environment_for_cache() -> dict:
 def omnibus_compute_cache_key(ctx):
     print('Computing cache key')
     h = hashlib.sha1()
-    omnibus_last_commit = ctx.run('git log -n 1 --pretty=format:%H omnibus/', hide='stdout').stdout
+    omnibus_invalidating_files = ['omnibus/config/', 'omnibus/lib/', 'omnibus/omnibus.rb']
+    omnibus_last_commit = ctx.run(
+        f'git log -n 1 --pretty=format:%H {omnibus_invalidating_files.join(" ")}', hide='stdout'
+    ).stdout
     h.update(str.encode(omnibus_last_commit))
     print(f'\tLast omnibus commit is {omnibus_last_commit}')
     buildimages_hash = _get_build_images(ctx)
