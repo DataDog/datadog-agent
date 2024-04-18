@@ -765,7 +765,6 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 		for _, entry := range rs.opts.SupportedMultiDiscarder.Entries {
 			bucket := rs.eventRuleBuckets[entry.EventType]
 			if bucket == nil {
-				rs.logger.Errorf("bucket %s not found", entry.EventType)
 				continue
 			}
 
@@ -777,7 +776,7 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 		}
 
 		if isMultiDiscarder {
-			rs.logger.Errorf("meta discarder -> %v %s", rs.opts.SupportedMultiDiscarder, shouldCheckMetaDiscardersOn)
+			rs.NotifyDiscarderFound(event, rs.opts.SupportedMultiDiscarder.FinalField, rs.opts.SupportedMultiDiscarder.FinalEventType)
 		}
 	}
 }
