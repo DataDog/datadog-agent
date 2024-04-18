@@ -50,7 +50,7 @@ type testConfig struct {
 }
 
 const ciVisibility = "/ci-visibility"
-const dependenciesDir = "/opt/testing-tools"
+const dependenciesDir = "/opt/kmt-ramfs/testing-tools"
 
 var gotestsum = fmt.Sprintf("%s/go/bin/gotestsum", dependenciesDir)
 var test2json = fmt.Sprintf("%s/go/bin/test2json", dependenciesDir)
@@ -240,7 +240,7 @@ func buildTestConfiguration() (*testConfig, error) {
 	packageRunConfigPtr := flag.String("packages-run-config", "", "Configuration for controlling which tests run in a package")
 	verbose := flag.Bool("verbose", false, "if set to true verbosity level is 'standard-verbose', otherwise it is 'testname'")
 	runCount := flag.Int("run-count", 1, "number of times to run the test")
-	testRoot := flag.String("test-root", "/opt/kernel-version-testing/system-probe-tests", "directory containing test packages")
+	testRoot := flag.String("test-root", "/opt/system-probe-tests", "directory containing test packages")
 	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
 
 	flag.Parse()
