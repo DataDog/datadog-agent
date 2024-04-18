@@ -18,7 +18,7 @@ tests_macos:
     - inv -e github.trigger-macos --workflow-type "test" --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES" --version-cache "$VERSION_CACHE_CONTENT" $FAST_TESTS_FLAG
   timeout: 6h
   after_script:
-    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh junit-*-repacked.tgz
+    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-*-repacked.tgz"
   artifacts:
     expire_in: 2 weeks
     when: always

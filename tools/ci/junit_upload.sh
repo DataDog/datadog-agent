@@ -2,7 +2,7 @@
 # shellcheck source=/dev/null
 source /root/.bashrc
 # junit file name can differ in kitchen or macos context
-junit_files="junit-*.tar.gz"
+junit_files="junit-*.tgz"
 if [[ -n "$1" ]]; then
     junit_files="$1"
 fi
