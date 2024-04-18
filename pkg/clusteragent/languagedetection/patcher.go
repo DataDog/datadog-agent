@@ -64,11 +64,15 @@ func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logge
 		k8sClient: k8sClient,
 		store:     store,
 		logger:    logger,
-		queue: workqueue.NewRateLimitingQueue(
+		queue: workqueue.NewRateLimitingQueueWithConfig(
 			workqueue.NewItemExponentialFailureRateLimiter(
 				config.Datadog.GetDuration("cluster_agent.language_detection.patcher.base_backoff"),
 				config.Datadog.GetDuration("cluster_agent.language_detection.patcher.max_backoff"),
 			),
+			workqueue.RateLimitingQueueConfig{
+				Name:            "patch_request",
+				MetricsProvider: queueMetricProvider{},
+			},
 		),
 	}
 }
@@ -212,6 +216,7 @@ func (lp *languagePatcher) startProcessingPatchingRequests(ctx context.Context) 
 			owner, ok := obj.(langUtil.NamespacedOwnerReference)
 			if !ok {
 				// The item in the queue was not of the expected type. This should not happen.
+				lp.logger.Errorf("The item in the queue is not of the expected type (i.e. NamespacedOwnerReference). This should not have happened.")
 				lp.queue.Forget(obj)
 				continue
 			}

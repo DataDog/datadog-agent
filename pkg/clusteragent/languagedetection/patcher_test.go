@@ -292,3 +292,68 @@ func TestRun(t *testing.T) {
 	)
 
 }
+
+func TestPatcherRetriesFailedPatches(t *testing.T) {
+	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
+	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2(),
+	))
+	mocklogger := fxutil.Test[log.Component](t, logimpl.MockModule())
+
+	ctx := context.Background()
+	lp := newMockLanguagePatcher(ctx, mockK8sClient, mockStore, mocklogger)
+
+	go lp.run(ctx)
+	defer lp.cancel()
+
+	deploymentName := "test-deployment"
+	ns := "test-namespace"
+
+	// Create  long container name deployment
+	longContNameDeployment := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata": map[string]interface{}{
+				"name":        deploymentName,
+				"namespace":   ns,
+				"annotations": map[string]interface{}{},
+			},
+			"spec": map[string]interface{}{},
+		},
+	}
+
+	gvr := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
+	_, err := mockK8sClient.Resource(gvr).Namespace(ns).Create(context.TODO(), longContNameDeployment, metav1.CreateOptions{})
+	assert.NoError(t, err)
+
+	mockDeploymentEventToFail := workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesDeployment{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesDeployment,
+				ID:   ns + "/" + deploymentName,
+			},
+			DetectedLanguages: map[langUtil.Container]langUtil.LanguageSet{
+				*langUtil.NewContainer("some-cont"):            {"java": {}, "python": {}},
+				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
+				// The max allowed annotation key name length in kubernetes is 63
+				// To test that failed patches are retried, we are using a container name of length 69
+				*langUtil.NewInitContainer(strings.Repeat("x", 69)): {"ruby": {}, "python": {}},
+			},
+		},
+	}
+
+	mockStore.Push(workloadmeta.SourceLanguageDetectionServer, mockDeploymentEventToFail)
+
+	owner := langUtil.NamespacedOwnerReference{
+		Name:       deploymentName,
+		APIVersion: "apps/v1",
+		Kind:       langUtil.KindDeployment,
+		Namespace:  ns,
+	}
+
+	assert.Eventuallyf(t, func() bool { return lp.queue.NumRequeues(owner) >= 1 }, 2*time.Second, 20*time.Millisecond, "Patching should have been retried")
+}
