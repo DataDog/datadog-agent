@@ -153,7 +153,7 @@ def omnibus_compute_cache_key(ctx):
     h = hashlib.sha1()
     omnibus_invalidating_files = ['omnibus/config/', 'omnibus/lib/', 'omnibus/omnibus.rb']
     omnibus_last_commit = ctx.run(
-        f'git log -n 1 --pretty=format:%H {omnibus_invalidating_files.join(" ")}', hide='stdout'
+        f'git log -n 1 --pretty=format:%H {" ".join(omnibus_invalidating_files)}', hide='stdout'
     ).stdout
     h.update(str.encode(omnibus_last_commit))
     print(f'\tLast omnibus commit is {omnibus_last_commit}')
