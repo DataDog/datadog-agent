@@ -119,8 +119,8 @@ func NewListenerConfig() (ListenerConfig, error) {
 	snmpConfig.CollectDeviceMetadata = true
 	snmpConfig.CollectTopology = true
 
-	if coreconfig.Datadog.IsSet("network_devices.snmp_listener") {
-		err := coreconfig.Datadog.UnmarshalKey("network_devices.snmp_listener", &snmpConfig, opt)
+	if coreconfig.Datadog.IsSet("network_devices.autodiscovery") {
+		err := coreconfig.Datadog.UnmarshalKey("network_devices.autodiscovery", &snmpConfig, opt)
 		if err != nil {
 			return snmpConfig, err
 		}

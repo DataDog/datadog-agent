@@ -46,7 +46,7 @@ func moveToDDInstaller() error {
 	if err != nil {
 		return err
 	}
-	return syscall.Setuid(uid)
+	return syscall.Seteuid(uid)
 }
 
 func rootToDDInstaller() {

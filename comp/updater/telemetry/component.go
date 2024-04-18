@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package metadatascheduler provides the metadata scheduler component.
-package metadatascheduler
+// Package telemetry provides the installer telemetry component.
+package telemetry
 
-// team: agent-shared-components
+// team: fleet
 
 // Component is the component type.
-type Component interface{}
+type Component interface {
+}

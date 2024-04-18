@@ -3519,12 +3519,12 @@ api_key:
   #
   # namespace: default
   
-  ## @param snmp_listener - custom object - optional
+  ## @param autodiscovery - custom object - optional
   ## Creates and schedules a listener to automatically discover your SNMP devices.
   ## Discovered devices can then be monitored with the SNMP integration by using
   ## the auto_conf.yaml file provided by default.
   #
-  # snmp_listener:
+  # autodiscovery:
 
     ## @param workers - integer - optional - default: 2
     ## The number of concurrent tasks used to discover SNMP devices. Increasing this value
@@ -3568,6 +3568,11 @@ api_key:
     ## This option is needed for custom tags.
     #
     # use_device_id_as_hostname: true
+
+    ## @param collect_topology - boolean - optional - default: true
+    ## Enable the collection of topology (LLDP/CDP) data
+    #
+    # collect_topology: true
 
     ## @param ping - custom object - optional
     ## Configure ICMP pings for all hosts in SNMP autodiscovery
