@@ -7,12 +7,11 @@ package installer
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
+	"sync"
 
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
@@ -31,48 +30,42 @@ const (
 	telemetryEndpoint = "/v0.4/traces"
 )
 
-type telemetry struct {
-	client internaltelemetry.Client
+// Telemetry handles the installer telemetry
+type Telemetry struct {
+	telemetryClient internaltelemetry.Client
 
-	site       string
-	socketPath string
-	listener   net.Listener
-	server     *http.Server
+	site string
+
+	listener *telemetryListener
+	server   *http.Server
+	client   *http.Client
 }
 
-func newTelemetry(config config.Reader, socketDirectory string) (*telemetry, error) {
-	// HACK: we use a unix socket to receive traces from the local tracer
-	// this isn't ideal and could be replaced by an in-memory transport in the future
-	socketPath := filepath.Join(socketDirectory, "telemetry.sock")
-	err := os.RemoveAll(socketPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not remove socket: %w", err)
-	}
-	listener, err := net.Listen("unix", socketPath)
-	if err != nil {
-		return nil, err
-	}
-	if err := os.Chmod(socketPath, 0700); err != nil {
-		return nil, fmt.Errorf("error setting socket permissions: %v", err)
-	}
+// NewTelemetry creates a new telemetry instance
+func NewTelemetry(config config.Reader) (*Telemetry, error) {
 	endpoint := &traceconfig.Endpoint{
 		Host:   utils.GetMainEndpoint(config, traceconfig.TelemetryEndpointPrefix, "updater.telemetry.dd_url"),
 		APIKey: utils.SanitizeAPIKey(config.GetString("api_key")),
 	}
 	site := config.GetString("site")
-	t := &telemetry{
-		client:     internaltelemetry.NewClient(http.DefaultClient, []*traceconfig.Endpoint{endpoint}, "datadog-installer", site == "datad0g.com"),
-		site:       site,
-		socketPath: socketPath,
-		listener:   listener,
-		server:     &http.Server{},
+	listener := newTelemetryListener()
+	t := &Telemetry{
+		telemetryClient: internaltelemetry.NewClient(http.DefaultClient, []*traceconfig.Endpoint{endpoint}, "datadog-installer", site == "datad0g.com"),
+		site:            site,
+		listener:        listener,
+		server:          &http.Server{},
+		client: &http.Client{
+			Transport: &http.Transport{
+				Dial: listener.Dial,
+			},
+		},
 	}
 	t.server.Handler = t.handler()
 	return t, nil
 }
 
 // Start starts the telemetry
-func (t *telemetry) Start(_ context.Context) {
+func (t *Telemetry) Start(_ context.Context) error {
 	go func() {
 		err := t.server.Serve(t.listener)
 		if err != nil {
@@ -88,12 +81,14 @@ func (t *telemetry) Start(_ context.Context) {
 		tracer.WithServiceVersion(version.AgentVersion),
 		tracer.WithEnv(env),
 		tracer.WithGlobalTag("site", t.site),
-		tracer.WithUDS(t.socketPath),
+		tracer.WithHTTPClient(t.client),
+		tracer.WithLogStartup(false),
 	)
+	return nil
 }
 
 // Stop stops the telemetry
-func (t *telemetry) Stop(ctx context.Context) {
+func (t *Telemetry) Stop(ctx context.Context) error {
 	tracer.Flush()
 	tracer.Stop()
 	t.listener.Close()
@@ -101,9 +96,10 @@ func (t *telemetry) Stop(ctx context.Context) {
 	if err != nil {
 		log.Errorf("error shutting down telemetry server: %v", err)
 	}
+	return nil
 }
 
-func (t *telemetry) handler() http.Handler {
+func (t *Telemetry) handler() http.Handler {
 	r := mux.NewRouter().Headers("Content-Type", "application/msgpack").Subrouter()
 	r.HandleFunc(telemetryEndpoint, func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
@@ -120,8 +116,63 @@ func (t *telemetry) handler() http.Handler {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		t.client.SendTraces(traces)
+		t.telemetryClient.SendTraces(traces)
 		w.WriteHeader(http.StatusOK)
 	})
 	return r
+}
+
+type telemetryListener struct {
+	conns chan net.Conn
+
+	close     chan struct{}
+	closeOnce sync.Once
+}
+
+func newTelemetryListener() *telemetryListener {
+	return &telemetryListener{
+		conns: make(chan net.Conn),
+		close: make(chan struct{}),
+	}
+}
+
+func (l *telemetryListener) Close() error {
+	l.closeOnce.Do(func() {
+		close(l.close)
+	})
+	return nil
+}
+
+func (l *telemetryListener) Accept() (net.Conn, error) {
+	select {
+	case <-l.close:
+		return nil, errors.New("listener closed")
+	case conn := <-l.conns:
+		return conn, nil
+	}
+}
+
+func (l *telemetryListener) Addr() net.Addr {
+	return addr(0)
+}
+
+func (l *telemetryListener) Dial(_, _ string) (net.Conn, error) {
+	select {
+	case <-l.close:
+		return nil, errors.New("listener closed")
+	default:
+	}
+	server, client := net.Pipe()
+	l.conns <- server
+	return client, nil
+}
+
+type addr int
+
+func (addr) Network() string {
+	return "memory"
+}
+
+func (addr) String() string {
+	return "local"
 }

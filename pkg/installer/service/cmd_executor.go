@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 var updaterHelper = filepath.Join(setup.InstallPath, "bin", "installer", "helper")
@@ -27,34 +28,34 @@ var updaterHelper = filepath.Join(setup.InstallPath, "bin", "installer", "helper
 const execTimeout = 30 * time.Second
 
 // ChownDDAgent changes the owner of the given path to the dd-agent user.
-func ChownDDAgent(path string) error {
-	return executeCommand(`{"command":"chown dd-agent","path":"` + path + `"}`)
+func ChownDDAgent(ctx context.Context, path string) error {
+	return executeHelperCommand(ctx, `{"command":"chown dd-agent","path":"`+path+`"}`)
 }
 
 // RemoveAll removes all files under a given path under /opt/datadog-packages regardless of their owner.
-func RemoveAll(path string) error {
-	return executeCommand(`{"command":"rm","path":"` + path + `"}`)
+func RemoveAll(ctx context.Context, path string) error {
+	return executeHelperCommand(ctx, `{"command":"rm","path":"`+path+`"}`)
 }
 
-func createAgentSymlink() error {
-	return executeCommand(`{"command":"agent-symlink"}`)
+func createAgentSymlink(ctx context.Context) error {
+	return executeHelperCommand(ctx, `{"command":"agent-symlink"}`)
 }
 
-func rmAgentSymlink() error {
-	return executeCommand(`{"command":"rm-agent-symlink"}`)
+func rmAgentSymlink(ctx context.Context) error {
+	return executeHelperCommand(ctx, `{"command":"rm-agent-symlink"}`)
 }
 
-// SetCapHelper sets cap setuid on the newly installed helper
-func SetCapHelper(path string) error {
-	return executeCommand(`{"command":"setcap cap_setuid+ep", "path":"` + path + `"}`)
-}
-
-func executeCommand(command string) error {
+func executeHelperCommand(ctx context.Context, command string) error {
+	var err error
+	var stderr io.ReadCloser
+	span, _ := tracer.StartSpanFromContext(ctx, "execute_command")
+	span.SetTag("command", command)
+	defer span.Finish(tracer.WithError(err))
 	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
 	defer cancelfunc()
 	cmd := exec.CommandContext(cancelctx, updaterHelper, command)
 	cmd.Stdout = os.Stdout
-	stderr, err := cmd.StderrPipe()
+	stderr, err = cmd.StderrPipe()
 	if err != nil {
 		return err
 	}

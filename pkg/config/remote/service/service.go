@@ -155,6 +155,7 @@ func init() {
 }
 
 type options struct {
+	site                           string
 	rcKey                          string
 	apiKey                         string
 	traceAgentEnv                  string
@@ -196,13 +197,19 @@ func WithDatabaseFileName(fileName string) func(s *options) {
 }
 
 // WithConfigRootOverride sets the service config root override
-func WithConfigRootOverride(override string) func(s *options) {
-	return func(s *options) { s.configRootOverride = override }
+func WithConfigRootOverride(site string, override string) func(s *options) {
+	return func(opts *options) {
+		opts.site = site
+		opts.configRootOverride = override
+	}
 }
 
 // WithDirectorRootOverride sets the service director root override
-func WithDirectorRootOverride(override string) func(s *options) {
-	return func(s *options) { s.directorRootOverride = override }
+func WithDirectorRootOverride(site string, override string) func(s *options) {
+	return func(opts *options) {
+		opts.site = site
+		opts.directorRootOverride = override
+	}
 }
 
 // WithRefreshInterval validates and sets the service refresh interval
@@ -324,15 +331,12 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tags []st
 	site := cfg.GetString("site")
 	configRoot := options.configRootOverride
 	directorRoot := options.directorRootOverride
-	opt := []uptane.ClientOption{}
+	opt := []uptane.ClientOption{
+		uptane.WithConfigRootOverride(site, configRoot),
+		uptane.WithDirectorRootOverride(site, directorRoot),
+	}
 	if authKeys.rcKeySet {
 		opt = append(opt, uptane.WithOrgIDCheck(authKeys.rcKey.OrgID))
-	}
-	if configRoot != "" {
-		opt = append(opt, uptane.WithConfigRootOverride(site, configRoot))
-	}
-	if directorRoot != "" {
-		opt = append(opt, uptane.WithDirectorRootOverride(site, directorRoot))
 	}
 	uptaneClient, err := uptane.NewClient(
 		db,
