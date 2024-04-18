@@ -25,23 +25,23 @@ import (
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/encoding"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
-	defaultClosedChannelSize = 500
-	defaultFailedChannelSize = 500
-	connTracerModuleName     = "network_tracer__ebpf"
+	connTracerModuleName = "network_tracer__ebpf"
 )
 
 var tcpOngoingConnectMapTTL = 30 * time.Minute.Nanoseconds()
@@ -158,8 +158,6 @@ type ebpfTracer struct {
 
 	ebpfTracerType TracerType
 
-	exitTelemetry chan struct{}
-
 	ch *cookieHasher
 }
 
@@ -204,24 +202,36 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: uint64(begin)},
 		manager.ConstantEditor{Name: "ephemeral_range_end", Value: uint64(end)})
 
-	closedChannelSize := defaultClosedChannelSize
-	if config.ClosedChannelSize > 0 {
-		closedChannelSize = config.ClosedChannelSize
+	connPool := ddsync.NewDefaultTypedPool[network.ConnectionStats]()
+	var extractor *batchExtractor
+
+	util.AddBoolConst(&mgrOptions, "batching_enabled", config.KernelBatchingEnabled)
+	if config.KernelBatchingEnabled {
+		numCPUs, err := ebpf.PossibleCPU()
+		if err != nil {
+			return nil, fmt.Errorf("could not determine number of CPUs: %w", err)
+		}
+		extractor = newBatchExtractor(numCPUs)
+		mgrOptions.MapSpecEditors[probes.ConnCloseBatchMap] = manager.MapSpecEditor{
+			MaxEntries: uint32(numCPUs),
+			EditorFlag: manager.EditMaxEntries,
+		}
 	}
-	var connCloseEventHandler ddebpf.EventHandler
-	var failedConnsHandler ddebpf.EventHandler
-	if config.RingBufferSupportedNPM() {
-		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
-		failedConnsHandler = ddebpf.NewRingBufferHandler(defaultFailedChannelSize)
-	} else {
-		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
-		failedConnsHandler = ddebpf.NewPerfHandler(defaultFailedChannelSize)
+
+	tr := &ebpfTracer{
+		removeTuple: &netebpf.ConnTuple{},
+		ch:          newCookieHasher(),
+	}
+
+	connCloseEventHandler, err := initClosedConnEventHandler(config, tr.closedPerfCallback, connPool, extractor)
+	if err != nil {
+		return nil, err
 	}
 
 	var m *manager.Manager
-	var tracerType TracerType = TracerTypeFentry //nolint:revive // TODO
+	var tracerType = TracerTypeFentry
 	var closeTracerFn func()
-	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
+	m, closeTracerFn, err = fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err
@@ -231,7 +241,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		// load the kprobe tracer
 		log.Info("loading kprobe-based tracer")
 		var kprobeTracerType kprobe.TracerType
-		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler, failedConnsHandler)
+		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler)
 		if err != nil {
 			return nil, err
 		}
@@ -240,17 +250,14 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	m.DumpHandler = dumpMapsHandler
 	ddebpf.AddNameMappings(m, "npm_tracer")
 
-	numCPUs, err := ebpf.PossibleCPU()
-	if err != nil {
-		return nil, fmt.Errorf("could not determine number of CPUs: %w", err)
+	var flusher perf.Flushable = connCloseEventHandler
+	if config.KernelBatchingEnabled {
+		flusher, err = newConnBatchManager(m, extractor, connPool, tr.closedPerfCallback)
+		if err != nil {
+			return nil, err
+		}
 	}
-	extractor := newBatchExtractor(numCPUs)
-	batchMgr, err := newConnBatchManager(m, extractor)
-	if err != nil {
-		return nil, fmt.Errorf("could not create connection batch manager: %w", err)
-	}
-
-	closeConsumer := newTCPCloseConsumer(connCloseEventHandler, batchMgr)
+	tr.closeConsumer = newTCPCloseConsumer(flusher, connPool)
 
 	// Failed connections are not supported on prebuilt
 	if tracerType == TracerTypeKProbePrebuilt {
@@ -260,16 +267,10 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		config.TCPFailedConnectionsEnabled = false
 	}
 
-	tr := &ebpfTracer{
-		m:              m,
-		config:         config,
-		closeConsumer:  closeConsumer,
-		removeTuple:    &netebpf.ConnTuple{},
-		closeTracer:    closeTracerFn,
-		ebpfTracerType: tracerType,
-		exitTelemetry:  make(chan struct{}),
-		ch:             newCookieHasher(),
-	}
+	tr.m = m
+	tr.config = config
+	tr.closeTracer = closeTracerFn
+	tr.ebpfTracerType = tracerType
 
 	tr.setupMapCleaner(m)
 
@@ -293,6 +294,64 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	return tr, nil
 }
 
+func initClosedConnEventHandler(config *config.Config, closedCallback func(*network.ConnectionStats), pool ddsync.Pool[network.ConnectionStats], extractor *batchExtractor) (*perf.EventHandler, error) {
+	connHasher := newCookieHasher()
+	singleConnHandler := encoding.BinaryUnmarshalCallback(pool.Get, func(b *network.ConnectionStats, err error) {
+		if err != nil {
+			if b != nil {
+				pool.Put(b)
+			}
+			log.Debug(err.Error())
+			return
+		}
+		if b != nil {
+			connHasher.Hash(b)
+		}
+		closedCallback(b)
+	})
+
+	eopts := perf.EventHandlerOptions{
+		MapName:           probes.ConnCloseEventMap,
+		TelemetryEnabled:  config.InternalTelemetryEnabled,
+		UseRingBuffer:     config.RingBufferSupportedNPM(),
+		UpgradePerfBuffer: true,
+		PerfOptions: perf.PerfBufferOptions{
+			BufferSize: util.ComputeDefaultClosedConnPerfBufferSize(),
+		},
+		RingBufOptions: perf.RingBufferOptions{
+			BufferSize: util.ComputeDefaultClosedConnRingBufferSize(),
+		},
+	}
+	if config.KernelBatchingEnabled {
+		eopts.PerfOptions.Watermark = 1
+		eopts.Handler = func(buf []byte) {
+			l := len(buf)
+			switch {
+			case l >= netebpf.SizeofBatch:
+				b := netebpf.ToBatch(buf)
+				for rc := extractor.NextConnection(b); rc != nil; rc = extractor.NextConnection(b) {
+					c := pool.Get()
+					c.FromConn(rc)
+					connHasher.Hash(c)
+
+					closedCallback(c)
+				}
+			case l >= netebpf.SizeofConn:
+				singleConnHandler(buf)
+			case l == 0:
+				singleConnHandler(nil)
+			default:
+				log.Debugf("unexpected %q binary data of size %d bytes", probes.ConnCloseEventMap, l)
+			}
+		}
+	} else {
+		eopts.PerfOptions.WakeupEvents = config.ClosedBufferWakeupCount
+		eopts.Handler = singleConnHandler
+	}
+
+	return perf.NewEventHandler(eopts)
+}
+
 func boolConst(name string, value bool) manager.ConstantEditor {
 	c := manager.ConstantEditor{
 		Name:  name,
@@ -303,6 +362,10 @@ func boolConst(name string, value bool) manager.ConstantEditor {
 	}
 
 	return c
+}
+
+func (t *ebpfTracer) closedPerfCallback(c *network.ConnectionStats) {
+	t.closeConsumer.Callback(c)
 }
 
 func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) {
@@ -317,11 +380,13 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 		return fmt.Errorf("error initializing port binding maps: %s", err)
 	}
 
+	t.closeConsumer.Start(callback)
+
 	if err := t.m.Start(); err != nil {
+		t.closeConsumer.Stop()
 		return fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 
-	t.closeConsumer.Start(callback)
 	return nil
 }
 
@@ -344,7 +409,6 @@ func (t *ebpfTracer) FlushPending() {
 
 func (t *ebpfTracer) Stop() {
 	t.stopOnce.Do(func() {
-		close(t.exitTelemetry)
 		ddebpf.RemoveNameMappings(t.m)
 		ebpftelemetry.UnregisterTelemetry(t.m)
 		_ = t.m.Stop(manager.CleanAll)
@@ -389,7 +453,8 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 			continue
 		}
 
-		populateConnStats(conn, key, stats, t.ch)
+		conn.FromTupleAndStats(key, stats)
+		t.ch.Hash(conn)
 		connsByTuple[*key] = stats.Cookie
 
 		isTCP := conn.Type == network.TCP
@@ -413,7 +478,7 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 		}
 
 		if t.getTCPStats(tcp, key) {
-			updateTCPStats(conn, tcp)
+			conn.FromTCPStats(tcp)
 		}
 		if retrans, ok := t.getTCPRetransmits(key, seen); ok && conn.Type == network.TCP {
 			conn.Monotonic.Retransmits = retrans
@@ -716,82 +781,4 @@ func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
 	})
 
 	t.ongoingConnectCleaner = tcpOngoingConnectPidCleaner
-}
-
-func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats, ch *cookieHasher) {
-	*stats = network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
-		Pid:    t.Pid,
-		NetNS:  t.Netns,
-		Source: t.SourceAddress(),
-		Dest:   t.DestAddress(),
-		SPort:  t.Sport,
-		DPort:  t.Dport,
-	},
-		Monotonic: network.StatCounters{
-			SentBytes:   s.Sent_bytes,
-			RecvBytes:   s.Recv_bytes,
-			SentPackets: uint64(s.Sent_packets),
-			RecvPackets: uint64(s.Recv_packets),
-		},
-		LastUpdateEpoch: s.Timestamp,
-		IsAssured:       s.IsAssured(),
-		Cookie:          network.StatCookie(s.Cookie),
-	}
-
-	if s.Duration <= uint64(math.MaxInt64) {
-		stats.Duration = time.Duration(s.Duration) * time.Nanosecond
-	}
-
-	stats.ProtocolStack = protocols.Stack{
-		API:         protocols.API(s.Protocol_stack.Api),
-		Application: protocols.Application(s.Protocol_stack.Application),
-		Encryption:  protocols.Encryption(s.Protocol_stack.Encryption),
-	}
-
-	if t.Type() == netebpf.TCP {
-		stats.Type = network.TCP
-	} else {
-		stats.Type = network.UDP
-	}
-
-	switch t.Family() {
-	case netebpf.IPv4:
-		stats.Family = network.AFINET
-	case netebpf.IPv6:
-		stats.Family = network.AFINET6
-	}
-
-	stats.SPortIsEphemeral = network.IsPortInEphemeralRange(stats.Family, stats.Type, t.Sport)
-
-	switch s.ConnectionDirection() {
-	case netebpf.Incoming:
-		stats.Direction = network.INCOMING
-	case netebpf.Outgoing:
-		stats.Direction = network.OUTGOING
-	default:
-		stats.Direction = network.OUTGOING
-	}
-
-	if ch != nil {
-		ch.Hash(stats)
-	}
-}
-
-func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats) {
-	if conn.Type != network.TCP {
-		return
-	}
-
-	if tcpStats != nil {
-		conn.Monotonic.Retransmits = tcpStats.Retransmits
-		conn.Monotonic.TCPEstablished = tcpStats.State_transitions >> netebpf.Established & 1
-		conn.Monotonic.TCPClosed = tcpStats.State_transitions >> netebpf.Close & 1
-		conn.RTT = tcpStats.Rtt
-		conn.RTTVar = tcpStats.Rtt_var
-		if tcpStats.Failure_reason > 0 {
-			conn.TCPFailures = map[uint16]uint32{
-				tcpStats.Failure_reason: 1,
-			}
-		}
-	}
 }

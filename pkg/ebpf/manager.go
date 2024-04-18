@@ -74,11 +74,13 @@ type Modifier interface {
 
 // InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
 func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) error {
-	// we must load the ELF file before initialization,
-	// to build the collection specs, because some modifiers
-	// inspect these to make changes to the eBPF resources.
-	if err := m.LoadELF(bytecode); err != nil {
-		return fmt.Errorf("failed to load elf from reader: %w", err)
+	if bytecode != nil {
+		// we must load the ELF file before initialization,
+		// to build the collection specs, because some modifiers
+		// inspect these to make changes to the eBPF resources.
+		if err := m.LoadELF(bytecode); err != nil {
+			return fmt.Errorf("failed to load elf from reader: %w", err)
+		}
 	}
 
 	for _, mod := range m.EnabledModifiers {

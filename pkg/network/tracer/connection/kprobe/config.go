@@ -8,10 +8,14 @@
 package kprobe
 
 import (
+	"errors"
 	"fmt"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -76,10 +80,15 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.TCPReadSock)
 		enableProbe(enabled, probes.TCPReadSockReturn)
 		enableProbe(enabled, probes.TCPClose)
-		enableProbe(enabled, probes.TCPCloseFlushReturn)
+		if c.KernelBatchingEnabled {
+			enableProbe(enabled, probes.TCPCloseFlushReturn)
+		}
+
 		enableProbe(enabled, probes.TCPConnect)
 		enableProbe(enabled, probes.TCPDone)
-		enableProbe(enabled, probes.TCPDoneFlushReturn)
+		if c.KernelBatchingEnabled {
+			enableProbe(enabled, probes.TCPDoneFlushReturn)
+		}
 		enableProbe(enabled, probes.TCPFinishConnect)
 		enableProbe(enabled, probes.InetCskAcceptReturn)
 		enableProbe(enabled, probes.InetCskListenStop)
@@ -93,7 +102,9 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	if c.CollectUDPv4Conns {
 		enableProbe(enabled, probes.UDPDestroySock)
-		enableProbe(enabled, probes.UDPDestroySockReturn)
+		if c.KernelBatchingEnabled {
+			enableProbe(enabled, probes.UDPDestroySockReturn)
+		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IPMakeSkb, probes.IPMakeSkbPre4180, kv4180))
 		enableProbe(enabled, probes.IPMakeSkbReturn)
 		enableProbe(enabled, probes.InetBind)
@@ -116,11 +127,13 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	if c.CollectUDPv6Conns {
 		enableProbe(enabled, probes.UDPv6DestroySock)
-		enableProbe(enabled, probes.UDPv6DestroySockReturn)
+		if c.KernelBatchingEnabled {
+			enableProbe(enabled, probes.UDPv6DestroySockReturn)
+		}
 		if kv >= kv5180 || runtimeTracer {
 			// prebuilt shouldn't arrive here with 5.18+ and UDPv6 enabled
 			if !coreTracer && !runtimeTracer {
-				return nil, fmt.Errorf("UDPv6 does not function on prebuilt tracer with kernel versions 5.18+")
+				return nil, errors.New("UDPv6 does not function on prebuilt tracer with kernel versions 5.18+")
 			}
 			enableProbe(enabled, probes.IP6MakeSkb)
 		} else if kv >= kv470 {
@@ -156,6 +169,46 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 	return enabled, nil
 }
 
+func protocolClassificationTailCalls(cfg *config.Config) []manager.TailCallRoute {
+	tcs := []manager.TailCallRoute{
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationQueues,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierQueuesSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationDBs,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierDBsSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationGRPC,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierGRPCSocketFilter,
+				UID:          probeUID,
+			},
+		},
+	}
+	if cfg.KernelBatchingEnabled {
+		tcs = append(tcs, manager.TailCallRoute{
+			ProgArrayName: probes.TCPCloseProgsMap,
+			Key:           0,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.TCPCloseFlushReturn,
+				UID:          probeUID,
+			},
+		})
+	}
+	return tcs
+}
+
 func enableAdvancedUDP(enabled map[probes.ProbeFuncName]struct{}) error {
 	missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
 	if err != nil {
@@ -169,7 +222,7 @@ func enableAdvancedUDP(enabled map[probes.ProbeFuncName]struct{}) error {
 	} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
 		enableProbe(enabled, probes.SKBFreeDatagramLocked)
 	} else {
-		return fmt.Errorf("missing desired UDP receive kernel functions")
+		return errors.New("missing desired UDP receive kernel functions")
 	}
 	return nil
 }
