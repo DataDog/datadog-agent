@@ -44,6 +44,95 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/sumologicprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/activedirectorydsreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/aerospikereceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/apachereceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/apachesparkreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awscloudwatchreceiver"
+
+	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awscontainerinsightreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsecscontainermetricsreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsxrayreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/azureblobreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/azureeventhubreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/azuremonitorreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/bigipreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/carbonreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/chronyreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/cloudflarereceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/cloudfoundryreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/collectdreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/couchdbreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/datadogreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/elasticsearchreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/expvarreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filestatsreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/flinkmetricsreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/googlecloudpubsubreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/googlecloudspannerreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/haproxyreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/httpcheckreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/iisreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/influxdbreceiver"
+
+	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jmxreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/journaldreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8seventsreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkametricsreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/lokireceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/memcachedreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/mongodbatlasreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/mongodbreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/mysqlreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/namedpipereceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/nginxreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/nsxtreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/oracledbreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/otlpjsonfilereceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/podmanreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/postgresqlreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/pulsarreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/purefareceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/purefbreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/rabbitmqreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/redisreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/riakreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sapmreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/signalfxreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/simpleprometheusreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/skywalkingreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/snmpreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/snowflakereceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/solacereceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/splunkhecreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sqlqueryreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sqlserverreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sshcheckreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/statsdreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/syslogreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/tcplogreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/udplogreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/vcenterreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/wavefrontreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/webhookeventreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/windowseventlogreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/windowsperfcountersreceiver"
+
+	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zookeeperreceiver"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
@@ -56,6 +145,8 @@ import (
 	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/processor/memorylimiterprocessor"
 	"go.opentelemetry.io/collector/receiver"
+	"go.opentelemetry.io/collector/receiver/nopreceiver"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.uber.org/multierr"
 )
 
@@ -108,7 +199,94 @@ func (c *collectorContribImpl) OTelComponentFactories() (otelcol.Factories, erro
 	}
 
 	receiverList := []receiver.Factory{
-		// TODO: all of the receivers from Core collector & collector contrib
+		nopreceiver.NewFactory(),
+		otlpreceiver.NewFactory(),
+		activedirectorydsreceiver.NewFactory(),
+		aerospikereceiver.NewFactory(),
+		apachereceiver.NewFactory(),
+		apachesparkreceiver.NewFactory(),
+		awscloudwatchreceiver.NewFactory(),
+		//awscontainerinsightreceiver.NewFactory(),
+		awsecscontainermetricsreceiver.NewFactory(),
+		awsfirehosereceiver.NewFactory(),
+		awsxrayreceiver.NewFactory(),
+		azureblobreceiver.NewFactory(),
+		azureeventhubreceiver.NewFactory(),
+		azuremonitorreceiver.NewFactory(),
+		bigipreceiver.NewFactory(),
+		carbonreceiver.NewFactory(),
+		chronyreceiver.NewFactory(),
+		cloudflarereceiver.NewFactory(),
+		cloudfoundryreceiver.NewFactory(),
+		collectdreceiver.NewFactory(),
+		couchdbreceiver.NewFactory(),
+		datadogreceiver.NewFactory(),
+		dockerstatsreceiver.NewFactory(),
+		elasticsearchreceiver.NewFactory(),
+		expvarreceiver.NewFactory(),
+		filelogreceiver.NewFactory(),
+		filestatsreceiver.NewFactory(),
+		flinkmetricsreceiver.NewFactory(),
+		fluentforwardreceiver.NewFactory(),
+		googlecloudpubsubreceiver.NewFactory(),
+		googlecloudspannerreceiver.NewFactory(),
+		haproxyreceiver.NewFactory(),
+		hostmetricsreceiver.NewFactory(),
+		httpcheckreceiver.NewFactory(),
+		influxdbreceiver.NewFactory(),
+		iisreceiver.NewFactory(),
+		//jaegerreceiver.NewFactory(),
+		jmxreceiver.NewFactory(),
+		journaldreceiver.NewFactory(),
+		k8sclusterreceiver.NewFactory(),
+		k8seventsreceiver.NewFactory(),
+		k8sobjectsreceiver.NewFactory(),
+		kafkametricsreceiver.NewFactory(),
+		kafkareceiver.NewFactory(),
+		kubeletstatsreceiver.NewFactory(),
+		lokireceiver.NewFactory(),
+		memcachedreceiver.NewFactory(),
+		mongodbatlasreceiver.NewFactory(),
+		mongodbreceiver.NewFactory(),
+		mysqlreceiver.NewFactory(),
+		namedpipereceiver.NewFactory(),
+		nginxreceiver.NewFactory(),
+		nsxtreceiver.NewFactory(),
+		opencensusreceiver.NewFactory(),
+		oracledbreceiver.NewFactory(),
+		otlpjsonfilereceiver.NewFactory(),
+		podmanreceiver.NewFactory(),
+		postgresqlreceiver.NewFactory(),
+		prometheusreceiver.NewFactory(),
+		purefareceiver.NewFactory(),
+		purefbreceiver.NewFactory(),
+		pulsarreceiver.NewFactory(),
+		rabbitmqreceiver.NewFactory(),
+		receivercreator.NewFactory(),
+		redisreceiver.NewFactory(),
+		riakreceiver.NewFactory(),
+		sapmreceiver.NewFactory(),
+		signalfxreceiver.NewFactory(),
+		simpleprometheusreceiver.NewFactory(),
+		skywalkingreceiver.NewFactory(),
+		snowflakereceiver.NewFactory(),
+		solacereceiver.NewFactory(),
+		splunkhecreceiver.NewFactory(),
+		sqlqueryreceiver.NewFactory(),
+		sqlserverreceiver.NewFactory(),
+		sshcheckreceiver.NewFactory(),
+		statsdreceiver.NewFactory(),
+		syslogreceiver.NewFactory(),
+		tcplogreceiver.NewFactory(),
+		udplogreceiver.NewFactory(),
+		vcenterreceiver.NewFactory(),
+		wavefrontreceiver.NewFactory(),
+		snmpreceiver.NewFactory(),
+		webhookeventreceiver.NewFactory(),
+		windowseventlogreceiver.NewFactory(),
+		windowsperfcountersreceiver.NewFactory(),
+		//zipkinreceiver.NewFactory(),
+		zookeeperreceiver.NewFactory(),
 	}
 	receivers, err := receiver.MakeFactoryMap(receiverList...)
 	if err != nil {
