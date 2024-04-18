@@ -738,6 +738,9 @@ def test(
     domains = filter_target_domains(vms, infra)
     used_archs = get_archs_in_domains(domains)
 
+    if len(domains) == 0:
+        raise Exit(f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack")
+
     info("[+] Detected architectures in target VMs: " + ", ".join(used_archs))
 
     if not quick:
@@ -830,6 +833,9 @@ def build(
     infra = build_infrastructure(stack, ssh_key_obj)
     domains = filter_target_domains(vms, infra, arch)
     cc = get_compiler(ctx, arch)
+
+    if len(domains) == 0:
+        raise Exit(f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack")
 
     cc.exec(
         f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e system-probe.build --no-bundle",
