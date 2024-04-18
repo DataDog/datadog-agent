@@ -150,19 +150,6 @@ if linux_target?
   if !generate_distro_package
     extra_package_file "#{Omnibus::Config.project_root}/package-scripts/installer-deb"
     extra_package_file "#{Omnibus::Config.project_root}/package-scripts/installer-rpm"
-  else
-    # This file depends on the type of package and must therefor be generated during
-    # packaging, not building.
-    build do
-      uninstall_command="sudo yum remove datadog-installer"
-      if debian_target?
-          uninstall_command="sudo apt-get remove datadog-installer"
-      end
-      erb source: "README.md.erb",
-         dest: "#{install_dir}/README.md",
-         mode: 0644,
-         vars: { uninstall_command: uninstall_command}
-    end
   end
   if debian_target?
       package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/installer-deb"
