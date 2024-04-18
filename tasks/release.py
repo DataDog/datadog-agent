@@ -374,7 +374,7 @@ def list_major_change(_, milestone):
 
 
 def _load_release_json():
-    with open("release.json", "r") as release_json_stream:
+    with open("release.json") as release_json_stream:
         return json.load(release_json_stream, object_pairs_hook=OrderedDict)
 
 
@@ -868,7 +868,6 @@ def __get_force_option(force: bool) -> str:
 def __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel):
     """Tag a given module."""
     for tag in module.tag(agent_version):
-
         if devel:
             tag += "-devel"
 
@@ -1462,7 +1461,7 @@ def create_and_update_release_branch(ctx, repo, release_branch, base_directory="
             _save_release_json(rj)
 
             # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml jobs
-            with open(".gitlab-ci.yml", "r") as gl:
+            with open(".gitlab-ci.yml") as gl:
                 file_content = gl.readlines()
 
             with open(".gitlab-ci.yml", "w") as gl:

@@ -2,7 +2,6 @@
 Docker related tasks
 """
 
-
 import os
 import shutil
 import sys
@@ -121,7 +120,7 @@ def pull_base_images(ctx, dockerfile, signed_pull=True):
     images = set()
     stages = set()
 
-    with open(dockerfile, "r") as f:
+    with open(dockerfile) as f:
         for line in f:
             words = line.split()
             # Get source images

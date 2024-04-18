@@ -6,7 +6,6 @@ class TailJounald(TestCase):
     name = "[Journald] Agent collect logs from journald"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 
@@ -15,7 +14,7 @@ class TailJounald(TestCase):
 ```
 logs:
   -type: journald
-``` 
+```
 """
         )
 
@@ -26,7 +25,7 @@ logs:
             """# Test
 - check that the `hello world` log shows up in app
 
-update the config: 
+update the config:
 
 ```
 logs:
@@ -49,7 +48,6 @@ class TailJournaldStartPosition(TestCase):
     name = "[Files] `start_position` defines where to tail from"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 
@@ -59,14 +57,14 @@ class TailJournaldStartPosition(TestCase):
 logs:
     - type: journald
       start_position: beginning
-``` 
+```
 
 # Test
 
 1. start the agent
 2. generate some logs like `echo 'test message' | systemd-cat`
 3. check the logs show up in app
-4. stop the agent. 
+4. stop the agent.
 """
         )
         self.append(filePositionSharedSteps())
@@ -76,7 +74,6 @@ class SNMPTraps(TestCase):
     name = "[SNMP traps] Check that traps are working"
 
     def build(self, config):  # noqa: U100
-
         self.append(
             """
 # Setup

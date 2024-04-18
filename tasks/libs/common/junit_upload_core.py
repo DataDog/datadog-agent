@@ -284,7 +284,7 @@ def produce_junit_tar(files, result_path):
 
         tags_file = io.BytesIO()
         for k, v in tags.items():
-            tags_file.write(f"--tags {k}:{v} ".encode("UTF-8"))
+            tags_file.write(f"--tags {k}:{v} ".encode())
         tags_info = tarfile.TarInfo(TAGS_FILE_NAME)
         tags_info.size = tags_file.getbuffer().nbytes
         tags_file.seek(0)

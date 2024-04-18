@@ -168,7 +168,6 @@ class GithubAPI:
         return zip_target_path
 
     def download_logs(self, run_id, destination_dir):
-
         run = self._repository.get_workflow_run(run_id)
         logs_url = run.logs_url
         _, headers, _ = run._requester.requestJson("GET", logs_url)

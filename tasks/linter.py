@@ -37,9 +37,7 @@ def python(ctx):
     https://github.com/DataDog/datadog-agent/blob/{DEFAULT_BRANCH}/docs/dev/agent_dev_env.md#pre-commit-hooks"""
     )
 
-    ctx.run("flake8 .")
-    ctx.run("black --check --diff .")
-    ctx.run("isort --check-only --diff .")
+    ctx.run("ruff check --fix .")
     ctx.run("vulture --ignore-decorators @task --ignore-names 'test_*,Test*' tasks")
 
 

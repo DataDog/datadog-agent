@@ -1,6 +1,7 @@
 """
 Invoke entrypoint, import here all the tasks we want to make available
 """
+
 import os
 import pathlib
 from collections import namedtuple
@@ -264,7 +265,7 @@ def lint_components(_, fix=False):
         with open(filename, "w") as f:
             f.write(components_md)
     else:
-        with open(filename, "r") as f:
+        with open(filename) as f:
             current = f.read()
             if current != components_md:
                 print(f"** {filename} differs")
@@ -273,7 +274,7 @@ def lint_components(_, fix=False):
 
     # Check .github/CODEOWNERS
     filename = ".github/CODEOWNERS"
-    with open(filename, "r") as f:
+    with open(filename) as f:
         current = f.read()
     codeowners = '\n'.join(make_codeowners(current.splitlines(), bundles, components_without_bundle))
     if fix:
@@ -419,7 +420,7 @@ def read_file_content(template_path):
     """
     Read all lines in files and return them as a single string.
     """
-    with open(template_path, "r") as file:
+    with open(template_path) as file:
         return file.read()
 
 

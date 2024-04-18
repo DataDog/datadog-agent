@@ -20,7 +20,7 @@ def load_and_validate(file_name: str, default_placeholder: str, default_value: s
     result: Dict[str, str] = {}
     with p.open(encoding='utf-8') as file_stream:
         for key, value in yaml.safe_load(file_stream).items():
-            if not (type(key) is str and type(value) is str):
+            if not (isinstance(key, str) and isinstance(value, str)):
                 raise ValueError(f"File {file_name} contains a non-string key or value. Key: {key}, Value: {value}")
             result[key] = default_value if value == default_placeholder else value
     return result
