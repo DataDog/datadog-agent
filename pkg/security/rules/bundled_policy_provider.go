@@ -27,7 +27,7 @@ func NewBundledPolicyProvider(cfg *config.RuntimeSecurityConfig) *BundledPolicyP
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (p *BundledPolicyProvider) LoadPolicies([]rules.MacroFilter, []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
+func (p *BundledPolicyProvider) LoadPolicies([]rules.MacroFilter, []rules.RuleFilter, bool) ([]*rules.Policy, *multierror.Error) {
 	bundledPolicyRules := newBundledPolicyRules(p.cfg)
 
 	policy := &rules.Policy{}

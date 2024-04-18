@@ -164,7 +164,7 @@ func (t *SelfTester) Close() error {
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
+func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter, _ bool) ([]*rules.Policy, *multierror.Error) {
 	t.Lock()
 	defer t.Unlock()
 	p := &rules.Policy{

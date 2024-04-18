@@ -55,12 +55,12 @@ func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierr
 
 	p.remoteConfigProvidersFirst()
 	for _, provider := range p.Providers {
-		policies, err := provider.LoadPolicies(opts.MacroFilters, opts.RuleFilters)
+		policies, err := provider.LoadPolicies(opts.MacroFilters, opts.RuleFilters, len(allPolicies) != 0)
 		if err.ErrorOrNil() != nil {
 			errs = multierror.Append(errs, err)
 		}
 
-		if policies == nil {
+		if len(policies) == 0 {
 			continue
 		}
 

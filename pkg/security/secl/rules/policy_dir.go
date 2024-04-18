@@ -82,7 +82,7 @@ func (p *PoliciesDirProvider) getPolicyFiles() ([]string, error) {
 }
 
 // LoadPolicies implements the policy provider interface
-func (p *PoliciesDirProvider) LoadPolicies(macroFilters []MacroFilter, ruleFilters []RuleFilter) ([]*Policy, *multierror.Error) {
+func (p *PoliciesDirProvider) LoadPolicies(macroFilters []MacroFilter, ruleFilters []RuleFilter, _ bool) ([]*Policy, *multierror.Error) {
 	var errs *multierror.Error
 
 	var policies []*Policy

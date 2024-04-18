@@ -16,7 +16,7 @@ const DefaultPolicyName = "default.policy"
 
 // PolicyProvider defines a rule provider
 type PolicyProvider interface {
-	LoadPolicies([]MacroFilter, []RuleFilter) ([]*Policy, *multierror.Error)
+	LoadPolicies(macroFilters []MacroFilter, ruleFilters []RuleFilter, hasAlreadyLoadedPolicies bool) ([]*Policy, *multierror.Error)
 	SetOnNewPoliciesReadyCb(func())
 
 	Start()
