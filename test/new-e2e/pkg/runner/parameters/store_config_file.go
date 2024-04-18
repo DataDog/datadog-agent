@@ -69,7 +69,7 @@ type Pulumi struct {
 	// https://www.pulumi.com/docs/support/troubleshooting/#verbose-logging
 	LogToStdErr string `yaml:"logToStdErr"`
 	// To reduce logs noise in the CI, by default we display only the Pulumi error progress steam.
-	// Set this option to true to disaply all the progress streams.
+	// Set this option to true to display all the progress streams.
 	VerboseProgressStreams string `yaml:"verboseProgressStreams"`
 }
 
