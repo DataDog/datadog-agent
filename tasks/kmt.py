@@ -445,10 +445,10 @@ def is_root():
 @task
 def prepare(
     ctx: Context,
-    vms: Optional[str] = None,
-    stack: Optional[str] = None,
-    arch: Optional[Arch] = None,
-    ssh_key: Optional[str] = None,
+    vms: str | None = None,
+    stack: str | None = None,
+    arch: Arch | None = None,
+    ssh_key: str | None = None,
     packages=None,
     verbose=True,
     ci=False,
@@ -549,10 +549,10 @@ def build_target_packages(filter_packages):
 def kmt_prepare(
     ctx: Context,
     arch: ArchOrLocal,
-    stack: Optional[str] = None,
-    kernel_release: Optional[str] = None,
+    stack: str | None = None,
+    kernel_release: str | None = None,
     packages=None,
-    extra_arguments: Optional[str] = None,
+    extra_arguments: str | None = None,
     ci: bool = False,
 ):
     if ci:
@@ -744,14 +744,14 @@ def kmt_prepare(
 )
 def test(
     ctx: Context,
-    vms: Optional[str] = None,
-    stack: Optional[str] = None,
+    vms: str | None = None,
+    stack: str | None = None,
     packages=None,
-    run: Optional[str] = None,
+    run: str | None = None,
     quick=False,
     retry=2,
     run_count=1,
-    ssh_key: Optional[str] = None,
+    ssh_key: str | None = None,
     verbose=True,
     test_logs=False,
     test_extra_arguments=None,
@@ -806,7 +806,7 @@ def test(
 
 
 def build_layout(ctx, domains, layout: str, verbose: bool):
-    with open(layout, 'r') as lf:
+    with open(layout) as lf:
         todo: DependenciesLayout = cast('DependenciesLayout', json.load(lf))
 
     for d in domains:
@@ -815,7 +815,7 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
             mkdir.append(f"mkdir -p {dirs} &&")
 
         cmd = ' '.join(mkdir)
-        d.run_cmd(ctx, cmd.rstrip(" &&"), verbose)
+        d.run_cmd(ctx, cmd.rstrip('&'), verbose)
 
         for src, dst in todo["copy"].items():
             if not os.path.exists(src):
@@ -840,11 +840,11 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
 def build(
     ctx: Context,
     vms: str,
-    stack: Optional[str] = None,
-    ssh_key: Optional[str] = None,
+    stack: str | None = None,
+    ssh_key: str | None = None,
     verbose=True,
-    arch: Optional[ArchOrLocal] = None,
-    layout: Optional[str] = "tasks/kernel_matrix_testing/build-layout.json",
+    arch: ArchOrLocal | None = None,
+    layout: str | None = "tasks/kernel_matrix_testing/build-layout.json",
 ):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
