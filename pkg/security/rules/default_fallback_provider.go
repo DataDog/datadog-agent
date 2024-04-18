@@ -7,30 +7,32 @@
 package rules
 
 import (
+	"bytes"
+	_ "embed"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/hashicorp/go-multierror"
 )
+
+//go:embed default.policy
+var defaultPolicyContent []byte
 
 // DefaultFallbackProvider specify the policy provider for embedded fallback default policies
 type DefaultFallbackProvider struct {
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (p *DefaultFallbackProvider) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter, hasAlreadyLoadedUserPolicies bool) ([]*rules.Policy, *multierror.Error) {
+func (p *DefaultFallbackProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters []rules.RuleFilter, hasAlreadyLoadedUserPolicies bool) ([]*rules.Policy, *multierror.Error) {
 	// no need for the fallback
 	if hasAlreadyLoadedUserPolicies {
 		return nil, nil
 	}
 
-	policy := &rules.Policy{
-		Name:    "embed_policy",
-		Source:  "embed",
-		Version: version.AgentVersion,
-	}
+	reader := bytes.NewReader(defaultPolicyContent)
+	policy, err := rules.LoadPolicy("embed_policy", "embed", reader, macroFilters, ruleFilters)
 
-	// TODO: use LoadPolicy as in policy_dir.go
-	return []*rules.Policy{policy}, nil
+	merr := multierror.Append(nil, err)
+	return []*rules.Policy{policy}, merr
 }
 
 // SetOnNewPoliciesReadyCb implements the PolicyProvider interface
