@@ -424,10 +424,13 @@ class KMTPaths:
 
     @property
     def dependencies(self):
-        return self.arch_dir / "testing-tools"
+        return self.arch_dir / "opt/testing-tools"
 
     @property
     def sysprobe_tests(self):
+        if self.stack == "ci":
+            return self.arch_dir / "opt/system-probe-tests-ramfs"
+
         return self.arch_dir / "opt/system-probe-tests"
 
     @property
@@ -439,10 +442,13 @@ def is_root():
     return os.getuid() == 0
 
 
+def select_exec_environment(ctx, vms, ci):
+    pass
+
 @task
 def prepare(
     ctx: Context,
-    vms: str,
+    vms: Optional[str] = None,
     stack: Optional[str] = None,
     arch: Optional[Arch] = None,
     ssh_key: Optional[str] = None,
@@ -450,24 +456,20 @@ def prepare(
     verbose=True,
     ci=False,
 ):
-    stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+
+    stack = "ci"
+    if not ci:
+        stack = check_and_get_stack(stack)
+        if not stacks.stack_exists(stack):
+            raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
     go_root = os.getenv("GOROOT")
     if not ci:
         download_gotestsum(ctx, arch, f"{go_root}/bin/gotestsum")
 
-    if vms == "":
-        raise Exit("No vms specified to sync with")
     if arch is None:
         arch = full_arch('local')
 
-    info(f"[+] Preparing VMs {vms} in stack {stack} for {arch}")
-
-    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
-    infra = build_infrastructure(stack, ssh_key_obj)
-    domains = filter_target_domains(vms, infra, arch)
     paths = KMTPaths(stack, arch)
     cc = get_compiler(ctx, arch)
 
@@ -476,10 +478,13 @@ def prepare(
     pkgs = ""
     if packages:
         pkgs = f"--packages {packages}"
-    cc.exec(
-        f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e kmt.kmt-prepare --stack={stack} {pkgs}",
-        run_dir=CONTAINER_AGENT_PATH,
-    )
+    if ci:
+        kmt_prepare(ctx, arch, ci=True)
+    else:
+        cc.exec(
+            f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e kmt.kmt-prepare --stack={stack} {pkgs} --arch={arch}",
+            run_dir=CONTAINER_AGENT_PATH,
+        )
 
     copy_executables = {
         f"{go_root}/bin/gotestsum": f"{paths.dependencies}/go/bin/gotestsum",
@@ -491,6 +496,18 @@ def prepare(
     for sf, df in copy_executables.items():
         if os.path.exists(sf) and not os.path.exists(df):
             ctx.run(f"install -D {sf} {df}")
+
+    if ci:
+        return
+
+    if vms is None or vms == "":
+        raise Exit("No vms specified to sync with")
+
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+    infra = build_infrastructure(stack, ssh_key_obj)
+    domains = filter_target_domains(vms, infra, arch)
+
+    info(f"[+] Preparing VMs {vms} in stack {stack} for {arch}")
 
     target_instances: List[HostInstance] = list()
     for d in domains:
@@ -535,17 +552,21 @@ def build_target_packages(filter_packages):
 @task
 def kmt_prepare(
     ctx: Context,
+    arch: ArchOrLocal,
     stack: Optional[str] = None,
     kernel_release: Optional[str] = None,
     packages=None,
-    arch: Optional[ArchOrLocal] = None,
     extra_arguments: Optional[str] = None,
+    ci: bool = False,
 ):
+    if ci:
+        stack = "ci"
+
     if stack is None:
         raise Exit("A stack name must be provided")
 
-    if arch is None:
-        arch = full_arch("local")
+    if arch is None or arch == "local":
+        raise Exit(f"No architecture provided")
 
     check_for_ninja(ctx)
 
