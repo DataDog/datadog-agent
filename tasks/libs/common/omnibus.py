@@ -163,7 +163,7 @@ def _last_omnibus_changes(ctx):
     # In order to work around this, we hash the commit diff so that the result
     # can be reproduced on different branches with different sha1
     omnibus_last_changes = ctx.run(
-        f'git diff {omnibus_last_commit}~ {omnibus_last_commit} {" ".join(omnibus_invalidating_files)}'
+        f'git diff {omnibus_last_commit}~ {omnibus_last_commit} {" ".join(omnibus_invalidating_files)}', hide='stdout'
     ).stdout
     hash = hashlib.sha1()
     hash.update(str.encode(omnibus_last_changes))
