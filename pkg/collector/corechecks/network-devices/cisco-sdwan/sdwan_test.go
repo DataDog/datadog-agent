@@ -102,8 +102,8 @@ min_collection_interval: 180
 
 	sender.AssertMetricWithTimestamp(t, "CountWithTimestamp", "cisco_sdwan.interface.tx_bits", 32, "", tags, ts)
 	sender.AssertMetricWithTimestamp(t, "CountWithTimestamp", "cisco_sdwan.interface.rx_bits", 184, "", tags, ts)
-	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.interface.rx_kbps", 10.4, "", tags, ts)
-	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.interface.tx_kbps", 9.8, "", tags, ts)
+	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.interface.rx_bps", 10400, "", tags, ts)
+	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.interface.tx_bps", 9800, "", tags, ts)
 	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.interface.rx_bandwidth_usage", 0, "", tags, ts)
 	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.interface.tx_bandwidth_usage", 0.8, "", tags, ts)
 	sender.AssertMetricWithTimestamp(t, "CountWithTimestamp", "cisco_sdwan.interface.rx_errors", 2, "", tags, ts)

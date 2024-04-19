@@ -53,7 +53,6 @@ func TestSetDockerConfig(t *testing.T) {
     }
 }`: `{
     "default-runtime": "dd-shim",
-    "default-runtime-backup": "containerd",
     "runtimes": {
         "containerd": {
             "path": "/usr/bin/containerd"
@@ -111,8 +110,7 @@ func TestRemoveDockerConfig(t *testing.T) {
 }`,
 		// File had already overridden the default runtime
 		`{
-    "default-runtime": "dd-shim",
-	"default-runtime-backup": "containerd",
+    "default-runtime": "containerd",
     "runtimes": {
         "containerd": {
             "path": "/usr/bin/containerd"

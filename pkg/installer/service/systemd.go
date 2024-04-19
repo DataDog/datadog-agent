@@ -65,31 +65,31 @@ func restartUnit(ctx context.Context, unit string) error {
 }
 
 func stopUnit(ctx context.Context, unit string) error {
-	return executeCommand(ctx, wrapUnitCommand(stopCommand, unit))
+	return executeHelperCommand(ctx, wrapUnitCommand(stopCommand, unit))
 }
 
 func startUnit(ctx context.Context, unit string) error {
-	return executeCommand(ctx, wrapUnitCommand(startCommand, unit))
+	return executeHelperCommand(ctx, wrapUnitCommand(startCommand, unit))
 }
 
 func enableUnit(ctx context.Context, unit string) error {
-	return executeCommand(ctx, wrapUnitCommand(enableCommand, unit))
+	return executeHelperCommand(ctx, wrapUnitCommand(enableCommand, unit))
 }
 
 func disableUnit(ctx context.Context, unit string) error {
-	return executeCommand(ctx, wrapUnitCommand(disableCommand, unit))
+	return executeHelperCommand(ctx, wrapUnitCommand(disableCommand, unit))
 }
 
 func loadUnit(ctx context.Context, unit string) error {
-	return executeCommand(ctx, wrapUnitCommand(loadCommand, unit))
+	return executeHelperCommand(ctx, wrapUnitCommand(loadCommand, unit))
 }
 
 func removeUnit(ctx context.Context, unit string) error {
-	return executeCommand(ctx, wrapUnitCommand(removeCommand, unit))
+	return executeHelperCommand(ctx, wrapUnitCommand(removeCommand, unit))
 }
 
 func systemdReload(ctx context.Context) error {
-	return executeCommand(ctx, systemdReloadCommand)
+	return executeHelperCommand(ctx, systemdReloadCommand)
 }
 
 func wrapUnitCommand(command unitCommand, unit string) string {
@@ -108,5 +108,18 @@ func executeCommandStruct(ctx context.Context, command privilegeCommand) error {
 		return err
 	}
 	privilegeCommandJSON := string(rawJSON)
-	return executeCommand(ctx, privilegeCommandJSON)
+	return executeHelperCommand(ctx, privilegeCommandJSON)
+}
+
+// IsSystemdRunning checks if systemd is running using the documented way
+// https://www.freedesktop.org/software/systemd/man/latest/sd_booted.html#Notes
+func IsSystemdRunning() (running bool, err error) {
+	_, err = os.Stat("/run/systemd/system")
+	if os.IsNotExist(err) {
+		log.Infof("Installer: systemd is not running, skip unit setup")
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return true, nil
 }

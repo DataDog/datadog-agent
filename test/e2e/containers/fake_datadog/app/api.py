@@ -280,7 +280,7 @@ def stat_records():
             p = path.join(record_dir, elt)
             st = os.stat(p)
             lines = 0
-            with open(p, 'r') as f:
+            with open(p) as f:
                 for _ in f:
                     lines += 1
             j[elt] = {"size": st.st_size, "lines": lines}
@@ -304,7 +304,7 @@ def get_records(name):
         return Response(status=503)
 
     payloads = list()
-    with open(path.join(record_dir, name), 'r') as f:
+    with open(path.join(record_dir, name)) as f:
         for l in f:
             payloads.append(json.loads(l))
     return json.dumps(payloads), 200

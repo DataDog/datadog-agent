@@ -39,17 +39,19 @@ type packageManager struct {
 	repositories *repository.Repositories
 	configsDir   string
 	installLock  sync.Mutex
+	tmpDirPath   string
 }
 
 func newPackageManager(repositories *repository.Repositories) *packageManager {
 	return &packageManager{
 		repositories: repositories,
 		configsDir:   defaultConfigsDir,
+		tmpDirPath:   defaultRepositoriesPath,
 	}
 }
 
 func (m *packageManager) installStable(ctx context.Context, pkg string, version string, image oci.Image) error {
-	tmpDir, err := os.MkdirTemp("", "")
+	tmpDir, err := os.MkdirTemp(m.tmpDirPath, fmt.Sprintf("install-stable-%s-*", pkg)) // * is replaced by a random string
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
@@ -63,7 +65,10 @@ func (m *packageManager) installStable(ctx context.Context, pkg string, version 
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
+	return m.setupUnits(ctx, pkg)
+}
 
+func (m *packageManager) setupUnits(ctx context.Context, pkg string) error {
 	m.installLock.Lock()
 	defer m.installLock.Unlock()
 	switch pkg {
@@ -71,15 +76,13 @@ func (m *packageManager) installStable(ctx context.Context, pkg string, version 
 		return service.SetupAgentUnits(ctx)
 	case packageAPMInjector:
 		return service.SetupAPMInjector(ctx)
-	case packageDatadogInstaller:
-		return service.SetupInstallerUnit(ctx)
 	default:
 		return nil
 	}
 }
 
 func (m *packageManager) installExperiment(ctx context.Context, pkg string, version string, image oci.Image) error {
-	tmpDir, err := os.MkdirTemp("", "")
+	tmpDir, err := os.MkdirTemp(m.tmpDirPath, fmt.Sprintf("install-experiment-%s-*", pkg)) // * is replaced by a random string
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}

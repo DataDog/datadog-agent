@@ -14,6 +14,7 @@
   =================
   Process Endpoints
   =================
+
   {{- with .expvars.process_agent.endpoints}}
     {{- range $key, $value := .}}
     {{$key}} - API Key{{ if gt (len $value) 1}}s{{end}} ending with:
@@ -54,5 +55,6 @@
       Cache size: {{.expvars.process_agent.workloadmeta_extractor_cache_size}}
       Stale diffs discarded: {{.expvars.process_agent.workloadmeta_extractor_stale_diffs}}
       Diffs dropped: {{.expvars.process_agent.workloadmeta_extractor_diffs_dropped}}
+   
 {{- end }}
 {{- end }}
