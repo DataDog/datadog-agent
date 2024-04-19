@@ -216,6 +216,7 @@ func (iter *fieldIterator) nextField() []byte {
 	return result
 }
 
+// skip results in advancing the iterator in `n` fields (columns)
 func (iter *fieldIterator) skip(n int) {
 	for i := 0; i < n; i++ {
 		_ = iter.nextField()
