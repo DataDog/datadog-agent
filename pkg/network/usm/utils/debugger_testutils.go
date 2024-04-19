@@ -32,7 +32,9 @@ func GetTracedPrograms(programType string) []TracedProgram {
 // ResetDebugger resets the debugger instance. Since this is a global variable, creating multiple monitors
 // in the same test will cause the debugger to contain multiple and old instances of the same program.
 func ResetDebugger() {
-	debugger = &tlsDebugger{}
+	debugger = &tlsDebugger{
+		attachers: make(map[string]Attacher),
+	}
 }
 
 // WaitForProgramsToBeTraced waits for the program to be traced by the debugger
