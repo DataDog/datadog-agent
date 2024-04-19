@@ -39,21 +39,21 @@ func TracedProgramsEndpoint(w http.ResponseWriter, _ *http.Request) {
 	otherutils.WriteAsJSON(w, debugger.GetTracedPrograms())
 }
 
-var debugger *fileRegistryDebugger
+var debugger *tlsDebugger
 
-type fileRegistryDebugger struct {
-	mux       sync.Mutex
-	instances []*FileRegistry
+type tlsDebugger struct {
+	mux        sync.Mutex
+	registries []*FileRegistry
 }
 
-func (d *fileRegistryDebugger) Add(r *FileRegistry) {
+func (d *tlsDebugger) AddRegistry(r *FileRegistry) {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 
-	d.instances = append(d.instances, r)
+	d.registries = append(d.registries, r)
 }
 
-func (d *fileRegistryDebugger) GetTracedPrograms() []TracedProgram {
+func (d *tlsDebugger) GetTracedPrograms() []TracedProgram {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 
@@ -61,7 +61,7 @@ func (d *fileRegistryDebugger) GetTracedPrograms() []TracedProgram {
 
 	// Iterate over each `FileRegistry` instance:
 	// Examples of this would be: "shared_libraries", "istio", "goTLS" etc
-	for _, registry := range d.instances {
+	for _, registry := range d.registries {
 		programType := registry.telemetry.programName
 		tracedProgramsByID := make(map[PathIdentifier]*TracedProgram)
 
@@ -102,5 +102,5 @@ func (d *fileRegistryDebugger) GetTracedPrograms() []TracedProgram {
 }
 
 func init() {
-	debugger = new(fileRegistryDebugger)
+	debugger = new(tlsDebugger)
 }

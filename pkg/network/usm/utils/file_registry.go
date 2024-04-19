@@ -97,7 +97,7 @@ func NewFileRegistry(programName string) *FileRegistry {
 
 	// Add self to the debugger so we can inspect internal state of this
 	// FileRegistry using our debugging endpoint
-	debugger.Add(r)
+	debugger.AddRegistry(r)
 
 	return r
 }
