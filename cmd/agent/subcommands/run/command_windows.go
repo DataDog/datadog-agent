@@ -162,8 +162,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			// wait for context
 			ctx := <-ctxChan
 
-			// Wait
-			// for stop signal
+			// Wait for stop signal
 			select {
 			case <-signals.Stopper:
 				log.Info("Received stop command, shutting down...")
