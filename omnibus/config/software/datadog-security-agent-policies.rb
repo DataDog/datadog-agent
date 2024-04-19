@@ -36,10 +36,4 @@ build do
       copy file, "#{compliance_dir}/"
     end
   end
-
-  runtime_dir = "#{install_dir}/etc/datadog-agent/runtime-security.d"
-  mkdir runtime_dir
-
-  # Copy config files for runtime
-  copy "pkg/security/rules/default.policy", "#{runtime_dir}"
 end

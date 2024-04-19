@@ -162,6 +162,11 @@ build do
     end
 
     move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+
+    # Copy default policy for runtime security (CWS)
+    runtime_dir = "#{conf_dir}/runtime-security.d"
+    mkdir runtime_dir
+    copy "pkg/security/rules/default.policy", "#{runtime_dir}/"
   end
 
   # Security agent
