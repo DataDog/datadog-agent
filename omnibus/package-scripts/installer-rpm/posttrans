@@ -2,6 +2,8 @@
 
 readonly PACKAGES_DIR=/opt/datadog-packages
 readonly INSTALL_DIR=/opt/datadog-installer
+readonly BOOTSTRAP_INSTALLER=${INSTALL_DIR}/bin/installer/installer
+readonly STABLE_INSTALLER=${PACKAGES_DIR}/datadog-installer/stable/bin/installer/installer
 readonly HELPER=${INSTALL_DIR}/bin/installer/helper
 readonly LOG_DIR=/var/log/datadog
 readonly PACKAGES_LOCK_DIR=/var/run/datadog-packages
@@ -63,9 +65,9 @@ fi
 
 # Set helper rights
 chmod 750 ${HELPER}
-setcap cap_setuid+ep ${HELPER}
 
-$BOOTSTRAP_INSTALLER bootstrap --url "oci://public.ecr.aws/datadog/installer-package:latest"
+$BOOTSTRAP_INSTALLER bootstrap --package "datadog-installer"
+$STABLE_INSTALLER bootstrap
 
 exit 0
 

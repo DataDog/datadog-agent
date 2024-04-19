@@ -1,7 +1,6 @@
 """
 Packer namespaced tasks
 """
-from __future__ import print_function
 
 from invoke import task
 from invoke.exceptions import Exit
