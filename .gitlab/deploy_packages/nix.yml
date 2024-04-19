@@ -90,18 +90,6 @@ deploy_packages_dogstatsd_deb-arm64-7:
   variables:
     PACKAGE_ARCH: arm64
 
-deploy_packages_agentless_scanner_deb-x64-7:
-  extends: .deploy_packages_deb-7
-  needs: [ agentless_scanner_deb-x64 ]
-  variables:
-    PACKAGE_ARCH: amd64
-
-deploy_packages_agentless_scanner_deb-arm64-7:
-  extends: .deploy_packages_deb-7
-  needs: [ agentless_scanner_deb-arm64 ]
-  variables:
-    PACKAGE_ARCH: arm64
-
 deploy_packages_rpm-x64-7:
   extends: .deploy_packages_rpm-7
   needs: [ agent_rpm-x64-a7 ]
@@ -138,18 +126,6 @@ deploy_packages_dogstatsd_rpm-x64-7:
   variables:
     PACKAGE_ARCH: x86_64
 
-deploy_packages_agentless_scanner_rpm-x64-7:
-  extends: .deploy_packages_rpm-7
-  needs: [ agentless_scanner_rpm-x64 ]
-  variables:
-    PACKAGE_ARCH: x86_64
-
-deploy_packages_agentless_scanner_rpm-arm64-7:
-  extends: .deploy_packages_rpm-7
-  needs: [ agentless_scanner_rpm-arm64 ]
-  variables:
-    PACKAGE_ARCH: aarch64
-
 deploy_packages_suse_rpm-x64-7:
   extends: .deploy_packages_suse_rpm-7
   needs: [ agent_suse-x64-a7 ]
@@ -171,12 +147,6 @@ deploy_packages_iot_suse_rpm-x64-7:
 deploy_packages_dogstatsd_suse_rpm-x64-7:
   extends: .deploy_packages_suse_rpm-7
   needs: [ dogstatsd_suse-x64 ]
-  variables:
-    PACKAGE_ARCH: x86_64
-
-deploy_packages_agentless_scanner_suse_rpm-x64-7:
-  extends: .deploy_packages_suse_rpm-7
-  needs: [ agentless_scanner_suse-x64 ]
   variables:
     PACKAGE_ARCH: x86_64
 
