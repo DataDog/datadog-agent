@@ -18,8 +18,7 @@ github_rate_limit_info:
     - when: on_success
   script:
     - source /root/.bashrc
-    - python3 -m pip install -r tasks/libs/requirements-github.txt
-    - python3 -m pip install datadog_api_client
+    - python3 -m pip install -r tasks/libs/requirements-github.txt -r tasks/libs/requirements-datadog.txt
     # Send stats for app 1
     - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_KEY_SSM_NAME)
     - export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_APP_ID_SSM_NAME)
