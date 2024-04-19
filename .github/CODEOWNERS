@@ -164,7 +164,6 @@
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
 /cmd/agent/install*.sh                  @DataDog/agent-build-and-releases
-/cmd/agent/gui/views/private/js/apm.js                       @DataDog/agent-apm
 /cmd/agentless-scanner/                 @DataDog/agent-cspm
 /cmd/cluster-agent/                     @DataDog/container-integrations
 /cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/platform-integrations
