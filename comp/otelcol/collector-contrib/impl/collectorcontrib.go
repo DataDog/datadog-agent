@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package collectorcontrib defines the implementation of the collectorcontrib component
 package collectorcontrib
 
 import (
@@ -9,6 +15,8 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/servicegraphconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/fileexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/signalfxexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/splunkhecexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/ackextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/asapauthextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/awsproxy"
@@ -67,7 +75,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/cloudfoundryreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/collectdreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/couchdbreceiver"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/datadogreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/elasticsearchreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/expvarreceiver"
@@ -137,6 +144,7 @@ import (
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
+	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/ballastextension"
 	"go.opentelemetry.io/collector/extension/zpagesextension"
@@ -152,12 +160,14 @@ import (
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awscontainerinsightreceiver"
+	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/datadogreceiver"
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
 )
 
 type collectorcontribImpl struct{}
 
+// NewComponent returns a new collectorcontrib component
 func NewComponent() collectorcontrib.Component {
 	return &collectorcontribImpl{}
 }
@@ -182,29 +192,29 @@ func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, erro
 	}
 
 	extensionsList := []extension.Factory{
-		zpagesextension.NewFactory(),
-		ballastextension.NewFactory(),
 		ackextension.NewFactory(),
 		asapauthextension.NewFactory(),
 		awsproxy.NewFactory(),
+		ballastextension.NewFactory(),
 		basicauthextension.NewFactory(),
 		bearertokenauthextension.NewFactory(),
-		headerssetterextension.NewFactory(),
-		healthcheckextension.NewFactory(),
-		httpforwarderextension.NewFactory(),
-		jaegerremotesampling.NewFactory(),
-		oauth2clientauthextension.NewFactory(),
+		dbstorage.NewFactory(),
 		dockerobserver.NewFactory(),
 		ecsobserver.NewFactory(),
 		ecstaskobserver.NewFactory(),
+		filestorage.NewFactory(),
+		headerssetterextension.NewFactory(),
+		healthcheckextension.NewFactory(),
 		hostobserver.NewFactory(),
+		httpforwarderextension.NewFactory(),
+		jaegerremotesampling.NewFactory(),
 		k8sobserver.NewFactory(),
+		oauth2clientauthextension.NewFactory(),
 		oidcauthextension.NewFactory(),
 		opampextension.NewFactory(),
 		pprofextension.NewFactory(),
 		sigv4authextension.NewFactory(),
-		filestorage.NewFactory(),
-		dbstorage.NewFactory(),
+		zpagesextension.NewFactory(),
 	}
 	extensions, err := extension.MakeFactoryMap(extensionsList...)
 	if err != nil {
@@ -233,7 +243,7 @@ func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, erro
 		cloudfoundryreceiver.NewFactory(),
 		collectdreceiver.NewFactory(),
 		couchdbreceiver.NewFactory(),
-		datadogreceiver.NewFactory(),
+		//datadogreceiver.NewFactory(),
 		dockerstatsreceiver.NewFactory(),
 		elasticsearchreceiver.NewFactory(),
 		expvarreceiver.NewFactory(),
@@ -307,15 +317,15 @@ func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, erro
 	}
 
 	processorList := []processor.Factory{
-		batchprocessor.NewFactory(),
-		memorylimiterprocessor.NewFactory(),
 		attributesprocessor.NewFactory(),
+		batchprocessor.NewFactory(),
 		cumulativetodeltaprocessor.NewFactory(),
 		deltatorateprocessor.NewFactory(),
 		filterprocessor.NewFactory(),
 		groupbyattrsprocessor.NewFactory(),
 		groupbytraceprocessor.NewFactory(),
 		k8sattributesprocessor.NewFactory(),
+		memorylimiterprocessor.NewFactory(),
 		metricsgenerationprocessor.NewFactory(),
 		metricstransformprocessor.NewFactory(),
 		probabilisticsamplerprocessor.NewFactory(),
@@ -339,6 +349,9 @@ func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, erro
 		debugexporter.NewFactory(),
 		fileexporter.NewFactory(),
 		otlpexporter.NewFactory(),
+		otlphttpexporter.NewFactory(),
+		signalfxexporter.NewFactory(),
+		splunkhecexporter.NewFactory(),
 	}
 	exporters, err := exporter.MakeFactoryMap(exporterList...)
 	if err != nil {
