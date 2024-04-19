@@ -21,8 +21,7 @@ import (
 )
 
 const (
-	// CheckName is the name of the
-	// check
+	// CheckName is the name of the check
 	CheckName = "telemetry"
 	prefix    = "datadog.agent."
 )
