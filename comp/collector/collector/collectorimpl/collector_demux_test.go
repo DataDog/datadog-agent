@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
@@ -36,16 +37,55 @@ import (
 type CollectorDemuxTestSuite struct {
 	suite.Suite
 
-	demux demultiplexer.FakeSamplerMock
-	c     *collectorImpl
+	demux             demultiplexer.FakeSamplerMock
+	c                 *collectorImpl
+	SenderManagerMock *SenderManagerProxy
+}
+
+// SenderManagerProxy is a proxy that includes a channel to enforce
+// synchronization in the DestroySender method and implements all the methods of
+// a normal sender
+type SenderManagerProxy struct {
+	destroyChannel     chan checkid.ID
+	innerSenderManager sender.SenderManager
+}
+
+// NewSenderManagerMock creates a new instance of SenderManagerProxy
+func NewSenderManagerMock(s sender.SenderManager) *SenderManagerProxy {
+	return &SenderManagerProxy{
+		destroyChannel:     make(chan checkid.ID),
+		innerSenderManager: s,
+	}
+}
+
+// GetSender returns a sender.Sender with passed ID
+func (s *SenderManagerProxy) GetSender(id checkid.ID) (sender.Sender, error) { //nolint:revive // TODO fix revive unused-parameter
+	return s.innerSenderManager.GetSender(id)
+}
+
+// SetSender returns the passed sender with the passed ID.
+func (s *SenderManagerProxy) SetSender(sender sender.Sender, id checkid.ID) error { //nolint:revive // TODO fix revive unused-parameter
+	return s.innerSenderManager.SetSender(sender, id)
+}
+
+// DestroySender frees up the resources used by the sender with passed ID (by deregistering it from the aggregator)
+func (s *SenderManagerProxy) DestroySender(id checkid.ID) {
+	s.innerSenderManager.DestroySender(id)
+	s.destroyChannel <- id
+} //nolint:revive // TODO fix revive unused-parameter
+
+// GetDefaultSender returns a default sender.
+func (s *SenderManagerProxy) GetDefaultSender() (sender.Sender, error) { //nolint:revive // TODO fix revive unused-parameter
+	return s.innerSenderManager.GetDefaultSender()
 }
 
 func (suite *CollectorDemuxTestSuite) SetupTest() {
 	suite.demux = fxutil.Test[demultiplexer.FakeSamplerMock](suite.T(), logimpl.MockModule(), compressionimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	suite.SenderManagerMock = NewSenderManagerMock(suite.demux)
 	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
 		core.MockBundle(),
 		fx.Provide(func() sender.SenderManager {
-			return suite.demux
+			return suite.SenderManagerMock
 		}),
 		fx.Provide(func() optional.Option[serializer.MetricSerializer] {
 			return optional.NewNoneOption[serializer.MetricSerializer]()
@@ -90,14 +130,16 @@ func (suite *CollectorDemuxTestSuite) TestCancelledCheckCanSendMetrics() {
 
 	flop <- struct{}{}
 
-	suite.waitForCancelledCheckMetrics()
+	suite.waitForCheckMetrics()
+	id := <-suite.SenderManagerMock.destroyChannel
+	assert.Equal(suite.T(), ch.ID(), id, "Destroyed checkid not the same as original checkid")
 
 	newSender, err := suite.demux.GetSender(ch.ID())
 	assert.Nil(suite.T(), err)
 	assert.NotEqual(suite.T(), sender, newSender) // GetSedner returns a new instance, which means the old sender was destroyed correctly.
 }
 
-func (suite *CollectorDemuxTestSuite) waitForCancelledCheckMetrics() {
+func (suite *CollectorDemuxTestSuite) waitForCheckMetrics() {
 	agg := suite.demux.Aggregator()
 	require.Eventually(suite.T(), func() bool {
 		series, _ := agg.GetSeriesAndSketches(time.Time{})
@@ -134,7 +176,9 @@ func (suite *CollectorDemuxTestSuite) TestCancelledCheckDestroysSender() {
 	err := suite.c.StopCheck(ch.ID())
 	assert.NoError(suite.T(), err)
 
-	suite.waitForCancelledCheckMetrics()
+	suite.waitForCheckMetrics()
+	id := <-suite.SenderManagerMock.destroyChannel
+	assert.Equal(suite.T(), ch.ID(), id, "Destroyed checkid not the same as original checkid")
 
 	newSender, err := suite.demux.GetSender(ch.ID())
 	assert.Nil(suite.T(), err)
@@ -177,7 +221,7 @@ func (suite *CollectorDemuxTestSuite) TestRescheduledCheckReusesSampler() {
 	assert.NoError(suite.T(), err)
 
 	// flush
-	suite.waitForCancelledCheckMetrics()
+	suite.waitForCheckMetrics()
 
 	sender, _ = suite.demux.GetSender(ch.ID())
 	sender.DisableDefaultHostname(true)
@@ -189,7 +233,7 @@ func (suite *CollectorDemuxTestSuite) TestRescheduledCheckReusesSampler() {
 	flop <- struct{}{}
 
 	// flush again, check should contain metrics
-	suite.waitForCancelledCheckMetrics()
+	suite.waitForCheckMetrics()
 }
 
 func TestCollectorDemuxSuite(t *testing.T) {
