@@ -192,12 +192,13 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	// prepare the scanner rules
 	var sdsRules []sds.Rule
 	var malformedRulesCount int
+	var unknownStdRulesCount int
 	for _, userRule := range config.Rules {
 		// read the rule in the standard rules
 		standardRule, found := s.standardRules[userRule.Definition.StandardRuleID]
 		if !found {
 			log.Warnf("Referencing an unknown standard rule, id: %v", userRule.Definition.StandardRuleID)
-			tlmSDSRulesState.Inc(s.pipelineID, "unknown_std")
+			unknownStdRulesCount += 1
 			continue
 		}
 
@@ -211,9 +212,8 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 		}
 	}
 
-	if malformedRulesCount > 0 {
-		tlmSDSRulesState.Add(float64(malformedRulesCount), s.pipelineID, "malformed")
-	}
+	tlmSDSRulesState.Set(float64(malformedRulesCount), s.pipelineID, "malformed")
+	tlmSDSRulesState.Set(float64(unknownStdRulesCount), s.pipelineID, "unknown_std")
 
 	// create the new SDS Scanner
 	var scanner *sds.Scanner
@@ -237,8 +237,8 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	log.Infof("Created an SDS scanner with %d enabled rules.", len(scanner.Rules))
 	s.Scanner = scanner
 
-	tlmSDSRulesState.Add(float64(len(sdsRules)), s.pipelineID, "configured")
-	tlmSDSRulesState.Add(float64(totalRulesReceived-len(config.Rules)), s.pipelineID, "disabled")
+	tlmSDSRulesState.Set(float64(len(sdsRules)), s.pipelineID, "configured")
+	tlmSDSRulesState.Set(float64(totalRulesReceived-len(config.Rules)), s.pipelineID, "disabled")
 	tlmSDSReconfigSuccess.Inc(s.pipelineID, string(AgentConfig))
 
 	return nil
