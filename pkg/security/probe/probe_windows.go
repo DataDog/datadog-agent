@@ -64,11 +64,17 @@ type WindowsProbe struct {
 	onETWNotification chan etwNotification
 
 	// ETW component for FIM
-	fileguid windows.GUID
-	regguid  windows.GUID
+	fileguid  windows.GUID
+	regguid   windows.GUID
+	auditguid windows.GUID
+
 	//etwcomp    etw.Component
 	fimSession etw.Session
 	fimwg      sync.WaitGroup
+
+	// the audit session needs a separate ETW session because it's using
+	// a well-known provider
+	auditSession etw.Session
 
 	// path caches
 	filePathResolverLock sync.Mutex
@@ -147,6 +153,7 @@ func (p *WindowsProbe) initEtwFIM() error {
 	// log at Warning right now because it's not expected to be enabled
 	log.Warnf("Enabling FIM processing")
 	etwSessionName := "SystemProbeFIM_ETW"
+	auditSessionName := "EventLog-Security"
 	etwcomp, err := etwimpl.NewEtw()
 	if err != nil {
 		return err
@@ -155,6 +162,7 @@ func (p *WindowsProbe) initEtwFIM() error {
 	if err != nil {
 		return err
 	}
+	p.auditSession, err = etwcomp.NewWellKnownSession(auditSessionName)
 
 	// provider name="Microsoft-Windows-Kernel-File" guid="{edd08927-9cc4-4e65-b970-c2560fb5c289}"
 	p.fileguid, err = windows.GUIDFromString("{edd08927-9cc4-4e65-b970-c2560fb5c289}")
@@ -165,6 +173,12 @@ func (p *WindowsProbe) initEtwFIM() error {
 
 	//<provider name="Microsoft-Windows-Kernel-Registry" guid="{70eb4f03-c1de-4f73-a051-33d13d5413bd}"
 	p.regguid, err = windows.GUIDFromString("{70eb4f03-c1de-4f73-a051-33d13d5413bd}")
+	if err != nil {
+		log.Errorf("Error converting guid %v", err)
+		return err
+	}
+	//  <provider name="Microsoft-Windows-Security-Auditing" guid="{54849625-5478-4994-a5ba-3e3b0328c30d}"
+	p.auditguid, err = windows.GUIDFromString("{54849625-5478-4994-a5ba-3e3b0328c30d}")
 	if err != nil {
 		log.Errorf("Error converting guid %v", err)
 		return err
@@ -243,8 +257,13 @@ func (p *WindowsProbe) Setup() error {
 
 // Stop the probe
 func (p *WindowsProbe) Stop() {
-	if p.fimSession != nil {
-		_ = p.fimSession.StopTracing()
+	if p.fimSession != nil || p.auditSession != nil {
+		if p.fimSession != nil {
+			_ = p.fimSession.StopTracing()
+		}
+		if p.auditSession != nil {
+			_ = p.auditSession.StopTracing()
+		}
 		p.fimwg.Wait()
 	}
 	if p.pm != nil {
@@ -252,6 +271,25 @@ func (p *WindowsProbe) Stop() {
 	}
 }
 
+func (p *WindowsProbe) auditEtw(ecb etwCallback) error {
+	log.Info("Starting tracing...")
+	err := p.auditSession.StartTracing(func(e *etw.DDEventRecord) {
+
+		switch e.EventHeader.ProviderID {
+
+		case etw.DDGUID(p.auditguid):
+			switch e.EventHeader.EventDescriptor.ID {
+			case idObjectPermsChange:
+				if pc, err := p.parseObjectPermsChange(e); err == nil {
+					log.Infof("Received objectPermsChange event %d %s\n", e.EventHeader.EventDescriptor.ID, pc)
+					//ecb(pc, e.EventHeader.ProcessID)
+					ecb(pc, e.EventHeader.ProcessID)
+				}
+			}
+		}
+	})
+	return err
+}
 func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 	log.Info("Starting tracing...")
@@ -431,6 +469,17 @@ func (p *WindowsProbe) Start() error {
 				p.onETWNotification <- etwNotification{n, pid}
 			})
 			log.Infof("Done StartTracing %v", err)
+		}()
+	}
+	if p.auditSession != nil {
+		log.Warnf("Enabling Audit processing")
+		p.fimwg.Add(1)
+		go func() {
+			defer p.fimwg.Done()
+			err := p.auditEtw(func(n interface{}, pid uint32) {
+				p.onETWNotification <- etwNotification{n, pid}
+			})
+			log.Infof("Done AuditTracing %v", err)
 		}()
 	}
 	if p.pm == nil {
