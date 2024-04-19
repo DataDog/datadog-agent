@@ -191,7 +191,7 @@
     - ssh metal_instance "scp /home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt ${MICRO_VM_IP}:/job_env.txt"
     - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd '/root/fetch_dependencies.sh ${ARCH} && /opt/micro-vm-init.sh -test-tools /opt/testing-tools -retry ${RETRY} -test-root /opt/${TEST_COMPONENT}-tests -packages-run-config /opt/${TEST_SET}.json'"
     - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}"
-    - ssh metal_instance "ssh ${MICRO_VM_IP} '/test-json-review'"
+    - ssh metal_instance "ssh ${MICRO_VM_IP} '/opt/testing-tools/test-json-review'"
   artifacts:
     expire_in: 2 weeks
     when: always
