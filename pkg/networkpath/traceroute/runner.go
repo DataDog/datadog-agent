@@ -29,8 +29,7 @@ const (
 	DefaultMinTTL       = 1
 	DefaultMaxTTL       = 30
 	DefaultDelay        = 50 //msec
-	DefaultWaitTime     = 3 * time.Second
-	DefaultReadTimeout  = 3 * time.Second
+	DefaultReadTimeout  = 10 * time.Second
 	DefaultOutputFormat = "json"
 )
 
@@ -59,22 +58,12 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 		maxTTL = DefaultMaxTTL
 	}
 
-	var waitTime time.Duration
-	if cfg.WaitTimeMs == 0 {
-		waitTime = DefaultWaitTime
+	var timeout time.Duration
+	if cfg.TimeoutMs == 0 {
+		timeout = DefaultReadTimeout
 	} else {
-		waitTime = time.Duration(cfg.WaitTimeMs) * time.Millisecond
+		timeout = time.Duration(cfg.TimeoutMs) * time.Millisecond
 	}
-
-	// TODO: create a full traceroute timeout wrapper
-	// though at least for linux, the sysprobe call will
-	// take care of it
-	// var timeout time.Duration
-	// if cfg.TimeoutMs == 0 {
-	// 	timeout = DefaultReadTimeout
-	// } else {
-	// 	timeout = time.Duration(cfg.TimeoutMs) * time.Millisecond
-	// }
 
 	dt := &probev4.UDPv4{
 		Target:     dest,
@@ -85,7 +74,7 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 		MinTTL:     uint8(DefaultMinTTL), // TODO: what's a good value?
 		MaxTTL:     maxTTL,
 		Delay:      time.Duration(DefaultDelay) * time.Millisecond, // TODO: what's a good value?
-		Timeout:    waitTime,                                       // TODO: what's a good value?
+		Timeout:    timeout,                                        // TODO: what's a good value?
 		BrokenNAT:  false,
 	}
 

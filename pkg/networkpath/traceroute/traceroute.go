@@ -17,9 +17,7 @@ type (
 		DestPort uint16
 		// Max number of hops to try
 		MaxTTL uint8
-		// Wait time per request
-		WaitTimeMs uint
-		// Total timeout for traceroute
+		// TODO: do we want to expose this?
 		TimeoutMs uint
 	}
 
