@@ -1139,7 +1139,7 @@ func TestGetStatusBySectionIncorrect(t *testing.T) {
 	provides := newStatus(deps)
 	statusComponent := provides.Comp
 
-	bytesResult, err := statusComponent.GetStatusBySection("consectetur", "json", false)
+	bytesResult, err := statusComponent.GetStatusBySections([]string{"consectetur"}, "json", false)
 
 	assert.Nil(t, bytesResult)
 	assert.EqualError(t, err, `unknown status section 'consectetur', available sections are: ["header","amet","dolor","ipsum","lorem","sit"]`)
