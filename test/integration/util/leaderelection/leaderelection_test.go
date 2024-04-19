@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	log "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -136,7 +136,7 @@ func TestSuiteAPIServer(t *testing.T) {
 
 func (suite *apiserverSuite) SetupTest() {
 	leaderelection.ResetGlobalLeaderEngine()
-	telemetryComponent.GetCompatComponent().Reset()
+	telemetryimpl.GetCompatComponent().Reset()
 
 	tick := time.NewTicker(time.Millisecond * 500)
 	timeout := time.NewTicker(setupTimeout)
@@ -186,7 +186,7 @@ func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) 
 
 func (suite *apiserverSuite) getNewLeaderEngine(holderIdentity string) *leaderelection.LeaderEngine {
 	leaderelection.ResetGlobalLeaderEngine()
-	telemetryComponent.GetCompatComponent().Reset()
+	telemetryimpl.GetCompatComponent().Reset()
 
 	leader := leaderelection.CreateGlobalLeaderEngine(context.Background())
 	leader.HolderIdentity = holderIdentity

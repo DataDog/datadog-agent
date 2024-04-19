@@ -414,7 +414,7 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 // - HEADERS frames
 // - RST_STREAM frames
 // - DATA frames with the END_STREAM flag set
-static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info_t *skb_info, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel) {
+static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info_t *restrict skb_info, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     http2_frame_t current_frame = {};
 

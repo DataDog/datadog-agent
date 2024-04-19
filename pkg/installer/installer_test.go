@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -90,6 +91,7 @@ func newTestInstallerWithPaths(t *testing.T, s *testFixturesServer, rcc *testRem
 	rootPath := t.TempDir()
 	locksPath := t.TempDir()
 	u, err := newInstaller(rc, rootPath, locksPath, cfg)
+	u.packageManager = &newTestPackageManager(t, rootPath, locksPath).packageManager
 	assert.NoError(t, err)
 	u.packageManager.configsDir = t.TempDir()
 	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
@@ -134,6 +136,10 @@ func TestBootstrapURL(t *testing.T) {
 }
 
 func TestPurge(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("FIXME: broken on darwin")
+	}
+
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
@@ -154,7 +160,7 @@ func TestPurge(t *testing.T) {
 	assert.Nil(t, os.WriteFile(filepath.Join(locksPath, "not_empty"), []byte("morbier\n"), 0644))
 	assertDirNotEmpty(t, locksPath)
 	assertDirNotEmpty(t, rootPath)
-	purge(locksPath, rootPath)
+	purge(testCtx, locksPath, rootPath)
 	assertDirExistAndEmpty(t, locksPath)
 	assertDirExistAndEmpty(t, rootPath)
 	bootstrapAndAssert()

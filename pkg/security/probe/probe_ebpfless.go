@@ -131,16 +131,20 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	switch syscallMsg.Type {
 	case ebpfless.SyscallTypeExec:
 		event.Type = uint32(model.ExecEventType)
-		var source uint64
+
+		var entry *model.ProcessCacheEntry
 		if syscallMsg.Exec.FromProcFS {
-			source = model.ProcessCacheEntryFromProcFS
+			entry = p.Resolvers.ProcessResolver.AddProcFSEntry(
+				process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.PPID, syscallMsg.Exec.File.Filename,
+				syscallMsg.Exec.Args, syscallMsg.Exec.ArgsTruncated, syscallMsg.Exec.Envs, syscallMsg.Exec.EnvsTruncated,
+				syscallMsg.ContainerID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
 		} else {
-			source = model.ProcessCacheEntryFromEvent
+			entry = p.Resolvers.ProcessResolver.AddExecEntry(
+				process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.PPID, syscallMsg.Exec.File.Filename,
+				syscallMsg.Exec.Args, syscallMsg.Exec.ArgsTruncated, syscallMsg.Exec.Envs, syscallMsg.Exec.EnvsTruncated,
+				syscallMsg.ContainerID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
 		}
-		entry := p.Resolvers.ProcessResolver.AddExecEntry(
-			process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.PPID, syscallMsg.Exec.File.Filename,
-			syscallMsg.Exec.Args, syscallMsg.Exec.ArgsTruncated, syscallMsg.Exec.Envs, syscallMsg.Exec.EnvsTruncated,
-			syscallMsg.ContainerID, syscallMsg.Timestamp, syscallMsg.Exec.TTY, source)
+
 		if syscallMsg.Exec.Credentials != nil {
 			entry.Credentials.UID = syscallMsg.Exec.Credentials.UID
 			entry.Credentials.EUID = syscallMsg.Exec.Credentials.EUID
@@ -271,6 +275,12 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 			"image_name:" + containerContext.ImageShortName,
 			"image_tag:" + containerContext.ImageTag,
 		}
+	}
+
+	// copy span context if any
+	if syscallMsg.SpanContext != nil {
+		event.SpanContext.SpanID = syscallMsg.SpanContext.SpanID
+		event.SpanContext.TraceID = syscallMsg.SpanContext.TraceID
 	}
 
 	// use ProcessCacheEntry process context as process context

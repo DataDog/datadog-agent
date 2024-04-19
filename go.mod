@@ -126,7 +126,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	// do not update datadog-operator to 1.2.1 because the indirect dependency github.com/DataDog/datadog-api-client-go/v2 v2.15.0 is trigger a huge Go heap memory increase.
 	github.com/DataDog/datadog-operator v1.1.0
-	github.com/DataDog/ebpf-manager v0.5.1
+	github.com/DataDog/ebpf-manager v0.6.0
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.4
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.14.0
@@ -155,7 +155,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.13.3-0.20240314165416-06282fb6ba65
+	github.com/cilium/ebpf v0.14.0
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/containerd v1.7.13
 	github.com/containernetworking/cni v1.1.2
@@ -210,7 +210,7 @@ require (
 	github.com/miekg/dns v1.1.58
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/moby/sys/mountinfo v0.7.1
-	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
+	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/netsampler/goflow2 v1.3.3
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
@@ -598,7 +598,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/DataDog/agent-payload/v5 v5.0.111
+	github.com/DataDog/agent-payload/v5 v5.0.113
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/config v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.53.0-rc.2
@@ -710,7 +710,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
-	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240318112024-de26033b606a // indirect
+	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240418080137-a7c7a570540d // indirect
 	github.com/DataDog/go-sqllexer v0.0.9 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.14.0 // indirect
 	github.com/Intevation/gval v1.3.0 // indirect

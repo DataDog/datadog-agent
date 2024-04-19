@@ -8,6 +8,8 @@ name 'system-probe'
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
+always_build true
+
 build do
   license :project_license
 

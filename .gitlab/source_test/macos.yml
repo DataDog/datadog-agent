@@ -1,7 +1,8 @@
 tests_macos:
   stage: source_test
   # HACK: Run macOS unit tests only on full pipelines, to limit the use of macOS GitHub runners.
-  rules: !reference [.on_main_or_release_branch_or_all_builds]
+  rules:
+    - !reference [.on_main_or_release_branch_or_all_builds_or_pkg_installer_changes]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
@@ -18,10 +19,7 @@ tests_macos:
     - inv -e github.trigger-macos --workflow-type "test" --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES" --version-cache "$VERSION_CACHE_CONTENT" $FAST_TESTS_FLAG
   timeout: 6h
   after_script:
-    - source /root/.bashrc
-    # Upload generated junit files
-    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
-    - for f in junit-*-repacked.tgz; do inv -e junit-upload --tgz-path $f; done
+    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-*-repacked.tgz"
   artifacts:
     expire_in: 2 weeks
     when: always
