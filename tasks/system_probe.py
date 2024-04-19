@@ -20,6 +20,7 @@ from tasks.agent import BUNDLED_AGENTS
 from tasks.agent import build as agent_build
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -30,7 +31,6 @@ from tasks.libs.common.utils import (
     get_gobin,
     get_version_numeric_only,
 )
-from tasks.libs.ninja_syntax import NinjaWriter
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -251,7 +251,13 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
         "prebuilt/shared-libraries",
         "prebuilt/conntrack",
     ]
-    network_co_re_programs = ["tracer", "co-re/tracer-fentry", "runtime/usm", "runtime/shared-libraries"]
+    network_co_re_programs = [
+        "tracer",
+        "co-re/tracer-fentry",
+        "runtime/usm",
+        "runtime/shared-libraries",
+        "runtime/conntrack",
+    ]
     network_programs_wo_instrumentation = ["prebuilt/dns", "prebuilt/offset-guess"]
 
     for prog in network_programs:
@@ -638,6 +644,7 @@ def test(
     failfast=False,
     kernel_release=None,
     timeout=None,
+    extra_arguments="",
 ):
     """
     Run tests on eBPF parts
@@ -671,6 +678,7 @@ def test(
     args["run"] = f"-run {run}" if run else ""
     args["go"] = "go"
     args["sudo"] = "sudo -E " if not is_windows and not output_path and not is_root() else ""
+    args["extra_arguments"] = extra_arguments
 
     _, _, env = get_build_flags(ctx)
     env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
@@ -686,7 +694,7 @@ def test(
         args["dir"] = pdir
         testto = timeout if timeout else get_test_timeout(pdir)
         args["timeout"] = f"-timeout {testto}" if testto else ""
-        cmd = '{sudo}{go} test -mod=mod -v {failfast} {timeout} -tags "{build_tags}" {output_params} {dir} {run}'
+        cmd = '{sudo}{go} test -mod=mod -v {failfast} {timeout} -tags "{build_tags}" {extra_arguments} {output_params} {dir} {run}'
         res = ctx.run(cmd.format(**args), env=env, warn=True)
         if res.exited is None or res.exited > 0:
             failed_pkgs.append(os.path.relpath(pdir, ctx.cwd))
@@ -802,7 +810,7 @@ def clean_build(ctx):
         return True
 
     # if this build happens on a new commit do it cleanly
-    with open(BUILD_COMMIT, 'r') as f:
+    with open(BUILD_COMMIT) as f:
         build_commit = f.read().rstrip()
         curr_commit = ctx.run("git rev-parse HEAD", hide=True).stdout.rstrip()
         if curr_commit != build_commit:
@@ -856,7 +864,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/bytecode/testsuite
     for i, pkg in enumerate(target_packages):
-        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, pkg.lstrip(os.getcwd()))
+        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, os.path.relpath(pkg, os.getcwd()))
         target_bin = "testsuite"
         if is_windows:
             target_bin = "testsuite.exe"
@@ -903,115 +911,6 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
 
     ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
     ctx.run(f"echo $(git rev-parse HEAD) > {BUILD_COMMIT}")
-
-
-@task
-def kitchen_test(ctx, target=None, provider=None):
-    """
-    Run tests (locally with vagrant) using chef kitchen against an array of different platforms.
-    * Make sure to run `inv -e system-probe.kitchen-prepare` using the agent-development VM;
-    * Then we recommend to run `inv -e system-probe.kitchen-test` directly from your (macOS) machine;
-    """
-
-    if CURRENT_ARCH == "x64":
-        vagrant_arch = "x86_64"
-        provider = provider or "virtualbox"
-    elif CURRENT_ARCH == "arm64":
-        vagrant_arch = "arm64"
-        provider = provider or "parallels"
-    else:
-        raise Exit(f"Unsupported vagrant arch for {CURRENT_ARCH}", code=1)
-
-    # Retrieve a list of all available vagrant images
-    images = {}
-    platform_file = os.path.join(KITCHEN_DIR, "platforms.json")
-    with open(platform_file, 'r') as f:
-        for kplatform, by_provider in json.load(f).items():
-            if "vagrant" in by_provider and vagrant_arch in by_provider["vagrant"]:
-                for image in by_provider["vagrant"][vagrant_arch]:
-                    images[image] = kplatform
-
-    if not (target in images):
-        print(
-            f"please run inv -e system-probe.kitchen-test --target <IMAGE>, where <IMAGE> is one of the following:\n{list(images.keys())}"
-        )
-        raise Exit(code=1)
-
-    args = [
-        f"--platform {images[target]}",
-        f"--osversions {target}",
-        "--provider vagrant",
-        "--testfiles system-probe-test",
-        f"--platformfile {platform_file}",
-        f"--arch {vagrant_arch}",
-    ]
-
-    with ctx.cd(KITCHEN_DIR):
-        ctx.run(
-            f"inv kitchen.genconfig {' '.join(args)}",
-            env={"KITCHEN_VAGRANT_PROVIDER": provider},
-        )
-        ctx.run("kitchen test")
-
-
-@task
-def kitchen_genconfig(
-    ctx,
-    ssh_key,
-    platform,
-    osversions,
-    image_size=None,
-    provider="azure",
-    arch=None,
-    azure_sub_id=None,
-    ec2_device_name="/dev/sda1",
-    mount_path="/mnt/ci",
-):
-    if not arch:
-        arch = CURRENT_ARCH
-
-    if arch_mapping[arch] == "x64":
-        arch = "x86_64"
-    elif arch_mapping[arch] == "arm64":
-        arch = "arm64"
-    else:
-        raise Exit("unsupported arch specified")
-
-    if not image_size and provider == "azure":
-        image_size = "Standard_D2_v2"
-
-    if azure_sub_id is None and provider == "azure":
-        raise Exit("azure subscription id must be specified with --azure-sub-id")
-
-    env = {
-        "KITCHEN_CI_MOUNT_PATH": mount_path,
-        "KITCHEN_CI_ROOT_PATH": "/tmp/ci",
-    }
-    if provider == "azure":
-        env["KITCHEN_RSA_SSH_KEY_PATH"] = ssh_key
-        if azure_sub_id:
-            env["AZURE_SUBSCRIPTION_ID"] = azure_sub_id
-    elif provider == "ec2":
-        env["KITCHEN_EC2_SSH_KEY_PATH"] = ssh_key
-        env["KITCHEN_EC2_DEVICE_NAME"] = ec2_device_name
-
-    args = [
-        f"--platform={platform}",
-        f"--osversions={osversions}",
-        f"--provider={provider}",
-        f"--arch={arch}",
-        f"--imagesize={image_size}",
-        "--testfiles=system-probe-test",
-        "--platformfile=platforms.json",
-    ]
-
-    env["KITCHEN_ARCH"] = arch
-    env["KITCHEN_PLATFORM"] = platform
-    with ctx.cd(KITCHEN_DIR):
-        ctx.run(
-            f"inv -e kitchen.genconfig {' '.join(args)}",
-            env=env,
-        )
 
 
 @task
@@ -1545,13 +1444,8 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
         ctx.run(f"cp {btf_dir}/kitchen-btfs-{arch}.tar.xz {files_dir}/minimized-btfs.tar.xz")
 
 
-@task
-def generate_minimized_btfs(
-    ctx,
-    source_dir,
-    output_dir,
-    input_bpf_programs,
-):
+@task(iterable=['bpf_programs'])
+def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
     """
     Given an input directory containing compressed full-sized BTFs, generates an identically-structured
     output directory containing compressed minimized versions of those BTFs, tailored to the given
@@ -1560,12 +1454,14 @@ def generate_minimized_btfs(
 
     # If there are no input programs, we don't need to actually do anything; however, in order to
     # prevent CI jobs from failing, we'll create a dummy output directory
-    if input_bpf_programs == "":
+    if len(bpf_programs) == 0:
         ctx.run(f"mkdir -p {output_dir}/dummy_data")
         return
 
-    if os.path.isdir(input_bpf_programs):
-        input_bpf_programs = glob.glob(f"{input_bpf_programs}/*.o")
+    if len(bpf_programs) == 1 and os.path.isdir(bpf_programs[0]):
+        programs_dir = os.path.abspath(bpf_programs[0])
+        print(f"using all object files from directory {programs_dir}")
+        bpf_programs = glob.glob(f"{programs_dir}/*.o")
 
     ctx.run(f"mkdir -p {output_dir}")
 
@@ -1584,13 +1480,13 @@ def generate_minimized_btfs(
 
             for d in dirs:
                 output_subdir = os.path.join(output_dir, path_from_root, d)
-                ctx.run(f"mkdir -p {output_subdir}")
+                os.makedirs(output_subdir, exist_ok=True)
 
             for file in files:
-                if not file.endswith(".tar.xz"):
+                if not file.endswith(".btf.tar.xz"):
                     continue
 
-                btf_filename = file[: -len(".tar.xz")]
+                btf_filename = file.removesuffix(".tar.xz")
                 minimized_btf_path = os.path.join(output_dir, path_from_root, btf_filename)
 
                 nw.build(
@@ -1607,7 +1503,7 @@ def generate_minimized_btfs(
                     inputs=[os.path.join(root, btf_filename)],
                     outputs=[minimized_btf_path],
                     variables={
-                        "input_bpf_programs": input_bpf_programs,
+                        "input_bpf_programs": bpf_programs,
                     },
                 )
 
@@ -1634,7 +1530,9 @@ def process_btfhub_archive(ctx, branch="main"):
     output_dir = os.getcwd()
     with tempfile.TemporaryDirectory() as temp_dir:
         with ctx.cd(temp_dir):
-            ctx.run(f"git clone --depth=1 -b {branch} https://github.com/DataDog/btfhub-archive.git")
+            ctx.run(
+                f"git clone --depth=1 --single-branch --branch={branch} https://github.com/DataDog/btfhub-archive.git"
+            )
             with ctx.cd("btfhub-archive"):
                 # iterate over all top-level directories, which are platforms (amzn, ubuntu, etc.)
                 with os.scandir(ctx.cwd) as pit:
@@ -1654,6 +1552,7 @@ def process_btfhub_archive(ctx, branch="main"):
                                         if not adir.is_dir() or adir.name not in {"x86_64", "arm64"}:
                                             continue
 
+                                        print(f"{pdir.name}/{rdir.name}/{adir.name}")
                                         src_dir = adir.path
                                         # list BTF .tar.xz files in arch dir
                                         btf_files = os.listdir(src_dir)
@@ -1768,6 +1667,10 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
     if is_windows:
         return
 
+    # crane does not accept 'x86_64' as a valid architecture
+    if arch == "x86_64":
+        arch = "amd64"
+
     # only download images not present in preprepared vm disk
     resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/docker.ls')
     docker_ls = {line for line in resp.text.split('\n') if line.strip()}
@@ -1799,7 +1702,7 @@ def _test_docker_image_list():
 
     images = set()
     for docker_compose_path in docker_compose_paths:
-        with open(docker_compose_path, "r") as f:
+        with open(docker_compose_path) as f:
             docker_compose = yaml.safe_load(f.read())
         for component in docker_compose["services"]:
             images.add(docker_compose["services"][component]["image"])
@@ -1873,7 +1776,7 @@ def save_build_outputs(ctx, destfile):
     absdest = os.path.abspath(destfile)
     count = 0
     with tempfile.TemporaryDirectory() as stagedir:
-        with open("compile_commands.json", "r") as compiledb:
+        with open("compile_commands.json") as compiledb:
             for outputitem in json.load(compiledb):
                 if "output" not in outputitem:
                     continue

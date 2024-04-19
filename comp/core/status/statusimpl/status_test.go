@@ -773,6 +773,25 @@ X Section
 				assert.Equal(t, expectedResult, output)
 			},
 		},
+		{
+			name:    "Text case insensitive",
+			format:  "text",
+			section: "X SeCtIoN",
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := `=========
+X Section
+=========
+ text from a
+ text from x
+`
+
+				// We replace windows line break by linux so the tests pass on every OS
+				expectedResult := strings.Replace(result, "\r\n", "\n", -1)
+				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+
+				assert.Equal(t, expectedResult, output)
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -1081,4 +1100,47 @@ func TestFlareProvider(t *testing.T) {
 	flareProvider := provides.FlareProvider.Provider
 
 	assert.NotNil(t, flareProvider)
+}
+
+func TestGetStatusBySectionIncorrect(t *testing.T) {
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule(),
+		fx.Supply(
+			agentParams,
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "Lorem",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "ipsum",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "doloR",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "Sit",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "AmEt",
+				name:        "1",
+			}),
+		),
+	))
+
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
+
+	bytesResult, err := statusComponent.GetStatusBySection("consectetur", "json", false)
+
+	assert.Nil(t, bytesResult)
+	assert.EqualError(t, err, `unknown status section 'consectetur', available sections are: ["header","amet","dolor","ipsum","lorem","sit"]`)
 }
