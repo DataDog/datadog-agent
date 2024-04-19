@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/secrets"
 )
 
 const (
@@ -68,8 +69,7 @@ func (v *configRefreshSuite) TestConfigRefresh() {
 
 	v.T().Log("Setting up the secret resolver and the initial api key file")
 
-	secretResolverOptions := fileOptions{usergroup: "dd-agent:root", perm: "750", content: secretResolverScript}
-	createFile(v.T(), v.Env().RemoteHost, secretResolverPath, secretResolverOptions)
+	// TODO: create secretClient to set and remove secrets
 	createFile(v.T(), v.Env().RemoteHost, apiKeyFile, fileOptions{content: []byte(apiKey1)})
 
 	// fill the config template
@@ -88,6 +88,7 @@ func (v *configRefreshSuite) TestConfigRefresh() {
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
+			agentparams.WithFileWithPermissions(secretResolverPath, string(secretResolverScript), true, secrets.WithUnixSecretPermissions(true)),
 			agentparams.WithAgentConfig(coreconfig),
 			agentparams.WithSecurityAgentConfig(securityAgentConfig),
 			agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
