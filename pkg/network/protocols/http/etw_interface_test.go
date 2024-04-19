@@ -173,7 +173,7 @@ func executeRequestForTest(t *testing.T, etw *EtwInterface, test testDef) ([]Win
 	var txns []WinHttpTransaction
 	responsecount := make(map[int]int)
 	var ok bool
-
+	var maplock sync.Mutex
 	var wg sync.WaitGroup
 
 	wg.Add(1)
@@ -230,11 +230,13 @@ func executeRequestForTest(t *testing.T, etw *EtwInterface, test testDef) ([]Win
 			// track how many successes & errors so we can match to the transactions
 			// returned below.
 			code := resp.StatusCode
+			maplock.Lock()
 			if v, ok := responsecount[code]; ok {
 				responsecount[code] = v + 1
 			} else {
 				responsecount[code] = 1
 			}
+			maplock.Unlock()
 			err = resp.Body.Close()
 			require.NoError(t, err)
 		}()
