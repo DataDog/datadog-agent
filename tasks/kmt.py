@@ -35,6 +35,7 @@ from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
+from tasks.kernel_matrix_testing.vars import arch_ls
 from tasks.system_probe import EMBEDDED_SHARE_DIR
 
 if TYPE_CHECKING:
@@ -1024,6 +1025,18 @@ def update_platform_info(ctx: Context, version: Optional[str] = None, update_onl
                 platforms[arch][image_name]['alt_version_names'] = altnames
 
     info(f"[+] Writing output to {platforms_file}...")
+
+    # Do validation of the platforms dict, check that there are no outdated versions
+    for arch in arch_ls:
+        for image_name, platinfo in platforms[arch].items():
+            if update_only_matching is not None and re.search(update_only_matching, image_name) is None:
+                continue  # Only validate those that match
+
+            version_from_file = platinfo.get('image_version')
+            if version_from_file != version:
+                warn(
+                    f"[!] Image {image_name} ({arch}) has version {version_from_file} but we are updating to {version}, manifest file may be missing?"
+                )
 
     with open(platforms_file, "w") as f:
         json.dump(platforms, f, indent=2)
