@@ -6,25 +6,24 @@ class EndpointTests(TestCase):
     name = "[Endpoints] Test endpoint configs"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
         path = "/var/log/hello-world.log" if config.platform != Platform.windows else "C:\\tmp\\hello-world.log"
         self.append(
             f"""
 ```
-logs: 
+logs:
 - type: file
     path: {path}
     service: test-file-tailing
     source: hello-world
-``` 
+```
 """
         )
 
         self.append(
             """
-in your `datadog.yaml`: 
+in your `datadog.yaml`:
 
 ```
 logs_config:
@@ -37,7 +36,7 @@ logs_config:
 - Generate some logs ``docker run -it bfloerschddog/flog -l > hello-world.log`
 
 # Test
-- validate logs are flowing to the intake 
+- validate logs are flowing to the intake
 
 *TIP*: Open Live tail and filter by your host. After each test, refresh the page to clear the live tail. You can leave the log producer running between tests
 
@@ -99,21 +98,21 @@ docker run -d --name dd-agent \
    <RC_IMAGE>
 ```
 
-3. get some logs flowing through the agent. Warning if you use `DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL` you will create a feedback loop from the mock intake containers. I'd recommend spawning a dedicated logging container. 
+3. get some logs flowing through the agent. Warning if you use `DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL` you will create a feedback loop from the mock intake containers. I'd recommend spawning a dedicated logging container.
 
-4. Watch the logs flow in both intakes. 
+4. Watch the logs flow in both intakes.
 5. Kill one of the intakes
  - make sure logs are still flowing to the other one
 
 6. Kill the second intake (both are now dead)
- - check `agent status` to see that # of bytes read is not increasing (pipeline should be blocked) 
+ - check `agent status` to see that # of bytes read is not increasing (pipeline should be blocked)
 
 7. Restart one of the intakes - logs should start flowing
-8. restart the other intake - logs should start flowing. 
+8. restart the other intake - logs should start flowing.
 
 ### App QA
 
-Now instead of using mock intakes - use two real Datadog intakes. You will need 2 API keys each from different orgs. 
+Now instead of using mock intakes - use two real Datadog intakes. You will need 2 API keys each from different orgs.
 
 ```
 docker run -d --name dd-agent \
@@ -129,6 +128,6 @@ docker run -d --name dd-agent \
    <RC_IMAGE>
  ```
 
-Stream some logs and watch the livetail in both orgs for the logs. 
+Stream some logs and watch the livetail in both orgs for the logs.
 """
         )
