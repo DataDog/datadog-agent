@@ -104,7 +104,7 @@ type entry struct {
 	buffer []byte
 }
 
-func newEntry(line []byte, buffer []byte) entry {
+func newEntry(line, buffer []byte) entry {
 	e := entry{buffer: buffer}
 	iter := fieldIterator{line}
 
