@@ -8,6 +8,7 @@
 .build_sysprobe_artifacts:
   # kitchen prepare also builds object files
   - inv -e system-probe.kitchen-prepare --ci
+  - inv -e kmt.prepare --ci
 
 # Run tests for eBPF code
 .tests_linux_ebpf:
