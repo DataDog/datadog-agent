@@ -144,10 +144,12 @@ func getSourceMap(file string) (map[string]map[int]*SourceLine, error) {
 
 	sourceMap := make(map[string]map[int]*SourceLine)
 	lines := strings.Split(string(out), "\n")
+	nextLineInfo := ""
 	currLineInfo, currLine := "", ""
 	currSect := ""
 
 	sectionRegex := regexp.MustCompile("Disassembly of section (.*):")
+	lineInfoRegex := regexp.MustCompile("^; [^:]+:[0-9]+")
 
 	// Very ad-hoc parsing but enough for our purposes
 	for _, line := range lines {
@@ -159,12 +161,22 @@ func getSourceMap(file string) (map[string]map[int]*SourceLine, error) {
 		// in two lines starting with ;. The first is the file and line number,
 		// the second is the source line itself.
 		// So we keep track of the last two things we found that started with ";"
-		// Note that a single code line might translate to multiple assembly instructions
+		// Sometimes we can get a function entry point for an assembly line without source information,
+		// so we need to discard that. We only save the source information if the first line is of the form
+		// "; <file>:<line>" and the second line is the actual source line.
+		// Note that a single code line might translate to multiple assembly instructions, so we do
+		// this once and keep the state for all assembly lines following.
 		if line[0] == ';' {
-			currLineInfo = currLine
-			currLine = strings.TrimPrefix(line, "; ")
+			if lineInfoRegex.MatchString(line) {
+				nextLineInfo = line
+			} else if nextLineInfo != "" {
+				currLineInfo = strings.TrimPrefix(nextLineInfo, "; ")
+				currLine = strings.TrimPrefix(line, "; ")
+				nextLineInfo = ""
+			}
 			continue
 		}
+		nextLineInfo = "" // Reset the next line info if we don't have a source line
 
 		// Check for section headers
 		sectionMatch := sectionRegex.FindStringSubmatch(line)
