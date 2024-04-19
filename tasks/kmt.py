@@ -622,6 +622,13 @@ def kmt_prepare(
                 "chdir": "cd test/new-e2e/system-probe/test-runner",
             },
         )
+        test_runner_config = glob("test/new-e2e/system-probe/test-runner/files/*.json")
+        for f in test_runner_config:
+            nw.build(
+                rule="copyfiles",
+                outputs=[f"{kmt_paths.arch_dir}/opt/{os.path.basename(f)}"],
+                inputs=[os.path.abspath(f)],
+            )
 
         test_json_files = glob("test/new-e2e/system-probe/test-json-review/*.go")
         nw.build(
