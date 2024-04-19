@@ -50,17 +50,20 @@ type Statistics struct {
 	PeakStates                 stat `json:"peak_states" kernel:"5.2"`
 }
 
+// SourceLine holds the information about a C source line
 type SourceLine struct {
 	LineInfo string `json:"line_info"`
 	Line     string `json:"line"`
 }
 
+// InstructionInfo holds information about an eBPF instruction extracted from the verifier
 type InstructionInfo struct {
 	TimesProcessed int         `json:"times_processed"`
 	Source         *SourceLine `json:"source"`
 	Code           string      `json:"code"`
 }
 
+// SourceLineStats holds the aggregate verifier statistics for a given C source line
 type SourceLineStats struct {
 	NumInstructions int      `json:"num_instructions"`
 	MaxPasses       int      `json:"max_passes"`
@@ -68,6 +71,8 @@ type SourceLineStats struct {
 	AssemblyInsns   []string `json:"assembly_insns"`
 }
 
+// ComplexityInfo holds the complexity information for a given eBPF program, with assembly
+// and source line information
 type ComplexityInfo struct {
 	InsnMap   map[int]*InstructionInfo    `json:"insn_map"`
 	SourceMap map[string]*SourceLineStats `json:"source_map"`
@@ -427,17 +432,17 @@ func unmarshalComplexity(output string, progSourceMap map[int]*SourceLine) (*Com
 		if len(match) == 0 {
 			continue // Only interested in lines that contain assembly instructions
 		}
-		ins_idx, err := strconv.Atoi(match[1])
+		insIdx, err := strconv.Atoi(match[1])
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse instruction index (line is '%s'): %w", line, err)
 		}
-		if _, ok := complexity.InsnMap[ins_idx]; !ok {
-			complexity.InsnMap[ins_idx] = &InstructionInfo{}
+		if _, ok := complexity.InsnMap[insIdx]; !ok {
+			complexity.InsnMap[insIdx] = &InstructionInfo{}
 		}
-		complexity.InsnMap[ins_idx].TimesProcessed++
-		complexity.InsnMap[ins_idx].Code = match[2]
+		complexity.InsnMap[insIdx].TimesProcessed++
+		complexity.InsnMap[insIdx].Code = match[2]
 		if progSourceMap != nil {
-			complexity.InsnMap[ins_idx].Source = progSourceMap[ins_idx]
+			complexity.InsnMap[insIdx].Source = progSourceMap[insIdx]
 		}
 	}
 
