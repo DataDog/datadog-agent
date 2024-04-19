@@ -13,10 +13,6 @@
     - !reference [.setup_deb_signing_key]
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project installer --log-level debug
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-installer_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
-  after_script:
-    - ls -l /go/src/github.com/DataDog/datadog-agent/omnibus/config/templates/package-artifacts || true
-    - ls -l /go/src/github.com/DataDog/datadog-agent/omnibus/config/templates/installer
-    - ls -l /go/src/github.com/DataDog/datadog-agent/omnibus/config/templates/
   artifacts:
     expire_in: 2 weeks
     paths:
