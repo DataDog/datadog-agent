@@ -35,7 +35,6 @@ func (t *serverlessImpl) Handler() http.Handler {
 }
 
 func (t *serverlessImpl) Reset() {
-	// NADA
 }
 
 func (t *serverlessImpl) NewCounter(subsystem, name string, tags []string, help string) telemetry.Counter {
@@ -88,6 +87,20 @@ func (t *serverlessImpl) NewSimpleHistogram(subsystem, name, help string, bucket
 
 func (t *serverlessImpl) NewSimpleHistogramWithOpts(subsystem, name, help string, buckets []float64, opts telemetry.Options) telemetry.SimpleHistogram {
 	return &simpleNoOpHistogram{}
+}
+
+func (t *serverlessImpl) Meter(name string, opts ...telemetry.MeterOption) telemetry.Meter {
+	return nil
+}
+
+func (t *serverlessImpl) RegisterCollector(c telemetry.Collector) {}
+
+func (t *serverlessImpl) UnregisterCollector(c telemetry.Collector) bool {
+	return true
+}
+
+func (t *serverlessImpl) GatherDefault() ([]*telemetry.MetricFamily, error) {
+	return nil, nil
 }
 
 func GetCompatComponent() telemetry.Component {

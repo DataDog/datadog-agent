@@ -161,7 +161,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	}()
 
 	if tr.bpfErrorsCollector = ebpftelemetry.NewEBPFErrorsCollector(); tr.bpfErrorsCollector != nil {
-		coretelemetry.GetCompatComponent().(coretelemetry.PrometheusComponent).RegisterCollector(tr.bpfErrorsCollector)
+		coretelemetry.GetCompatComponent().RegisterCollector(tr.bpfErrorsCollector)
 	} else {
 		log.Debug("eBPF telemetry not supported")
 	}
@@ -170,13 +170,13 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	if err != nil {
 		return nil, err
 	}
-	coretelemetry.GetCompatComponent().(coretelemetry.PrometheusComponent).RegisterCollector(tr.ebpfTracer)
+	coretelemetry.GetCompatComponent().RegisterCollector(tr.ebpfTracer)
 
 	tr.conntracker, err = newConntracker(cfg)
 	if err != nil {
 		return nil, err
 	}
-	coretelemetry.GetCompatComponent().(coretelemetry.PrometheusComponent).RegisterCollector(tr.conntracker)
+	coretelemetry.GetCompatComponent().RegisterCollector(tr.conntracker)
 
 	tr.gwLookup = newGatewayLookup(cfg)
 	if tr.gwLookup != nil {
@@ -190,7 +190,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
-		coretelemetry.GetCompatComponent().(coretelemetry.PrometheusComponent).RegisterCollector(tr.processCache)
+		coretelemetry.GetCompatComponent().RegisterCollector(tr.processCache)
 
 		if tr.timeResolver, err = timeresolver.NewResolver(); err != nil {
 			return nil, fmt.Errorf("could not create time resolver: %w", err)
@@ -366,22 +366,22 @@ func (t *Tracer) Stop() {
 	}
 	if t.ebpfTracer != nil {
 		t.ebpfTracer.Stop()
-		coretelemetry.GetCompatComponent().(coretelemetry.PrometheusComponent).UnregisterCollector(t.ebpfTracer)
+		coretelemetry.GetCompatComponent().UnregisterCollector(t.ebpfTracer)
 	}
 	if t.usmMonitor != nil {
 		t.usmMonitor.Stop()
 	}
 	if t.conntracker != nil {
 		t.conntracker.Close()
-		coretelemetry.GetCompatComponent().(coretelemetry.PrometheusComponent).UnregisterCollector(t.conntracker)
+		coretelemetry.GetCompatComponent().UnregisterCollector(t.conntracker)
 	}
 	if t.processCache != nil {
 		events.UnregisterHandler(t.processCache)
 		t.processCache.Stop()
-		coretelemetry.GetCompatComponent().(coretelemetry.PrometheusComponent).UnregisterCollector(t.processCache)
+		coretelemetry.GetCompatComponent().UnregisterCollector(t.processCache)
 	}
 	if t.bpfErrorsCollector != nil {
-		coretelemetry.GetCompatComponent().(coretelemetry.PrometheusComponent).UnregisterCollector(t.bpfErrorsCollector)
+		coretelemetry.GetCompatComponent().UnregisterCollector(t.bpfErrorsCollector)
 	}
 }
 
