@@ -10,6 +10,11 @@ readonly BOOTSTRAP_INSTALLER=${INSTALL_DIR}/bin/installer/installer
 readonly STABLE_INSTALLER=${PACKAGES_DIR}/datadog-installer/stable/bin/installer/installer
 readonly PACKAGES_LOCK_DIR=/var/run/datadog-packages
 
+bootstrap() {
+    $BOOTSTRAP_INSTALLER bootstrap --package "datadog-installer"
+    $STABLE_INSTALLER bootstrap
+}
+
 add_user_and_group() {
     # Only create group and/or user if they don't already exist
     NAME=$1
@@ -49,7 +54,7 @@ chown -R dd-installer:dd-installer ${INSTALL_DIR}
 # needs to write PID files
 chmod 777 ${PACKAGES_LOCK_DIR}
 
-$BOOTSTRAP_INSTALLER bootstrap --package "datadog-installer"
-$STABLE_INSTALLER bootstrap
+# we currently allow failures to install the installer
+(bootstrap) || true
 
 exit 0
