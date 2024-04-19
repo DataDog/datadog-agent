@@ -28,7 +28,7 @@ notify:
     - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - !reference [.setup_python_mirror_linux]
-    - python3 -m pip install -r tasks/libs/requirements-notifications
+    - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications
     - |
       # Do not send notifications if this is a child pipeline of another repo
       # The triggering repo should already have its own notification system
