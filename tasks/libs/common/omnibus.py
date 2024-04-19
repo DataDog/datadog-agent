@@ -51,6 +51,7 @@ def _get_environment_for_cache() -> dict:
             'EMISSARY_',
             'EXECUTOR_',
             'FF_',
+            'GITHUB_',
             'GITLAB_',
             'GIT_',
             'JIRA_',
