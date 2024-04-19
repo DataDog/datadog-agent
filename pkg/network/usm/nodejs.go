@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -185,7 +186,7 @@ func (m *nodeJSMonitor) Start() {
 			}
 		}
 	}()
-
+	utils.AddAttacher("nodejs-tls", m)
 	log.Info("Node JS TLS monitoring enabled")
 }
 
@@ -226,13 +227,26 @@ func (m *nodeJSMonitor) sync() {
 	}
 }
 
-func (m *nodeJSMonitor) handleProcessExec(pid uint32) {
+// DetachPID detaches a given pid from the eBPF program
+func (m *nodeJSMonitor) DetachPID(pid uint32) error {
+	// We avoid filtering PIDs here because it's cheaper to simply do a registry lookup
+	// instead of fetching a process name in order to determine whether it is an
+	// envoy process or not (which at the very minimum involves syscalls)
+	return m.registry.Unregister(pid)
+}
+
+var (
+	errNoNodeJSPath = errors.New("no nodejs path found for PID")
+)
+
+// AttachPID attaches a given pid to the eBPF program
+func (m *nodeJSMonitor) AttachPID(pid uint32) error {
 	path := m.getNodeJSPath(pid)
 	if path == "" {
-		return
+		return errNoNodeJSPath
 	}
 
-	m.registry.Register(
+	return m.registry.Register(
 		path,
 		pid,
 		m.registerCB,
@@ -241,10 +255,11 @@ func (m *nodeJSMonitor) handleProcessExec(pid uint32) {
 }
 
 func (m *nodeJSMonitor) handleProcessExit(pid uint32) {
-	// We avoid filtering PIDs here because it's cheaper to simply do a registry lookup
-	// instead of fetching a process name in order to determine whether it is an
-	// envoy process or not (which at the very minimum involves syscalls)
-	m.registry.Unregister(pid)
+	_ = m.DetachPID(pid)
+}
+
+func (m *nodeJSMonitor) handleProcessExec(pid uint32) {
+	_ = m.AttachPID(pid)
 }
 
 // getNodeJSPath returns the executable path of the nodejs binary for a given PID.
