@@ -139,7 +139,7 @@ func main() {
 		filterRegexp = append(filterRegexp, regexp.MustCompile(filter))
 	}
 
-	statsOpts := verifier.VerifierStatsOptions{
+	statsOpts := verifier.StatsOptions{
 		ObjectFiles:        files,
 		VerifierLogsDir:    *verifierLogsDir,
 		DetailedComplexity: *lineComplexity,

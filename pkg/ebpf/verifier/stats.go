@@ -93,7 +93,7 @@ func isCOREAsset(path string) bool {
 }
 
 // VerifyStatsOptions holds the options for the function BuildVerifierStats
-type VerifierStatsOptions struct {
+type StatsOptions struct {
 	ObjectFiles        []string
 	FilterPrograms     []*regexp.Regexp
 	DetailedComplexity bool
@@ -102,7 +102,7 @@ type VerifierStatsOptions struct {
 
 // BuildVerifierStats accepts a list of eBPF object files and generates a
 // map of all programs and their Statistics, and a map of their detailed complexity info (only filled if DetailedComplexity is true)
-func BuildVerifierStats(opts *VerifierStatsOptions) (map[string]*Statistics, map[string]*ComplexityInfo, map[string]struct{}, error) {
+func BuildVerifierStats(opts *StatsOptions) (map[string]*Statistics, map[string]*ComplexityInfo, map[string]struct{}, error) {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to get host kernel version: %w", err)
@@ -216,7 +216,7 @@ func getSourceMap(file string) (map[string]map[int]*SourceLine, error) {
 	return sourceMap, nil
 }
 
-func generateLoadFunction(file string, opts *VerifierStatsOptions, stats map[string]*Statistics, complexity map[string]*ComplexityInfo, failedToLoad map[string]struct{}) func(bytecode.AssetReader, manager.Options) error {
+func generateLoadFunction(file string, opts *StatsOptions, stats map[string]*Statistics, complexity map[string]*ComplexityInfo, failedToLoad map[string]struct{}) func(bytecode.AssetReader, manager.Options) error {
 	return func(bc bytecode.AssetReader, managerOptions manager.Options) error {
 		kversion, err := kernel.HostVersion()
 		if err != nil {
