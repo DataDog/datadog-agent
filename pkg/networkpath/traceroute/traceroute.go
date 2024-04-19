@@ -30,6 +30,7 @@ type (
 	// Runner executes traceroutes
 	Runner struct {
 		gatewayLookup network.GatewayLookup
+		nsIno         uint32
 		networkID     string
 	}
 

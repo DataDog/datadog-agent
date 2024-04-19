@@ -48,6 +48,7 @@ var gatewayLookupTelemetry = struct {
 
 type LinuxGatewayLookup struct {
 	rootNetNs           netns.NsHandle
+	rootNsNsIno         uint32
 	routeCache          RouteCache
 	subnetCache         *simplelru.LRU[int, interface{}] // interface index to subnet cache
 	subnetForHwAddrFunc func(net.HardwareAddr) (Subnet, error)

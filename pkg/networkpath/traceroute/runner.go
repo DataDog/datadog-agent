@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/results"
@@ -55,19 +56,17 @@ var tracerouteRunnerTelemetry = struct {
 func NewRunner() (*Runner, error) {
 	// TODO: we should probably cache this info
 	// double check the underlying call doesn't
-	// already do this
+	// already do this and only check if we're
+	// running on AWS
 	networkID, err := ec2.GetNetworkID(context.Background())
 	if err != nil {
 		log.Errorf("failed to get network ID: %s", err.Error())
 	}
-
-	gatewayLookup := network.NewGatewayLookup(rootNsLookup, math.MaxUint32)
-	if gatewayLookup == nil {
-		log.Warnf("gateway lookup is not enabled")
-	}
+	gatewayLookup, nsIno := createGatewayLookup()
 
 	return &Runner{
 		gatewayLookup: gatewayLookup,
+		nsIno:         nsIno,
 		networkID:     networkID,
 	}, nil
 }
@@ -131,7 +130,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (NetworkPath, er
 		return NetworkPath{}, err
 	}
 
-	pathResult, err := r.processResults(ctx, results, hname, rawDest, dest)
+	pathResult, err := r.processResults(results, hname, rawDest, dest)
 	if err != nil {
 		return NetworkPath{}, err
 	}
@@ -159,7 +158,7 @@ func getPorts(configDestPort uint16) (uint16, uint16, bool) {
 	return destPort, srcPort, useSourcePort
 }
 
-func (r *Runner) processResults(ctx context.Context, res *results.Results, hname string, destinationHost string, destinationIP net.IP) (NetworkPath, error) {
+func (r *Runner) processResults(res *results.Results, hname string, destinationHost string, destinationIP net.IP) (NetworkPath, error) {
 	type node struct {
 		node  string
 		probe *results.Probe
@@ -205,12 +204,10 @@ func (r *Runner) processResults(ctx context.Context, res *results.Results, hname
 
 		// get hardware interface info
 		if r.gatewayLookup != nil {
-			log.Errorf("we're not nil???? %+v", r.gatewayLookup)
 			src := util.AddressFromNetIP(localAddr)
 			dst := util.AddressFromNetIP(hops[0].Sent.IP.DstIP)
 
-			// TODO: how do I get namespace here?
-			traceroutePath.Source.Via = r.gatewayLookup.LookupWithIPs(src, dst, 0)
+			traceroutePath.Source.Via = r.gatewayLookup.LookupWithIPs(src, dst, r.nsIno)
 		}
 
 		firstNodeName := localAddr.String()
@@ -305,6 +302,27 @@ func getHostname(ipAddr string) string {
 		currHost = ipAddr
 	}
 	return currHost
+}
+
+func createGatewayLookup() (network.GatewayLookup, uint32) {
+	rootNs, err := rootNsLookup()
+	if err != nil {
+		log.Errorf("failed to create gateway lookup")
+	}
+	defer rootNs.Close()
+
+	nsIno, err := kernel.GetInoForNs(rootNs)
+	if err != nil {
+		log.Errorf("failed to create gateway lookup")
+		return nil, 0
+	}
+
+	gatewayLookup := network.NewGatewayLookup(rootNsLookup, math.MaxUint32)
+	if gatewayLookup == nil {
+		log.Warnf("gateway lookup is not enabled")
+	}
+
+	return gatewayLookup, nsIno
 }
 
 func rootNsLookup() (netns.NsHandle, error) {
