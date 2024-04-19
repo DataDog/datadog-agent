@@ -14,8 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
 
 func TestGetTCPConnections(t *testing.T) {
