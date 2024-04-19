@@ -1,6 +1,7 @@
 """
 SELinux namespaced tasks
 """
+
 import os
 
 from invoke import task

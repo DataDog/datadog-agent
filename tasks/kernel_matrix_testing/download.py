@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import platform
 import tempfile
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 from invoke.context import Context
 
@@ -41,7 +41,7 @@ def requires_update(url_base: str, rootfs_dir: PathOrStr, image: str, branch: st
     return False
 
 
-def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name: str, arch: Optional[Arch] = None):
+def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name: str, arch: Arch | None = None):
     platforms = get_platforms()
     vmconfig_template = get_vmconfig_template(vmconfig_template_name)
 
@@ -49,8 +49,8 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
 
     if arch is None:
         arch = arch_mapping[platform.machine()]
-    to_download: List[str] = list()
-    file_ls: List[str] = list()
+    to_download: list[str] = list()
+    file_ls: list[str] = list()
     branch_mapping: dict[str, str] = dict()
 
     for tag in platforms[arch]:
@@ -140,7 +140,7 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
 
 def update_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template: str, all_archs: bool = False):
     if all_archs:
-        arch_ls: List[Arch] = ["x86_64", "arm64"]
+        arch_ls: list[Arch] = ["x86_64", "arm64"]
         for arch in arch_ls:
             info(f"[+] Updating root filesystem for {arch}")
             download_rootfs(ctx, rootfs_dir, vmconfig_template, arch)

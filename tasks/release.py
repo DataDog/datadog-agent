@@ -374,7 +374,7 @@ def list_major_change(_, milestone):
 
 
 def _load_release_json():
-    with open("release.json", "r") as release_json_stream:
+    with open("release.json") as release_json_stream:
         return json.load(release_json_stream, object_pairs_hook=OrderedDict)
 
 
@@ -868,7 +868,6 @@ def __get_force_option(force: bool) -> str:
 def __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel):
     """Tag a given module."""
     for tag in module.tag(agent_version):
-
         if devel:
             tag += "-devel"
 
@@ -1128,7 +1127,7 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
-def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
+def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin", slack_webhook=None):
     """
     Updates the release entries in release.json to prepare the next RC build.
     If the previous version of the Agent (determined as the latest tag on the
@@ -1155,6 +1154,8 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     Updates internal module dependencies with the new RC.
 
     Commits the above changes, and then creates a PR on the upstream repository with the change.
+
+    If slack_webhook is provided, it tries to send the PR URL to the provided webhook. This is meant to be used mainly in automation.
 
     Notes:
     This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
@@ -1248,12 +1249,19 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
             code=1,
         )
 
-    create_pr(
+    pr_url = create_pr(
         f"[release] Update release.json and Go modules for {versions_string}",
         current_branch,
         update_branch,
         new_final_version,
     )
+
+    # Step 4 - If slack workflow webhook is provided, send a slack message
+    if slack_webhook:
+        print(color_message("Sending slack notification", "bold"))
+        ctx.run(
+            f"curl -X POST -H 'Content-Type: application/json' --data '{{\"pr_url\":\"{pr_url}\"}}' {slack_webhook}"
+        )
 
 
 def create_pr(title, base_branch, target_branch, version, changelog_pr=False):
@@ -1316,6 +1324,8 @@ Make sure that milestone is open before trying again.""",
 
     print(color_message(f"Set labels and milestone for PR #{updated_pr.number}", "bold"))
     print(color_message(f"Done preparing release PR. The PR is available here: {updated_pr.html_url}", "bold"))
+
+    return updated_pr.html_url
 
 
 @task
@@ -1462,7 +1472,7 @@ def create_and_update_release_branch(ctx, repo, release_branch, base_directory="
             _save_release_json(rj)
 
             # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml jobs
-            with open(".gitlab-ci.yml", "r") as gl:
+            with open(".gitlab-ci.yml") as gl:
                 file_content = gl.readlines()
 
             with open(".gitlab-ci.yml", "w") as gl:

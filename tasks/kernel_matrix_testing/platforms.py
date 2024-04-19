@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, cast
+from typing import TYPE_CHECKING, cast
 
 import yaml
 
@@ -22,11 +22,11 @@ def get_platforms():
 
 
 def filter_by_ci_component(platforms: Platforms, component: Component) -> Platforms:
-    job_arch_mapping: Dict[Arch, str] = {
+    job_arch_mapping: dict[Arch, str] = {
         "x86_64": "x64",
         "arm64": "arm64",
     }
-    job_component_mapping: Dict[Component, str] = {
+    job_component_mapping: dict[Component, str] = {
         "system-probe": "sysprobe",
         "security-agent": "secagent",
     }
@@ -38,7 +38,7 @@ def filter_by_ci_component(platforms: Platforms, component: Component) -> Platfo
     with open(target_file) as f:
         ci_config = yaml.load(f, Loader=GitlabYamlLoader())
 
-    arch_ls: List[Arch] = ["x86_64", "arm64"]
+    arch_ls: list[Arch] = ["x86_64", "arm64"]
     for arch in arch_ls:
         job_name = f"kmt_run_{job_component_mapping[component]}_tests_{job_arch_mapping[arch]}"
         if job_name not in ci_config:

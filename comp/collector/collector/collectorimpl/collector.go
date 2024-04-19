@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	metadata "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgCollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -28,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -45,14 +47,17 @@ type dependencies struct {
 	Config config.Component
 	Log    log.Component
 
-	SenderManager sender.SenderManager
+	SenderManager    sender.SenderManager
+	MetricSerializer optional.Option[serializer.MetricSerializer]
 }
 
 type collectorImpl struct {
-	log log.Component
+	log    log.Component
+	config config.Component
 
-	senderManager  sender.SenderManager
-	checkInstances int64
+	senderManager    sender.SenderManager
+	metricSerializer optional.Option[serializer.MetricSerializer]
+	checkInstances   int64
 
 	// state is 'started' or 'stopped'
 	state *atomic.Uint32
@@ -64,14 +69,16 @@ type collectorImpl struct {
 
 	cancelCheckTimeout time.Duration
 
-	m sync.RWMutex
+	m         sync.RWMutex
+	createdAt time.Time
 }
 
 type provides struct {
 	fx.Out
 
-	Comp     collector.Component
-	Provider status.InformationProvider
+	Comp             collector.Component
+	StatusProvider   status.InformationProvider
+	MetadataProvider metadata.Provider
 }
 
 // Module defines the fx options for this component.
@@ -86,20 +93,30 @@ func Module() fxutil.Module {
 
 func newProvides(deps dependencies) provides {
 	c := newCollector(deps)
+
+	var agentCheckMetadata metadata.Provider
+	if _, isSet := deps.MetricSerializer.Get(); isSet {
+		agentCheckMetadata = metadata.NewProvider(c.collectMetadata)
+	}
+
 	return provides{
-		Comp:     c,
-		Provider: status.NewInformationProvider(collectorStatus.Provider{}),
+		Comp:             c,
+		StatusProvider:   status.NewInformationProvider(collectorStatus.Provider{}),
+		MetadataProvider: agentCheckMetadata,
 	}
 }
 
 func newCollector(deps dependencies) *collectorImpl {
 	c := &collectorImpl{
 		log:                deps.Log,
+		config:             deps.Config,
 		senderManager:      deps.SenderManager,
+		metricSerializer:   deps.MetricSerializer,
 		checks:             make(map[checkid.ID]*middleware.CheckWrapper),
 		state:              atomic.NewUint32(stopped),
 		checkInstances:     int64(0),
 		cancelCheckTimeout: deps.Config.GetDuration("check_cancel_timeout"),
+		createdAt:          time.Now(),
 	}
 
 	pkgCollector.InitPython(common.GetPythonPaths()...)
@@ -109,7 +126,6 @@ func newCollector(deps dependencies) *collectorImpl {
 		OnStop:  c.stop,
 	})
 
-	c.log.Debug("Collector up and running!")
 	return c
 }
 
@@ -142,6 +158,8 @@ func (c *collectorImpl) start(_ context.Context) error {
 	c.scheduler = sched
 	c.runner = run
 	c.state.Store(started)
+
+	c.log.Debug("Collector up and running!")
 
 	return nil
 }

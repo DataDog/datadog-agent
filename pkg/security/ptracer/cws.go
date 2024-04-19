@@ -302,6 +302,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		go func() {
 			defer wg.Done()
 
+			// introduce a delay before starting to scan procfs to let the tracer event first
+			time.Sleep(2 * time.Second)
+
 			scanProcfs(ctx, tracer.PID, send, every, logger)
 		}()
 	}
@@ -319,6 +322,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 			}
 			msg.PID = uint32(process.Tgid)
 			msg.Timestamp = uint64(time.Now().UnixNano())
+			msg.ContainerID = containerID
 			send(&ebpfless.Message{
 				Type:    ebpfless.MessageTypeSyscall,
 				Syscall: msg,

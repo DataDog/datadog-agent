@@ -54,6 +54,9 @@ func init() {
 	}
 }
 
+// Option is a function that modifies a Server
+type Option func(*Server)
+
 // Server is a struct implementing a fakeintake server
 type Server struct {
 	server    http.Server
@@ -65,7 +68,8 @@ type Server struct {
 	urlMutex sync.RWMutex
 	url      string
 
-	store serverstore.Store
+	storeDriver string
+	store       serverstore.Store
 
 	responseOverridesMutex    sync.RWMutex
 	responseOverridesByMethod map[string]map[string]httpResponse
@@ -75,16 +79,24 @@ type Server struct {
 // options accept WithPort and WithReadyChan.
 // Call Server.Start() to start the server in a separate go-routine
 // If the port is 0, a port number is automatically chosen
-func NewServer(options ...func(*Server)) *Server {
+func NewServer(options ...Option) *Server {
 	fi := &Server{
 		urlMutex:                  sync.RWMutex{},
 		clock:                     clock.New(),
 		retention:                 15 * time.Minute,
-		store:                     serverstore.NewStore(),
 		responseOverridesMutex:    sync.RWMutex{},
 		responseOverridesByMethod: newResponseOverrides(),
+		server: http.Server{
+			Addr: "0.0.0.0:0",
+		},
+		storeDriver: "memory",
 	}
 
+	for _, opt := range options {
+		opt(fi)
+	}
+
+	fi.store = serverstore.NewStore(fi.storeDriver)
 	registry := prometheus.NewRegistry()
 
 	storeMetrics := fi.store.GetInternalMetrics()
@@ -118,14 +130,7 @@ func NewServer(options ...func(*Server)) *Server {
 		Registry:          registry,
 	}))
 
-	fi.server = http.Server{
-		Handler: mux,
-		Addr:    ":0",
-	}
-
-	for _, opt := range options {
-		opt(fi)
-	}
+	fi.server.Handler = mux
 
 	return fi
 }
@@ -133,7 +138,7 @@ func NewServer(options ...func(*Server)) *Server {
 // WithAddress changes the server host:port.
 // If host is empty, it will bind to 0.0.0.0
 // If the port is empty or 0, a port number is automatically chosen
-func WithAddress(addr string) func(*Server) {
+func WithAddress(addr string) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the port.")
@@ -145,12 +150,23 @@ func WithAddress(addr string) func(*Server) {
 
 // WithPort changes the server port.
 // If the port is 0, a port number is automatically chosen
-func WithPort(port int) func(*Server) {
-	return WithAddress(fmt.Sprintf(":%d", port))
+func WithPort(port int) Option {
+	return WithAddress(fmt.Sprintf("0.0.0.0:%d", port))
+}
+
+// WithStoreDriver changes the store driver used by the server
+func WithStoreDriver(driver string) func(*Server) {
+	return func(fi *Server) {
+		if fi.IsRunning() {
+			log.Println("Fake intake is already running. Stop it and try again to change the store driver.")
+			return
+		}
+		fi.storeDriver = driver
+	}
 }
 
 // WithReadyChannel assign a boolean channel to get notified when the server is ready
-func WithReadyChannel(ready chan bool) func(*Server) {
+func WithReadyChannel(ready chan bool) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the ready channel.")
@@ -161,7 +177,7 @@ func WithReadyChannel(ready chan bool) func(*Server) {
 }
 
 // WithClock changes the clock used by the server
-func WithClock(clock clock.Clock) func(*Server) {
+func WithClock(clock clock.Clock) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the clock.")
@@ -172,7 +188,7 @@ func WithClock(clock clock.Clock) func(*Server) {
 }
 
 // WithRetention changes the retention time of payloads in the store
-func WithRetention(retention time.Duration) func(*Server) {
+func WithRetention(retention time.Duration) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the ready channel.")
