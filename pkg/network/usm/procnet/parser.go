@@ -109,7 +109,7 @@ func newEntry(line, buffer []byte) entry {
 	iter := fieldIterator{line}
 
 	// refer to the diagram above for the line format
-	iter.skip(1)
+	iter.skip(1) // skips the number of the entry
 	e.laddr = iter.nextField()
 	e.raddr = iter.nextField()
 	e.state = iter.nextField()
