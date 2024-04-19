@@ -38,7 +38,7 @@ const (
 	stackUpTimeout      = 60 * time.Minute
 	stackDestroyTimeout = 60 * time.Minute
 	stackDeleteTimeout  = 20 * time.Minute
-	stackUpRetry        = 2
+	stackUpMaxRetry     = 2
 )
 
 var (
@@ -339,8 +339,10 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
 
 	var upResult auto.UpResult
+	upCount := 0
 
-	for retry := 0; retry < stackUpRetry; retry++ {
+	for {
+		upCount++
 		upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
 		upResult, err = stack.Up(upCtx, progressStreamsUpOption, optup.DebugLogging(loggingOptions))
 		cancel()
@@ -349,7 +351,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 			break
 		}
 
-		retryStrategy := sm.getRetryStrategyFrom(err)
+		retryStrategy := sm.getRetryStrategyFrom(err, upCount)
 		err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), err.Error(), []string{"operation:up", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name())}, logger)
 		if err != nil {
 			fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
@@ -422,12 +424,18 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 	}
 }
 
-func (sm *StackManager) getRetryStrategyFrom(err error) retryType {
+func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) retryType {
+	// if first attempt + retries count are higher than max retry, give up
+	if upCount > stackUpMaxRetry {
+		return noRetry
+	}
+
 	for _, knownError := range sm.knownErrors {
 		if strings.Contains(err.Error(), knownError.errorMessage) {
 			return knownError.retryType
 		}
 	}
+
 	return reUp
 }
 
