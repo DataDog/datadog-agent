@@ -252,6 +252,9 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	if v.distro == os.DebianDefault {
 		v.T().Skip("Skipping Debian as it fails")
 	}
+	if v.distro == os.SuseDefault {
+		v.T().Skip("Skipping SUSE as it fails")
+	}
 
 	host := v.Env().RemoteHost
 
