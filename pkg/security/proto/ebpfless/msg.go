@@ -72,6 +72,10 @@ const (
 	SyscallTypeUnloadModule
 	// SyscallTypeChdir chdir/fchdir type
 	SyscallTypeChdir
+	// SyscallTypeMount mount type
+	SyscallTypeMount
+	// SyscallTypeUmount umount/umount2 type
+	SyscallTypeUmount
 )
 
 // ContainerContext defines a container context
@@ -265,6 +269,18 @@ type SpanContext struct {
 	TraceID uint64
 }
 
+// MountSyscallMsg defines a mount message
+type MountSyscallMsg struct {
+	Source string
+	Target string
+	FSType string
+}
+
+// UmountSyscallMsg defines a mount message
+type UmountSyscallMsg struct {
+	Path string
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	Type         SyscallType
@@ -294,6 +310,8 @@ type SyscallMsg struct {
 	LoadModule   *LoadModuleSyscallMsg   `json:",omitempty"`
 	UnloadModule *UnloadModuleSyscallMsg `json:",omitempty"`
 	Chdir        *ChdirSyscallMsg        `json:",omitempty"`
+	Mount        *MountSyscallMsg        `json:",omitempty"`
+	Umount       *UmountSyscallMsg       `json:",omitempty"`
 
 	// internals
 	Dup *DupSyscallFakeMsg `json:",omitempty"`

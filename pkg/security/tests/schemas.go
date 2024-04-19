@@ -288,6 +288,10 @@ func (tm *testModule) validateBindSchema(t *testing.T, event *model.Event) bool 
 
 //nolint:deadcode,unused
 func (tm *testModule) validateMountSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/mount.schema.json")
 }

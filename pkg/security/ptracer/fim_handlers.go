@@ -184,7 +184,6 @@ func registerFIMHandlers(handlers map[int]syscallHandler) []string {
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
-
 		{
 			IDs:        []syscallID{{ID: ChownNr, Name: "chown"}, {ID: LchownNr, Name: "lchown"}},
 			Func:       handleChown,
@@ -200,6 +199,18 @@ func registerFIMHandlers(handlers map[int]syscallHandler) []string {
 		{
 			IDs:        []syscallID{{ID: FchownAtNr, Name: "fchownat"}},
 			Func:       handleFchownAt,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
+		{
+			IDs:        []syscallID{{ID: MountNr, Name: "mount"}},
+			Func:       handleMount,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
+		{
+			IDs:        []syscallID{{ID: Umount2Nr, Name: "umount2"}},
+			Func:       handleUmount2,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
@@ -1005,9 +1016,18 @@ func handleFchownAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 		return err
 	}
 
-	filename, err = getFullPathFromFd(process, filename, fd)
-	if err != nil {
-		return err
+	flags := tracer.ReadArgInt32(regs, 4)
+	if flags&unix.AT_EMPTY_PATH > 0 {
+		// if AT_EMPTY_PATH is specified, the fd points to the file itself, not the directory
+		var exists bool
+		if filename, exists = process.Res.Fd[fd]; !exists {
+			return errors.New("process FD cache incomplete during path resolution")
+		}
+	} else {
+		filename, err = getFullPathFromFd(process, filename, fd)
+		if err != nil {
+			return err
+		}
 	}
 
 	msg.Type = ebpfless.SyscallTypeChown
@@ -1023,6 +1043,49 @@ func handleFchownAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 		msg.Chown.Group = getGroupFromGID(tracer, msg.Chown.GID)
 	}
 	return fillFileMetadata(tracer, filename, &msg.Chown.File, disableStats)
+}
+
+func handleMount(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+	source, err := tracer.ReadArgString(process.Pid, regs, 0)
+	if err != nil {
+		return err
+	}
+
+	target, err := tracer.ReadArgString(process.Pid, regs, 1)
+	if err != nil {
+		return err
+	}
+
+	fstype, err := tracer.ReadArgString(process.Pid, regs, 2)
+	if err != nil {
+		return err
+	}
+
+	flags := tracer.ReadArgUint64(regs, 3)
+	if flags&unix.MS_BIND != 0 {
+		fstype = "bind"
+	}
+
+	msg.Type = ebpfless.SyscallTypeMount
+	msg.Mount = &ebpfless.MountSyscallMsg{
+		Source: source,
+		Target: target,
+		FSType: fstype,
+	}
+	return nil
+}
+
+func handleUmount2(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+	path, err := tracer.ReadArgString(process.Pid, regs, 0)
+	if err != nil {
+		return err
+	}
+
+	msg.Type = ebpfless.SyscallTypeUmount
+	msg.Umount = &ebpfless.UmountSyscallMsg{
+		Path: path,
+	}
+	return nil
 }
 
 //

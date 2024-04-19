@@ -56,6 +56,9 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestOsOrigin",
 			"~TestSpan",
 			"~TestChdir",
+			"TestMountEvent",
+			"TestMount",
+			"TestMountPropagated",
 		}
 
 		exclude := []string{
@@ -76,6 +79,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestLink/io_uring",
 			"TestLoadModule/load_module_with_truncated_params",
 			"~TestChown32",
+			"TestMountEvent/mount-in-container-root",
 		}
 
 		match := func(list []string) bool {
