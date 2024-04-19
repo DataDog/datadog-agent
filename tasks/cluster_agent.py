@@ -224,7 +224,7 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
         ctx.run(f'docker build -t {target_image_name} -f {dockerfile.name} .', env=pull_env)
 
         if push:
-            ctx.run(f'docker push {target_image}')
+            ctx.run(f'docker push {target_image_name}')
 
 
 @task
