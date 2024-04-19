@@ -145,7 +145,7 @@ kmt_setup_env_sysprobe_x64:
     - !reference [.wait_for_instance]
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
-    - scp $CI_PROJECT_DIR/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
+    - scp $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
     # build connector
     - pushd $CI_PROJECT_DIR/test/new-e2e
     - go build -o $CI_PROJECT_DIR/connector-${ARCH} $CI_PROJECT_DIR/test/new-e2e/system-probe/connector/main.go
