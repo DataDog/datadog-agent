@@ -117,6 +117,7 @@ func copyFileAttributes(src *ebpfless.FileSyscallMsg, dst *model.FileEvent) {
 	dst.CTime = src.CTime
 	dst.MTime = src.MTime
 	dst.Mode = uint16(src.Mode)
+	dst.Inode = src.Inode
 	if src.Credentials != nil {
 		dst.UID = src.Credentials.UID
 		dst.User = src.Credentials.User

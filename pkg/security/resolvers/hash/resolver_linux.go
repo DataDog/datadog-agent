@@ -78,6 +78,7 @@ type ResolverOpts struct {
 type LRUCacheKey struct {
 	path        string
 	containerID string
+	inode       uint64
 }
 
 // LRUCacheEntry is the structure used to cache hashes
@@ -215,6 +216,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 	fileKey := LRUCacheKey{
 		path:        file.PathnameStr,
 		containerID: process.ContainerID,
+		inode:       file.Inode,
 	}
 	if resolver.cache != nil {
 		cacheEntry, ok := resolver.cache.Get(fileKey)
