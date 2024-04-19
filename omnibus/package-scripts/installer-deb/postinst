@@ -47,8 +47,7 @@ chown -R dd-installer:dd-installer ${INSTALL_DIR}
 
 # Lock_dir is world read/write/x as any application with a tracer injected
 # needs to write PID files
-chmod -R 777 ${PACKAGES_LOCK_DIR}
-chmod -R 755 ${PACKAGES_DIR}
+chmod 777 ${PACKAGES_LOCK_DIR}
 
 $BOOTSTRAP_INSTALLER bootstrap --package "datadog-installer"
 $STABLE_INSTALLER bootstrap
