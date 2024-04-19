@@ -20,7 +20,7 @@ func TestVEdgeInterface(t *testing.T) {
 		namespace           string
 		itf                 client.InterfaceState
 		expectedID          string
-		expectedIndex       int
+		expectedIndex       int32
 		expectedSpeed       float64
 		expectedOperStatus  devicemetadata.IfOperStatus
 		expectedAdminStatus devicemetadata.IfAdminStatus

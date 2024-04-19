@@ -3,9 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package telemetry
+package telemetryimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -71,11 +72,11 @@ func (c *promCounter) DeleteWithTags(tags map[string]string) {
 }
 
 // WithValues returns SimpleCounter for this metric with the given tag values.
-func (c *promCounter) WithValues(tagsValue ...string) SimpleCounter {
+func (c *promCounter) WithValues(tagsValue ...string) telemetry.SimpleCounter {
 	return &simplePromCounter{c: c.pc.WithLabelValues(tagsValue...)}
 }
 
 // Withtags returns SimpleCounter for this metric with the given tag values.
-func (c *promCounter) WithTags(tags map[string]string) SimpleCounter {
+func (c *promCounter) WithTags(tags map[string]string) telemetry.SimpleCounter {
 	return &simplePromCounter{c: c.pc.With(tags)}
 }

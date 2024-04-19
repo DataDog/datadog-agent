@@ -91,6 +91,7 @@ func newTestInstallerWithPaths(t *testing.T, s *testFixturesServer, rcc *testRem
 	rootPath := t.TempDir()
 	locksPath := t.TempDir()
 	u, err := newInstaller(rc, rootPath, locksPath, cfg)
+	u.packageManager = &newTestPackageManager(t, rootPath, locksPath).packageManager
 	assert.NoError(t, err)
 	u.packageManager.configsDir = t.TempDir()
 	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))

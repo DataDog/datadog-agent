@@ -10,13 +10,9 @@ import (
 	"net/http"
 
 	"go.opentelemetry.io/otel/metric"
-	"go.uber.org/fx"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	sdk "go.opentelemetry.io/otel/sdk/metric"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-shared-components
@@ -66,25 +62,4 @@ type Component interface {
 
 	// Gather exposes metrics from the general or default telemetry registry (see options.DefaultMetric)
 	Gather(defaultGather bool) ([]*dto.MetricFamily, error)
-}
-
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-
-	GetRegistry() *prometheus.Registry
-	GetMeterProvider() *sdk.MeterProvider
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newTelemetry))
-}
-
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock),
-		fx.Provide(func(m Mock) Component { return m }))
 }

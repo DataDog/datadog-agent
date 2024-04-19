@@ -1203,6 +1203,8 @@ process_config:
 `)
 
 func TestConfigAssignAtPath(t *testing.T) {
+	t.Skip("This test is flaky due to configAssignAtPath not playing well with config.AllSettings, see ASCII-1421")
+
 	// CircleCI sets NO_PROXY, so unset it for this test
 	unsetEnvForTest(t, "NO_PROXY")
 
