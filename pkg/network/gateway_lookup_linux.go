@@ -46,9 +46,10 @@ var gatewayLookupTelemetry = struct {
 	telemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_lookup_errors", []string{"reason"}, "Counter measuring the number of subnet lookup errors"),
 }
 
+// LinuxGatewayLookup implements a gateway lookup
+// functionality for linux
 type LinuxGatewayLookup struct {
 	rootNetNs           netns.NsHandle
-	rootNsNsIno         uint32
 	routeCache          RouteCache
 	subnetCache         *simplelru.LRU[int, interface{}] // interface index to subnet cache
 	subnetForHwAddrFunc func(net.HardwareAddr) (Subnet, error)
@@ -107,6 +108,7 @@ func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32) Gatew
 	return gl
 }
 
+// Lookup performs a gateway lookup for connection stats
 func (g *LinuxGatewayLookup) Lookup(cs *ConnectionStats) *Via {
 	dest := cs.Dest
 	if cs.IPTranslation != nil {
@@ -116,6 +118,8 @@ func (g *LinuxGatewayLookup) Lookup(cs *ConnectionStats) *Via {
 	return g.LookupWithIPs(cs.Source, dest, cs.NetNS)
 }
 
+// LookupWithIPs performs a gateway lookup given the
+// source, destination, and namespace
 func (g *LinuxGatewayLookup) LookupWithIPs(source util.Address, dest util.Address, netns uint32) *Via {
 	r, ok := g.routeCache.Get(source, dest, netns)
 	if !ok {
@@ -200,6 +204,8 @@ func (g *LinuxGatewayLookup) LookupWithIPs(source util.Address, dest util.Addres
 	}
 }
 
+// Close cleans up resources allocated
+// by this struct
 func (g *LinuxGatewayLookup) Close() {
 	g.rootNetNs.Close()
 	g.routeCache.Close()
