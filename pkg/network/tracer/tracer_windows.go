@@ -153,7 +153,7 @@ func (t *Tracer) Stop() {
 		_ = t.usmMonitor.Stop()
 	}
 	t.reverseDNS.Close()
-	
+
 	windows.SetEvent(t.hStopClosedLoopEvent)
 	t.closedEventLoop.Wait()
 	err := t.driverInterface.Close()
