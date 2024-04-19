@@ -595,11 +595,17 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
-.on_main_or_release_branch_or_all_builds:
+.on_main_or_release_branch_or_all_builds_or_pkg_installer_changes:
   - <<: *if_main_branch
   - <<: *if_release_branch
   - <<: *if_run_all_builds
   - <<: *if_run_all_unit_tests
+  - changes:
+      paths:
+        - pkg/installer/**/*
+      compare_to: main
+    variables:
+      FAST_TESTS: "true"
 
 .except_main_or_release_branch:
   - <<: *if_main_branch
