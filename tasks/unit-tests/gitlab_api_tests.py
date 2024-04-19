@@ -4,7 +4,7 @@ from unittest import mock
 
 from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.gitlab import Gitlab, generate_gitlab_full_configuration, get_gitlab_token, read_includes
+from tasks.libs.ciproviders.gitlab import Gitlab, generate_gitlab_full_configuration, get_gitlab_token, read_includes, modify_content
 from tasks.libs.common.remote_api import APIError
 
 
@@ -120,3 +120,48 @@ class TestGenerateGitlabFullConfiguration(unittest.TestCase):
         with open("tasks/unit-tests/testdata/expected.yml") as f:
             expected = f.read()
         self.assertEqual(full_configuration, expected)
+
+
+class TestModifyContent(unittest.TestCase):
+    gitlab_ci = None
+    erroneous_file = "tasks/unit-tests/testdata/erroneous_gitlab-ci.yml"
+
+    def setUp(self) -> None:
+        with open(".gitlab-ci.yml") as gl:
+            self.gitlab_ci = gl.readlines()
+        return super().setUp()
+
+    def test_all_images(self):
+        modified, images = modify_content(self.gitlab_ci, "1mageV3rsi0n", test_version=True)
+        self.assertEqual(13, len(images))
+        self.assertEqual(13, sum(1 for v in modified if "CI_IMAGE" in v and "_test_only" in v))
+        self.assertEqual(13, sum(1 for v in modified if "1mageV3rsi0n" in v))
+
+    def test_one_image(self):
+        modified, images = modify_content(self.gitlab_ci, "1mageV3rsi0n", ["deb_x64"])
+        self.assertEqual(1, len(images))
+        self.assertEqual(0, sum(1 for v in modified if "CI_IMAGE" in v and "_test_only" in v))
+        self.assertEqual(1, sum(1 for v in modified if "1mageV3rsi0n" in v))
+
+    def test_several_images(self):
+        modified, images = modify_content(self.gitlab_ci, "1mageV3rsi0n", ["deb", "rpm", "suse"])
+        self.assertEqual(6, len(images))
+        self.assertEqual(0, sum(1 for v in modified if "CI_IMAGE" in v and "_test_only" in v))
+        self.assertEqual(6, sum(1 for v in modified if "1mageV3rsi0n" in v))
+
+    def test_multimatch(self):
+        modified, images = modify_content(self.gitlab_ci, "1mageV3rsi0n", ["x64"])
+        self.assertEqual(5, len(images))
+        self.assertEqual(0, sum(1 for v in modified if "CI_IMAGE" in v and "_test_only" in v))
+        self.assertEqual(5, sum(1 for v in modified if "1mageV3rsi0n" in v))
+
+    def test_update_no_test(self):
+        modified, images = modify_content(self.gitlab_ci, "1mageV3rsi0n", test_version=False)
+        self.assertEqual(13, len(images))
+        self.assertEqual(0, sum(1 for v in modified if "CI_IMAGE" in v and "_test_only" in v))
+        self.assertEqual(13, sum(1 for v in modified if "1mageV3rsi0n" in v))
+
+    def test_raise(self):
+        lines = ["---\n", "variables: \n", "  CI_IMAGE_FAKE_SUFFIX: ''\n", "  CI_IMAGE_FAKE_VERSION: 42\""]
+        with self.assertRaises(RuntimeError):
+            modify_content(lines, "1mageV3rsi0n")
