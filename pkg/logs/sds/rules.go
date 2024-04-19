@@ -26,13 +26,19 @@ type MatchAction struct {
 
 // StandardRuleConfig as sent by the Remote Configuration;
 type StandardRuleConfig struct {
-	ID                      string   `json:"id"`
-	Name                    string   `json:"name"`
-	Description             string   `json:"description"`
-	Pattern                 string   `json:"pattern"`
-	Tags                    []string `json:"tags"`
-	Type                    string   `json:"type"`
-	DefaultIncludedKeywords []string `json:"default_included_keywords"`
+	ID                      string               `json:"id"`
+	Name                    string               `json:"name"`
+	Description             string               `json:"description"`
+	Pattern                 string               `json:"pattern"`
+	Tags                    []string             `json:"tags"`
+	Type                    string               `json:"type"`
+	DefaultIncludedKeywords []string             `json:"default_included_keywords"`
+	SecondaryValidators     []SecondaryValidator `json:"secondary_validation"`
+}
+
+// SecondaryValidatorn definition.
+type SecondaryValidator struct {
+	Type string `json:"type"`
 }
 
 // StandardRulesConfig contains standard rules.
