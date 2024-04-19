@@ -3,9 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package telemetry
+package telemetryimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -45,11 +46,11 @@ func (g *promGauge) Sub(value float64, tagsValue ...string) {
 }
 
 // WithValues returns SimpleGauge for this metric with the given tag values.
-func (g *promGauge) WithValues(tagsValue ...string) SimpleGauge {
+func (g *promGauge) WithValues(tagsValue ...string) telemetry.SimpleGauge {
 	return &simplePromGauge{g: g.pg.WithLabelValues(tagsValue...)}
 }
 
 // Withtags returns SimpleGauge for this metric with the given tag values.
-func (g *promGauge) WithTags(tags map[string]string) SimpleGauge {
+func (g *promGauge) WithTags(tags map[string]string) telemetry.SimpleGauge {
 	return &simplePromGauge{g: g.pg.With(tags)}
 }

@@ -3,18 +3,30 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package telemetry
+//go:build test
+
+package telemetryimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/prometheus/client_golang/prometheus"
 	sdk "go.opentelemetry.io/otel/sdk/metric"
+	"go.uber.org/fx"
 )
+
+// MockModule defines the fx options for the mock component.
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock),
+		fx.Provide(func(m telemetry.Mock) telemetry.Component { return m }))
+}
 
 type telemetryImplMock struct {
 	telemetryImpl
 }
 
-func newMock() Mock {
+func newMock() telemetry.Mock {
 	reg := prometheus.NewRegistry()
 	provider := newProvider(reg)
 
