@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -36,7 +36,7 @@ func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 		logger,
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
 		sysprobeconfigimpl.MockModule(),
-		telemetry.Module(),
+		telemetryimpl.Module(),
 		hostnameimpl.MockModule(),
 	)
 }
