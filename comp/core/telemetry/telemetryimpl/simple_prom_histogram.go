@@ -3,9 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package telemetry
+package telemetryimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )
@@ -20,17 +21,17 @@ func (s *simplePromHistogram) Observe(value float64) {
 	s.h.Observe(value)
 }
 
-func (s *simplePromHistogram) Get() HistogramValue {
+func (s *simplePromHistogram) Get() telemetry.HistogramValue {
 	m := &dto.Metric{}
 	_ = s.h.Write(m)
-	hv := HistogramValue{
+	hv := telemetry.HistogramValue{
 		Count:   *m.Histogram.SampleCount,
 		Sum:     *m.Histogram.SampleSum,
-		Buckets: make([]Bucket, 0, len(m.Histogram.Bucket)),
+		Buckets: make([]telemetry.Bucket, 0, len(m.Histogram.Bucket)),
 	}
 
 	for _, b := range m.Histogram.Bucket {
-		hv.Buckets = append(hv.Buckets, Bucket{
+		hv.Buckets = append(hv.Buckets, telemetry.Bucket{
 			UpperBound: *b.UpperBound,
 			Count:      *b.CumulativeCount,
 		})
