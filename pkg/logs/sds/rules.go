@@ -6,6 +6,10 @@
 //nolint:revive
 package sds
 
+import (
+	"fmt"
+)
+
 // RulesConfig as sent by the Remote Configuration.
 // Equivalent of the groups in the UI.
 type RulesConfig struct {
@@ -26,13 +30,40 @@ type MatchAction struct {
 
 // StandardRuleConfig as sent by the Remote Configuration;
 type StandardRuleConfig struct {
-	ID                      string   `json:"id"`
-	Name                    string   `json:"name"`
-	Description             string   `json:"description"`
+	ID          string                   `json:"id"`
+	Name        string                   `json:"name"`
+	Description string                   `json:"description"`
+	Definitions []StandardRuleDefinition `json:"definitions"`
+}
+
+// StandardRuleDefinition contains a versioned standard rule definition.
+type StandardRuleDefinition struct {
+	Version                 int      `json:"version"`
 	Pattern                 string   `json:"pattern"`
 	Tags                    []string `json:"tags"`
-	Type                    string   `json:"type"`
 	DefaultIncludedKeywords []string `json:"default_included_keywords"`
+}
+
+// LastSupportedVersion returns the last supported version available
+// in the given StandardRuleConfig.
+//
+// WARNING: TODO(remy): for now, the capabilities support is not implemented.
+// It only returns the last version available in the array.
+//
+// An error is returned if there is no supported version for the current Agent.
+func (stdRule *StandardRuleConfig) LastSupportedVersion() (StandardRuleDefinition, error) {
+	moreRecent := StandardRuleDefinition{Version: -1}
+	for _, def := range stdRule.Definitions {
+		if def.Version > moreRecent.Version {
+			moreRecent = def
+		}
+	}
+
+	if moreRecent.Version < 0 {
+		return moreRecent, fmt.Errorf("unsupported standard rule")
+	}
+
+	return moreRecent, nil
 }
 
 // StandardRulesConfig contains standard rules.

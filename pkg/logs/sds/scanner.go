@@ -220,13 +220,19 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(userRule.IncludedKeywords.CharacterCount, userRule.IncludedKeywords.Keywords, nil)
 	}
 
+	stdRuleDef, err := standardRule.LastSupportedVersion()
+	if err != nil {
+		// TODO(remy): telemetry
+		return sds.Rule{}, err
+	}
+
 	// create the rules for the scanner
 	matchAction := strings.ToLower(userRule.MatchAction.Type)
 	switch matchAction {
 	case matchActionRCNone:
-		return sds.NewMatchingRule(standardRule.Name, standardRule.Pattern, extraConfig), nil
+		return sds.NewMatchingRule(standardRule.Name, stdRuleDef.Pattern, extraConfig), nil
 	case matchActionRCRedact:
-		return sds.NewRedactingRule(standardRule.Name, standardRule.Pattern, userRule.MatchAction.Placeholder, extraConfig), nil
+		return sds.NewRedactingRule(standardRule.Name, stdRuleDef.Pattern, userRule.MatchAction.Placeholder, extraConfig), nil
 	case matchActionRCPartialRedact:
 		direction := sds.LastCharacters
 		switch userRule.MatchAction.Direction {
@@ -237,9 +243,9 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 		default:
 			log.Warnf("Unknown PartialRedact direction (%v), falling back on LastCharacters", userRule.MatchAction.Direction)
 		}
-		return sds.NewPartialRedactRule(standardRule.Name, standardRule.Pattern, userRule.MatchAction.CharacterCount, direction, extraConfig), nil
+		return sds.NewPartialRedactRule(standardRule.Name, stdRuleDef.Pattern, userRule.MatchAction.CharacterCount, direction, extraConfig), nil
 	case matchActionRCHash:
-		return sds.NewHashRule(standardRule.Name, standardRule.Pattern, extraConfig), nil
+		return sds.NewHashRule(standardRule.Name, stdRuleDef.Pattern, extraConfig), nil
 	}
 
 	return sds.Rule{}, fmt.Errorf("Unknown MatchAction type (%v) received through RC for rule '%s':", matchAction, standardRule.Name)
