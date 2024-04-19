@@ -194,7 +194,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Invoke the components that we want to start
 		fx.Invoke(func(
 			_ profiler.Component,
-			_ optional.Option[expvars.Component],
+			_ expvars.Component,
 			_ apiserver.Component,
 			_ optional.Option[configsync.Component],
 			// TODO: This is needed by the container-provider which is not currently a component.

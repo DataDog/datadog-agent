@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Module defines the fx options for this component.
@@ -52,12 +51,12 @@ type dependencies struct {
 	Telemetry telemetry.Component
 }
 
-func newExpvarServer(deps dependencies) (optional.Option[expvars.Component], error) {
+func newExpvarServer(deps dependencies) (expvars.Component, error) {
 	// Initialize status
 	err := InitProcessStatus(deps.Config, deps.SysProbeConfig, deps.HostInfo, deps.Log, deps.Telemetry)
 	if err != nil {
 		_ = deps.Log.Critical("Failed to initialize status server:", err)
-		return optional.NewNoneOption[expvars.Component](), err
+		return struct{}{}, err
 	}
 
 	expvarPort := getExpvarPort(deps)
@@ -81,7 +80,7 @@ func newExpvarServer(deps dependencies) (optional.Option[expvars.Component], err
 			return nil
 		},
 	})
-	return optional.NewOption[expvars.Component](expvarServer), nil
+	return expvarServer, nil
 }
 
 func getExpvarPort(deps dependencies) int {
