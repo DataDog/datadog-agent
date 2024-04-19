@@ -92,7 +92,7 @@ func isCOREAsset(path string) bool {
 	return filepath.Base(filepath.Dir(path)) == "co-re"
 }
 
-// VerifyStatsOptions holds the options for the function BuildVerifierStats
+// StatsOptions holds the options for the function BuildVerifierStats
 type StatsOptions struct {
 	ObjectFiles        []string
 	FilterPrograms     []*regexp.Regexp
