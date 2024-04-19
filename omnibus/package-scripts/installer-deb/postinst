@@ -11,7 +11,7 @@ readonly STABLE_INSTALLER=${PACKAGES_DIR}/datadog-installer/stable/bin/installer
 readonly PACKAGES_LOCK_DIR=/var/run/datadog-packages
 
 bootstrap() {
-    $BOOTSTRAP_INSTALLER bootstrap --package "datadog-installer"
+    $BOOTSTRAP_INSTALLER bootstrap --package "datadog-installer" && \
     $STABLE_INSTALLER bootstrap
 }
 
@@ -55,9 +55,9 @@ chown -R dd-installer:dd-installer ${INSTALL_DIR}
 chmod 777 ${PACKAGES_LOCK_DIR}
 
 # we currently allow failures to install the installer
-exit_code=(bootstrap)
-if [ $exit_code -ne 0 ]; then
-    echo "Failed to bootstrap the installer: $exit_code" >&2
+(bootstrap) || exit_code=$?
+if [ -n "$exit_code" ]; then
+    echo "Failed to bootstrap the installer: $exit_code"
 fi
 
 exit 0
