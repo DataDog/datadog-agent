@@ -225,10 +225,17 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(userRule.IncludedKeywords.CharacterCount, userRule.IncludedKeywords.Keywords, nil)
 	}
 
+	var name string = standardRule.Name
 	var pattern string
+	var usedVersion int = -1
 
-	for i := len(standardRule.Definitions) - 1; i >= 0 && pattern != ""; i++ {
-		stdRuleDef := standardRule.Definitions[i]
+	// go through all received definitions, use the most recent supported one.
+	// O(n) number of definitions in the rule.
+	// TODO(remy): this has to be refactored to avoid oversights in the switch
+	for _, stdRuleDef := range standardRule.Definitions {
+		if usedVersion > stdRuleDef.Version {
+			continue
+		}
 
 		// The RC schema supports multiple of them,
 		// for now though, the lib only supports one, so we'll just use the first one.
@@ -238,32 +245,35 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 			case RCSecondaryValidationChineseIdChecksum:
 				extraConfig.SecondaryValidator = sds.ChineseIdChecksum
 				pattern = stdRuleDef.Pattern
+				usedVersion = stdRuleDef.Version
 			case RCSecondaryValidationLuhnChecksum:
 				extraConfig.SecondaryValidator = sds.LuhnChecksum
 				pattern = stdRuleDef.Pattern
+				usedVersion = stdRuleDef.Version
 			default:
+				// we don't know this secondary validator, test another version
 				log.Warnf("unknown secondary validator: ", string(received.Type))
 				continue
 			}
+		} else {
+			pattern = stdRuleDef.Pattern
+			usedVersion = stdRuleDef.Version
 		}
 	}
 
-	// when the pattern is unset, it implicitly means we did not find a version of the
-	// rule we're compatible with.
-	// TODO(remy): it will have to be more explicit in the feature since rules without
-	// pattern could be a thing in the future.
-	if pattern == "" {
+	if usedVersion == -1 {
 		// TODO(remy): telemetry
-		return sds.Rule{}, fmt.Errorf("only rules with pattern are supported for now")
+		return sds.Rule{}, fmt.Errorf("unsupported rule, no compatible definition")
 	}
 
+	// we've compiled all necessary information merging the standard rule and the user config
 	// create the rules for the scanner
 	matchAction := strings.ToLower(userRule.MatchAction.Type)
 	switch matchAction {
 	case matchActionRCNone:
-		return sds.NewMatchingRule(standardRule.Name, pattern, extraConfig), nil
+		return sds.NewMatchingRule(name, pattern, extraConfig), nil
 	case matchActionRCRedact:
-		return sds.NewRedactingRule(standardRule.Name, pattern, userRule.MatchAction.Placeholder, extraConfig), nil
+		return sds.NewRedactingRule(name, pattern, userRule.MatchAction.Placeholder, extraConfig), nil
 	case matchActionRCPartialRedact:
 		direction := sds.LastCharacters
 		switch userRule.MatchAction.Direction {
@@ -274,12 +284,12 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 		default:
 			log.Warnf("Unknown PartialRedact direction (%v), falling back on LastCharacters", userRule.MatchAction.Direction)
 		}
-		return sds.NewPartialRedactRule(standardRule.Name, pattern, userRule.MatchAction.CharacterCount, direction, extraConfig), nil
+		return sds.NewPartialRedactRule(name, pattern, userRule.MatchAction.CharacterCount, direction, extraConfig), nil
 	case matchActionRCHash:
-		return sds.NewHashRule(standardRule.Name, pattern, extraConfig), nil
+		return sds.NewHashRule(name, pattern, extraConfig), nil
 	}
 
-	return sds.Rule{}, fmt.Errorf("Unknown MatchAction type (%v) received through RC for rule '%s':", matchAction, standardRule.Name)
+	return sds.Rule{}, fmt.Errorf("Unknown MatchAction type (%v) received through RC for rule '%s':", matchAction, name)
 }
 
 // Scan scans the given `event` using the internal SDS scanner.

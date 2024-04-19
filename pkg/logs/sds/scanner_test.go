@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	sds "github.com/DataDog/dd-sensitive-data-scanner/sds-go/go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,17 +27,17 @@ func TestCreateScanner(t *testing.T) {
                 "id":"zero-0",
                 "description":"zero desc",
                 "name":"zero",
-                "pattern":"zero"
+                "definitions": [{"version":1, "pattern":"zero"}]
             },{
                 "id":"one-1",
                 "description":"one desc",
                 "name":"one",
-                "pattern":"one"
+                "definitions": [{"version":1, "pattern":"one"}]
             },{
                 "id":"two-2",
                 "description":"two desc",
                 "name":"two",
-                "pattern":"two"
+                "definitions": [{"version":1, "pattern":"two"}]
             }
         ]}
     `)
@@ -211,17 +212,17 @@ func TestIsReady(t *testing.T) {
                 "id":"zero-0",
                 "description":"zero desc",
                 "name":"zero",
-                "pattern":"zero"
+                "definitions": [{"version":1, "pattern":"zero"}]
             },{
                 "id":"one-1",
                 "description":"one desc",
                 "name":"one",
-                "pattern":"one"
+                "definitions": [{"version":1, "pattern":"one"}]
             },{
                 "id":"two-2",
                 "description":"two desc",
                 "name":"two",
-                "pattern":"two"
+                "definitions": [{"version":1, "pattern":"two"}]
             }
         ]}
     `)
@@ -279,17 +280,17 @@ func TestScan(t *testing.T) {
                 "id":"zero-0",
                 "description":"zero desc",
                 "name":"zero",
-                "pattern":"zero"
+                "definitions": [{"version":1, "pattern":"zero"}]
             },{
                 "id":"one-1",
                 "description":"one desc",
                 "name":"one",
-                "pattern":"one"
+                "definitions": [{"version":1, "pattern":"one"}]
             },{
                 "id":"two-2",
                 "description":"two desc",
                 "name":"two",
-                "pattern":"two"
+                "definitions": [{"version":1, "pattern":"two"}]
             }
         ]}
     `)
@@ -372,7 +373,7 @@ func TestCloseCycleScan(t *testing.T) {
                 "id":"zero-0",
                 "description":"zero desc",
                 "name":"zero",
-                "pattern":"zero"
+                "definitions": [{"version":1, "pattern":"zero"}]
             }
         ]}
     `)
@@ -435,12 +436,12 @@ func TestCloseCycleScan(t *testing.T) {
 			},
 		}
 
-        // this test is about being over-cautious, making sure the Scan method
-        // will never cause a race when calling the Delete method at the same time.
-        // It can't happen with the current implementation / concurrency pattern
-        // used in processor.go, but I'm being over-cautious because if it happens
-        // in the future because of someone changing the processor implementation,
-        // it could lead to a panic and a hard crash of the Agent.
+		// this test is about being over-cautious, making sure the Scan method
+		// will never cause a race when calling the Delete method at the same time.
+		// It can't happen with the current implementation / concurrency pattern
+		// used in processor.go, but I'm being over-cautious because if it happens
+		// in the future because of someone changing the processor implementation,
+		// it could lead to a panic and a hard crash of the Agent.
 
 		go func() {
 			for {
@@ -454,4 +455,81 @@ func TestCloseCycleScan(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 		s.Delete()
 	}
+}
+
+func TestInterpretRC(t *testing.T) {
+	require := require.New(t)
+
+	stdRc := StandardRuleConfig{
+		ID:          "0",
+		Name:        "Zero",
+		Description: "Zero desc",
+		Definitions: []StandardRuleDefinition{{
+			Version: 1,
+			Pattern: "rule pattern 1",
+		}},
+	}
+
+	rc := RuleConfig{
+		Name:        "test",
+		Description: "desc",
+		Definition: RuleDefinition{
+			StandardRuleID: "0",
+		},
+		Tags: []string{"tag:test"},
+		MatchAction: MatchAction{
+			Type:        matchActionRCRedact,
+			Placeholder: "[redacted]",
+		},
+	}
+
+	rule, err := interpretRCRule(rc, stdRc)
+	require.NoError(err)
+
+	require.Equal(rule.Id, "Zero")
+	require.Equal(rule.Pattern, "rule pattern 1")
+	require.Equal(rule.SecondaryValidator, sds.SecondaryValidator(""))
+
+	// add a version with a secondary validator
+	stdRc.Definitions = append(stdRc.Definitions, StandardRuleDefinition{
+		Version:             2,
+		Pattern:             "second pattern",
+		SecondaryValidators: []SecondaryValidator{{Type: RCSecondaryValidationLuhnChecksum}},
+	})
+
+	rule, err = interpretRCRule(rc, stdRc)
+	require.NoError(err)
+
+	require.Equal(rule.Id, "Zero")
+	require.Equal(rule.Pattern, "second pattern")
+	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
+
+	// add a third version with an unknown secondary validator
+	// it should fallback on using the version 2
+	// also, make sure the version ain't ordered properly
+	stdRc.Definitions = []StandardRuleDefinition{
+		{
+			Version:             2,
+			Pattern:             "second pattern",
+			SecondaryValidators: []SecondaryValidator{{Type: RCSecondaryValidationLuhnChecksum}},
+		},
+		{
+			Version:             1,
+			Pattern:             "first pattern",
+			SecondaryValidators: nil,
+		},
+		{
+			Version:             3,
+			Pattern:             "third pattern",
+			SecondaryValidators: []SecondaryValidator{{Type: "unsupported"}},
+		},
+	}
+
+	rule, err = interpretRCRule(rc, stdRc)
+	require.NoError(err)
+
+	require.Equal(rule.Id, "Zero")
+	require.Equal(rule.Pattern, "second pattern")
+	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
+
 }
