@@ -70,8 +70,8 @@ func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logge
 				config.Datadog.GetDuration("cluster_agent.language_detection.patcher.max_backoff"),
 			),
 			workqueue.RateLimitingQueueConfig{
-				Name:            "patch_request",
-				MetricsProvider: queueMetricProvider{},
+				Name:            subsystem,
+				MetricsProvider: queueMetricsProvider,
 			},
 		),
 	}
