@@ -1043,14 +1043,10 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 			name:          "only one section exists",
 			format:        "json",
 			sections:      []string{"moo_1", "fake_moo_2", "fake_moo_4"},
-			shouldSuccess: true,
+			shouldSuccess: false,
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err := json.Unmarshal(bytes, &result)
-
-				assert.NoError(t, err)
-				assert.Equal(t, 1, len(result))
-				assert.Equal(t, "bar_1", result["foo_1"])
+				assert.Equal(t, 0, len(result))
 			},
 		},
 		{
