@@ -39,7 +39,7 @@ func NewVMFakeintakeSuite(tr transport) *VMFakeintakeSuite {
 	}
 }
 
-func vmSuiteOpts(tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOption {
+func vmProvisionerOpts(opts ...awshost.ProvisionerOption) []awshost.ProvisionerOption {
 	setupScript := `#!/bin/bash
 # /var/run/datadog directory is necessary for UDS socket creation
 sudo mkdir -p /var/run/datadog
@@ -59,7 +59,11 @@ sudo usermod -a -G docker dd-agent
 		// unix sockets for the UDS transport and communicate with the docker socket.
 		awshost.WithEC2InstanceOptions(ec2.WithUserData(setupScript)),
 	)
+	return opts
+}
 
+func vmSuiteOpts(tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOption {
+	opts = vmProvisionerOpts(opts...)
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(opts...)),
 		e2e.WithStackName(fmt.Sprintf("apm-vm-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
@@ -67,29 +71,36 @@ sudo usermod -a -G docker dd-agent
 	return options
 }
 
-// TestVMFakeintakeSuiteUDS runs basic Trace Agent tests over the UDS transport
-func TestVMFakeintakeSuiteUDS(t *testing.T) {
-	cfg := `
+func vmAgentConfig(tr transport, extra string) string {
+	var cfg string
+	switch tr {
+	case uds:
+		cfg = `
 apm_config.enabled: true
 apm_config.receiver_socket: /var/run/datadog/apm.socket
 `
+	case tcp:
+		cfg = `
+apm_config.enabled: true
+`
+	}
+	return cfg + extra
+}
 
+// TestVMFakeintakeSuiteUDS runs basic Trace Agent tests over the UDS transport
+func TestVMFakeintakeSuiteUDS(t *testing.T) {
 	options := vmSuiteOpts(uds,
 		// Enable the UDS receiver in the trace-agent
-		awshost.WithAgentOptions(agentparams.WithAgentConfig(cfg)))
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(uds, ""))))
 	e2e.Run(t, NewVMFakeintakeSuite(uds), options...)
 }
 
 // TestVMFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
 func TestVMFakeintakeSuiteTCP(t *testing.T) {
-	cfg := `
-apm_config.enabled: true
-`
-
 	options := vmSuiteOpts(tcp,
 		awshost.WithAgentOptions(
 			// Enable the UDS receiver in the trace-agent
-			agentparams.WithAgentConfig(cfg),
+			agentparams.WithAgentConfig(vmAgentConfig(tcp, "")),
 		),
 		awshost.WithEC2InstanceOptions(),
 	)
@@ -268,6 +279,12 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 }
 
 func (s *VMFakeintakeSuite) TestProbabilitySampler() {
+	s.UpdateEnv(awshost.Provisioner(vmProvisionerOpts(awshost.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(s.transport, `
+apm_config.probabilistic_sampler.enabled: true
+apm_config.probabilistic_sampler.sampling_percentage: 50
+apm_config.probabilistic_sampler.hash_seed: 22
+`))))...))
+
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
