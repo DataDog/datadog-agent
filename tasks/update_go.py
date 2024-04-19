@@ -8,7 +8,8 @@ from invoke.tasks import task
 from tasks.go import tidy_all
 from tasks.libs.common.color import color_message
 from tasks.modules import DEFAULT_MODULES
-from tasks.pipeline import update_circleci_config, update_gitlab_config
+from tasks.libs.ciproviders.gitlab_api import update_gitlab_config
+from tasks.libs.ciproviders.circleci import update_circleci_config
 
 GO_VERSION_FILE = "./.go-version"
 

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import platform
 import subprocess
 from collections import UserList
@@ -543,3 +544,65 @@ def load_context(context):
             return [list(j.items())]
         except json.JSONDecodeError:
             raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1)
+
+
+def update_gitlab_config(file_path, version, patterns="", test_version=False):
+    """
+    Override variables in .gitlab-ci.yml file
+    """
+    with open(file_path) as gl:
+        file_content = gl.readlines()
+    output, images = modify_content(file_content, version, patterns, test_version)
+    with open(file_path, "w") as gl:
+        gl.writelines(output)
+    return images
+
+
+def modify_content(lines, version, patterns="", test_version=False):
+    """
+    Modify lines according to the version and patterns
+    """
+    output = []
+    modified_images = []
+    image_pattern = re.compile(r"^[ ]+CI_IMAGE_(?P<name>\w+)_(?P<id>VERSION|SUFFIX): (?P<version>.+)$")
+    version_pattern = re.compile(r"v\d+-\w+")
+    if patterns == "":
+        patterns = [""]  # Default to all images
+    for line in lines:
+        is_image = image_pattern.match(line)
+        if is_image:
+            if any(p in is_image["name"].casefold() for p in patterns):
+                if is_image["id"] == "SUFFIX":
+                    if test_version:
+                        output.append(line.replace('""', '"_test_only"'))
+                    else:
+                        output.append(line.replace('"_test_only"', '""'))
+                else:
+                    is_version = version_pattern.match(is_image["version"])
+                    if is_version:
+                        output.append(line.replace(is_image["version"], version))
+                        modified_images.append(is_image["name"])
+                    else:
+                        raise RuntimeError(
+                            f"Unable to find a version matching the v<pipelineId>-<commitId> pattern in line {line}"
+                        )
+            else:
+                output.append(line)
+        else:
+            output.append(line)
+    return output, modified_images
+
+
+def update_test_infra_def(file_path, image_tag):
+    """
+    Override TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
+    """
+    with open(file_path) as gl:
+        file_content = gl.readlines()
+    with open(file_path, "w") as gl:
+        for line in file_content:
+            test_infra_def = re.search(r"TEST_INFRA_DEFINITIONS_BUILDIMAGES:\s*(\w+)", line)
+            if test_infra_def:
+                gl.write(line.replace(test_infra_def.group(1), image_tag))
+            else:
+                gl.write(line)

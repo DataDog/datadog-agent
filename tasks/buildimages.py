@@ -3,22 +3,29 @@ from typing import Optional
 
 from invoke import Context, task
 
-from tasks.pipeline import update_circleci_config, update_gitlab_config, update_test_infra_def
+from tasks.libs.ciproviders.gitlab_api import update_gitlab_config, update_test_infra_def
+from tasks.libs.ciproviders.circleci import update_circleci_config
 
 
 @task(
     help={
-        "image_tag": "tag from build_image with format v<build_id>_<commit_id>",
-        "test_version": "Is a test image or not",
+        "version": "tag from build_image with format v<build_id>_<commit_id>",
+        "images": "The image(s) to update, comma separated. If empty, all images will be updated. Can be a incomplete pattern, e.g. 'deb,rpm' will update all deb and rpm images. deb_x64 will update only one image",
+        "test": "Is a test image or not",
     }
 )
-def update(_: Context, image_tag: str, test_version: Optional[str] = True):
+def update(_: Context, version: str, images: Optional[str] = "", test: Optional[str] = True):
     """
-    Update local files to run with new image_tag from agent-buildimages
-    Use --no-test-version to commit without the _test_only suffixes
+    Update local files to use a new version of dedicated image from buildimages
+    Use --no-test to commit without the _test_only suffixes
     """
-    update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
-    update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
+    patterns = images.split(",")
+    modified = update_gitlab_config(".gitlab-ci.yml", version, patterns, test_version=test)
+    message = ", ".join(modified)
+    if images == "" or any(p.startswith("circle") for p in patterns):
+        update_circleci_config(".circleci/config.yml", version, test_version=test)
+        message += ", circleci"
+    print(f"Updated {message}")
 
 
 @task(help={"commit_sha": "commit sha from the test-infra-definitions repository"})

@@ -14,8 +14,6 @@ from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_bot_token, get_gitl
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
-    GITHUB_REPO_NAME,
-    check_clean_branch_state,
     get_all_allowed_repo_branches,
     is_allowed_repo_branch,
     nightly_entry_for,
@@ -31,24 +29,6 @@ from tasks.libs.pipeline.tools import (
     trigger_agent_pipeline,
     wait_for_pipeline,
 )
-
-
-class GitlabReference(yaml.YAMLObject):
-    def __init__(self, refs):
-        self.refs = refs
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}=(refs={self.refs}'
-
-
-def reference_constructor(loader, node):
-    return GitlabReference(loader.construct_sequence(node))
-
-
-def GitlabYamlLoader():
-    loader = yaml.SafeLoader
-    loader.add_constructor('!reference', reference_constructor)
-    return loader
 
 
 # Tasks to trigger pipelines
@@ -700,114 +680,13 @@ def delete_schedule_variable(_, schedule_id, key):
     pprint.pprint(result)
 
 
-@task(
-    help={
-        "image_tag": "tag from build_image with format v<build_id>_<commit_id>",
-        "test_version": "Is a test image or not",
-        "branch_name": "If you already committed in a local branch",
-    }
-)
-def update_buildimages(ctx, image_tag, test_version=True, branch_name=None):
+@task
+def update_buildimages(_):
     """
     Update local files to run with new image_tag from agent-buildimages and launch a full pipeline
     Use --no-test-version to commit without the _test_only suffixes
     """
-    create_branch = branch_name is None
-    branch_name = verify_workspace(ctx, branch_name=branch_name)
-    update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
-    update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
-    trigger_build(ctx, branch_name=branch_name, create_branch=create_branch)
-
-
-def verify_workspace(ctx, branch_name=None):
-    """
-    Assess we can modify files and commit without risk of local or upstream conflicts
-    """
-    if branch_name is None:
-        user_name = ctx.run("whoami", hide="out")
-        branch_name = f"{user_name.stdout.rstrip()}/test_buildimages"
-        github = GithubAPI(repository=GITHUB_REPO_NAME)
-        check_clean_branch_state(ctx, github, branch_name)
-    return branch_name
-
-
-def update_test_infra_def(file_path, image_tag):
-    """
-    Override TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
-    """
-    with open(file_path) as gl:
-        file_content = gl.readlines()
-    with open(file_path, "w") as gl:
-        for line in file_content:
-            test_infra_def = re.search(r"TEST_INFRA_DEFINITIONS_BUILDIMAGES:\s*(\w+)", line)
-            if test_infra_def:
-                gl.write(line.replace(test_infra_def.group(1), image_tag))
-            else:
-                gl.write(line)
-
-
-def update_gitlab_config(file_path, image_tag, test_version):
-    """
-    Override variables in .gitlab-ci.yml file
-    """
-    with open(file_path) as gl:
-        file_content = gl.readlines()
-    gitlab_ci = yaml.load("".join(file_content), Loader=GitlabYamlLoader())
-    # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
-    suffixes = [
-        name
-        for name in gitlab_ci["variables"]
-        if name.endswith("SUFFIX") and not name.startswith("TEST_INFRA_DEFINITION")
-    ]
-    images = [name.replace("_SUFFIX", "_VERSION") for name in suffixes]
-    with open(file_path, "w") as gl:
-        for line in file_content:
-            if any(re.search(rf"{suffix}:", line) for suffix in suffixes):
-                if test_version:
-                    gl.write(line.replace('""', '"_test_only"'))
-                else:
-                    gl.write(line.replace('"_test_only"', '""'))
-            elif any(re.search(rf"{image}:", line) for image in images):
-                current_version = re.search(r"v\d+-\w+", line)
-                if current_version:
-                    gl.write(line.replace(current_version.group(0), image_tag))
-                else:
-                    raise RuntimeError(
-                        f"Unable to find a version matching the v<pipelineId>-<commitId> pattern in line {line}"
-                    )
-            else:
-                gl.write(line)
-
-
-def update_circleci_config(file_path, image_tag, test_version):
-    """
-    Override variables in .gitlab-ci.yml file
-    """
-    image_name = "gcr.io/datadoghq/agent-circleci-runner"
-    with open(file_path) as circle:
-        circle_ci = circle.read()
-    match = re.search(rf"({image_name}(_test_only)?):([a-zA-Z0-9_-]+)\n", circle_ci)
-    if not match:
-        raise RuntimeError(f"Impossible to find the version of image {image_name} in circleci configuration file")
-    image = f"{image_name}_test_only" if test_version else image_name
-    with open(file_path, "w") as circle:
-        circle.write(circle_ci.replace(f"{match.group(0)}", f"{image}:{image_tag}\n"))
-
-
-def trigger_build(ctx, branch_name=None, create_branch=False):
-    """
-    Trigger a pipeline from current branch on-demand (useful for test image)
-    """
-    if create_branch:
-        ctx.run(f"git checkout -b {branch_name}")
-    answer = input("Do you want to trigger a pipeline (will also commit and push)? [Y/n]\n")
-    if len(answer) == 0 or answer.casefold() == "y":
-        ctx.run("git add .gitlab-ci.yml .circleci/config.yml")
-        ctx.run("git commit -m 'Update buildimages version'")
-        ctx.run(f"git push origin {branch_name}")
-        print("Wait 10s to let Gitlab create the first events before triggering a new pipeline")
-        time.sleep(10)
-        run(ctx, here=True)
+    print("This invoke task is deprecated, please use inv buildimages.update instead.")
 
 
 @task(
