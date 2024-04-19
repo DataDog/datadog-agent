@@ -85,7 +85,7 @@ func newTestPackageManager(t *testing.T, rootPath string, locksPath string) *tes
 		packageManager{
 			repositories: repositories,
 			configsDir:   t.TempDir(),
-			tmpDirPath:   t.TempDir(),
+			tmpDirPath:   rootPath,
 		},
 	}
 }

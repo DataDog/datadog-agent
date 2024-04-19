@@ -19,7 +19,6 @@ import (
 	oci "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,7 +46,7 @@ func newPackageManager(repositories *repository.Repositories) *packageManager {
 	return &packageManager{
 		repositories: repositories,
 		configsDir:   defaultConfigsDir,
-		tmpDirPath:   filepath.Join(setup.InstallPath, "run"),
+		tmpDirPath:   defaultRepositoriesPath,
 	}
 }
 
