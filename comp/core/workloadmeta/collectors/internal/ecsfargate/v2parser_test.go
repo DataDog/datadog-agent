@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -54,19 +55,64 @@ func TestPullWithTaskCollectionEnabledWithV2Parser(t *testing.T) {
 			require.Equal(t, "my-redis", entity.Family)
 			require.Equal(t, "1", entity.Version)
 			require.Equal(t, workloadmeta.ECSLaunchTypeFargate, entity.LaunchType)
+			require.ElementsMatch(t, entity.Containers, []workloadmeta.OrchestratorContainer{
+				{
+					ID:   "938f6d263c464aa5985dc67ab7f38a7e-1714341083",
+					Name: "log_router",
+				},
+				{
+					ID:   "938f6d263c464aa5985dc67ab7f38a7e-2537586469",
+					Name: "datadog-agent",
+				},
+				{
+					ID:   "938f6d263c464aa5985dc67ab7f38a7e-3054012820",
+					Name: "redis",
+				},
+			})
 			count++
 		case *workloadmeta.Container:
+			require.Equal(t, workloadmeta.ContainerRuntimeECSFargate, entity.Runtime)
 			if entity.Image.Name == "public.ecr.aws/datadog/agent" {
+				require.Equal(t, "datadog-agent", entity.Name)
 				require.Equal(t, "latest", entity.Image.Tag)
 				require.Len(t, entity.Labels, 3)
+				require.Equal(t, map[string]string{"awsvpc": "172.31.115.123"}, entity.NetworkIPs)
+				ts, err := time.Parse(time.RFC3339Nano, "2023-11-20T12:10:44.404563253Z")
+				require.NoError(t, err)
+				require.Equal(t, workloadmeta.ContainerState{
+					Running:   true,
+					Status:    workloadmeta.ContainerStatusRunning,
+					StartedAt: ts,
+					CreatedAt: ts,
+				}, entity.State)
 				count++
 			} else if entity.Image.Name == "redis/redis" {
+				require.Equal(t, "redis", entity.Name)
 				require.Equal(t, "latest", entity.Image.Tag)
 				require.Len(t, entity.Labels, 3)
+				require.Equal(t, map[string]string{"awsvpc": "172.31.115.18"}, entity.NetworkIPs)
+				ts, err := time.Parse(time.RFC3339Nano, "2023-11-20T12:11:16.701115523Z")
+				require.NoError(t, err)
+				require.Equal(t, workloadmeta.ContainerState{
+					Running:   true,
+					Status:    workloadmeta.ContainerStatusRunning,
+					StartedAt: ts,
+					CreatedAt: ts,
+				}, entity.State)
 				count++
 			} else if entity.Image.Name == "amazon/aws-for-fluent-bit" {
+				require.Equal(t, "log_router", entity.Name)
 				require.Equal(t, "latest", entity.Image.Tag)
 				require.Len(t, entity.Labels, 4)
+				require.Equal(t, map[string]string{"awsvpc": "172.31.15.128"}, entity.NetworkIPs)
+				ts, err := time.Parse(time.RFC3339Nano, "2023-11-20T12:10:44.559880428Z")
+				require.NoError(t, err)
+				require.Equal(t, workloadmeta.ContainerState{
+					Running:   true,
+					Status:    workloadmeta.ContainerStatusRunning,
+					StartedAt: ts,
+					CreatedAt: ts,
+				}, entity.State)
 				count++
 			} else {
 				t.Errorf("unexpected image name: %s", entity.Image.Name)
