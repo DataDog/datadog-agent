@@ -113,7 +113,7 @@ func newEntry(line, buffer []byte) entry {
 	e.laddr = iter.nextField()
 	e.raddr = iter.nextField()
 	e.state = iter.nextField()
-	iter.skip(5)
+	iter.skip(5) // skips queue (tx + rx), tr, tm->when, retrnsmt ....
 	e.inode = iter.nextField()
 
 	return e
