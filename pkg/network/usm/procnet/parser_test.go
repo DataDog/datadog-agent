@@ -21,10 +21,12 @@ func TestProcNetParsing(t *testing.T) {
 	// 0: 1.1.1.1:8080->1.1.1.1:59836
 	// 1: 1.1.1.1:59836->1.1.1.1:8080
 	// 2: 10.211.55.6:57434->34.233.170.129:80
+	// 3: 1.1.1.1:8080 (Listening Socket)
 	procNetFile := createTempFile(t, `sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
   0: 01010101:1F90 01010101:E9BC 01 00000000:00000000 00:00000000 00000000  1000        0 347102 1 0000000000000000 20 0 0 10 -1
   1: 01010101:E9BC 01010101:1F90 01 00000000:00000000 00:00000000 00000000  1000        0 348600 1 0000000000000000 20 0 0 10 -1
   2: 0637D30A:E05A 81AAE922:0050 06 00000000:00000000 03:00001721 00000000     0        0 0 3 0000000000000000
+  3: 01010101:1F90 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 543187 1 0000000000000000 100 0 0 10 0
 `)
 
 	scanner, err := newScanner(procNetFile)
@@ -63,6 +65,17 @@ func TestProcNetParsing(t *testing.T) {
 	assert.Equal(t, "34.233.170.129", raddr.String())
 	assert.Equal(t, uint16(80), rport)
 	assert.Equal(t, 0, entry.Inode())
+
+	// Entry 3
+	entry, ok = scanner.Next()
+	assert.True(t, ok)
+	laddr, lport = entry.LocalAddress()
+	assert.Equal(t, "1.1.1.1", laddr.String())
+	assert.Equal(t, uint16(8080), lport)
+	raddr, rport = entry.RemoteAddress()
+	assert.Equal(t, "0.0.0.0", raddr.String())
+	assert.Equal(t, uint16(0), rport)
+	assert.Equal(t, 543187, entry.Inode())
 
 	_, ok = scanner.Next()
 	assert.False(t, ok)
