@@ -16,7 +16,7 @@ type CiscoInterface interface {
 	// ID returns an unique interface ID
 	ID() string
 	// Index returns the interface index
-	Index() (int64, error)
+	Index() (int32, error)
 	// GetSpeedMbps returns the interface speed in megabits per second
 	GetSpeedMbps() float64
 	// OperStatus returns the interface oper status

@@ -20,7 +20,7 @@ func TestCEdgeInterface(t *testing.T) {
 		namespace                string
 		itf                      client.CEdgeInterfaceState
 		expectedID               string
-		expectedIndex            int64
+		expectedIndex            int32
 		expectedIndexError       string
 		expectedSpeed            float64
 		expectedOperStatus       devicemetadata.IfOperStatus
