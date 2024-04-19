@@ -120,7 +120,6 @@ variables:
   DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
-  AGENTLESS_SCANNER_BINARIES_DIR: bin/agentless-scanner
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
   CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
@@ -199,7 +198,7 @@ variables:
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
   AGENT_QA_PROFILE_SSM_NAME: ci.datadog-agent.agent-qa-profile  # agent-ci-experience
   API_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_api_key_org2  # agent-ci-experience
-  API_KEY_SSM_NAME: ci.datadog-agent.datadog_api_key  # agent-ci-experience
+  API_KEY_DDDEV_SSM_NAME: ci.datadog-agent.datadog_api_key  # agent-ci-experience
   APP_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_app_key_org2  # agent-ci-experience
   ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token  # agent-ci-experience
   ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass  # agent-ci-experience
@@ -596,11 +595,17 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
-.on_main_or_release_branch_or_all_builds:
+.on_main_or_release_branch_or_all_builds_or_pkg_installer_changes:
   - <<: *if_main_branch
   - <<: *if_release_branch
   - <<: *if_run_all_builds
   - <<: *if_run_all_unit_tests
+  - changes:
+      paths:
+        - pkg/installer/**/*
+      compare_to: main
+    variables:
+      FAST_TESTS: "true"
 
 .except_main_or_release_branch:
   - <<: *if_main_branch
