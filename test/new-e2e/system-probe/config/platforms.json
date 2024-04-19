@@ -28,7 +28,7 @@
         "ubuntu_20.04": "usama.saqib/kmt-prepare/ubuntu-20-arm64.qcow2.xz",
         "ubuntu_22.04": "usama.saqib/kmt-prepare/ubuntu-22-arm64.qcow2.xz",
         "ubuntu_23.10": "usama.saqib/kmt-prepare/ubuntu-23-arm64.qcow2.xz",
-        "amzn_4.14": "master/amzn2-kvm-2.0-arm64-4.14.qcow2.xz",
+        "amzn_4.14": "usama.saqib/kmt-prepare/amzn2-kvm-2.0-arm64-4.14.qcow2.xz",
         "amzn_5.4":  "usama.saqib/kmt-prepare/amzn2-kvm-2.0-arm64-5.4.qcow2.xz",
         "amzn_5.10": "usama.saqib/kmt-prepare/amzn2-kvm-2.0-arm64-5.10.qcow2.xz",
         "amzn_2023": "usama.saqib/kmt-prepare/amzn2023-kvm-2.0-arm64-al2023.qcow2.xz",
