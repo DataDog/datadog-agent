@@ -52,7 +52,7 @@ class LocalCommandRunner:
 class RemoteCommandRunner:
     @staticmethod
     def run_cmd(ctx: Context, instance: HostInstance, cmd: str, allow_fail: bool, verbose: bool):
-        ssh_key_arg = f"-i {instance.ssh_key_path}" if instance.ssh_key_path is not None else ""
+        ssh_key_arg = f"-o IdentitiesOnly=yes -i {instance.ssh_key_path}" if instance.ssh_key_path is not None else ""
         res = ctx.run(
             cmd.format(
                 proxy_cmd=f"-o ProxyCommand='ssh {ssh_options_command()} {ssh_key_arg} -W %h:%p ubuntu@{instance.ip}'"
@@ -108,7 +108,7 @@ class LibvirtDomain:
         else:
             extra_opts = None
 
-        run = f"ssh {ssh_options_command(extra_opts)} -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
+        run = f"ssh {ssh_options_command(extra_opts)} -o IdentitiesOnly=yes -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
         return self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
 
     def copy(

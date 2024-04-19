@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -88,7 +88,7 @@ func newLeaderEngine(ctx context.Context) *LeaderEngine {
 // It is ONLY to be used for tests
 func ResetGlobalLeaderEngine() {
 	globalLeaderEngine = nil
-	telemetryComponent.GetCompatComponent().Reset()
+	telemetryimpl.GetCompatComponent().Reset()
 }
 
 // Initialize initializes the leader engine

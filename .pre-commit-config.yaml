@@ -107,3 +107,9 @@ repos:
       files: .*gitlab.*\.yml$
       pass_filenames: false
       stages: [pre-push]
+    - id: update-go
+      name: update-go
+      description: test formatting of files will allow go update
+      entry: 'inv linter.update-go'
+      language: system
+      pass_filenames: false
