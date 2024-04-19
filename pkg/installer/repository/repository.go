@@ -156,7 +156,7 @@ func (r *Repository) Create(ctx context.Context, name string, stableSourcePath s
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
 
-	err = repository.setStable(ctx, name, stableSourcePath)
+	err = repository.setStable(name, stableSourcePath)
 	if err != nil {
 		return fmt.Errorf("could not set first stable: %w", err)
 	}
@@ -180,7 +180,7 @@ func (r *Repository) SetExperiment(ctx context.Context, name string, sourcePath 
 	if !repository.stable.Exists() {
 		return fmt.Errorf("stable package does not exist, invalid state")
 	}
-	err = repository.setExperiment(ctx, name, sourcePath)
+	err = repository.setExperiment(name, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
@@ -322,8 +322,8 @@ func readRepository(rootPath string, locksPath string) (*repositoryFiles, error)
 	}, nil
 }
 
-func (r *repositoryFiles) setExperiment(ctx context.Context, name string, sourcePath string) error {
-	path, err := movePackageFromSource(ctx, name, r.rootPath, r.lockedPackages, sourcePath)
+func (r *repositoryFiles) setExperiment(name string, sourcePath string) error {
+	path, err := movePackageFromSource(name, r.rootPath, r.lockedPackages, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move experiment source: %w", err)
 	}
@@ -331,8 +331,8 @@ func (r *repositoryFiles) setExperiment(ctx context.Context, name string, source
 	return r.experiment.Set(path)
 }
 
-func (r *repositoryFiles) setStable(ctx context.Context, name string, sourcePath string) error {
-	path, err := movePackageFromSource(ctx, name, r.rootPath, r.lockedPackages, sourcePath)
+func (r *repositoryFiles) setStable(name string, sourcePath string) error {
+	path, err := movePackageFromSource(name, r.rootPath, r.lockedPackages, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move stable source: %w", err)
 	}
@@ -340,7 +340,7 @@ func (r *repositoryFiles) setStable(ctx context.Context, name string, sourcePath
 	return r.stable.Set(path)
 }
 
-func movePackageFromSource(ctx context.Context, packageName string, rootPath string, lockedPackages map[string]bool, sourcePath string) (string, error) {
+func movePackageFromSource(packageName string, rootPath string, lockedPackages map[string]bool, sourcePath string) (string, error) {
 	if packageName == "" || packageName == stableVersionLink || packageName == experimentVersionLink {
 		return "", fmt.Errorf("invalid package name")
 	}
@@ -365,17 +365,6 @@ func movePackageFromSource(ctx context.Context, packageName string, rootPath str
 	}
 	if err := os.Chmod(targetPath, 0755); err != nil {
 		return "", fmt.Errorf("could not set permissions on package: %w", err)
-	}
-	switch filepath.Base(rootPath) {
-	case "datadog-agent":
-		if err := service.ChownDDAgent(ctx, targetPath); err != nil {
-			return "", err
-		}
-	case "datadog-installer":
-		helperPath := filepath.Join(rootPath, packageName, "bin/installer/helper")
-		if err := os.Chmod(helperPath, 0750); err != nil {
-			return "", fmt.Errorf("could not set permissions on installer-helper: %w", err)
-		}
 	}
 
 	return targetPath, nil

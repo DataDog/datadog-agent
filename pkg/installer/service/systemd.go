@@ -30,9 +30,10 @@ const (
 	disableCommand           unitCommand = "disable"
 	loadCommand              unitCommand = "load-unit"
 	removeCommand            unitCommand = "remove-unit"
-	addInstallerToAgentGroup unitCommand = "add-installer-to-agent-group"
 	backupCommand            unitCommand = `backup-file`
 	restoreCommand           unitCommand = `restore-file`
+	addInstallerToAgentGroup             = `{"command":"add-installer-to-agent-group"}`
+	addDDAgentUser                       = `{"command":"add-dd-agent-user"}`
 	replaceDockerCommand                 = `{"command":"replace-docker"}`
 	restartDockerCommand                 = `{"command":"restart-docker"}`
 	createDockerDirCommand               = `{"command":"create-docker-dir"}`

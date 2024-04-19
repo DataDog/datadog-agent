@@ -26,6 +26,7 @@ var (
 	rpmSystemdPath = "/usr/lib/systemd/system"
 	pkgDir         = "/opt/datadog-packages/"
 	agentDir       = "/etc/datadog-agent"
+	agentLogDir    = "/var/log/datadog"
 	testSkipUID    = ""
 	installerUser  = "dd-installer"
 )
@@ -92,6 +93,8 @@ func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("mv", filepath.Join(installPath, "run", "ld.so.preload.tmp"), "/etc/ld.so.preload"), nil
 	case "add-installer-to-agent-group":
 		return exec.Command("usermod", "-aG", "dd-agent", "dd-installer"), nil
+	case "add-dd-agent-user":
+		return exec.Command("adduser", "--system", "dd-agent", "--disabled-login", "--shell", "/usr/sbin/nologin", "--home", "/opt/datadog-packages/datadog-agent", "--no-create-home", "--group", "--quiet"), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}
@@ -133,7 +136,7 @@ func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 	if absPath != path || err != nil {
 		return nil, fmt.Errorf("invalid path")
 	}
-	if !strings.HasPrefix(path, pkgDir) && !strings.HasPrefix(path, agentDir) {
+	if !strings.HasPrefix(path, pkgDir) && !strings.HasPrefix(path, agentDir) && !strings.HasPrefix(path, agentLogDir) {
 		return nil, fmt.Errorf("invalid path")
 	}
 	switch inputCommand.Command {
@@ -177,9 +180,9 @@ func executeCommand() error {
 }
 
 func main() {
-	err := setupPriviledges()
+	err := setupPrivileges()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error setting up priviledges: %s\n", err)
+		fmt.Fprintf(os.Stderr, "error setting up privileges: %s\n", err)
 		os.Exit(1)
 	}
 	log.SetOutput(os.Stdout)
@@ -191,7 +194,7 @@ func main() {
 	os.Exit(0)
 }
 
-func setupPriviledges() error {
+func setupPrivileges() error {
 	if os.Getuid() != 0 {
 		return fmt.Errorf("only root can execute this command")
 	}

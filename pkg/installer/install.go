@@ -73,7 +73,7 @@ func (m *packageManager) setupUnits(ctx context.Context, pkg string) error {
 	defer m.installLock.Unlock()
 	switch pkg {
 	case packageDatadogAgent:
-		return service.SetupAgentUnits(ctx)
+		return service.SetupAgent(ctx)
 	case packageAPMInjector:
 		return service.SetupAPMInjector(ctx)
 	default:

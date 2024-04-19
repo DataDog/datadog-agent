@@ -11,11 +11,6 @@ import (
 	"os"
 )
 
-// ChownDDAgent changes the owner of the given path to the dd-agent user.
-func ChownDDAgent(_ context.Context, _ string) error {
-	return nil
-}
-
 // RemoveAll removes the versioned files at a given path.
 func RemoveAll(_ context.Context, path string) error {
 	return os.RemoveAll(path)

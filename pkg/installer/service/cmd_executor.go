@@ -27,8 +27,8 @@ var updaterHelper = filepath.Join(setup.InstallPath, "bin", "installer", "helper
 
 const execTimeout = 30 * time.Second
 
-// ChownDDAgent changes the owner of the given path to the dd-agent user.
-func ChownDDAgent(ctx context.Context, path string) error {
+// chownDDAgent changes the owner of the given path to the dd-agent user.
+func chownDDAgent(ctx context.Context, path string) error {
 	return executeHelperCommand(ctx, `{"command":"chown dd-agent","path":"`+path+`"}`)
 }
 

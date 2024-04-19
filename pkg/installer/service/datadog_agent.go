@@ -10,8 +10,13 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"os"
 	"os/exec"
+	"os/user"
 	"strings"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,18 +53,31 @@ var (
 	}
 )
 
-// SetupAgentUnits installs and starts the agent units
-func SetupAgentUnits(ctx context.Context) (err error) {
+// SetupAgent installs and starts the agent (units, user, own...)
+func SetupAgent(ctx context.Context) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup agent units: %s, reverting", err)
-			RemoveAgentUnits(ctx)
+			RemoveAgent(ctx)
 		}
 		span.Finish(tracer.WithError(err))
 	}()
 
+	// Setup agent user & chown the right folders
+	if err = createDDAgentUser(ctx); err != nil {
+		return
+	}
 	if err = setInstallerAgentGroup(ctx); err != nil {
+		return
+	}
+	if err = chownDDAgent(ctx, "/var/log/datadog"); err != nil {
+		return
+	}
+	if err = chownDDAgent(ctx, "/etc/datadog-agent"); err != nil {
+		return
+	}
+	if err = chownDDAgent(ctx, "/opt/datadog-packages/datadog-agent"); err != nil {
 		return
 	}
 
@@ -96,8 +114,8 @@ func SetupAgentUnits(ctx context.Context) (err error) {
 	return
 }
 
-// RemoveAgentUnits stops and removes the agent units
-func RemoveAgentUnits(ctx context.Context) {
+// RemoveAgent stops and removes the agent units
+func RemoveAgent(ctx context.Context) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "remove_agent_units")
 	defer span.Finish()
 	// stop experiments, they can restart stable agent
@@ -156,5 +174,23 @@ func setInstallerAgentGroup(ctx context.Context) error {
 	if strings.Contains(string(out), "dd-agent") {
 		return nil
 	}
-	return executeHelperCommand(ctx, string(addInstallerToAgentGroup))
+
+	if err := executeHelperCommand(ctx, string(addInstallerToAgentGroup)); err != nil {
+		return err
+	}
+	if err := syscall.Setgid(os.Getgid()); err != nil {
+		return fmt.Errorf("failed to reload groups of dd-installer: %s", err)
+	}
+	return nil
+}
+
+func createDDAgentUser(ctx context.Context) error {
+	// Check if the dd-agent user exists
+	_, err := user.Lookup("dd-agent")
+	if err != nil && !errors.Is(err, user.UnknownUserError("dd-agent")) {
+		return err
+	} else if err == nil {
+		return nil // User found, nothing to do
+	}
+	return executeHelperCommand(ctx, string(addDDAgentUser))
 }

@@ -139,7 +139,7 @@ func purgePackage(ctx context.Context, pkg string, locksPath, repositoryPath str
 	case "datadog-installer":
 		service.RemoveInstallerUnits(ctx)
 	case "datadog-agent":
-		service.RemoveAgentUnits(ctx)
+		service.RemoveAgent(ctx)
 	case "datadog-apm-inject":
 		// todo(paullgdc): should we continue with removing the pkg directories if we failed here
 		// or should exit early?
