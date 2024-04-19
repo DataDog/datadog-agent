@@ -7,7 +7,6 @@
 
 package serverlessimpl
 
-// NOP.
 type simpleNoOpCounter struct{}
 
 // Inc increments the counter.

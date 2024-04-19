@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	dto "github.com/prometheus/client_model/go"
 	promOtel "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.uber.org/fx"
 
@@ -24,23 +23,6 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	sdk "go.opentelemetry.io/otel/sdk/metric"
 )
-
-// PrometheusComponent extends the default telemtry Component interface
-// It provides a way to interact with the prometheus registry
-// We split the telemetry component into two interfaces to avoid exposing the prometheus registry to the serverless binary
-type PrometheusComponent interface {
-	telemetry.Component
-
-	// Meter returns a new OTEL meter
-	Meter(name string, opts ...metric.MeterOption) metric.Meter
-	// RegisterCollector Registers a Collector with the prometheus registry
-	RegisterCollector(c prometheus.Collector)
-	// UnregisterCollector unregisters a Collector with the prometheus registry
-	UnregisterCollector(c prometheus.Collector) bool
-
-	// GatherDefault exposes metrics from the default telemetry registry (see options.DefaultMetric)
-	GatherDefault() ([]*dto.MetricFamily, error)
-}
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
@@ -119,7 +101,7 @@ func (t *telemetryImpl) UnregisterCollector(c prometheus.Collector) bool {
 	return registry.Unregister(c)
 }
 
-func (t *telemetryImpl) Meter(name string, opts ...metric.MeterOption) metric.Meter {
+func (t *telemetryImpl) Meter(name string, opts ...telemetry.MeterOption) metric.Meter {
 	return t.meterProvider.Meter(name, opts...)
 }
 
@@ -267,6 +249,6 @@ func (t *telemetryImpl) mustRegister(c prometheus.Collector, opts telemetry.Opti
 	}
 }
 
-func (t *telemetryImpl) GatherDefault() ([]*dto.MetricFamily, error) {
+func (t *telemetryImpl) GatherDefault() ([]*telemetry.MetricFamily, error) {
 	return t.defaultRegistry.Gather()
 }

@@ -18,6 +18,12 @@ type Component interface {
 	Handler() http.Handler
 	// Reset resets all tracked telemetry
 	Reset()
+	// RegisterCollector Registers a Collector with the prometheus registry
+	RegisterCollector(c Collector)
+	// UnregisterCollector unregisters a Collector with the prometheus registry
+	UnregisterCollector(c Collector) bool
+	// Meter returns a new OTEL meter
+	Meter(name string, opts ...MeterOption) Meter
 	// NewCounter creates a Counter with default options for telemetry purpose.
 	NewCounter(subsystem, name string, tags []string, help string) Counter
 	// NewCounterWithOpts creates a Counter with the given options for telemetry purpose.
@@ -47,4 +53,7 @@ type Component interface {
 	NewSimpleHistogram(subsystem, name, help string, buckets []float64) SimpleHistogram
 	// NewSimpleHistogramWithOpts creates a new SimpleHistogram.
 	NewSimpleHistogramWithOpts(subsystem, name, help string, buckets []float64, opts Options) SimpleHistogram
+
+	// GatherDefault exposes metrics from the default telemetry registry (see options.DefaultMetric)
+	GatherDefault() ([]*MetricFamily, error)
 }

@@ -9,7 +9,6 @@ package telemetry
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/metric"
 	sdk "go.opentelemetry.io/otel/sdk/metric"
 )
 
@@ -17,8 +16,6 @@ import (
 type Mock interface {
 	Component
 
-	// Meter returns a new OTEL meter
-	Meter(name string, opts ...metric.MeterOption) metric.Meter
 	GetRegistry() *prometheus.Registry
 	GetMeterProvider() *sdk.MeterProvider
 }
