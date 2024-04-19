@@ -482,23 +482,23 @@ func TestBuildDeviceID(t *testing.T) {
 	tests := []struct {
 		namespace  string
 		device     client.Device
-		expectedId string
+		expectedID string
 	}{
 		{
 			namespace:  "test",
 			device:     client.Device{SystemIP: "10.1.1.1"},
-			expectedId: "test:10.1.1.1",
+			expectedID: "test:10.1.1.1",
 		},
 		{
 			namespace:  "test:with:colon",
 			device:     client.Device{SystemIP: "10.1.1.1"},
-			expectedId: "test:with:colon:10.1.1.1",
+			expectedID: "test:with:colon:10.1.1.1",
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.expectedId, func(t *testing.T) {
-			require.Equal(t, tt.expectedId, buildDeviceID(tt.namespace, tt.device))
+		t.Run(tt.expectedID, func(t *testing.T) {
+			require.Equal(t, tt.expectedID, buildDeviceID(tt.namespace, tt.device))
 		})
 	}
 }
