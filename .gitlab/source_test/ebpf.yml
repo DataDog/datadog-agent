@@ -5,11 +5,6 @@
   - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$CLANG_LLVM_VER.$ARCH /tmp/clang-bpf
   - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-$CLANG_LLVM_VER.$ARCH /tmp/llc-bpf
 
-.build_sysprobe_artifacts:
-  # kitchen prepare also builds object files
-  - inv -e system-probe.kitchen-prepare --ci
-  - inv -e kmt.prepare --ci
-
 # Run tests for eBPF code
 .tests_linux_ebpf:
   stage: source_test
@@ -44,7 +39,40 @@ tests_ebpf_arm64:
     ARCH: arm64
     TASK_ARCH: arm64
 
-.prepare_ebpf_functional_tests:
+.prepare_sysprobe_ebpf_functional_tests:
+  stage: source_test
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["go_deps", "go_tools_deps"]
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kmt-deps
+  before_script:
+    - source /root/.bashrc
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+    - inv -e install-tools
+    - !reference [.retrieve_sysprobe_deps]
+  script:
+    - inv -e kmt.prepare --ci
+
+prepare_sysprobe_ebpf_functional_tests_arm64:
+  extends: .prepare_sysprobe_ebpf_functional_tests
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:arm64"]
+  variables:
+    ARCH: arm64
+
+prepare_sysprobe_ebpf_functional_tests_x64:
+  extends: .prepare_sysprobe_ebpf_functional_tests
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:amd64"]
+  variables:
+    ARCH: amd64
+
+.prepare_secagent_ebpf_functional_tests:
   stage: source_test
   rules:
     - !reference [.except_mergequeue]
@@ -54,8 +82,6 @@ tests_ebpf_arm64:
     when: always
     paths:
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
-      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
-      - $CI_PROJECT_DIR/kmt-deps
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
@@ -63,20 +89,19 @@ tests_ebpf_arm64:
     - inv -e install-tools
     - !reference [.retrieve_sysprobe_deps]
   script:
-    - !reference [.build_sysprobe_artifacts]
     - invoke -e security-agent.kitchen-prepare --skip-linters
     - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
     - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
 
-prepare_ebpf_functional_tests_arm64:
-  extends: .prepare_ebpf_functional_tests
+prepare_secagent_ebpf_functional_tests_arm64:
+  extends: .prepare_secagent_ebpf_functional_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
 
-prepare_ebpf_functional_tests_x64:
-  extends: .prepare_ebpf_functional_tests
+prepare_secagent_ebpf_functional_tests_x64:
+  extends: .prepare_secagent_ebpf_functional_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:

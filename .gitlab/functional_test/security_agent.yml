@@ -32,7 +32,7 @@ kitchen_test_security_agent_x64:
     - .kitchen_test_security_agent_linux
     - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
-  needs: ["tests_ebpf_x64", "prepare_ebpf_functional_tests_x64"]
+  needs: ["tests_ebpf_x64", "prepare_secagent_ebpf_functional_tests_x64"]
   variables:
     KITCHEN_ARCH: x86_64
   before_script:
@@ -77,7 +77,7 @@ kitchen_test_security_agent_arm64:
     - .kitchen_ec2
   rules:
     !reference [.on_security_agent_changes_or_manual]
-  needs: [ "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64" ]
+  needs: [ "tests_ebpf_arm64", "prepare_secagent_ebpf_functional_tests_arm64" ]
   variables:
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
@@ -99,7 +99,7 @@ kitchen_test_security_agent_amazonlinux_x64:
     - .kitchen_ec2
   rules:
     !reference [.on_security_agent_changes_or_manual]
-  needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64" ]
+  needs: [ "tests_ebpf_x64", "prepare_secagent_ebpf_functional_tests_x64" ]
   variables:
     KITCHEN_ARCH: x86_64
     KITCHEN_EC2_INSTANCE_TYPE: "t3.medium"
@@ -122,7 +122,7 @@ kitchen_test_security_agent_x64_ec2:
     - .kitchen_test_security_agent_linux
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
-  needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64" ]
+  needs: [ "tests_ebpf_x64", "prepare_secagent_ebpf_functional_tests_x64" ]
   variables:
     KITCHEN_ARCH: x86_64
     KITCHEN_EC2_INSTANCE_TYPE: "t3.medium"
@@ -160,7 +160,7 @@ kitchen_stress_security_agent:
   rules:
     !reference [.manual]
   stage: functional_test
-  needs: ["tests_ebpf_x64", "prepare_ebpf_functional_tests_x64"]
+  needs: ["tests_ebpf_x64", "prepare_secagent_ebpf_functional_tests_x64"]
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
