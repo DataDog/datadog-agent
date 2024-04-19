@@ -16,7 +16,7 @@ import (
 type UnsupportedGatewayLookup struct{}
 
 // NewGatewayLookup returns nil
-func NewGatewayLookup() *UnsupportedGatewayLookup {
+func NewGatewayLookup(_ nsLookupFunc, _ uint32) *UnsupportedGatewayLookup {
 	return nil
 }
 

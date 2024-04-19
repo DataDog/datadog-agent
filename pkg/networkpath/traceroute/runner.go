@@ -8,8 +8,10 @@ package traceroute
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"net"
+	"os"
 	"sort"
 	"time"
 
@@ -21,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/results"
+	"github.com/vishvananda/netns"
 
 	"github.com/google/uuid"
 )
@@ -58,7 +61,7 @@ func NewRunner() (*Runner, error) {
 		log.Errorf("failed to get network ID: %s", err.Error())
 	}
 
-	gatewayLookup := network.NewGatewayLookup()
+	gatewayLookup := network.NewGatewayLookup(rootNsLookup, math.MaxUint32)
 	if gatewayLookup != nil {
 		log.Warnf("gateway lookup is not enabled")
 	}
@@ -301,4 +304,8 @@ func getHostname(ipAddr string) string {
 		currHost = ipAddr
 	}
 	return currHost
+}
+
+func rootNsLookup() (netns.NsHandle, error) {
+	return netns.GetFromPid(os.Getpid())
 }

@@ -179,7 +179,9 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	}
 	coretelemetry.GetCompatComponent().RegisterCollector(tr.conntracker)
 
-	tr.gwLookup = network.NewTracerGatewayLookup(cfg)
+	if cfg.EnableGatewayLookup {
+		tr.gwLookup = network.NewGatewayLookup(cfg.GetRootNetNs, cfg.MaxTrackedConnections)
+	}
 	if tr.gwLookup != nil {
 		log.Info("gateway lookup enabled")
 	}

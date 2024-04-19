@@ -5,7 +5,10 @@
 
 package network
 
-import "github.com/DataDog/datadog-agent/pkg/process/util"
+import (
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/vishvananda/netns"
+)
 
 // GatewayLookup is an interface for performing gateway lookups
 type GatewayLookup interface {
@@ -13,3 +16,5 @@ type GatewayLookup interface {
 	LookupWithIPs(source util.Address, dest util.Address, netns uint32) *Via
 	Close()
 }
+
+type nsLookupFunc func() (netns.NsHandle, error)
