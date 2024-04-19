@@ -287,8 +287,10 @@ def build(
         # Purge the cache manually as omnibus will stick to not restoring a tag when
         # a mismatch is detected, but will keep the old cached tags.
         # Do this before checking for tag differences, in order to remove staled tags
-        # in case they were included in the bundle in a previous build
-        for _, tag in enumerate(stale_tags.split(os.linesep)):
+        # in case they were included in the bundle in a previous build.
+        # We explicitely use \n instead of os.linesep as git command use a regular
+        # unix newline on windows as well
+        for _, tag in enumerate(stale_tags.split('\n')):
             ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
         if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
             with timed(quiet=True) as update_cache:
