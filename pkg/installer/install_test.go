@@ -79,12 +79,13 @@ type testPackageManager struct {
 	packageManager
 }
 
-func newTestPackageManager(t *testing.T) *testPackageManager {
-	repositories := repository.NewRepositories(t.TempDir(), t.TempDir())
+func newTestPackageManager(t *testing.T, rootPath string, locksPath string) *testPackageManager {
+	repositories := repository.NewRepositories(rootPath, locksPath)
 	return &testPackageManager{
 		packageManager{
 			repositories: repositories,
 			configsDir:   t.TempDir(),
+			tmpDirPath:   rootPath,
 		},
 	}
 }
@@ -96,7 +97,7 @@ func (i *testPackageManager) ConfigFS(f fixture) fs.FS {
 func TestInstallStable(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
-	installer := newTestPackageManager(t)
+	installer := newTestPackageManager(t, t.TempDir(), t.TempDir())
 
 	err := installer.installStable(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)
@@ -112,7 +113,7 @@ func TestInstallStable(t *testing.T) {
 func TestInstallExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
-	installer := newTestPackageManager(t)
+	installer := newTestPackageManager(t, t.TempDir(), t.TempDir())
 
 	err := installer.installStable(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)
@@ -131,7 +132,7 @@ func TestInstallExperiment(t *testing.T) {
 func TestInstallPromoteExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
-	installer := newTestPackageManager(t)
+	installer := newTestPackageManager(t, t.TempDir(), t.TempDir())
 
 	err := installer.installStable(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)
@@ -151,7 +152,7 @@ func TestInstallPromoteExperiment(t *testing.T) {
 func TestUninstallExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
-	installer := newTestPackageManager(t)
+	installer := newTestPackageManager(t, t.TempDir(), t.TempDir())
 
 	err := installer.installStable(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)
