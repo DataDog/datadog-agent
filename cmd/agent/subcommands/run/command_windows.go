@@ -14,9 +14,9 @@ import (
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
-	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
@@ -119,13 +119,12 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			pkgSigning packagesigning.Component,
 			statusComponent status.Component,
 			collector collector.Component,
+			cloudfoundrycontainer cloudfoundrycontainer.Component,
 			_ autoexit.Component,
 			_ expvarserver.Component,
-			metadatascheduler metadatascheduler.Component,
 			jmxlogger jmxlogger.Component,
 			settings settings.Component,
 		) error {
-
 			defer StopAgentWithDefaults(agentAPI)
 
 			err := startAgent(
@@ -148,7 +147,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				invChecks,
 				statusComponent,
 				collector,
-				metadatascheduler,
+				cloudfoundrycontainer,
 				jmxlogger,
 				settings,
 			)
