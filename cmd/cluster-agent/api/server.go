@@ -11,6 +11,7 @@ sending commands and receiving infos.
 package api
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -56,7 +57,7 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], statusComponent status.Component, secretResolver secrets.Component, settings settings.Component, cfg config.Component) error {
+func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], statusComponent status.Component, secretResolver secrets.Component, settings settings.Component, cfg config.Component) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
@@ -68,7 +69,7 @@ func StartServer(w workloadmeta.Component, taggerComp tagger.Component, ac autod
 	v1.InstallMetadataEndpoints(apiRouter, w)
 
 	// API V1 Language Detection APIs
-	languagedetection.InstallLanguageDetectionEndpoints(apiRouter, w, cfg)
+	languagedetection.InstallLanguageDetectionEndpoints(ctx, apiRouter, w, cfg)
 
 	// Validate token for every request
 	router.Use(validateToken)

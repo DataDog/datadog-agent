@@ -8,6 +8,8 @@
 package languagedetection
 
 import (
+	"context"
+
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -18,10 +20,10 @@ import (
 const pldHandlerName = "language-detection-handler"
 
 // InstallLanguageDetectionEndpoints installs language detection endpoints
-func InstallLanguageDetectionEndpoints(r *mux.Router, wmeta workloadmeta.Component, cfg config.Component) {
+func InstallLanguageDetectionEndpoints(ctx context.Context, r *mux.Router, wmeta workloadmeta.Component, cfg config.Component) {
 	service := newLanguageDetectionHandler(wmeta, cfg)
 
-	service.startCleanupInBackground()
+	service.startCleanupInBackground(ctx)
 
 	handler := api.WithLeaderProxyHandler(
 		pldHandlerName,

@@ -8,6 +8,7 @@
 package languagedetection
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,7 +35,7 @@ type handlerConfig struct {
 }
 
 type languageDetectionHandler struct {
-	ownersLanguages OwnersLanguages
+	ownersLanguages *OwnersLanguages
 	cfg             handlerConfig
 	wlm             workloadmeta.Component
 }
@@ -47,16 +48,20 @@ func newLanguageDetectionHandler(wlm workloadmeta.Component, cfg config.Componen
 			cleanupPeriod: cfg.GetDuration("cluster_agent.language_detection.cleanup.period"),
 		},
 		wlm:             wlm,
-		ownersLanguages: *newOwnersLanguages(),
+		ownersLanguages: newOwnersLanguages(),
 	}
 }
 
-func (handler *languageDetectionHandler) startCleanupInBackground() {
+func (handler *languageDetectionHandler) startCleanupInBackground(ctx context.Context) {
 	// Launch periodic cleanup mechanism
 	go func() {
 		cleanupTicker := time.NewTicker(handler.cfg.cleanupPeriod)
-		for range cleanupTicker.C {
+		defer cleanupTicker.Stop()
+		select {
+		case <-cleanupTicker.C:
 			handler.ownersLanguages.cleanExpiredLanguages(handler.wlm)
+		case <-ctx.Done():
+			break
 		}
 	}()
 
