@@ -46,6 +46,7 @@ from tasks.system_probe import (
     go_package_dirs,
     ninja_generate,
 )
+from tasks.security_agent import build_functional_tests, build_stress_tests
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import (  # noqa: F401
@@ -431,6 +432,10 @@ class KMTPaths:
         return self.arch_dir / "opt/system-probe-tests"
 
     @property
+    def secagent_tests(self):
+        return self.arch_dir / "opt/security-agent-tests"
+
+    @property
     def tools(self):
         return self.root / self.arch / "tools"
 
@@ -438,10 +443,137 @@ class KMTPaths:
 def is_root():
     return os.getuid() == 0
 
+def ninja_define_rules(nw):
+    # go build does not seem to be designed to run concurrently on the same
+    # source files. To make go build work with ninja we create a pool to force
+    # only a single instance of go to be running.
+    nw.pool(name="gobuild", depth=1)
+
+    nw.rule(
+        name="gotestsuite",
+        command="$env $go test -mod=mod -v $timeout -tags \"$build_tags\" $extra_arguments -c -o $out $in",
+    )
+    nw.rule(name="copyextra", command="cp -r $in $out")
+    nw.rule(
+        name="gobin",
+        command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
+    )
+    nw.rule(name="copyfiles", command="install -D $in $out $mode")
+
+
+def ninja_build_dependencies(nw, kmt_paths, go_path):
+    test_runner_files = glob("test/new-e2e/system-probe/test-runner/*.go")
+    nw.build(
+        rule="gobin",
+        pool="gobuild",
+        outputs=[os.path.join(kmt_paths.dependencies, "test-runner")],
+        implicit=test_runner_files,
+        variables={
+            "go": go_path,
+            "chdir": "cd test/new-e2e/system-probe/test-runner",
+        },
+    )
+    test_runner_config = glob("test/new-e2e/system-probe/test-runner/files/*.json")
+    for f in test_runner_config:
+        nw.build(
+            rule="copyfiles",
+            outputs=[f"{kmt_paths.arch_dir}/opt/{os.path.basename(f)}"],
+            inputs=[os.path.abspath(f)],
+        )
+
+    test_json_files = glob("test/new-e2e/system-probe/test-json-review/*.go")
+    nw.build(
+        rule="gobin",
+        pool="gobuild",
+        outputs=[os.path.join(kmt_paths.dependencies, "test-json-review")],
+        implicit=test_json_files,
+        variables={
+            "go": go_path,
+            "chdir": "cd test/new-e2e/system-probe/test-json-review/",
+        },
+    )
+
+    nw.build(
+        outputs=[f"{kmt_paths.dependencies}/go/bin/test2json"],
+        rule="gobin",
+        pool="gobuild",
+        variables={
+            "go": go_path,
+            "ldflags": "-ldflags=\"-s -w\"",
+            "chdir": "true",
+            "tool": "cmd/test2json",
+            "env": "CGO_ENABLED=0",
+        },
+    )
+
+    nw.build(
+        rule="copyfiles",
+        outputs=[f"{kmt_paths.arch_dir}/opt/micro-vm-init.sh"],
+        inputs=[f"{os.getcwd()}/test/new-e2e/system-probe/test/micro-vm-init.sh"],
+        variables={"mode": "-m744"},
+    )
+
+
+def ninja_copy_ebpf_files(nw, component, kmt_paths, filter_fn = lambda _: True):
+    # copy ebpf files
+    ebpf_files = [
+        os.path.abspath(i) for i in glob("pkg/ebpf/bytecode/build/**/*", recursive=True) if os.path.isfile(i) and Path(i).suffix in ['.c', '.o'] and filter_fn(i)
+    ]
+    if component == "security-agent":
+        output = kmt_paths.secagent_tests
+    else:
+        output = kmt_paths.sysprobe_tests
+
+    for file in ebpf_files:
+        out = f"{output}/{os.path.relpath(file)}"
+        nw.build(inputs=[file], outputs=[out], rule="copyfiles", variables={"mode": "-m744"})
+
+
+@task
+def kmt_secagent_prepare(
+    ctx: Context,
+    vms: str | None = None,
+    stack: str | None = None,
+    arch: Arch | None = None,
+    ssh_key: str | None = None,
+    packages: str | None = None,
+    verbose: bool = True,
+    ci: bool = True,
+):
+    kmt_paths = KMTPaths(stack, arch)
+    kmt_paths.secagent_tests.mkdir(exist_ok=True, parents=True)
+
+    build_object_files(ctx, f"{kmt_paths.arch_dir}/kmt-secagent-obj-files.ninja")
+    build_functional_tests(
+        ctx,
+        bundle_ebpf=False,
+        race=True,
+        debug=True,
+        output=f"{kmt_paths.secagent_tests}/testsuite",
+        skip_linters=True,
+        skip_object_files=True,
+    )
+    #build_stress_tests(ctx, output=f"{kmt_paths.secagent_tests}/stresssuite", skip_linters=True)
+
+    go_path = "go"
+    go_root = os.getenv("GOROOT")
+    if go_root:
+        go_path = os.path.join(go_root, "bin", "go")
+
+    nf_path = f"{kmt_paths.arch_dir}/kmt-secagent.ninja"
+    with open(nf_path, 'w') as ninja_file:
+        nw = NinjaWriter(ninja_file)
+
+        ninja_define_rules(nw)
+        ninja_build_dependencies(nw, kmt_paths, go_path)
+        ninja_copy_ebpf_files(nw, "security-agent", kmt_paths, filter_fn = lambda x: os.path.basename(x).startswith("runtime-security"))
+
+    ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 @task
 def prepare(
     ctx: Context,
+    component: Component,
     vms: str | None = None,
     stack: str | None = None,
     arch: Arch | None = None,
@@ -457,29 +589,43 @@ def prepare(
     else:
         stack = "ci"
 
-    go_root = os.getenv("GOROOT")
-    if not ci:
-        download_gotestsum(ctx, arch, f"{go_root}/bin/gotestsum")
-
     if arch is None:
         arch = full_arch('local')
 
-    paths = KMTPaths(stack, arch)
     cc = get_compiler(ctx, arch)
-
-    info(f"[+] Compiling test binaries for {arch}")
 
     pkgs = ""
     if packages:
         pkgs = f"--packages {packages}"
-    if ci:
-        kmt_prepare(ctx, arch, ci=True)
-    else:
-        cc.exec(
-            f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e kmt.kmt-prepare --stack={stack} {pkgs} --arch={arch}",
-            run_dir=CONTAINER_AGENT_PATH,
-        )
 
+    if component == "security-agent":
+        if ci:
+            kmt_secagent_prepare(ctx, vms, stack, arch, ssh_key, packages, verbose, ci)
+        else:
+            cc.exec(
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch}",
+                run_dir=CONTAINER_AGENT_PATH,
+            )
+    elif component == "system-probe":
+        if ci:
+            kmt_sysprobe_prepare(ctx, arch, ci=True)
+        else:
+            cc.exec(
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch}",
+                run_dir=CONTAINER_AGENT_PATH,
+            )
+    else:
+        raise Exit(f"Component can only be 'system-probe' or 'security-agent'. {component} not supported.")
+
+    go_root = os.getenv("GOROOT")
+    if not ci:
+        download_gotestsum(ctx, arch, f"{go_root}/bin/gotestsum")
+
+
+    info(f"[+] Compiling test binaries for {arch}")
+
+
+    paths = KMTPaths(stack, arch)
     copy_executables = {
         f"{go_root}/bin/gotestsum": f"{paths.dependencies}/go/bin/gotestsum",
         "/opt/datadog-agent/embedded/bin/clang-bpf": f"{paths.arch_dir}/opt/datadog-agent/embedded/bin/clang-bpf",
@@ -542,8 +688,13 @@ def build_target_packages(filter_packages):
     return filtered
 
 
+def build_object_files(ctx, fp):
+    ninja_generate(ctx, fp)
+    ctx.run(f"ninja -d explain -f {fp}")
+
+
 @task
-def kmt_prepare(
+def kmt_sysprobe_prepare(
     ctx: Context,
     arch: ArchOrLocal,
     stack: str | None = None,
@@ -569,8 +720,7 @@ def kmt_prepare(
 
     target_packages = build_target_packages(filter_pkgs)
     kmt_paths = KMTPaths(stack, arch)
-    nf_path = os.path.join(kmt_paths.arch_dir, "kmt.ninja")
-    object_files_nf_path = os.path.join(kmt_paths.arch_dir, "kmt-object-files.ninja")
+    nf_path = os.path.join(kmt_paths.arch_dir, "kmt-sysprobe.ninja")
 
     kmt_paths.arch_dir.mkdir(exist_ok=True, parents=True)
     kmt_paths.dependencies.mkdir(exist_ok=True, parents=True)
@@ -580,27 +730,9 @@ def kmt_prepare(
     if go_root:
         go_path = os.path.join(go_root, "bin", "go")
 
-    ninja_generate(ctx, object_files_nf_path)
-    ctx.run(f"ninja -d explain -f {object_files_nf_path}")
-
+    build_object_files(ctx, f"{kmt_paths.arch_dir}/kmt-object-files.ninja")
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file)
-
-        # go build does not seem to be designed to run concurrently on the same
-        # source files. To make go build work with ninja we create a pool to force
-        # only a single instance of go to be running.
-        nw.pool(name="gobuild", depth=1)
-
-        nw.rule(
-            name="gotestsuite",
-            command="$env $go test -mod=mod -v $timeout -tags \"$build_tags\" $extra_arguments -c -o $out $in",
-        )
-        nw.rule(name="copyextra", command="cp -r $in $out")
-        nw.rule(
-            name="gobin",
-            command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
-        )
-        nw.rule(name="copyfiles", command="install -D $in $out $mode")
 
         _, _, env = get_build_flags(ctx)
         env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
@@ -611,64 +743,9 @@ def kmt_prepare(
             env_str += f"{key}='{new_val}' "
         env_str.rstrip()
 
-        test_runner_files = glob("test/new-e2e/system-probe/test-runner/*.go")
-        nw.build(
-            rule="gobin",
-            pool="gobuild",
-            outputs=[os.path.join(kmt_paths.dependencies, "test-runner")],
-            implicit=test_runner_files,
-            variables={
-                "go": go_path,
-                "chdir": "cd test/new-e2e/system-probe/test-runner",
-            },
-        )
-        test_runner_config = glob("test/new-e2e/system-probe/test-runner/files/*.json")
-        for f in test_runner_config:
-            nw.build(
-                rule="copyfiles",
-                outputs=[f"{kmt_paths.arch_dir}/opt/{os.path.basename(f)}"],
-                inputs=[os.path.abspath(f)],
-            )
-
-        test_json_files = glob("test/new-e2e/system-probe/test-json-review/*.go")
-        nw.build(
-            rule="gobin",
-            pool="gobuild",
-            outputs=[os.path.join(kmt_paths.dependencies, "test-json-review")],
-            implicit=test_json_files,
-            variables={
-                "go": go_path,
-                "chdir": "cd test/new-e2e/system-probe/test-json-review/",
-            },
-        )
-
-        nw.build(
-            outputs=[f"{kmt_paths.dependencies}/go/bin/test2json"],
-            rule="gobin",
-            pool="gobuild",
-            variables={
-                "go": go_path,
-                "ldflags": "-ldflags=\"-s -w\"",
-                "chdir": "true",
-                "tool": "cmd/test2json",
-                "env": "CGO_ENABLED=0",
-            },
-        )
-
-        nw.build(
-            rule="copyfiles",
-            outputs=[f"{kmt_paths.arch_dir}/opt/micro-vm-init.sh"],
-            inputs=[f"{os.getcwd()}/test/new-e2e/system-probe/test/micro-vm-init.sh"],
-            variables={"mode": "-m744"},
-        )
-
-        # copy object files
-        object_files = [
-            os.path.abspath(i) for i in glob("**/*.o", recursive=True) if i.split('/')[0] == "pkg" and "build" in i
-        ]
-        for file in object_files:
-            out = f"{kmt_paths.sysprobe_tests}/{os.path.relpath(file)}"
-            nw.build(inputs=[file], outputs=[out], rule="copyfiles", variables={"mode": "-m744"})
+        ninja_define_rules(nw)
+        ninja_build_dependencies(nw, kmt_paths, go_path)
+        ninja_copy_ebpf_files(nw, "system-probe", kmt_paths)
 
         for pkg in target_packages:
             target_path = os.path.join(kmt_paths.sysprobe_tests, os.path.relpath(pkg, os.getcwd()))
@@ -748,6 +825,7 @@ def kmt_prepare(
 )
 def test(
     ctx: Context,
+    component: str = "system-probe",
     vms: str | None = None,
     stack: str | None = None,
     packages=None,
@@ -779,11 +857,15 @@ def test(
 
     if not quick:
         for arch in used_archs:
-            prepare(ctx, stack=stack, vms=vms, packages=packages, ssh_key=ssh_key, arch=arch)
+            prepare(ctx, component, stack=stack, vms=vms, packages=packages, ssh_key=ssh_key, arch=arch)
 
     if run is not None and packages is None:
         raise Exit("Package must be provided when specifying test")
-    pkgs = packages.split(",")
+
+    pkgs = []
+    if packages is not None:
+        pkgs = packages.split(",")
+
     if run is not None and len(pkgs) > 1:
         raise Exit("Only a single package can be specified when running specific tests")
 
@@ -799,7 +881,7 @@ def test(
             f"-retry {retry}",
             "-verbose" if test_logs else "",
             f"-run-count {run_count}",
-            "-test-root /opt/system-probe-tests",
+            f"-test-root /opt/{component}-tests",
             f"-extra-params {test_extra_arguments}" if test_extra_arguments is not None else "",
             "-test-tools /opt/testing-tools",
         ]

@@ -372,8 +372,9 @@ def build_functional_tests(
     race=False,
     kernel_release=None,
     debug=False,
+    skip_object_files=False,
 ):
-    if not is_windows:
+    if not is_windows and not skip_object_files:
         build_cws_object_files(
             ctx,
             major_version=major_version,
