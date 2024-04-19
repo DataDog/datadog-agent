@@ -11,7 +11,6 @@ package util
 import (
 	"math"
 	"os"
-	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
 	cebpf "github.com/cilium/ebpf"
@@ -23,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-var once sync.Once
 
 // toPowerOf2 converts a number to its nearest power of 2
 func toPowerOf2(x int) int {
@@ -113,13 +110,11 @@ func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config
 			},
 		}
 		mgr.PerfMaps = append(mgr.PerfMaps, pm)
-		once.Do(func() {
-			helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
-			err := helperCallRemover.BeforeInit(mgr.Manager, nil)
-			if err != nil {
-				log.Error("Failed to remove helper calls from eBPF programs: ", err)
-			}
-		})
+		helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
+		err := helperCallRemover.BeforeInit(mgr.Manager, nil)
+		if err != nil {
+			log.Error("Failed to remove helper calls from eBPF programs: ", err)
+		}
 	default:
 		log.Errorf("Failed to set up connection handler for map %v: unknown event handler type", mapName)
 	}

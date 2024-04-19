@@ -37,7 +37,7 @@ type tcpFailedConnConsumer struct {
 	buffer        *network.ConnectionBuffer
 	once          sync.Once
 	closed        chan struct{}
-	failedConnMap failedConnMap
+	failedConnMap FailedConnMap
 	mux           sync.Mutex
 }
 
@@ -52,7 +52,7 @@ func (t failedConnStats) String() string {
 	)
 }
 
-type failedConnMap map[netebpf.ConnTuple]*failedConnStats
+type FailedConnMap map[netebpf.ConnTuple]*failedConnStats
 
 func newFailedConnConsumer(eventHandler ddebpf.EventHandler) *tcpFailedConnConsumer {
 	return &tcpFailedConnConsumer{
@@ -60,7 +60,7 @@ func newFailedConnConsumer(eventHandler ddebpf.EventHandler) *tcpFailedConnConsu
 		requests:      make(chan chan struct{}),
 		buffer:        network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
 		closed:        make(chan struct{}),
-		failedConnMap: make(failedConnMap),
+		failedConnMap: make(FailedConnMap),
 		mux:           sync.Mutex{},
 	}
 }
@@ -108,10 +108,9 @@ func (c *tcpFailedConnConsumer) extractConn(data []byte) {
 		c.failedConnMap[ct.Tup] = stats
 	}
 	stats.countByErrCode[ct.Reason]++
-	// rollup similar conns here
 }
 
-func (c *tcpFailedConnConsumer) Start(_ func([]network.ConnectionStats)) {
+func (c *tcpFailedConnConsumer) Start(callback func(connMap FailedConnMap)) {
 	if c == nil {
 		return
 	}
@@ -140,7 +139,7 @@ func (c *tcpFailedConnConsumer) Start(_ func([]network.ConnectionStats)) {
 				case l >= netebpf.SizeofFailedConn:
 					c.extractConn(dataEvent.Data)
 				default:
-					log.Errorf("unknown type received from ring buffer, skipping. data size=%d, expecting %d", len(dataEvent.Data), netebpf.SizeofFailedConn)
+					log.Errorf("unknown type received from buffer, skipping. data size=%d, expecting %d", len(dataEvent.Data), netebpf.SizeofFailedConn)
 					continue
 				}
 
@@ -157,7 +156,7 @@ func (c *tcpFailedConnConsumer) Start(_ func([]network.ConnectionStats)) {
 				lostSamplesCount += lc
 			case request := <-c.requests:
 				failedCount += uint64(len(c.failedConnMap))
-				log.Debugf("adamk failed conn map: %v", c.failedConnMap)
+				callback(c.failedConnMap)
 				clear(c.failedConnMap)
 				close(request)
 				now := time.Now()

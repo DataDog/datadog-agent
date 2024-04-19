@@ -65,7 +65,7 @@ const (
 // Tracer is the common interface implemented by all connection tracers.
 type Tracer interface {
 	// Start begins collecting network connection data.
-	Start(func([]network.ConnectionStats)) error
+	Start(func([]network.ConnectionStats), func(stats FailedConnMap)) error
 	// Stop halts all network data collection.
 	Stop()
 	// GetConnections returns the list of currently active connections, using the buffer provided.
@@ -308,7 +308,7 @@ func boolConst(name string, value bool) manager.ConstantEditor {
 	return c
 }
 
-func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
+func (t *tracer) Start(callback func([]network.ConnectionStats), failedConnCallback func(connMap FailedConnMap)) (err error) {
 	defer func() {
 		if err != nil {
 			t.Stop()
@@ -326,7 +326,7 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 
 	t.closeConsumer.Start(callback)
 	log.Info("starting failed connection consumer")
-	t.failedConnConsumer.Start(callback)
+	t.failedConnConsumer.Start(failedConnCallback)
 	return nil
 }
 
