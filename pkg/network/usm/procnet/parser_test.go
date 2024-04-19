@@ -81,6 +81,46 @@ func TestProcNetParsing(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestProcNetParsingIPv6(t *testing.T) {
+	// The example below contains the following connections:
+	//
+	// 0: [::1]:8080 (Listening Socket)
+	// 1: [::1]:8080 <- [::1]:46062
+	procNetFile := createTempFile(t, `sl  local_address                         remote_address                        st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
+   0: 00000000000000000000000001000000:1F90 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 542516 1 0000000000000000 100 0 0 10 0
+   1: 00000000000000000000000001000000:1F90 00000000000000000000000001000000:B3EE 06 00000000:00000000 03:000015AA 00000000     0        0 0 3 0000000000000000
+`)
+
+	scanner, err := newScanner(procNetFile)
+	assert.NoError(t, err)
+	defer scanner.Close()
+
+	// Entry 0
+	entry, ok := scanner.Next()
+	assert.True(t, ok)
+	laddr, lport := entry.LocalAddress()
+	assert.Equal(t, "::1", laddr.String())
+	assert.Equal(t, uint16(8080), lport)
+	raddr, rport := entry.RemoteAddress()
+	assert.Equal(t, "::", raddr.String())
+	assert.Equal(t, uint16(0), rport)
+	assert.Equal(t, 542516, entry.Inode())
+
+	// Entry 1
+	entry, ok = scanner.Next()
+	assert.True(t, ok)
+	laddr, lport = entry.LocalAddress()
+	assert.Equal(t, "::1", laddr.String())
+	assert.Equal(t, uint16(8080), lport)
+	raddr, rport = entry.RemoteAddress()
+	assert.Equal(t, "::1", raddr.String())
+	assert.Equal(t, uint16(46062), rport)
+	assert.Equal(t, 0, entry.Inode())
+
+	_, ok = scanner.Next()
+	assert.False(t, ok)
+}
+
 func BenchmarkScanner(b *testing.B) {
 	procNetContents := `sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
    0: 01010101:1F90 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 347101 1 0000000000000000 100 0 0 10 0

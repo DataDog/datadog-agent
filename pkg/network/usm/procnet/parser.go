@@ -175,16 +175,22 @@ func (e entry) parseAddress(rawAddress []byte) (netip.Addr, uint16) {
 	if err != nil || (n != 4 && n != 16) {
 		return netip.Addr{}, 0
 	}
-	// Byte ordering is reversed (big endian) than `netip` expects
-	slices.Reverse(e.buffer[:n])
 
 	if n == 4 {
+		// byte ordering is reversed (big endian)
+		slices.Reverse(e.buffer[:n])
 		var ipv4 [4]byte
 		copy(ipv4[:], e.buffer[:n])
 		return netip.AddrFrom4(ipv4), parsedPort
 	}
 
 	var ipv6 [16]byte
+	// ipv6 format in the /proc/net/tcp6 is a bit weird
+	// it can be thought of 4 64-bit words in big endian order
+	slices.Reverse(e.buffer[0:4])
+	slices.Reverse(e.buffer[4:8])
+	slices.Reverse(e.buffer[8:12])
+	slices.Reverse(e.buffer[12:16])
 	copy(ipv6[:], e.buffer[:n])
 	return netip.AddrFrom16(ipv6), parsedPort
 }
