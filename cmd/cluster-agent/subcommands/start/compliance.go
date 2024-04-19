@@ -88,7 +88,12 @@ func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Comp
 	}
 
 	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", endpoints, ctx)
-	agent := compliance.NewAgent(senderManager, wmeta, compliance.AgentOptions{
+	statsdClient, err := simpleTelemetrySenderFromSenderManager(senderManager)
+	if err != nil {
+		return err
+	}
+
+	agent := compliance.NewAgent(statsdClient, wmeta, compliance.AgentOptions{
 		ConfigDir:     configDir,
 		Reporter:      reporter,
 		CheckInterval: checkInterval,

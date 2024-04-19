@@ -14,29 +14,17 @@ const (
 	noRetry  retryType = "NoRetry"
 )
 
-type retriableError struct {
+type knownError struct {
 	errorMessage string
 	retryType    retryType
 }
 
-func getKnownRetriableErrors() []retriableError {
+func getKnownErrors() []knownError {
 	// Add here errors that are known to be flakes and that should be retried
-	return []retriableError{
+	return []knownError{
 		{
 			errorMessage: "i/o timeout",
 			retryType:    reCreate,
-		},
-		{
-			errorMessage: "creating EC2 Instance: IdempotentParameterMismatch:",
-			retryType:    reUp,
-		},
-		{
-			errorMessage: "InvalidInstanceID.NotFound",
-			retryType:    reUp,
-		},
-		{
-			errorMessage: "create: timeout while waiting for state to become 'tfSTABLE'",
-			retryType:    reUp,
 		},
 		{
 			// https://datadoghq.atlassian.net/browse/ADXT-1

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import platform
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import invoke.exceptions as ie
 from invoke.context import Context
@@ -16,7 +16,7 @@ try:
     from termcolor import colored
 except ImportError:
 
-    def colored(text: str, color: Optional[str]) -> str:  # noqa: U100
+    def colored(text: str, color: str | None) -> str:  # noqa: U100
         return text
 
 
@@ -60,7 +60,7 @@ def full_arch(arch: str):
     return arch_mapping[arch]
 
 
-def get_binary_target_arch(ctx: Context, file: str) -> Optional[Arch]:
+def get_binary_target_arch(ctx: Context, file: str) -> Arch | None:
     res = ctx.run(f"file {file}")
     if res is None or not res.ok:
         return None

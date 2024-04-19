@@ -12,7 +12,7 @@
   before_script:
     - export DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN_SSM_KEY)
     - export DOCKER_REGISTRY_PWD=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD_SSM_KEY)
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_SSM_NAME)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_DDDEV_SSM_NAME)
 
 .k8s-e2e-cws-cspm-init:
   - set +x
@@ -286,14 +286,17 @@ new-e2e-apm:
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
 
-new-e2e-updater:
+new-e2e-installer:
   extends: .new_e2e_template
   rules:
-    !reference [.on_updater_or_e2e_changes_or_manual]
+    !reference [.on_installer_or_e2e_changes_or_manual]
   needs:
-    - deploy_deb_testing-u7_arm64
+    - deploy_deb_testing-i7_arm64
+    - deploy_deb_testing-i7_amd64
+    - deploy_rpm_testing-i7_arm64
+    - deploy_rpm_testing-i7_x64
   variables:
-    TARGETS: ./tests/updater
+    TARGETS: ./tests/installer
     TEAM: fleet
 
 #   ^    If you create a new job here that extends `.new_e2e_template`,

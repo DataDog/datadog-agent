@@ -25,7 +25,7 @@ import (
 
 func processUntilRegOpen(t *testing.T, et *etwTester) {
 
-	skippedObjects := make(map[fileObjectPointer]struct{})
+	//skippedObjects := make(map[fileObjectPointer]struct{})
 	defer func() {
 		et.loopExited <- struct{}{}
 	}()
@@ -52,44 +52,7 @@ func processUntilRegOpen(t *testing.T, et *etwTester) {
 				}
 				continue
 
-			case *createHandleArgs:
-				ca := n.(*createHandleArgs)
-				// we get all sorts of notifications of DLLs being loaded.
-				// skip those
-
-				// check the last 4 chars of the filename
-				if l := len(ca.fileName); l >= 4 {
-					// see if it's a .dll
-					ext := ca.fileName[l-4:]
-
-					// check to see if it's a dll
-					if strings.EqualFold(ext, ".dll") {
-						skippedObjects[ca.fileObject] = struct{}{}
-						// don't add
-						continue
-					}
-				}
-			case *cleanupArgs:
-				ca := n.(*cleanupArgs)
-
-				// check to see if we already saw the createHandle for this, and if
-				// so, just skip
-				if _, ok := skippedObjects[ca.fileObject]; ok {
-					continue
-				}
-			case *closeArgs:
-				ca := n.(*closeArgs)
-				// check to see if we already saw the createHandle for this, and if
-				// so, just skip
-				if _, ok := skippedObjects[ca.fileObject]; ok {
-					// remove it from the map, since it's being closed.  it could be
-					// reused.
-					delete(skippedObjects, ca.fileObject)
-					continue
-				}
-
 			}
-			et.notifications = append(et.notifications, n)
 		}
 	}
 

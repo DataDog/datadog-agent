@@ -96,10 +96,7 @@ func (c *collector) handleEventBundle(ctx context.Context, eventBundle workloadm
 
 // extractSBOMWithTrivy emits a scan request to the SBOM scanner. The scan result will be sent to the resultChan.
 func (c *collector) extractSBOMWithTrivy(_ context.Context, imageID string) error {
-	scanRequest := containerd.ScanRequest{
-		ImageID: imageID,
-	}
-	if err := c.sbomScanner.Scan(scanRequest); err != nil {
+	if err := c.sbomScanner.Scan(containerd.NewScanRequest(imageID)); err != nil {
 		log.Errorf("Failed to trigger SBOM generation for containerd: %s", err)
 		return err
 	}

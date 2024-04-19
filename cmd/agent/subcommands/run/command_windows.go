@@ -13,9 +13,10 @@ import (
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
-	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
@@ -48,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -56,7 +58,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
@@ -96,7 +97,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			sysprobeconfig sysprobeconfig.Component,
 			server dogstatsdServer.Component,
 			_ replay.Component,
-			serverDebug dogstatsddebug.Component,
 			wmeta workloadmeta.Component,
 			taggerComp tagger.Component,
 			ac autodiscovery.Component,
@@ -119,11 +119,12 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			pkgSigning packagesigning.Component,
 			statusComponent status.Component,
 			collector collector.Component,
+			cloudfoundrycontainer cloudfoundrycontainer.Component,
+			_ autoexit.Component,
 			_ expvarserver.Component,
-			metadatascheduler metadatascheduler.Component,
 			jmxlogger jmxlogger.Component,
+			settings settings.Component,
 		) error {
-
 			defer StopAgentWithDefaults(agentAPI)
 
 			err := startAgent(
@@ -132,7 +133,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				telemetry,
 				sysprobeconfig,
 				server,
-				serverDebug,
 				wmeta,
 				taggerComp,
 				ac,
@@ -147,8 +147,9 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				invChecks,
 				statusComponent,
 				collector,
-				metadatascheduler,
+				cloudfoundrycontainer,
 				jmxlogger,
+				settings,
 			)
 			if err != nil {
 				return err

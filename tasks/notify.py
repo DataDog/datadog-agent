@@ -5,7 +5,7 @@ import re
 import tempfile
 import traceback
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict
 
 from invoke import task
@@ -17,8 +17,10 @@ from tasks.libs.pipeline.notifications import (
     GITHUB_SLACK_MAP,
     base_message,
     check_for_missing_owners_slack_and_jira,
+    email_to_slackid,
     find_job_owners,
     get_failed_tests,
+    get_git_author,
     send_slack_message,
 )
 from tasks.libs.pipeline.stats import get_failed_jobs_stats
@@ -49,12 +51,15 @@ def check_teams(_):
 
 
 @task
-def send_message(_, notification_type="merge", print_to_stdout=False):
+def send_message(ctx, notification_type="merge", print_to_stdout=False):
     """
     Send notifications for the current pipeline. CI-only task.
     Use the --print-to-stdout option to test this locally, without sending
     real slack messages.
     """
+    default_branch = os.getenv('CI_DEFAULT_BRANCH')
+    git_ref = os.getenv('CI_COMMIT_REF_NAME')
+
     try:
         failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
         messages_to_send = generate_failure_messages(PROJECT_NAME, failed_jobs)
@@ -92,6 +97,8 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
     base = base_message(header, state)
 
     # Send messages
+    metrics = []
+    timestamp = int(datetime.now(timezone.utc).timestamp())
     for owner, message in messages_to_send.items():
         channel = GITHUB_SLACK_MAP.get(owner.lower(), None)
         message.base_message = base
@@ -102,7 +109,44 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
         if print_to_stdout:
             print(f"Would send to {channel}:\n{str(message)}")
         else:
-            send_slack_message(channel, str(message))  # TODO: use channel variable
+            all_teams = channel == '#datadog-agent-pipelines'
+            post_channel = _should_send_message_to_channel(git_ref, default_branch) or all_teams
+            send_dm = not _should_send_message_to_channel(git_ref, default_branch) and all_teams
+
+            if post_channel:
+                recipient = channel
+                send_slack_message(recipient, str(message))
+                metrics.append(
+                    create_count(
+                        metric_name="datadog.ci.failed_job_notifications",
+                        timestamp=timestamp,
+                        tags=[
+                            f"team:{owner}",
+                            "repository:datadog-agent",
+                            f"git_ref:{git_ref}",
+                        ],
+                        unit='notification',
+                        value=1,
+                    )
+                )
+
+            # DM author
+            if send_dm:
+                author_email = get_git_author(email=True)
+                recipient = email_to_slackid(ctx, author_email)
+                send_slack_message(recipient, str(message))
+
+    if metrics:
+        send_metrics(metrics)
+
+
+def _should_send_message_to_channel(git_ref: str, default_branch: str) -> bool:
+    # Must match X.Y.Z, X.Y.x, W.X.Y-rc.Z
+    # Must not match W.X.Y-rc.Z-some-feature
+    release_ref_regex = re.compile(r"^[0-9]+\.[0-9]+\.(x|[0-9]+)$")
+    release_ref_regex_rc = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]-rc.[0-9]+$")
+
+    return git_ref == default_branch or release_ref_regex.match(git_ref) or release_ref_regex_rc.match(git_ref)
 
 
 @task
@@ -166,10 +210,7 @@ def send_stats(_, print_to_stdout=False):
     )
 
     if not print_to_stdout:
-        response = send_metrics(series)
-        if response["errors"]:
-            print(f"Error(s) while sending pipeline metrics to the Datadog backend: {response['errors']}")
-            raise Exit(code=1)
+        send_metrics(series)
         print(f"Sent pipeline metrics: {series}")
     else:
         print(f"Would send: {series}")

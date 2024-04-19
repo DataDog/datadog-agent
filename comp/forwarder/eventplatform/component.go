@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// team: agent-metrics-logs
+// team: agent-processing-and-routing
 
 const (
 	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata

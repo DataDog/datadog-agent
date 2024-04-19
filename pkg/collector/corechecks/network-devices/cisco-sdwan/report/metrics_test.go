@@ -158,8 +158,8 @@ func TestSendInterfaceMetrics(t *testing.T) {
 
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"interface.rx_bits", 20*8, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"interface.tx_bits", 10*8, "", expectedTags, 10)
-	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"interface.rx_kbps", 13, "", expectedTags, 10)
-	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"interface.tx_kbps", 250, "", expectedTags, 10)
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"interface.rx_bps", 13*1000, "", expectedTags, 10)
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"interface.tx_bps", 250*1000, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"interface.rx_bandwidth_usage", 12, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"interface.tx_bandwidth_usage", 1, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"interface.rx_errors", 0, "", expectedTags, 10)
@@ -996,6 +996,84 @@ func TestSendDeviceCountersMetrics(t *testing.T) {
 			sender := NewSDWanSender(mockSender, "my-ns")
 			sender.SetDeviceTags(tt.tags)
 			sender.SendDeviceCountersMetrics(tt.deviceCounters)
+
+			for _, metric := range tt.expectedMetric {
+				mockSender.AssertMetric(t, metric.method, metric.name, metric.value, "", metric.tags)
+			}
+		})
+	}
+}
+
+func TestSendDeviceStatusMetric(t *testing.T) {
+	tests := []struct {
+		name           string
+		deviceStatus   map[string]float64
+		tags           map[string][]string
+		expectedMetric []expectedMetric
+	}{
+		{
+			name: "Report device status",
+			deviceStatus: map[string]float64{
+				"10.0.0.1": 1,
+				"10.0.0.2": 0,
+			},
+			tags: map[string][]string{
+				"10.0.0.1": {
+					"device_name:10.0.0.1",
+					"device_namespace:cisco-sdwan",
+					"device_vendor:cisco",
+					"hostname:test-device",
+					"system_ip:10.0.0.1",
+					"site_id:100",
+				},
+				"10.0.0.2": {
+					"device_name:10.0.0.2",
+					"device_namespace:cisco-sdwan",
+					"device_vendor:cisco",
+					"hostname:test-vsmart",
+					"system_ip:10.0.0.2",
+					"site_id:102",
+				},
+			},
+			expectedMetric: []expectedMetric{
+				{
+					method: "Gauge",
+					value:  1,
+					name:   ciscoSDWANMetricPrefix + "device.reachable",
+					tags: []string{
+						"device_name:10.0.0.1",
+						"device_namespace:cisco-sdwan",
+						"device_vendor:cisco",
+						"hostname:test-device",
+						"system_ip:10.0.0.1",
+						"site_id:100",
+					},
+				},
+				{
+					method: "Gauge",
+					value:  0,
+					name:   ciscoSDWANMetricPrefix + "device.reachable",
+					tags: []string{
+						"device_name:10.0.0.2",
+						"device_namespace:cisco-sdwan",
+						"device_vendor:cisco",
+						"hostname:test-vsmart",
+						"system_ip:10.0.0.2",
+						"site_id:102",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSender := mocksender.NewMockSender("foo")
+			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			sender := NewSDWanSender(mockSender, "my-ns")
+			sender.SetDeviceTags(tt.tags)
+			sender.SendDeviceStatusMetrics(tt.deviceStatus)
 
 			for _, metric := range tt.expectedMetric {
 				mockSender.AssertMetric(t, metric.method, metric.name, metric.value, "", metric.tags)

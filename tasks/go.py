@@ -76,7 +76,13 @@ def run_golangci_lint(
 
 @task
 def golangci_lint(
-    ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None  # noqa: U100
+    ctx,
+    targets,
+    rtloader_root=None,
+    build_tags=None,
+    build="test",
+    arch="x64",
+    concurrency=None,  # noqa: U100
 ):
     """
     Run golangci-lint on targets using .golangci.yml configuration.
@@ -149,7 +155,7 @@ def lint_licenses(ctx):
 
     licenses = []
     file = 'LICENSE-3rdparty.csv'
-    with open(file, 'r', encoding='utf-8') as f:
+    with open(file, encoding='utf-8') as f:
         next(f)
         for line in f:
             licenses.append(line.rstrip())
@@ -422,7 +428,7 @@ def tidy_all(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.21.8 linux/amd64"
+    # result is like "go version go1.21.9 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:
