@@ -16,13 +16,7 @@ fi
 # Start tests
 code=0
 
-if [[ -z "${CI+x}" ]]; then
-    base="/opt/"
-else
-    base="/opt/kmt-ramfs"
-fi
-
-"${base}"/testing-tools/test-runner $runner_config || code=$?
+/opt/testing-tools/test-runner $runner_config || code=$?
 
 if [[ -f "/job_env.txt" ]]; then
     cp /job_env.txt /ci-visibility/junit/

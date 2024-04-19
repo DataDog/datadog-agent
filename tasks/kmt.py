@@ -428,9 +428,6 @@ class KMTPaths:
 
     @property
     def sysprobe_tests(self):
-        if self.stack == "ci":
-            return self.arch_dir / "opt/system-probe-tests-ramfs"
-
         return self.arch_dir / "opt/system-probe-tests"
 
     @property
