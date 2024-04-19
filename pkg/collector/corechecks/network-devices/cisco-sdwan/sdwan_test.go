@@ -135,7 +135,23 @@ min_collection_interval: 180
 	sender.AssertMetricWithTimestamp(t, "CountWithTimestamp", "cisco_sdwan.tunnel.tx_packets", 0, "", tags, ts)
 
 	// Assert control-connection metrics
-	sender.AssertMetric(t, "Gauge", "cisco_sdwan.control_connection.status", 1, "", []string{"device_vendor:cisco", "device_namespace:test", "hostname:Manager", "system_ip:10.10.1.1", "site_id:101", "type:vmanage", "remote_system_ip:10.10.1.3", "private_ip:10.10.20.80", "local_color:default", "remote_color:default", "peer_type:vbond", "state:up"})
+	sender.AssertMetric(t, "Gauge", "cisco_sdwan.control_connection.status", 1, "", []string{
+		"device_vendor:cisco",
+		"device_namespace:test",
+		"hostname:Manager",
+		"system_ip:10.10.1.1",
+		"device_id:test:10.10.1.1",
+		"device_hostname:Manager",
+		"device_ip:10.10.1.1",
+		"site_id:101",
+		"type:vmanage",
+		"remote_system_ip:10.10.1.3",
+		"private_ip:10.10.20.80",
+		"local_color:default",
+		"remote_color:default",
+		"peer_type:vbond",
+		"state:up",
+	})
 
 	// Assert OMP Peer metrics
 	sender.AssertMetric(t, "Gauge", "cisco_sdwan.omp_peer.status", 1, "", []string{"system_ip:10.10.1.5", "remote_system_ip:10.10.1.13", "legit:yes", "refresh:supported", "type:vedge", "state:up"})
@@ -162,9 +178,16 @@ min_collection_interval: 180
         "system_ip:10.10.1.1"
       ],
       "tags": [
-        "source:cisco-sdwan",
+        "device_vendor:cisco",
         "device_namespace:test",
-        "site_id:101"
+        "hostname:Manager",
+        "system_ip:10.10.1.1",
+        "site_id:101",
+        "type:vmanage",
+        "device_ip:10.10.1.1",
+        "device_hostname:Manager",
+        "device_id:test:10.10.1.1",
+        "source:cisco-sdwan"
       ],
       "ip_address": "10.10.1.1",
       "status": 1,

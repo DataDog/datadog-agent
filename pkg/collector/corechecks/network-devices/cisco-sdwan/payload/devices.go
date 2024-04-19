@@ -61,14 +61,14 @@ func GetDevicesStatus(devices []client.Device) map[string]float64 {
 }
 
 func buildDeviceMetadata(namespace string, device client.Device) devicemetadata.DeviceMetadata {
-	id := fmt.Sprintf("%s:%s", namespace, device.SystemIP)
+	id := buildDeviceID(namespace, device)
 
 	return devicemetadata.DeviceMetadata{
 		ID:           id,
 		IPAddress:    device.SystemIP,
 		Vendor:       "cisco",
 		Name:         device.HostName,
-		Tags:         []string{"source:cisco-sdwan", "device_namespace:" + namespace, "site_id:" + device.SiteID},
+		Tags:         append(buildDeviceTags(namespace, device), "source:cisco-sdwan"),
 		IDTags:       []string{"system_ip:" + device.SystemIP},
 		Status:       mapNDMStatus(device.Reachability),
 		Model:        device.DeviceModel,
@@ -107,10 +107,17 @@ func buildDeviceTags(namespace string, device client.Device) []string {
 		"system_ip:" + device.SystemIP,
 		"site_id:" + device.SiteID,
 		"type:" + device.DeviceType,
+		"device_ip:" + device.SystemIP,
+		"device_hostname:" + device.HostName,
+		"device_id:" + buildDeviceID(namespace, device),
 	}
 }
 
 func computeUptime(device client.Device) float64 {
 	now := TimeNow().UnixMilli()
 	return math.Round((float64(now) - device.UptimeDate) / 10) // In hundredths of a second, to match SNMP
+}
+
+func buildDeviceID(namespace string, device client.Device) string {
+	return fmt.Sprintf("%s:%s", namespace, device.SystemIP)
 }
