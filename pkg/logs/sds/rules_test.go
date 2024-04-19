@@ -51,12 +51,10 @@ func TestGetByID(t *testing.T) {
 
 	require.Contains(rules, "2", "rule two exists, should be returned")
 	two := rules["2"]
-	lastDef, err := two.LastSupportedVersion()
-	require.NoError(err)
 	require.Equal(two.ID, "2", "not the good rule")
 	require.Equal(two.Name, "Two", "not the good rule")
 	require.Equal(two.Description, "Two desc", "not the good rule")
-	require.Equal(lastDef.Pattern, "two", "not the good rule")
+	require.Equal(two.Definitions[0].Pattern, "two", "not the good rule")
 
 	require.Contains(rules, "0", "rule zero exists, should be returned")
 	zero := rules["0"]
