@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+//go:build !serverless
+
 // Package telemetryimpl implements the telemetry component interface.
 package telemetryimpl
 
@@ -22,6 +24,23 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	sdk "go.opentelemetry.io/otel/sdk/metric"
 )
+
+// PrometheusComponent extends the default telemtry Component interface
+// It provides a way to interact with the prometheus registry
+// We split the telemetry component into two interfaces to avoid exposing the prometheus registry to the serverless binary
+type PrometheusComponent interface {
+	telemetry.Component
+
+	// Meter returns a new OTEL meter
+	Meter(name string, opts ...metric.MeterOption) metric.Meter
+	// RegisterCollector Registers a Collector with the prometheus registry
+	RegisterCollector(c prometheus.Collector)
+	// UnregisterCollector unregisters a Collector with the prometheus registry
+	UnregisterCollector(c prometheus.Collector) bool
+
+	// GatherDefault exposes metrics from the default telemetry registry (see options.DefaultMetric)
+	GatherDefault() ([]*dto.MetricFamily, error)
+}
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {

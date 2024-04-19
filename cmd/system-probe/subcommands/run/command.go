@@ -93,6 +93,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				compstatsd.Module(),
 				config.Module(),
 				telemetryimpl.Module(),
+				fx.Provide(func(telemtry telemetry.Component) telemetryimpl.PrometheusComponent {
+					return telemtry.(telemetryimpl.PrometheusComponent)
+				}),
 				sysprobeconfigimpl.Module(),
 				rcclientimpl.Module(),
 				fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {
@@ -136,7 +139,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component) error {
+func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetryimpl.PrometheusComponent, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component) error {
 	defer func() {
 		stopSystemProbe()
 	}()
@@ -222,7 +225,7 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 
 func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
-		func(log log.Component, config config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component, settings settings.Component) error {
+		func(log log.Component, config config.Component, statsd compstatsd.Component, telemetry telemetryimpl.PrometheusComponent, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component, settings settings.Component) error {
 			defer StopSystemProbeWithDefaults()
 			err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta, settings)
 			if err != nil {
@@ -255,6 +258,9 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		rcclientimpl.Module(),
 		config.Module(),
 		telemetryimpl.Module(),
+		fx.Provide(func(telemtry telemetry.Component) telemetryimpl.PrometheusComponent {
+			return telemtry.(telemetryimpl.PrometheusComponent)
+		}),
 		compstatsd.Module(),
 		sysprobeconfigimpl.Module(),
 		fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {
@@ -295,7 +301,7 @@ func StopSystemProbeWithDefaults() {
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, wmeta optional.Option[workloadmeta.Component], settings settings.Component) error {
+func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry telemetryimpl.PrometheusComponent, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, wmeta optional.Option[workloadmeta.Component], settings settings.Component) error {
 	var err error
 	cfg := sysprobeconfig.SysProbeObject()
 
