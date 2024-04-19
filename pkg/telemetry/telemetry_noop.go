@@ -9,10 +9,10 @@ package telemetry
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/serverlessimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 )
 
 // GetCompatComponent returns a component wrapping telemetry global variables
 func GetCompatComponent() telemetry.Component {
-	return serverlessimpl.GetCompatComponent()
+	return noopsimpl.GetCompatComponent()
 }
