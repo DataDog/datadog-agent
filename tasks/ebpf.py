@@ -154,7 +154,7 @@ def collect_verification_stats(
 
     ctx.run(f"{sudo} ./main {' '.join(args)}", env=env)
 
-    with open(VERIFIER_STATS, 'r') as f:
+    with open(VERIFIER_STATS) as f:
         verifier_stats = json.load(f)
 
     cleaned_up = cleanup_verifier_stats(verifier_stats)
@@ -181,7 +181,7 @@ def print_verification_stats(
         print("[!] No verifier stats found, regenerating them...")
         collect_verification_stats(ctx)
 
-    with open(data, 'r') as f:
+    with open(data) as f:
         verifier_stats = json.load(f)
 
     if base is None:
@@ -230,7 +230,7 @@ def print_complexity_legend():
 
 
 @task
-def annotate_complexity(_: Context, program: str, function: str, debug=False):
+def annotate_complexity(_: Context, program: str, function: str, debug=False, show_assembly=False):
     if debug:
         program += "_debug"
 
@@ -240,7 +240,7 @@ def annotate_complexity(_: Context, program: str, function: str, debug=False):
     if not os.path.exists(complexity_data_file):
         raise Exit(f"Complexity data for {func_name} not found at {complexity_data_file}")
 
-    with open(complexity_data_file, 'r') as f:
+    with open(complexity_data_file) as f:
         complexity_data = json.load(f)
     all_files = {x.split(':')[0] for x in complexity_data["source_map"].keys()}
 
@@ -249,13 +249,13 @@ def annotate_complexity(_: Context, program: str, function: str, debug=False):
 
     print_complexity_legend()
 
-    for f in all_files:
+    for f in sorted(all_files):
         if not os.path.exists(f):
             print(f"File {f} not found")
             continue
 
-        print(f"\n\n=== Source file: {f} ===")
-        with open(f, 'r') as src:
+        print(colored(f"\n\n=== Source file: {f} ===", attrs=["bold"]))
+        with open(f) as src:
             buffer = collections.deque(maxlen=10)  # Only print 10 lines of context if we have no line information
             for lineno, line in enumerate(src):
                 lineno += 1
@@ -264,6 +264,7 @@ def annotate_complexity(_: Context, program: str, function: str, debug=False):
                 color = None
                 line = line.rstrip('\n')
 
+                compinfo_len = 13
                 if linecomp is not None:
                     ins = linecomp["num_instructions"]
                     passes = linecomp["max_passes"]
@@ -279,7 +280,7 @@ def annotate_complexity(_: Context, program: str, function: str, debug=False):
 
                     compinfo = f"[{ins:2d}i|{passes:2d}p|{total:2d}t]"
                 else:
-                    compinfo = " " * 13
+                    compinfo = " " * compinfo_len
 
                 statusline = f"{lineno:4d} | {compinfo} | {colored(line, color)}"
                 buffer.append(statusline)
@@ -288,6 +289,14 @@ def annotate_complexity(_: Context, program: str, function: str, debug=False):
                     for l in buffer:
                         print(l)
                     buffer.clear()
+
+                    if show_assembly:
+                        # Print the assembly code for this line
+                        assembly = [i.split(':') for i in linecomp["assembly_insns"]]
+                        assembly = sorted([(int(i), a.strip()) for i, a in assembly])
+                        for asm_idx, asm_line in assembly:
+                            asm_line_no = f'ASM {asm_idx:4d}'
+                            print(colored(f"{' ' * 4}   {asm_line_no:>{compinfo_len}} | {asm_line}", attrs=["dark"]))
                 elif len(buffer) == 9:
                     # Print the last lines if we have no line information
                     for l in buffer:
