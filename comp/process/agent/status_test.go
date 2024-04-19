@@ -8,6 +8,7 @@ package agent
 import (
 	"bytes"
 	"embed"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -62,13 +63,15 @@ func TestStatus(t *testing.T) {
 
 			val, ok := processStats.(map[string]interface{})
 			assert.True(t, ok)
-
+			fmt.Println(val)
 			assert.NotEmpty(t, val["core"])
 			assert.Empty(t, val["error"])
 		}},
 		{"Text", func(t *testing.T) {
 			b := new(bytes.Buffer)
 			err := headerProvider.Text(false, b)
+
+			fmt.Println(b.String())
 
 			assert.NoError(t, err)
 

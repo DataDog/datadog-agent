@@ -63,40 +63,42 @@ type MemInfo struct {
 	Alloc uint64 `json:"alloc"`
 }
 
+type ExpvarsMap struct {
+	Pid                             int                 `json:"pid"`
+	Uptime                          int                 `json:"uptime"`
+	UptimeNano                      float64             `json:"uptime_nano"`
+	MemStats                        MemInfo             `json:"memstats"`
+	Version                         InfoVersion         `json:"version"`
+	DockerSocket                    string              `json:"docker_socket"`
+	LastCollectTime                 string              `json:"last_collect_time"`
+	ProcessCount                    int                 `json:"process_count"`
+	ContainerCount                  int                 `json:"container_count"`
+	ProcessQueueSize                int                 `json:"process_queue_size"`
+	RTProcessQueueSize              int                 `json:"rtprocess_queue_size"`
+	ConnectionsQueueSize            int                 `json:"connections_queue_size"`
+	EventQueueSize                  int                 `json:"event_queue_size"`
+	PodQueueSize                    int                 `json:"pod_queue_size"`
+	ProcessQueueBytes               int                 `json:"process_queue_bytes"`
+	RTProcessQueueBytes             int                 `json:"rtprocess_queue_bytes"`
+	ConnectionsQueueBytes           int                 `json:"connections_queue_bytes"`
+	EventQueueBytes                 int                 `json:"event_queue_bytes"`
+	PodQueueBytes                   int                 `json:"pod_queue_bytes"`
+	ContainerID                     string              `json:"container_id"`
+	ProxyURL                        string              `json:"proxy_url"`
+	LogFile                         string              `json:"log_file"`
+	EnabledChecks                   []string            `json:"enabled_checks"`
+	Endpoints                       map[string][]string `json:"endpoints"`
+	DropCheckPayloads               []string            `json:"drop_check_payloads"`
+	SystemProbeProcessModuleEnabled bool                `json:"process_agent.system_probe_process_module_enabled"`
+	LanguageDetectionEnabled        bool                `json:"language_detection_enabled"`
+	WlmExtractorCacheSize           int                 `json:"workloadmeta_extractor_cache_size"`
+	WlmExtractorStaleDiffs          int                 `json:"workloadmeta_extractor_stale_diffs"`
+	WlmExtractorDiffsDropped        int                 `json:"workloadmeta_extractor_diffs_dropped"`
+}
+
 // ProcessExpvars holds values fetched from the exp var server
 type ProcessExpvars struct {
-	Map struct {
-		Pid                             int                 `json:"pid"`
-		Uptime                          int                 `json:"uptime"`
-		UptimeNano                      float64             `json:"uptime_nano"`
-		MemStats                        MemInfo             `json:"memstats"`
-		Version                         InfoVersion         `json:"version"`
-		DockerSocket                    string              `json:"docker_socket"`
-		LastCollectTime                 string              `json:"last_collect_time"`
-		ProcessCount                    int                 `json:"process_count"`
-		ContainerCount                  int                 `json:"container_count"`
-		ProcessQueueSize                int                 `json:"process_queue_size"`
-		RTProcessQueueSize              int                 `json:"rtprocess_queue_size"`
-		ConnectionsQueueSize            int                 `json:"connections_queue_size"`
-		EventQueueSize                  int                 `json:"event_queue_size"`
-		PodQueueSize                    int                 `json:"pod_queue_size"`
-		ProcessQueueBytes               int                 `json:"process_queue_bytes"`
-		RTProcessQueueBytes             int                 `json:"rtprocess_queue_bytes"`
-		ConnectionsQueueBytes           int                 `json:"connections_queue_bytes"`
-		EventQueueBytes                 int                 `json:"event_queue_bytes"`
-		PodQueueBytes                   int                 `json:"pod_queue_bytes"`
-		ContainerID                     string              `json:"container_id"`
-		ProxyURL                        string              `json:"proxy_url"`
-		LogFile                         string              `json:"log_file"`
-		EnabledChecks                   []string            `json:"enabled_checks"`
-		Endpoints                       map[string][]string `json:"endpoints"`
-		DropCheckPayloads               []string            `json:"drop_check_payloads"`
-		SystemProbeProcessModuleEnabled bool                `json:"process_agent.system_probe_process_module_enabled"`
-		LanguageDetectionEnabled        bool                `json:"language_detection_enabled"`
-		WlmExtractorCacheSize           int                 `json:"workloadmeta_extractor_cache_size"`
-		WlmExtractorStaleDiffs          int                 `json:"workloadmeta_extractor_stale_diffs"`
-		WlmExtractorDiffsDropped        int                 `json:"workloadmeta_extractor_diffs_dropped"`
-	} `json:"process_agent"`
+	ExpvarsMap ExpvarsMap `json:"process_agent"`
 }
 
 // Status holds runtime information from process-agent
