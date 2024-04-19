@@ -91,7 +91,8 @@ export previous_dir=$(pwd)
 cd /usr/local
 sudo curl https://dl.google.com/go/go1.22.1.linux-%s.tar.gz --output go.tar.gz
 sudo tar -C /usr/local -xzf go.tar.gz
-export PATH="$PATH:/usr/local/go/bin:$(go env GOPATH)/bin"
+export PATH="$PATH:/usr/local/go/bin"
+export PATH="$PATH:$(go env GOPATH)/bin"
 cd $previous_dir
 
 go install github.com/awslabs/amazon-ecr-credential-helper/ecr-login/cli/docker-credential-ecr-login@latest
