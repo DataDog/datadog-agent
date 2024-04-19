@@ -11,11 +11,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
+	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/expvarsimpl"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -35,15 +41,18 @@ func Module() fxutil.Module {
 		fx.Provide(newProcessAgent))
 }
 
-type processAgentParams struct {
+type dependencies struct {
 	fx.In
 
-	Lc        fx.Lifecycle
-	Log       logComponent.Component
-	Config    config.Component
-	Checks    []types.CheckComponent `group:"check"`
-	Runner    runner.Component
-	Submitter submitterComp.Component
+	Lc             fx.Lifecycle
+	Log            logComponent.Component
+	Config         config.Component
+	Checks         []types.CheckComponent `group:"check"`
+	Runner         runner.Component
+	Submitter      submitterComp.Component
+	SysProbeConfig sysprobeconfig.Component
+	HostInfo       hostinfo.Component
+	Telemetry      telemetry.Component
 }
 
 type processAgent struct {
@@ -52,15 +61,24 @@ type processAgent struct {
 	Log     logComponent.Component
 }
 
-func newProcessAgent(p processAgentParams) agent.Component {
-	if !agent.Enabled(p.Config, p.Checks, p.Log) {
-		return processAgent{
-			enabled: false,
+type provides struct {
+	fx.Out
+
+	Comp           agent.Component
+	StatusProvider statusComponent.InformationProvider
+}
+
+func newProcessAgent(deps dependencies) provides {
+	if !agent.Enabled(deps.Config, deps.Checks, deps.Log) {
+		return provides{
+			Comp: processAgent{
+				enabled: false,
+			},
 		}
 	}
 
-	enabledChecks := make([]checks.Check, 0, len(p.Checks))
-	for _, c := range fxutil.GetAndFilterGroup(p.Checks) {
+	enabledChecks := make([]checks.Check, 0, len(deps.Checks))
+	for _, c := range fxutil.GetAndFilterGroup(deps.Checks) {
 		check := c.Object()
 		if check.IsEnabled() {
 			enabledChecks = append(enabledChecks, check)
@@ -69,19 +87,34 @@ func newProcessAgent(p processAgentParams) agent.Component {
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if len(enabledChecks) == 0 {
-		p.Log.Info(agentDisabledMessage)
-		return processAgent{
-			enabled: false,
+		deps.Log.Info(agentDisabledMessage)
+		return provides{
+			Comp: processAgent{
+				enabled: false,
+			},
 		}
 	}
 
 	processAgentComponent := processAgent{
 		enabled: true,
 		Checks:  enabledChecks,
-		Log:     p.Log,
+		Log:     deps.Log,
 	}
 
-	return processAgentComponent
+	if flavor.GetFlavor() != flavor.ProcessAgent {
+		// We return a status provider when the component is used outside of the process agent
+		// as the component status is unique from the typical agent status in this case.
+		err := expvars.InitProcessStatus(deps.Config, deps.SysProbeConfig, deps.HostInfo, deps.Log, deps.Telemetry)
+		if err != nil {
+			_ = deps.Log.Critical("Failed to initialize process status server:", err)
+		}
+		return provides{
+			Comp:           processAgentComponent,
+			StatusProvider: statusComponent.NewInformationProvider(agent.NewStatusProvider(deps.Config)),
+		}
+	}
+
+	return provides{Comp: processAgentComponent}
 }
 
 // Enabled determines whether the process agent is enabled based on the configuration.
