@@ -112,6 +112,7 @@ func newGui(deps dependencies) optional.Option[guicomp.Component] {
 
 	// Serve the (secured) index page on the default endpoint
 	router.Handle("/", g.authorizeAccess(http.HandlerFunc(generateIndex)))
+	router.Handle("/auth", g.login())
 
 	// Mount our (secured) filesystem at the view/{path} route
 	router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", g.authorizeAccess(http.HandlerFunc(serveAssets))))
@@ -198,43 +199,51 @@ func serveAssets(w http.ResponseWriter, req *http.Request) {
 	w.Write(data)
 }
 
+func (g *gui) login() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		loginToken := r.URL.Query().Get("loginToken")
+		// authToken is present in the query when the GUI is opened from the CLI
+		if loginToken == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			http.Error(w, "missing loginToken", 401)
+			return
+		}
+		accessToken, err := g.auth.Authenticate(loginToken)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			http.Error(w, "invalid loginToken", 401)
+			return
+		}
+		// if authToken is valid, set the accessToken as a cookie and redirect the user to root page
+		http.SetCookie(w, &http.Cookie{Name: "accessToken", Value: accessToken, Path: "/"})
+		http.Redirect(w, r, "/", http.StatusFound)
+	})
+}
+
 // Middleware which blocks access to secured files from unauthorized clients
 func (g *gui) authorizeAccess(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Disable caching
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 
-		authToken := r.URL.Query().Get("authToken")
-		// authToken is present in the query when the GUI is opened from the CLI
-		if authToken != "" {
-			accessToken, err := g.auth.Authenticate(authToken)
-			if err != nil {
-				w.WriteHeader(http.StatusUnauthorized)
-				http.Error(w, "invalid authToken", 401)
-				return
-			}
-			// if authToken is valid, set the accessToken as a cookie and redirect the user to root page
-			http.SetCookie(w, &http.Cookie{Name: "accessToken", Value: accessToken, Path: "/"})
-			http.Redirect(w, r, "/", http.StatusFound)
-		} else {
-			cookie, _ := r.Cookie("accessToken")
-			if cookie == nil {
-				w.WriteHeader(http.StatusUnauthorized)
-				http.Error(w, "no accessToken token", 401)
-				return
-			}
-
-			// check accessToken is valid (same key, same sessionId)
-			err := g.auth.Authorize(cookie.Value)
-			if err != nil {
-				w.WriteHeader(http.StatusUnauthorized)
-				http.Error(w, "invalid accessToken", 401)
-				return
-			}
-
-			// Token was valid: serve the requested resource
-			h.ServeHTTP(w, r)
+		cookie, _ := r.Cookie("accessToken")
+		if cookie == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			http.Error(w, "no accessToken token", 401)
+			return
 		}
+
+		// check accessToken is valid (same key, same sessionId)
+		err := g.auth.Authorize(cookie.Value)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			http.Error(w, "invalid accessToken", 401)
+			return
+		}
+
+		// Token was valid: serve the requested resource
+		h.ServeHTTP(w, r)
 	})
 }
 

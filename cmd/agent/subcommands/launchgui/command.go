@@ -64,18 +64,18 @@ func launchGui(config config.Component, _ *cliParams) error {
 
 	// Create a new token object, specifying signing method and the claims
 	// you would like it to contain.
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &jwt.RegisteredClaims{
+	loginToken := jwt.NewWithClaims(jwt.SigningMethodHS256, &jwt.RegisteredClaims{
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
 	})
 
 	// Sign and get the complete encoded token as a string using the secret
-	tokenString, err := token.SignedString([]byte(authToken))
+	loginTokenString, err := loginToken.SignedString([]byte(authToken))
 	if err != nil {
 		return fmt.Errorf("error generating JWT: " + err.Error())
 	}
 
 	// Open the GUI in a browser, passing the authorization tokens as parameters
-	err = open("http://127.0.0.1:" + guiPort + "/?authToken=" + tokenString)
+	err = open("http://127.0.0.1:" + guiPort + "/auth?loginToken=" + loginTokenString)
 	if err != nil {
 		return fmt.Errorf("error opening GUI: " + err.Error())
 	}
