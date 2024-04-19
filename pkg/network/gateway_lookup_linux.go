@@ -70,9 +70,11 @@ func gwLookupEnabled() bool {
 
 // NewGatewayLookup creates a new instance of a gateway lookup using
 // a given root network namespace and a size for the route cache
-func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32) *LinuxGatewayLookup {
+func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32) GatewayLookup {
 	if !gwLookupEnabled() {
 		return nil
+	} else {
+		log.Warnf("Gateway lookup is enabled!!! isAWS %t, cloud provider: %s", cloud.IsAWS(), ec2.CloudProviderName)
 	}
 
 	rootNetNs, err := rootNsLookup()
@@ -93,7 +95,7 @@ func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32) *Linu
 	}
 
 	routeCacheSize := defaultMaxRouteCacheSize
-	if maxRouteCacheSize <= maxRouteCacheSize {
+	if maxRouteCacheSize <= routeCacheSize {
 		routeCacheSize = maxRouteCacheSize
 	} else {
 		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, maxRouteCacheSize)

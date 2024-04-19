@@ -62,7 +62,7 @@ func NewRunner() (*Runner, error) {
 	}
 
 	gatewayLookup := network.NewGatewayLookup(rootNsLookup, math.MaxUint32)
-	if gatewayLookup != nil {
+	if gatewayLookup == nil {
 		log.Warnf("gateway lookup is not enabled")
 	}
 
@@ -205,6 +205,7 @@ func (r *Runner) processResults(ctx context.Context, res *results.Results, hname
 
 		// get hardware interface info
 		if r.gatewayLookup != nil {
+			log.Errorf("we're not nil???? %+v", r.gatewayLookup)
 			src := util.AddressFromNetIP(localAddr)
 			dst := util.AddressFromNetIP(hops[0].Sent.IP.DstIP)
 
