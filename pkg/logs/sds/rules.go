@@ -38,10 +38,16 @@ type StandardRuleConfig struct {
 
 // StandardRuleDefinition contains a versioned standard rule definition.
 type StandardRuleDefinition struct {
-	Version                 int      `json:"version"`
-	Pattern                 string   `json:"pattern"`
-	Tags                    []string `json:"tags"`
-	DefaultIncludedKeywords []string `json:"default_included_keywords"`
+	Version                 int                  `json:"version"`
+	Pattern                 string               `json:"pattern"`
+	Tags                    []string             `json:"tags"`
+	DefaultIncludedKeywords []string             `json:"default_included_keywords"`
+	SecondaryValidators     []SecondaryValidator `json:"secondary_validation"`
+}
+
+// SecondaryValidatorn definition.
+type SecondaryValidator struct {
+	Type string `json:"type"`
 }
 
 // LastSupportedVersion returns the last supported version available
