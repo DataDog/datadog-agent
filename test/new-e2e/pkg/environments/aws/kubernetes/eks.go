@@ -249,9 +249,11 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			}
 
 			helmComponent, err := agent.NewHelmInstallation(*awsEnv.CommonEnvironment, agent.HelmInstallationArgs{
-				KubeProvider:  eksKubeProvider,
-				Namespace:     "datadog",
-				ValuesYAML:    paramsAgent.HelmValues,
+				KubeProvider: eksKubeProvider,
+				Namespace:    "datadog",
+				ValuesYAML: pulumi.AssetOrArchiveArray{
+					pulumi.NewStringAsset(paramsAgent.HelmValues),
+				},
 				Fakeintake:    fakeIntake,
 				DeployWindows: params.eksWindowsNodeGroup,
 			}, nil)
