@@ -432,21 +432,6 @@ func (s *server) start(context.Context) error {
 		}
 	}
 
-	// start the workers processing the packets read on the socket
-	// ----------------------
-
-	s.health = health.RegisterLiveness("dogstatsd-main")
-	s.handleMessages()
-	s.Started = true
-
-	// start the debug loop
-	// ----------------------
-
-	if s.config.GetBool("dogstatsd_metrics_stats_enable") {
-		s.log.Info("Dogstatsd: metrics statistics will be stored.")
-		s.Debug.SetMetricStatsEnabled(true)
-	}
-
 	// map some metric name
 	// ----------------------
 
@@ -463,6 +448,22 @@ func (s *server) start(context.Context) error {
 			s.mapper = mapperInstance
 		}
 	}
+
+	// start the workers processing the packets read on the socket
+	// ----------------------
+
+	s.health = health.RegisterLiveness("dogstatsd-main")
+	s.handleMessages()
+	s.Started = true
+
+	// start the debug loop
+	// ----------------------
+
+	if s.config.GetBool("dogstatsd_metrics_stats_enable") {
+		s.log.Info("Dogstatsd: metrics statistics will be stored.")
+		s.Debug.SetMetricStatsEnabled(true)
+	}
+
 	return nil
 }
 
