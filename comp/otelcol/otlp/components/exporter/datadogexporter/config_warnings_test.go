@@ -78,7 +78,7 @@ func TestSendAggregations(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
-			f := NewFactory()
+			f := NewFactory(nil, nil)
 			cfg := f.CreateDefaultConfig().(*Config)
 			err := component.UnmarshalConfig(testInstance.cfgMap, cfg)
 			if err != nil || testInstance.err != "" {
@@ -93,7 +93,6 @@ func TestSendAggregations(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestPeerTags(t *testing.T) {
@@ -155,7 +154,7 @@ func TestPeerTags(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
-			f := NewFactory()
+			f := NewFactory(nil, nil)
 			cfg := f.CreateDefaultConfig().(*Config)
 			err := component.UnmarshalConfig(testInstance.cfgMap, cfg)
 			if err != nil || testInstance.err != "" {
@@ -170,5 +169,4 @@ func TestPeerTags(t *testing.T) {
 			}
 		})
 	}
-
 }

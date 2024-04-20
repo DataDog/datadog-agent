@@ -48,11 +48,12 @@ func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter 
 	return exp.NewFactory(
 		cfgType,
 		newDefaultConfig,
-		exp.WithMetrics(f.createMetricExporter, stability),
+		exp.WithMetrics(f.CreateMetricExporter, stability),
 	)
 }
 
-func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSettings, c component.Config) (exp.Metrics, error) {
+// CreateMetricsExporter creates a new metrics exporter.
+func (f *factory) CreateMetricExporter(ctx context.Context, params exp.CreateSettings, c component.Config) (exp.Metrics, error) {
 	cfg := c.(*ExporterConfig)
 
 	// TODO: Ideally the attributes translator would be created once and reused

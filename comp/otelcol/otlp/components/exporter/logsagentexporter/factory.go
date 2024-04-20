@@ -52,11 +52,12 @@ func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
 				LogSourceName: logSourceName,
 			}
 		},
-		exp.WithLogs(f.createLogsExporter, stability),
+		exp.WithLogs(f.CreateLogsExporter, stability),
 	)
 }
 
-func (f *factory) createLogsExporter(
+// CreateLogsExporter creates a new logs exporter.
+func (f *factory) CreateLogsExporter(
 	ctx context.Context,
 	set exp.CreateSettings,
 	c component.Config,

@@ -8,11 +8,15 @@ import (
 	"sync"
 	"time"
 
+	logsagent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/hostmetadata"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/metadata"
+	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
@@ -35,29 +39,13 @@ func consumeResource(metadataReporter *inframetadata.Reporter, res pcommon.Resou
 type factory struct {
 	onceMetadata sync.Once
 
-	onceProvider   sync.Once
-	sourceProvider source.Provider
-	providerErr    error
-
-	onceReporter     sync.Once
-	onceStopReporter sync.Once
-	reporter         *inframetadata.Reporter
-	reporterErr      error
-
 	onceAttributesTranslator sync.Once
 	attributesTranslator     *attributes.Translator
 	attributesErr            error
 
-	wg sync.WaitGroup // waits for agent to exit
-
-	registry *featuregate.Registry
-}
-
-func (f *factory) SourceProvider(set component.TelemetrySettings, configHostname string) (source.Provider, error) {
-	f.onceProvider.Do(func() {
-		f.sourceProvider, f.providerErr = hostmetadata.GetSourceProvider(set, configHostname)
-	})
-	return f.sourceProvider, f.providerErr
+	registry  *featuregate.Registry
+	s         serializer.MetricSerializer
+	logsAgent logsagent.Component
 }
 
 func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attributes.Translator, error) {
@@ -67,20 +55,40 @@ func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attrib
 	return f.attributesTranslator, f.attributesErr
 }
 
-func newFactoryWithRegistry(registry *featuregate.Registry) exporter.Factory {
-	f := &factory{registry: registry}
+func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricSerializer, logsagent logsagent.Component) exporter.Factory {
+	f := &factory{
+		registry:  registry,
+		s:         s,
+		logsAgent: logsagent,
+	}
+
+	sf := serializerexporter.NewFactory(s, &tagEnricher{}, hostname.Get)
 	return exporter.NewFactory(
-		metadata.Type,
+		Type,
 		f.createDefaultConfig,
-		exporter.WithMetrics(f.createMetricsExporter, metadata.MetricsStability),
-		exporter.WithTraces(f.createTracesExporter, metadata.TracesStability),
-		exporter.WithLogs(f.createLogsExporter, metadata.LogsStability),
+		exporter.WithMetrics(sf.CreateMetricsExporter, MetricsStability),
+		exporter.WithTraces(f.createTracesExporter, TracesStability),
+		exporter.WithLogs(f.createLogsExporter, LogsStability),
 	)
 }
 
+type tagEnricher struct{}
+
+func (t *tagEnricher) SetCardinality(cardinality string) (err error) {
+	return nil
+}
+
+// Enrich of a given dimension.
+func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
+	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
+	enrichedTags = append(enrichedTags, extraTags...)
+	enrichedTags = append(enrichedTags, dimensions.Tags()...)
+	return enrichedTags
+}
+
 // NewFactory creates a Datadog exporter factory
-func NewFactory() exporter.Factory {
-	return newFactoryWithRegistry(featuregate.GlobalRegistry())
+func NewFactory(s serializer.MetricSerializer, logsAgent logsagent.Component) exporter.Factory {
+	return newFactoryWithRegistry(featuregate.GlobalRegistry(), s, logsAgent)
 }
 
 func defaultClientConfig() confighttp.ClientConfig {
@@ -101,25 +109,22 @@ func (f *factory) createDefaultConfig() component.Config {
 			Site: "datadoghq.com",
 		},
 
-		Metrics: MetricsConfig{
-			TCPAddrConfig: confignet.TCPAddrConfig{
-				Endpoint: "https://api.datadoghq.com",
-			},
+		Metrics: serializerexporter.MetricsConfig{
 			DeltaTTL: 3600,
-			ExporterConfig: MetricsExporterConfig{
+			ExporterConfig: serializerexporter.MetricsExporterConfig{
 				ResourceAttributesAsTags:           false,
 				InstrumentationScopeMetadataAsTags: false,
 			},
-			HistConfig: HistogramConfig{
+			HistConfig: serializerexporter.HistogramConfig{
 				Mode:             "distributions",
 				SendAggregations: false,
 			},
-			SumConfig: SumConfig{
-				CumulativeMonotonicMode:        CumulativeMonotonicSumModeToDelta,
-				InitialCumulativeMonotonicMode: InitialValueModeAuto,
+			SumConfig: serializerexporter.SumConfig{
+				CumulativeMonotonicMode:        serializerexporter.CumulativeMonotonicSumModeToDelta,
+				InitialCumulativeMonotonicMode: serializerexporter.InitialValueModeAuto,
 			},
-			SummaryConfig: SummaryConfig{
-				Mode: SummaryModeGauges,
+			SummaryConfig: serializerexporter.SummaryConfig{
+				Mode: serializerexporter.SummaryModeGauges,
 			},
 		},
 
@@ -154,15 +159,6 @@ func checkAndCastConfig(c component.Config, logger *zap.Logger) *Config {
 	return cfg
 }
 
-// createMetricsExporter creates a metrics exporter based on this config.
-func (f *factory) createMetricsExporter(
-	ctx context.Context,
-	set exporter.CreateSettings,
-	c component.Config,
-) (exporter.Metrics, error) {
-	return nil, nil
-}
-
 // createTracesExporter creates a trace exporter based on this config.
 func (f *factory) createTracesExporter(
 	ctx context.Context,
@@ -179,5 +175,10 @@ func (f *factory) createLogsExporter(
 	set exporter.CreateSettings,
 	c component.Config,
 ) (exporter.Logs, error) {
-	return nil, nil
+	var logch chan *message.Message
+	if provider := f.logsAgent.GetPipelineProvider(); provider != nil {
+		logch = provider.NextPipelineChan()
+	}
+	lf := logsagentexporter.NewFactory(logch)
+	return lf.CreateLogsExporter(ctx, set, c)
 }

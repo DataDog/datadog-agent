@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configauth"
@@ -41,7 +42,7 @@ func TestValidate(t *testing.T) {
 				API:        APIConfig{Key: "notnull"},
 				TagsConfig: TagsConfig{Hostname: "invalid_host"},
 			},
-			err: "hostname field is invalid: 'invalid_host' is not RFC1123 compliant",
+			err: "hostname field is invalid: invalid_host is not RFC1123 compliant",
 		},
 		{
 			name: "no metadata",
@@ -94,9 +95,9 @@ func TestValidate(t *testing.T) {
 			name: "invalid histogram settings",
 			cfg: &Config{
 				API: APIConfig{Key: "notnull"},
-				Metrics: MetricsConfig{
-					HistConfig: HistogramConfig{
-						Mode:             HistogramModeNoBuckets,
+				Metrics: serializerexporter.MetricsConfig{
+					HistConfig: serializerexporter.HistogramConfig{
+						Mode:             "nobuckets",
 						SendAggregations: false,
 					},
 				},
@@ -176,7 +177,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestUnmarshal(t *testing.T) {
-	cfgWithHTTPConfigs := NewFactory().CreateDefaultConfig().(*Config)
+	cfgWithHTTPConfigs := NewFactory(nil, nil).CreateDefaultConfig().(*Config)
 	idleConnTimeout := 30 * time.Second
 	maxIdleConn := 300
 	maxIdleConnPerHost := 150
@@ -278,15 +279,6 @@ func TestUnmarshal(t *testing.T) {
 			err: "\"metrics::instrumentation_library_metadata_as_tags\" was removed in favor of \"metrics::instrumentation_scope_as_tags\". See https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/11135",
 		},
 		{
-			name: "Empty metric endpoint",
-			configMap: confmap.NewFromStringMap(map[string]any{
-				"metrics": map[string]any{
-					"endpoint": "",
-				},
-			}),
-			err: errEmptyEndpoint.Error(),
-		},
-		{
 			name: "Empty trace endpoint",
 			configMap: confmap.NewFromStringMap(map[string]any{
 				"traces": map[string]any{
@@ -344,7 +336,7 @@ func TestUnmarshal(t *testing.T) {
 		},
 	}
 
-	f := NewFactory()
+	f := NewFactory(nil, nil)
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
 			cfg := f.CreateDefaultConfig().(*Config)
