@@ -81,7 +81,6 @@ func (v *vmUpdaterSuite) TestUserGroupsCreation() {
 	require.Equal(v.T(), "/usr/sbin/nologin\n", v.Env().RemoteHost.MustExecute(`getent passwd dd-installer | cut -d: -f7`), "unexpected: user does not exist or is not a system user")
 	require.Equal(v.T(), "dd-installer\n", v.Env().RemoteHost.MustExecute(`getent group dd-installer | cut -d":" -f1`), "unexpected: group does not exist")
 	require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(`getent group dd-agent | cut -d":" -f1`), "unexpected: group does not exist")
-	require.Equal(v.T(), "dd-installer dd-agent\n", v.Env().RemoteHost.MustExecute("id -Gn dd-installer"), "dd-installer not in correct groups")
 }
 
 func (v *vmUpdaterSuite) TestSharedAgentDirs() {

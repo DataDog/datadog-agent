@@ -71,6 +71,10 @@ func SetupAgent(ctx context.Context) (err error) {
 	if err = chownDDAgent(ctx, packagePath); err != nil {
 		return
 	}
+	// TODO: fixme, this is a hack to fix the permissions of the agent folder
+	if err = chownDDAgent(ctx, "/etc/datadog-agent"); err != nil {
+		return
+	}
 
 	for _, unit := range stableUnits {
 		if err = loadUnit(ctx, unit); err != nil {
