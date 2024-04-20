@@ -148,6 +148,13 @@ func RemoveAgent(ctx context.Context) {
 
 // StartAgentExperiment starts the agent experiment
 func StartAgentExperiment(ctx context.Context) error {
+	packagePath, err := filepath.EvalSymlinks("/opt/datadog-packages/datadog-agent/experiment")
+	if err != nil {
+		return err
+	}
+	if err = chownDDAgent(ctx, packagePath); err != nil {
+		return err
+	}
 	return startUnit(ctx, agentExp)
 }
 
