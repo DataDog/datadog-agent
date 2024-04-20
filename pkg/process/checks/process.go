@@ -16,8 +16,10 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"go.uber.org/atomic"
 
+	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -25,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
@@ -36,14 +39,20 @@ const (
 	configScrubArgs            = configPrefix + "scrub_args"
 	configStripProcArgs        = configPrefix + "strip_proc_arguments"
 	configDisallowList         = configPrefix + "blacklist_patterns"
+	configIgnoreZombies        = configPrefix + "ignore_zombie_processes"
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
-func NewProcessCheck(config ddconfig.Reader) *ProcessCheck {
+func NewProcessCheck(config ddconfig.Reader, sysprobeYamlConfig ddconfig.Reader, wmeta workloadmetacomp.Component) *ProcessCheck {
+	serviceExtractorEnabled := true
+	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
+	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
 	check := &ProcessCheck{
-		config:        config,
-		scrubber:      procutil.NewDefaultDataScrubber(),
-		lookupIdProbe: NewLookupIDProbe(config),
+		config:           config,
+		scrubber:         procutil.NewDefaultDataScrubber(),
+		lookupIdProbe:    NewLookupIDProbe(config),
+		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
+		wmeta:            wmeta,
 	}
 
 	return check
@@ -69,6 +78,9 @@ type ProcessCheck struct {
 	// disallowList to hide processes
 	disallowList []*regexp.Regexp
 
+	// determine if zombies process will be collected
+	ignoreZombieProcesses bool
+
 	hostInfo                   *HostInfo
 	lastCPUTime                cpu.TimesStat
 	lastProcs                  map[int32]*procutil.Process
@@ -82,7 +94,7 @@ type ProcessCheck struct {
 	realtimeLastProcs   map[int32]*procutil.Stats
 	realtimeLastRun     time.Time
 
-	notInitializedLogLimit *util.LogLimit
+	notInitializedLogLimit *log.Limit
 
 	// lastPIDs is []int32 that holds PIDs that the check fetched last time,
 	// will be reused by RT process collection to get stats
@@ -106,16 +118,22 @@ type ProcessCheck struct {
 
 	workloadMetaExtractor *workloadmeta.WorkloadMetaExtractor
 	workloadMetaServer    *workloadmeta.GRPCServer
+
+	serviceExtractor *parser.ServiceExtractor
+
+	wmeta workloadmetacomp.Component
 }
 
 // Init initializes the singleton ProcessCheck.
 func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool) error {
 	p.hostInfo = info
 	p.sysProbeConfig = syscfg
-	p.probe = newProcessProbe(p.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
-	p.containerProvider = proccontainers.GetSharedContainerProvider()
+	p.probe = newProcessProbe(p.config,
+		procutil.WithPermission(syscfg.ProcessModuleEnabled),
+		procutil.WithIgnoreZombieProcesses(p.config.GetBool(configIgnoreZombies)))
+	p.containerProvider = proccontainers.GetSharedContainerProvider(p.wmeta)
 
-	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
+	p.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil {
@@ -137,7 +155,11 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.disallowList = initDisallowList(p.config)
 
+	p.ignoreZombieProcesses = p.config.GetBool(configIgnoreZombies)
+
 	p.initConnRates()
+
+	p.extractors = append(p.extractors, p.serviceExtractor)
 
 	if !oneShot && workloadmeta.Enabled(p.config) {
 		p.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe)
@@ -181,6 +203,10 @@ func (p *ProcessCheck) getLastConnRates() ProcessConnRates {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
+	if p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+		return false
+	}
+
 	return p.config.GetBool("process_config.process_collection.enabled")
 }
 
@@ -254,9 +280,6 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		extractor.Extract(procs)
 	}
 
-	// Keep track of containers addresses
-	LocalResolver.LoadAddrs(containers, pidToCid)
-
 	// End check early if this is our first run.
 	if p.lastProcs == nil {
 		p.lastProcs = procs
@@ -275,7 +298,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	p.checkCount++
 
 	connsRates := p.getLastConnRates()
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -430,17 +453,18 @@ func fmtProcesses(
 	connRates ProcessConnRates,
 	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe,
+	zombiesIgnored bool,
+	serviceExtractor *parser.ServiceExtractor,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
 
 	for _, fp := range procs {
-		if skipProcess(disallowList, fp, lastProcs) {
+		if skipProcess(disallowList, fp, lastProcs, zombiesIgnored) {
 			continue
 		}
 
 		// Hide disallow-listed args if the Scrubber is enabled
 		fp.Cmdline = scrubber.ScrubProcessCommand(fp)
-
 		proc := &model.Process{
 			Pid:                    fp.Pid,
 			NsPid:                  fp.NsPid,
@@ -455,6 +479,7 @@ func fmtProcesses(
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
+			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
 		}
 
 		if connRates != nil {
@@ -578,6 +603,7 @@ func skipProcess(
 	disallowList []*regexp.Regexp,
 	fp *procutil.Process,
 	lastProcs map[int32]*procutil.Process,
+	zombiesIgnored bool,
 ) bool {
 	cl := fp.Cmdline
 	if len(cl) == 0 {
@@ -590,6 +616,11 @@ func skipProcess(
 	if _, ok := lastProcs[fp.Pid]; !ok {
 		// Skipping any processes that didn't exist in the previous run.
 		// This means short-lived processes (<2s) will never be captured.
+		return true
+	}
+	// Skipping zombie processes (defined in docs as Status = "Z") if the config
+	// for skipping zombie processes is on.
+	if zombiesIgnored && fp.Stats != nil && fp.Stats.Status == "Z" {
 		return true
 	}
 	return false

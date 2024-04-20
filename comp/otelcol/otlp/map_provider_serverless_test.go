@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/testutil"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 )
 
 func TestNewMap(t *testing.T) {
@@ -51,6 +51,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 				},
 				"service": map[string]interface{}{
@@ -102,6 +105,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
@@ -169,6 +175,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
@@ -228,6 +237,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 				},
 				"service": map[string]interface{}{
@@ -323,6 +335,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 					"logging": map[string]interface{}{
 						"loglevel": "info",
@@ -432,6 +447,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{

@@ -45,6 +45,10 @@ func TestCollectorCache(t *testing.T) {
 			"cID1": {1, 2, 3, 0},
 			"cID2": {},
 		},
+		cIDForPodCont: map[string]string{
+			"pc-pod1/foo":   "cID1",
+			"pc-pod1/i-foo": "cID2",
+		},
 	}
 	actualCollectors := actualCollector.getCollectors(0)
 
@@ -82,6 +86,14 @@ func TestCollectorCache(t *testing.T) {
 	cID1, err := cachedCollectors.ContainerIDForPID.Collector.GetContainerIDForPID(1, time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, "cID1", cID1)
+
+	cIDForPodCont, err := cachedCollectors.ContainerIDForPodUIDAndContName.Collector.ContainerIDForPodUIDAndContName("pod1", "foo", false, time.Minute)
+	assert.NoError(t, err)
+	assert.Equal(t, "cID1", cIDForPodCont)
+
+	cIDForPodCont, err = cachedCollectors.ContainerIDForPodUIDAndContName.Collector.ContainerIDForPodUIDAndContName("pod1", "foo", true, time.Minute)
+	assert.NoError(t, err)
+	assert.Equal(t, "cID2", cIDForPodCont)
 
 	// Changing underlying source
 	actualCollector.cStats["cID1"] = &ContainerStats{

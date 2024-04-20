@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Add the SBOM check to the output of the Agent status command and the Agent flare.

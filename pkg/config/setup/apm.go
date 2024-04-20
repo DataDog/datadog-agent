@@ -53,11 +53,11 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.SetKnown("apm_config.stats_writer.connection_limit")
 	config.SetKnown("apm_config.stats_writer.queue_size")
 	config.SetKnown("apm_config.analyzed_rate_by_service.*")
-	config.SetKnown("apm_config.log_throttling")
 	config.SetKnown("apm_config.bucket_size_seconds")
 	config.SetKnown("apm_config.watchdog_check_delay")
 	config.SetKnown("apm_config.sync_flushing")
 	config.SetKnown("apm_config.features")
+	config.SetKnown("apm_config.max_catalog_entries")
 
 	bindVectorOptions(config, Traces)
 
@@ -73,7 +73,6 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_buffer_size", 1_000_000, "DD_APM_WINDOWS_PIPE_BUFFER_SIZE")                          //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_security_descriptor", "D:AI(A;;GA;;;WD)", "DD_APM_WINDOWS_PIPE_SECURITY_DESCRIPTOR") //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.remote_tagger", true, "DD_APM_REMOTE_TAGGER")                                                     //nolint:errcheck
-	config.BindEnvAndSetDefault("apm_config.peer_service_aggregation", false, "DD_APM_PEER_SERVICE_AGGREGATION")                              //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.peer_tags_aggregation", false, "DD_APM_PEER_TAGS_AGGREGATION")                                    //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.compute_stats_by_span_kind", false, "DD_APM_COMPUTE_STATS_BY_SPAN_KIND")                          //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled", false, "DD_APM_INSTRUMENTATION_ENABLED")
@@ -121,6 +120,9 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.BindEnv("apm_config.debugger_dd_url", "DD_APM_DEBUGGER_DD_URL")
 	config.BindEnv("apm_config.debugger_api_key", "DD_APM_DEBUGGER_API_KEY")
 	config.BindEnv("apm_config.debugger_additional_endpoints", "DD_APM_DEBUGGER_ADDITIONAL_ENDPOINTS")
+	config.BindEnv("apm_config.debugger_diagnostics_dd_url", "DD_APM_DEBUGGER_DIAGNOSTICS_DD_URL")
+	config.BindEnv("apm_config.debugger_diagnostics_api_key", "DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY")
+	config.BindEnv("apm_config.debugger_diagnostics_additional_endpoints", "DD_APM_DEBUGGER_DIAGNOSTICS_ADDITIONAL_ENDPOINTS")
 	config.BindEnv("apm_config.symdb_dd_url", "DD_APM_SYMDB_DD_URL")
 	config.BindEnv("apm_config.symdb_api_key", "DD_APM_SYMDB_API_KEY")
 	config.BindEnv("apm_config.symdb_additional_endpoints", "DD_APM_SYMDB_ADDITIONAL_ENDPOINTS")

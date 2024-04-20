@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -62,11 +63,11 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 
 func TestCollection(t *testing.T) {
 	// Create Auth Token for the client
-	if _, err := os.Stat(security.GetAuthTokenFilepath()); os.IsNotExist(err) {
-		security.CreateOrFetchToken()
+	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfig.Datadog)); os.IsNotExist(err) {
+		security.CreateOrFetchToken(pkgconfig.Datadog)
 		defer func() {
 			// cleanup
-			os.Remove(security.GetAuthTokenFilepath())
+			os.Remove(security.GetAuthTokenFilepath(pkgconfig.Datadog))
 		}()
 	}
 	creationTime := time.Now().Unix()
@@ -262,7 +263,7 @@ func TestCollection(t *testing.T) {
 			grpcServer := grpc.NewServer()
 			pbgo.RegisterProcessEntityStreamServer(grpcServer, server)
 
-			lis, err := net.Listen("tcp", ":0")
+			lis, err := net.Listen("tcp", "127.0.0.1:0")
 			require.NoError(t, err)
 
 			go func() {

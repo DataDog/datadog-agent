@@ -53,39 +53,39 @@ func readProcNetWithStatus(path string, status int64) ([]uint16, error) {
 			break
 		} else if err != nil {
 			return nil, err
-		} else {
-			iter := &fieldIterator{data: b}
-			iter.nextField() // entry number
-
-			rawLocal = iter.nextField() // local_address
-
-			iter.nextField() // remote_address
-
-			rawState = iter.nextField() // st
-
-			state, err := strconv.ParseInt(string(rawState), 16, 0)
-			if err != nil {
-				log.Errorf("error parsing tcp state [%s] as hex: %s", rawState, err)
-				continue
-			}
-
-			if state != status {
-				continue
-			}
-
-			idx := bytes.IndexByte(rawLocal, ':')
-			if idx == -1 {
-				continue
-			}
-
-			port, err := strconv.ParseUint(string(rawLocal[idx+1:]), 16, 16)
-			if err != nil {
-				log.Errorf("error parsing port [%s] as hex: %s", rawLocal[idx+1:], err)
-				continue
-			}
-
-			ports = append(ports, uint16(port))
 		}
+
+		iter := &fieldIterator{data: b}
+		iter.nextField() // entry number
+
+		rawLocal = iter.nextField() // local_address
+
+		iter.nextField() // remote_address
+
+		rawState = iter.nextField() // st
+
+		state, err := strconv.ParseInt(string(rawState), 16, 0)
+		if err != nil {
+			log.Errorf("error parsing tcp state [%s] as hex: %s", rawState, err)
+			continue
+		}
+
+		if state != status {
+			continue
+		}
+
+		idx := bytes.IndexByte(rawLocal, ':')
+		if idx == -1 {
+			continue
+		}
+
+		port, err := strconv.ParseUint(string(rawLocal[idx+1:]), 16, 16)
+		if err != nil {
+			log.Errorf("error parsing port [%s] as hex: %s", rawLocal[idx+1:], err)
+			continue
+		}
+
+		ports = append(ports, uint16(port))
 	}
 
 	return ports, nil

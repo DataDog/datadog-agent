@@ -24,16 +24,17 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
+	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	secl "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 const containersCountMetricName = "datadog.security_agent.compliance.containers_running"
@@ -112,8 +113,9 @@ const (
 // Agent is the compliance agent that is responsible for running compliance
 // continuously benchmarks and configuration checking.
 type Agent struct {
-	senderManager sender.SenderManager
-	opts          AgentOptions
+	telemetrySender telemetry.SimpleTelemetrySender
+	wmeta           workloadmeta.Component
+	opts            AgentOptions
 
 	telemetry  *telemetry.ContainersTelemetry
 	statuses   map[string]*CheckStatus
@@ -167,7 +169,7 @@ func DefaultRuleFilter(r *Rule) bool {
 }
 
 // NewAgent returns a new compliance agent.
-func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
+func NewAgent(telemetrySender telemetry.SimpleTelemetrySender, wmeta workloadmeta.Component, opts AgentOptions) *Agent {
 	if opts.ConfigDir == "" {
 		panic("compliance: missing agent configuration directory")
 	}
@@ -189,15 +191,16 @@ func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
 		opts.RuleFilter = func(r *Rule) bool { return DefaultRuleFilter(r) }
 	}
 	return &Agent{
-		senderManager: senderManager,
-		opts:          opts,
-		statuses:      make(map[string]*CheckStatus),
+		telemetrySender: telemetrySender,
+		wmeta:           wmeta,
+		opts:            opts,
+		statuses:        make(map[string]*CheckStatus),
 	}
 }
 
 // Start starts the compliance agent.
 func (a *Agent) Start() error {
-	telemetry, err := telemetry.NewContainersTelemetry(a.senderManager)
+	telemetry, err := telemetry.NewContainersTelemetry(a.telemetrySender, a.wmeta)
 	if err != nil {
 		log.Errorf("could not start containers telemetry: %v", err)
 		return err
@@ -280,7 +283,7 @@ func (a *Agent) Stop() {
 	log.Tracef("shutting down compliance agent")
 	a.cancel()
 	select {
-	case <-time.After(10 * time.Second):
+	case <-time.After(20 * time.Second):
 	case <-a.finish:
 	}
 	a.opts.Reporter.Stop()
@@ -317,6 +320,9 @@ func (a *Agent) runRegoBenchmarks(ctx context.Context) {
 			resolver := NewResolver(ctx, a.opts.ResolverOptions)
 			for _, rule := range benchmark.Rules {
 				inputs, err := resolver.ResolveInputs(ctx, rule)
+				if err := ctx.Err(); err != nil {
+					return
+				}
 				if err != nil {
 					a.reportCheckEvents(checkInterval, CheckEventFromError(RegoEvaluator, rule, benchmark, err))
 				} else {
@@ -444,19 +450,21 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 		if sleepRandomJitter(ctx, checkInterval, runCount, a.opts.Hostname, "db-configuration") {
 			return
 		}
-		pids := dbconfig.ListProcesses(ctx)
-		for containerID, pid := range pids {
-			// if the process does not run in any form of container, containerID
-			// is the empty string "" and it can be run locally
-			if containerID == "" {
-				resource, ok := dbconfig.LoadDBResourceFromPID(ctx, pid)
-				if ok {
-					a.reportResourceLog(defaultCheckIntervalLowPriority, NewResourceLog(a.opts.Hostname, resource.Type, resource.Config))
+		procs, err := process.ProcessesWithContext(ctx)
+		if err != nil {
+			continue
+		}
+		groups := groupProcesses(procs, dbconfig.GetProcResourceType)
+		for keyGroup, proc := range groups {
+			if keyGroup.containerID != "" {
+				if err := a.reportDBConfigurationFromSystemProbe(ctx, keyGroup.containerID, proc.Pid); err != nil {
+					log.Warnf("error reporting DB configuration from system-probe: %s", err)
 				}
 			} else {
-				err := a.reportDBConfigurationFromSystemProbe(ctx, pid)
-				if err != nil {
-					log.Infof("error evaluating cross-container benchmark from system-probe: %v", err)
+				resourceType, resource, ok := dbconfig.LoadConfiguration(ctx, a.opts.HostRoot, proc)
+				if ok {
+					log := NewResourceLog(a.opts.Hostname, resourceType, resource)
+					a.reportResourceLog(defaultCheckIntervalLowPriority, log)
 				}
 			}
 		}
@@ -466,7 +474,7 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 	}
 }
 
-func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, pid int32) error {
+func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, containerID utils.ContainerID, pid int32) error {
 	if a.opts.SysProbeClient == nil {
 		return fmt.Errorf("system-probe socket client was not created")
 	}
@@ -503,23 +511,49 @@ func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, pid in
 		return err
 	}
 	if resource != nil {
-		dbResourceLog := NewResourceLog(a.opts.Hostname, resource.Type, resource.Config)
-		if cID := resource.ContainerID; cID != "" {
-			dbResourceLog.Container = &CheckContainerMeta{
-				ContainerID: cID,
-			}
+		dbResourceLog := NewResourceLog(a.opts.Hostname+"_"+string(containerID), resource.Type, resource.Config)
+		dbResourceLog.Container = &CheckContainerMeta{
+			ContainerID: string(containerID),
 		}
 		a.reportResourceLog(defaultCheckIntervalLowPriority, dbResourceLog)
 	}
 	return nil
 }
 
+type procGroup struct {
+	key         string
+	containerID utils.ContainerID
+}
+
+func groupProcesses(procs []*process.Process, getKey func(*process.Process) (string, bool)) map[procGroup]*process.Process {
+	groups := make(map[procGroup]*process.Process)
+	for _, proc := range procs {
+		key, ok := getKey(proc)
+		if !ok {
+			continue
+		}
+		// if the process does not run in any form of container, containerID
+		// is the empty string "" and it can be run locally
+		containerID, _ := utils.GetProcessContainerID(proc.Pid)
+		// We dedupe our scans based on the resource type and the container
+		// ID, assuming that we will scan the same configuration for each
+		// containers running the process.
+		groupKey := procGroup{
+			key:         key,
+			containerID: containerID,
+		}
+		if _, ok := groups[groupKey]; !ok {
+			groups[groupKey] = proc
+		}
+	}
+	return groups
+}
+
 func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *ResourceLog) {
-	store := workloadmeta.GetGlobalStore()
 	expireAt := time.Now().Add(2 * resourceTTL).Truncate(1 * time.Second)
 	resourceLog.ExpireAt = &expireAt
-	if store != nil && resourceLog.Container != nil {
-		if ctnr, _ := store.GetContainer(resourceLog.Container.ContainerID); ctnr != nil {
+	if a.wmeta != nil && resourceLog.Container != nil {
+		if ctnr, _ := a.wmeta.GetContainer(resourceLog.Container.ContainerID); ctnr != nil {
 			resourceLog.Container.ImageID = ctnr.Image.ID
 			resourceLog.Container.ImageName = ctnr.Image.Name
 			resourceLog.Container.ImageTag = ctnr.Image.Tag
@@ -529,7 +563,6 @@ func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *Resour
 }
 
 func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent) {
-	store := workloadmeta.GetGlobalStore()
 	eventsExpireAt := time.Now().Add(2 * eventsTTL).Truncate(1 * time.Second)
 	for _, event := range events {
 		event.ExpireAt = &eventsExpireAt
@@ -537,8 +570,8 @@ func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent
 		if event.Result == CheckSkipped {
 			continue
 		}
-		if store != nil && event.Container != nil {
-			if ctnr, _ := store.GetContainer(event.Container.ContainerID); ctnr != nil {
+		if a.wmeta != nil && event.Container != nil {
+			if ctnr, _ := a.wmeta.GetContainer(event.Container.ContainerID); ctnr != nil {
 				event.Container.ImageID = ctnr.Image.ID
 				event.Container.ImageName = ctnr.Image.Name
 				event.Container.ImageTag = ctnr.Image.Tag
@@ -563,13 +596,6 @@ func (a *Agent) runTelemetry(ctx context.Context) {
 		case <-metricsTicker.C:
 			a.telemetry.ReportContainers(containersCountMetricName)
 		}
-	}
-}
-
-// GetStatus returns a map of the different last results of our checks.
-func (a *Agent) GetStatus() map[string]interface{} {
-	return map[string]interface{}{
-		"endpoints": a.opts.Reporter.Endpoints().GetStatus(),
 	}
 }
 

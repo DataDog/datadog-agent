@@ -9,9 +9,10 @@
 package autodiscovery
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	snmplistener "github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,6 +32,11 @@ func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.L
 		}
 		log.Infof("Prometheus scraping is enabled: Adding the Prometheus config provider '%s'", prometheusProvider.Name)
 		detectedProviders = append(detectedProviders, prometheusProvider)
+	}
+	// Add database-monitoring aurora listener if the feature is enabled
+	if config.Datadog.GetBool("database_monitoring.autodiscovery.aurora.enabled") {
+		detectedListeners = append(detectedListeners, config.Listeners{Name: "database-monitoring-aurora"})
+		log.Info("Database monitoring aurora discovery is enabled: Adding the aurora listener")
 	}
 
 	// Auto-add file-based kube service and endpoints config providers based on check config files.
@@ -65,6 +71,15 @@ func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.L
 				break
 			}
 		}
+	}
+
+	// Auto-activate autodiscovery without listeners: - snmp
+	configs := []snmplistener.Config{}
+	err := config.Datadog.UnmarshalKey("network_devices.autodiscovery.configs", &configs)
+
+	if err == nil && len(configs) > 0 {
+		detectedListeners = append(detectedListeners, config.Listeners{Name: "snmp"})
+		log.Info("Configs for autodiscovery detected: Adding the snmp listener")
 	}
 
 	return detectedProviders, detectedListeners

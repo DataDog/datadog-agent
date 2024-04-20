@@ -13,12 +13,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	"strconv"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -33,9 +37,6 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/sys/windows/registry"
 	"gopkg.in/yaml.v2"
-	"io/fs"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -176,7 +177,7 @@ func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, int
 		if initSendOnStart, initSendOnStartSet := initCfg.SendOnStart.Get(); initSendOnStartSet {
 			sendOnStart = initSendOnStart
 		} else {
-			sendOnStart = false
+			sendOnStart = true
 		}
 	}
 

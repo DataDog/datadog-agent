@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
@@ -62,7 +63,7 @@ func state(_ *cliParams, config config.Component) error {
 	fmt.Println("Fetching the configuration and director repos state..")
 	// Call GRPC endpoint returning state tree
 
-	token, err := security.FetchAuthToken()
+	token, err := security.FetchAuthToken(config)
 	if err != nil {
 		return fmt.Errorf("couldn't get auth token: %w", err)
 	}
@@ -90,7 +91,15 @@ func state(_ *cliParams, config config.Component) error {
 		return fmt.Errorf("couldn't get the repositories state: %w", err)
 	}
 
-	flare.PrintRemoteConfigState(os.Stdout, s)
+	var stateHA *pbgo.GetStateConfigResponse
+	if pkgconfig.Datadog.GetBool("ha.enabled") {
+		stateHA, err = cli.GetConfigStateHA(ctx, in)
+		if err != nil {
+			return fmt.Errorf("couldn't get the HA repositories state: %w", err)
+		}
+	}
+
+	flare.PrintRemoteConfigStates(os.Stdout, s, stateHA)
 
 	return nil
 }

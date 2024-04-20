@@ -21,7 +21,7 @@ func TestServerlessLoggingInServerlessContext(t *testing.T) {
 	w := bufio.NewWriter(&b)
 
 	l, err := seelog.LoggerFromWriterWithMinLevel(w, seelog.DebugLvl)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	SetupLogger(l, "debug")
 	assert.NotNil(t, logger)

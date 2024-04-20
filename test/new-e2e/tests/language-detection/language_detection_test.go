@@ -25,8 +25,6 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
-const versionStr = "7.48.0~rc.1-1"
-
 //go:embed etc/process_config.yaml
 var configStr string
 
@@ -39,12 +37,16 @@ func TestLanguageDetectionSuite(t *testing.T) {
 		agentparams.WithAgentConfig(configStr),
 	}
 
-	isCI, _ := strconv.ParseBool(os.Getenv("CI"))
-	if !isCI {
-		agentParams = append(agentParams, agentparams.WithVersion(versionStr))
+	options := []e2e.SuiteOption{
+		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentParams...))),
 	}
 
-	e2e.Run(t, &languageDetectionSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentParams...))))
+	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
+	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
+		options = append(options, e2e.WithDevMode())
+	}
+
+	e2e.Run(t, &languageDetectionSuite{}, options...)
 }
 
 func (s *languageDetectionSuite) checkDetectedLanguage(command string, language string) {

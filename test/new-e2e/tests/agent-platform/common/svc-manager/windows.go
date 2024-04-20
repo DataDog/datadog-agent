@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
+	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
 // Windows struct for Windows service manager (SCM)

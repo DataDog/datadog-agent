@@ -9,8 +9,9 @@
 package probe
 
 import (
+	"slices"
+
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"golang.org/x/exp/slices"
 )
 
 func newProcScrubber(customSensitiveWords []string) *procutil.DataScrubber {

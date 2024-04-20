@@ -10,9 +10,12 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"path"
 	"sort"
+	"strings"
 	"text/template"
 	"unicode"
 
@@ -21,6 +24,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -35,6 +39,13 @@ type dependencies struct {
 
 	Providers       []status.Provider       `group:"status"`
 	HeaderProviders []status.HeaderProvider `group:"header_status"`
+}
+
+type provides struct {
+	fx.Out
+
+	Comp          status.Component
+	FlareProvider flaretypes.Provider
 }
 
 type statusImplementation struct {
@@ -58,20 +69,22 @@ func sortByName(providers []status.Provider) []status.Provider {
 	return providers
 }
 
-func newStatus(deps dependencies) (status.Component, error) {
+func newStatus(deps dependencies) provides {
 	// Sections are sorted by name
 	// The exception is the collector section. We want that to be the first section to be displayed
 	// We manually insert the collector section in the first place after sorting them alphabetically
 	sortedSectionNames := []string{}
 	collectorSectionPresent := false
 
-	for _, provider := range deps.Providers {
+	providers := fxutil.GetAndFilterGroup(deps.Providers)
+
+	for _, provider := range providers {
 		if provider.Section() == status.CollectorSection && !collectorSectionPresent {
 			collectorSectionPresent = true
 		}
 
 		if !present(provider.Section(), sortedSectionNames) && provider.Section() != status.CollectorSection {
-			sortedSectionNames = append(sortedSectionNames, provider.Section())
+			sortedSectionNames = append(sortedSectionNames, strings.ToLower(provider.Section()))
 		}
 	}
 
@@ -82,10 +95,12 @@ func newStatus(deps dependencies) (status.Component, error) {
 	}
 
 	// Providers of each section are sort alphabetically by name
+	// Section names are stored lower case
 	sortedProvidersBySection := map[string][]status.Provider{}
-	for _, provider := range deps.Providers {
-		providers := sortedProvidersBySection[provider.Section()]
-		sortedProvidersBySection[provider.Section()] = append(providers, provider)
+	for _, provider := range providers {
+		lowerSectionName := strings.ToLower(provider.Section())
+		providers := sortedProvidersBySection[lowerSectionName]
+		sortedProvidersBySection[lowerSectionName] = append(providers, provider)
 	}
 	for section, providers := range sortedProvidersBySection {
 		sortedProvidersBySection[section] = sortByName(providers)
@@ -94,7 +109,7 @@ func newStatus(deps dependencies) (status.Component, error) {
 	// Header providers are sorted by index
 	// We manually insert the common header provider in the first place after sorting is done
 	sortedHeaderProviders := []status.HeaderProvider{}
-	sortedHeaderProviders = append(sortedHeaderProviders, deps.HeaderProviders...)
+	sortedHeaderProviders = append(sortedHeaderProviders, fxutil.GetAndFilterGroup(deps.HeaderProviders)...)
 
 	sort.SliceStable(sortedHeaderProviders, func(i, j int) bool {
 		return sortedHeaderProviders[i].Index() < sortedHeaderProviders[j].Index()
@@ -102,15 +117,21 @@ func newStatus(deps dependencies) (status.Component, error) {
 
 	sortedHeaderProviders = append([]status.HeaderProvider{newCommonHeaderProvider(deps.Params, deps.Config)}, sortedHeaderProviders...)
 
-	return &statusImplementation{
+	c := &statusImplementation{
 		sortedSectionNames:       sortedSectionNames,
 		sortedProvidersBySection: sortedProvidersBySection,
 		sortedHeaderProviders:    sortedHeaderProviders,
-	}, nil
+	}
+
+	return provides{
+		Comp:          c,
+		FlareProvider: flaretypes.NewProvider(c.fillFlare),
+	}
+
 }
 
 func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSections ...string) ([]byte, error) {
-	var errors []error
+	var errs []error
 
 	switch format {
 	case "json":
@@ -121,7 +142,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 			}
 
 			if err := sc.JSON(verbose, stats); err != nil {
-				errors = append(errors, err)
+				errs = append(errs, err)
 			}
 		}
 
@@ -131,14 +152,14 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 					continue
 				}
 				if err := provider.JSON(verbose, stats); err != nil {
-					errors = append(errors, err)
+					errs = append(errs, err)
 				}
 			}
 		}
 
-		if len(errors) > 0 {
+		if len(errs) > 0 {
 			errorsInfo := []string{}
-			for _, error := range errors {
+			for _, error := range errs {
 				errorsInfo = append(errorsInfo, error.Error())
 			}
 			stats["errors"] = errorsInfo
@@ -159,7 +180,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 				newLine(b)
 
 				if err := sc.Text(verbose, b); err != nil {
-					errors = append(errors, err)
+					errs = append(errs, err)
 				}
 
 				newLine(b)
@@ -172,20 +193,22 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 			}
 
 			if len(section) > 0 {
-				printHeader(b, section)
-				newLine(b)
 
-				for _, provider := range s.sortedProvidersBySection[section] {
+				for i, provider := range s.sortedProvidersBySection[section] {
+					if i == 0 {
+						printHeader(b, provider.Section())
+						newLine(b)
+					}
 					if err := provider.Text(verbose, b); err != nil {
-						errors = append(errors, err)
+						errs = append(errs, err)
 					}
 				}
 
 				newLine(b)
 			}
 		}
-		if len(errors) > 0 {
-			if err := renderErrors(b, errors); err != nil {
+		if len(errs) > 0 {
+			if err := renderErrors(b, errs); err != nil {
 				return []byte{}, err
 			}
 
@@ -226,7 +249,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 }
 
 func (s *statusImplementation) GetStatusBySection(section string, format string, verbose bool) ([]byte, error) {
-	var errors []error
+	var errs []error
 
 	switch section {
 	case "header":
@@ -237,13 +260,13 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 
 			for _, sc := range providers {
 				if err := sc.JSON(verbose, stats); err != nil {
-					errors = append(errors, err)
+					errs = append(errs, err)
 				}
 			}
 
-			if len(errors) > 0 {
+			if len(errs) > 0 {
 				errorsInfo := []string{}
-				for _, error := range errors {
+				for _, error := range errs {
 					errorsInfo = append(errorsInfo, error.Error())
 				}
 				stats["errors"] = errorsInfo
@@ -261,14 +284,14 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 
 				err := sc.Text(verbose, b)
 				if err != nil {
-					errors = append(errors, err)
+					errs = append(errs, err)
 				}
 			}
 
 			newLine(b)
 
-			if len(errors) > 0 {
-				if err := renderErrors(b, errors); err != nil {
+			if len(errs) > 0 {
+				if err := renderErrors(b, errs); err != nil {
 					return []byte{}, err
 				}
 
@@ -290,20 +313,25 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 			return []byte{}, nil
 		}
 	default:
-		providers := s.sortedProvidersBySection[section]
+		providers, ok := s.sortedProvidersBySection[strings.ToLower(section)]
+		if !ok {
+			res, _ := json.Marshal(append([]string{"header"}, s.sortedSectionNames...))
+			errorMsg := fmt.Sprintf("unknown status section '%s', available sections are: %s", section, string(res))
+			return nil, errors.New(errorMsg)
+		}
 		switch format {
 		case "json":
 			stats := make(map[string]interface{})
 
 			for _, sc := range providers {
 				if err := sc.JSON(verbose, stats); err != nil {
-					errors = append(errors, err)
+					errs = append(errs, err)
 				}
 			}
 
-			if len(errors) > 0 {
+			if len(errs) > 0 {
 				errorsInfo := []string{}
-				for _, error := range errors {
+				for _, error := range errs {
 					errorsInfo = append(errorsInfo, error.Error())
 				}
 				stats["errors"] = errorsInfo
@@ -315,17 +343,17 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 
 			for i, sc := range providers {
 				if i == 0 {
-					printHeader(b, section)
+					printHeader(b, sc.Section())
 					newLine(b)
 				}
 
 				if err := sc.Text(verbose, b); err != nil {
-					errors = append(errors, err)
+					errs = append(errs, err)
 				}
 			}
 
-			if len(errors) > 0 {
-				if err := renderErrors(b, errors); err != nil {
+			if len(errs) > 0 {
+				if err := renderErrors(b, errs); err != nil {
 					return []byte{}, err
 				}
 
@@ -349,9 +377,17 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 	}
 }
 
+// fillFlare add the inventory payload to flares.
+func (s *statusImplementation) fillFlare(fb flaretypes.FlareBuilder) error {
+	fb.AddFileFromFunc("status.log", func() ([]byte, error) { return s.GetStatus("text", true) })
+	return nil
+}
+
 func present(value string, container []string) bool {
+	valueLower := strings.ToLower(value)
+
 	for _, v := range container {
-		if v == value {
+		if strings.ToLower(v) == valueLower {
 			return true
 		}
 	}

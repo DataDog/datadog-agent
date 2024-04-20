@@ -11,32 +11,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
-	"sync"
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// httpClients should be reused instead of created as needed. They keep cached TCP connections
-// that may leak otherwise
-var (
-	httpClient     *http.Client
-	clientInitOnce sync.Once
-)
+type dependencies struct {
+	fx.In
 
-func client() *http.Client {
-	clientInitOnce.Do(func() {
-		httpClient = apiutil.GetClient(false)
-	})
-
-	return httpClient
+	Config config.Component
 }
 
 type provides struct {
@@ -51,11 +39,16 @@ func Module() fxutil.Module {
 		fx.Provide(newStatus))
 }
 
-type statusProvider struct{}
+type statusProvider struct {
+	testServerURL string
+	config        config.Component
+}
 
-func newStatus() provides {
+func newStatus(deps dependencies) provides {
 	return provides{
-		StatusProvider: status.NewInformationProvider(statusProvider{}),
+		StatusProvider: status.NewInformationProvider(statusProvider{
+			config: deps.Config,
+		}),
 	}
 }
 
@@ -84,24 +77,44 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 
 func (s statusProvider) populateStatus() map[string]interface{} {
 	status := make(map[string]interface{})
-	addressPort, err := config.GetProcessAPIAddressPort()
+
+	var url string
+	if s.testServerURL != "" {
+		url = s.testServerURL
+	} else {
+
+		// Get expVar server address
+		ipcAddr, err := ddconfig.GetIPCAddress()
+		if err != nil {
+			status["error"] = fmt.Sprintf("%v", err.Error())
+			return status
+		}
+
+		port := s.config.GetInt("process_config.expvar_port")
+		if port <= 0 {
+			port = ddconfig.DefaultProcessExpVarPort
+		}
+		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
+	}
+
+	agentStatus, err := processStatus.GetStatus(s.config, url)
 	if err != nil {
 		status["error"] = fmt.Sprintf("%v", err.Error())
 		return status
 	}
 
-	c := client()
-	statusEndpoint := fmt.Sprintf("http://%s/agent/status", addressPort)
-	b, err := apiutil.DoGet(c, statusEndpoint, apiutil.CloseConnection)
+	bytes, err := json.Marshal(agentStatus)
 	if err != nil {
-		status["error"] = fmt.Sprintf("%v", err.Error())
-		return status
+		return map[string]interface{}{
+			"error": fmt.Sprintf("%v", err.Error()),
+		}
 	}
 
-	err = json.Unmarshal(b, &s)
+	err = json.Unmarshal(bytes, &status)
 	if err != nil {
-		status["error"] = fmt.Sprintf("%v", err.Error())
-		return status
+		return map[string]interface{}{
+			"error": fmt.Sprintf("%v", err.Error()),
+		}
 	}
 
 	return status

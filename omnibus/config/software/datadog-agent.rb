@@ -18,12 +18,14 @@ dependency 'datadog-agent-dependencies'
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
+always_build true
+
 build do
   license :project_license
 
   bundled_agents = []
-  if linux_target?
-    bundled_agents = ["process-agent", "security-agent", "system-probe"]
+  if heroku_target?
+    bundled_agents = ["process-agent"]
   end
 
   # set GOPATH on the omnibus source dir for this software
@@ -79,8 +81,11 @@ build do
     command "inv -e rtloader.clean"
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0 -I#{install_dir}/embedded/include\" -DCMAKE_C_FLAGS:=\"-I#{install_dir}/embedded/include\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
     command "inv -e rtloader.install"
-    bundle_arg = bundled_agents.map { |k| "--bundle #{k}" }.join(" ")
-    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
+    bundle_arg = bundled_agents ? bundled_agents.map { |k| "--bundle #{k}" }.join(" ") : "--bundle agent"
+    command "inv -e agent.build --exclude-rtloader --include-sds --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
+    if heroku_target?
+      command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent --bundle agent", env: env
+    end
   end
 
   if osx_target?
@@ -97,9 +102,6 @@ build do
 
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-  if linux_target? or (windows_target? and not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?)
-      move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
-  end
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
 
   unless windows_target?
@@ -127,7 +129,7 @@ build do
 
   # Process agent
   if not bundled_agents.include? "process-agent"
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg} #{arch_arg}", :env => env
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg} #{arch_arg} --no-bundle", :env => env
   end
 
   if windows_target?
@@ -137,14 +139,13 @@ build do
   end
 
   # System-probe
-  sysprobe_support = linux_target? || (windows_target? && do_windows_sysprobe != "")
+  sysprobe_support = (not heroku_target?) && (linux_target? || (windows_target? && do_windows_sysprobe != ""))
   if sysprobe_support
     if not bundled_agents.include? "system-probe"
       if windows_target?
-        ## don't bother with system probe build on x86.
-        command "invoke -e system-probe.build --windows"
+        command "invoke -e system-probe.build"
       elsif linux_target?
-        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir}"
+        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir} --no-bundle"
       end
     end
 
@@ -153,19 +154,21 @@ build do
     elsif linux_target?
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
-  end
 
-  # Add SELinux policy for system-probe
-  if debian_target? || redhat_target?
-    mkdir "#{conf_dir}/selinux"
-    command "inv -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
+    # Add SELinux policy for system-probe
+    if debian_target? || redhat_target?
+      mkdir "#{conf_dir}/selinux"
+      command "inv -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
+    end
+
+    move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
   end
 
   # Security agent
   secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
   if secagent_support
     if not bundled_agents.include? "security-agent"
-      command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
+      command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --no-bundle", :env => env
     end
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
@@ -179,7 +182,6 @@ build do
   if windows_target?
     if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
       command "inv agent.generate-config --build-type apm-injection --output-file ./bin/agent/dist/apm-inject.yaml", :env => env
-     #move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
       move 'bin/agent/dist/apm-inject.yaml', "#{conf_dir}/apm-inject.yaml.example"
     end
   end
@@ -275,10 +277,14 @@ build do
         mode: 0644,
         vars: { install_dir: install_dir }
 
+    erb source: "gui.launchd.plist.erb",
+        dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
+        mode: 0644
+
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
     mkdir "#{app_temp_dir}/MacOS"
-    systray_build_dir = "#{project_dir}/cmd/agent/gui/systray"
+    systray_build_dir = "#{project_dir}/comp/core/gui/guiimpl/systray"
     # Target OSX 10.10 (it brings significant changes to Cocoa and Foundation APIs, and older versions of OSX are EOL'ed)
     # Add @executable_path/../Frameworks to rpath to find the swift libs in the Frameworks folder.
     command 'swiftc -O -swift-version "5" -target "x86_64-apple-macosx10.10" -Xlinker \'-rpath\' -Xlinker \'@executable_path/../Frameworks\' Sources/*.swift -o gui', cwd: systray_build_dir

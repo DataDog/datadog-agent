@@ -13,6 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	coreStatus "github.com/DataDog/datadog-agent/comp/core/status"
+
+	"go.uber.org/fx"
 
 	trapsconfig "github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
@@ -26,13 +29,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newServer),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newServer))
+}
 
 type dependencies struct {
 	fx.In
@@ -50,6 +53,13 @@ type injections struct {
 	Demux     demultiplexer.Component
 	Logger    log.Component
 	Status    status.Component
+}
+
+type provides struct {
+	fx.Out
+
+	Comp           server.Component
+	StatusProvider coreStatus.InformationProvider
 }
 
 // TrapsServer implements the SNMP traps service.
@@ -74,15 +84,18 @@ func (w *TrapsServer) Error() error {
 
 // newServer creates a new traps server, registering it with the fx lifecycle
 // system if traps are enabled.
-func newServer(lc fx.Lifecycle, deps dependencies) server.Component {
+func newServer(lc fx.Lifecycle, deps dependencies) provides {
 	if !trapsconfig.IsEnabled(deps.Conf) {
-		return &TrapsServer{running: false}
+		return provides{
+			Comp: &TrapsServer{running: false},
+		}
 	}
 	stat := statusimpl.New()
 	// TODO: (components) Having apps within apps is not ideal - you have to be
 	// careful never to double-instantiate anything. Do not use this solution
 	// elsewhere if possible.
 	app := fx.New(
+		fxutil.FxLoggingOption(),
 		fx.Supply(injections{
 			Conf:      deps.Conf,
 			HNService: deps.HNService,
@@ -90,19 +103,23 @@ func newServer(lc fx.Lifecycle, deps dependencies) server.Component {
 			Logger:    deps.Logger,
 			Status:    stat,
 		}),
-		configimpl.Module,
-		formatterimpl.Module,
-		forwarderimpl.Module,
-		listenerimpl.Module,
-		oidresolverimpl.Module,
+		configimpl.Module(),
+		formatterimpl.Module(),
+		forwarderimpl.Module(),
+		listenerimpl.Module(),
+		oidresolverimpl.Module(),
 		fx.Invoke(func(_ forwarder.Component, _ listener.Component) {}),
 	)
 	server := &TrapsServer{app: app, stat: stat}
+
 	if err := app.Err(); err != nil {
 		deps.Logger.Errorf("Failed to initialize snmp-traps server: %s", err)
 		server.stat.SetStartError(err)
-		return server
+		return provides{
+			Comp: server,
+		}
 	}
+
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			err := app.Start(ctx)
@@ -119,5 +136,9 @@ func newServer(lc fx.Lifecycle, deps dependencies) server.Component {
 			return app.Stop(ctx)
 		},
 	})
-	return server
+
+	return provides{
+		Comp:           server,
+		StatusProvider: coreStatus.NewInformationProvider(statusimpl.Provider{}),
+	}
 }

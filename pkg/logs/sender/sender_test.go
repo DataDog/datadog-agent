@@ -6,18 +6,25 @@
 package sender
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 )
+
+func getNewConfig() pkgconfigmodel.ReaderWriter {
+	return pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+}
 
 func newMessage(content []byte, source *sources.LogSource, status string) *message.Payload {
 	return &message.Payload{
@@ -39,10 +46,11 @@ func TestSender(t *testing.T) {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 
-	destination := tcp.AddrToDestination(l.Addr(), destinationsCtx)
+	destination := tcp.AddrToDestination(l.Addr(), destinationsCtx, statusinterface.NewStatusProviderMock())
 	destinations := client.NewDestinations([]client.Destination{destination}, nil)
 
-	sender := NewSender(input, output, destinations, 0)
+	cfg := getNewConfig()
+	sender := NewSender(cfg, input, output, destinations, 0)
 	sender.Start()
 
 	expectedMessage := newMessage([]byte("fake line"), source, "")
@@ -60,16 +68,17 @@ func TestSender(t *testing.T) {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestSenderSingleDestination(t *testing.T) {
+	cfg := getNewConfig()
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
 	respondChan := make(chan int)
 
-	server := http.NewTestServerWithOptions(200, 0, true, respondChan)
+	server := http.NewTestServerWithOptions(200, 0, true, respondChan, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{server.Destination}, nil)
 
-	sender := NewSender(input, output, destinations, 10)
+	sender := NewSender(cfg, input, output, destinations, 10)
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -87,18 +96,19 @@ func TestSenderSingleDestination(t *testing.T) {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestSenderDualReliableDestination(t *testing.T) {
+	cfg := getNewConfig()
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
 	respondChan1 := make(chan int)
-	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1)
+	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1, cfg)
 
 	respondChan2 := make(chan int)
-	server2 := http.NewTestServerWithOptions(200, 0, true, respondChan2)
+	server2 := http.NewTestServerWithOptions(200, 0, true, respondChan2, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination, server2.Destination}, nil)
 
-	sender := NewSender(input, output, destinations, 10)
+	sender := NewSender(cfg, input, output, destinations, 10)
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -121,18 +131,19 @@ func TestSenderDualReliableDestination(t *testing.T) {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestSenderUnreliableAdditionalDestination(t *testing.T) {
+	cfg := getNewConfig()
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
 	respondChan1 := make(chan int)
-	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1)
+	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1, cfg)
 
 	respondChan2 := make(chan int)
-	server2 := http.NewTestServerWithOptions(200, 0, false, respondChan2)
+	server2 := http.NewTestServerWithOptions(200, 0, false, respondChan2, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination}, []client.Destination{server2.Destination})
 
-	sender := NewSender(input, output, destinations, 10)
+	sender := NewSender(cfg, input, output, destinations, 10)
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -152,18 +163,19 @@ func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 }
 
 func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
+	cfg := getNewConfig()
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
 	reliableRespond := make(chan int)
-	reliableServer := http.NewTestServerWithOptions(200, 0, true, reliableRespond)
+	reliableServer := http.NewTestServerWithOptions(200, 0, true, reliableRespond, cfg)
 
 	unreliableRespond := make(chan int)
-	unreliableServer := http.NewTestServerWithOptions(200, 0, false, unreliableRespond)
+	unreliableServer := http.NewTestServerWithOptions(200, 0, false, unreliableRespond, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer.Destination}, []client.Destination{unreliableServer.Destination})
 
-	sender := NewSender(input, output, destinations, 10)
+	sender := NewSender(cfg, input, output, destinations, 10)
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -200,18 +212,19 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
+	cfg := getNewConfig()
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
 	reliableRespond1 := make(chan int)
-	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1)
+	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1, cfg)
 
 	reliableRespond2 := make(chan int)
-	reliableServer2 := http.NewTestServerWithOptions(200, 0, false, reliableRespond2)
+	reliableServer2 := http.NewTestServerWithOptions(200, 0, false, reliableRespond2, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 
-	sender := NewSender(input, output, destinations, 10)
+	sender := NewSender(cfg, input, output, destinations, 10)
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -245,18 +258,19 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
+	cfg := getNewConfig()
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
 
 	reliableRespond1 := make(chan int)
-	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1)
+	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1, cfg)
 
 	reliableRespond2 := make(chan int)
-	reliableServer2 := http.NewTestServerWithOptions(200, 0, false, reliableRespond2)
+	reliableServer2 := http.NewTestServerWithOptions(200, 0, false, reliableRespond2, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 
-	sender := NewSender(input, output, destinations, 10)
+	sender := NewSender(cfg, input, output, destinations, 10)
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -285,6 +299,7 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 
 	// Recover the first server
 	reliableServer1.ChangeStatus(200)
+
 	// Drain any retries
 	for {
 		if (<-reliableRespond1) == 200 {

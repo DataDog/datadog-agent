@@ -10,23 +10,26 @@ import (
 	"context"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newTrapForwarder),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newTrapForwarder),
+	)
+}
 
 // trapForwarder consumes SNMP packets, formats traps and send them as EventPlatformEvents
 // The trapForwarder is an intermediate step between the listener and the epforwarder in order to limit the processing of the listener
@@ -117,5 +120,5 @@ func (tf *trapForwarder) sendTrap(packet *packet.SnmpPacket) {
 	}
 	tf.logger.Tracef("send trap payload: %s", string(data))
 	tf.sender.Count("datadog.snmp_traps.forwarded", 1, "", packet.GetTags())
-	tf.sender.EventPlatformEvent(data, epforwarder.EventTypeSnmpTraps)
+	tf.sender.EventPlatformEvent(data, eventplatform.EventTypeSnmpTraps)
 }

@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Collect pod limits and requests.

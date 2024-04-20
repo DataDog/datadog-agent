@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/testutil"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -55,20 +55,17 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
-					},
-				},
-				"processors": map[string]interface{}{
-					"batch": map[string]interface{}{
-						"timeout": "10s",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 				},
 				"service": map[string]interface{}{
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"otlp"},
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp"},
 						},
 					},
 				},
@@ -117,6 +114,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
@@ -135,9 +135,8 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"otlp"},
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp"},
 						},
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -191,6 +190,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
@@ -209,9 +211,8 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"otlp"},
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp"},
 						},
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -245,11 +246,6 @@ func TestNewMap(t *testing.T) {
 						},
 					},
 				},
-				"processors": map[string]interface{}{
-					"batch": map[string]interface{}{
-						"timeout": "10s",
-					},
-				},
 				"exporters": map[string]interface{}{
 					"otlp": map[string]interface{}{
 						"tls": map[string]interface{}{
@@ -257,15 +253,17 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 				},
 				"service": map[string]interface{}{
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"otlp"},
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp"},
 						},
 					},
 				},
@@ -352,11 +350,6 @@ func TestNewMap(t *testing.T) {
 						},
 					},
 				},
-				"processors": map[string]interface{}{
-					"batch": map[string]interface{}{
-						"timeout": "10s",
-					},
-				},
 				"exporters": map[string]interface{}{
 					"otlp": map[string]interface{}{
 						"tls": map[string]interface{}{
@@ -364,6 +357,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 					"logging": map[string]interface{}{
 						"loglevel": "info",
@@ -373,9 +369,8 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"otlp", "logging"},
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp", "logging"},
 						},
 					},
 				},
@@ -485,6 +480,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
@@ -505,9 +503,8 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"otlp", "logging"},
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp", "logging"},
 						},
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -546,6 +543,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 					"logsagent": interface{}(nil),
 				},
@@ -558,9 +558,8 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"otlp"},
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp"},
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -615,6 +614,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
@@ -634,9 +636,8 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"otlp"},
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp"},
 						},
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -696,6 +697,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
@@ -715,9 +719,8 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"otlp"},
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp"},
 						},
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -769,6 +772,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 					"logsagent": interface{}(nil),
 				},
@@ -776,9 +782,8 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"otlp"},
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp"},
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -890,6 +895,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 					"logging": map[string]interface{}{
 						"loglevel": "info",
@@ -900,9 +908,8 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"otlp", "logging"},
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp", "logging"},
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -1025,6 +1032,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"compression": "none",
 						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]interface{}{
+							"enabled": false,
+						},
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
@@ -1046,9 +1056,8 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"otlp", "logging"},
+							"receivers": []interface{}{"otlp"},
+							"exporters": []interface{}{"otlp", "logging"},
 						},
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},

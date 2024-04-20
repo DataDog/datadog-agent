@@ -18,11 +18,11 @@ import (
 
 	dockerTypes "github.com/docker/docker/api/types"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/docker/docker/api/types/container"
 )
 
 const (
@@ -113,7 +114,7 @@ func (d *DockerCheck) Configure(senderManager sender.SenderManager, integrationC
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
-	d.processor = generic.NewProcessor(metrics.GetProvider(), generic.NewMetadataContainerAccessor(d.store), metricsAdapter{}, getProcessorFilter(d.containerFilter, d.store))
+	d.processor = generic.NewProcessor(metrics.GetProvider(optional.NewOption(d.store)), generic.NewMetadataContainerAccessor(d.store), metricsAdapter{}, getProcessorFilter(d.containerFilter, d.store))
 	d.processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 	d.configureNetworkProcessor(&d.processor)
 	d.setOkExitCodes()
@@ -155,7 +156,7 @@ func (d *DockerCheck) Run() error {
 		d.collectContainerSizeCounter = (d.collectContainerSizeCounter + 1) % d.instance.CollectContainerSizeFreq
 	}
 
-	rawContainerList, err := du.RawContainerList(context.TODO(), dockerTypes.ContainerListOptions{All: true, Size: collectContainerSize})
+	rawContainerList, err := du.RawContainerList(context.TODO(), container.ListOptions{All: true, Size: collectContainerSize})
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, servicecheck.ServiceCheckCritical, "", nil, err.Error())
 		_ = d.Warnf("Error collecting containers: %s", err)

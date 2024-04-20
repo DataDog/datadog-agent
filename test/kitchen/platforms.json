@@ -2,7 +2,6 @@
     "centos": {
         "azure": {
             "x86_64": {
-                "centos-610": "urn,OpenLogic:CentOS:6.10:6.10.2020042900",
                 "centos-76": "urn,OpenLogic:CentOS:7.6:7.6.201909120",
                 "centos-77": "urn,OpenLogic:CentOS:7.7:7.7.201912090",
                 "rhel-81": "urn,RedHat:RHEL:8.1:8.1.2021040910",
@@ -41,13 +40,13 @@
         },
         "ec2": {
             "x86_64": {
-                "debian-10": "ami-041540a5c191757a0",
-                "debian-11": "ami-02ba6eae41e089e8d",
+                "debian-10": "ami-067a196d70cb53732",
+                "debian-11": "ami-0607e701db389efe7",
                 "debian-12": "ami-07edaec601cf2b6d3"
             },
             "arm64": {
-                "debian-10": "ami-0108ade0d057c8eba",
-                "debian-11": "ami-03ea090ddd75eb738",
+                "debian-10": "ami-0b6ee4b8f4aa91fb4",
+                "debian-11": "ami-00988b9ead6afb0b1",
                 "debian-12": "ami-02aab8d5301cb8d68"
             }
         }
@@ -56,7 +55,7 @@
         "ec2": {
             "x86_64": {
                 "fedora-36": "ami-05e7ccec1e0408397",
-                "fedora-37": "ami-023fb534213ca41da"
+                "fedora-37": "ami-032e9a5778bde5a1a"
             },
             "arm64": {
                 "fedora-36": "ami-0487fbde1f898f0f1",
@@ -93,7 +92,6 @@
         },
         "ec2": {
             "x86_64": {
-                "ubuntu-16-04-4.4": "ami-a4dc46db",
                 "ubuntu-16-04": "ami-089043ae24872fe78",
                 "ubuntu-18-04": "ami-015715c1584e7243c",
                 "ubuntu-20-04": "ami-0ffb8e1df897204c4",
@@ -147,10 +145,10 @@
     "windows": {
         "azure": {
             "x86_64": {
-                "win2016": "urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:14393.5429.221014",
-                "win2019": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:17763.3534.221015",
-                "win2019cn": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-zhcn:17763.3534.221015",
-                "win2022": "urn,MicrosoftWindowsServer:WindowsServer:2022-datacenter-core:20348.1131.221014"
+                "win2016": "urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:latest",
+                "win2019": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:latest",
+                "win2019cn": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-zhcn:latest",
+                "win2022": "urn,MicrosoftWindowsServer:WindowsServer:2022-datacenter-core:latest"
             }
         },
         "ec2": {

@@ -6,6 +6,7 @@
 package inventorychecksimpl
 
 import (
+	icinterface "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -17,7 +18,7 @@ type InventorychecksMock struct {
 
 // NewMock returns a new InventorychecksMock.
 // TODO: (components) - Once the checks are components we can make this method private
-func NewMock() *InventorychecksMock {
+func NewMock() icinterface.Component {
 	return &InventorychecksMock{
 		metadata: map[string]map[string]interface{}{},
 	}
@@ -51,8 +52,9 @@ func (m *InventorychecksMock) GetInstanceMetadata(instanceID string) map[string]
 //
 //	fxutil.Test[dependencies](
 //	   t,
-//	   inventorychecks.MockModule,
+//	   inventorychecks.MockModule(),
 //	)
-var MockModule = fxutil.Component(
-	fx.Provide(NewMock),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(NewMock))
+}

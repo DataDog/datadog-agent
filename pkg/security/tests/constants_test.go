@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests && linux_bpf
+//go:build linux && functionaltests && linux_bpf
 
 // Package tests holds tests related files
 package tests
@@ -28,18 +28,21 @@ var RCVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameIoKiocbStructCtx,
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
+	constantfetch.OffsetNameDeviceStructNdNet,
 }
 
 var BTFHubVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameNFConnStructCTNet,
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
+	constantfetch.OffsetNameDeviceStructNdNet,
 }
 
 var BTFVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameIoKiocbStructCtx,
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
+	constantfetch.OffsetNameDeviceStructNdNet,
 }
 
 func TestOctogonConstants(t *testing.T) {

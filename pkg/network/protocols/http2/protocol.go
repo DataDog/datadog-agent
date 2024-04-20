@@ -30,13 +30,11 @@ import (
 
 // Protocol implements the interface that represents a protocol supported by USM for HTTP/2.
 type Protocol struct {
-	cfg *config.Config
-	mgr *manager.Manager
-	// TODO: Do we need to duplicate?
-	telemetry *http.Telemetry
-	// TODO: Do we need to duplicate?
+	cfg                     *config.Config
+	mgr                     *manager.Manager
+	telemetry               *http.Telemetry
 	statkeeper              *http.StatKeeper
-	http2InFlightMapCleaner *ddebpf.MapCleaner[http2StreamKey, EbpfTx]
+	http2InFlightMapCleaner *ddebpf.MapCleaner[HTTP2StreamKey, HTTP2Stream]
 	eventsConsumer          *events.Consumer[EbpfTx]
 
 	// http2Telemetry is used to retrieve metrics from the kernel
@@ -47,7 +45,9 @@ type Protocol struct {
 }
 
 const (
-	inFlightMap               = "http2_in_flight"
+	// InFlightMap is the name of the map used to store in-flight HTTP/2 streams
+	InFlightMap               = "http2_in_flight"
+	remainderTable            = "http2_remainder"
 	dynamicTable              = "http2_dynamic_table"
 	dynamicTableCounter       = "http2_dynamic_counter_table"
 	http2IterationsTable      = "http2_iterations"
@@ -55,13 +55,19 @@ const (
 	firstFrameHandlerTailCall = "socket__http2_handle_first_frame"
 	filterTailCall            = "socket__http2_filter"
 	headersParserTailCall     = "socket__http2_headers_parser"
+	dynamicTableCleaner       = "socket__http2_dynamic_table_cleaner"
 	eosParserTailCall         = "socket__http2_eos_parser"
 	eventStream               = "http2"
-	telemetryMap              = "http2_telemetry"
+
+	// TelemetryMap is the name of the map used to retrieve plaintext metrics from the kernel
+	TelemetryMap = "http2_telemetry"
+	// TLSTelemetryMap is the name of the map used to retrieve metrics from the eBPF probes for TLS
+	TLSTelemetryMap = "tls_http2_telemetry"
 
 	tlsFirstFrameTailCall    = "uprobe__http2_tls_handle_first_frame"
 	tlsFilterTailCall        = "uprobe__http2_tls_filter"
 	tlsHeadersParserTailCall = "uprobe__http2_tls_headers_parser"
+	tlsDynamicTableCleaner   = "uprobe__http2_dynamic_table_cleaner"
 	tlsEOSParserTailCall     = "uprobe__http2_tls_eos_parser"
 	tlsTerminationTailCall   = "uprobe__http2_tls_termination"
 )
@@ -71,7 +77,7 @@ var Spec = &protocols.ProtocolSpec{
 	Factory: newHTTP2Protocol,
 	Maps: []*manager.Map{
 		{
-			Name: inFlightMap,
+			Name: InFlightMap,
 		},
 		{
 			Name: dynamicTable,
@@ -84,6 +90,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: tlsHTTP2IterationsTable,
+		},
+		{
+			Name: remainderTable,
 		},
 		{
 			Name: "http2_headers_to_process",
@@ -122,6 +131,13 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2DynamicTableCleaner),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: dynamicTableCleaner,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramHTTP2EOSParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: eosParserTailCall,
@@ -146,6 +162,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramTLSHTTP2HeaderParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsHeadersParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTP2DynamicTableCleaner),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsDynamicTableCleaner,
 			},
 		},
 		{
@@ -182,7 +205,7 @@ func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
 		telemetry:                  telemetry,
 		http2Telemetry:             http2KernelTelemetry,
 		kernelTelemetryStopChannel: make(chan struct{}),
-		dynamicTable:               NewDynamicTable(),
+		dynamicTable:               NewDynamicTable(cfg),
 	}, nil
 }
 
@@ -192,8 +215,7 @@ func (p *Protocol) Name() string {
 }
 
 const (
-	mapSizeValue        = 1024
-	dynamicMapSizeValue = 10240
+	mapSizeValue = 1024
 )
 
 // ConfigureOptions add the necessary options for http2 monitoring to work,
@@ -202,17 +224,20 @@ const (
 //
 // We also configure the http2 event stream with the manager and its options.
 func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
-	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
+	opts.MapSpecEditors[InFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
-
+	opts.MapSpecEditors[remainderTable] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
+		EditorFlag: manager.EditMaxEntries,
+	}
 	opts.MapSpecEditors[dynamicTable] = manager.MapSpecEditor{
-		MaxEntries: dynamicMapSizeValue,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[dynamicTableCounter] = manager.MapSpecEditor{
-		MaxEntries: dynamicMapSizeValue,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[http2IterationsTable] = manager.MapSpecEditor{
@@ -225,8 +250,9 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	}
 
 	utils.EnableOption(opts, "http2_monitoring_enabled")
+	utils.EnableOption(opts, "terminated_http2_monitoring_enabled")
 	// Configure event stream
-	events.Configure(eventStream, mgr, opts)
+	events.Configure(p.cfg, eventStream, mgr, opts)
 	p.dynamicTable.configureOptions(mgr, opts)
 }
 
@@ -248,7 +274,7 @@ func (p *Protocol) PreStart(mgr *manager.Manager) (err error) {
 		return
 	}
 
-	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry, http.NewIncompleteBuffer(p.cfg, p.telemetry))
+	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry, NewIncompleteBuffer(p.cfg))
 	p.eventsConsumer.Start()
 
 	return
@@ -265,17 +291,30 @@ func (p *Protocol) PostStart(mgr *manager.Manager) error {
 	return p.dynamicTable.postStart(mgr, p.cfg)
 }
 
-func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
-	mp, _, err := mgr.GetMap(telemetryMap)
+func getMap(mgr *manager.Manager, name string) (*ebpf.Map, error) {
+	m, _, err := mgr.GetMap(name)
 	if err != nil {
-		log.Warnf("unable to get http2 telemetry map: %s", err)
+		return nil, fmt.Errorf("error getting %q map: %s", name, err)
+	}
+	if m == nil {
+		return nil, fmt.Errorf("%q map is nil", name)
+	}
+	return m, nil
+}
+
+func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
+	mp, err := getMap(mgr, TelemetryMap)
+	if err != nil {
+		log.Warn(err)
 		return
 	}
 
-	if mp == nil {
-		log.Warn("http2 telemetry map is nil")
+	tlsMap, err := getMap(mgr, TLSTelemetryMap)
+	if err != nil {
+		log.Warn(err)
 		return
 	}
+
 	var zero uint32
 	http2Telemetry := &HTTP2Telemetry{}
 	ticker := time.NewTicker(30 * time.Second)
@@ -287,11 +326,17 @@ func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
 			select {
 			case <-ticker.C:
 				if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
-					log.Errorf("unable to lookup http2 telemetry map: %s", err)
+					log.Errorf("unable to lookup %q map: %s", TelemetryMap, err)
 					return
 				}
+				p.http2Telemetry.update(http2Telemetry, false)
 
-				p.http2Telemetry.update(http2Telemetry)
+				if err := tlsMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+					log.Errorf("unable to lookup %q map: %s", TLSTelemetryMap, err)
+					return
+				}
+				p.http2Telemetry.update(http2Telemetry, true)
+
 				p.http2Telemetry.Log()
 			case <-p.kernelTelemetryStopChannel:
 				return
@@ -323,19 +368,19 @@ func (p *Protocol) Stop(_ *manager.Manager) {
 // DumpMaps dumps the content of the map represented by mapName &
 // currentMap, if it used by the eBPF program, to output.
 func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
-	if mapName == inFlightMap { // maps/http2_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
-		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
+	if mapName == InFlightMap {
+		var key HTTP2StreamKey
+		var value HTTP2Stream
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
 		iter := currentMap.Iterate()
-		var key http2StreamKey
-		var value EbpfTx
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
 	} else if mapName == dynamicTable {
-		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
-		iter := currentMap.Iterate()
 		var key HTTP2DynamicTableIndex
 		var value HTTP2DynamicTableEntry
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
+		iter := currentMap.Iterate()
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
@@ -351,24 +396,24 @@ func (p *Protocol) processHTTP2(events []EbpfTx) {
 }
 
 func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
-	http2Map, _, err := mgr.GetMap(inFlightMap)
+	http2Map, _, err := mgr.GetMap(InFlightMap)
 	if err != nil {
-		log.Errorf("error getting %q map: %s", inFlightMap, err)
+		log.Errorf("error getting %q map: %s", InFlightMap, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[http2StreamKey, EbpfTx](http2Map, 1024)
+	mapCleaner, err := ddebpf.NewMapCleaner[HTTP2StreamKey, HTTP2Stream](http2Map, 1024)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, key http2StreamKey, val EbpfTx) bool {
-		if updated := int64(val.Stream.Response_last_seen); updated > 0 {
+	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval, nil, nil, func(now int64, key HTTP2StreamKey, val HTTP2Stream) bool {
+		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(val.Stream.Request_started)
+		started := int64(val.Request_started)
 		return started > 0 && (now-started) > ttl
 	})
 
@@ -389,22 +434,4 @@ func (p *Protocol) GetStats() *protocols.ProtocolStats {
 // IsBuildModeSupported returns always true, as http2 module is supported by all modes.
 func (*Protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
-}
-
-// GetHTTP2KernelTelemetry returns the HTTP2 kernel telemetry
-func (p *Protocol) GetHTTP2KernelTelemetry() (*HTTP2Telemetry, error) {
-	http2Telemetry := &HTTP2Telemetry{}
-	var zero uint32
-
-	mp, _, err := p.mgr.GetMap(telemetryMap)
-	if err != nil {
-		log.Errorf("unable to get http2 telemetry map: %s", err)
-		return nil, err
-	}
-
-	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
-		log.Errorf("unable to lookup http2 telemetry map: %s", err)
-		return nil, err
-	}
-	return http2Telemetry, nil
 }

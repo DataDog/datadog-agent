@@ -2,7 +2,8 @@
   Total Listeners: {{.TotalListeners}}
   Open Listeners: {{.OpenListeners}}
   Closed Listeners: {{.ClosedListeners}}
-  {{ if .OpenListeners }}
+  {{- if .OpenListeners }}
+
   === Open Listener Details ===
   {{- range $index, $NetflowListenerStatus := .WorkingListenerDetails }}
   ---------
@@ -14,9 +15,10 @@
   Flows Received: {{$NetflowListenerStatus.FlowCount}}
   ---------
   {{- end }}
-  {{ end }}
+  {{- end }}
 
-  {{ if .ClosedListeners }}
+  {{- if .ClosedListeners }}
+
   === Closed Listener Details ===
   {{- range $index, $NetflowListenerStatus := .ClosedListenerDetails }}
   ---------
@@ -28,5 +30,5 @@
   Error: {{$NetflowListenerStatus.Error}}
   ---------
   {{- end }}
-  {{ end }}
+  {{- end }}
 {{- end }}

@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -47,6 +49,10 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 	hostInfo := &HostInfo{
 		SystemInfo: sysInfo,
 	}
+	serviceExtractorEnabled := true
+	useWindowsServiceName := true
+	useImprovedAlgorithm := false
+	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 
 	return &ProcessCheck{
 		probe:             probe,
@@ -56,6 +62,8 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 		sysProbeConfig:    &SysProbeConfig{},
 		checkCount:        0,
 		skipAmount:        2,
+		serviceExtractor:  serviceExtractor,
+		extractors:        []metadata.Extractor{serviceExtractor},
 	}, probe
 }
 
@@ -117,6 +125,7 @@ func TestProcessCheckSecondRun(t *testing.T) {
 	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
 	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
 	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
+
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
 
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
@@ -129,31 +138,31 @@ func TestProcessCheckSecondRun(t *testing.T) {
 
 	expected := []model.MessageBody{
 		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			Processes: []*model.Process{makeProcessModel(t, proc1, []string{"process_context:git"})},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc2)},
+			Processes: []*model.Process{makeProcessModel(t, proc2, []string{"process_context:mine-bitcoins"})},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc3)},
+			Processes: []*model.Process{makeProcessModel(t, proc3, []string{"process_context:foo"})},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc4)},
+			Processes: []*model.Process{makeProcessModel(t, proc4, []string{"process_context:foo"})},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc5)},
+			Processes: []*model.Process{makeProcessModel(t, proc5, []string{"process_context:datadog-process-agent"})},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
@@ -167,12 +176,12 @@ func TestProcessCheckSecondRun(t *testing.T) {
 
 func TestProcessCheckWithRealtime(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
-
 	proc1 := makeProcess(1, "git clone google.com")
 	proc2 := makeProcess(2, "mine-bitcoins -all -x")
 	proc3 := makeProcess(3, "foo --version")
 	proc4 := makeProcess(4, "foo -bar -bim")
 	proc5 := makeProcess(5, "datadog-process-agent --cfgpath datadog.conf")
+
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
 
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
@@ -185,31 +194,31 @@ func TestProcessCheckWithRealtime(t *testing.T) {
 
 	expectedProcs := []model.MessageBody{
 		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			Processes: []*model.Process{makeProcessModel(t, proc1, []string{"process_context:git"})},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc2)},
+			Processes: []*model.Process{makeProcessModel(t, proc2, []string{"process_context:mine-bitcoins"})},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc3)},
+			Processes: []*model.Process{makeProcessModel(t, proc3, []string{"process_context:foo"})},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc4)},
+			Processes: []*model.Process{makeProcessModel(t, proc4, []string{"process_context:foo"})},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc5)},
+			Processes: []*model.Process{makeProcessModel(t, proc5, []string{"process_context:datadog-process-agent"})},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
@@ -368,7 +377,7 @@ func TestProcessCheckHints(t *testing.T) {
 
 	expected := []model.MessageBody{
 		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			Processes: []*model.Process{makeProcessModel(t, proc1, []string{"process_context:git"})},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
@@ -381,7 +390,7 @@ func TestProcessCheckHints(t *testing.T) {
 
 	expectedUnspecified := []model.MessageBody{
 		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			Processes: []*model.Process{makeProcessModel(t, proc1, []string{"process_context:git"})},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0},
@@ -395,7 +404,7 @@ func TestProcessCheckHints(t *testing.T) {
 
 	expectedDiscovery := []model.MessageBody{
 		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			Processes: []*model.Process{makeProcessModel(t, proc1, []string{"process_context:git"})},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
 			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
@@ -418,8 +427,11 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
 
 	var disallowList []*regexp.Regexp
-
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil)
+	serviceExtractorEnabled := true
+	useWindowsServiceName := true
+	useImprovedAlgorithm := false
+	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
+	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, false, serviceExtractor)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)
@@ -445,4 +457,118 @@ func BenchmarkProcessCheck(b *testing.B) {
 		_, err := processCheck.run(0, false)
 		require.NoError(b, err)
 	}
+}
+
+func TestProcessCheckZombieToggleFalse(t *testing.T) {
+	processCheck, probe := processCheckWithMockProbe(t)
+	cfg := ddconfig.Mock(t)
+	processCheck.config = cfg
+	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+	proc2 := makeProcessWithCreateTime(2, "foo -bar -bim", now+1)
+	proc3 := makeProcessWithCreateTime(3, "datadog-process-agent --cfgpath datadog.conf", now+2)
+	proc2.Stats.Status = "Z"
+	proc3.Stats.Status = "Z"
+	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3}
+	expectedModel2 := makeProcessModel(t, proc2, []string{"process_context:foo"})
+	expectedModel2.State = 7
+	expectedModel3 := makeProcessModel(t, proc3, []string{"process_context:datadog-process-agent"})
+	expectedModel3.State = 7
+
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(processesByPid, nil)
+
+	// The first run returns nothing because processes must be observed on two consecutive runs
+	first, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, first)
+
+	expected := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc1, []string{"process_context:git"})},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+		&model.CollectorProc{
+			Processes: []*model.Process{expectedModel2},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+		&model.CollectorProc{
+			Processes: []*model.Process{expectedModel3},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+	}
+	actual, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected, actual.Payloads())
+}
+
+func TestProcessCheckZombieToggleTrue(t *testing.T) {
+	processCheck, probe := processCheckWithMockProbe(t)
+	cfg := ddconfig.Mock(t)
+	processCheck.config = cfg
+	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+	proc2 := makeProcessWithCreateTime(2, "foo -bar -bim", now+1)
+	proc3 := makeProcessWithCreateTime(3, "datadog-process-agent --cfgpath datadog.conf", now+2)
+	proc2.Stats.Status = "Z"
+	proc3.Stats.Status = "Z"
+	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3}
+
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(processesByPid, nil)
+
+	// The first run returns nothing because processes must be observed on two consecutive runs
+	first, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, first)
+
+	cfg.SetWithoutSource("process_config.ignore_zombie_processes", "true")
+	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
+	expected := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc1, []string{"process_context:git"})},
+			GroupSize: int32(1),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+	}
+
+	actual, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected, actual.Payloads()) // ordering is not guaranteed
+}
+
+func TestProcessContextCollection(t *testing.T) {
+	processCheck, probe := processCheckWithMockProbe(t)
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", now)
+	processesByPid := map[int32]*procutil.Process{1: proc1}
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(processesByPid, nil)
+	first, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, first)
+
+	expected := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc1, []string{"process_context:cilium-agent-bpf-map-metrics"})},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+	}
+
+	actual, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected, actual.Payloads())
 }

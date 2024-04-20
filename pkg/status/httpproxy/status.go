@@ -21,13 +21,13 @@ var templatesFS embed.FS
 // Provider provides the functionality to populate the status output
 type Provider struct{}
 
-// GetProvider if no_proxy_nonexact_match is disabled returns status.Provider otherwise returns NoopProvider
+// GetProvider if no_proxy_nonexact_match is disabled returns status.Provider otherwise returns nil
 func GetProvider(conf config.Component) status.Provider {
 	if !conf.GetBool("no_proxy_nonexact_match") {
 		return Provider{}
 	}
 
-	return status.NoopProvider{}
+	return nil
 }
 
 func (p Provider) getStatusInfo() map[string]interface{} {

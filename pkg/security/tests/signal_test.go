@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -46,7 +46,7 @@ func TestSignalEvent(t *testing.T) {
 	}
 
 	test.Run(t, "signal-sigusr1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		args := []string{"signal", "sigusr"}
+		args := []string{"signal", "sigusr1"}
 		envs := []string{}
 
 		test.WaitSignal(t, func() error {

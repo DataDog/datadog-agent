@@ -3,20 +3,12 @@
 # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
-#   - /.gitlab/kitchen_common/testing.yml
+#   - .gitlab/kitchen_testing/testing.yml
 
 # Expect warning: github.com/DataDog/datadog-agent/pkg/config.LoadCustom:1501 Unknown environment variable: DD_SYSTEM_PROBE_BPF_DIR
-.kitchen_test_security_agent:
+.kitchen_test_security_agent_linux:
   extends:
-    - .kitchen_common
-    - .kitchen_datadog_agent_flavor
-  rules:
-    !reference [.manual]
-  stage: functional_test
-  variables:
-    AGENT_MAJOR_VERSION: 7
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
-    CHEF_VERSION: 14.15.6
+    - .kitchen_test_security_agent
   script:
     - echo "CI_JOB_URL=${CI_JOB_URL}" >> $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/job_env.txt
     - echo "CI_JOB_ID=${CI_JOB_ID}" >> $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/job_env.txt
@@ -25,15 +17,17 @@
     - tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
     - popd
     - inv system-probe.print-failed-tests --output-dir $DD_AGENT_TESTING_DIR/testjson
+  after_script:
+    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "$DD_AGENT_TESTING_DIR/junit-*.tar.gz"
   artifacts:
     expire_in: 2 weeks
     when: always
     paths:
-      - $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz
+      - $DD_AGENT_TESTING_DIR/junit-*.tar.gz
 
 kitchen_test_security_agent_x64:
   extends:
-    - .kitchen_test_security_agent
+    - .kitchen_test_security_agent_linux
     - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
   needs: ["tests_ebpf_x64", "prepare_ebpf_functional_tests_x64"]
@@ -76,7 +70,7 @@ kitchen_test_security_agent_x64:
 
 kitchen_test_security_agent_arm64:
   extends:
-    - .kitchen_test_security_agent
+    - .kitchen_test_security_agent_linux
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
   rules:
@@ -98,7 +92,7 @@ kitchen_test_security_agent_arm64:
 
 kitchen_test_security_agent_amazonlinux_x64:
   extends:
-    - .kitchen_test_security_agent
+    - .kitchen_test_security_agent_linux
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
   rules:
@@ -123,7 +117,7 @@ kitchen_test_security_agent_amazonlinux_x64:
 
 kitchen_test_security_agent_x64_ec2:
   extends:
-    - .kitchen_test_security_agent
+    - .kitchen_test_security_agent_linux
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
   needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64" ]
@@ -153,7 +147,7 @@ kitchen_test_security_agent_amazonlinux_x64_fentry:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
         KITCHEN_OSVERS: "amazonlinux2023"
-        KITCHEN_CWS_PLATFORM: [docker-fentry] # only docker for now because the host test is too slow because of BTF copying
+        KITCHEN_CWS_PLATFORM: [host-fentry, docker-fentry]
 
 kitchen_stress_security_agent:
   extends:
@@ -177,3 +171,26 @@ kitchen_stress_security_agent:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-20-04"
+
+kitchen_test_security_agent_windows_x64:
+  extends:
+    - .kitchen_os_windows
+    - .kitchen_test_security_agent
+    - .kitchen_azure_x64
+    - .kitchen_azure_location_north_central_us
+  rules:
+    !reference [.on_security_agent_changes_or_manual]
+  stage: functional_test
+  needs: [ "tests_windows_secagent_x64" ]
+  variables:
+    KITCHEN_ARCH: x86_64
+    KITCHEN_OSVERS: "win2016"
+    CHEF_VERSION: 14.12.9 # newer versions error out during kitchen setup of azure VM
+  before_script:
+    - export WINDOWS_DDPROCMON_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDPROCMON_DRIVER")
+    - export WINDOWS_DDPROCMON_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDPROCMON_VERSION")
+    - export WINDOWS_DDPROCMON_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDPROCMON_SHASUM")
+    - pushd $DD_AGENT_TESTING_DIR
+    - tasks/kitchen_setup.sh
+  script:
+    - tasks/run-test-kitchen.sh windows-secagent-test $AGENT_MAJOR_VERSION

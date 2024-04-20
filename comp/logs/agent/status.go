@@ -16,36 +16,63 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
-func (a *agent) Name() string {
+// Only use for testing
+var logsProvider = logsStatus.Get
+
+// StatusProvider is the type for logs agent status methods
+type StatusProvider struct{}
+
+// Name returns the name
+func (p StatusProvider) Name() string {
 	return "Logs Agent"
 }
 
-func (a *agent) Section() string {
+// Section returns the section
+func (p StatusProvider) Section() string {
 	return "Logs Agent"
 }
 
-func (a *agent) getStatusInfo(verbose bool) map[string]interface{} {
+func (p StatusProvider) getStatusInfo(verbose bool) map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	a.populateStatus(verbose, stats)
+	p.populateStatus(verbose, stats)
 
 	return stats
 }
 
-func (a *agent) populateStatus(verbose bool, stats map[string]interface{}) {
-	stats["logsStats"] = logsStatus.Get(verbose)
+func (p StatusProvider) populateStatus(verbose bool, stats map[string]interface{}) {
+	stats["logsStats"] = logsProvider(verbose)
 }
 
-func (a *agent) JSON(verbose bool, stats map[string]interface{}) error {
-	a.populateStatus(verbose, stats)
+// JSON populates the status map
+func (p StatusProvider) JSON(verbose bool, stats map[string]interface{}) error {
+	p.populateStatus(verbose, stats)
 
 	return nil
 }
 
-func (a *agent) Text(verbose bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "logsagent.tmpl", buffer, a.getStatusInfo(verbose))
+// Text renders the text output
+func (p StatusProvider) Text(verbose bool, buffer io.Writer) error {
+	return status.RenderText(templatesFS, "logsagent.tmpl", buffer, p.getStatusInfo(verbose))
 }
 
-func (a *agent) HTML(verbose bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "logsagentHTML.tmpl", buffer, a.getStatusInfo(verbose))
+// HTML renders the HTML output
+func (p StatusProvider) HTML(verbose bool, buffer io.Writer) error {
+	return status.RenderHTML(templatesFS, "logsagentHTML.tmpl", buffer, p.getStatusInfo(verbose))
+}
+
+// AddGlobalWarning keeps track of a warning message to display on the status.
+func (p StatusProvider) AddGlobalWarning(key string, warning string) {
+	logsStatus.AddGlobalWarning(key, warning)
+}
+
+// RemoveGlobalWarning loses track of a warning message
+// that does not need to be displayed on the status anymore.
+func (p StatusProvider) RemoveGlobalWarning(key string) {
+	logsStatus.RemoveGlobalWarning(key)
+}
+
+// NewStatusProvider fetches the status and returns a service wrapping it
+func NewStatusProvider() *StatusProvider {
+	return &StatusProvider{}
 }

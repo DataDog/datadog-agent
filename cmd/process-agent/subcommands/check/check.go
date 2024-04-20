@@ -51,10 +51,14 @@ type dependencies struct {
 
 	CliParams *cliParams
 
-	Config       config.Component
-	Syscfg       sysprobeconfig.Component
-	Log          log.Component
-	Hostinfo     hostinfo.Component
+	Config   config.Component
+	Syscfg   sysprobeconfig.Component
+	Log      log.Component
+	Hostinfo hostinfo.Component
+	// TODO: the tagger is used by the ContainerProvider, which is currently not a component so there is no direct
+	// dependency on it. The ContainerProvider needs to be componentized so it can be injected and have fx manage its
+	// lifecycle.
+	Tagger       tagger.Component
 	WorkloadMeta workloadmeta.Component
 	Checks       []types.CheckComponent `group:"check"`
 }
@@ -91,6 +95,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runCheckCmd,
 				fx.Supply(cliParams, bundleParams),
 				core.Bundle(),
+				// Provide workloadmeta module
+				workloadmeta.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
 				collectors.GetCatalog(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {
@@ -105,6 +111,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return workloadmeta.Params{AgentType: catalog}
 				}),
 
+				// Provide tagger module
+				tagger.Module(),
 				// Tagger must be initialized after agent config has been setup
 				fx.Provide(func(c config.Component) tagger.Params {
 					if c.GetBool("process_config.remote_tagger") {
@@ -150,7 +158,6 @@ func runCheckCmd(deps dependencies) error {
 			MaxConnsPerMessage:   deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
 			SystemProbeAddress:   deps.Syscfg.SysProbeObject().SocketAddress,
 			ProcessModuleEnabled: processModuleEnabled,
-			GRPCServerEnabled:    deps.Syscfg.SysProbeObject().GRPCServerEnabled,
 		}
 
 		if !matchingCheck(deps.CliParams.checkName, ch) {

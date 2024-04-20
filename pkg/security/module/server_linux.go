@@ -219,7 +219,7 @@ func (a *APIServer) RunSelfTest(_ context.Context, _ *api.RunSelfTestParams) (*a
 		}, nil
 	}
 
-	if _, err := a.cwsConsumer.RunSelfTest(false); err != nil {
+	if _, err := a.cwsConsumer.RunSelfTest(true); err != nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: err.Error(),

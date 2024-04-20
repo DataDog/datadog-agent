@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -126,7 +126,7 @@ func TestEventMonitor(t *testing.T) {
 			}
 
 			return errors.New("event not received")
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
 		assert.Nil(t, err)
 	})
 
@@ -144,7 +144,7 @@ func TestEventMonitor(t *testing.T) {
 			}
 
 			return errors.New("event not received")
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
 		assert.Nil(t, err)
 	})
 }

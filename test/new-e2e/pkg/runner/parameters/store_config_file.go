@@ -38,6 +38,7 @@ type ConfigParams struct {
 	Agent     Agent  `yaml:"agent"`
 	OutputDir string `yaml:"outputDir"`
 	Pulumi    Pulumi `yaml:"pulumi"`
+	DevMode   string `yaml:"devMode"`
 }
 
 // AWS instance contains AWS related parameters
@@ -67,6 +68,9 @@ type Pulumi struct {
 	// Set this option to true to log to stderr instead.
 	// https://www.pulumi.com/docs/support/troubleshooting/#verbose-logging
 	LogToStdErr string `yaml:"logToStdErr"`
+	// To reduce logs noise in the CI, by default we display only the Pulumi error progress steam.
+	// Set this option to true to display all the progress streams.
+	VerboseProgressStreams string `yaml:"verboseProgressStreams"`
 }
 
 var _ valueStore = &configFileValueStore{}
@@ -144,6 +148,10 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		value = s.config.ConfigParams.Pulumi.LogLevel
 	case PulumiLogToStdErr:
 		value = s.config.ConfigParams.Pulumi.LogToStdErr
+	case PulumiVerboseProgressStreams:
+		value = s.config.ConfigParams.Pulumi.VerboseProgressStreams
+	case DevMode:
+		value = s.config.ConfigParams.DevMode
 	}
 
 	if value == "" {

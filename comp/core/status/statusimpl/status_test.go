@@ -218,14 +218,11 @@ func TestGetStatus(t *testing.T) {
 `,
 				index: 2,
 			}),
-			status.NoopInformationProvider(),
-			status.NoopHeaderInformationProvider(),
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	testCases := []struct {
 		name            string
@@ -238,7 +235,7 @@ func TestGetStatus(t *testing.T) {
 			format: "json",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
@@ -252,7 +249,7 @@ func TestGetStatus(t *testing.T) {
 			excludeSections: []string{status.CollectorSection},
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
@@ -499,9 +496,8 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	bytesResult, err := statusComponent.GetStatus("text", false)
 
@@ -569,9 +565,8 @@ func TestGetStatusWithErrors(t *testing.T) {
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	testCases := []struct {
 		name       string
@@ -583,7 +578,7 @@ func TestGetStatusWithErrors(t *testing.T) {
 			format: "json",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
@@ -717,9 +712,8 @@ func TestGetStatusBySection(t *testing.T) {
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	testCases := []struct {
 		name       string
@@ -733,7 +727,7 @@ func TestGetStatusBySection(t *testing.T) {
 			format:  "json",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
@@ -772,6 +766,25 @@ X Section
   </span>
 </div>
 `
+				// We replace windows line break by linux so the tests pass on every OS
+				expectedResult := strings.Replace(result, "\r\n", "\n", -1)
+				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+
+				assert.Equal(t, expectedResult, output)
+			},
+		},
+		{
+			name:    "Text case insensitive",
+			format:  "text",
+			section: "X SeCtIoN",
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := `=========
+X Section
+=========
+ text from a
+ text from x
+`
+
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.Replace(result, "\r\n", "\n", -1)
 				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
@@ -829,9 +842,8 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	testCases := []struct {
 		name       string
@@ -845,7 +857,7 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 			section: "error section",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
@@ -880,7 +892,7 @@ Status render errors
 			section: "header",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
@@ -934,4 +946,70 @@ Status render errors
 			testCase.assertFunc(t, bytesResult)
 		})
 	}
+}
+
+func TestFlareProvider(t *testing.T) {
+	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
+	startTimeProvider = time.Unix(1515151515, 0)
+	originalTZ := os.Getenv("TZ")
+	os.Setenv("TZ", "UTC")
+
+	defer func() {
+		nowFunc = time.Now
+		startTimeProvider = pkgconfigsetup.StartTime
+		os.Setenv("TZ", originalTZ)
+	}()
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule(),
+		fx.Supply(agentParams),
+	))
+
+	provides := newStatus(deps)
+	flareProvider := provides.FlareProvider.Provider
+
+	assert.NotNil(t, flareProvider)
+}
+
+func TestGetStatusBySectionIncorrect(t *testing.T) {
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule(),
+		fx.Supply(
+			agentParams,
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "Lorem",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "ipsum",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "doloR",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "Sit",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "AmEt",
+				name:        "1",
+			}),
+		),
+	))
+
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
+
+	bytesResult, err := statusComponent.GetStatusBySection("consectetur", "json", false)
+
+	assert.Nil(t, bytesResult)
+	assert.EqualError(t, err, `unknown status section 'consectetur', available sections are: ["header","amet","dolor","ipsum","lorem","sit"]`)
 }

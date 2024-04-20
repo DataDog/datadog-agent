@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -22,7 +23,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unsafe"
 
+	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -30,7 +33,9 @@ import (
 	"golang.org/x/net/http2/h2c"
 	"golang.org/x/net/http2/hpack"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	usmhttp "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -57,6 +62,7 @@ const (
 	unixPath             = "/tmp/transparent.sock"
 	http2DefaultTestPath = "/aaa"
 	defaultMethod        = http.MethodPost
+	defaultContentLength = 4
 )
 
 var (
@@ -77,13 +83,16 @@ func (s *usmHTTP2Suite) getCfg() *config.Config {
 	return cfg
 }
 
-func TestHTTP2Scenarios(t *testing.T) {
+func skipIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < usmhttp2.MinimumKernelVersion {
 		t.Skipf("HTTP2 monitoring can not run on kernel before %v", usmhttp2.MinimumKernelVersion)
 	}
+}
 
+func TestHTTP2Scenarios(t *testing.T) {
+	skipIfKernelNotSupported(t)
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		for _, tc := range []struct {
 			name  string
@@ -98,10 +107,10 @@ func TestHTTP2Scenarios(t *testing.T) {
 				isTLS: true,
 			},
 		} {
-			if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
-				t.Skip("GoTLS not supported for this setup")
-			}
 			t.Run(tc.name, func(t *testing.T) {
+				if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
+					t.Skip("GoTLS not supported for this setup")
+				}
 				suite.Run(t, &usmHTTP2Suite{isTLS: tc.isTLS})
 			})
 		}
@@ -297,7 +306,8 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 							t.Logf("key: %v was not found in res", key.Path.Content.Get())
 						}
 					}
-					ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http2_in_flight")
+					ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, usmhttp2.InFlightMap)
+					dumpTelemetry(t, monitor, s.isTLS)
 				}
 			})
 		}
@@ -368,7 +378,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setupUSMTLSMonitor(t, cfg)
+			monitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
 				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
 			}
@@ -382,7 +392,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 			var telemetry *usmhttp2.HTTP2Telemetry
 			var err error
 			assert.Eventually(t, func() bool {
-				telemetry, err = usmhttp2.Spec.Instance.(*usmhttp2.Protocol).GetHTTP2KernelTelemetry()
+				telemetry, err = getHTTP2KernelTelemetry(monitor, s.isTLS)
 				require.NoError(t, err)
 				if telemetry.Request_seen != tt.expectedTelemetry.Request_seen {
 					return false
@@ -390,7 +400,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 				if telemetry.Response_seen != tt.expectedTelemetry.Response_seen {
 					return false
 				}
-				if telemetry.Path_exceeds_frame != tt.expectedTelemetry.Path_exceeds_frame {
+				if telemetry.Literal_value_exceeds_frame != tt.expectedTelemetry.Literal_value_exceeds_frame {
 					return false
 				}
 				if telemetry.Exceeding_max_interesting_frames != tt.expectedTelemetry.Exceeding_max_interesting_frames {
@@ -403,7 +413,6 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 					return false
 				}
 				return reflect.DeepEqual(telemetry.Path_size_bucket, tt.expectedTelemetry.Path_size_bucket)
-
 			}, time.Second*5, time.Millisecond*100)
 			if t.Failed() {
 				t.Logf("expected telemetry: %+v;\ngot: %+v", tt.expectedTelemetry, telemetry)
@@ -470,6 +479,13 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	}
 }
 
+// DynamicTableSize is the size of the dynamic table used in the HPACK encoder.
+const (
+	defaultDynamicTableSize = 100
+	endStream               = true
+	endHeaders              = true
+)
+
 func (s *usmHTTP2Suite) TestRawTraffic() {
 	t := s.T()
 	cfg := s.getCfg()
@@ -500,13 +516,13 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The objective of this test is to verify that we accurately perform the parsing of frames within
 			// a single program.
 			messageBuilder: func() [][]byte {
-				const settingsFramesCount = 100
+				const settingsFramesCount = 238
 				framer := newFramer()
 				return [][]byte{
 					framer.
 						writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
-						writeHeaders(t, 1, testHeaders()).
-						writeData(t, 1, true, emptyBody).
+						writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+						writeData(t, 1, endStream, emptyBody).
 						bytes(),
 				}
 			},
@@ -516,44 +532,19 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					Method: usmhttp.MethodPost,
 				}: 1,
 			},
-		},
-		{
-			name: "parse_frames tail call using 2 programs",
-			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
-			// the filtering of subsequent frames will continue using tail calls.
-			messageBuilder: func() [][]byte {
-				const settingsFramesCount = 130
-				framer := newFramer()
-				return [][]byte{
-					framer.
-						writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
-						writeHeaders(t, 1, testHeaders()).
-						writeData(t, 1, true, emptyBody).
-						bytes(),
-				}
-			},
-			expectedEndpoints: map[usmhttp.Key]int{
-				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
-					Method: usmhttp.MethodPost,
-				}: 1,
-			},
-			// Currently we don't have a way to test it as TLS version does not have the ability to run 2 tail calls
-			// for filtering frames (will be fixed in USMON-684)
-			skip: s.isTLS,
 		},
 		{
 			name: "validate frames_filter tail calls limit",
-			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER,
-			// for 2 filter_frames we do not use more than two tail calls.
+			// The purpose of this test is to validate that when we do not surpass
+			// the tail call limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER.
 			messageBuilder: func() [][]byte {
-				settingsFramesCount := getTLSNumber(241, 121, s.isTLS)
+				const settingsFramesCount = 241
 				framer := newFramer()
 				return [][]byte{
 					framer.
 						writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
-						writeHeaders(t, 1, testHeaders()).
-						writeData(t, 1, true, emptyBody).
+						writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+						writeData(t, 1, endStream, emptyBody).
 						bytes(),
 				}
 			},
@@ -564,13 +555,14 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
 			// determines the maximum number of "interesting frames" we can process.
 			messageBuilder: func() [][]byte {
-				iterations := getTLSNumber(120, 60, s.isTLS)
+				const numberWithoutTLS, numberWithTLS = 120, 60
+				iterations := getTLSNumber(numberWithoutTLS, numberWithTLS, s.isTLS)
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, testHeaders()).
-						writeData(t, streamID, true, emptyBody)
+						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
 			},
@@ -588,19 +580,20 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// https://httpwg.org/specs/rfc7541.html#rfc.section.C.2.2
 			messageBuilder: func() [][]byte {
 				const iterations = 5
-				const setDynamicTableSize = true
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralWithoutIndexing}), setDynamicTableSize).
-						writeData(t, streamID, true, emptyBody)
+						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
+							Headers:                generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralWithoutIndexing}),
+							DynamicTableUpdateSize: defaultDynamicTableSize}).
+						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/" + strings.Repeat("a", usmhttp2.DynamicTableSize))},
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/" + strings.Repeat("a", defaultDynamicTableSize))},
 					Method: usmhttp.MethodPost,
 				}: 5,
 			},
@@ -616,8 +609,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralNeverIndexed})).
-						writeData(t, streamID, true, emptyBody)
+						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
+							Headers: generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathLiteralNeverIndexed})}).
+						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
 			},
@@ -636,7 +630,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				// pathHeaderField is the hex representation of the path /aaa with index 4.
 				pathHeaderField := []byte{0x44, 0x83, 0x60, 0x63, 0x1f}
 				headerFields := removeHeaderFieldByKey(testHeaders(), ":path")
-				headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+					Headers: headerFields,
+				})
 				require.NoError(t, err, "could not create headers frame")
 
 				// we are adding the path header field with index 4, we need to do it on the byte slice and not on the headerFields
@@ -646,8 +642,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeRawHeaders(t, streamID, headersFrame).
-						writeData(t, streamID, true, emptyBody)
+						writeRawHeaders(t, streamID, endHeaders, headersFrame).
+						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
 			},
@@ -664,14 +660,15 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			messageBuilder: func() [][]byte {
 				const iterations = 5
 				framer := newFramer()
-
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, testHeaders()).
+						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
+							Headers: testHeaders(),
+						}).
 						writePing(t).
 						writeWindowUpdate(t, streamID, 1).
-						writeData(t, streamID, true, emptyBody)
+						writeData(t, streamID, endStream, emptyBody)
 				}
 
 				return [][]byte{framer.bytes()}
@@ -695,8 +692,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, testHeaders()).
-						writeData(t, streamID, true, emptyBody)
+						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+						writeData(t, streamID, endStream, emptyBody)
 					if rstFramesCount > 0 {
 						framer.writeRSTStream(t, streamID, http2.ErrCodeCancel)
 						rstFramesCount--
@@ -721,8 +718,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, testHeaders()).
-						writeData(t, streamID, true, emptyBody).
+						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+						writeData(t, streamID, endStream, emptyBody).
 						writeRSTStream(t, streamID, http2.ErrCodeNo)
 				}
 				return [][]byte{framer.bytes()}
@@ -730,68 +727,212 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			expectedEndpoints: nil,
 		},
 		{
-			name: "validate capability to process up to max limit filtering frames",
-			// The purpose of this test is to verify our ability to process up to HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING frames.
-			// We write the path "/aaa" for the first time with an additional 25 headers (reaching to a total of 26 headers).
-			// When we exceed the limit, we expect to lose our internal counter (because we can filter up to 25 requests),
-			// and therefore, the next time we write the request "/aaa",
-			// its internal index will not be correct, and we will not be able to find it.
+			name: "validate various status codes",
+			// The purpose of this test is to verify that we support status codes that both do and
+			// do not appear in the static table.
 			messageBuilder: func() [][]byte {
-				const multiHeadersCount = 25
-				framer := newFramer()
-				return [][]byte{
-					framer.writeHeaders(t, 1, multipleTestHeaders(multiHeadersCount)).
-						writeData(t, 1, true, emptyBody).
-						writeHeaders(t, 1, testHeaders()).
-						writeData(t, 1, true, emptyBody).
-						bytes(),
+				statusCodes := []int{200, 201, 204, 206, 300, 304, 400, 401, 404, 500, 504}
+				const iterationsPerStatusCode = 3
+				messages := make([][]byte, 0, len(statusCodes)*iterationsPerStatusCode)
+				for statusCodeIteration, statusCode := range statusCodes {
+					for i := 0; i < iterationsPerStatusCode; i++ {
+						streamID := getStreamID(statusCodeIteration*iterationsPerStatusCode + i)
+						messages = append(messages, newFramer().
+							writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint(fmt.Sprintf("/status/%d", statusCode))}).
+							writeData(t, streamID, endStream, emptyBody).
+							bytes())
+					}
 				}
+				return messages
 			},
-			expectedEndpoints: nil,
-		},
-		{
-			name: "validate 300 status code",
-			// The purpose of this test is to verify that currently we do not support status code 300.
-			messageBuilder: func() [][]byte {
-				framer := newFramer()
-				return [][]byte{
-					framer.
-						writeHeaders(t, 1, headersWithGivenEndpoint("/status/300")).
-						writeData(t, 1, true, emptyBody).
-						bytes(),
-				}
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/200")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/201")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/204")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/206")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/300")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/304")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/400")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/401")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/404")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/500")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/504")},
+					Method: usmhttp.MethodPost,
+				}: 3,
 			},
-			expectedEndpoints: nil,
-		},
-		{
-			name: "validate 401 status code",
-			// The purpose of this test is to verify that currently we do not support status code 401.
-			messageBuilder: func() [][]byte {
-				framer := newFramer()
-				return [][]byte{
-					framer.
-						writeHeaders(t, 1, headersWithGivenEndpoint("/status/401")).
-						writeData(t, 1, true, emptyBody).
-						bytes(),
-				}
-			},
-			expectedEndpoints: nil,
 		},
 		{
 			name: "validate http methods",
-			// The purpose of this test is to validate that we are not supporting http2 methods different from POST and GET.
+			// The purpose of this test is to validate that we are able to capture all http methods.
 			messageBuilder: func() [][]byte {
-				httpMethods = []string{http.MethodHead, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions}
+				httpMethods = []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete,
+					http.MethodPut, http.MethodPatch, http.MethodOptions, http.MethodTrace, http.MethodConnect}
+				// Currently, the methods TRACE and CONNECT are not supported by the http.Method package.
+				// Therefore, we mark those requests as incomplete and not expected to be captured.
 				framer := newFramer()
 				for i, method := range httpMethods {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, generateTestHeaderFields(headersGenerationOptions{overrideMethod: method})).
-						writeData(t, streamID, true, emptyBody)
+						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideMethod: method})}).
+						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
 			},
-			expectedEndpoints: nil,
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodGet,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodHead,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodDelete,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPut,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPatch,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodOptions,
+				}: 1,
+			},
+		},
+		{
+			name: "validate http methods huffman encoded",
+			// The purpose of this test is to validate that we are able to capture all http methods.
+			messageBuilder: func() [][]byte {
+				httpMethods = []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete,
+					http.MethodPut, http.MethodPatch, http.MethodOptions, http.MethodTrace, http.MethodConnect}
+				// Currently, the methods TRACE and CONNECT are not supported by the http.Method package.
+				// Therefore, we mark those requests as incomplete and not expected to be captured.
+				framer := newFramer()
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":method")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+					Headers: headerFields,
+				})
+				require.NoError(t, err, "could not create headers frame")
+				for i, method := range httpMethods {
+					huffMethod := hpack.AppendHuffmanString([]byte{}, method)
+					// we are adding 128 to the length of the huffman encoded method,
+					// as it is the representation of the huffman encoding (MSB ofo the octet is on).
+					rawMethod := append([]byte{0x43}, byte(0x80|len(huffMethod)))
+					rawMethod = append(rawMethod, huffMethod...)
+					headersFrameWithRawMethod := append(rawMethod, headersFrame...)
+					streamID := getStreamID(i)
+					framer.
+						writeRawHeaders(t, streamID, endHeaders, headersFrameWithRawMethod).
+						writeData(t, streamID, endStream, emptyBody).bytes()
+				}
+				return [][]byte{framer.bytes()}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodGet,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodHead,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodDelete,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPut,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPatch,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodOptions,
+				}: 1,
+			},
+		},
+		{
+			name: "validate http methods POST and GET methods as literal",
+			// The purpose of this test is to validate that when the methods POST and GET are sent as literal fields
+			// and not indexed, we are still able to capture and process them correctly.
+			messageBuilder: func() [][]byte {
+				getMethodRaw := append([]byte{0x43, 0x03}, []byte("GET")...)
+				postMethodRaw := append([]byte{0x43, 0x04}, []byte("POST")...)
+
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":method")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+					Headers: headerFields,
+				})
+				require.NoError(t, err, "could not create headers frame")
+				headersFrameWithGET := append(getMethodRaw, headersFrame...)
+				headersFrameWithPOST := append(postMethodRaw, headersFrame...)
+
+				framer := newFramer()
+				framer.
+					writeRawHeaders(t, 1, endHeaders, headersFrameWithGET).
+					writeData(t, 1, endStream, emptyBody).
+					writeRawHeaders(t, 3, endHeaders, headersFrameWithPOST).
+					writeData(t, 3, endStream, emptyBody)
+				return [][]byte{framer.bytes()}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodGet,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
 		},
 		{
 			name: "validate max path length",
@@ -800,8 +941,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				framer := newFramer()
 				return [][]byte{
 					framer.
-						writeHeaders(t, 1, generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathTooLarge})).
-						writeData(t, 1, true, emptyBody).
+						writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{pathTypeValue: pathTooLarge})}).
+						writeData(t, 1, endStream, emptyBody).
 						bytes(),
 				}
 			},
@@ -813,7 +954,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// sent by value (:path).
 			messageBuilder: func() [][]byte {
 				headerFields := removeHeaderFieldByKey(testHeaders(), ":path")
-				headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: headerFields})
 				require.NoError(t, err, "could not create headers frame")
 				// pathHeaderField is created with a key that sent by value (:path) and
 				// the value (of the path) is /aaa.
@@ -822,8 +963,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				framer := newFramer()
 				return [][]byte{
 					framer.
-						writeRawHeaders(t, 1, headersFrame).
-						writeData(t, 1, true, emptyBody).
+						writeRawHeaders(t, 1, endHeaders, headersFrame).
+						writeData(t, 1, endStream, emptyBody).
 						bytes(),
 				}
 			},
@@ -833,8 +974,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "Interesting frame header sent separately from frame payload",
 			// Testing the scenario in which the frame header (of an interesting type) is sent separately from the frame payload.
 			messageBuilder: func() [][]byte {
-				headersFrame := newFramer().writeHeaders(t, 1, testHeaders()).bytes()
-				dataFrame := newFramer().writeData(t, 1, true, emptyBody).bytes()
+				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
+				dataFrame := newFramer().writeData(t, 1, endStream, emptyBody).bytes()
 				headersFrameHeader := headersFrame[:9]
 				secondMessage := append(headersFrame[9:], dataFrame...)
 				return [][]byte{
@@ -854,7 +995,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// Testing the scenario in which the frame header (of a not interesting type) is sent separately from the frame payload.
 			messageBuilder: func() [][]byte {
 				pingFrame := newFramer().writePing(t).bytes()
-				fullFrame := newFramer().writeHeaders(t, 1, testHeaders()).writeData(t, 1, true, emptyBody).bytes()
+				fullFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+					writeData(t, 1, endStream, emptyBody).bytes()
 				pingFrameHeader := pingFrame[:9]
 				secondMessage := append(pingFrame[9:], fullFrame...)
 				return [][]byte{
@@ -865,6 +1007,211 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "validate dynamic table update with indexed header field",
+			// The purpose of this test is to verify our ability to support dynamic table update
+			// while using a path with indexed header field.
+			messageBuilder: func() [][]byte {
+				const iterations = 5
+				framer := newFramer()
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
+							Headers:                headersWithGivenEndpoint("/"),
+							DynamicTableUpdateSize: defaultDynamicTableSize}).
+						writeData(t, streamID, endStream, emptyBody)
+				}
+				return [][]byte{framer.bytes()}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/")},
+					Method: usmhttp.MethodPost,
+				}: 5,
+			},
+		},
+		{
+			name: "validate dynamic table update with high value and indexed header field",
+			// The purpose of this test is to verify our ability to support dynamic table update
+			// with size exceeds one octet, to validate the iteration for parsing the dynamic table update.
+			messageBuilder: func() [][]byte {
+				const iterations = 5
+				const dynamicTableSize = 4000
+				framer := newFramer()
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{
+							Headers:                headersWithGivenEndpoint("/"),
+							DynamicTableUpdateSize: dynamicTableSize,
+						}).
+						writeData(t, streamID, endStream, emptyBody)
+				}
+				return [][]byte{framer.bytes()}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/")},
+					Method: usmhttp.MethodPost,
+				}: 5,
+			},
+		},
+		{
+			name: "Data frame header sent separately from frame payload",
+			// Testing the scenario in which the data frame header is sent separately from the frame payload.
+			messageBuilder: func() [][]byte {
+				payload := []byte("test")
+				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
+				dataFrame := newFramer().writeData(t, 1, endStream, payload).bytes()
+				// We are creating a header frame with a content-length header field that contains the payload size.
+				secondMessageHeadersFrame := newFramer().writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{
+					Headers: generateTestHeaderFields(headersGenerationOptions{
+						overrideContentLength: len(payload)})}).writeData(t, 3, endStream, payload).bytes()
+
+				headersFrameHeader := append(headersFrame, dataFrame[:9]...)
+				secondMessage := append(dataFrame[9:], secondMessageHeadersFrame...)
+				return [][]byte{
+					headersFrameHeader,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 2,
+			},
+		},
+		{
+			name: "Data frame header sent separately from frame payload with PING between them",
+			// Testing the scenario in which the data frame header is sent separately from the frame payload.,
+			// including a PING frame in the second message between the data frame.
+			messageBuilder: func() [][]byte {
+				payload := []byte("test")
+				// We are creating a header frame with a content-length header field that contains the payload size.
+				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{
+					Headers: generateTestHeaderFields(headersGenerationOptions{
+						overrideContentLength: len(payload)})}).bytes()
+				dataFrame := newFramer().writeData(t, 1, endStream, payload).bytes()
+				pingFrame := newFramer().writePing(t).bytes()
+
+				headersFrameHeader := append(headersFrame, dataFrame[:9]...)
+				secondMessage := append(pingFrame, dataFrame[9:]...)
+				return [][]byte{
+					headersFrameHeader,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "Payload data frame header sent separately",
+			// Testing the scenario in which the data frame header is sent separately from the frame payload.
+			messageBuilder: func() [][]byte {
+				payload := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
+				// We are creating a header frame with a content-length header field that contains the payload size.
+				headersFrame := newFramer().writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{
+					Headers: generateTestHeaderFields(headersGenerationOptions{
+						overrideContentLength: len(payload)})}).bytes()
+				dataFrame := newFramer().writeData(t, 1, endStream, payload).bytes()
+				secondMessageHeadersFrame := newFramer().writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
+				secondMessageDataFrame := newFramer().writeData(t, 3, endStream, emptyBody).bytes()
+
+				// We are cutting in the middle of the payload
+				firstMessage := append(headersFrame, dataFrame[:9+3]...)
+				secondMessage := append(dataFrame[9+3:], secondMessageHeadersFrame...)
+				secondMessage = append(secondMessage, secondMessageDataFrame...)
+				return [][]byte{
+					firstMessage,
+					secondMessage,
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 2,
+			},
+		},
+		{
+			name: "validate CONTINUATION frame support",
+			// Testing the scenario in which part of the data frame header is sent using CONTINUATION frame.
+			// Currently, we do not support CONTINUATION frames, therefore, we expect to capture only the first
+			// part of the message.
+			messageBuilder: func() [][]byte {
+				const headersFrameEndHeaders = false
+				fullHeaders := generateTestHeaderFields(headersGenerationOptions{})
+				prefixHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+					Headers: fullHeaders[:2],
+				})
+				require.NoError(t, err, "could not create prefix headers frame")
+
+				suffixHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+					Headers: fullHeaders[2:],
+				})
+				require.NoError(t, err, "could not create suffix headers frame")
+
+				return [][]byte{
+					newFramer().writeRawHeaders(t, 1, headersFrameEndHeaders, prefixHeadersFrame).
+						writeRawContinuation(t, 1, endHeaders, suffixHeadersFrame).
+						writeData(t, 1, endStream, emptyBody).bytes(),
+				}
+			},
+			expectedEndpoints: nil,
+		},
+		{
+			name: "validate message split into 2 tcp segments",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					a[:10],
+					a[10:],
+				}
+
+			},
+			expectedEndpoints: nil,
+		},
+		{
+			name: "remainder + header remainder",
+			// Testing the scenario where we have both a remainder (a frame's payload split over 2 packets) and in the
+			// second packet, we have the remainder and a partial frame header of a new request. We're testing that we
+			// can capture the 2 requests in this scenario.
+			messageBuilder: func() [][]byte {
+				data := []byte("testcontent")
+				request1 := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}).
+					writeData(t, 1, true, data).bytes()
+				request2 := newFramer().
+					writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/bbb")}).
+					writeData(t, 3, true, emptyBody).bytes()
+				firstPacket := request1[:len(request1)-6]
+				secondPacket := append(request1[len(request1)-6:], request2[:5]...)
+				return [][]byte{
+					firstPacket,
+					secondPacket,
+					request2[5:],
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/bbb")},
 					Method: usmhttp.MethodPost,
 				}: 1,
 			},
@@ -888,7 +1235,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
-				return validateStats(usmMonitor, res, tt.expectedEndpoints)
+				return validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS)
 			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 			if t.Failed() {
 				for key := range tt.expectedEndpoints {
@@ -896,7 +1243,120 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
 				}
-				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight")
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap, "http2_dynamic_table")
+				dumpTelemetry(t, usmMonitor, s.isTLS)
+			}
+		})
+	}
+}
+
+func (s *usmHTTP2Suite) TestFrameSplitIntoMultiplePackets() {
+	t := s.T()
+	cfg := s.getCfg()
+
+	// Start local server and register its cleanup.
+	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	tests := []struct {
+		name                           string
+		messageBuilder                 func() [][]byte
+		fragmentedFrameCountRST        uint64
+		fragmentedHeadersFrameEOSCount uint64
+		fragmentedHeadersFrameCount    uint64
+		fragmentedDataFrameEOSCount    uint64
+	}{
+		{
+			name: "validate fragmented headers frame with eos",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				const endStream = true
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders(), EndStream: endStream}).
+					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					// we split it in 10 bytes in order to split the payload itself.
+					a[:10],
+					a[10:],
+				}
+			},
+			fragmentedHeadersFrameEOSCount: 1,
+		},
+		{
+			name: "validate fragmented data frame with eos",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
+				b := newFramer().writeData(t, 1, true, []byte("test1234")).bytes()
+				return [][]byte{
+					// we split it in 10 bytes in order to split the payload itself.
+					a,
+					b[:10],
+				}
+			},
+			fragmentedDataFrameEOSCount: 1,
+		},
+		{
+			name: "validate fragmented rst frame",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
+				b := newFramer().writeRSTStream(t, 1, 1).bytes()
+				return [][]byte{
+					// we split it in 10 bytes in order to split the payload itself.
+					a,
+					b[:10],
+				}
+			},
+			fragmentedFrameCountRST: 1,
+		},
+		{
+			name: "validate fragmented headers frame",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					// we split it in 10 bytes in order to split the payload itself.
+					a[:10],
+					a[10:],
+				}
+			},
+			fragmentedHeadersFrameCount: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			usmMonitor := setupUSMTLSMonitor(t, cfg)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
+
+			c := dialHTTP2Server(t)
+
+			// Composing a message with the number of setting frames we want to send.
+			require.NoError(t, writeInput(c, 500*time.Millisecond, tt.messageBuilder()...))
+
+			assert.Eventually(t, func() bool {
+				telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS)
+				require.NoError(t, err, "could not get http2 telemetry")
+				require.Equal(t, telemetry.Fragmented_frame_count_data_eos, tt.fragmentedDataFrameEOSCount, "expected to see %d fragmented data eos frames and got %d", tt.fragmentedDataFrameEOSCount, telemetry.Fragmented_frame_count_data_eos)
+				require.Equal(t, telemetry.Fragmented_frame_count_headers_eos, tt.fragmentedHeadersFrameEOSCount, "expected to see %d fragmented headers eos frames and got %d", tt.fragmentedHeadersFrameEOSCount, telemetry.Fragmented_frame_count_headers_eos)
+				require.Equal(t, telemetry.Fragmented_frame_count_rst, tt.fragmentedFrameCountRST, "expected to see %d fragmented rst frames and got %d", tt.fragmentedFrameCountRST, telemetry.Fragmented_frame_count_rst)
+				require.Equal(t, telemetry.Fragmented_frame_count_headers, tt.fragmentedHeadersFrameCount, "expected to see %d fragmented headers frames and got %d", tt.fragmentedHeadersFrameCount, telemetry.Fragmented_frame_count_headers)
+				return true
+
+			}, time.Second*5, time.Millisecond*100)
+			if t.Failed() {
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap, "http2_dynamic_table")
+				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
 		})
 	}
@@ -931,8 +1391,8 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, testHeaders()).
-						writeData(t, streamID, true, emptyBody)
+						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+						writeData(t, streamID, endStream, emptyBody)
 				}
 
 				return framer.bytes()
@@ -962,7 +1422,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
 				// validate the stats we get
-				require.True(t, validateStats(usmMonitor, res, tt.expectedEndpoints))
+				require.True(t, validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS))
 
 				validateDynamicTableMap(t, usmMonitor.ebpfProgram, tt.expectedDynamicTablePathIndexes)
 
@@ -974,7 +1434,84 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
 				}
-				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight")
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
+				dumpTelemetry(t, usmMonitor, s.isTLS)
+			}
+		})
+	}
+}
+
+// TestRemainderTable tests the remainder table map.
+// We would like to make sure that the remainder table map is being updated correctly.
+func (s *usmHTTP2Suite) TestRemainderTable() {
+	t := s.T()
+	cfg := s.getCfg()
+
+	// Start local server and register its cleanup.
+	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	tests := []struct {
+		name           string
+		messageBuilder func() [][]byte
+		mapSize        int
+	}{
+		{
+			name: "validate clean with remainder and header zero",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				data := []byte("test12345")
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}).bytes()
+				b := newFramer().writeData(t, 1, true, data).bytes()
+				message := append(a, b[:11]...)
+				return [][]byte{
+					// we split it in 11 bytes in order to split the payload itself.
+					message,
+					b[11:],
+				}
+			},
+			mapSize: 0,
+		},
+		{
+			name: "validate remainder in map",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					// we split it in 10 bytes in order to split the payload itself.
+					a[:10],
+					a[10:],
+				}
+			},
+			mapSize: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			usmMonitor := setupUSMTLSMonitor(t, cfg)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
+
+			c := dialHTTP2Server(t)
+
+			// Composing a message with the number of setting frames we want to send.
+			require.NoError(t, writeInput(c, 500*time.Millisecond, tt.messageBuilder()...))
+
+			assert.Eventually(t, func() bool {
+				require.Len(t, getRemainderTableMapKeys(t, usmMonitor.ebpfProgram), tt.mapSize)
+				return true
+			}, time.Second*5, time.Millisecond*100, "")
+			if t.Failed() {
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
+				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
 		})
 	}
@@ -1004,10 +1541,10 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			// The purpose of this test is to verify that we are able to identify if the path is huffman encoded.
 			messageBuilder: func() []byte {
 				framer := newFramer()
-				return framer.writeHeaders(t, 1, testHeaders()).
-					writeData(t, 1, true, emptyBody).
-					writeHeaders(t, 3, headersWithGivenEndpoint("/a")).
-					writeData(t, 3, true, emptyBody).bytes()
+				return framer.writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+					writeData(t, 1, endStream, emptyBody).
+					writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/a")}).
+					writeData(t, 3, endStream, emptyBody).bytes()
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -1041,7 +1578,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
 				// validate the stats we get
-				if !validateStats(usmMonitor, res, tt.expectedEndpoints) {
+				if !validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS) {
 					return false
 				}
 
@@ -1053,17 +1590,58 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
 				}
-				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight")
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
+				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
 		})
 	}
 }
 
+func TestHTTP2InFlightMapCleaner(t *testing.T) {
+	skipIfKernelNotSupported(t)
+	cfg := config.New()
+	cfg.EnableHTTP2Monitoring = true
+	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
+	cfg.HTTPIdleConnectionTTL = time.Second
+	monitor := setupUSMTLSMonitor(t, cfg)
+	ebpfNow, err := ddebpf.NowNanoseconds()
+	require.NoError(t, err)
+	http2InFLightMap, _, err := monitor.ebpfProgram.GetMap(usmhttp2.InFlightMap)
+	require.NoError(t, err)
+	key := usmhttp2.HTTP2StreamKey{
+		Id: 1,
+	}
+	val := usmhttp2.HTTP2Stream{
+		Request_started: uint64(ebpfNow - (time.Second * 3).Nanoseconds()),
+	}
+	require.NoError(t, http2InFLightMap.Update(unsafe.Pointer(&key), unsafe.Pointer(&val), ebpf.UpdateAny))
+
+	var newVal usmhttp2.HTTP2Stream
+	require.NoError(t, http2InFLightMap.Lookup(unsafe.Pointer(&key), unsafe.Pointer(&newVal)))
+	require.Equal(t, val, newVal)
+
+	require.Eventually(t, func() bool {
+		err := http2InFLightMap.Lookup(unsafe.Pointer(&key), unsafe.Pointer(&newVal))
+		return errors.Is(err, ebpf.ErrKeyNotExist)
+	}, 3*cfg.HTTP2DynamicTableMapCleanerInterval, time.Millisecond*100)
+}
+
 // validateStats validates that the stats we get from the monitor are as expected.
-func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int) bool {
+func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int, isTLS bool) bool {
 	for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
 		if key.DstPort == srvPort || key.SrcPort == srvPort {
-			count := stat.Data[200].Count
+			statusCode := testutil.StatusFromPath(key.Path.Content.Get())
+			// statusCode 0 represents an error returned from the function, which means the URL is not in the special
+			// form which contains the expected status code (form - `/status/{statusCode}`). So by default we use
+			// 200 as the status code.
+			if statusCode == 0 {
+				statusCode = 200
+			}
+			hasTag := stat.Data[statusCode].StaticTags == network.ConnTagGo
+			if hasTag != isTLS {
+				continue
+			}
+			count := stat.Data[statusCode].Count
 			newKey := usmhttp.Key{
 				Path:   usmhttp.Path{Content: key.Path.Content},
 				Method: key.Method,
@@ -1113,9 +1691,17 @@ func getHTTP2UnixClientArray(size int, unixPath string) []*http.Client {
 // Presently, the timeout is configured to one second for all readings.
 // In case of encountered issues, increasing this duration might be necessary.
 func writeInput(c net.Conn, timeout time.Duration, inputs ...[]byte) error {
-	for _, input := range inputs {
+	for i, input := range inputs {
 		if _, err := c.Write(input); err != nil {
 			return err
+		}
+		if i != len(inputs)-1 {
+			// As long as we're not at the last message, we want to wait a bit before sending the next message.
+			// as we've seen that Go's implementation can "merge" messages together, so having a small delay
+			// between messages help us avoid this issue.
+			// There is no purpose for the delay after the last message, as the use case of "merging" messages cannot
+			// happen in this case.
+			time.Sleep(time.Millisecond * 10)
 		}
 	}
 	// Since we don't know when to stop reading from the socket, we set a timeout.
@@ -1143,19 +1729,11 @@ func headersWithGivenEndpoint(path string) []hpack.HeaderField {
 // testHeaders returns a set of header fields.
 func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(headersGenerationOptions{}) }
 
-// multipleTestHeaders returns a set of header fields, with the given number of headers.
-func multipleTestHeaders(testHeadersCount int) []hpack.HeaderField {
-	additionalHeaders := make([]hpack.HeaderField, testHeadersCount)
-	for i := 0; i < testHeadersCount; i++ {
-		additionalHeaders[i] = hpack.HeaderField{Name: fmt.Sprintf("name-%d", i), Value: fmt.Sprintf("test-%d", i)}
-	}
-	return append(testHeaders(), additionalHeaders...)
-}
-
 type headersGenerationOptions struct {
-	pathTypeValue    pathType
-	overrideMethod   string
-	overrideEndpoint string
+	pathTypeValue         pathType
+	overrideMethod        string
+	overrideEndpoint      string
+	overrideContentLength int
 }
 
 // generateTestHeaderFields generates a set of header fields that will be used for the tests.
@@ -1176,12 +1754,16 @@ func generateTestHeaderFields(options headersGenerationOptions) []hpack.HeaderFi
 		// The indexing is determined by the dynamic table size (which we set to dynamicTableSize) and the size of the path.
 		// ref: https://github.com/golang/net/blob/07e05fd6e95ab445ebe48840c81a027dbace3b8e/http2/hpack/encode.go#L140
 		// Therefore, we want to make sure that the path is longer or equal to 100 characters so that the path will not be indexed.
-		pathHeaderField.Value = "/" + strings.Repeat("a", usmhttp2.DynamicTableSize)
-		pathHeaderField.Sensitive = true
+		pathHeaderField.Value = "/" + strings.Repeat("a", defaultDynamicTableSize)
 	case pathTooLarge:
 		pathHeaderField.Value = "/" + pathExceedingMaxSize
 	case pathOverride:
 		pathHeaderField.Value = options.overrideEndpoint
+	}
+
+	contentLength := defaultContentLength
+	if options.overrideContentLength != 0 {
+		contentLength = options.overrideContentLength
 	}
 
 	return []hpack.HeaderField{
@@ -1190,7 +1772,7 @@ func generateTestHeaderFields(options headersGenerationOptions) []hpack.HeaderFi
 		pathHeaderField,
 		{Name: ":scheme", Value: "http"},
 		{Name: "content-type", Value: "application/json"},
-		{Name: "content-length", Value: "4"},
+		{Name: "content-length", Value: strconv.Itoa(contentLength)},
 		{Name: "accept-encoding", Value: "gzip"},
 		{Name: "user-agent", Value: "Go-http-client/2.0"},
 	}
@@ -1251,34 +1833,40 @@ func (f *framer) writeData(t *testing.T, streamID uint32, endStream bool, buf []
 	return f
 }
 
+func (f *framer) writeRawContinuation(t *testing.T, streamID uint32, endHeaders bool, buf []byte) *framer {
+	require.NoError(t, f.framer.WriteContinuation(streamID, endHeaders, buf), "could not write raw continuation frame")
+	return f
+}
+
 func (f *framer) writeWindowUpdate(t *testing.T, streamID uint32, increment uint32) *framer {
 	require.NoError(t, f.framer.WriteWindowUpdate(streamID, increment), "could not write window update frame")
 	return f
 }
 
-func (f *framer) writeRawHeaders(t *testing.T, streamID uint32, headerFrames []byte) *framer {
+func (f *framer) writeRawHeaders(t *testing.T, streamID uint32, endHeaders bool, headerFrames []byte) *framer {
 	require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
 		StreamID:      streamID,
 		BlockFragment: headerFrames,
-		EndHeaders:    true,
+		EndHeaders:    endHeaders,
 	}), "could not write header frames")
 	return f
 }
 
-func (f *framer) writeHeaders(t *testing.T, streamID uint32, headerFields []hpack.HeaderField, setDynamicTableSize ...bool) *framer {
-	changeDynamicTableSize := false
-	if len(setDynamicTableSize) > 0 && setDynamicTableSize[0] {
-		changeDynamicTableSize = true
-	}
-	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields, changeDynamicTableSize)
+func (f *framer) writeHeaders(t *testing.T, streamID uint32, headersFramesOptions usmhttp2.HeadersFrameOptions) *framer {
+	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headersFramesOptions)
 	require.NoError(t, err, "could not create headers frame")
 
-	require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
-		StreamID:      streamID,
-		BlockFragment: headersFrame,
-		EndHeaders:    true,
-	}), "could not write header frames")
-	return f
+	if headersFramesOptions.EndStream {
+		require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
+			StreamID:      streamID,
+			BlockFragment: headersFrame,
+			EndHeaders:    endHeaders,
+			EndStream:     true,
+		}), "could not write header frames")
+		return f
+	}
+
+	return f.writeRawHeaders(t, streamID, true, headersFrame)
 }
 
 type captureRange struct {
@@ -1362,6 +1950,21 @@ func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDyn
 	require.EqualValues(t, expectedDynamicTablePathIndexes, resultIndexes)
 }
 
+// getRemainderTableMapKeys returns the keys of the remainder table map.
+func getRemainderTableMapKeys(t *testing.T, ebpfProgram *ebpfProgram) []usmhttp.ConnTuple {
+	remainderMap, _, err := ebpfProgram.GetMap("http2_remainder")
+	require.NoError(t, err)
+	resultIndexes := make([]usmhttp.ConnTuple, 0)
+	var key usmhttp2.ConnTuple
+	var value usmhttp2.HTTP2RemainderEntry
+	iterator := remainderMap.Iterate()
+
+	for iterator.Next(&key, &value) {
+		resultIndexes = append(resultIndexes, key)
+	}
+	return resultIndexes
+}
+
 // validateHuffmanEncoded validates that the dynamic table map contains the expected huffman encoded paths.
 func validateHuffmanEncoded(t *testing.T, ebpfProgram *ebpfProgram, expectedHuffmanEncoded map[int]bool) bool {
 	dynamicTableMap, _, err := ebpfProgram.GetMap("http2_dynamic_table")
@@ -1390,4 +1993,35 @@ func dialHTTP2Server(t *testing.T) net.Conn {
 	// Writing a magic and the settings in the same packet to socket.
 	require.NoError(t, writeInput(c, time.Millisecond*200, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), newFramer().writeSettings(t).bytes())))
 	return c
+}
+
+// getHTTP2KernelTelemetry returns the HTTP2 kernel telemetry
+func getHTTP2KernelTelemetry(monitor *Monitor, isTLS bool) (*usmhttp2.HTTP2Telemetry, error) {
+	http2Telemetry := &usmhttp2.HTTP2Telemetry{}
+	var zero uint32
+
+	mapName := usmhttp2.TelemetryMap
+	if isTLS {
+		mapName = usmhttp2.TLSTelemetryMap
+	}
+
+	mp, _, err := monitor.ebpfProgram.GetMap(mapName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get %q map: %s", mapName, err)
+	}
+
+	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+		return nil, fmt.Errorf("unable to lookup %q map: %s", mapName, err)
+	}
+	return http2Telemetry, nil
+}
+
+func dumpTelemetry(t *testing.T, usmMonitor *Monitor, isTLS bool) {
+	if telemetry, err := getHTTP2KernelTelemetry(usmMonitor, isTLS); err == nil {
+		tlsMarker := ""
+		if isTLS {
+			tlsMarker = "tls "
+		}
+		t.Logf("http2 eBPF %stelemetry: %v", tlsMarker, telemetry)
+	}
 }

@@ -10,10 +10,11 @@ package agent
 import (
 	"context"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/fx"
 )
 
-func setupShutdown(_ context.Context, shutdowner fx.Shutdowner) {
+func setupShutdown(_ context.Context, shutdowner fx.Shutdowner, statsd statsd.ClientInterface) {
 	// Handle stops properly
-	go handleSignal(shutdowner)
+	go handleSignal(shutdowner, statsd)
 }

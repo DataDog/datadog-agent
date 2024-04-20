@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -24,7 +25,7 @@ type agentSuite struct {
 }
 
 func TestAgentSuite(t *testing.T) {
-	e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
+	e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
 func (v *agentSuite) TestAgentCommandNoArg() {
@@ -56,7 +57,7 @@ func (v *agentSuite) TestWithAgentConfig() {
 		if param.useConfig {
 			agentParams = append(agentParams, agentparams.WithAgentConfig(param.config))
 		}
-		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentParams...)))
+		v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentParams...)))
 		config := v.Env().Agent.Client.Config()
 		re := regexp.MustCompile(`.*log_level:(.*)\n`)
 		matches := re.FindStringSubmatch(config)
@@ -66,21 +67,27 @@ func (v *agentSuite) TestWithAgentConfig() {
 }
 
 func (v *agentSuite) TestWithTelemetry() {
-	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithTelemetry())))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithTelemetry())))
 
-	status := v.Env().Agent.Client.Status()
-	require.Contains(v.T(), status.Content, "go_expvar")
+	require.EventuallyWithT(v.T(), func(collect *assert.CollectT) {
+		status := v.Env().Agent.Client.Status()
+		if !assert.Contains(v.T(), status.Content, "go_expvar") {
+			v.T().Log("not yet")
+		}
+	}, 5*time.Minute, 10*time.Second)
 
-	v.UpdateEnv(awshost.Provisioner())
-	status = v.Env().Agent.Client.Status()
-	require.NotContains(v.T(), status.Content, "go_expvar")
+	require.EventuallyWithT(v.T(), func(collect *assert.CollectT) {
+		v.UpdateEnv(awshost.ProvisionerNoFakeIntake())
+		status := v.Env().Agent.Client.Status()
+		assert.NotContains(v.T(), status.Content, "go_expvar")
+	}, 5*time.Minute, 10*time.Second)
 }
 
 func (v *agentSuite) TestWithLogs() {
 	config := v.Env().Agent.Client.Config()
 	require.Contains(v.T(), config, "logs_enabled: false")
 
-	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithLogs())))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithLogs())))
 	config = v.Env().Agent.Client.Config()
 	require.Contains(v.T(), config, "logs_enabled: true")
 }

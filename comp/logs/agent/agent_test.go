@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,10 +23,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+
+	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -34,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -160,7 +165,7 @@ func (suite *AgentTestSuite) TestAgentTcp() {
 }
 
 func (suite *AgentTestSuite) TestAgentHttp() {
-	server := http.NewTestServer(200)
+	server := http.NewTestServer(200, coreConfig.Datadog)
 	defer server.Stop()
 	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
 
@@ -168,7 +173,7 @@ func (suite *AgentTestSuite) TestAgentHttp() {
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
-	endpoint := config.Endpoint{Host: "fake:", Port: 0}
+	endpoint := config.NewEndpoint("", "fake:", 0, false)
 	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
 	coreConfig.SetFeatures(suite.T(), coreConfig.Docker, coreConfig.Kubernetes)
@@ -218,12 +223,12 @@ func (suite *AgentTestSuite) TestStatusProvider() {
 		{
 			"logs enabled",
 			true,
-			&agent{},
+			NewStatusProvider(),
 		},
 		{
 			"logs disabled",
 			false,
-			status.NoopProvider{},
+			NewStatusProvider(),
 		},
 	}
 
@@ -231,11 +236,7 @@ func (suite *AgentTestSuite) TestStatusProvider() {
 		suite.T().Run(test.name, func(*testing.T) {
 			suite.configOverrides["logs_enabled"] = test.enabled
 
-			deps := fxutil.Test[dependencies](suite.T(), fx.Options(
-				core.MockBundle(),
-				fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
-				inventoryagentimpl.MockModule(),
-			))
+			deps := suite.createDeps()
 
 			provides := newLogsAgent(deps)
 
@@ -245,13 +246,37 @@ func (suite *AgentTestSuite) TestStatusProvider() {
 }
 
 func (suite *AgentTestSuite) TestStatusOut() {
+	originalProvider := logsProvider
+
+	mockResult := logsStatus.Status{
+		IsRunning: true,
+		Endpoints: []string{"foo", "bar"},
+		StatusMetrics: map[string]string{
+			"hello": "12",
+			"world": "13",
+		},
+		ProcessFileStats: map[string]uint64{
+			"CoreAgentProcessOpenFiles": 27,
+			"OSFileLimit":               1048576,
+		},
+		Integrations: []logsStatus.Integration{},
+		Tailers:      []logsStatus.Tailer{},
+		Errors:       []string{},
+		Warnings:     []string{},
+		UseHTTP:      true,
+	}
+
+	logsProvider = func(verbose bool) logsStatus.Status {
+		return mockResult
+	}
+
+	defer func() {
+		logsProvider = originalProvider
+	}()
+
 	suite.configOverrides["logs_enabled"] = true
 
-	deps := fxutil.Test[dependencies](suite.T(), fx.Options(
-		core.MockBundle(),
-		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
-		inventoryagentimpl.MockModule(),
-	))
+	deps := suite.createDeps()
 
 	provides := newLogsAgent(deps)
 
@@ -265,15 +290,26 @@ func (suite *AgentTestSuite) TestStatusOut() {
 			stats := make(map[string]interface{})
 			headerProvider.JSON(false, stats)
 
-			assert.NotEmpty(t, stats)
+			assert.Equal(t, mockResult, stats["logsStats"])
 		}},
 		{"Text", func(t *testing.T) {
 			b := new(bytes.Buffer)
 			err := headerProvider.Text(false, b)
 
 			assert.NoError(t, err)
+			result := `
+    foo
+    bar
+    hello: 12
+    world: 13
+    CoreAgentProcessOpenFiles: 27
+    OSFileLimit: 1048576
+`
+			// We replace windows line break by linux so the tests pass on every OS
+			expectedResult := strings.Replace(result, "\r\n", "\n", -1)
+			output := strings.Replace(b.String(), "\r\n", "\n", -1)
 
-			assert.NotEmpty(t, b.String())
+			assert.Equal(t, expectedResult, output)
 		}},
 		{"HTML", func(t *testing.T) {
 			b := new(bytes.Buffer)
@@ -281,7 +317,20 @@ func (suite *AgentTestSuite) TestStatusOut() {
 
 			assert.NoError(t, err)
 
-			assert.NotEmpty(t, b.String())
+			result := `<div class="stat">
+  <span class="stat_title">Logs Agent</span>
+  <span class="stat_data">
+        foo<br>
+        bar<br>
+        hello: 12<br>
+        world: 13<br></span>
+</div>
+`
+			// We replace windows line break by linux so the tests pass on every OS
+			expectedResult := strings.Replace(result, "\r\n", "\n", -1)
+			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+
+			assert.Equal(t, expectedResult, output)
 		}},
 	}
 
@@ -290,6 +339,52 @@ func (suite *AgentTestSuite) TestStatusOut() {
 			test.assertFunc(suite.T())
 		})
 	}
+}
+
+func (suite *AgentTestSuite) TestFlareProvider() {
+	tests := []struct {
+		name     string
+		enabled  bool
+		expected interface{}
+	}{
+		{
+			"logs enabled",
+			true,
+			flaretypes.NewProvider(flareController.NewFlareController().FillFlare),
+		},
+		{
+			"logs disabled",
+			false,
+			flaretypes.Provider{},
+		},
+	}
+
+	for _, test := range tests {
+		suite.T().Run(test.name, func(*testing.T) {
+			suite.configOverrides["logs_enabled"] = test.enabled
+
+			deps := suite.createDeps()
+
+			provides := newLogsAgent(deps)
+
+			assert.IsType(suite.T(), test.expected, provides.FlareProvider)
+			if test.enabled {
+				assert.NotNil(suite.T(), provides.FlareProvider.Provider)
+			} else {
+				assert.Nil(suite.T(), provides.FlareProvider.Provider)
+			}
+		})
+	}
+}
+
+func (suite *AgentTestSuite) createDeps() dependencies {
+	return fxutil.Test[dependencies](suite.T(), fx.Options(
+		core.MockBundle(),
+		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
+		inventoryagentimpl.MockModule(),
+		workloadmeta.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+	))
 }
 
 func TestAgentTestSuite(t *testing.T) {
