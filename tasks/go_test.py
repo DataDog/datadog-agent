@@ -75,6 +75,30 @@ def ensure_bytes(s):
     return s
 
 
+def build_standard_lib(
+    ctx,
+    build_tags: List[str],
+    cmd: str,
+    env: Dict[str, str],
+    args: Dict[str, str],
+    test_profiler: TestProfiler,
+):
+    """
+    Builds the stdlib with the same build flags as the tests.
+    Since Go 1.20, standard library is not pre-compiled anymore but is built as needed and cached in the build cache.
+    To avoid a perfomance overhead when running tests, we pre-compile the standard library and cache it.
+    We must use the same build flags as the one we are using when compiling tests to not invalidate the cache.
+    """
+    args["go_build_tags"] = " ".join(build_tags)
+
+    ctx.run(
+        cmd.format(**args),
+        env=env,
+        out_stream=test_profiler,
+        warn=True,
+    )
+
+
 class CodecovWorkaround:
     """
     The CodecovWorkaround class wraps the gotestsum cmd execution to fix codecov reports inaccuracy,
@@ -390,7 +414,7 @@ def test(
 
     # Test
     if build_stdlib:
-        build_stdlib(
+        build_standard_lib(
             ctx,
             build_tags=unit_tests_tags,
             cmd=stdlib_build_cmd,
