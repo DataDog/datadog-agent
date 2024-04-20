@@ -28,7 +28,10 @@ var updaterHelper = filepath.Join(setup.InstallPath, "bin", "installer", "helper
 const execTimeout = 30 * time.Second
 
 // chownDDAgent changes the owner of the given path to the dd-agent user.
-func chownDDAgent(ctx context.Context, path string) error {
+func chownDDAgent(ctx context.Context, path string, recursive bool) error {
+	if recursive {
+		return executeHelperCommand(ctx, `{"command":"chown recursive dd-agent","path":"`+path+`"}`)
+	}
 	return executeHelperCommand(ctx, `{"command":"chown dd-agent","path":"`+path+`"}`)
 }
 

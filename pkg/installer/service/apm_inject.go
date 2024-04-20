@@ -77,7 +77,7 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 		}
 	}()
 	// TODO: fixme, this is a hack to fix the permissions of the agent folder
-	if err := chownDDAgent(ctx, "/etc/datadog-agent"); err != nil {
+	if err := chownDDAgent(ctx, "/etc/datadog-agent", true); err != nil {
 		return err
 	}
 	if err := a.setAgentConfig(ctx); err != nil {

@@ -68,11 +68,14 @@ func SetupAgent(ctx context.Context) (err error) {
 		log.Errorf("Failed to resolve agent package path: %s", err)
 		return
 	}
-	if err = chownDDAgent(ctx, packagePath); err != nil {
+	if err = chownDDAgent(ctx, packagePath, true); err != nil {
+		return
+	}
+	if err = chownDDAgent(ctx, "/var/log/datadog", false); err != nil {
 		return
 	}
 	// TODO: fixme, this is a hack to fix the permissions of the agent folder
-	if err = chownDDAgent(ctx, "/etc/datadog-agent"); err != nil {
+	if err = chownDDAgent(ctx, "/etc/datadog-agent", true); err != nil {
 		return
 	}
 
@@ -157,7 +160,7 @@ func StartAgentExperiment(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err = chownDDAgent(ctx, packagePath); err != nil {
+	if err = chownDDAgent(ctx, packagePath, true); err != nil {
 		return err
 	}
 	return startUnit(ctx, agentExp)

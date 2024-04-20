@@ -141,6 +141,8 @@ func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 	}
 	switch inputCommand.Command {
 	case "chown dd-agent":
+		return exec.Command("chown", "dd-agent:dd-agent", path), nil
+	case "chown recursive dd-agent":
 		return exec.Command("chown", "-R", "dd-agent:dd-agent", path), nil
 	case "rm":
 		return exec.Command("rm", "-rf", path), nil
