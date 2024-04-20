@@ -89,7 +89,7 @@ func (v *vmUpdaterSuite) TestSharedAgentDirs() {
 	for _, dir := range []string{confDir, logDir} {
 		require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(`stat -c "%U" `+dir))
 		require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(`stat -c "%G" `+dir))
-		require.Equal(v.T(), "drwxrwxr-x\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" `+dir))
+		require.Equal(v.T(), "drwxr-xr-x\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" `+dir))
 	}
 }
 
