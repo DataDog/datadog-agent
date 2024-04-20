@@ -11,12 +11,8 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
-	"os/exec"
 	"os/user"
-	"strings"
-	"syscall"
+	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -68,16 +64,12 @@ func SetupAgent(ctx context.Context) (err error) {
 	if err = createDDAgentUser(ctx); err != nil {
 		return
 	}
-	if err = setInstallerAgentGroup(ctx); err != nil {
+	packagePath, err := filepath.EvalSymlinks("/opt/datadog-packages/datadog-agent/stable")
+	if err != nil {
+		log.Errorf("Failed to resolve agent package path: %s", err)
 		return
 	}
-	if err = chownDDAgent(ctx, "/var/log/datadog"); err != nil {
-		return
-	}
-	if err = chownDDAgent(ctx, "/etc/datadog-agent"); err != nil {
-		return
-	}
-	if err = chownDDAgent(ctx, "/opt/datadog-packages/datadog-agent"); err != nil {
+	if err = chownDDAgent(ctx, packagePath); err != nil {
 		return
 	}
 
@@ -162,26 +154,6 @@ func StartAgentExperiment(ctx context.Context) error {
 // StopAgentExperiment stops the agent experiment
 func StopAgentExperiment(ctx context.Context) error {
 	return startUnit(ctx, agentUnit)
-}
-
-// setInstallerAgentGroup adds the dd-installer to the dd-agent group if it's not already in it
-func setInstallerAgentGroup(ctx context.Context) error {
-	// Get groups of dd-installer
-	out, err := exec.Command("id", "-Gn", "dd-installer").Output()
-	if err != nil {
-		return err
-	}
-	if strings.Contains(string(out), "dd-agent") {
-		return nil
-	}
-
-	if err := executeHelperCommand(ctx, string(addInstallerToAgentGroup)); err != nil {
-		return err
-	}
-	if err := syscall.Setgid(os.Getgid()); err != nil {
-		return fmt.Errorf("failed to reload groups of dd-installer: %s", err)
-	}
-	return nil
 }
 
 func createDDAgentUser(ctx context.Context) error {
