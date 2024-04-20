@@ -9,6 +9,8 @@ golang_deps_diff:
     - !reference [ .except_main_or_release_branch ]
     - when: on_success
   needs: ["go_deps"]
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]

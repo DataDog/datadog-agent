@@ -227,6 +227,8 @@ go_mod_tidy_check:
   stage: source_test
   extends: .linux_x64
   needs: ["go_deps"]
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
