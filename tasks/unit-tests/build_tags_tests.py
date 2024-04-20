@@ -4,7 +4,7 @@ from invoke.exceptions import Exit
 
 from tasks.flavor import AgentFlavor
 
-from ..build_tags import DARWIN_EXCLUDED_TAGS, build_tags, get_build_tags
+from tasks.build_tags import DARWIN_EXCLUDED_TAGS, build_tags, get_build_tags
 
 
 class TestBuildTags(unittest.TestCase):
