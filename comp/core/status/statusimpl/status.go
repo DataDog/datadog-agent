@@ -248,11 +248,10 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 	}
 }
 
-func (s *statusImplementation) GetStatusBySection(section string, format string, verbose bool) ([]byte, error) {
+func (s *statusImplementation) GetStatusBySections(sections []string, format string, verbose bool) ([]byte, error) {
 	var errs []error
 
-	switch section {
-	case "header":
+	if len(sections) == 1 && sections[0] == "header" {
 		providers := s.sortedHeaderProviders
 		switch format {
 		case "json":
@@ -312,68 +311,74 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 		default:
 			return []byte{}, nil
 		}
-	default:
-		providers, ok := s.sortedProvidersBySection[strings.ToLower(section)]
+	}
+
+	// Get provider lists from one or more sections
+	var providers []status.Provider
+	for _, section := range sections {
+		providersForSection, ok := s.sortedProvidersBySection[strings.ToLower(section)]
 		if !ok {
 			res, _ := json.Marshal(append([]string{"header"}, s.sortedSectionNames...))
 			errorMsg := fmt.Sprintf("unknown status section '%s', available sections are: %s", section, string(res))
 			return nil, errors.New(errorMsg)
 		}
-		switch format {
-		case "json":
-			stats := make(map[string]interface{})
+		providers = append(providers, providersForSection...)
+	}
 
-			for _, sc := range providers {
-				if err := sc.JSON(verbose, stats); err != nil {
-					errs = append(errs, err)
-				}
+	switch format {
+	case "json":
+		stats := make(map[string]interface{})
+
+		for _, sc := range providers {
+			if err := sc.JSON(verbose, stats); err != nil {
+				errs = append(errs, err)
 			}
-
-			if len(errs) > 0 {
-				errorsInfo := []string{}
-				for _, error := range errs {
-					errorsInfo = append(errorsInfo, error.Error())
-				}
-				stats["errors"] = errorsInfo
-			}
-
-			return json.Marshal(stats)
-		case "text":
-			var b = new(bytes.Buffer)
-
-			for i, sc := range providers {
-				if i == 0 {
-					printHeader(b, sc.Section())
-					newLine(b)
-				}
-
-				if err := sc.Text(verbose, b); err != nil {
-					errs = append(errs, err)
-				}
-			}
-
-			if len(errs) > 0 {
-				if err := renderErrors(b, errs); err != nil {
-					return []byte{}, err
-				}
-
-				return b.Bytes(), nil
-			}
-
-			return b.Bytes(), nil
-		case "html":
-			var b = new(bytes.Buffer)
-
-			for _, sc := range providers {
-				err := sc.HTML(verbose, b)
-				if err != nil {
-					return b.Bytes(), err
-				}
-			}
-			return b.Bytes(), nil
-		default:
-			return []byte{}, nil
 		}
+
+		if len(errs) > 0 {
+			errorsInfo := []string{}
+			for _, error := range errs {
+				errorsInfo = append(errorsInfo, error.Error())
+			}
+			stats["errors"] = errorsInfo
+		}
+
+		return json.Marshal(stats)
+	case "text":
+		var b = new(bytes.Buffer)
+
+		for i, sc := range providers {
+			if i == 0 {
+				printHeader(b, sc.Section())
+				newLine(b)
+			}
+
+			if err := sc.Text(verbose, b); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		if len(errs) > 0 {
+			if err := renderErrors(b, errs); err != nil {
+				return []byte{}, err
+			}
+
+			return b.Bytes(), nil
+		}
+
+		return b.Bytes(), nil
+	case "html":
+		var b = new(bytes.Buffer)
+
+		for _, sc := range providers {
+			err := sc.HTML(verbose, b)
+			if err != nil {
+				return b.Bytes(), err
+			}
+		}
+		return b.Bytes(), nil
+	default:
+		return []byte{}, nil
 	}
 }
 

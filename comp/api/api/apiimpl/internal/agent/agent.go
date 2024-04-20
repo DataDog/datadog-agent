@@ -228,7 +228,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 
 	var err error
 	if len(section) > 0 {
-		s, err = statusComponent.GetStatusBySection(section, format, verbose)
+		s, err = statusComponent.GetStatusBySections([]string{section}, format, verbose)
 	} else {
 		s, err = statusComponent.GetStatus(format, verbose)
 	}
