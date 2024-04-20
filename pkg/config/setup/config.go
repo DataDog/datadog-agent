@@ -1159,6 +1159,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// The histogram buckets use to track the time in nanoseconds it takes for a DogStatsD listeners to push data to the server
 	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_channel_latency_buckets", []string{})
 
+	// Agent Telemetry. It is experimental feature and is subject to change.
+	// It should not be enabled unless prompted by Datadog Support
+	config.BindEnvAndSetDefault("agent_telemetry.enabled", false)
+
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
 	config.SetKnown("metadata_providers")
