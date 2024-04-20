@@ -25,6 +25,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
@@ -83,6 +84,7 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 		hostnameimpl.Module(),
 		sysprobeconfig.NoneModule(),
 		fetchonlyimpl.Module(),
+		collectorcontribFx.Module(),
 
 		fx.Provide(func() workloadmeta.Params {
 			return workloadmeta.NewParams()
