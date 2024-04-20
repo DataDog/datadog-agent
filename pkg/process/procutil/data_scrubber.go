@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package procutil
 
 import (
@@ -11,14 +12,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-var (
-	defaultSensitiveWords = []string{
-		"*password*", "*passwd*", "*mysql_pwd*",
-		"*access_token*", "*auth_token*",
-		"*api_key*", "*apikey*",
-		"*secret*", "*credentials*", "stripetoken"}
 )
 
 const (
@@ -30,6 +23,7 @@ type processCacheKey struct {
 	createTime int64
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type DataScrubberPattern struct {
 	FastCheck string
 	Re        *regexp.Regexp
@@ -68,7 +62,9 @@ func NewDefaultDataScrubber() *DataScrubber {
 // The word must contain only word characters ([a-zA-z0-9_]) or wildcards *
 func CompileStringsToRegex(words []string) []DataScrubberPattern {
 	compiledRegexps := make([]DataScrubberPattern, 0, len(words))
-	forbiddenSymbols := regexp.MustCompile("[^a-zA-Z0-9_*]")
+
+	// forbiddenSymbolsRegex defined in `data_scrubber_<platform>.go` because it's platform dependent
+	forbiddenSymbols := regexp.MustCompile(forbiddenSymbolsRegex)
 
 	for _, word := range words {
 		if forbiddenSymbols.MatchString(word) {

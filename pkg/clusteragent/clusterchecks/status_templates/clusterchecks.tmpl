@@ -1,0 +1,23 @@
+{{- if .clusterchecks }}
+{{- if .clusterchecks.Leader }}
+  {{- if .clusterchecks.Active }}
+  Status: Leader, serving requests
+  Active agents: {{ .clusterchecks.NodeCount }}
+  Check Configurations: {{ .clusterchecks.TotalConfigs }}
+    - Dispatched: {{ .clusterchecks.ActiveConfigs }}
+    - Unassigned: {{ .clusterchecks.DanglingConfigs }}
+  {{- else }}
+  Status: Leader, warming up
+  {{- end }}
+{{- else if .clusterchecks.Follower }}
+  {{- if .clusterchecks.LeaderIP }}
+  Status: Follower, redirecting to leader at {{ .clusterchecks.LeaderIP }}
+  {{- else }}
+  Status: Follower, no leader found
+  {{- end }}
+  {{- else }}
+  Status: unknown
+{{- end }}
+{{ else }}
+  Not Enabled
+{{ end }}

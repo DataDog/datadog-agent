@@ -3,19 +3,19 @@ vscode namespaced tags
 
 Helpers for getting vscode set up nicely
 """
+
 import json
 import os
-from collections import OrderedDict
+from typing import OrderedDict
 
 from invoke import task
 
-from .build_tags import get_build_tags
-from .flavor import AgentFlavor
+from tasks.build_tags import get_build_tags
+from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import color_message
 
 VSCODE_DIR = ".vscode"
 VSCODE_FILE = "settings.json"
-VSCODE_DEVCONTAINER_DIR = ".devcontainer"
-VSCODE_DEVCONTAINER_FILE = "devcontainer.json"
 
 
 @task
@@ -42,7 +42,7 @@ def set_buildtags(
     settings = {}
     fullpath = os.path.join(VSCODE_DIR, VSCODE_FILE)
     if os.path.exists(fullpath):
-        with open(fullpath, "r") as sf:
+        with open(fullpath) as sf:
             settings = json.load(sf, object_pairs_hook=OrderedDict)
 
     settings["go.buildTags"] = ",".join(use_tags)
@@ -64,51 +64,16 @@ def setup_devcontainer(
     """
     Generate or Modify devcontainer settings file for this project.
     """
-    flavor = AgentFlavor[flavor]
+    from tasks.devcontainer import setup
 
-    use_tags = get_build_tags(
-        build=target, arch=arch, flavor=flavor, build_include=build_include, build_exclude=build_exclude
+    print(color_message('This command is deprecated, please use `devcontainer.setup` instead', "orange"))
+    print("Running `devcontainer.setup`...")
+    setup(
+        _,
+        target=target,
+        build_include=build_include,
+        build_exclude=build_exclude,
+        flavor=flavor,
+        arch=arch,
+        image=image,
     )
-
-    if not os.path.exists(VSCODE_DEVCONTAINER_DIR):
-        os.makedirs(VSCODE_DEVCONTAINER_DIR)
-
-    devcontainer = {}
-    fullpath = os.path.join(VSCODE_DEVCONTAINER_DIR, VSCODE_DEVCONTAINER_FILE)
-    if os.path.exists(fullpath):
-        with open(fullpath, "r") as sf:
-            devcontainer = json.load(sf, object_pairs_hook=OrderedDict)
-
-    local_build_tags = ",".join(use_tags)
-
-    devcontainer["name"] = "Datadog-Agent-DevEnv"
-    if image:
-        devcontainer["image"] = image
-        if devcontainer.get("build"):
-            del devcontainer["build"]
-    else:
-        devcontainer["build"] = {
-            "dockerfile": "Dockerfile",
-            "args": {},
-        }
-        if devcontainer.get("image"):
-            del devcontainer["image"]
-    devcontainer["runArgs"] = ["--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined"]
-    devcontainer["remoteUser"] = "datadog"
-    devcontainer["mounts"] = ["source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind,consistency=cached"]
-    devcontainer["customizations"] = {
-        "vscode": {
-            "settings": {
-                "go.toolsManagement.checkForUpdates": "local",
-                "go.useLanguageServer": True,
-                "go.gopath": "/home/datadog/go",
-                "go.goroot": "/usr/local/go",
-                "go.buildTags": local_build_tags,
-                "go.testTags": local_build_tags,
-            },
-            "extensions": ["golang.Go"],
-        }
-    }
-
-    with open(fullpath, "w") as sf:
-        json.dump(devcontainer, sf, indent=4, sort_keys=False, separators=(',', ': '))

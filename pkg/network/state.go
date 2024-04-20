@@ -13,13 +13,13 @@ import (
 	"time"
 
 	"github.com/cihub/seelog"
+	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/slice"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,29 +31,29 @@ var (
 
 // Telemetry
 var stateTelemetry = struct {
-	closedConnDropped      *nettelemetry.StatCounterWrapper
-	connDropped            *nettelemetry.StatCounterWrapper
-	statsUnderflows        *nettelemetry.StatCounterWrapper
-	statsCookieCollisions  *nettelemetry.StatCounterWrapper
-	timeSyncCollisions     *nettelemetry.StatCounterWrapper
-	dnsStatsDropped        *nettelemetry.StatCounterWrapper
-	httpStatsDropped       *nettelemetry.StatCounterWrapper
-	http2StatsDropped      *nettelemetry.StatCounterWrapper
-	kafkaStatsDropped      *nettelemetry.StatCounterWrapper
-	dnsPidCollisions       *nettelemetry.StatCounterWrapper
+	closedConnDropped      *telemetry.StatCounterWrapper
+	connDropped            *telemetry.StatCounterWrapper
+	statsUnderflows        *telemetry.StatCounterWrapper
+	statsCookieCollisions  *telemetry.StatCounterWrapper
+	timeSyncCollisions     *telemetry.StatCounterWrapper
+	dnsStatsDropped        *telemetry.StatCounterWrapper
+	httpStatsDropped       *telemetry.StatCounterWrapper
+	http2StatsDropped      *telemetry.StatCounterWrapper
+	kafkaStatsDropped      *telemetry.StatCounterWrapper
+	dnsPidCollisions       *telemetry.StatCounterWrapper
 	incomingDirectionFixes telemetry.Counter
 	outgoingDirectionFixes telemetry.Counter
 }{
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{"ip_proto"}, "Counter measuring the number of dropped closed connections"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "conn_dropped", []string{}, "Counter measuring the number of closed connections"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_underflows", []string{}, "Counter measuring the number of stats underflows"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "Counter measuring the number of stats cookie collisions"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "time_sync_collisions", []string{}, "Counter measuring the number of time sync collisions"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_stats_dropped", []string{}, "Counter measuring the number of DNS stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "http_stats_dropped", []string{}, "Counter measuring the number of http stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Counter measuring the number of kafka stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{"ip_proto"}, "Counter measuring the number of dropped closed connections"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "conn_dropped", []string{}, "Counter measuring the number of closed connections"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "stats_underflows", []string{}, "Counter measuring the number of stats underflows"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "Counter measuring the number of stats cookie collisions"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "time_sync_collisions", []string{}, "Counter measuring the number of time sync collisions"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "dns_stats_dropped", []string{}, "Counter measuring the number of DNS stats dropped"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "http_stats_dropped", []string{}, "Counter measuring the number of http stats dropped"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats dropped"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Counter measuring the number of kafka stats dropped"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
 	telemetry.NewCounter(stateModuleName, "incoming_direction_fixes", []string{}, "Counter measuring the number of udp direction fixes for incoming connections"),
 	telemetry.NewCounter(stateModuleName, "outgoing_direction_fixes", []string{}, "Counter measuring the number of udp/tcp direction fixes for outgoing connections"),
 }
@@ -71,6 +71,8 @@ const (
 	ConnectionByteKeyMaxLen = 41
 
 	stateModuleName = "network_tracer__state"
+
+	shortLivedConnectionThreshold = 2 * time.Minute
 )
 
 // State takes care of handling the logic for:
@@ -117,11 +119,10 @@ type State interface {
 
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
-	Conns    []ConnectionStats
-	HTTP     map[http.Key]*http.RequestStats
-	HTTP2    map[http.Key]*http.RequestStats
-	Kafka    map[kafka.Key]*kafka.RequestStat
-	DNSStats dns.StatsByKeyByNameByType
+	Conns []ConnectionStats
+	HTTP  map[http.Key]*http.RequestStats
+	HTTP2 map[http.Key]*http.RequestStats
+	Kafka map[kafka.Key]*kafka.RequestStat
 }
 
 type lastStateTelemetry struct {
@@ -261,33 +262,48 @@ type networkState struct {
 	latestTimeEpoch uint64
 
 	// Network state configuration
-	clientExpiry   time.Duration
-	maxClosedConns uint32
-	maxClientStats int
-	maxDNSStats    int
-	maxHTTPStats   int
-	maxKafkaStats  int
+	clientExpiry                time.Duration
+	maxClosedConns              uint32
+	maxClientStats              int
+	maxDNSStats                 int
+	maxHTTPStats                int
+	maxKafkaStats               int
+	enableConnectionRollup      bool
+	processEventConsumerEnabled bool
 
 	mergeStatsBuffers [2][]byte
+
+	localResolver LocalResolver
 }
 
 // NewState creates a new network state
-func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats int, maxDNSStats int, maxHTTPStats int, maxKafkaStats int) State {
-	return &networkState{
-		clients:        map[string]*client{},
-		clientExpiry:   clientExpiry,
-		maxClosedConns: maxClosedConns,
-		maxClientStats: maxClientStats,
-		maxDNSStats:    maxDNSStats,
-		maxHTTPStats:   maxHTTPStats,
-		maxKafkaStats:  maxKafkaStats,
+func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats int, maxDNSStats int, maxHTTPStats int, maxKafkaStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
+	ns := &networkState{
+		clients:                map[string]*client{},
+		clientExpiry:           clientExpiry,
+		maxClosedConns:         maxClosedConns,
+		maxClientStats:         maxClientStats,
+		maxDNSStats:            maxDNSStats,
+		maxHTTPStats:           maxHTTPStats,
+		maxKafkaStats:          maxKafkaStats,
+		enableConnectionRollup: enableConnectionRollup,
 		mergeStatsBuffers: [2][]byte{
 			make([]byte, ConnectionByteKeyMaxLen),
 			make([]byte, ConnectionByteKeyMaxLen),
 		},
+		localResolver:               NewLocalResolver(processEventConsumerEnabled),
+		processEventConsumerEnabled: processEventConsumerEnabled,
 	}
+
+	if ns.enableConnectionRollup && !processEventConsumerEnabled {
+		log.Warnf("disabling port rollups since network event consumer is not enabled")
+		ns.enableConnectionRollup = false
+	}
+
+	return ns
 }
 
+//nolint:unused // TODO(NET) Fix unused linter
 func (ns *networkState) getClients() []string {
 	ns.Lock()
 	defer ns.Unlock()
@@ -352,7 +368,19 @@ func (ns *networkState) GetDelta(
 	// Update all connections with relevant up-to-date stats for client
 	active, closed := ns.mergeConnections(id, active)
 
-	aggr := newConnectionAggregator((len(closed) + len(active)) / 2)
+	cs := slice.NewChain(active, closed)
+	ns.determineConnectionIntraHost(cs)
+
+	// resolve local connections if rollups are enabled
+	if ns.enableConnectionRollup {
+		ns.localResolver.Resolve(cs)
+	}
+
+	if len(dnsStats) > 0 {
+		ns.storeDNSStats(dnsStats)
+	}
+
+	aggr := newConnectionAggregator((len(closed)+len(active))/2, ns.enableConnectionRollup, ns.processEventConsumerEnabled, client.dnsStats)
 	active = filterConnections(active, func(c *ConnectionStats) bool {
 		return !aggr.Aggregate(c)
 	})
@@ -362,12 +390,6 @@ func (ns *networkState) GetDelta(
 	})
 
 	aggr.finalize()
-
-	ns.determineConnectionIntraHost(slice.NewChain(active, closed))
-
-	if len(dnsStats) > 0 {
-		ns.storeDNSStats(dnsStats)
-	}
 
 	for protocolType, protocolStats := range usmStats {
 		switch protocolType {
@@ -384,11 +406,10 @@ func (ns *networkState) GetDelta(
 	}
 
 	return Delta{
-		Conns:    append(active, closed...),
-		HTTP:     client.httpStatsDelta,
-		HTTP2:    client.http2StatsDelta,
-		DNSStats: client.dnsStats,
-		Kafka:    client.kafkaStatsDelta,
+		Conns: append(active, closed...),
+		HTTP:  client.httpStatsDelta,
+		HTTP2: client.http2StatsDelta,
+		Kafka: client.kafkaStatsDelta,
 	}
 }
 
@@ -782,6 +803,7 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 
 		ns.updateConnWithStats(client, cookie, closedConn)
 
+		//nolint:gosimple // TODO(NET) Fix gosimple linter
 		if closedConn.Last.IsZero() {
 			// not reporting an "empty" connection
 			return false
@@ -803,6 +825,7 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 
 		newStats[c.Cookie] = client.stats[c.Cookie]
 
+		//nolint:gosimple // TODO(NET) Fix gosimple linter
 		if c.Last.IsZero() {
 			// not reporting an "empty" connection
 			return false
@@ -1100,24 +1123,131 @@ type aggregateConnection struct {
 	count             uint32
 }
 
-type connectionAggregator struct {
-	conns map[string][]*aggregateConnection
-	buf   []byte
-}
-
-func newConnectionAggregator(size int) *connectionAggregator {
-	return &connectionAggregator{
-		conns: make(map[string][]*aggregateConnection, size),
-		buf:   make([]byte, ConnectionByteKeyMaxLen),
+type aggregationKey struct {
+	// connKey is the key returned by ConnectionStats.ByteKey()
+	connKey    string
+	direction  ConnectionDirection
+	containers struct {
+		source, dest *intern.Value
 	}
 }
 
-func (a *connectionAggregator) canAggregateIPTranslation(t1, t2 *IPTranslation) bool {
-	return t1 == t2 || t1 == nil || t2 == nil || *t1 == *t2
+type connectionAggregator struct {
+	conns                       map[aggregationKey][]*aggregateConnection
+	buf                         []byte
+	dnsStats                    dns.StatsByKeyByNameByType
+	enablePortRollups           bool
+	processEventConsumerEnabled bool
+}
+
+func newConnectionAggregator(size int, enablePortRollups, processEventConsumerEnabled bool, dnsStats dns.StatsByKeyByNameByType) *connectionAggregator {
+	return &connectionAggregator{
+		conns:                       make(map[aggregationKey][]*aggregateConnection, size),
+		buf:                         make([]byte, ConnectionByteKeyMaxLen),
+		dnsStats:                    dnsStats,
+		enablePortRollups:           enablePortRollups,
+		processEventConsumerEnabled: processEventConsumerEnabled,
+	}
+}
+
+func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, sportRolledUp, dportRolledUp bool) {
+	key.connKey = string(c.ByteKey(a.buf))
+	key.direction = c.Direction
+	if a.processEventConsumerEnabled {
+		key.containers.source = c.ContainerID.Source
+	}
+
+	if !a.enablePortRollups {
+		return key, false, false
+	}
+
+	// local resolution is done in system-probe if rollups
+	// are enabled, so add the destination container id to
+	// the key as well
+	key.containers.dest = c.ContainerID.Dest
+
+	isShortLived := c.IsClosed && (c.Duration > 0 && c.Duration < shortLivedConnectionThreshold)
+	sportRolledUp = c.Direction == OUTGOING
+	dportRolledUp = c.Direction == INCOMING
+
+	log.TraceFunc(func() string {
+		return fmt.Sprintf("type=%s isShortLived=%+v sportRolledUp=%+v", c.Type, isShortLived, sportRolledUp)
+	})
+	if !isShortLived ||
+		(!sportRolledUp && !dportRolledUp) {
+		log.TraceFunc(func() string { return fmt.Sprintf("not rolling up connection %+v ", c) })
+		return key, false, false
+	}
+
+	log.TraceFunc(func() string { return fmt.Sprintf("rolling up connection %+v ", c) })
+
+	if sportRolledUp {
+		sport := c.SPort
+		// set source port to 0 temporarily for key generation
+		c.SPort = 0
+		defer func() {
+			c.SPort = sport
+		}()
+	}
+
+	if dportRolledUp {
+		dport := c.DPort
+		// set dest port to 0 temporarily for key generation
+		c.DPort = 0
+		defer func() {
+			c.DPort = dport
+		}()
+	}
+
+	key.connKey = string(c.ByteKey(a.buf))
+	return key, sportRolledUp, dportRolledUp
+}
+
+func (a *connectionAggregator) canAggregateIPTranslation(t1, t2 *IPTranslation, sportRolledUp, dportRolledUp bool) bool {
+	if t1 == t2 || t1 == nil || t2 == nil || *t1 == *t2 {
+		return true
+	}
+
+	// *t1 != *t2
+	if !sportRolledUp && !dportRolledUp {
+		return false
+	}
+
+	if sportRolledUp {
+		d1, d2 := t1.ReplDstPort, t2.ReplDstPort
+		t1.ReplDstPort, t2.ReplDstPort = 0, 0
+		defer func() {
+			t1.ReplDstPort, t2.ReplDstPort = d1, d2
+		}()
+	}
+
+	if dportRolledUp {
+		s1, s2 := t1.ReplSrcPort, t2.ReplSrcPort
+		t1.ReplSrcPort, t2.ReplSrcPort = 0, 0
+		defer func() {
+			t1.ReplSrcPort, t2.ReplSrcPort = s1, s2
+		}()
+	}
+
+	return *t1 == *t2
 }
 
 func (a *connectionAggregator) canAggregateProtocolStack(p1, p2 protocols.Stack) bool {
 	return p1.IsUnknown() || p2.IsUnknown() || p1 == p2
+}
+
+func (a *connectionAggregator) dns(c *ConnectionStats) map[dns.Hostname]map[dns.QueryType]dns.Stats {
+	key, isDNS := DNSKey(c)
+	if !isDNS {
+		return nil
+	}
+
+	if stats, ok := a.dnsStats[key]; ok {
+		delete(a.dnsStats, key)
+		return stats
+	}
+
+	return nil
 }
 
 // Aggregate aggregates a connection. The connection is only
@@ -1131,7 +1261,11 @@ func (a *connectionAggregator) canAggregateProtocolStack(p1, p2 protocols.Stack)
 //   - the other connection's protocol stack is unknown
 //   - the other connection's protocol stack is not unknown AND equal
 func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
-	key := string(c.ByteKey(a.buf))
+	key, sportRolledUp, dportRolledUp := a.key(c)
+
+	// get dns stats for connection
+	c.DNSStats = a.dns(c)
+
 	aggrConns, ok := a.conns[key]
 	if !ok {
 		a.conns[key] = []*aggregateConnection{
@@ -1146,23 +1280,31 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	}
 
 	for _, aggrConn := range aggrConns {
-		if !a.canAggregateIPTranslation(aggrConn.IPTranslation, c.IPTranslation) ||
+		if !a.canAggregateIPTranslation(aggrConn.IPTranslation, c.IPTranslation, sportRolledUp, dportRolledUp) ||
 			!a.canAggregateProtocolStack(aggrConn.ProtocolStack, c.ProtocolStack) {
 			continue
 		}
 
-		aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
-		aggrConn.Last = aggrConn.Last.Add(c.Last)
-		aggrConn.rttSum += uint64(c.RTT)
-		aggrConn.rttVarSum += uint64(c.RTTVar)
-		aggrConn.count++
-		if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
-			aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
+		aggrConn.merge(c)
+
+		if sportRolledUp {
+			// more than one connection with
+			// source port dropped in key,
+			// so set source port to 0
+			aggrConn.SPort = 0
+			if aggrConn.IPTranslation != nil {
+				aggrConn.IPTranslation.ReplDstPort = 0
+			}
 		}
-		if aggrConn.IPTranslation == nil {
-			aggrConn.IPTranslation = c.IPTranslation
+		if dportRolledUp {
+			// more than one connection with
+			// dest port dropped in key,
+			// so set dest port to 0
+			aggrConn.DPort = 0
+			if aggrConn.IPTranslation != nil {
+				aggrConn.IPTranslation.ReplSrcPort = 0
+			}
 		}
-		aggrConn.ProtocolStack.MergeWith(c.ProtocolStack)
 
 		return true
 	}
@@ -1175,6 +1317,52 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	})
 
 	return false
+}
+
+func (ac *aggregateConnection) merge(c *ConnectionStats) {
+	ac.Monotonic = ac.Monotonic.Add(c.Monotonic)
+	ac.Last = ac.Last.Add(c.Last)
+	ac.rttSum += uint64(c.RTT)
+	ac.rttVarSum += uint64(c.RTTVar)
+	ac.count++
+	if ac.LastUpdateEpoch < c.LastUpdateEpoch {
+		ac.LastUpdateEpoch = c.LastUpdateEpoch
+	}
+	if ac.IPTranslation == nil {
+		ac.IPTranslation = c.IPTranslation
+	}
+
+	ac.ProtocolStack.MergeWith(c.ProtocolStack)
+
+	if ac.DNSStats == nil {
+		ac.DNSStats = c.DNSStats
+	} else {
+		for hostname, statsByQuery := range c.DNSStats {
+			hostStats := ac.DNSStats[hostname]
+			if hostStats == nil {
+				hostStats = make(map[dns.QueryType]dns.Stats)
+				ac.DNSStats[hostname] = hostStats
+			}
+			for q, stats := range statsByQuery {
+				queryStats, ok := hostStats[q]
+				if !ok {
+					hostStats[q] = stats
+					continue
+				}
+
+				queryStats.FailureLatencySum += stats.FailureLatencySum
+				queryStats.SuccessLatencySum += stats.SuccessLatencySum
+				queryStats.Timeouts += stats.Timeouts
+				for rcode, count := range stats.CountByRcode {
+					queryStats.CountByRcode[rcode] += count
+				}
+				hostStats[q] = queryStats
+			}
+		}
+	}
+
+	// no need to hold on to dns stats on the aggregated connection
+	c.DNSStats = nil
 }
 
 func (a *connectionAggregator) finalize() {

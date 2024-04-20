@@ -17,6 +17,9 @@ import (
 )
 
 const (
+	// KubeNamespaceFilterPrefix if the prefix used for Kubernetes namespaces
+	KubeNamespaceFilterPrefix = `kube_namespace:`
+
 	// Pause container image names that should be filtered out.
 	// Where appropriate, each constant is loosely structured as
 	// image:domain.*/pause.*
@@ -49,6 +52,8 @@ const (
 	pauseContainerEKS = `image:(amazonaws\.com/)?eks/pause.*`
 	// rancher/pause-amd64:3.0
 	pauseContainerRancher = `image:rancher/pause.*`
+	// rancher/mirrored-pause:3.7
+	pauseContainerRancherMirrored = `image:rancher/mirrored-pause.*`
 	// - mcr.microsoft.com/k8s/core/pause-amd64
 	pauseContainerMCR = `image:mcr\.microsoft\.com(.*)/pause.*`
 	// - aksrepos.azurecr.io/mirror/pause-amd64
@@ -67,9 +72,8 @@ const (
 	pauseContainerRegistryK8sIo = `image:registry\.k8s\.io/pause.*`
 
 	// filter prefixes for inclusion/exclusion
-	imageFilterPrefix         = `image:`
-	nameFilterPrefix          = `name:`
-	kubeNamespaceFilterPrefix = `kube_namespace:`
+	imageFilterPrefix = `image:`
+	nameFilterPrefix  = `name:`
 
 	// filter based on AD annotations
 	kubeAutodiscoveryAnnotation          = "ad.datadoghq.com/%sexclude"
@@ -121,8 +125,8 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 				continue
 			}
 			nameFilters = append(nameFilters, r)
-		case strings.HasPrefix(filter, kubeNamespaceFilterPrefix):
-			r, err := filterToRegex(filter, kubeNamespaceFilterPrefix)
+		case strings.HasPrefix(filter, KubeNamespaceFilterPrefix):
+			r, err := filterToRegex(filter, KubeNamespaceFilterPrefix)
 			if err != nil {
 				filterErrs = append(filterErrs, err.Error())
 				continue
@@ -180,6 +184,7 @@ func GetPauseContainerFilter() (*Filter, error) {
 			pauseContainerECS,
 			pauseContainerEKS,
 			pauseContainerRancher,
+			pauseContainerRancherMirrored,
 			pauseContainerMCR,
 			pauseContainerWin,
 			pauseContainerAKS,

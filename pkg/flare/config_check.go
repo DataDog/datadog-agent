@@ -12,9 +12,9 @@ import (
 
 	"github.com/fatih/color"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -32,7 +32,7 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config.Datadog)
 	if err != nil {
 		return err
 	}

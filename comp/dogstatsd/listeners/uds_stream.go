@@ -9,25 +9,26 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // UDSStreamListener implements the StatsdListener interface for Unix Domain (streams)
 type UDSStreamListener struct {
 	UDSListener
-	listenWg    sync.WaitGroup
 	connTracker *ConnectionTracker
 	conn        *net.UnixListener
 }
 
 // NewUDSStreamListener returns an idle UDS datagram Statsd listener
-func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*UDSStreamListener, error) {
+func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component) (*UDSStreamListener, error) {
 	socketPath := cfg.GetString("dogstatsd_stream_socket")
 	transport := "unix"
 
@@ -46,7 +47,7 @@ func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManage
 		return nil, err
 	}
 
-	l, err := NewUDSListener(packetOut, sharedPacketPoolManager, sharedOobPacketPoolManager, cfg, capture, transport)
+	l, err := NewUDSListener(packetOut, sharedPacketPoolManager, sharedOobPacketPoolManager, cfg, capture, transport, wmeta, pidMap)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +65,13 @@ func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManage
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDSStreamListener) Listen() {
 	l.listenWg.Add(1)
-	defer l.listenWg.Done()
+	go func() {
+		defer l.listenWg.Done()
+		l.listen()
+	}()
+}
+
+func (l *UDSStreamListener) listen() {
 
 	l.connTracker.Start()
 	log.Infof("dogstatsd-uds-stream: starting to listen on %s", l.conn.Addr())
@@ -94,5 +101,4 @@ func (l *UDSStreamListener) Stop() {
 	_ = l.conn.Close()
 	l.connTracker.Stop()
 	l.UDSListener.Stop()
-	l.listenWg.Wait() // wait for the listener to finish
 }

@@ -8,193 +8,29 @@
 package aggregator
 
 import (
-	"fmt"
-	"sync"
-	"time"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"go.uber.org/fx"
 )
-
-// TestAgentDemultiplexer is an implementation of the Demultiplexer which is sending
-// the time samples into a fake sampler, you can then use WaitForSamples() to retrieve
-// the samples that the TimeSamplers should have received.
-type TestAgentDemultiplexer struct {
-	*AgentDemultiplexer
-	aggregatedSamples []metrics.MetricSample
-	noAggSamples      []metrics.MetricSample
-	sync.Mutex
-
-	events        chan []*event.Event
-	serviceChecks chan []*servicecheck.ServiceCheck
-}
-
-// AggregateSamples implements a noop timesampler, appending the samples in an internal slice.
-func (a *TestAgentDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
-	a.Lock()
-	a.aggregatedSamples = append(a.aggregatedSamples, samples...)
-	a.Unlock()
-}
-
-// AggregateSample implements a noop timesampler, appending the sample in an internal slice.
-func (a *TestAgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
-	a.Lock()
-	a.aggregatedSamples = append(a.aggregatedSamples, sample)
-	a.Unlock()
-}
-
-// GetEventPlatformForwarder returns a event platform forwarder
-func (a *TestAgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
-	return a.aggregator.GetEventPlatformForwarder()
-}
-
-// GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
-func (a *TestAgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*event.Event, chan []*servicecheck.ServiceCheck) {
-	return a.events, a.serviceChecks
-}
-
-// SendSamplesWithoutAggregation implements a fake no aggregation pipeline ingestion part,
-// there will be NO AUTOMATIC FLUSH as it could exist in the real implementation
-// Use Reset() to clean the buffer.
-func (a *TestAgentDemultiplexer) SendSamplesWithoutAggregation(metrics metrics.MetricSampleBatch) {
-	a.Lock()
-	a.noAggSamples = append(a.noAggSamples, metrics...)
-	a.Unlock()
-}
-
-func (a *TestAgentDemultiplexer) samples() (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
-	a.Lock()
-	ontime = make([]metrics.MetricSample, len(a.aggregatedSamples))
-	timed = make([]metrics.MetricSample, len(a.noAggSamples))
-	copy(ontime, a.aggregatedSamples)
-	copy(timed, a.noAggSamples)
-	a.Unlock()
-	return ontime, timed
-}
-
-// WaitForSamples returns the samples received by the demultiplexer.
-// Note that it returns as soon as something is avaible in either the live
-// metrics buffer or the late metrics one.
-func (a *TestAgentDemultiplexer) WaitForSamples(timeout time.Duration) (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
-	return a.waitForSamples(timeout, func(ontime, timed []metrics.MetricSample) bool {
-		return len(ontime) > 0 || len(timed) > 0
-	})
-}
-
-// WaitForNumberOfSamples returns the samples received by the demultiplexer.
-// Note that it waits until at least the requested number of samples are
-// available in both the live metrics buffer and the late metrics one.
-func (a *TestAgentDemultiplexer) WaitForNumberOfSamples(ontimeCount, timedCount int, timeout time.Duration) (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
-	return a.waitForSamples(timeout, func(ontime, timed []metrics.MetricSample) bool {
-		return (len(ontime) >= ontimeCount || ontimeCount == 0) &&
-			(len(timed) >= timedCount || timedCount == 0)
-	})
-}
-
-// waitForSamples returns the samples received by the demultiplexer.
-// It returns once the given foundFunc returns true or the timeout is reached.
-func (a *TestAgentDemultiplexer) waitForSamples(timeout time.Duration, foundFunc func([]metrics.MetricSample, []metrics.MetricSample) bool) (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
-	timeoutOn := time.Now().Add(timeout)
-	for {
-		select {
-		case <-ticker.C:
-			ontime, timed = a.samples()
-
-			// this case could always take priority on the timeout case, we have to make sure
-			// we've not timeout
-			if time.Now().After(timeoutOn) {
-				return ontime, timed
-			}
-
-			if foundFunc(ontime, timed) {
-				return ontime, timed
-			}
-		case <-time.After(timeout):
-			return nil, nil
-		}
-	}
-}
-
-// WaitEventPlatformEvents waits for timeout and eventually returns the event platform events samples received by the demultiplexer.
-func (a *TestAgentDemultiplexer) WaitEventPlatformEvents(eventType string, minEvents int, timeout time.Duration) ([]*message.Message, error) {
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
-	timeoutOn := time.Now().Add(timeout)
-	var savedEvents []*message.Message
-	for {
-		select {
-		case <-ticker.C:
-			allEvents := a.aggregator.GetEventPlatformEvents()
-			savedEvents = append(savedEvents, allEvents[eventType]...)
-			// this case could always take priority on the timeout case, we have to make sure
-			// we've not timeout
-			if time.Now().After(timeoutOn) {
-				return nil, fmt.Errorf("timeout waitig for events (expected at least %d events but only received %d)", minEvents, len(savedEvents))
-			}
-
-			if len(savedEvents) >= minEvents {
-				return savedEvents, nil
-			}
-		case <-time.After(timeout):
-			return nil, fmt.Errorf("timeout waitig for events (expected at least %d events but only received %d)", minEvents, len(savedEvents))
-		}
-	}
-}
-
-// Reset resets the internal samples slice.
-func (a *TestAgentDemultiplexer) Reset() {
-	a.Lock()
-	a.aggregatedSamples = a.aggregatedSamples[0:0]
-	a.noAggSamples = a.noAggSamples[0:0]
-	a.Unlock()
-}
-
-// InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given options.
-func InitTestAgentDemultiplexerWithOpts(log log.Component, sharedForwarderOptions *defaultforwarder.Options, opts AgentDemultiplexerOptions) *TestAgentDemultiplexer {
-	sharedForwarder := defaultforwarder.NewDefaultForwarder(config.Datadog, log, sharedForwarderOptions)
-	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, "hostname")
-	testAgent := TestAgentDemultiplexer{
-		AgentDemultiplexer: demux,
-		events:             make(chan []*event.Event),
-		serviceChecks:      make(chan []*servicecheck.ServiceCheck),
-	}
-	return &testAgent
-}
-
-// InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given flush interval.
-func InitTestAgentDemultiplexerWithFlushInterval(log log.Component, flushInterval time.Duration) *TestAgentDemultiplexer {
-	opts := DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = flushInterval
-	opts.DontStartForwarders = true
-	opts.UseNoopEventPlatformForwarder = true
-	return InitTestAgentDemultiplexerWithOpts(log, defaultforwarder.NewOptions(config.Datadog, log, nil), opts)
-}
-
-// InitTestAgentDemultiplexer inits a TestAgentDemultiplexer with a long flush interval.
-func InitTestAgentDemultiplexer(log log.Component) *TestAgentDemultiplexer {
-	return InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour) // long flush interval for unit tests
-}
 
 // TestDeps contains dependencies for InitAndStartAgentDemultiplexerForTest
 type TestDeps struct {
 	fx.In
 	Log             log.Component
+	Hostname        hostname.Component
 	SharedForwarder defaultforwarder.Component
+	Compressor      compression.Component
 }
 
 // InitAndStartAgentDemultiplexerForTest initializes an aggregator for tests.
 func InitAndStartAgentDemultiplexerForTest(deps TestDeps, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, options, hostname)
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname))
+	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, deps.Compressor, hostname)
 }

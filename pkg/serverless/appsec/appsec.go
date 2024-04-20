@@ -8,45 +8,70 @@
 package appsec
 
 import (
-	"encoding/json"
+	"context"
+	"errors"
 	"math/rand"
 	"time"
 
+	appsecLog "github.com/DataDog/appsec-internal-go/log"
+	waf "github.com/DataDog/go-libddwaf/v2"
+	json "github.com/json-iterator/go"
+
+	"github.com/DataDog/appsec-internal-go/limiter"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
-	waf "github.com/DataDog/go-libddwaf/v2"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func New() (*httpsec.ProxyLifecycleProcessor, error) {
+//nolint:revive // TODO(ASM) Fix revive linter
+func New(demux aggregator.Demultiplexer) (lp *httpsec.ProxyLifecycleProcessor, err error) {
+	lp, _, err = NewWithShutdown(demux)
+	return
+}
+
+// NewWithShutdown returns a new httpsec.ProxyLifecycleProcessor and a shutdown function that can be
+// called to terminate the started proxy (releasing the bound port and closing the AppSec instance).
+// This is mainly intended to be called in test code so that goroutines and ports are not leaked,
+// but can be used in other code paths when it is useful to be able to perform a clean shut down.
+func NewWithShutdown(demux aggregator.Demultiplexer) (lp *httpsec.ProxyLifecycleProcessor, shutdown func(context.Context) error, err error) {
 	appsecInstance, err := newAppSec() // note that the assigned variable is in the parent scope
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if appsecInstance == nil {
-		return nil, nil // appsec disabled
+		return nil, nil, nil // appsec disabled
 	}
 
 	// AppSec monitors the invocations by acting as a proxy of the AWS Lambda Runtime API.
-	lp := httpsec.NewProxyLifecycleProcessor(appsecInstance)
-	proxy.Start(
+	lp = httpsec.NewProxyLifecycleProcessor(appsecInstance, demux)
+	shutdownProxy := proxy.Start(
 		"127.0.0.1:9000",
 		"127.0.0.1:9001",
 		lp,
 	)
 	log.Debug("appsec: started successfully using the runtime api proxy monitoring mode")
-	return lp, nil
+
+	shutdown = func(ctx context.Context) error {
+		// Note: `errors.Join` discards any `nil` error it receives.
+		return errors.Join(
+			shutdownProxy(ctx),
+			appsecInstance.Close(),
+		)
+	}
+
+	return
 }
 
+//nolint:revive // TODO(ASM) Fix revive linter
 type AppSec struct {
 	cfg *config.Config
 	// WAF handle instance of the appsec event rules.
 	handle *waf.Handle
 	// Events rate limiter to limit the max amount of appsec events we can send
 	// per second.
-	eventsRateLimiter *TokenTicker
+	eventsRateLimiter *limiter.TokenTicker
 }
 
 // New returns a new AppSec instance if it is enabled with the DD_APPSEC_ENABLED
@@ -87,7 +112,7 @@ func newAppSec() (*AppSec, error) {
 		return nil, err
 	}
 
-	eventsRateLimiter := NewTokenTicker(int64(cfg.TraceRateLimit), int64(cfg.TraceRateLimit))
+	eventsRateLimiter := limiter.NewTokenTicker(int64(cfg.TraceRateLimit), int64(cfg.TraceRateLimit))
 	eventsRateLimiter.Start()
 
 	return &AppSec{
@@ -158,4 +183,14 @@ func wafHealth() error {
 // and that sampling rate allows schema extraction for a specific monitoring instance
 func (a *AppSec) canExtractSchemas() bool {
 	return a.cfg.APISec.Enabled && a.cfg.APISec.SampleRate >= rand.Float64()
+}
+
+func init() {
+	appsecLog.SetBackend(appsecLog.Backend{
+		Trace:     log.Tracef,
+		Debug:     log.Debugf,
+		Info:      log.Infof,
+		Errorf:    log.Errorf,
+		Criticalf: log.Criticalf,
+	})
 }

@@ -9,15 +9,18 @@ package kubelet
 
 import (
 	"context"
+	"errors"
 	"hash/fnv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	kutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
@@ -38,8 +41,12 @@ const (
 func init() {
 	provider.RegisterCollector(provider.CollectorFactory{
 		ID: collectorID,
-		Constructor: func(cache *provider.Cache) (provider.CollectorMetadata, error) {
-			return newKubeletCollector(cache)
+		Constructor: func(cache *provider.Cache, wmeta optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
+			instance, ok := wmeta.Get()
+			if !ok {
+				return provider.CollectorMetadata{}, errors.New("missing workloadmeta component")
+			}
+			return newKubeletCollector(cache, instance)
 		},
 	})
 }
@@ -51,7 +58,7 @@ type kubeletCollector struct {
 	refreshLock   sync.Mutex
 }
 
-func newKubeletCollector(*provider.Cache) (provider.CollectorMetadata, error) {
+func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provider.CollectorMetadata, error) {
 	var collectorMetadata provider.CollectorMetadata
 
 	if !config.IsFeaturePresent(config.Kubernetes) {
@@ -66,23 +73,46 @@ func newKubeletCollector(*provider.Cache) (provider.CollectorMetadata, error) {
 	collector := &kubeletCollector{
 		kubeletClient: client,
 		statsCache:    *provider.NewCache(kubeletCacheGCInterval),
-		// TODO(components): stop using globals, rely on injected workloadmeta component.
-		metadataStore: workloadmeta.GetGlobalStore(),
+		metadataStore: wmeta,
 	}
 
 	collectors := &provider.Collectors{
-		Stats:   provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
-		Network: provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
+		Stats:                           provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
+		Network:                         provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
+		ContainerIDForPodUIDAndContName: provider.MakeRef[provider.ContainerIDForPodUIDAndContNameRetriever](collector, collectorPriority),
 	}
 
 	return provider.CollectorMetadata{
 		ID: collectorID,
 		Collectors: provider.CollectorCatalog{
-			provider.RuntimeNameContainerd: collectors,
-			provider.RuntimeNameCRIO:       collectors,
-			provider.RuntimeNameDocker:     collectors,
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), ""):                                 collectors,
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), string(provider.RuntimeFlavorKata)): collectors,
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameCRIO), ""):                                       collectors,
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameDocker), ""):                                     collectors,
 		},
 	}, nil
+}
+
+// ContainerIDForPodUIDAndContName returns a container ID for the given pod uid
+// and container name. Returns ("", nil) if the containerd ID was not found.
+func (kc *kubeletCollector) ContainerIDForPodUIDAndContName(podUID, contName string, initCont bool, _ time.Duration) (string, error) {
+	pod, err := kc.metadataStore.GetKubernetesPod(podUID)
+	if err != nil {
+		if pkgerrors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	containers := pod.Containers
+	if initCont {
+		containers = pod.InitContainers
+	}
+	for _, container := range containers {
+		if container.Name == contName {
+			return container.ID, nil
+		}
+	}
+	return "", nil
 }
 
 // GetContainerStats returns stats by container ID.

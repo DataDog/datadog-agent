@@ -19,12 +19,15 @@ import (
 )
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock))
+}
 
 func newMock(t testing.TB) submitterComp.Component {
 	s := mocks.NewSubmitter(t)
+	s.On("Start").Maybe().Return(nil)
+	s.On("Stop").Maybe()
 	s.On("Submit", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	return s
 }

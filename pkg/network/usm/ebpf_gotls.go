@@ -11,11 +11,11 @@ import (
 	"debug/elf"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -28,7 +28,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -120,9 +119,6 @@ type goTLSProgram struct {
 	// analysis
 	binAnalysisMetric *libtelemetry.Counter
 
-	// sockFDMap is the user mode handler of `sock_by_pid_fd` map, which is shared among NPM and USM.
-	sockFDMap *ebpf.Map
-
 	registry *utils.FileRegistry
 }
 
@@ -162,13 +158,13 @@ var goTLSSpec = &protocols.ProtocolSpec{
 	},
 }
 
-func newGoTLSProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map) protocols.ProtocolFactory {
+func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
 		if !c.EnableGoTLSSupport {
 			return nil, nil
 		}
 
-		if !http.HTTPSSupported(c) {
+		if !http.TLSSupported(c) {
 			return nil, errors.New("goTLS not supported by this platform")
 		}
 
@@ -181,7 +177,6 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map) pro
 			cfg:               c,
 			manager:           m,
 			procRoot:          c.ProcRoot,
-			sockFDMap:         sockFDMap,
 			binAnalysisMetric: libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
 			registry:          utils.NewFileRegistry("go-tls"),
 		}, nil
@@ -204,16 +199,6 @@ func (p *goTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Opt
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
-
-	if options.MapEditors == nil {
-		options.MapEditors = make(map[string]*ebpf.Map)
-	}
-
-	options.MapSpecEditors[probes.SockByPidFDMap] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxTrackedConnections,
-		EditorFlag: manager.EditMaxEntries,
-	}
-	options.MapEditors[probes.SockByPidFDMap] = p.sockFDMap
 }
 
 // Start launches the goTLS main goroutine to handle events.
@@ -263,7 +248,7 @@ func (p *goTLSProgram) PostStart(_ *manager.Manager) error {
 	return nil
 }
 
-func (p *goTLSProgram) DumpMaps(_ *strings.Builder, _ string, _ *ebpf.Map) {}
+func (p *goTLSProgram) DumpMaps(_ io.Writer, _ string, _ *ebpf.Map) {}
 
 func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
 	return nil
@@ -320,6 +305,10 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 }
 
 func (p *goTLSProgram) handleProcessStart(pid pid) {
+	if p.cfg.GoTLSExcludeSelf && pid == uint32(os.Getpid()) {
+		return
+	}
+
 	pidAsStr := strconv.FormatUint(uint64(pid), 10)
 	exePath := filepath.Join(p.procRoot, pidAsStr, "exe")
 

@@ -15,67 +15,69 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
-// PerfHandler wraps an eBPF perf buffer
-type PerfHandler struct {
-	DataChannel  chan *DataEvent
-	LostChannel  chan uint64
-	RecordGetter func() *perf.Record
-	once         sync.Once
-	closed       bool
-}
-
-// DataEvent is a single event read from a perf buffer
-type DataEvent struct {
-	CPU  int
-	Data []byte
-
-	r *perf.Record
-}
-
-// Done returns the data buffer back to a sync.Pool
-func (d *DataEvent) Done() {
-	recordPool.Put(d.r)
-}
-
 var recordPool = sync.Pool{
 	New: func() interface{} {
-		return &perf.Record{}
+		return new(perf.Record)
 	},
+}
+
+// PerfHandler implements EventHandler
+// this line is just a static check of the interface
+var _ EventHandler = new(PerfHandler)
+
+// PerfHandler wraps an eBPF perf buffer
+type PerfHandler struct {
+	RecordGetter func() *perf.Record
+
+	dataChannel chan *DataEvent
+	lostChannel chan uint64
+	once        sync.Once
+	closed      bool
 }
 
 // NewPerfHandler creates a PerfHandler
 func NewPerfHandler(dataChannelSize int) *PerfHandler {
 	return &PerfHandler{
-		DataChannel: make(chan *DataEvent, dataChannelSize),
-		LostChannel: make(chan uint64, 10),
 		RecordGetter: func() *perf.Record {
 			return recordPool.Get().(*perf.Record)
 		},
+		dataChannel: make(chan *DataEvent, dataChannelSize),
+		lostChannel: make(chan uint64, 10),
 	}
 }
 
 // LostHandler is the callback intended to be used when configuring PerfMapOptions
-func (c *PerfHandler) LostHandler(CPU int, lostCount uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
+func (c *PerfHandler) LostHandler(_ int, lostCount uint64, _ *manager.PerfMap, _ *manager.Manager) {
 	if c.closed {
 		return
 	}
-	c.LostChannel <- lostCount
+	c.lostChannel <- lostCount
 }
 
 // RecordHandler is the callback intended to be used when configuring PerfMapOptions
-func (c *PerfHandler) RecordHandler(record *perf.Record, perfMap *manager.PerfMap, manager *manager.Manager) {
+func (c *PerfHandler) RecordHandler(record *perf.Record, _ *manager.PerfMap, _ *manager.Manager) {
 	if c.closed {
 		return
 	}
 
-	c.DataChannel <- &DataEvent{CPU: record.CPU, Data: record.RawSample, r: record}
+	c.dataChannel <- &DataEvent{Data: record.RawSample, pr: record}
+}
+
+// DataChannel returns the channel with event data
+func (c *PerfHandler) DataChannel() <-chan *DataEvent {
+	return c.dataChannel
+}
+
+// LostChannel returns the channel with lost events
+func (c *PerfHandler) LostChannel() <-chan uint64 {
+	return c.lostChannel
 }
 
 // Stop stops the perf handler and closes both channels
 func (c *PerfHandler) Stop() {
 	c.once.Do(func() {
 		c.closed = true
-		close(c.DataChannel)
-		close(c.LostChannel)
+		close(c.dataChannel)
+		close(c.lostChannel)
 	})
 }

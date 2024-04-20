@@ -13,20 +13,22 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // TCPQueueLength Factory
 var TCPQueueLength = module.Factory{
 	Name:             config.TCPQueueLengthTracerModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *config.Config) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component]) (module.Module, error) {
 		t, err := tcpqueuelength.NewTracer(ebpf.NewConfig())
 		if err != nil {
 			return nil, fmt.Errorf("unable to start the TCP queue length tracer: %w", err)
@@ -36,6 +38,9 @@ var TCPQueueLength = module.Factory{
 			Tracer:    t,
 			lastCheck: atomic.NewInt64(0),
 		}, nil
+	},
+	NeedsEBPF: func() bool {
+		return true
 	},
 }
 
@@ -53,11 +58,6 @@ func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, stats)
 	})
 
-	return nil
-}
-
-// RegisterGRPC register to system probe gRPC server
-func (t *tcpQueueLengthModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

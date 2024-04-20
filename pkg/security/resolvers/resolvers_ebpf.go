@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
@@ -38,12 +39,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // EBPFResolvers holds the list of the event attribute resolvers
 type EBPFResolvers struct {
 	manager           *manager.Manager
-	MountResolver     *mount.Resolver
+	MountResolver     mount.ResolverInterface
 	ContainerResolver *container.Resolver
 	TimeResolver      *time.Resolver
 	UserGroupResolver *usergroup.Resolver
@@ -60,7 +62,7 @@ type EBPFResolvers struct {
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
-func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
+func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts, wmeta optional.Option[workloadmeta.Component]) (*EBPFResolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
@@ -81,7 +83,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	var sbomResolver *sbom.Resolver
 
 	if config.RuntimeSecurity.SBOMResolverEnabled {
-		sbomResolver, err = sbom.NewSBOMResolver(config.RuntimeSecurity, statsdClient)
+		sbomResolver, err = sbom.NewSBOMResolver(config.RuntimeSecurity, statsdClient, wmeta)
 		if err != nil {
 			return nil, err
 		}
@@ -116,18 +118,20 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		return nil, err
 	}
 
-	// Force the use of redemption for now, as it seems that the kernel reference counter on mounts used to remove mounts is not working properly.
-	// This means that we can remove mount entries that are still in use.
-	mountResolver, err := mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
-	if err != nil {
-		return nil, err
-	}
+	var mountResolver mount.ResolverInterface
 
 	var pathResolver path.ResolverInterface
 	if opts.PathResolutionEnabled {
+		// Force the use of redemption for now, as it seems that the kernel reference counter on mounts used to remove mounts is not working properly.
+		// This means that we can remove mount entries that are still in use.
+		mountResolver, err = mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
+		if err != nil {
+			return nil, err
+		}
 		pathResolver = path.NewResolver(dentryResolver, mountResolver)
 	} else {
-		pathResolver = &path.NoResolver{}
+		mountResolver = &mount.NoOpResolver{}
+		pathResolver = &path.NoOpResolver{}
 	}
 	containerResolver := &container.Resolver{}
 

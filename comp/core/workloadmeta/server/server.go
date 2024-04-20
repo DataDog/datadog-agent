@@ -50,10 +50,13 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 
 	for {
 		select {
-		case eventBundle := <-workloadmetaEventsChannel:
-			close(eventBundle.Ch)
+		case eventBundle, ok := <-workloadmetaEventsChannel:
+			if !ok {
+				return nil
+			}
+			eventBundle.Acknowledge()
 
-			var protobufEvents []*pb.WorkloadmetaEvent
+			protobufEvents := make([]*pb.WorkloadmetaEvent, 0, len(eventBundle.Events))
 
 			for _, event := range eventBundle.Events {
 				protobufEvent, err := protoutils.ProtobufEventFromWorkloadmetaEvent(event)

@@ -1,50 +1,50 @@
 ---
 include:
-  - /.gitlab/setup.yml
-  - /.gitlab/shared.yml
-  - /.gitlab/maintenance_jobs.yml
-  - /.gitlab/deps_build.yml
-  - /.gitlab/package_deps_build.yml
-  - /.gitlab/deps_fetch.yml
-  - /.gitlab/source_test.yml
-  - /.gitlab/source_test_junit_upload.yml
-  - /.gitlab/binary_build.yml
-  - /.gitlab/cancel-prev-pipelines.yml
-  - /.gitlab/do_not_merge.yml
-  - /.gitlab/integration_test.yml
-  - /.gitlab/package_build.yml
-  - /.gitlab/kitchen_deploy.yml
-  - /.gitlab/kitchen_testing.yml
-  - /.gitlab/kitchen_tests_upload.yml
-  - /.gitlab/new-e2e_testing.yml
-  - /.gitlab/new-e2e_common/testing.yml
-  - /.gitlab/install_script_testing.yml
-  - /.gitlab/pkg_metrics.yml
-  - /.gitlab/container_build.yml
-  - /.gitlab/container_scan.yml
-  - /.gitlab/check_deploy.yml
-  - /.gitlab/dev_container_deploy.yml
-  - /.gitlab/deploy_common.yml
-  - /.gitlab/deploy_containers.yml
-  - /.gitlab/deploy_packages.yml
-  - /.gitlab/deploy_dca.yml
-  - /.gitlab/choco_build.yml
-  - /.gitlab/choco_deploy.yml
-  - /.gitlab/internal_image_deploy.yml
-  - /.gitlab/trigger_release.yml
-  - /.gitlab/e2e.yml
-  - /.gitlab/e2e_test_junit_upload.yml
-  - /.gitlab/fakeintake.yml
-  - /.gitlab/kitchen_cleanup.yml
-  - /.gitlab/functional_test.yml
-  - /.gitlab/functional_test_cleanup.yml
-  - /.gitlab/functional_test_junit_upload.yml
-  - /.gitlab/internal_kubernetes_deploy.yml
-  - /.gitlab/notify.yml
-  - /.gitlab/kitchen_common/cleanup.yml
-  - /.gitlab/kitchen_common/testing.yml
-  - /.gitlab/benchmarks/benchmarks.yml
-  - /.gitlab/benchmarks/macrobenchmarks.yml
+  - .gitlab/setup.yml
+  - .gitlab/shared.yml
+  - .gitlab/maintenance_jobs.yml
+  - .gitlab/deps_build.yml
+  - .gitlab/package_deps_build.yml
+  - .gitlab/deps_fetch.yml
+  - .gitlab/source_test.yml
+  - .gitlab/source_test_junit_upload.yml
+  - .gitlab/binary_build.yml
+  - .gitlab/cancel-prev-pipelines.yml
+  - .gitlab/do_not_merge.yml
+  - .gitlab/integration_test.yml
+  - .gitlab/package_build.yml
+  - .gitlab/kitchen_deploy.yml
+  - .gitlab/kitchen_testing.yml
+  - .gitlab/kitchen_tests_upload.yml
+  - .gitlab/new-e2e_testing.yml
+  - .gitlab/new-e2e_common/testing.yml
+  - .gitlab/install_script_testing.yml
+  - .gitlab/pkg_metrics.yml
+  - .gitlab/container_build.yml
+  - .gitlab/container_scan.yml
+  - .gitlab/check_deploy.yml
+  - .gitlab/dev_container_deploy.yml
+  - .gitlab/deploy_common.yml
+  - .gitlab/deploy_containers.yml
+  - .gitlab/deploy_packages.yml
+  - .gitlab/deploy_dca.yml
+  - .gitlab/choco_build.yml
+  - .gitlab/choco_deploy.yml
+  - .gitlab/internal_image_deploy.yml
+  - .gitlab/trigger_release.yml
+  - .gitlab/e2e.yml
+  - .gitlab/e2e_test_junit_upload.yml
+  - .gitlab/fakeintake.yml
+  - .gitlab/kitchen_cleanup.yml
+  - .gitlab/functional_test.yml
+  - .gitlab/functional_test_cleanup.yml
+  - .gitlab/functional_test_junit_upload.yml
+  - .gitlab/internal_kubernetes_deploy.yml
+  - .gitlab/notify.yml
+  - .gitlab/kitchen_common/cleanup.yml
+  - .gitlab/kitchen_common/testing.yml
+  - .gitlab/benchmarks/benchmarks.yml
+  - .gitlab/benchmarks/macrobenchmarks.yml
 
 default:
   retry:
@@ -113,6 +113,7 @@ variables:
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   AGENT_BINARIES_DIR: bin/agent
+  AGENTLESS_SCANNER_BINARIES_DIR: bin/agentless-scanner
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
   CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
   CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR: bin/datadog-cluster-agent-cloudfoundry
@@ -169,7 +170,7 @@ variables:
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 8d38c2a2a794
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 59215b0d47c4
   DATADOG_AGENT_BUILDERS: v21429255-6b46caa
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -894,7 +895,7 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_system_probe_changes_or_manual:
+.on_system_probe_or_e2e_changes_or_manual:
   - <<: *if_main_branch
   - changes:
       paths:
@@ -948,8 +949,10 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_main_and_no_skip_e2e:
+.on_main_or_rc_and_no_skip_e2e:
   - <<: *if_not_e2e
     when: never
+  - <<: *if_tagged_commit
+    when: on_success
   - <<: *if_main_branch
     when: on_success

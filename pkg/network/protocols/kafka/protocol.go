@@ -8,8 +8,7 @@
 package kafka
 
 import (
-	"strings"
-	"unsafe"
+	"io"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -25,7 +24,7 @@ type protocol struct {
 	cfg            *config.Config
 	telemetry      *Telemetry
 	statkeeper     *StatKeeper
-	eventsConsumer *events.Consumer
+	eventsConsumer *events.Consumer[EbpfTx]
 }
 
 const (
@@ -33,18 +32,15 @@ const (
 	filterTailCall                           = "socket__kafka_filter"
 	dispatcherTailCall                       = "socket__protocol_dispatcher_kafka"
 	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
-	kafkaLastTCPSeqPerConnectionMap          = "kafka_last_tcp_seq_per_connection"
 	kafkaHeapMap                             = "kafka_heap"
 )
 
+// Spec is the protocol spec for the kafka protocol.
 var Spec = &protocols.ProtocolSpec{
 	Factory: newKafkaProtocol,
 	Maps: []*manager.Map{
 		{
 			Name: protocolDispatcherClassificationPrograms,
-		},
-		{
-			Name: kafkaLastTCPSeqPerConnectionMap,
 		},
 		{
 			Name: kafkaHeapMap,
@@ -79,24 +75,20 @@ func newKafkaProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}, nil
 }
 
+// Name returns the name of the protocol.
 func (p *protocol) Name() string {
 	return "Kafka"
 }
 
-// ConfigureOptions add the necessary options for the kafka monitoring to work,
-// to be used by the manager. These are:
-// - Set the `kafka_last_tcp_seq_per_connection` map size to the value of the `max_tracked_connection` configuration variable.
-//
-// We also configure the kafka event stream with the manager and its options.
+// ConfigureOptions add the necessary options for the kafka monitoring to work, to be used by the manager.
+// Configuring the kafka event stream with the manager and its options, and enabling the kafka_monitoring_enabled eBPF
+// option.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
-	events.Configure(eventStreamName, mgr, opts)
-	opts.MapSpecEditors[kafkaLastTCPSeqPerConnectionMap] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxTrackedConnections,
-		EditorFlag: manager.EditMaxEntries,
-	}
+	events.Configure(p.cfg, eventStreamName, mgr, opts)
 	utils.EnableOption(opts, "kafka_monitoring_enabled")
 }
 
+// PreStart creates the kafka events consumer and starts it.
 func (p *protocol) PreStart(mgr *manager.Manager) error {
 	var err error
 	p.eventsConsumer, err = events.NewConsumer(
@@ -114,22 +106,27 @@ func (p *protocol) PreStart(mgr *manager.Manager) error {
 	return nil
 }
 
-func (p *protocol) PostStart(_ *manager.Manager) error {
+// PostStart empty implementation.
+func (p *protocol) PostStart(*manager.Manager) error {
 	return nil
 }
 
-func (p *protocol) Stop(_ *manager.Manager) {
+// Stop stops the kafka events consumer.
+func (p *protocol) Stop(*manager.Manager) {
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
 	}
 }
 
-func (p *protocol) DumpMaps(_ *strings.Builder, _ string, _ *ebpf.Map) {}
+// DumpMaps empty implementation.
+func (p *protocol) DumpMaps(io.Writer, string, *ebpf.Map) {}
 
-func (p *protocol) processKafka(data []byte) {
-	tx := (*EbpfTx)(unsafe.Pointer(&data[0]))
-	p.telemetry.Count(tx)
-	p.statkeeper.Process(tx)
+func (p *protocol) processKafka(events []EbpfTx) {
+	for i := range events {
+		tx := &events[i]
+		p.telemetry.Count(tx)
+		p.statkeeper.Process(tx)
+	}
 }
 
 // GetStats returns a map of Kafka stats stored in the following format:

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package run is the run system-probe subcommand
 package run
 
 import (
@@ -10,7 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof"
+	_ "net/http/pprof" // activate pprof profiling
 	"os"
 	"os/signal"
 	"os/user"
@@ -21,35 +22,50 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
+	systemprobeconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/pid"
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	processstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // ErrNotEnabled represents the case in which system-probe is not enabled
 var ErrNotEnabled = errors.New("system-probe not enabled")
+
+const configPrefix = systemprobeconfig.Namespace + "."
 
 type cliParams struct {
 	*command.GlobalParams
@@ -67,20 +83,50 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "run",
 		Short: "Run the System Probe",
 		Long:  `Runs the system-probe in the foreground`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
-				fx.Supply(cliParams),
 				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
-				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
-				config.Module,
-				telemetry.Module,
-				sysprobeconfigimpl.Module,
-				rcclient.Module,
-				// use system-probe config instead of agent config for logging
-				fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-					return log.NewLogger(lc, params, sysprobeconfig)
+				fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion}),
+				fx.Supply(optional.NewNoneOption[secrets.Component]()),
+				compstatsd.Module(),
+				config.Module(),
+				telemetryimpl.Module(),
+				sysprobeconfigimpl.Module(),
+				rcclientimpl.Module(),
+				fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {
+					return healthprobe.Options{
+						Port:           sysprobeconfig.SysProbeObject().HealthPort,
+						LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
+					}
 				}),
+				healthprobeimpl.Module(),
+				// use system-probe config instead of agent config for logging
+				fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
+					return logimpl.NewLogger(lc, params, sysprobeconfig)
+				}),
+				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
+				autoexitimpl.Module(),
+				pidimpl.Module(),
+				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
+				fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
+					profilingGoRoutines := commonsettings.NewProfilingGoroutines()
+					profilingGoRoutines.ConfigPrefix = configPrefix
+
+					return settings.Params{
+						Settings: map[string]settings.RuntimeSetting{
+							"log_level":                       &commonsettings.LogLevelRuntimeSetting{ConfigKey: configPrefix + "log_level"},
+							"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix},
+							"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix},
+							"internal_profiling_goroutines":   profilingGoRoutines,
+							commonsettings.MaxDumpSizeConfKey: &commonsettings.ActivityDumpRuntimeSetting{ConfigKey: commonsettings.MaxDumpSizeConfKey},
+							"internal_profiling":              &commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix},
+						},
+						Config: sysprobeconfig,
+					}
+				}),
+				settingsimpl.Module(),
 			)
 		},
 	}
@@ -90,9 +136,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, config config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, cliParams *cliParams) error {
+func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component) error {
 	defer func() {
-		stopSystemProbe(cliParams)
+		stopSystemProbe()
 	}()
 
 	// prepare go runtime
@@ -126,13 +172,14 @@ func run(log log.Component, config config.Component, telemetry telemetry.Compone
 	sigpipeCh := make(chan os.Signal, 1)
 	signal.Notify(sigpipeCh, syscall.SIGPIPE)
 	go func() {
+		//nolint:revive
 		for range sigpipeCh {
-			// do nothing
+			// intentionally drain channel
 		}
 	}()
 
-	if err := startSystemProbe(cliParams, log, telemetry, sysprobeconfig, rcclient); err != nil {
-		if err == ErrNotEnabled {
+	if err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta, settings); err != nil {
+		if errors.Is(err, ErrNotEnabled) {
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
 			// http://supervisord.org/subprocess.html#process-states
@@ -155,47 +202,10 @@ func run(log log.Component, config config.Component, telemetry telemetry.Compone
 func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error, error) {
 	errChan := make(chan error)
 
-	// run startSystemProbe in an app, so that the log and config components get initialized
+	// run startSystemProbe in the background
 	go func() {
-		err := fxutil.OneShot(
-			func(log log.Component, config config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
-				defer StopSystemProbeWithDefaults()
-				err := startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, telemetry, sysprobeconfig, rcclient)
-				if err != nil {
-					return err
-				}
-
-				// notify outer that startAgent finished
-				errChan <- err
-				// wait for context
-				ctx := <-ctxChan
-
-				// Wait for stop signal
-				select {
-				case <-signals.Stopper:
-					log.Info("Received stop command, shutting down...")
-				case <-signals.ErrorStopper:
-					_ = log.Critical("The Agent has encountered an error, shutting down...")
-				case <-ctx.Done():
-					log.Info("Received stop from service manager, shutting down...")
-				}
-
-				return nil
-			},
-			// no config file path specification in this situation
-			fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
-			fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
-			fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
-			rcclient.Module,
-			config.Module,
-			telemetry.Module,
-			sysprobeconfigimpl.Module,
-			// use system-probe config instead of agent config for logging
-			fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-				return log.NewLogger(lc, params, sysprobeconfig)
-			}),
-		)
-		// notify caller that fx.OneShot is done
+		err := runSystemProbe(ctxChan, errChan)
+		// notify main routine that this is done, so cleanup can happen
 		errChan <- err
 	}()
 
@@ -210,16 +220,83 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 	return errChan, nil
 }
 
+func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
+	return fxutil.OneShot(
+		func(log log.Component, config config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component, settings settings.Component) error {
+			defer StopSystemProbeWithDefaults()
+			err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta, settings)
+			if err != nil {
+				return err
+			}
+
+			// notify outer that startAgent finished
+			errChan <- err
+			// wait for context
+			ctx := <-ctxChan
+
+			// Wait for stop signal
+			select {
+			case <-signals.Stopper:
+				log.Info("Received stop command, shutting down...")
+			case <-signals.ErrorStopper:
+				_ = log.Critical("The Agent has encountered an error, shutting down...")
+			case <-ctx.Done():
+				log.Info("Received stop from service manager, shutting down...")
+			}
+
+			return nil
+		},
+		// no config file path specification in this situation
+		fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
+		fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
+		fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion}),
+		fx.Supply(optional.NewNoneOption[secrets.Component]()),
+		rcclientimpl.Module(),
+		config.Module(),
+		telemetryimpl.Module(),
+		compstatsd.Module(),
+		sysprobeconfigimpl.Module(),
+		fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {
+			return healthprobe.Options{
+				Port:           sysprobeconfig.SysProbeObject().HealthPort,
+				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
+			}
+		}),
+		healthprobeimpl.Module(),
+		fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
+		// use system-probe config instead of agent config for logging
+		fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
+			return logimpl.NewLogger(lc, params, sysprobeconfig)
+		}),
+		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
+			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
+			profilingGoRoutines.ConfigPrefix = configPrefix
+
+			return settings.Params{
+				Settings: map[string]settings.RuntimeSetting{
+					"log_level":                       &commonsettings.LogLevelRuntimeSetting{ConfigKey: configPrefix + "log_level"},
+					"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix},
+					"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix},
+					"internal_profiling_goroutines":   profilingGoRoutines,
+					commonsettings.MaxDumpSizeConfKey: &commonsettings.ActivityDumpRuntimeSetting{ConfigKey: commonsettings.MaxDumpSizeConfKey},
+					"internal_profiling":              &commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix},
+				},
+				Config: sysprobeconfig,
+			}
+		}),
+		settingsimpl.Module(),
+	)
+}
+
 // StopSystemProbeWithDefaults is a temporary way for other packages to use stopAgent.
 func StopSystemProbeWithDefaults() {
-	stopSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}})
+	stopSystemProbe()
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
+func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, wmeta optional.Option[workloadmeta.Component], settings settings.Component) error {
 	var err error
-	var ctx context.Context
-	ctx, common.MainCtxCancel = context.WithCancel(context.Background())
 	cfg := sysprobeconfig.SysProbeObject()
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
@@ -247,41 +324,19 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 		}
 	}
 
-	if err := initRuntimeSettings(); err != nil {
-		log.Warnf("cannot initialize the runtime settings: %s", err)
-	}
+	setupInternalProfiling(settings, sysprobeconfig, configPrefix, log)
 
-	setupInternalProfiling(sysprobeconfig, configPrefix, log)
-
-	if ddconfig.IsRemoteConfigEnabled(ddconfig.Datadog) {
-		// Even if the system-probe happen to not have access to ddconfig.Datadog, the
-		// thin client will deactivate itself if the core-agent RC server is disabled
-		err = rcclient.Start("system-probe")
-		if err != nil {
-			return log.Criticalf("unable to start remote configuration client: %s", err)
-		}
-	}
-
-	if cliParams.pidfilePath != "" {
-		if err := pidfile.WritePID(cliParams.pidfilePath); err != nil {
-			return log.Errorf("error while writing PID file, exiting: %s", err)
-		}
-		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.pidfilePath)
-	}
-
-	err = manager.ConfigureAutoExit(ctx, sysprobeconfig)
-	if err != nil {
-		return log.Criticalf("unable to configure auto-exit: %s", err)
-	}
-
-	if err := statsd.Configure(cfg.StatsdHost, cfg.StatsdPort, true); err != nil {
+	if err := processstatsd.Configure(cfg.StatsdHost, cfg.StatsdPort, statsd.CreateForHostPort); err != nil {
 		return log.Criticalf("error configuring statsd: %s", err)
 	}
 
 	if isValidPort(cfg.DebugPort) {
 		if cfg.TelemetryEnabled {
 			http.Handle("/telemetry", telemetry.Handler())
-			telemetry.RegisterCollector(ebpf.NewDebugFsStatCollector())
+			telemetry.RegisterCollector(ebpftelemetry.NewDebugFsStatCollector())
+			if pc := ebpftelemetry.NewPerfUsageCollector(); pc != nil {
+				telemetry.RegisterCollector(pc)
+			}
 		}
 		go func() {
 			common.ExpvarServer = &http.Server{
@@ -294,24 +349,14 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 		}()
 	}
 
-	// Setup healthcheck port
-	healthPort := cfg.HealthPort
-	if healthPort > 0 {
-		err := healthprobe.Serve(ctx, healthPort)
-		if err != nil {
-			return log.Errorf("error starting health check server, exiting: %s", err)
-		}
-		log.Infof("health check server listening on port %d", healthPort)
-	}
-
-	if err = api.StartServer(cfg, telemetry); err != nil {
+	if err = api.StartServer(cfg, telemetry, wmeta, settings); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
 	}
 	return nil
 }
 
 // stopSystemProbe Tears down the system-probe process
-func stopSystemProbe(cliParams *cliParams) {
+func stopSystemProbe() {
 	module.Close()
 	if common.ExpvarServer != nil {
 		if err := common.ExpvarServer.Shutdown(context.Background()); err != nil {
@@ -322,15 +367,12 @@ func stopSystemProbe(cliParams *cliParams) {
 	if common.MemoryMonitor != nil {
 		common.MemoryMonitor.Stop()
 	}
-	_ = os.Remove(cliParams.pidfilePath)
 
-	// gracefully shut down any component
-	common.MainCtxCancel()
 	pkglog.Flush()
 }
 
 // setupInternalProfiling is a common helper to configure runtime settings for internal profiling.
-func setupInternalProfiling(cfg ddconfig.Reader, configPrefix string, log log.Component) {
+func setupInternalProfiling(settings settings.Component, cfg ddconfig.Reader, configPrefix string, log log.Component) {
 	if v := cfg.GetInt(configPrefix + "internal_profiling.block_profile_rate"); v > 0 {
 		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, model.SourceAgentRuntime); err != nil {
 			log.Errorf("Error setting block profile rate: %v", err)

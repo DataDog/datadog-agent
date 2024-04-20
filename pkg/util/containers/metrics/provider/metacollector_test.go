@@ -19,6 +19,10 @@ func TestMetaCollector(t *testing.T) {
 			1: "foo1",
 		},
 		selfContainerID: "agent1",
+		cIDForPodCont: map[string]string{
+			"pc-pod1/foo":   "cID1",
+			"pc-pod1/i-foo": "cID2",
+		},
 	}
 	actualCollector2 := &dummyCollector{
 		id: "foo2",
@@ -26,6 +30,10 @@ func TestMetaCollector(t *testing.T) {
 			2: "foo2",
 		},
 		selfContainerID: "agent2",
+		cIDForPodCont: map[string]string{
+			"pc-pod1/foo":   "cID3",
+			"pc-pod1/i-foo": "cID4",
+		},
 	}
 	actualCollector3 := &dummyCollector{
 		id: "foo3",
@@ -37,7 +45,7 @@ func TestMetaCollector(t *testing.T) {
 
 	metaCollector := newMetaCollector()
 	metaCollector.collectorsUpdatedCallback(CollectorCatalog{
-		RuntimeNameContainerd: &Collectors{
+		RuntimeMetadata{runtime: RuntimeNameContainerd}: &Collectors{
 			ContainerIDForPID: CollectorRef[ContainerIDForPIDRetriever]{
 				Collector: actualCollector1,
 				Priority:  0,
@@ -46,13 +54,20 @@ func TestMetaCollector(t *testing.T) {
 				Collector: actualCollector1,
 				Priority:  0,
 			},
+			ContainerIDForPodUIDAndContName: CollectorRef[ContainerIDForPodUIDAndContNameRetriever]{
+				Collector: actualCollector1,
+			},
 		},
-		RuntimeNameDocker: &Collectors{
+		RuntimeMetadata{runtime: RuntimeNameDocker}: &Collectors{
 			ContainerIDForPID: CollectorRef[ContainerIDForPIDRetriever]{
 				Collector: actualCollector2,
 				Priority:  1,
 			},
 			SelfContainerID: CollectorRef[SelfContainerIDRetriever]{
+				Collector: actualCollector2,
+				Priority:  1,
+			},
+			ContainerIDForPodUIDAndContName: CollectorRef[ContainerIDForPodUIDAndContNameRetriever]{
 				Collector: actualCollector2,
 				Priority:  1,
 			},
@@ -71,10 +86,34 @@ func TestMetaCollector(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "", cID3)
 
+	cIDPodUIDAndContName, err := metaCollector.ContainerIDForPodUIDAndContName("pod1", "foo", false, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, "cID1", cIDPodUIDAndContName)
+
+	cIDPodUIDAndContNameInit, err := metaCollector.ContainerIDForPodUIDAndContName("pod1", "foo", true, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, "cID2", cIDPodUIDAndContNameInit)
+
+	cIDPodUID, err := metaCollector.ContainerIDForPodUIDAndContName("pod1", "", false, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, "", cIDPodUID)
+
+	cIDContName, err := metaCollector.ContainerIDForPodUIDAndContName("", "foo", false, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, "", cIDContName)
+
+	cIDEmpty, err := metaCollector.ContainerIDForPodUIDAndContName("", "", false, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, "", cIDEmpty)
+
+	cIDEmptyInit, err := metaCollector.ContainerIDForPodUIDAndContName("", "", true, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, "", cIDEmptyInit)
+
 	// Add the failing collector
 	metaCollector.collectorsUpdatedCallback(
 		CollectorCatalog{
-			RuntimeNameContainerd: &Collectors{
+			RuntimeMetadata{runtime: RuntimeNameContainerd}: &Collectors{
 				ContainerIDForPID: CollectorRef[ContainerIDForPIDRetriever]{
 					Collector: actualCollector1,
 					Priority:  0,
@@ -83,8 +122,12 @@ func TestMetaCollector(t *testing.T) {
 					Collector: actualCollector1,
 					Priority:  0,
 				},
+				ContainerIDForPodUIDAndContName: CollectorRef[ContainerIDForPodUIDAndContNameRetriever]{
+					Collector: actualCollector1,
+					Priority:  0,
+				},
 			},
-			RuntimeNameDocker: &Collectors{
+			RuntimeMetadata{runtime: RuntimeNameDocker}: &Collectors{
 				ContainerIDForPID: CollectorRef[ContainerIDForPIDRetriever]{
 					Collector: actualCollector2,
 					Priority:  1,
@@ -93,13 +136,21 @@ func TestMetaCollector(t *testing.T) {
 					Collector: actualCollector2,
 					Priority:  1,
 				},
+				ContainerIDForPodUIDAndContName: CollectorRef[ContainerIDForPodUIDAndContNameRetriever]{
+					Collector: actualCollector2,
+					Priority:  1,
+				},
 			},
-			RuntimeNameCRIO: &Collectors{
+			RuntimeMetadata{runtime: RuntimeNameCRIO}: &Collectors{
 				ContainerIDForPID: CollectorRef[ContainerIDForPIDRetriever]{
 					Collector: actualCollector3,
 					Priority:  2,
 				},
 				SelfContainerID: CollectorRef[SelfContainerIDRetriever]{
+					Collector: actualCollector3,
+					Priority:  2,
+				},
+				ContainerIDForPodUIDAndContName: CollectorRef[ContainerIDForPodUIDAndContNameRetriever]{
 					Collector: actualCollector3,
 					Priority:  2,
 				},
@@ -110,6 +161,10 @@ func TestMetaCollector(t *testing.T) {
 	cID4, err := metaCollector.GetContainerIDForPID(50, 0)
 	assert.Equal(t, err, actualCollector3.err)
 	assert.Equal(t, "", cID4)
+
+	cIDPodUIDAndContName, err = metaCollector.ContainerIDForPodUIDAndContName("pod3", "foo", false, 0)
+	assert.Equal(t, err, actualCollector3.err)
+	assert.Equal(t, "", cIDPodUIDAndContName)
 
 	selfCID, err := metaCollector.GetSelfContainerID()
 	assert.NoError(t, err)

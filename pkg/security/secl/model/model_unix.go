@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build unix
-// +build unix
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json -field-accessors-output field_accessors_unix.go
 
@@ -12,127 +11,10 @@
 package model
 
 import (
-	"errors"
-	"fmt"
-	"path"
-	"path/filepath"
-	"strings"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
-
-const (
-	OverlayFS = "overlay" // OverlayFS overlay filesystem
-	TmpFS     = "tmpfs"   // TmpFS tmpfs
-	UnknownFS = "unknown" // UnknownFS unknown filesystem
-
-	ErrPathMustBeAbsolute = "all the path have to be absolute"            // ErrPathMustBeAbsolute tells when a path is not absolute
-	ErrPathDepthLimit     = "path depths have to be shorter than"         // ErrPathDepthLimit tells when a path is too long
-	ErrPathSegmentLimit   = "each segment of a path must be shorter than" // ErrPathSegmentLimit tells when a patch reached the segment limit
-
-	// SizeOfCookie size of cookie
-	SizeOfCookie = 8
-)
-
-// check that all path are absolute
-func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
-	// do not support regular expression on path, currently unable to support discarder for regex value
-	if fieldValue.Type == eval.RegexpValueType {
-		return fmt.Errorf("regexp not supported on path `%s`", field)
-	} else if fieldValue.Type == eval.VariableValueType {
-		return nil
-	}
-
-	if value, ok := fieldValue.Value.(string); ok {
-		errAbs := fmt.Errorf("invalid path `%s`, %s", value, ErrPathMustBeAbsolute)
-		errDepth := fmt.Errorf("invalid path `%s`, %s %d", value, ErrPathDepthLimit, MaxPathDepth)
-		errSegment := fmt.Errorf("invalid path `%s`, %s %d", value, ErrPathSegmentLimit, MaxSegmentLength)
-
-		if value == "" {
-			return nil
-		}
-
-		if value != path.Clean(value) {
-			return errAbs
-		}
-
-		if value == "*" {
-			return errAbs
-		}
-
-		if !filepath.IsAbs(value) && len(value) > 0 && value[0] != '*' {
-			return errAbs
-		}
-
-		if strings.HasPrefix(value, "~") {
-			return errAbs
-		}
-
-		// check resolution limitations
-		segments := strings.Split(value, "/")
-		if len(segments) > MaxPathDepth {
-			return errDepth
-		}
-		for _, segment := range segments {
-			if segment == ".." {
-				return errAbs
-			}
-			if len(segment) > MaxSegmentLength {
-				return errSegment
-			}
-		}
-	}
-
-	return nil
-}
-
-// ValidateField validates the value of a field
-func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
-	if strings.HasSuffix(field, "path") {
-		if err := validatePath(field, fieldValue); err != nil {
-			return err
-		}
-	}
-
-	switch field {
-
-	case "event.retval":
-		if value := fieldValue.Value; value != -int(syscall.EPERM) && value != -int(syscall.EACCES) {
-			return errors.New("return value can only be tested against EPERM or EACCES")
-		}
-	case "bpf.map.name", "bpf.prog.name":
-		if value, ok := fieldValue.Value.(string); ok {
-			if len(value) > MaxBpfObjName {
-				return fmt.Errorf("the name provided in %s must be at most %d characters, len(\"%s\") = %d", field, MaxBpfObjName, value, len(value))
-			}
-		}
-	}
-
-	if m.ExtraValidateFieldFnc != nil {
-		return m.ExtraValidateFieldFnc(field, fieldValue)
-	}
-
-	return nil
-}
-
-// ChmodEvent represents a chmod event
-type ChmodEvent struct {
-	SyscallEvent
-	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`New mode of the chmod-ed file` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`New rights of the chmod-ed file` Constants:`File mode constants`
-}
-
-// ChownEvent represents a chown event
-type ChownEvent struct {
-	SyscallEvent
-	File  FileEvent `field:"file"`
-	UID   int64     `field:"file.destination.uid"`                           // SECLDoc[file.destination.uid] Definition:`New UID of the chown-ed file's owner`
-	User  string    `field:"file.destination.user,handler:ResolveChownUID"`  // SECLDoc[file.destination.user] Definition:`New user of the chown-ed file's owner`
-	GID   int64     `field:"file.destination.gid"`                           // SECLDoc[file.destination.gid] Definition:`New GID of the chown-ed file's owner`
-	Group string    `field:"file.destination.group,handler:ResolveChownGID"` // SECLDoc[file.destination.group] Definition:`New group of the chown-ed file's owner`
-}
 
 // Event represents an event sent from the kernel
 // genaccessors
@@ -143,7 +25,7 @@ type Event struct {
 	Async bool `field:"event.async,handler:ResolveAsync" event:"*"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
 
 	// context
-	SpanContext    SpanContext    `field:"-" json:"-"`
+	SpanContext    SpanContext    `field:"-"`
 	NetworkContext NetworkContext `field:"network" event:"dns"`
 
 	// fim events
@@ -160,6 +42,7 @@ type Event struct {
 	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
 	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
 	Mount       MountEvent    `field:"mount" event:"mount"`             // [7.42] [File] [Experimental] A filesystem was mounted
+	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 
 	// process events
 	Exec     ExecEvent     `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
@@ -187,20 +70,38 @@ type Event struct {
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
 
 	// internal usage
-	Umount           UmountEvent           `field:"-" json:"-"`
-	InvalidateDentry InvalidateDentryEvent `field:"-" json:"-"`
-	ArgsEnvs         ArgsEnvsEvent         `field:"-" json:"-"`
-	MountReleased    MountReleasedEvent    `field:"-" json:"-"`
-	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-"`
-	NetDevice        NetDeviceEvent        `field:"-" json:"-"`
-	VethPair         VethPairEvent         `field:"-" json:"-"`
-	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-"`
+	Umount           UmountEvent           `field:"-"`
+	InvalidateDentry InvalidateDentryEvent `field:"-"`
+	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
+	MountReleased    MountReleasedEvent    `field:"-"`
+	CgroupTracing    CgroupTracingEvent    `field:"-"`
+	NetDevice        NetDeviceEvent        `field:"-"`
+	VethPair         VethPairEvent         `field:"-"`
+	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
+	// used for ebpfless
+	NSID uint64 `field:"-"`
 }
 
-// SetPathResolutionError sets the Event.pathResolutionError
-func (ev *Event) SetPathResolutionError(fileFields *FileEvent, err error) {
-	fileFields.PathResolutionError = err
-	ev.Error = err
+// SyscallEvent contains common fields for all the event
+type SyscallEvent struct {
+	Retval int64 `field:"retval"` // SECLDoc[retval] Definition:`Return value of the syscall` Constants:`Error constants`
+}
+
+// ChmodEvent represents a chmod event
+type ChmodEvent struct {
+	SyscallEvent
+	File FileEvent `field:"file"`
+	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`New mode of the chmod-ed file` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`New rights of the chmod-ed file` Constants:`File mode constants`
+}
+
+// ChownEvent represents a chown event
+type ChownEvent struct {
+	SyscallEvent
+	File  FileEvent `field:"file"`
+	UID   int64     `field:"file.destination.uid"`                           // SECLDoc[file.destination.uid] Definition:`New UID of the chown-ed file's owner`
+	User  string    `field:"file.destination.user,handler:ResolveChownUID"`  // SECLDoc[file.destination.user] Definition:`New user of the chown-ed file's owner`
+	GID   int64     `field:"file.destination.gid"`                           // SECLDoc[file.destination.gid] Definition:`New GID of the chown-ed file's owner`
+	Group string    `field:"file.destination.group,handler:ResolveChownGID"` // SECLDoc[file.destination.group] Definition:`New group of the chown-ed file's owner`
 }
 
 // SetuidEvent represents a setuid event
@@ -250,68 +151,6 @@ type Credentials struct {
 	CapPermitted uint64 `field:"cap_permitted"` // SECLDoc[cap_permitted] Definition:`Permitted capability set of the process` Constants:`Kernel Capability constants`
 }
 
-// Equals returns if both credentials are equal
-func (c *Credentials) Equals(o *Credentials) bool {
-	return c.UID == o.UID &&
-		c.GID == o.GID &&
-		c.EUID == o.EUID &&
-		c.EGID == o.EGID &&
-		c.FSUID == o.FSUID &&
-		c.FSGID == o.FSGID &&
-		c.CapEffective == o.CapEffective &&
-		c.CapPermitted == o.CapPermitted
-}
-
-// SetSpan sets the span
-func (p *Process) SetSpan(spanID uint64, traceID uint64) {
-	p.SpanID = spanID
-	p.TraceID = traceID
-}
-
-// GetPathResolutionError returns the path resolution error as a string if there is one
-func (p *Process) GetPathResolutionError() string {
-	return p.FileEvent.GetPathResolutionError()
-}
-
-// HasInterpreter returns whether the process uses an interpreter
-func (p *Process) HasInterpreter() bool {
-	return p.LinuxBinprm.FileEvent.Inode != 0
-}
-
-// IsNotKworker returns true if the process isn't a kworker
-func (p *Process) IsNotKworker() bool {
-	return !p.IsKworker
-}
-
-// GetProcessArgv returns the unscrubbed args of the event as an array. Use with caution.
-func (p *Process) GetProcessArgv() ([]string, bool) {
-	if p.ArgsEntry == nil {
-		return p.Argv, p.ArgsTruncated
-	}
-
-	argv := p.ArgsEntry.Values
-	if len(argv) > 0 {
-		argv = argv[1:]
-	}
-	p.Argv = argv
-	p.ArgsTruncated = p.ArgsTruncated || p.ArgsEntry.Truncated
-	return p.Argv, p.ArgsTruncated
-}
-
-// GetProcessArgv0 returns the first arg of the event and whether the process arguments are truncated
-func (p *Process) GetProcessArgv0() (string, bool) {
-	if p.ArgsEntry == nil {
-		return p.Argv0, p.ArgsTruncated
-	}
-
-	argv := p.ArgsEntry.Values
-	if len(argv) > 0 {
-		p.Argv0 = argv[0]
-	}
-	p.ArgsTruncated = p.ArgsTruncated || p.ArgsEntry.Truncated
-	return p.Argv0, p.ArgsTruncated
-}
-
 // LinuxBinprm contains content from the linux_binprm struct, which holds the arguments used for loading binaries
 type LinuxBinprm struct {
 	FileEvent FileEvent `field:"file"`
@@ -333,9 +172,9 @@ type Process struct {
 	LinuxBinprm LinuxBinprm `field:"interpreter,check:HasInterpreter"` // Script interpreter as identified by the shebang
 
 	// pid_cache_t
-	ForkTime time.Time `field:"fork_time,opts:getters_only" json:"-"`
-	ExitTime time.Time `field:"exit_time,opts:getters_only" json:"-"`
-	ExecTime time.Time `field:"exec_time,opts:getters_only" json:"-"`
+	ForkTime time.Time `field:"fork_time,opts:getters_only"`
+	ExitTime time.Time `field:"exit_time,opts:getters_only"`
+	ExecTime time.Time `field:"exec_time,opts:getters_only"`
 
 	// TODO: merge with ExecTime
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
@@ -348,11 +187,11 @@ type Process struct {
 
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
 
-	ArgsID uint32 `field:"-" json:"-"`
-	EnvsID uint32 `field:"-" json:"-"`
+	ArgsID uint32 `field:"-"`
+	EnvsID uint32 `field:"-"`
 
-	ArgsEntry *ArgsEntry `field:"-" json:"-"`
-	EnvsEntry *EnvsEntry `field:"-" json:"-"`
+	ArgsEntry *ArgsEntry `field:"-"`
+	EnvsEntry *EnvsEntry `field:"-"`
 
 	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
 	Argv0         string   `field:"argv0,handler:ResolveProcessArgv0,weight:100"`                                                                                                                   // SECLDoc[argv0] Definition:`First argument of the process`
@@ -367,18 +206,18 @@ type Process struct {
 	ArgvScrubbed []string `field:"argv_scrubbed,handler:ResolveProcessArgvScrubbed,weight:500,opts:getters_only"`
 
 	// symlink to the process binary
-	SymlinkPathnameStr [MaxSymlinks]string `field:"-" json:"-"`
-	SymlinkBasenameStr string              `field:"-" json:"-"`
+	SymlinkPathnameStr [MaxSymlinks]string `field:"-"`
+	SymlinkBasenameStr string              `field:"-"`
 
 	// cache version
-	ScrubbedArgvResolved bool           `field:"-" json:"-"`
-	Variables            eval.Variables `field:"-" json:"-"`
+	ScrubbedArgvResolved bool           `field:"-"`
+	Variables            eval.Variables `field:"-"`
 
 	IsThread        bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
-	IsExecChild     bool `field:"-"`         // Indicates whether the process is an exec child of its parent
+	IsExecExec      bool `field:"-"`         // Indicates whether the process is an exec following another exec
 	IsParentMissing bool `field:"-"`         // Indicates the direct parent is missing
 
-	Source uint64 `field:"-" json:"-"`
+	Source uint64 `field:"-"`
 
 	// lineage
 	hasValidLineage *bool `field:"-"`
@@ -405,45 +244,19 @@ type FileFields struct {
 
 	InUpperLayer bool `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer"` // SECLDoc[in_upper_layer] Definition:`Indicator of the file layer, for example, in an OverlayFS`
 
-	NLink uint32 `field:"-" json:"-"`
-	Flags int32  `field:"-" json:"-"`
-}
-
-// Equals compares two FileFields
-func (f *FileFields) Equals(o *FileFields) bool {
-	return f.Inode == o.Inode && f.MountID == o.MountID && f.MTime == o.MTime && f.UID == o.UID && f.GID == o.GID && f.Mode == o.Mode
-}
-
-// IsFileless return whether it is a file less access
-func (f *FileFields) IsFileless() bool {
-	// TODO(safchain) fix this heuristic by add a flag in the event intead of using mount ID 0
-	return f.Inode != 0 && f.MountID == 0
-}
-
-// HasHardLinks returns whether the file has hardlink
-func (f *FileFields) HasHardLinks() bool {
-	return f.NLink > 1
-}
-
-// GetInLowerLayer returns whether a file is in a lower layer
-func (f *FileFields) GetInLowerLayer() bool {
-	return f.Flags&LowerLayer != 0
-}
-
-// GetInUpperLayer returns whether a file is in the upper layer
-func (f *FileFields) GetInUpperLayer() bool {
-	return f.Flags&UpperLayer != 0
+	NLink uint32 `field:"-"`
+	Flags int32  `field:"-"`
 }
 
 // FileEvent is the common file event type
 type FileEvent struct {
-	FileFields ``
+	FileFields
 
 	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"ProcessSymlinkPathname"`     // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "/usr/bin/apt"` Description:`Matches the execution of the file located at /usr/bin/apt` Example:`open.file.path == "/etc/passwd"` Description:`Matches any process opening the /etc/passwd file.`
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
 
-	PathResolutionError error `field:"-" json:"-"`
+	PathResolutionError error `field:"-"`
 
 	PkgName       string `field:"package.name,handler:ResolvePackageName"`                    // SECLDoc[package.name] Definition:`[Experimental] Name of the package that provided this file`
 	PkgVersion    string `field:"package.version,handler:ResolvePackageVersion"`              // SECLDoc[package.version] Definition:`[Experimental] Full version of the package that provided this file`
@@ -453,38 +266,8 @@ type FileEvent struct {
 	Hashes    []string  `field:"hashes,handler:ResolveHashesFromEvent,opts:skip_ad,weight:999"` // SECLDoc[hashes] Definition:`[Experimental] List of cryptographic hashes computed for this file`
 
 	// used to mark as already resolved, can be used in case of empty path
-	IsPathnameStrResolved bool `field:"-" json:"-"`
-	IsBasenameStrResolved bool `field:"-" json:"-"`
-}
-
-// Equals compare two FileEvent
-func (e *FileEvent) Equals(o *FileEvent) bool {
-	return e.FileFields.Equals(&o.FileFields)
-}
-
-// SetPathnameStr set and mark as resolved
-func (e *FileEvent) SetPathnameStr(str string) {
-	e.PathnameStr = str
-	e.IsPathnameStrResolved = true
-}
-
-// SetBasenameStr set and mark as resolved
-func (e *FileEvent) SetBasenameStr(str string) {
-	e.BasenameStr = str
-	e.IsBasenameStrResolved = true
-}
-
-// GetPathResolutionError returns the path resolution error as a string if there is one
-func (e *FileEvent) GetPathResolutionError() string {
-	if e.PathResolutionError != nil {
-		return e.PathResolutionError.Error()
-	}
-	return ""
-}
-
-// IsOverlayFS returns whether it is an overlay fs
-func (e *FileEvent) IsOverlayFS() bool {
-	return e.Filesystem == "overlay"
+	IsPathnameStrResolved bool `field:"-"`
+	IsBasenameStrResolved bool `field:"-"`
 }
 
 // InvalidateDentryEvent defines a invalidate dentry event
@@ -531,8 +314,6 @@ type Mount struct {
 }
 
 // MountEvent represents a mount event
-//
-//msgp:ignore MountEvent
 type MountEvent struct {
 	SyscallEvent
 	Mount
@@ -549,14 +330,10 @@ type UnshareMountNSEvent struct {
 	Mount
 }
 
-// GetFSType returns the filesystem type of the mountpoint
-func (m *Mount) GetFSType() string {
-	return m.FSType
-}
-
-// IsOverlayFS returns whether it is an overlay fs
-func (m *Mount) IsOverlayFS() bool {
-	return m.GetFSType() == "overlay"
+// ChdirEvent represents a chdir event
+type ChdirEvent struct {
+	SyscallEvent
+	File FileEvent `field:"file"`
 }
 
 // OpenEvent represents an open event
@@ -567,50 +344,14 @@ type OpenEvent struct {
 	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`File mode constants`
 }
 
-// SELinuxEventKind represents the event kind for SELinux events
-type SELinuxEventKind uint32
-
-const (
-	// SELinuxBoolChangeEventKind represents SELinux boolean change events
-	SELinuxBoolChangeEventKind SELinuxEventKind = iota
-	// SELinuxStatusChangeEventKind represents SELinux status change events
-	SELinuxStatusChangeEventKind
-	// SELinuxBoolCommitEventKind represents SELinux boolean commit events
-	SELinuxBoolCommitEventKind
-)
-
 // SELinuxEvent represents a selinux event
 type SELinuxEvent struct {
-	File            FileEvent        `field:"-" json:"-"`
-	EventKind       SELinuxEventKind `field:"-" json:"-"`
+	File            FileEvent        `field:"-"`
+	EventKind       SELinuxEventKind `field:"-"`
 	BoolName        string           `field:"bool.name,handler:ResolveSELinuxBoolName"` // SECLDoc[bool.name] Definition:`SELinux boolean name`
 	BoolChangeValue string           `field:"bool.state"`                               // SECLDoc[bool.state] Definition:`SELinux boolean new value`
 	BoolCommitValue bool             `field:"bool_commit.state"`                        // SECLDoc[bool_commit.state] Definition:`Indicator of a SELinux boolean commit operation`
 	EnforceStatus   string           `field:"enforce.status"`                           // SECLDoc[enforce.status] Definition:`SELinux enforcement status (one of "enforcing", "permissive", "disabled")`
-}
-
-const (
-	ProcessCacheEntryFromUnknown     = iota // ProcessCacheEntryFromUnknown defines a process cache entry from unknown
-	ProcessCacheEntryFromPlaceholder        // ProcessCacheEntryFromPlaceholder defines the source of a placeholder process cache entry
-	ProcessCacheEntryFromEvent              // ProcessCacheEntryFromEvent defines a process cache entry from event
-	ProcessCacheEntryFromKernelMap          // ProcessCacheEntryFromKernelMap defines a process cache entry from kernel map
-	ProcessCacheEntryFromProcFS             // ProcessCacheEntryFromProcFS defines a process cache entry from procfs. Note that some exec parent may be missing.
-	ProcessCacheEntryFromSnapshot           // ProcessCacheEntryFromSnapshot defines a process cache entry from snapshot
-)
-
-// ProcessSources defines process sources
-var ProcessSources = [...]string{
-	"unknown",
-	"placeholder",
-	"event",
-	"map",
-	"procfs_fallback",
-	"procfs_snapshot",
-}
-
-// ProcessSourceToString returns the string corresponding to a process source
-func ProcessSourceToString(source uint64) string {
-	return ProcessSources[source]
 }
 
 // PIDContext holds the process context of a kernel event
@@ -642,12 +383,7 @@ type SetXAttrEvent struct {
 	Namespace string    `field:"file.destination.namespace,handler:ResolveXAttrNamespace"` // SECLDoc[file.destination.namespace] Definition:`Namespace of the extended attribute`
 	Name      string    `field:"file.destination.name,handler:ResolveXAttrName"`           // SECLDoc[file.destination.name] Definition:`Name of the extended attribute`
 
-	NameRaw [200]byte `field:"-" json:"-"`
-}
-
-// SyscallEvent contains common fields for all the event
-type SyscallEvent struct {
-	Retval int64 `field:"retval"` // SECLDoc[retval] Definition:`Return value of the syscall` Constants:`Error constants`
+	NameRaw [200]byte `field:"-"`
 }
 
 // UnlinkEvent represents an unlink event
@@ -667,8 +403,8 @@ type UmountEvent struct {
 type UtimesEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
-	Atime time.Time `field:"-" json:"-"`
-	Mtime time.Time `field:"-" json:"-"`
+	Atime time.Time `field:"-"`
+	Mtime time.Time `field:"-"`
 }
 
 // BPFEvent represents a BPF event
@@ -682,14 +418,14 @@ type BPFEvent struct {
 
 // BPFMap represents a BPF map
 type BPFMap struct {
-	ID   uint32 `field:"-" json:"-"` // ID of the eBPF map
-	Type uint32 `field:"type"`       // SECLDoc[type] Definition:`Type of the eBPF map` Constants:`BPF map types`
-	Name string `field:"name"`       // SECLDoc[name] Definition:`Name of the eBPF map (added in 7.35)`
+	ID   uint32 `field:"-"`    // ID of the eBPF map
+	Type uint32 `field:"type"` // SECLDoc[type] Definition:`Type of the eBPF map` Constants:`BPF map types`
+	Name string `field:"name"` // SECLDoc[name] Definition:`Name of the eBPF map (added in 7.35)`
 }
 
 // BPFProgram represents a BPF program
 type BPFProgram struct {
-	ID         uint32   `field:"-" json:"-"`  // ID of the eBPF program
+	ID         uint32   `field:"-"`           // ID of the eBPF program
 	Type       uint32   `field:"type"`        // SECLDoc[type] Definition:`Type of the eBPF program` Constants:`BPF program types`
 	AttachType uint32   `field:"attach_type"` // SECLDoc[attach_type] Definition:`Attach type of the eBPF program` Constants:`BPF attach types`
 	Helpers    []uint32 `field:"helpers"`     // SECLDoc[helpers] Definition:`eBPF helpers used by the eBPF program (added in 7.35)` Constants:`BPF helper functions`
@@ -702,8 +438,8 @@ type PTraceEvent struct {
 	SyscallEvent
 
 	Request uint32          `field:"request"` // SECLDoc[request] Definition:`ptrace request` Constants:`Ptrace constants`
-	PID     uint32          `field:"-" json:"-"`
-	Address uint64          `field:"-" json:"-"`
+	PID     uint32          `field:"-"`
+	Address uint64          `field:"-"`
 	Tracee  *ProcessContext `field:"tracee"` // process context of the tracee
 }
 
@@ -712,9 +448,9 @@ type MMapEvent struct {
 	SyscallEvent
 
 	File       FileEvent `field:"file"`
-	Addr       uint64    `field:"-" json:"-"`
-	Offset     uint64    `field:"-" json:"-"`
-	Len        uint32    `field:"-" json:"-"`
+	Addr       uint64    `field:"-"`
+	Offset     uint64    `field:"-"`
+	Len        uint32    `field:"-"`
 	Protection int       `field:"protection"` // SECLDoc[protection] Definition:`memory segment protection` Constants:`Protection constants`
 	Flags      int       `field:"flags"`      // SECLDoc[flags] Definition:`memory segment flags` Constants:`MMap flags`
 }
@@ -723,8 +459,8 @@ type MMapEvent struct {
 type MProtectEvent struct {
 	SyscallEvent
 
-	VMStart       uint64 `field:"-" json:"-"`
-	VMEnd         uint64 `field:"-" json:"-"`
+	VMStart       uint64 `field:"-"`
+	VMEnd         uint64 `field:"-"`
 	VMProtection  int    `field:"vm_protection"`  // SECLDoc[vm_protection] Definition:`initial memory segment protection` Constants:`Virtual Memory flags`
 	ReqProtection int    `field:"req_protection"` // SECLDoc[req_protection] Definition:`new memory segment protection` Constants:`Virtual Memory flags`
 }
@@ -784,15 +520,9 @@ type ActivityDumpLoadConfig struct {
 	Paused               uint32
 }
 
-// SetTimeout updates the timeout of an activity dump
-func (adlc *ActivityDumpLoadConfig) SetTimeout(duration time.Duration) {
-	adlc.Timeout = duration
-	adlc.EndTimestampRaw = adlc.StartTimestampRaw + uint64(duration)
-}
-
 // NetworkDeviceContext represents the network device context of a network event
 type NetworkDeviceContext struct {
-	NetNS   uint32 `field:"-" json:"-"`
+	NetNS   uint32 `field:"-"`
 	IfIndex uint32 `field:"ifindex"`                                   // SECLDoc[ifindex] Definition:`interface ifindex`
 	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // SECLDoc[ifname] Definition:`interface ifname`
 }
@@ -812,11 +542,6 @@ type NetDevice struct {
 	IfIndex     uint32
 	PeerNetNS   uint32
 	PeerIfIndex uint32
-}
-
-// GetKey returns a key to uniquely identify a network device on the system
-func (d NetDevice) GetKey() string {
-	return fmt.Sprintf("%v_%v", d.IfIndex, d.NetNS)
 }
 
 // NetDeviceEvent represents a network device event
@@ -839,9 +564,6 @@ type SyscallsEvent struct {
 	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
-// PathKeySize defines the path key size
-const PathKeySize = 16
-
 // AnomalyDetectionSyscallEvent represents an anomaly detection for a syscall event
 type AnomalyDetectionSyscallEvent struct {
 	SyscallID Syscall
@@ -853,78 +575,3 @@ type PathKey struct {
 	MountID uint32 `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the file`
 	PathID  uint32 `field:"-"`
 }
-
-func (p *PathKey) Write(buffer []byte) {
-	ByteOrder.PutUint64(buffer[0:8], p.Inode)
-	ByteOrder.PutUint32(buffer[8:12], p.MountID)
-	ByteOrder.PutUint32(buffer[12:16], p.PathID)
-}
-
-// IsNull returns true if a key is invalid
-func (p *PathKey) IsNull() bool {
-	return p.Inode == 0 && p.MountID == 0
-}
-
-func (p *PathKey) String() string {
-	return fmt.Sprintf("%x/%x", p.MountID, p.Inode)
-}
-
-// MarshalBinary returns the binary representation of a path key
-func (p *PathKey) MarshalBinary() ([]byte, error) {
-	if p.IsNull() {
-		return nil, &ErrInvalidKeyPath{Inode: p.Inode, MountID: p.MountID}
-	}
-
-	buff := make([]byte, 16)
-	p.Write(buff)
-
-	return buff, nil
-}
-
-// PathLeafSize defines path_leaf struct size
-const PathLeafSize = PathKeySize + MaxSegmentLength + 1 + 2 + 6 // path_key + name + len + padding
-
-// PathLeaf is the go representation of the eBPF path_leaf_t structure
-type PathLeaf struct {
-	Parent  PathKey
-	Name    [MaxSegmentLength + 1]byte
-	Len     uint16
-	Padding [6]uint8
-}
-
-// GetName returns the path value as a string
-func (pl *PathLeaf) GetName() string {
-	return NullTerminatedString(pl.Name[:])
-}
-
-// SetName sets the path name
-func (pl *PathLeaf) SetName(name string) {
-	copy(pl.Name[:], []byte(name))
-	pl.Len = uint16(len(name) + 1)
-}
-
-// MarshalBinary returns the binary representation of a path key
-func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
-	buff := make([]byte, PathLeafSize)
-
-	pl.Parent.Write(buff)
-	copy(buff[16:], pl.Name[:])
-	ByteOrder.PutUint16(buff[16+len(pl.Name):], pl.Len)
-
-	return buff, nil
-}
-
-// ExtraFieldHandlers handlers not hold by any field
-type ExtraFieldHandlers interface {
-	BaseExtraFieldHandlers
-	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
-	ResolveUserSessionContext(evtCtx *UserSessionContext)
-}
-
-// ResolveHashes resolves the hash of the provided file
-func (dfh *DefaultFieldHandlers) ResolveHashes(_ EventType, _ *Process, _ *FileEvent) []string {
-	return nil
-}
-
-// ResolveUserSessionContext resolves and updates the provided user session context
-func (dfh *DefaultFieldHandlers) ResolveUserSessionContext(_ *UserSessionContext) {}

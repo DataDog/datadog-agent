@@ -21,10 +21,10 @@ func TestServerlessLoggingNotInServerlessContext(t *testing.T) {
 	w := bufio.NewWriter(&b)
 
 	l, err := seelog.LoggerFromWriterWithMinLevel(w, seelog.DebugLvl)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	SetupLogger(l, "debug")
-	assert.NotNil(t, Logger)
+	assert.NotNil(t, logger.Load())
 
 	DebugfServerless("%s %d", "foo", 10)
 	DebugServerless("Not in serverless mode")

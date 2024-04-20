@@ -10,10 +10,13 @@ package systemprobe
 
 import (
 	"context"
-	_ "embed"
+	_ "embed" // embed files used in this scenario
+	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -30,31 +33,33 @@ import (
 )
 
 const (
-	AgentQAPrimaryAZ   = "subnet-03061a1647c63c3c3"
-	AgentQASecondaryAZ = "subnet-0f1ca3e929eb3fb8b"
-	AgentQABackupAZ    = "subnet-071213aedb0e1ae54"
+	agentQAPrimaryAZ   = "subnet-03061a1647c63c3c3"
+	agentQASecondaryAZ = "subnet-0f1ca3e929eb3fb8b"
+	agentQABackupAZ    = "subnet-071213aedb0e1ae54"
 
-	SandboxPrimaryAz   = "subnet-b89e00e2"
-	SandboxSecondaryAz = "subnet-8ee8b1c6"
-	SandboxBackupAz    = "subnet-3f5db45b"
+	sandboxPrimaryAz   = "subnet-b89e00e2"
+	sandboxSecondaryAz = "subnet-8ee8b1c6"
+	sandboxBackupAz    = "subnet-3f5db45b"
 
-	DatadogAgentQAEnv = "aws/agent-qa"
-	SandboxEnv        = "aws/sandbox"
-	EC2TagsEnvVar     = "RESOURCE_TAGS"
+	datadogAgentQAEnv = "aws/agent-qa"
+	sandboxEnv        = "aws/sandbox"
+	ec2TagsEnvVar     = "RESOURCE_TAGS"
 )
 
 var availabilityZones = map[string][]string{
-	DatadogAgentQAEnv: {AgentQAPrimaryAZ, AgentQASecondaryAZ, AgentQABackupAZ},
-	SandboxEnv:        {SandboxPrimaryAz, SandboxSecondaryAz, SandboxBackupAz},
+	datadogAgentQAEnv: {agentQAPrimaryAZ, agentQASecondaryAZ, agentQABackupAZ},
+	sandboxEnv:        {sandboxPrimaryAz, sandboxSecondaryAz, sandboxBackupAz},
 }
 
-type SystemProbeEnvOpts struct {
+// EnvOpts are the options for the system-probe scenario
+type EnvOpts struct {
 	X86AmiID              string
 	ArmAmiID              string
 	SSHKeyPath            string
 	SSHKeyName            string
 	InfraEnv              string
-	Provision             bool
+	ProvisionInstance     bool
+	ProvisionMicrovms     bool
 	ShutdownPeriod        int
 	FailOnMissing         bool
 	DependenciesDirectory string
@@ -65,6 +70,7 @@ type SystemProbeEnvOpts struct {
 	AgentVersion          string
 }
 
+// TestEnv represents options for a particular test environment
 type TestEnv struct {
 	context context.Context
 	name    string
@@ -75,14 +81,12 @@ type TestEnv struct {
 }
 
 var (
-	MicroVMsDependenciesPath = filepath.Join("/", "opt", "kernel-version-testing", "dependencies-%s.tar.gz")
-	CustomAMIWorkingDir      = filepath.Join("/", "home", "kernel-version-testing")
+	ciProjectDir = getEnv("CI_PROJECT_DIR", "/tmp")
+	sshKeyX86    = getEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
+	sshKeyArm    = getEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")
 
-	CI_PROJECT_DIR = GetEnv("CI_PROJECT_DIR", "/tmp")
-	sshKeyX86      = GetEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
-	sshKeyArm      = GetEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")
-
-	stackOutputs = filepath.Join(CI_PROJECT_DIR, "stack.output")
+	stackOutputs    = filepath.Join(ciProjectDir, "stack.output")
+	kmtStackJSONKey = "kmt-stack"
 )
 
 func outputsToFile(output auto.OutputMap) error {
@@ -93,10 +97,15 @@ func outputsToFile(output auto.OutputMap) error {
 	defer f.Close()
 
 	for key, value := range output {
+		// we only want the json output representing KMT's
+		// infrastructure saved to the output file.
+		if key != kmtStackJSONKey {
+			continue
+		}
 		switch v := value.Value.(type) {
 		case string:
-			if _, err := f.WriteString(fmt.Sprintf("%s %s\n", key, v)); err != nil {
-				return fmt.Errorf("write string: %s", err)
+			if _, err := f.WriteString(fmt.Sprintf("%s\n", v)); err != nil {
+				return fmt.Errorf("failed to write string to file %q: %v", stackOutputs, err)
 			}
 		default:
 		}
@@ -104,7 +113,7 @@ func outputsToFile(output auto.OutputMap) error {
 	return f.Sync()
 }
 
-func GetEnv(key, fallback string) string {
+func getEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
 	}
@@ -141,7 +150,8 @@ func getAvailabilityZone(env string, azIndx int) string {
 	return ""
 }
 
-func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
+// NewTestEnv creates a new test environment
+func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*TestEnv, error) {
 	var err error
 	var sudoPassword string
 
@@ -161,9 +171,28 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		sudoPassword = ""
 	}
 
-	apiKey := GetEnv("DD_API_KEY", "")
+	apiKey := getEnv("DD_API_KEY", "")
 	if opts.RunAgent && apiKey == "" {
 		return nil, fmt.Errorf("No API Key for datadog-agent provided")
+	}
+
+	var customAMILocalWorkingDir string
+
+	// Remote AMI working dir is always on Linux
+	customAMIRemoteWorkingDir := filepath.Join("/", "home", "kernel-version-testing")
+
+	if runtime.GOOS == "linux" {
+		// Linux share the same working dir as the remote (which is always Linux)
+		customAMILocalWorkingDir = customAMIRemoteWorkingDir
+	} else if runtime.GOOS == "darwin" {
+		// macOS does not let us create /home/kernel-version-testing, so we use an alternative
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		customAMILocalWorkingDir = filepath.Join(homeDir, "kernel-version-testing")
+	} else {
+		return nil, fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 	}
 
 	config := runner.ConfigMap{
@@ -180,10 +209,12 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		"microvm:microVMConfigFile":              auto.ConfigValue{Value: opts.VMConfigPath},
 		"microvm:libvirtSSHKeyFileX86":           auto.ConfigValue{Value: sshKeyX86},
 		"microvm:libvirtSSHKeyFileArm":           auto.ConfigValue{Value: sshKeyArm},
-		"microvm:provision":                      auto.ConfigValue{Value: strconv.FormatBool(opts.Provision)},
+		"microvm:provision-instance":             auto.ConfigValue{Value: strconv.FormatBool(opts.ProvisionInstance)},
+		"microvm:provision-microvms":             auto.ConfigValue{Value: strconv.FormatBool(opts.ProvisionMicrovms)},
 		"microvm:x86AmiID":                       auto.ConfigValue{Value: opts.X86AmiID},
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
-		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
+		"microvm:localWorkingDir":                auto.ConfigValue{Value: customAMILocalWorkingDir},
+		"microvm:remoteWorkingDir":               auto.ConfigValue{Value: customAMIRemoteWorkingDir},
 		"ddagent:deploy":                         auto.ConfigValue{Value: strconv.FormatBool(opts.RunAgent)},
 		"ddagent:apiKey":                         auto.ConfigValue{Value: apiKey, Secret: true},
 	}
@@ -204,28 +235,29 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		config["ddagent:version"] = auto.ConfigValue{Value: opts.AgentVersion}
 	}
 
-	if envVars := GetEnv(EC2TagsEnvVar, ""); envVars != "" {
+	if envVars := getEnv(ec2TagsEnvVar, ""); envVars != "" {
 		config["ddinfra:extraResourcesTags"] = auto.ConfigValue{Value: envVars}
 	}
 
 	var upResult auto.UpResult
+	var pulumiStack *auto.Stack
 	ctx := context.Background()
 	currentAZ := 0 // PrimaryAZ
 	b := retry.NewConstant(3 * time.Second)
 	// Retry 4 times. This allows us to cycle through all AZs, and handle libvirt
 	// connection issues in the worst case.
 	b = retry.WithMaxRetries(4, b)
-	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
+	retryErr := retry.Do(ctx, b, func(_ context.Context) error {
 		if az := getAvailabilityZone(opts.InfraEnv, currentAZ); az != "" {
 			config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: az}
 		}
 
-		_, upResult, err = stackManager.GetStackNoDeleteOnFailure(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
+		pulumiStack, upResult, err = stackManager.GetStackNoDeleteOnFailure(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
 			if err := microvms.Run(ctx); err != nil {
 				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 			}
 			return nil
-		}, opts.FailOnMissing)
+		}, opts.FailOnMissing, nil)
 		if err != nil {
 			return handleScenarioFailure(err, func(possibleError handledError) {
 				// handle the following errors by trying in a different availability zone
@@ -237,13 +269,24 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		}
 
 		return nil
-	}); retryErr != nil {
-		return nil, fmt.Errorf("failed to create stack: %w", retryErr)
-	}
+	})
 
-	err = outputsToFile(upResult.Outputs)
+	outputs := upResult.Outputs
+	if retryErr != nil {
+		// pulumi does not populate `UpResult` with the stack output if the
+		// update process failed. In this case we must manually fetch the outputs.
+		outputs, err = pulumiStack.Outputs(context.Background())
+		if err != nil {
+			outputs = nil
+			log.Printf("failed to get stack outputs: %v", err)
+		}
+	}
+	err = outputsToFile(outputs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to write stack output to file: %w", err)
+		err = fmt.Errorf("failed to write stack output to file: %w", err)
+	}
+	if retryErr != nil {
+		return nil, errors.Join(fmt.Errorf("failed to create stack: %w", retryErr), err)
 	}
 
 	systemProbeTestEnv.StackOutput = upResult
@@ -251,10 +294,12 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	return systemProbeTestEnv, nil
 }
 
+// Destroy deletes the stack with the provided name
 func Destroy(name string) error {
-	return infra.GetStackManager().DeleteStack(context.Background(), name)
+	return infra.GetStackManager().DeleteStack(context.Background(), name, nil)
 }
 
+// RemoveStack removes the stack configuration with the provided name
 func (env *TestEnv) RemoveStack() error {
 	return infra.GetStackManager().ForceRemoveStackConfiguration(env.context, env.name)
 }

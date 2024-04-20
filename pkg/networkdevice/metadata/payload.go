@@ -3,7 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package metadata defines types for describing data about a device.
 package metadata
+
+import "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 
 // PayloadMetadataBatchSize is the number of resources per event payload
 // Resources are devices, interfaces, etc
@@ -19,12 +22,15 @@ const (
 	DeviceStatusUnreachable = DeviceStatus(2)
 )
 
+//nolint:revive // TODO(NDM) Fix revive linter
 type IDType string
 
 const (
 	// IDTypeMacAddress represent mac address in `00:00:00:00:00:00` format
-	IDTypeMacAddress     = "mac_address"
-	IDTypeInterfaceName  = "interface_name"
+	IDTypeMacAddress = "mac_address"
+	//nolint:revive // TODO(NDM) Fix revive linter
+	IDTypeInterfaceName = "interface_name"
+	//nolint:revive // TODO(NDM) Fix revive linter
 	IDTypeInterfaceAlias = "interface_alias"
 )
 
@@ -38,6 +44,7 @@ type NetworkDevicesMetadata struct {
 	Links            []TopologyLinkMetadata `json:"links,omitempty"`
 	NetflowExporters []NetflowExporter      `json:"netflow_exporters,omitempty"`
 	Diagnoses        []DiagnosisMetadata    `json:"diagnoses,omitempty"`
+	DeviceOIDs       []DeviceOID            `json:"device_oids,omitempty"`
 	CollectTimestamp int64                  `json:"collect_timestamp"`
 }
 
@@ -48,6 +55,7 @@ type DeviceMetadata struct {
 	Tags           []string     `json:"tags"`
 	IPAddress      string       `json:"ip_address"`
 	Status         DeviceStatus `json:"status"`
+	PingStatus     DeviceStatus `json:"ping_status,omitempty"`
 	Name           string       `json:"name,omitempty"`
 	Description    string       `json:"description,omitempty"`
 	SysObjectID    string       `json:"sys_object_id,omitempty"`
@@ -64,13 +72,22 @@ type DeviceMetadata struct {
 	OsVersion      string       `json:"os_version,omitempty"`
 	OsHostname     string       `json:"os_hostname,omitempty"`
 	Integration    string       `json:"integration,omitempty"` // indicates the source of the data SNMP, meraki_api, etc.
+	DeviceType     string       `json:"device_type,omitempty"`
+}
+
+// DeviceOID device scan oid data
+type DeviceOID struct {
+	*gosnmplib.PDU
+	DeviceID string `json:"device_id"`
 }
 
 // InterfaceMetadata contains interface metadata
 type InterfaceMetadata struct {
 	DeviceID      string        `json:"device_id"`
-	IDTags        []string      `json:"id_tags"` // used to correlate with interface metrics
-	Index         int32         `json:"index"`   // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
+	IDTags        []string      `json:"id_tags"`               // used to correlate with interface metrics
+	Index         int32         `json:"index"`                 // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
+	RawID         string        `json:"raw_id,omitempty"`      // used to uniquely identify the interface in the context of the device
+	RawIDType     string        `json:"raw_id_type,omitempty"` // used to indicate the type of identifier used (i.e. portId for Meraki switches, uplink for Meraki uplinks, blank for SNMP for compatibility)
 	Name          string        `json:"name,omitempty"`
 	Alias         string        `json:"alias,omitempty"`
 	Description   string        `json:"description,omitempty"`

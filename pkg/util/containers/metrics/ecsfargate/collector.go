@@ -14,11 +14,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -38,7 +40,7 @@ var ecsUnsetMemoryLimit = uint64(math.Pow(2, 62))
 func init() {
 	provider.RegisterCollector(provider.CollectorFactory{
 		ID: collectorID,
-		Constructor: func(cache *provider.Cache) (provider.CollectorMetadata, error) {
+		Constructor: func(cache *provider.Cache, _ optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 			return newEcsFargateCollector(cache)
 		},
 	})
@@ -73,7 +75,7 @@ func newEcsFargateCollector(cache *provider.Cache) (provider.CollectorMetadata, 
 	return provider.CollectorMetadata{
 		ID: collectorID,
 		Collectors: provider.CollectorCatalog{
-			provider.RuntimeNameECSFargate: provider.MakeCached(collectorID, cache, collectors),
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameECSFargate), ""): provider.MakeCached(collectorID, cache, collectors),
 		},
 	}, nil
 }
@@ -82,6 +84,8 @@ func newEcsFargateCollector(cache *provider.Cache) (provider.CollectorMetadata, 
 func (e *ecsFargateCollector) ID() string { return collectorID }
 
 // GetContainerStats returns stats by container ID.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (e *ecsFargateCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	stats, err := e.stats(containerID)
 	if err != nil {
@@ -100,6 +104,8 @@ func (e *ecsFargateCollector) GetContainerStats(containerNS, containerID string,
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (e *ecsFargateCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	stats, err := e.stats(containerID)
 	if err != nil {

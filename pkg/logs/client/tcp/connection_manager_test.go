@@ -16,8 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 )
 
 func newConnectionManagerForAddr(addr net.Addr) *ConnectionManager {
@@ -26,8 +27,8 @@ func newConnectionManagerForAddr(addr net.Addr) *ConnectionManager {
 }
 
 func newConnectionManagerForHostPort(host string, port int) *ConnectionManager {
-	endpoint := config.Endpoint{Host: host, Port: port}
-	return NewConnectionManager(endpoint)
+	endpoint := config.NewEndpoint("", host, port, false)
+	return NewConnectionManager(endpoint, statusinterface.NewStatusProviderMock())
 }
 
 func TestAddress(t *testing.T) {
@@ -38,7 +39,7 @@ func TestAddress(t *testing.T) {
 func TestNewConnection(t *testing.T) {
 	l := mock.NewMockLogsIntake(t)
 	defer l.Close()
-	util.CreateSources([]*sources.LogSource{})
+	testutils.CreateSources([]*sources.LogSource{})
 	destinationsCtx := client.NewDestinationsContext()
 
 	connManager := newConnectionManagerForAddr(l.Addr())
@@ -75,7 +76,7 @@ func TestNewConnectionReturnsWhenContextCancelled(t *testing.T) {
 
 func TestShouldReset(t *testing.T) {
 	endpoint := config.Endpoint{ConnectionResetInterval: time.Duration(10) * time.Second}
-	connManager := NewConnectionManager(endpoint)
+	connManager := NewConnectionManager(endpoint, statusinterface.NewStatusProviderMock())
 
 	assert.False(t, connManager.ShouldReset(time.Now().Add(-time.Duration(5)*time.Second)))
 	assert.True(t, connManager.ShouldReset(time.Now().Add(-time.Duration(20)*time.Second)))
@@ -83,7 +84,7 @@ func TestShouldReset(t *testing.T) {
 
 func TestShouldResetDisabled(t *testing.T) {
 	endpoint := config.Endpoint{ConnectionResetInterval: 0}
-	connManager := NewConnectionManager(endpoint)
+	connManager := NewConnectionManager(endpoint, statusinterface.NewStatusProviderMock())
 
 	assert.False(t, connManager.ShouldReset(time.Now().Add(-time.Duration(5)*time.Second)))
 	assert.False(t, connManager.ShouldReset(time.Now().Add(-time.Duration(20)*time.Second)))

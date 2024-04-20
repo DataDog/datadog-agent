@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package tags
 
 import (
@@ -26,7 +27,8 @@ const (
 	qualifierEnvVar = "AWS_LAMBDA_FUNCTION_VERSION"
 	runtimeVar      = "AWS_EXECUTION_ENV"
 	memorySizeVar   = "AWS_LAMBDA_FUNCTION_MEMORY_SIZE"
-	InitType        = "AWS_LAMBDA_INITIALIZATION_TYPE"
+	//nolint:revive // TODO(SERV) Fix revive linter
+	InitType = "AWS_LAMBDA_INITIALIZATION_TYPE"
 
 	// FunctionARNKey is the tag key for a function's arn
 	FunctionARNKey = "function_arn"
@@ -54,8 +56,10 @@ const (
 	traceOriginMetadataKey   = "_dd.origin"
 	traceOriginMetadataValue = "lambda"
 
-	computeStatsKey   = "_dd.compute_stats"
-	computeStatsValue = "1"
+	// ComputeStatsKey is the tag key indicating whether trace stats should be computed
+	ComputeStatsKey = "_dd.compute_stats"
+	// ComputeStatsValue is the tag value indicating trace stats should be computed
+	ComputeStatsValue = "1"
 
 	extensionVersionKey = "dd_extension_version"
 
@@ -95,7 +99,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags = MergeWithOverwrite(tags, ArrayToMap(configTags))
 
 	tags = setIfNotEmpty(tags, traceOriginMetadataKey, traceOriginMetadataValue)
-	tags = setIfNotEmpty(tags, computeStatsKey, computeStatsValue)
+	tags = setIfNotEmpty(tags, ComputeStatsKey, ComputeStatsValue)
 	tags = setIfNotEmpty(tags, FunctionARNKey, arn)
 	tags = setIfNotEmpty(tags, extensionVersionKey, GetExtensionVersion())
 
@@ -121,6 +125,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	return tags
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func ArrayToMap(tagArray []string) map[string]string {
 	tagMap := make(map[string]string)
 	for _, tag := range tagArray {
@@ -153,7 +158,7 @@ func MergeWithOverwrite(tags map[string]string, overwritingTags map[string]strin
 
 // BuildTagsFromMap builds an array of tag based on map of tags
 func BuildTagsFromMap(tags map[string]string) []string {
-	tagsMap := buildTags(tags, []string{traceOriginMetadataKey, computeStatsKey})
+	tagsMap := buildTags(tags, []string{traceOriginMetadataKey, ComputeStatsKey})
 	return MapToArray(tagsMap)
 }
 

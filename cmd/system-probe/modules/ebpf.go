@@ -13,21 +13,23 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // EBPFProbe Factory
 var EBPFProbe = module.Factory{
 	Name:             config.EBPFModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *config.Config) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component]) (module.Module, error) {
 		log.Infof("Starting the ebpf probe")
 		okp, err := ebpfcheck.NewProbe(ebpf.NewConfig())
 		if err != nil {
@@ -37,6 +39,9 @@ var EBPFProbe = module.Factory{
 			Probe:     okp,
 			lastCheck: atomic.NewInt64(0),
 		}, nil
+	},
+	NeedsEBPF: func() bool {
+		return true
 	},
 }
 
@@ -48,7 +53,8 @@ type ebpfModule struct {
 }
 
 func (o *ebpfModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+	// Limit concurrency to one as the probe check is not thread safe (mainly in the entry count buffers)
+	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
 		o.lastCheck.Store(time.Now().Unix())
 		stats := o.Probe.GetAndFlush()
 		utils.WriteAsJSON(w, stats)
@@ -61,9 +67,4 @@ func (o *ebpfModule) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"last_check": o.lastCheck.Load(),
 	}
-}
-
-// RegisterGRPC register to system probe gRPC server
-func (o *ebpfModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
-	return nil
 }

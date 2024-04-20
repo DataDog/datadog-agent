@@ -8,6 +8,7 @@ package remoteconfig
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
@@ -45,7 +47,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 		Hidden: true,
@@ -54,25 +56,31 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{remoteConfigCmd}
 }
 
-func state(cliParams *cliParams, config config.Component) error {
+func state(_ *cliParams, config config.Component) error {
 	if !pkgconfig.IsRemoteConfigEnabled(config) {
-		return fmt.Errorf("Remote configuration is not enabled")
+		return errors.New("remote configuration is not enabled")
 	}
 	fmt.Println("Fetching the configuration and director repos state..")
 	// Call GRPC endpoint returning state tree
 
-	token, err := security.FetchAuthToken()
+	token, err := security.FetchAuthToken(config)
 	if err != nil {
-		return fmt.Errorf("Couldn't get auth token: %v", err)
+		return fmt.Errorf("couldn't get auth token: %w", err)
 	}
-	ctx, close := context.WithCancel(context.Background())
-	defer close()
+
+	ctx, closeFn := context.WithCancel(context.Background())
+	defer closeFn()
 	md := metadata.MD{
 		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx)
+	ipcAddress, err := pkgconfig.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfig.GetIPCPort())
 	if err != nil {
 		return err
 	}
@@ -80,10 +88,18 @@ func state(cliParams *cliParams, config config.Component) error {
 
 	s, err := cli.GetConfigState(ctx, in)
 	if err != nil {
-		return fmt.Errorf("Couldn't get the repositories state: %v", err)
+		return fmt.Errorf("couldn't get the repositories state: %w", err)
 	}
 
-	flare.PrintRemoteConfigState(os.Stdout, s)
+	var stateHA *pbgo.GetStateConfigResponse
+	if pkgconfig.Datadog.GetBool("ha.enabled") {
+		stateHA, err = cli.GetConfigStateHA(ctx, in)
+		if err != nil {
+			return fmt.Errorf("couldn't get the HA repositories state: %w", err)
+		}
+	}
+
+	flare.PrintRemoteConfigStates(os.Stdout, s, stateHA)
 
 	return nil
 }

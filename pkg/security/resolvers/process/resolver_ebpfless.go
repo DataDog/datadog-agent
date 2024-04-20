@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,10 +27,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// CacheResolverKey is used to store and retrieve processes from the cache
+type CacheResolverKey struct {
+	Pid  uint32 // Pid of the related process (namespaced)
+	NSID uint64 // NSID represents the pids namespace ID of the related container
+}
+
 // EBPFLessResolver defines a resolver
 type EBPFLessResolver struct {
 	sync.RWMutex
-	entryCache   map[uint32]*model.ProcessCacheEntry
+	entryCache   map[CacheResolverKey]*model.ProcessCacheEntry
 	opts         ResolverOpts
 	scrubber     *procutil.DataScrubber
 	statsdClient statsd.ClientInterface
@@ -43,7 +50,7 @@ type EBPFLessResolver struct {
 // NewEBPFLessResolver returns a new process resolver
 func NewEBPFLessResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts *ResolverOpts) (*EBPFLessResolver, error) {
 	p := &EBPFLessResolver{
-		entryCache:   make(map[uint32]*model.ProcessCacheEntry),
+		entryCache:   make(map[CacheResolverKey]*model.ProcessCacheEntry),
 		opts:         *opts,
 		scrubber:     scrubber,
 		cacheSize:    atomic.NewInt64(0),
@@ -55,69 +62,120 @@ func NewEBPFLessResolver(_ *config.Config, statsdClient statsd.ClientInterface, 
 	return p, nil
 }
 
-func (p *EBPFLessResolver) deleteEntry(pid uint32, exitTime time.Time) {
-	entry, ok := p.entryCache[pid]
+func (p *EBPFLessResolver) deleteEntry(key CacheResolverKey, exitTime time.Time) {
+	entry, ok := p.entryCache[key]
 	if !ok {
 		return
 	}
 
 	entry.Exit(exitTime)
-	delete(p.entryCache, entry.Pid)
+	delete(p.entryCache, key)
 	entry.Release()
 }
 
 // DeleteEntry tries to delete an entry in the process cache
-func (p *EBPFLessResolver) DeleteEntry(pid uint32, exitTime time.Time) {
+func (p *EBPFLessResolver) DeleteEntry(key CacheResolverKey, exitTime time.Time) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.deleteEntry(pid, exitTime)
+	p.deleteEntry(key, exitTime)
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
-func (p *EBPFLessResolver) AddForkEntry(pid uint32, ppid uint32) *model.ProcessCacheEntry {
+func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts uint64) *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
-	entry.PIDContext.Pid = pid
+	entry.PIDContext.Pid = key.Pid
 	entry.PPid = ppid
+	entry.ForkTime = time.Unix(0, int64(ts))
+	entry.IsThread = true
+	entry.Source = model.ProcessCacheEntryFromEvent
 
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertForkEntry(entry)
+	p.insertForkEntry(key, entry)
+
+	return entry
+}
+
+// NewEntry returns a new entry
+func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
+	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string, source uint64) *model.ProcessCacheEntry {
+
+	entry := p.processCacheEntryPool.Get()
+	entry.PIDContext.Pid = key.Pid
+	entry.PPid = ppid
+	entry.Source = source
+
+	entry.Process.ArgsEntry = &model.ArgsEntry{
+		Values:    argv,
+		Truncated: argsTruncated,
+	}
+	if len(argv) > 0 {
+		entry.Process.Argv0 = argv[0]
+	}
+	entry.Process.Comm = filepath.Base(file)
+	if len(entry.Process.Comm) > 16 {
+		// truncate comm to max 16 chars to be ebpf ISO
+		entry.Process.Comm = entry.Process.Comm[:16]
+	}
+	entry.Process.TTYName = tty
+
+	entry.Process.EnvsEntry = &model.EnvsEntry{
+		Values:    envs,
+		Truncated: envsTruncated,
+	}
+
+	if strings.HasPrefix(file, "memfd:") {
+		entry.Process.FileEvent.PathnameStr = ""
+		entry.Process.FileEvent.BasenameStr = file
+	} else {
+		entry.Process.FileEvent.PathnameStr = file
+		entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
+	}
+	entry.Process.ContainerID = ctrID
+
+	entry.ExecTime = time.Unix(0, int64(ts))
 
 	return entry
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
-func (p *EBPFLessResolver) AddExecEntry(pid uint32, file string, argv []string, envs []string, ctrID string) *model.ProcessCacheEntry {
-	entry := p.processCacheEntryPool.Get()
-	entry.PIDContext.Pid = pid
-
-	entry.Process.ArgsEntry = &model.ArgsEntry{Values: argv}
-	if len(argv) > 0 {
-		entry.Process.Comm = argv[0]
-		entry.Process.Argv0 = argv[0]
-	}
-
-	entry.Process.EnvsEntry = &model.EnvsEntry{Values: envs}
-
-	entry.Process.FileEvent.PathnameStr = file
-	entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
-	entry.Process.ContainerID = ctrID
-
-	// TODO fix timestamp
-	entry.ExecTime = time.Now()
+func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
+	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string) *model.ProcessCacheEntry {
+	entry := p.NewEntry(key, ppid, file, argv, argsTruncated, envs, envsTruncated, ctrID, ts, tty, model.ProcessCacheEntryFromEvent)
 
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertExecEntry(entry)
+	p.insertExecEntry(key, entry)
 
 	return entry
 }
 
-func (p *EBPFLessResolver) insertEntry(entry, prev *model.ProcessCacheEntry) {
-	p.entryCache[entry.Pid] = entry
+// AddProcFSEntry add a procfs entry
+func (p *EBPFLessResolver) AddProcFSEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
+	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string) *model.ProcessCacheEntry {
+	entry := p.NewEntry(key, ppid, file, argv, argsTruncated, envs, envsTruncated, ctrID, ts, tty, model.ProcessCacheEntryFromProcFS)
+
+	p.Lock()
+	defer p.Unlock()
+
+	parentKey := CacheResolverKey{NSID: key.NSID, Pid: ppid}
+	if parent := p.entryCache[parentKey]; parent != nil {
+		if parent.Equals(entry) {
+			entry.SetParentOfForkChild(parent)
+		} else {
+			entry.SetAncestor(parent)
+		}
+	}
+	p.insertEntry(key, entry, p.entryCache[key])
+
+	return entry
+}
+
+func (p *EBPFLessResolver) insertEntry(key CacheResolverKey, entry, prev *model.ProcessCacheEntry) {
+	p.entryCache[key] = entry
 	entry.Retain()
 
 	if prev != nil {
@@ -127,40 +185,93 @@ func (p *EBPFLessResolver) insertEntry(entry, prev *model.ProcessCacheEntry) {
 	p.cacheSize.Inc()
 }
 
-func (p *EBPFLessResolver) insertForkEntry(entry *model.ProcessCacheEntry) {
-	prev := p.entryCache[entry.Pid]
+func (p *EBPFLessResolver) insertForkEntry(key CacheResolverKey, entry *model.ProcessCacheEntry) {
+	prev := p.entryCache[key]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
 		prev.Exit(entry.ForkTime)
 	}
 
 	if entry.Pid != 1 {
-		parent := p.entryCache[entry.PPid]
+		parent := p.entryCache[CacheResolverKey{
+			Pid:  entry.PPid,
+			NSID: key.NSID,
+		}]
 		if parent != nil {
 			parent.Fork(entry)
 		}
 	}
 
-	p.insertEntry(entry, prev)
+	p.insertEntry(key, entry, prev)
 }
 
-func (p *EBPFLessResolver) insertExecEntry(entry *model.ProcessCacheEntry) {
-	prev := p.entryCache[entry.Pid]
+func (p *EBPFLessResolver) insertExecEntry(key CacheResolverKey, entry *model.ProcessCacheEntry) {
+	prev := p.entryCache[key]
 	if prev != nil {
 		prev.Exec(entry)
+
+		// procfs entry should have the ppid already set
+		if entry.PPid == 0 {
+			entry.PPid = prev.PPid
+		}
+
+		// inheritate credentials as exec event, uid/gid can be update by setuid/setgid events
+		entry.Credentials = prev.Credentials
 	}
 
-	p.insertEntry(entry, prev)
+	p.insertEntry(key, entry, prev)
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *EBPFLessResolver) Resolve(pid uint32) *model.ProcessCacheEntry {
+func (p *EBPFLessResolver) Resolve(key CacheResolverKey) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
-	if e, ok := p.entryCache[pid]; ok {
+	if e, ok := p.entryCache[key]; ok {
 		return e
 	}
 	return nil
+}
+
+// UpdateUID updates the credentials of the provided pid
+func (p *EBPFLessResolver) UpdateUID(key CacheResolverKey, uid int32, euid int32) {
+	p.Lock()
+	defer p.Unlock()
+
+	entry := p.entryCache[key]
+	if entry != nil {
+		if uid != -1 {
+			entry.Credentials.UID = uint32(uid)
+		}
+		if euid != -1 {
+			entry.Credentials.EUID = uint32(euid)
+		}
+	}
+}
+
+// UpdateGID updates the credentials of the provided pid
+func (p *EBPFLessResolver) UpdateGID(key CacheResolverKey, gid int32, egid int32) {
+	p.Lock()
+	defer p.Unlock()
+
+	entry := p.entryCache[key]
+	if entry != nil {
+		if gid != -1 {
+			entry.Credentials.GID = uint32(gid)
+		}
+		if egid != -1 {
+			entry.Credentials.EGID = uint32(egid)
+		}
+	}
+}
+
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *EBPFLessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
+	p.RLock()
+	defer p.RUnlock()
+
+	for _, entry := range p.entryCache {
+		callback(entry)
+	}
 }
 
 // getCacheSize returns the cache size of the process resolver
@@ -198,16 +309,15 @@ func (p *EBPFLessResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, 
 		return pr.Argv, pr.ArgsTruncated
 	}
 
-	argv, truncated := GetProcessArgv(pr)
-
-	if p.scrubber != nil && len(argv) > 0 {
+	if p.scrubber != nil && len(pr.ArgsEntry.Values) > 0 {
 		// replace with the scrubbed version
-		argv, _ = p.scrubber.ScrubCommand(argv)
+		argv, _ := p.scrubber.ScrubCommand(pr.ArgsEntry.Values[1:])
 		pr.ArgsEntry.Values = []string{pr.ArgsEntry.Values[0]}
 		pr.ArgsEntry.Values = append(pr.ArgsEntry.Values, argv...)
 	}
+	pr.ScrubbedArgvResolved = true
 
-	return argv, truncated
+	return GetProcessArgv(pr)
 }
 
 // GetProcessEnvs returns the envs of the event

@@ -22,7 +22,7 @@ type MockParams struct {
 //
 //	fxutil.Test[dependencies](
 //	   t,
-//	   resources.MockModule,
+//	   resources.MockModule(),
 //	   fx.Replace(resources.MockParams{Data: someData}),
 //	)
 type Mock interface {

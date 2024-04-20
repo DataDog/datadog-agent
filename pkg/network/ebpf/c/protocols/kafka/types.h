@@ -24,16 +24,7 @@ typedef struct {
     __u16 request_api_version;
     char topic_name[TOPIC_NAME_MAX_STRING_SIZE];
     __u16 topic_name_size;
-} kafka_transaction_batch_entry_t;
-
-// Kafka transaction information associated to a certain socket (tuple_t)
-typedef struct {
-    // this field is used to disambiguate segments in the context of keep-alives
-    // we populate it with the TCP seq number of the request and then the response segments
-    __u32 tcp_seq;
-
-    __u32 current_offset_in_request_fragment;
-    kafka_transaction_batch_entry_t base;
+    __u32 records_count;
 } kafka_transaction_t;
 
 #endif

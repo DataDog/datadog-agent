@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
+
 	"github.com/shirou/gopsutil/v3/process"
 	yaml "gopkg.in/yaml.v3"
 )
@@ -59,7 +60,9 @@ func readFileLimit(name string) ([]byte, error) {
 	return b, nil
 }
 
-func getProcResourceType(proc *process.Process) (string, bool) {
+// GetProcResourceType returns the type of database resource associated with
+// the given process.
+func GetProcResourceType(proc *process.Process) (string, bool) {
 	name, _ := proc.Name()
 	switch name {
 	case "postgres":
@@ -75,70 +78,62 @@ func getProcResourceType(proc *process.Process) (string, bool) {
 	return "", false
 }
 
-// ListProcesses returns a map of database application processes that we are
-// able to scan, indexed by their associated container ID.
-func ListProcesses(ctx context.Context) map[utils.ContainerID]int32 {
-	pids := make(map[utils.ContainerID]int32)
-	procs, err := process.ProcessesWithContext(ctx)
-	if err != nil {
-		return nil
+// LoadConfiguration loads and returns an optional DBResource associated with the
+// given process PID.
+func LoadConfiguration(ctx context.Context, rootPath string, proc *process.Process) (string, *DBConfig, bool) {
+	resourceType, ok := GetProcResourceType(proc)
+	if !ok {
+		return "", nil, false
 	}
-	dedupeMap := make(map[string]struct{})
-	for _, proc := range procs {
-		resourceType, ok := getProcResourceType(proc)
-		if !ok {
-			continue
-		}
-
-		containerID, ok := utils.GetProcessContainerID(proc.Pid)
-		if !ok {
-			continue
-		}
-		// We dedupe our scans based on the resource type and the container
-		// ID, assuming that we will scan the same configuration for each
-		// containers running the process.
-		dedupeKey := resourceType + string(containerID)
-		if _, ok := dedupeMap[dedupeKey]; ok {
-			continue
-		}
-		dedupeMap[dedupeKey] = struct{}{}
-		pids[containerID] = proc.Pid
+	var conf *DBConfig
+	switch resourceType {
+	case postgresqlResourceType:
+		conf, ok = LoadPostgreSQLConfig(ctx, rootPath, proc)
+	case mongoDBResourceType:
+		conf, ok = LoadMongoDBConfig(ctx, rootPath, proc)
+	case cassandraResourceType:
+		conf, ok = LoadCassandraConfig(ctx, rootPath, proc)
+	default:
+		ok = false
 	}
-	return pids
+	if !ok || conf == nil {
+		return "", nil, false
+	}
+	return resourceType, conf, true
 }
 
 // LoadDBResourceFromPID loads and returns an optional DBResource associated
 // with the given process PID.
-func LoadDBResourceFromPID(ctx context.Context, pid int32) (resource *DBResource, ok bool) {
+func LoadDBResourceFromPID(ctx context.Context, pid int32) (*DBResource, bool) {
 	proc, err := process.NewProcessWithContext(ctx, pid)
 	if err != nil {
-		return
+		return nil, false
 	}
 
-	resourceType, ok := getProcResourceType(proc)
+	resourceType, ok := GetProcResourceType(proc)
 	if !ok {
-		return
+		return nil, false
 	}
-	containerID, ok := utils.GetProcessContainerID(pid)
-	if !ok {
-		return
-	}
+
+	containerID, _ := utils.GetProcessContainerID(pid)
 	hostroot, ok := utils.GetProcessRootPath(pid)
 	if !ok {
-		return
+		return nil, false
 	}
 
 	var conf *DBConfig
 	switch resourceType {
 	case postgresqlResourceType:
-		conf, _ = LoadPostgreSQLConfig(ctx, hostroot, proc)
+		conf, ok = LoadPostgreSQLConfig(ctx, hostroot, proc)
 	case mongoDBResourceType:
-		conf, _ = LoadMongoDBConfig(ctx, hostroot, proc)
+		conf, ok = LoadMongoDBConfig(ctx, hostroot, proc)
 	case cassandraResourceType:
-		conf, _ = LoadCassandraConfig(ctx, hostroot, proc)
+		conf, ok = LoadCassandraConfig(ctx, hostroot, proc)
+	default:
+		ok = false
 	}
-	if conf == nil {
-		return
+	if !ok || conf == nil {
+		return nil, false
 	}
 	return &DBResource{
 		Type:        resourceType,
@@ -152,23 +147,24 @@ func LoadDBResourceFromPID(ctx context.Context, pid int32) (resource *DBResource
 func LoadMongoDBConfig(ctx context.Context, hostroot string, proc *process.Process) (*DBConfig, bool) {
 	configLocalPath := mongoDBConfigPath
 	var result DBConfig
-	if proc != nil {
-		result.ProcessUser, _ = proc.UsernameWithContext(ctx)
-		result.ProcessName, _ = proc.NameWithContext(ctx)
+	result.ProcessUser, _ = proc.UsernameWithContext(ctx)
+	result.ProcessName, _ = proc.NameWithContext(ctx)
 
-		cmdline, _ := proc.CmdlineSlice()
-		for i, arg := range cmdline {
-			if arg == "--config" && i+1 < len(cmdline) {
-				configLocalPath = filepath.Clean(cmdline[i+1])
-				break
-			}
+	cmdline, _ := proc.CmdlineSlice()
+	for i, arg := range cmdline {
+		if arg == "--config" && i+1 < len(cmdline) {
+			configLocalPath = filepath.Clean(cmdline[i+1])
+			break
 		}
 	}
 
 	configPath := filepath.Join(hostroot, configLocalPath)
 	fi, err := os.Stat(configPath)
 	if err != nil || fi.IsDir() {
-		return nil, false
+		result.ConfigFileUser = "<none>"
+		result.ConfigFileGroup = "<none>"
+		result.ConfigData = map[string]interface{}{}
+		return &result, true
 	}
 
 	var configData mongoDBConfig
@@ -196,7 +192,7 @@ func LoadCassandraConfig(ctx context.Context, hostroot string, proc *process.Pro
 		result.ProcessName, _ = proc.NameWithContext(ctx)
 	}
 
-	var configData map[string]interface{}
+	var configData *cassandraDBConfig
 	matches, _ := filepath.Glob(filepath.Join(hostroot, cassandraConfigGlob))
 	for _, configPath := range matches {
 		fi, err := os.Stat(configPath)
@@ -222,8 +218,8 @@ func LoadCassandraConfig(ctx context.Context, hostroot string, proc *process.Pro
 
 	logback, err := readFileLimit(filepath.Join(hostroot, cassandraLogbackPath))
 	if err == nil {
-		configData["logback_file_path"] = cassandraLogbackPath
-		configData["logback_file_content"] = string(logback)
+		configData.LogbackFilePath = cassandraLogbackPath
+		configData.LogbackFileContent = string(logback)
 	}
 	result.ConfigData = configData
 	return &result, true
@@ -233,34 +229,35 @@ func LoadCassandraConfig(ctx context.Context, hostroot string, proc *process.Pro
 func LoadPostgreSQLConfig(ctx context.Context, hostroot string, proc *process.Process) (*DBConfig, bool) {
 	var result DBConfig
 
-	// If a process handle is given, let's try to parse the -D command line
-	// argument containing the data directory of PG. Configuration file may be
-	// located in this directory.
-	var hintPath string
-	if proc != nil {
-		result.ProcessUser, _ = proc.UsernameWithContext(ctx)
-		result.ProcessName, _ = proc.NameWithContext(ctx)
+	// Let's try to parse the -D command line argument containing the data
+	// directory of PG. Configuration file may be located in this directory.
+	result.ProcessUser, _ = proc.UsernameWithContext(ctx)
+	result.ProcessName, _ = proc.NameWithContext(ctx)
 
-		cmdline, _ := proc.CmdlineSlice()
-		for i, arg := range cmdline {
-			if arg == "-D" && i+1 < len(cmdline) {
-				hintPath = filepath.Join(cmdline[i+1], "postgresql.conf")
-				break
-			}
-			if arg == "--config-file" && i+1 < len(cmdline) {
-				hintPath = filepath.Clean(cmdline[i+1])
-				break
-			}
-			if strings.HasPrefix(arg, "--config-file=") {
-				hintPath = filepath.Clean(strings.TrimPrefix(arg, "--config-file="))
-				break
-			}
+	var hintPath string
+	cmdline, _ := proc.CmdlineSlice()
+	for i, arg := range cmdline {
+		if arg == "-D" && i+1 < len(cmdline) {
+			hintPath = filepath.Join(cmdline[i+1], "postgresql.conf")
+			break
+		}
+		if arg == "--config-file" && i+1 < len(cmdline) {
+			hintPath = filepath.Clean(cmdline[i+1])
+			break
+		}
+		if strings.HasPrefix(arg, "--config-file=") {
+			hintPath = filepath.Clean(strings.TrimPrefix(arg, "--config-file="))
+			break
 		}
 	}
 
 	configPath, ok := locatePGConfigFile(hostroot, hintPath)
 	if !ok {
-		return nil, false
+		// postgres can be setup without a configuration file.
+		result.ConfigFileUser = "<none>"
+		result.ConfigFileGroup = "<none>"
+		result.ConfigData = map[string]interface{}{}
+		return &result, true
 	}
 	fi, err := os.Stat(filepath.Join(hostroot, configPath))
 	if err != nil || fi.IsDir() {

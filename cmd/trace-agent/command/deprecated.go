@@ -20,7 +20,7 @@ func FixDeprecatedFlags(args []string, w io.Writer) []string {
 		replacePid        = cli.ReplaceFlagExact("--pidfile")
 		replaceInfo       = cli.ReplaceFlagExact("info")
 		replaceVersion    = cli.ReplaceFlagExact("version")
-		replaceCpuProfile = cli.ReplaceFlagExact("--cpu-profile")
+		replaceCPUProfile = cli.ReplaceFlagExact("--cpu-profile")
 		replaceMemProfile = cli.ReplaceFlagExact("--mem-profile")
 	)
 
@@ -33,7 +33,7 @@ func FixDeprecatedFlags(args []string, w io.Writer) []string {
 		"--info":    replaceInfo,
 		"-pid":      replacePid,
 		// Profiling flags
-		"-cpuprofile": replaceCpuProfile,
+		"-cpuprofile": replaceCPUProfile,
 		"-memprofile": replaceMemProfile,
 		// Windows flags
 		"-start-service": cli.ReplaceFlagPosix,

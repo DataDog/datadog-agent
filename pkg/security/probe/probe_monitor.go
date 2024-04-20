@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
+// EBPFMonitors regroups all the work we want to do to monitor the probes we pushed in the kernel
 type EBPFMonitors struct {
 	ebpfProbe *EBPFProbe
 
@@ -172,8 +172,7 @@ func (m *EBPFMonitors) ProcessEvent(event *model.Event) {
 		)
 	}
 
-	var processContextErr *model.ErrNoProcessContext
-	if errors.As(event.Error, &processContextErr) {
+	if errors.Is(event.Error, model.ErrNoProcessContext) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
 			NewAbnormalEvent(events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, event.Error),
 		)

@@ -51,3 +51,33 @@ func TestMapOption(t *testing.T) {
 	_, ok = optionalInt.Get()
 	require.False(t, ok)
 }
+
+func TestSetIfNone(t *testing.T) {
+	optional := NewOption(42)
+
+	optional.SetIfNone(10)
+	v, ok := optional.Get()
+	require.Equal(t, 42, v)
+	require.True(t, ok)
+
+	optional.Reset()
+	optional.SetIfNone(10)
+	v, ok = optional.Get()
+	require.Equal(t, 10, v)
+	require.True(t, ok)
+}
+
+func TestSetOptionIfNone(t *testing.T) {
+	optional := NewOption(42)
+
+	optional.SetOptionIfNone(NewOption(10))
+	v, ok := optional.Get()
+	require.Equal(t, 42, v)
+	require.True(t, ok)
+
+	optional.Reset()
+	optional.SetOptionIfNone(NewOption(10))
+	v, ok = optional.Get()
+	require.Equal(t, 10, v)
+	require.True(t, ok)
+}

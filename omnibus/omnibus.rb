@@ -37,4 +37,10 @@ if ENV["S3_OMNIBUS_CACHE_BUCKET"]
     s3_instance_profile true
   end
 end
-use_git_caching false
+
+if not ENV.has_key?("OMNIBUS_GIT_CACHE_DIR")
+  use_git_caching false
+else
+  use_git_caching true
+  git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
+end

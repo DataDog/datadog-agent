@@ -9,53 +9,32 @@
 package client
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"strings"
 	"testing"
-	"time"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/server"
-	"github.com/benbjohnson/clock"
-	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	isLocalRun = true
-	mockClock  = clock.NewMock()
-)
-
 func TestIntegrationClient(t *testing.T) {
-	if !isLocalRun {
-		t.Skip("skip client integration test on the CI, connection to the server is flaky")
-	}
 	t.Run("should get empty payloads from a server", func(t *testing.T) {
-		ready := make(chan bool, 1)
-		fi := server.NewServer(server.WithReadyChannel(ready))
-		fi.Start()
+		fi, _ := server.InitialiseForTests(t)
 		defer fi.Stop()
-		isReady := <-ready
-		require.True(t, isReady)
 
 		client := NewClient(fi.URL())
-		// max wait for 500 ms
-		err := backoff.Retry(client.GetServerHealth, backoff.WithMaxRetries(backoff.NewConstantBackOff(100*time.Millisecond), 5))
+		stats, err := client.RouteStats()
 		require.NoError(t, err, "Failed waiting for fakeintake")
-
-		payloads, err := client.getFakePayloads("/foo/bar")
-		assert.NoError(t, err, "Error getting payloads")
-		assert.Equal(t, 0, len(payloads))
+		assert.Empty(t, stats)
 	})
 
 	t.Run("should get all available payloads from a server on a given endpoint", func(t *testing.T) {
-		ready := make(chan bool, 1)
-		fi := server.NewServer(server.WithReadyChannel(ready), server.WithClock(mockClock))
-		fi.Start()
+		fi, _ := server.InitialiseForTests(t)
 		defer fi.Stop()
-		isReady := <-ready
-		require.True(t, isReady)
 
 		// post a test payloads to fakeintake
 		testEndpoint := "/foo/bar"
@@ -65,54 +44,83 @@ func TestIntegrationClient(t *testing.T) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 		client := NewClient(fi.URL())
-		// max wait for 250 ms
-		err = backoff.Retry(client.GetServerHealth, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Millisecond), 25))
-		require.NoError(t, err, "Failed waiting for fakeintake")
 
-		payloads, err := client.getFakePayloads(testEndpoint)
-		assert.NoError(t, err, "Error getting payloads")
-		assert.Equal(t, 1, len(payloads))
-		assert.Equal(t, "totoro|5|tag:valid,owner:pducolin", string(payloads[0].Data))
-		assert.Equal(t, "text/plain", payloads[0].Encoding)
-		assert.Equal(t, mockClock.Now().UTC(), payloads[0].Timestamp)
+		stats, err := client.RouteStats()
+		require.NoError(t, err, "Error getting payloads")
+		expectedStats := map[string]int{
+			"/foo/bar": 1,
+		}
+		assert.Equal(t, expectedStats, stats)
 	})
 
 	t.Run("should flush payloads from a server on flush request", func(t *testing.T) {
-		ready := make(chan bool, 1)
-		fi := server.NewServer(server.WithReadyChannel(ready), server.WithClock(mockClock))
-		fi.Start()
+		fi, _ := server.InitialiseForTests(t)
 		defer fi.Stop()
-		isReady := <-ready
-		require.True(t, isReady)
 
 		// post a test payloads to fakeintake
-		testEndpoint := "/foo/bar"
-		resp, err := http.Post(fmt.Sprintf("%s%s", fi.URL(), testEndpoint), "text/plain", strings.NewReader("totoro|5|tag:before,owner:pducolin"))
+		resp, err := http.Post(fmt.Sprintf("%s%s", fi.URL(), "/foo/bar"), "text/plain", strings.NewReader("totoro|5|tag:before,owner:pducolin"))
 		assert.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 		client := NewClient(fi.URL())
-		// max wait for 250 ms
-		err = backoff.Retry(client.GetServerHealth, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Millisecond), 25))
-		require.NoError(t, err, "Failed waiting for fakeintake")
+
+		stats, err := client.RouteStats()
+		require.NoError(t, err, "Error getting payloads")
+		expectedStats := map[string]int{
+			"/foo/bar": 1,
+		}
+		assert.Equal(t, expectedStats, stats)
 
 		// flush
 		err = client.FlushServerAndResetAggregators()
-		assert.NoError(t, err, "Error getting payloads")
+		require.NoError(t, err, "Error flushing")
 
 		// post another payload
-		resp, err = http.Post(fmt.Sprintf("%s%s", fi.URL(), testEndpoint), "text/plain", strings.NewReader("ponyo|7|tag:after,owner:pducolin"))
+		resp, err = http.Post(fmt.Sprintf("%s%s", fi.URL(), "/bar/foo"), "text/plain", strings.NewReader("ponyo|7|tag:after,owner:pducolin"))
 		assert.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
+		stats, err = client.RouteStats()
+		require.NoError(t, err, "Error getting payloads")
 		// should return only the second payload
-		payloads, err := client.getFakePayloads(testEndpoint)
-		assert.NoError(t, err, "Error getting payloads")
-		assert.Equal(t, 1, len(payloads))
-		assert.Equal(t, "ponyo|7|tag:after,owner:pducolin", string(payloads[0].Data))
-		assert.Equal(t, "text/plain", payloads[0].Encoding)
-		assert.Equal(t, mockClock.Now().UTC(), payloads[0].Timestamp)
+		expectedStats = map[string]int{
+			"/bar/foo": 1,
+		}
+		assert.Equal(t, expectedStats, stats)
+	})
+
+	t.Run("should receive overridden response when configured on server", func(t *testing.T) {
+		fi, _ := server.InitialiseForTests(t)
+		defer fi.Stop()
+
+		client := NewClient(fi.URL())
+		err := client.ConfigureOverride(api.ResponseOverride{
+			Method:      http.MethodPost,
+			Endpoint:    "/totoro",
+			StatusCode:  200,
+			ContentType: "text/plain",
+			Body:        []byte("catbus"),
+		})
+		require.NoError(t, err, "failed to configure override")
+
+		t.Log("post a test payload to fakeintake and check that the override is applied")
+		resp, err := http.Post(
+			fmt.Sprintf("%s/totoro", fi.URL()),
+			"text/plain",
+			strings.NewReader("totoro|5|tag:valid,owner:mei"),
+		)
+		require.NoError(t, err, "failed to post test payload")
+
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "text/plain", resp.Header.Get("Content-Type"))
+
+		buf := new(bytes.Buffer)
+		n, err := buf.ReadFrom(resp.Body)
+		require.NoError(t, err, "failed to read response body")
+		assert.Equal(t, len("catbus"), int(n))
+		assert.Equal(t, []byte("catbus"), buf.Bytes())
 	})
 }

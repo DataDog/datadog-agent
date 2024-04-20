@@ -19,8 +19,9 @@ import (
 	"go.etcd.io/bbolt"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+const apiKey = "37d58c60b8ac337293ce2ca6b28b19eb"
 
 func TestAuthKeys(t *testing.T) {
 	tests := []struct {
@@ -94,7 +95,7 @@ func checkData(db *bbolt.DB) error {
 	})
 }
 
-func getVersion(db *bbolt.DB) (*AgentMetadata, error) {
+func getMetadata(db *bbolt.DB) (*AgentMetadata, error) {
 	tx, err := db.Begin(false)
 	defer tx.Rollback()
 	if err != nil {
@@ -119,14 +120,37 @@ func TestRemoteConfigNewDB(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	// should add the version to newly created databases
-	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"))
+	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"), "9.9.9", apiKey)
 	require.NoError(t, err)
 	defer db.Close()
 
-	metadata, err := getVersion(db)
+	metadata, err := getMetadata(db)
 	require.NoError(t, err)
 
-	assert.Equal(t, version.AgentVersion, metadata.Version)
+	assert.Equal(t, agentVersion, metadata.Version)
+}
+
+func TestRemoteConfigChangedAPIKey(t *testing.T) {
+	dir, err := os.MkdirTemp("", "remote-config-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	// should add the version to newly created databases
+	db0, err := openCacheDB(filepath.Join(dir, "remote-config.db"), "9.9.9", apiKey)
+	require.NoError(t, err)
+	defer db0.Close()
+	metadata0, err := getMetadata(db0)
+	require.NoError(t, err)
+	db0.Close()
+
+	db1, err := openCacheDB(filepath.Join(dir, "remote-config.db"), "9.9.9", apiKey+"-new")
+	require.NoError(t, err)
+	defer db1.Close()
+	metadata1, err := getMetadata(db1)
+	require.NoError(t, err)
+
+	require.NotEqual(t, metadata0.APIKeyHash, metadata1.APIKeyHash)
+	require.NotEqual(t, metadata0.CreationTime, metadata1.CreationTime)
 }
 
 func TestRemoteConfigReopenNoVersionChange(t *testing.T) {
@@ -135,17 +159,17 @@ func TestRemoteConfigReopenNoVersionChange(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	// should add the version to newly created databases
-	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"))
+	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"), agentVersion, apiKey)
 	require.NoError(t, err)
 
-	metadata, err := getVersion(db)
+	metadata, err := getMetadata(db)
 	require.NoError(t, err)
 
-	assert.Equal(t, version.AgentVersion, metadata.Version)
+	assert.Equal(t, agentVersion, metadata.Version)
 	require.NoError(t, addData(db))
 	require.NoError(t, db.Close())
 
-	db, err = openCacheDB(filepath.Join(dir, "remote-config.db"))
+	db, err = openCacheDB(filepath.Join(dir, "remote-config.db"), agentVersion, apiKey)
 	require.NoError(t, err)
 	defer db.Close()
 	require.NoError(t, checkData(db))
@@ -159,7 +183,7 @@ func TestRemoteConfigOldDB(t *testing.T) {
 	dbPath := filepath.Join(dir, "remote-config.db")
 
 	// create database with current version
-	db, err := openCacheDB(dbPath)
+	db, err := openCacheDB(dbPath, agentVersion, apiKey)
 	require.NoError(t, err)
 
 	require.NoError(t, addData(db))
@@ -175,13 +199,13 @@ func TestRemoteConfigOldDB(t *testing.T) {
 	require.NoError(t, db.Close())
 
 	// reopen database
-	db, err = openCacheDB(dbPath)
+	db, err = openCacheDB(dbPath, agentVersion, apiKey)
 	require.NoError(t, err)
 
 	// check version after the database opens
-	parsedMeta, err := getVersion(db)
+	parsedMeta, err := getMetadata(db)
 	require.NoError(t, err)
 
-	assert.Equal(t, version.AgentVersion, parsedMeta.Version)
+	assert.Equal(t, agentVersion, parsedMeta.Version)
 	assert.Error(t, checkData(db))
 }

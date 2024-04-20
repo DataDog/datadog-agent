@@ -52,7 +52,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(requestDogstatsdStats,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -64,6 +64,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{dogstatsdStatsCmd}
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func requestDogstatsdStats(log log.Component, config config.Component, cliParams *cliParams) error {
 	fmt.Printf("Getting the dogstatsd stats from the agent.\n\n")
 	var e error
@@ -76,7 +77,7 @@ func requestDogstatsdStats(log log.Component, config config.Component, cliParams
 	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = util.SetAuthToken(config)
 	if e != nil {
 		return e
 	}

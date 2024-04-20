@@ -7,7 +7,11 @@ package http
 
 import (
 	"errors"
+	"regexp"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -15,49 +19,40 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
+func getNewConfig() pkgconfigmodel.ReaderWriter {
+	return pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+}
+
 func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
-	url := buildURL(config.Endpoint{
-		APIKey: "bar",
-		Host:   "foo",
-		UseSSL: true,
-	})
+	url := buildURL(config.NewEndpoint("bar", "foo", 0, true))
 	assert.Equal(t, "https://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnHTTPWithoutUseSSL(t *testing.T) {
-	url := buildURL(config.Endpoint{
-		APIKey: "bar",
-		Host:   "foo",
-		UseSSL: false,
-	})
+	url := buildURL(config.NewEndpoint("bar", "foo", 0, false))
 	assert.Equal(t, "http://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
-	url := buildURL(config.Endpoint{
-		APIKey: "bar",
-		Host:   "foo",
-		Port:   1234,
-		UseSSL: false,
-	})
+	url := buildURL(config.NewEndpoint("bar", "foo", 1234, false))
 	assert.Equal(t, "http://foo:1234/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
-	url := buildURL(config.Endpoint{
-		APIKey:    "bar",
-		Host:      "foo",
-		UseSSL:    false,
-		Version:   config.EPIntakeVersion2,
-		TrackType: "test-track",
-	})
+	e := config.NewEndpoint("bar", "foo", 0, false)
+	e.Version = config.EPIntakeVersion2
+	e.TrackType = "test-track"
+	url := buildURL(e)
 	assert.Equal(t, "http://foo/api/v2/test-track", url)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func TestDestinationSend200(t *testing.T) {
-	server := NewTestServer(200)
+	cfg := getNewConfig()
+	server := NewTestServer(200, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	server.Destination.Start(input, output, nil)
@@ -82,8 +77,10 @@ func TestNoRetries(t *testing.T) {
 	testNoRetry(t, 413)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testNoRetry(t *testing.T, statusCode int) {
-	server := NewTestServer(statusCode)
+	cfg := getNewConfig()
+	server := NewTestServer(statusCode, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	server.Destination.Start(input, output, nil)
@@ -99,8 +96,9 @@ func testNoRetry(t *testing.T, statusCode int) {
 }
 
 func retryTest(t *testing.T, statusCode int) {
+	cfg := getNewConfig()
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(statusCode, 0, true, respondChan)
+	server := NewTestServerWithOptions(statusCode, 0, true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -128,8 +126,9 @@ func retryTest(t *testing.T, statusCode int) {
 }
 
 func TestDestinationContextCancel(t *testing.T) {
+	cfg := getNewConfig()
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(429, 0, true, respondChan)
+	server := NewTestServerWithOptions(429, 0, true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -153,15 +152,16 @@ func TestDestinationContextCancel(t *testing.T) {
 }
 
 func TestConnectivityCheck(t *testing.T) {
+	cfg := getNewConfig()
 	// Connectivity is ok when server return 200
-	server := NewTestServer(200)
-	connectivity := CheckConnectivity(server.Endpoint)
+	server := NewTestServer(200, cfg)
+	connectivity := CheckConnectivity(server.Endpoint, cfg)
 	assert.Equal(t, config.HTTPConnectivitySuccess, connectivity)
 	server.Stop()
 
 	// Connectivity is ok when server return 500
-	server = NewTestServer(500)
-	connectivity = CheckConnectivity(server.Endpoint)
+	server = NewTestServer(500, cfg)
+	connectivity = CheckConnectivity(server.Endpoint, cfg)
 	assert.Equal(t, config.HTTPConnectivityFailure, connectivity)
 	server.Stop()
 }
@@ -173,7 +173,8 @@ func TestErrorToTag(t *testing.T) {
 }
 
 func TestDestinationSendsV2Protocol(t *testing.T) {
-	server := NewTestServer(200)
+	cfg := getNewConfig()
+	server := NewTestServer(200, cfg)
 	defer server.httpServer.Close()
 
 	server.Destination.protocol = "test-proto"
@@ -183,7 +184,8 @@ func TestDestinationSendsV2Protocol(t *testing.T) {
 }
 
 func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
-	server := NewTestServer(200)
+	cfg := getNewConfig()
+	server := NewTestServer(200, cfg)
 	defer server.httpServer.Close()
 
 	err := server.Destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
@@ -191,10 +193,38 @@ func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
 	assert.Empty(t, server.request.Header.Values("dd-protocol"))
 }
 
+func TestDestinationSendsTimestampHeaders(t *testing.T) {
+	cfg := getNewConfig()
+	server := NewTestServer(200, cfg)
+	defer server.httpServer.Close()
+	currentTimestamp := time.Now().UnixMilli()
+
+	err := server.Destination.unconditionalSend(&message.Payload{Messages: []*message.Message{{
+		IngestionTimestamp: 1234567890_999_999,
+	}}, Encoded: []byte("payload")})
+	assert.Nil(t, err)
+	assert.Equal(t, server.request.Header.Get("dd-message-timestamp"), "1234567890")
+
+	ddCurrentTimestamp, err := strconv.ParseInt(server.request.Header.Get("dd-current-timestamp"), 10, 64)
+	assert.Nil(t, err)
+	assert.GreaterOrEqual(t, ddCurrentTimestamp, currentTimestamp)
+}
+
+func TestDestinationSendsUserAgent(t *testing.T) {
+	cfg := getNewConfig()
+	server := NewTestServer(200, cfg)
+	defer server.httpServer.Close()
+
+	err := server.Destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
+	assert.Nil(t, err)
+	assert.Regexp(t, regexp.MustCompile("datadog-agent/.*"), server.request.Header.Values("user-agent"))
+}
+
 func TestDestinationConcurrentSends(t *testing.T) {
+	cfg := getNewConfig()
 	// make the server return 500, so the payloads get stuck retrying
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 2, true, respondChan)
+	server := NewTestServerWithOptions(500, 2, true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload, 10)
 	server.Destination.Start(input, output, nil)
@@ -246,9 +276,10 @@ func TestDestinationConcurrentSends(t *testing.T) {
 
 // This test ensure the destination's final state is isRetrying = false even if there are pending concurrent sends.
 func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
+	cfg := getNewConfig()
 	// make the server return 500, so the payloads get stuck retrying
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 2, true, respondChan)
+	server := NewTestServerWithOptions(500, 2, true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload, 10)
 
@@ -294,8 +325,9 @@ func TestDestinationConcurrentSendsShutdownIsHandled(t *testing.T) {
 }
 
 func TestBackoffDelayEnabled(t *testing.T) {
+	cfg := getNewConfig()
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 0, true, respondChan)
+	server := NewTestServerWithOptions(500, 0, true, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -310,8 +342,9 @@ func TestBackoffDelayEnabled(t *testing.T) {
 }
 
 func TestBackoffDelayDisabled(t *testing.T) {
+	cfg := getNewConfig()
 	respondChan := make(chan int)
-	server := NewTestServerWithOptions(500, 0, false, respondChan)
+	server := NewTestServerWithOptions(500, 0, false, respondChan, cfg)
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
 	isRetrying := make(chan bool, 1)
@@ -322,4 +355,19 @@ func TestBackoffDelayDisabled(t *testing.T) {
 
 	assert.Equal(t, 0, server.Destination.nbErrors)
 	server.Stop()
+}
+
+func TestDestinationHA(t *testing.T) {
+	variants := []bool{true, false}
+	for _, variant := range variants {
+		endpoint := config.Endpoint{
+			IsHA: variant,
+		}
+		isEndpointHA := endpoint.IsHA
+
+		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), 1, false, "test", getNewConfig())
+		isDestHA := dest.IsHA()
+
+		assert.Equal(t, isEndpointHA, isDestHA)
+	}
 }

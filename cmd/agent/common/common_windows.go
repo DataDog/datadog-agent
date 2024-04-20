@@ -18,7 +18,7 @@ import (
 	"github.com/cihub/seelog"
 )
 
-// Name of the Windows Service the agent runs as
+// ServiceName is the name of the Windows Service the agent runs as
 const ServiceName = "DatadogAgent"
 
 func init() {

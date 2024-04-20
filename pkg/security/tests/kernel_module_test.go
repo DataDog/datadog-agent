@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -100,6 +100,8 @@ func getModulePath(modulePathFmt string, t *testing.T) (string, bool) {
 }
 
 func TestKworker(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping kernel module test in docker")
 	}
@@ -152,6 +154,8 @@ func TestKworker(t *testing.T) {
 }
 
 func TestLoadModule(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	if os.Getenv("CI") == "true" {
 		t.Skip("TestLoadModule is known to be flaky")
 	}
@@ -296,6 +300,7 @@ func TestLoadModule(t *testing.T) {
 	})
 
 	t.Run("load_module_with_truncated_params", func(t *testing.T) {
+		SkipIfNotAvailable(t)
 		var args []string
 		for i := 0; i != 10; i++ {
 			args = append(args, fmt.Sprintf("CIFSMaxBufSize=%d", 8192+i))
@@ -324,6 +329,8 @@ func TestLoadModule(t *testing.T) {
 }
 
 func TestUnloadModule(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping kernel module test in docker")
 	}

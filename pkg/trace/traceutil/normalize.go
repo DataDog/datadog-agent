@@ -25,6 +25,8 @@ const (
 	MaxNameLen = 100
 	// MaxServiceLen the maximum length a service can have
 	MaxServiceLen = 100
+	// MaxResourceLen the maximum length a resource can have
+	MaxResourceLen = 5000
 )
 
 var (
@@ -269,6 +271,7 @@ func normMetricNameParse(name string) (string, bool) {
 
 	// skip non-alphabetic characters
 	for ; i < len(name) && !isAlpha(name[i]); i++ {
+		continue
 	}
 
 	// if there were no alphabetic characters it wasn't valid

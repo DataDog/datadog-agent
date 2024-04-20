@@ -9,11 +9,11 @@
 package probe
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 // NewEBPFLessModel returns a new model with some extra field validation
@@ -25,8 +25,26 @@ func NewEBPFLessModel() *model.Model {
 				!strings.HasPrefix(field, "exit.") &&
 				!strings.HasPrefix(field, "open.") &&
 				!strings.HasPrefix(field, "process.") &&
-				!strings.HasPrefix(field, "container.") {
-				return fmt.Errorf("%s is not available with the eBPF less version", field)
+				!strings.HasPrefix(field, "setuid.") &&
+				!strings.HasPrefix(field, "setgid.") &&
+				!strings.HasPrefix(field, "setreuid.") &&
+				!strings.HasPrefix(field, "setregid.") &&
+				!strings.HasPrefix(field, "setfsuid.") &&
+				!strings.HasPrefix(field, "setfsgid.") &&
+				!strings.HasPrefix(field, "capset.") &&
+				!strings.HasPrefix(field, "rmdir.") &&
+				!strings.HasPrefix(field, "unlink.") &&
+				!strings.HasPrefix(field, "rename.") &&
+				!strings.HasPrefix(field, "mkdir.") &&
+				!strings.HasPrefix(field, "utimes.") &&
+				!strings.HasPrefix(field, "link.") &&
+				!strings.HasPrefix(field, "chmod.") &&
+				!strings.HasPrefix(field, "chown.") &&
+				!strings.HasPrefix(field, "load_module.") &&
+				!strings.HasPrefix(field, "unload_module.") &&
+				!strings.HasPrefix(field, "container.") &&
+				!strings.HasPrefix(field, "event.") {
+				return rules.ErrEventTypeNotEnabled
 			}
 			return nil
 		},
@@ -35,7 +53,7 @@ func NewEBPFLessModel() *model.Model {
 
 // NewEBPFLessEvent returns a new event
 func NewEBPFLessEvent(fh *EBPFLessFieldHandlers) *model.Event {
-	event := model.NewDefaultEvent()
+	event := model.NewFakeEvent()
 	event.FieldHandlers = fh
 	return event
 }

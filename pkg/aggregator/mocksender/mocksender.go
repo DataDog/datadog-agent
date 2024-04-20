@@ -12,8 +12,14 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+
+	//nolint:revive // TODO(AML) Fix revive linter
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -33,10 +39,11 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
-	log := log.NewTemporaryLoggerWithoutInit()
+	log := logimpl.NewTemporaryLoggerWithoutInit()
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, "")
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService()))
+	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, compressionimpl.NewMockCompressor(), "")
 
 }
 
@@ -84,6 +91,16 @@ func (m *MockSender) SetupAcceptAll() {
 		mock.AnythingOfType("[]string"), // Tags
 		mock.AnythingOfType("bool"),     // FlushFirstValue
 	).Return()
+	metricWithTimestampCalls := []string{"GaugeWithTimestamp", "CountWithTimestamp"}
+	for _, call := range metricWithTimestampCalls {
+		m.On(call,
+			mock.AnythingOfType("string"),   // Metric
+			mock.AnythingOfType("float64"),  // Value
+			mock.AnythingOfType("string"),   // Hostname
+			mock.AnythingOfType("[]string"), // Tags
+			mock.AnythingOfType("float64"),  // Timestamp
+		).Return(nil)
+	}
 	m.On("ServiceCheck",
 		mock.AnythingOfType("string"),                          // checkName (e.g: docker.exit)
 		mock.AnythingOfType("servicecheck.ServiceCheckStatus"), // (e.g: servicecheck.ServiceCheckOK)

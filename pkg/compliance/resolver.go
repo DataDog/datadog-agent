@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
@@ -28,8 +30,6 @@ import (
 
 	dockertypes "github.com/docker/docker/api/types"
 	docker "github.com/docker/docker/client"
-
-	auditrule "github.com/elastic/go-libaudit/rule"
 
 	"github.com/shirou/gopsutil/v3/process"
 
@@ -59,7 +59,7 @@ type LinuxAuditProvider func(context.Context) (LinuxAuditClient, error)
 // LinuxAuditClient is an interface that implements the capability of parsing
 // Linux Audit rules.
 type LinuxAuditClient interface {
-	GetFileWatchRules() ([]*auditrule.FileWatchRule, error)
+	GetFileWatchRules() ([]*FileWatchRule, error)
 	Close() error
 }
 
@@ -69,7 +69,7 @@ func DefaultDockerProvider(ctx context.Context) (docker.CommonAPIClient, error) 
 }
 
 // DefaultLinuxAuditProvider returns the default Linux Audit client.
-func DefaultLinuxAuditProvider(ctx context.Context) (LinuxAuditClient, error) { //nolint:revive // TODO fix revive unused-parameter
+func DefaultLinuxAuditProvider(_ context.Context) (LinuxAuditClient, error) {
 	return newLinuxAuditClient()
 }
 
@@ -498,7 +498,7 @@ func (r *defaultResolver) getProcs(ctx context.Context) ([]*process.Process, err
 	return r.procsCache, nil
 }
 
-func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup) (interface{}, error) {
+func (r *defaultResolver) resolveGroup(_ context.Context, spec InputSpecGroup) (interface{}, error) {
 	f, err := os.Open(r.pathNormalizeToHostRoot("/etc/group"))
 	if err != nil {
 		return nil, err
@@ -532,7 +532,7 @@ func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup)
 	return nil, nil
 }
 
-func (r *defaultResolver) resolveAudit(ctx context.Context, spec InputSpecAudit) (interface{}, error) {
+func (r *defaultResolver) resolveAudit(_ context.Context, spec InputSpecAudit) (interface{}, error) {
 	cl := r.linuxAuditCl
 	if cl == nil {
 		return nil, ErrIncompatibleEnvironment
@@ -548,24 +548,7 @@ func (r *defaultResolver) resolveAudit(ctx context.Context, spec InputSpecAudit)
 	var resolved []interface{}
 	for _, rule := range rules {
 		if rule.Path == spec.Path {
-			permissions := ""
-			for _, p := range rule.Permissions {
-				switch p {
-				case auditrule.ReadAccessType:
-					permissions += "r"
-				case auditrule.WriteAccessType:
-					permissions += "w"
-				case auditrule.ExecuteAccessType:
-					permissions += "e"
-				case auditrule.AttributeChangeAccessType:
-					permissions += "a"
-				}
-			}
-			resolved = append(resolved, map[string]interface{}{
-				"path":        spec.Path,
-				"enabled":     true,
-				"permissions": permissions,
-			})
+			resolved = append(resolved, rule.Resolve())
 		}
 	}
 
@@ -597,7 +580,7 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			})
 		}
 	case "container":
-		list, err := cl.ContainerList(ctx, dockertypes.ContainerListOptions{All: true})
+		list, err := cl.ContainerList(ctx, container.ListOptions{All: true})
 		if err != nil {
 			return nil, err
 		}

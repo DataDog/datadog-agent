@@ -1,0 +1,174 @@
+name: "Serverless Benchmarks"
+
+on:
+  pull_request:
+    paths:
+      - 'cmd/serverless/**'
+      - 'pkg/serverless/**'
+      - '.github/workflows/serverless-benchmarks.yml'
+
+env:
+  DD_API_KEY: must-be-set
+
+concurrency:
+  group: ${{ github.workflow }}/PR#${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    name: Baseline
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.prepare.outputs.sha }}
+    steps:
+      - name: Checkout ${{ github.base_ref }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Prepare working tree
+        id: prepare
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          go get ./...
+
+      - name: Run benchmark
+        run: |
+          go test -tags=test -run='^$' -bench=StartEndInvocation -count=10 -benchtime=500ms -timeout=60m \
+              ./pkg/serverless/... | tee ${{runner.temp}}/benchmark.log
+
+      - name: Upload result artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline.log
+          path: ${{runner.temp}}/benchmark.log
+          if-no-files-found: error
+
+
+  current:
+    name: Current
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.prepare.outputs.sha }}
+
+    steps:
+      - name: Checkout ${{ github.ref }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Prepare working tree
+        id: prepare
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          go get ./...
+
+      - name: Run benchmark
+        run: |
+          go test -tags=test -run='^$' -bench=StartEndInvocation -count=10 -benchtime=500ms -timeout=60m \
+              ./pkg/serverless/... | tee ${{runner.temp}}/benchmark.log
+
+      - name: Upload result artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: current.log
+          path: ${{runner.temp}}/benchmark.log
+          if-no-files-found: error
+
+  summary:
+    name: Summary
+    runs-on: ubuntu-latest
+    needs: [baseline, current]
+
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Install benchstat
+        run: |
+          go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Download baseline artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: baseline.log
+          path: baseline
+      - name: Download current artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: current.log
+          path: current
+
+      - name: Analyze results
+        id: analyze
+        run: |
+          benchstat -row /event baseline/benchmark.log current/benchmark.log | tee analyze.txt
+          echo "analyze<<EOF" >> $GITHUB_OUTPUT
+          cat analyze.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post comment
+        uses: marocchino/sticky-pull-request-comment@v2.9.0
+        with:
+          recreate: true
+          message: |
+            ## Serverless Benchmark Results
+
+            `BenchmarkStartEndInvocation` comparison between ${{ needs.baseline.outputs.sha }} and ${{ needs.current.outputs.sha }}.
+
+            <details>
+            <summary>tl;dr</summary>
+
+            1. Skim down the `vs base` column in each chart. If there is a `~`, then there was no statistically significant change to the benchmark. Otherwise, ensure the estimated percent change is either negative or very small.
+
+            2. The last row of each chart is the `geomean`. Ensure this percentage is either negative or very small.
+
+            </details>
+
+            <details>
+            <summary>What is this benchmarking?</summary>
+
+            The [`BenchmarkStartEndInvocation`](https://github.com/DataDog/datadog-agent/blob/main/pkg/serverless/daemon/routes_test.go) compares the amount of time it takes to call the `start-invocation` and `end-invocation` endpoints. For universal instrumentation languages (Dotnet, Golang, Java, Ruby), this represents the majority of the duration overhead added by our tracing layer.
+
+            The benchmark is run using a large variety of lambda request payloads. In the charts below, there is one row for each event payload type.
+
+            </details>
+
+            <details>
+            <summary>How do I interpret these charts?</summary>
+
+            The charts below comes from [`benchstat`](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat).  They represent the statistical change in _duration (sec/op)_, _memory overhead (B/op)_, and _allocations (allocs/op)_.
+
+            The benchstat docs explain how to interpret these charts.
+
+            > Before the comparison table, we see common file-level configuration. If there are benchmarks with different configuration (for example, from different packages), benchstat will print separate tables for each configuration.
+            >
+            > The table then compares the two input files for each benchmark. It shows the median and 95% confidence interval summaries for each benchmark before and after the change, and an A/B comparison under "vs base".  ...  The p-value measures how likely it is that any differences were due to random chance (i.e., noise). The "~" means benchstat did not detect a statistically significant difference between the two inputs. ...
+            >
+            > Note that "statistically significant" is not the same as "large": with enough low-noise data, even very small changes can be distinguished from noise and considered statistically significant.  It is, of course, generally easier to distinguish large changes from noise.
+            >
+            > Finally, the last row of the table shows the geometric mean of each column, giving an overall picture of how the benchmarks changed.  Proportional changes in the geomean reflect proportional changes in the benchmarks. For example, given n benchmarks, if sec/op for one of them increases by a factor of 2, then the sec/op geomean will increase by a factor of ⁿ√2.
+
+            </details>
+
+            <details open>
+            <summary>Benchmark stats</summary>
+
+            ```
+            ${{ steps.analyze.outputs.analyze }}
+            ```
+
+            </details>

@@ -1,36 +1,30 @@
 default_language_version:
   python: python3
+default_install_hook_types:
+  - pre-commit
+  - pre-push
+default_stages:
+  - pre-commit
 
 repos:
-- repo: https://github.com/pycqa/flake8
-  rev: 3.9.2 # should match major Python version
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: 0ccbb5b7942d83fbcf7cb5e0fd99633efd2351d7 # v0.3.5
   hooks:
-    - id: flake8
-      additional_dependencies:
-        - flake8-bugbear==21.11.28
-        - flake8-comprehensions==3.7.0
-        - flake8-unused-arguments==0.0.6
-        - flake8-use-fstring==1.3.0
-- repo: https://github.com/psf/black
-  rev: 22.3.0
-  hooks:
-    - id: black
-- repo: https://github.com/timothycrosley/isort/
-  rev: 5.12.0
-  hooks:
-    - id: isort
+    - id: ruff
+      args: [ --fix ]
+    - id: ruff-format
 - repo: https://github.com/jendrikseipp/vulture
-  rev: v2.3
+  rev: 44aed44e226ec0e5660851462f764ec5d5da957c # v2.3
   hooks:
     - id: vulture
       args: ["--ignore-decorators", "@task", "--ignore-names", "test_*,Test*", "tasks"]
 - repo: https://github.com/jumanjihouse/pre-commit-hooks
-  rev: 2.1.5
+  rev: 7cc5848088fd8412905ab79feea6c8edc3ac76c6 # 2.1.5
   hooks:
     - id: shellcheck
       args: ["--severity=info", "-e", "SC2059", "-e", "SC2028"]
 - repo: https://github.com/tekwizely/pre-commit-golang
-  rev: v1.0.0-beta.5
+  rev: bd69b816c43306f28bad4d7b303d981b0ecd2fd5 # v1.0.0-beta.5
   hooks:
     - id: go-fmt
       args: [ "-w", "-s" ]
@@ -41,6 +35,7 @@ repos:
       description: checks that the commit isn't created on a protected branch
       entry: 'python3 tasks/git-hooks/protected-branches.py'
       language: system
+      pass_filenames: false
     - id: revive
       name: revive
       description: revive
@@ -57,7 +52,7 @@ repos:
     - id: copyright
       name: copyright
       description: copyright headers
-      entry: 'python3 tasks/git-hooks/copyright.py'
+      entry: 'python3 -m tasks.git-hooks.copyright'
       language: system
       require_serial: true
       files: \.go$
@@ -75,3 +70,46 @@ repos:
       require_serial: true
       files: '^pkg/(ebpf|network|security)/.*\.(c|h)$'
       exclude: '^pkg/ebpf/(c/bpf_endian|c/bpf_helpers|compiler/clang-stdarg).h$'
+    - id: go-mod-tidy
+      name: go-mod-tidy
+      description: check that all go.mod files are tidy
+      entry: 'python3 -m tasks.git-hooks.go-mod-tidy'
+      language: system
+      require_serial: true
+      files: (\.go|^go\.mod|^go\.sum)$
+      # no need to pass filenames, all go.mod have to be tidied anyway
+      pass_filenames: false
+      # inv tidy-all takes several seconds so only run it on pre-push
+      stages: [pre-push]
+    - id: go-test
+      name: go-test
+      description: run go test on modified packages
+      entry: 'inv test --only-modified-packages'
+      language: system
+      require_serial: true
+      always_run: true
+      pass_filenames: false
+      stages: [pre-push]
+    - id: shell-check-no-set-x
+      name: shell-check-no-set-x
+      description: check that no `set -x` is set within github / gitlab workflows
+      entry: inv pre-commit.shell-check-no-set-x
+      language: system
+      require_serial: true
+      files: (\.yaml|\.yml|\.sh|Dockerfile)$
+      pass_filenames: false
+    - id: gitlab-configuration
+      name: gitlab-configuration
+      description: test the gitlab configuration on main
+      entry: 'inv linter.gitlab-ci -t main'
+      language: system
+      require_serial: true
+      files: .*gitlab.*\.yml$
+      pass_filenames: false
+      stages: [pre-push]
+    - id: update-go
+      name: update-go
+      description: test formatting of files will allow go update
+      entry: 'inv linter.update-go'
+      language: system
+      pass_filenames: false

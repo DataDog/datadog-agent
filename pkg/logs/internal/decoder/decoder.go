@@ -11,12 +11,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	dd_conf "github.com/DataDog/datadog-agent/pkg/config"
+	//nolint:revive // TODO(AML) Fix revive linter
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -109,7 +110,7 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	var lineHandler LineHandler
 	for _, rule := range source.Config().ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(pkgConfig.Datadog), lineLimit, false)
+			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(pkgConfig.Datadog), lineLimit, false, tailerInfo)
 			syncSourceInfo(source, lh)
 			lineHandler = lh
 		}
@@ -124,7 +125,7 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 				// Save the pattern again for the next rotation
 				detectedPattern.Set(multiLinePattern)
 
-				lh := NewMultiLineHandler(outputFn, multiLinePattern, config.AggregationTimeout(pkgConfig.Datadog), lineLimit, true)
+				lh := NewMultiLineHandler(outputFn, multiLinePattern, config.AggregationTimeout(pkgConfig.Datadog), lineLimit, true, tailerInfo)
 				syncSourceInfo(source, lh)
 				lineHandler = lh
 			} else {

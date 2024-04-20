@@ -3,7 +3,6 @@
 #include "bpf_endian.h"
 #include "bpf_tracing.h"
 
-#include "sockfd.h"
 #include "ip.h"
 #include "ipv6.h"
 #include "sock.h"
@@ -45,7 +44,7 @@ static __always_inline bool event_in_task(char *prog_name) {
     u64 error = bpf_get_ns_current_pid_tgid(dev, ino, &ns, sizeof(struct bpf_pidns_info));
 
     if (error) {
-        log_debug("%s: err=event originates from outside current fargate task\n", prog_name);
+        log_debug("%s: err=event originates from outside current fargate task", prog_name);
     }
 
     return !error;
@@ -63,7 +62,7 @@ static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, 
     }
 
     if (t->saddr_l == 0 || t->daddr_l == 0) {
-        log_debug("ERR(fl4): src/dst addr not set src:%d,dst:%d\n", t->saddr_l, t->daddr_l);
+        log_debug("ERR(fl4): src/dst addr not set src:%llu,dst:%llu", t->saddr_l, t->daddr_l);
         return 0;
     }
 
@@ -77,7 +76,7 @@ static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, 
     }
 
     if (t->sport == 0 || t->dport == 0) {
-        log_debug("ERR(fl4): src/dst port not set: src:%d, dst:%d\n", t->sport, t->dport);
+        log_debug("ERR(fl4): src/dst port not set: src:%d, dst:%d", t->sport, t->dport);
         return 0;
     }
 
@@ -98,11 +97,11 @@ static __always_inline int read_conn_tuple_partial_from_flowi6(conn_tuple_t *t, 
     }
 
     if (!(t->saddr_h || t->saddr_l)) {
-        log_debug("ERR(fl6): src addr not set src_l:%d,src_h:%d\n", t->saddr_l, t->saddr_h);
+        log_debug("ERR(fl6): src addr not set src_l:%llu,src_h:%llu", t->saddr_l, t->saddr_h);
         return 0;
     }
     if (!(t->daddr_h || t->daddr_l)) {
-        log_debug("ERR(fl6): dst addr not set dst_l:%d,dst_h:%d\n", t->daddr_l, t->daddr_h);
+        log_debug("ERR(fl6): dst addr not set dst_l:%llu,dst_h:%llu", t->daddr_l, t->daddr_h);
         return 0;
     }
 
@@ -127,7 +126,7 @@ static __always_inline int read_conn_tuple_partial_from_flowi6(conn_tuple_t *t, 
     }
 
     if (t->sport == 0 || t->dport == 0) {
-        log_debug("ERR(fl6): src/dst port not set: src:%d, dst:%d\n", t->sport, t->dport);
+        log_debug("ERR(fl6): src/dst port not set: src:%d, dst:%d", t->sport, t->dport);
         return 0;
     }
 
@@ -139,12 +138,12 @@ SEC("fexit/tcp_sendmsg")
 int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size, int sent) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_sendmsg");
     if (sent < 0) {
-        log_debug("fexit/tcp_sendmsg: tcp_sendmsg err=%d\n", sent);
+        log_debug("fexit/tcp_sendmsg: tcp_sendmsg err=%d", sent);
         return 0;
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fexit/tcp_sendmsg: pid_tgid: %d, sent: %d, sock: %llx\n", pid_tgid, sent, sk);
+    log_debug("fexit/tcp_sendmsg: pid_tgid: %llu, sent: %d, sock: %p", pid_tgid, sent, sk);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -164,12 +163,12 @@ SEC("fexit/tcp_sendpage")
 int BPF_PROG(tcp_sendpage_exit, struct sock *sk, struct page *page, int offset, size_t size, int flags, int sent) {
 RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_sendpage");
     if (sent < 0) {
-        log_debug("fexit/tcp_sendpage: err=%d\n", sent);
+        log_debug("fexit/tcp_sendpage: err=%d", sent);
         return 0;
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fexit/tcp_sendpage: pid_tgid: %d, sent: %d, sock: %llx\n", pid_tgid, sent, sk);
+    log_debug("fexit/tcp_sendpage: pid_tgid: %llu, sent: %d, sock: %p", pid_tgid, sent, sk);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -189,12 +188,12 @@ SEC("fexit/udp_sendpage")
 int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, size_t size, int flags, int sent) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udp_sendpage");
     if (sent < 0) {
-        log_debug("fexit/udp_sendpage: err=%d\n", sent);
+        log_debug("fexit/udp_sendpage: err=%d", sent);
         return 0;
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fexit/udp_sendpage: pid_tgid: %d, sent: %d, sock: %llx\n", pid_tgid, sent, sk);
+    log_debug("fexit/udp_sendpage: pid_tgid: %llu, sent: %d, sock: %p", pid_tgid, sent, sk);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
@@ -235,14 +234,12 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     // Should actually delete something only if the connection never got established
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
 
-    clear_sockfd_maps(sk);
-
     // Get network namespace id
-    log_debug("fentry/tcp_close: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("fentry/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
-    log_debug("fentry/tcp_close: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
+    log_debug("fentry/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     cleanup_conn(ctx, &t, sk);
     return 0;
@@ -263,7 +260,7 @@ static __always_inline int handle_udp_send(struct sock *sk, int sent) {
     }
 
     if (sent > 0) {
-        log_debug("udp_sendmsg: sent: %d\n", sent);
+        log_debug("udp_sendmsg: sent: %d", sent);
         handle_message(t, sent, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_NONE, sk);
     }
 
@@ -345,14 +342,14 @@ static __always_inline int handle_udp_recvmsg_ret() {
 SEC("fentry/udp_recvmsg")
 int BPF_PROG(udp_recvmsg, struct sock *sk, struct msghdr *msg, size_t len, int noblock, int flags) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/udp_recvmsg");
-    log_debug("fentry/udp_recvmsg: flags: %x\n", flags);
+    log_debug("fentry/udp_recvmsg: flags: %x", flags);
     return handle_udp_recvmsg(sk, flags);
 }
 
 SEC("fentry/udpv6_recvmsg")
 int BPF_PROG(udpv6_recvmsg, struct sock *sk, struct msghdr *msg, size_t len, int noblock, int flags) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/udpv6_recvmsg");
-    log_debug("fentry/udpv6_recvmsg: flags: %x\n", flags);
+    log_debug("fentry/udpv6_recvmsg: flags: %x", flags);
     return handle_udp_recvmsg(sk, flags);
 }
 
@@ -409,7 +406,7 @@ int BPF_PROG(skb_consume_udp, struct sock *sk, struct sk_buff *skb, int len) {
 SEC("fentry/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs, int err) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_retransmit_skb");
-    log_debug("fexntry/tcp_retransmit\n");
+    log_debug("fexntry/tcp_retransmit");
     u64 tid = bpf_get_current_pid_tgid();
     tcp_retransmit_skb_args_t args = {};
     args.retrans_out_pre = BPF_CORE_READ(tcp_sk(sk), retrans_out);
@@ -425,7 +422,7 @@ int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs,
 SEC("fexit/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int segs, int err) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_retransmit_skb");
-    log_debug("fexit/tcp_retransmit\n");
+    log_debug("fexit/tcp_retransmit");
     u64 tid = bpf_get_current_pid_tgid();
     if (err < 0) {
         bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
@@ -450,7 +447,7 @@ SEC("fentry/tcp_connect")
 int BPF_PROG(tcp_connect, struct sock *sk) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_connect");
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fentry/tcp_connect: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("fentry/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &sk, &pid_tgid, BPF_ANY);
 
@@ -467,7 +464,7 @@ int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
 
     u64 pid_tgid = *pid_tgid_p;
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
-    log_debug("fentry/tcp_finish_connect: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("fentry/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -477,7 +474,7 @@ int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
     handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, sk);
 
-    log_debug("fentry/tcp_connect: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
+    log_debug("fentry/tcp_connect: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     return 0;
 }
@@ -490,7 +487,7 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool k
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fexit/inet_csk_accept: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("fexit/inet_csk_accept: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -503,7 +500,7 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool k
     pb.netns = t.netns;
     pb.port = t.sport;
     add_port_bind(&pb, port_bindings);
-    log_debug("fexit/inet_csk_accept: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
+    log_debug("fexit/inet_csk_accept: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
     return 0;
 }
 
@@ -512,7 +509,7 @@ int BPF_PROG(inet_csk_listen_stop_enter, struct sock *sk) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/inet_csk_listen_stop");
     __u16 lport = read_sport(sk);
     if (lport == 0) {
-        log_debug("ERR(inet_csk_listen_stop): lport is 0 \n");
+        log_debug("ERR(inet_csk_listen_stop): lport is 0 ");
         return 0;
     }
 
@@ -520,7 +517,7 @@ int BPF_PROG(inet_csk_listen_stop_enter, struct sock *sk) {
     pb.netns = get_netns_from_sock(sk);
     pb.port = lport;
     remove_port_bind(&pb, &port_bindings);
-    log_debug("fentry/inet_csk_listen_stop: net ns: %u, lport: %u\n", pb.netns, pb.port);
+    log_debug("fentry/inet_csk_listen_stop: net ns: %u, lport: %u", pb.netns, pb.port);
     return 0;
 }
 
@@ -539,7 +536,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
     }
 
     if (lport == 0) {
-        log_debug("ERR(udp_destroy_sock): lport is 0\n");
+        log_debug("ERR(udp_destroy_sock): lport is 0");
         return 0;
     }
 
@@ -548,7 +545,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
     pb.port = lport;
     remove_port_bind(&pb, &udp_port_bindings);
 
-    log_debug("fentry/udp_destroy_sock: port %d marked as closed\n", lport);
+    log_debug("fentry/udp_destroy_sock: port %d marked as closed", lport);
 
     return 0;
 }
@@ -582,77 +579,29 @@ int BPF_PROG(udpv6_destroy_sock_exit, struct sock *sk) {
 SEC("fentry/inet_bind")
 int BPF_PROG(inet_bind_enter, struct socket *sock, struct sockaddr *uaddr, int addr_len) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/inet_bind");
-    log_debug("fentry/inet_bind\n");
+    log_debug("fentry/inet_bind");
     return sys_enter_bind(sock, uaddr);
 }
 
 SEC("fentry/inet6_bind")
 int BPF_PROG(inet6_bind_enter, struct socket *sock, struct sockaddr *uaddr, int addr_len) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/inet6_bind");
-    log_debug("fentry/inet6_bind\n");
+    log_debug("fentry/inet6_bind");
     return sys_enter_bind(sock, uaddr);
 }
 
 SEC("fexit/inet_bind")
 int BPF_PROG(inet_bind_exit, struct socket *sock, struct sockaddr *uaddr, int addr_len, int rc) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/inet_bind");
-    log_debug("fexit/inet_bind: rc=%d\n", rc);
+    log_debug("fexit/inet_bind: rc=%d", rc);
     return sys_exit_bind(rc);
 }
 
 SEC("fexit/inet6_bind")
 int BPF_PROG(inet6_bind_exit, struct socket *sock, struct sockaddr *uaddr, int addr_len, int rc) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/inet6_bind");
-    log_debug("fexit/inet6_bind: rc=%d\n", rc);
+    log_debug("fexit/inet6_bind: rc=%d", rc);
     return sys_exit_bind(rc);
-}
-
-// this kretprobe is essentially creating:
-// * an index of pid_fd_t to a struct sock*;
-// * an index of struct sock* to pid_fd_t;
-SEC("fexit/sockfd_lookup_light")
-int BPF_PROG(sockfd_lookup_light_exit, int fd, int *err, int *fput_needed, struct socket *socket) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/sockfd_lookup_light");
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    // Check if have already a map entry for this pid_fd_t
-    // TODO: This lookup eliminates *4* map operations for existing entries
-    // but can reduce the accuracy of programs relying on socket FDs for
-    // processes with a lot of FD churn
-    pid_fd_t key = {
-        .pid = pid_tgid >> 32,
-        .fd = fd,
-    };
-
-    struct sock **skpp = bpf_map_lookup_elem(&sock_by_pid_fd, &key);
-    if (skpp != NULL) {
-        return 0;
-    }
-
-    // For now let's only store information for TCP sockets
-    const struct proto_ops *proto_ops = BPF_CORE_READ(socket, ops);
-    if (!proto_ops) {
-        return 0;
-    }
-
-    enum sock_type sock_type = BPF_CORE_READ(socket, type);
-    int family = BPF_CORE_READ(proto_ops, family);
-    if (sock_type != SOCK_STREAM || !(family == AF_INET || family == AF_INET6)) {
-        return 0;
-    }
-
-    // Retrieve struct sock* pointer from struct socket*
-    struct sock *sock = BPF_CORE_READ(socket, sk);
-
-    pid_fd_t pid_fd = {
-        .pid = pid_tgid >> 32,
-        .fd = fd,
-    };
-
-    // These entries are cleaned up by tcp_close
-    bpf_map_update_with_telemetry(pid_fd_by_sock, &sock, &pid_fd, BPF_ANY);
-    bpf_map_update_with_telemetry(sock_by_pid_fd, &pid_fd, &sock, BPF_ANY);
-
-    return 0;
 }
 
 char _license[] SEC("license") = "GPL";

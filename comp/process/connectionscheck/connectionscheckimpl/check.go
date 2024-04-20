@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -18,9 +19,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newCheck),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newCheck))
+}
 
 var _ types.CheckComponent = (*check)(nil)
 
@@ -33,6 +35,7 @@ type dependencies struct {
 
 	Sysconfig sysprobeconfig.Component
 	Config    config.Component
+	WMeta     workloadmeta.Component
 }
 
 type result struct {
@@ -44,7 +47,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject()),
+		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject(), deps.WMeta),
 	}
 	return result{
 		Check: types.ProvidesCheck{

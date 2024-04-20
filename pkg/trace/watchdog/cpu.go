@@ -5,6 +5,7 @@
 
 //go:build !windows && !aix
 
+// Package watchdog monitors the trace-agent resource usage.
 package watchdog
 
 import (

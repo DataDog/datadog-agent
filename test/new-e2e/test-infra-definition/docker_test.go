@@ -7,31 +7,48 @@ package testinfradefinition
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"testing"
+	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/dockerparams"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+	"github.com/stretchr/testify/assert"
 )
 
 type dockerSuite struct {
-	e2e.Suite[e2e.DockerEnv]
+	e2e.BaseSuite[environments.DockerHost]
 }
 
 func TestDocker(t *testing.T) {
-	e2e.Run(t, &dockerSuite{}, e2e.DockerStackDef(dockerparams.WithAgent()))
+	var fakeintakeOpts []fakeintake.Option
+
+	// When we modify the fakeintake, this test will run with the new version of the fakeintake
+	if fakeintakeImage, ok := os.LookupEnv("FAKEINTAKE_IMAGE_OVERRIDE"); ok {
+		t.Logf("Running with fakeintake image %s", fakeintakeImage)
+		fakeintakeOpts = append(fakeintakeOpts, fakeintake.WithImageURL(fakeintakeImage))
+	}
+	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithFakeIntakeOptions(fakeintakeOpts...))))
 }
 
 func (v *dockerSuite) TestExecuteCommand() {
-	docker := v.Env().Docker
-	output := docker.ExecuteCommand(docker.GetAgentContainerName(), "agent", "version")
+	agentVersion := v.Env().Agent.Client.Version()
 	regexpVersion := regexp.MustCompile(`.*Agent .* - Commit: .* - Serialization version: .* - Go version: .*`)
 
-	v.Require().Truef(regexpVersion.MatchString(output), fmt.Sprintf("%v doesn't match %v", output, regexpVersion))
+	v.Require().Truef(regexpVersion.MatchString(agentVersion), fmt.Sprintf("%v doesn't match %v", agentVersion, regexpVersion))
 
 	// args is used to test client.WithArgs. The values of the arguments are not relevant.
-	args := client.WithArgs([]string{"-n", "-c", "."})
-	version := docker.GetAgent().Version(args)
+	args := agentclient.WithArgs([]string{"-n", "-c", "."})
+	version := v.Env().Agent.Client.Version(args)
 	v.Require().Truef(regexpVersion.MatchString(version), fmt.Sprintf("%v doesn't match %v", version, regexpVersion))
+
+	v.EventuallyWithT(func(tt *assert.CollectT) {
+		metrics, err := v.Env().FakeIntake.Client().GetMetricNames()
+		assert.NoError(tt, err)
+		assert.Contains(tt, metrics, "system.uptime", fmt.Sprintf("metrics %v doesn't contain system.uptime", metrics))
+	}, 2*time.Minute, 10*time.Second)
 }

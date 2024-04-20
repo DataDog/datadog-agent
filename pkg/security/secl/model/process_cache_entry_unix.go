@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build unix
-// +build unix
 
 // Package model holds model related files
 package model
@@ -94,10 +93,26 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 
 	// use exec time as exit time
 	pc.Exit(entry.ExecTime)
-	entry.Process.IsExecChild = !pc.IsThread
+	entry.Process.IsExecExec = !pc.IsThread
 
 	// keep some context
 	copyProcessContext(pc, entry)
+}
+
+// GetContainerPIDs return the pids
+func (pc *ProcessCacheEntry) GetContainerPIDs() []uint32 {
+	var pids []uint32
+
+	for pc != nil {
+		if pc.ContainerID == "" {
+			break
+		}
+		pids = append(pids, pc.Pid)
+
+		pc = pc.Ancestor
+	}
+
+	return pids
 }
 
 // SetParentOfForkChild set the parent of a fork child

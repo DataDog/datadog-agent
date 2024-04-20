@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package app
 
 import (
@@ -16,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -33,7 +34,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(taggerList,
 				fx.Supply(command.GetCoreBundleParamsForOneShot(globalParams)),
 
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 		SilenceUsage: true,

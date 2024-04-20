@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package tag
 
 import (
@@ -10,7 +11,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/benbjohnson/clock"
@@ -38,7 +39,7 @@ func newLocalProviderWithClock(t []string, clock clock.Clock) Provider {
 	}
 
 	if config.IsExpectedTagsSet(coreConfig.Datadog) {
-		p.expectedTags = append(p.tags, hostMetadataUtils.GetHostTags(context.TODO(), false, coreConfig.Datadog).System...)
+		p.expectedTags = append(p.tags, hostMetadataUtils.Get(context.TODO(), false, coreConfig.Datadog).System...)
 
 		// expected tags deadline is based on the agent start time, which may have been earlier
 		// than the current time.

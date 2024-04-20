@@ -10,6 +10,7 @@ package process
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -67,7 +68,7 @@ type EBPFResolver struct {
 	scrubber     *procutil.DataScrubber
 
 	containerResolver *container.Resolver
-	mountResolver     *mount.Resolver
+	mountResolver     mount.ResolverInterface
 	cgroupResolver    *cgroup.Resolver
 	userGroupResolver *usergroup.Resolver
 	timeResolver      *stime.Resolver
@@ -440,7 +441,7 @@ func (p *EBPFResolver) retrieveExecFileFields(procExecPath string) (*model.FileF
 	inode := stat.Ino
 
 	inodeb := make([]byte, 8)
-	model.ByteOrder.PutUint64(inodeb, inode)
+	binary.NativeEndian.PutUint64(inodeb, inode)
 
 	data, err := p.execFileCacheMap.LookupBytes(inodeb)
 	if err != nil {
@@ -600,15 +601,6 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *m
 	return nil
 }
 
-func setPathname(fileEvent *model.FileEvent, pathnameStr string) {
-	if fileEvent.FileFields.IsFileless() {
-		fileEvent.SetPathnameStr("")
-	} else {
-		fileEvent.SetPathnameStr(pathnameStr)
-	}
-	fileEvent.SetBasenameStr(path.Base(pathnameStr))
-}
-
 func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (string, error) {
 	var (
 		pathnameStr   string
@@ -655,11 +647,6 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	setPathname(fileEvent, pathnameStr)
 
 	return fileEvent.PathnameStr, nil
-}
-
-// IsBusybox returns true if the pathname matches busybox
-func IsBusybox(pathname string) bool {
-	return pathname == "/bin/busybox" || pathname == "/usr/bin/busybox"
 }
 
 // SetProcessSymlink resolves process file symlink path
@@ -759,7 +746,7 @@ func (p *EBPFResolver) ResolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 
 func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	pidb := make([]byte, 4)
-	model.ByteOrder.PutUint32(pidb, pid)
+	binary.NativeEndian.PutUint32(pidb, pid)
 
 	pidCache, err := p.pidCacheMap.LookupBytes(pidb)
 	if err != nil {
@@ -825,11 +812,6 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 	}
 
 	return entry
-}
-
-// IsKThread returns whether given pids are from kthreads
-func IsKThread(ppid, pid uint32) bool {
-	return ppid == 2 || pid == 2
 }
 
 // ResolveFromProcfs resolves the entry from procfs
@@ -907,53 +889,21 @@ func (p *EBPFResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 	}
 }
 
-// GetProcessArgv returns the unscrubbed args of the event as an array. Use with caution.
-func GetProcessArgv(pr *model.Process) ([]string, bool) {
-	if pr.ArgsEntry == nil {
-		return pr.Argv, pr.ArgsTruncated
-	}
-
-	argv := pr.ArgsEntry.Values
-	if len(argv) > 0 {
-		argv = argv[1:]
-	}
-	pr.Argv = argv
-	pr.ArgsTruncated = pr.ArgsTruncated || pr.ArgsEntry.Truncated
-	return pr.Argv, pr.ArgsTruncated
-}
-
-// GetProcessArgv0 returns the first arg of the event and whether the process arguments are truncated
-func GetProcessArgv0(pr *model.Process) (string, bool) {
-	if pr.ArgsEntry == nil {
-		return pr.Argv0, pr.ArgsTruncated
-	}
-
-	argv := pr.ArgsEntry.Values
-	if len(argv) > 0 {
-		pr.Argv0 = argv[0]
-	}
-	pr.ArgsTruncated = pr.ArgsTruncated || pr.ArgsEntry.Truncated
-	return pr.Argv0, pr.ArgsTruncated
-}
-
 // GetProcessArgvScrubbed returns the scrubbed args of the event as an array
 func (p *EBPFResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool) {
 	if pr.ArgsEntry == nil || pr.ScrubbedArgvResolved {
 		return pr.Argv, pr.ArgsTruncated
 	}
 
-	argv, truncated := GetProcessArgv(pr)
-
-	if p.scrubber != nil && len(argv) > 0 {
+	if p.scrubber != nil && len(pr.ArgsEntry.Values) > 0 {
 		// replace with the scrubbed version
-		argv, _ = p.scrubber.ScrubCommand(argv)
+		argv, _ := p.scrubber.ScrubCommand(pr.ArgsEntry.Values[1:])
 		pr.ArgsEntry.Values = []string{pr.ArgsEntry.Values[0]}
 		pr.ArgsEntry.Values = append(pr.ArgsEntry.Values, argv...)
-
-		pr.ScrubbedArgvResolved = true
 	}
+	pr.ScrubbedArgvResolved = true
 
-	return argv, truncated
+	return GetProcessArgv(pr)
 }
 
 // SetProcessEnvs set envs to cache entry
@@ -1176,7 +1126,14 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 		return nil, false
 	}
 
-	p.setAncestor(entry)
+	parent := p.entryCache[entry.PPid]
+	if parent != nil {
+		if parent.Equals(entry) {
+			entry.SetParentOfForkChild(parent)
+		} else {
+			entry.SetAncestor(parent)
+		}
+	}
 
 	p.insertEntry(entry, p.entryCache[pid], source)
 
@@ -1299,7 +1256,7 @@ func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 
 // NewEBPFResolver returns a new process resolver
 func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
-	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver *mount.Resolver,
+	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver mount.ResolverInterface,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
 	pathResolver spath.ResolverInterface, opts *ResolverOpts) (*EBPFResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)

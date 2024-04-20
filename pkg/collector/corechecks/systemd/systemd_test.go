@@ -8,23 +8,24 @@
 package systemd
 
 import (
-	"context"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
-	"github.com/coreos/go-systemd/dbus"
-	godbus "github.com/godbus/dbus"
+	"github.com/coreos/go-systemd/v22/dbus"
+	godbus "github.com/godbus/dbus/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
@@ -57,6 +58,7 @@ func (s *mockSystemdStats) SystemState(conn *dbus.Conn) (*dbus.Property, error) 
 	return args.Get(0).(*dbus.Property), args.Error(1)
 }
 
+//nolint:revive // TODO(AI) Fix revive linter
 func (s *mockSystemdStats) CloseConn(c *dbus.Conn) {
 }
 
@@ -463,6 +465,61 @@ unit_names:
 	mockSender.AssertNumberOfCalls(t, "Gauge", expectedGaugeCalls)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 4)
+}
+
+// When a value is not set (`[Not set]` when running `systemctl show my.service`), dbus returns MaxUint64
+func TestMetricValuesNotSet(t *testing.T) {
+	rawInstanceConfig := []byte(`
+unit_names:
+ - unit1.service
+`)
+
+	stats := createDefaultMockSystemdStats()
+	stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{
+		{Name: "unit1.service", ActiveState: "active", LoadState: "loaded"},
+	}, nil)
+	stats.On("UnixNow").Return(int64(1000))
+	stats.On("GetUnitTypeProperties", mock.Anything, "unit1.service", dbusTypeMap[typeService]).Return(getCreatePropertieWithDefaults(map[string]interface{}{
+		"CPUUsageNSec":  uint64(10),
+		"MemoryCurrent": uint64(math.MaxUint64),
+		"TasksCurrent":  uint64(30),
+		"NRestarts":     uint64(40),
+	}), nil)
+	stats.On("GetUnitTypeProperties", mock.Anything, "unit1.service", dbusTypeMap[typeUnit]).Return(map[string]interface{}{
+		"ActiveEnterTimestamp": uint64(100 * 1000 * 1000),
+	}, nil)
+
+	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
+
+	check := SystemdCheck{stats: stats}
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	check.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, nil, "test")
+
+	// setup expectation
+	mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	// run
+	check.Run()
+
+	// assertions
+	tags := []string{"unit:unit1.service"}
+	mockSender.AssertCalled(t, "Gauge", "systemd.unit.uptime", float64(900), "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.unit.monitored", float64(1), "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.unit.active", float64(1), "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.unit.loaded", float64(1), "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", float64(10), "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.task_count", float64(30), "", tags)
+	mockSender.AssertCalled(t, "Gauge", "systemd.service.restart_count", float64(40), "", tags)
+	mockSender.AssertNotCalled(t, "Gauge", "systemd.service.memory_usage", float64(math.MaxUint64), "", tags)
+
+	expectedGaugeCalls := 8 /* overall metrics */
+	expectedGaugeCalls += 7 /* unit/service metrics */
+	mockSender.AssertNumberOfCalls(t, "Gauge", expectedGaugeCalls)
+	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 3)
 }
 
 func TestSubmitMetricsConditionals(t *testing.T) {
@@ -979,19 +1036,26 @@ func TestGetPropertyBool(t *testing.T) {
 	}
 }
 
+//nolint:unused // TODO(AI) Fix unused linter
 type mockCollector struct {
 	Checks []check.Info
 }
 
+//nolint:unused // TODO(AI) Fix unused linter
 func (m mockCollector) MapOverChecks(fn func([]check.Info)) {
 	fn(m.Checks)
 }
 
+//nolint:unused // TODO(AI) Fix unused linter
 func (m mockCollector) GetChecks() []check.Check {
 	return nil
 }
 
 func TestGetVersion(t *testing.T) {
+	invChecks := inventorychecksimpl.NewMock()
+	check.InitializeInventoryChecksContext(invChecks)
+	defer check.ReleaseContext()
+
 	rawInstanceConfig := []byte(`
 unit_names:
  - ssh.service
@@ -1003,7 +1067,7 @@ unit_names:
 
 	systemdCheck := SystemdCheck{
 		stats:     stats,
-		CheckBase: core.NewCheckBase(systemdCheckName),
+		CheckBase: core.NewCheckBase(CheckName),
 	}
 	mockSender := mocksender.NewMockSender(systemdCheck.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1014,27 +1078,14 @@ unit_names:
 	// run
 	systemdCheck.Run()
 
-	coll := mockCollector{
-		[]check.Info{
-			check.MockInfo{
-				Name:         "systemd",
-				CheckID:      systemdCheck.ID(),
-				Source:       "provider1",
-				InitConf:     "",
-				InstanceConf: "{}",
-			},
-		},
-	}
-
-	p := inventories.GetPayload(context.Background(), "testHostname", coll, false)
-	checkMetadata := *p.CheckMetadata
-	systemdMetadata := *checkMetadata["systemd"][0]
-	assert.Equal(t, systemdVersion, systemdMetadata["version.raw"])
+	metadata := invChecks.GetInstanceMetadata(string(systemdCheck.ID()))
+	require.NotNil(t, metadata)
+	assert.Equal(t, systemdVersion, metadata["version.raw"])
 }
 
 func TestCheckID(t *testing.T) {
-	check1 := systemdFactory()
-	check2 := systemdFactory()
+	check1 := newCheck()
+	check2 := newCheck()
 	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
 
 	// language=yaml

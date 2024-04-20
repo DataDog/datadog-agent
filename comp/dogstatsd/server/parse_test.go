@@ -9,8 +9,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,8 +38,8 @@ func TestIdentifyRandomString(t *testing.T) {
 }
 
 func TestParseTags(t *testing.T) {
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	p := newParser(cfg, newFloat64ListPool(), 1)
+	deps := newServerDeps(t)
+	p := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
 	rawTags := []byte("tag:test,mytag,good:boy")
 	tags := p.parseTags(rawTags)
 	expectedTags := []string{"tag:test", "mytag", "good:boy"}
@@ -48,8 +47,8 @@ func TestParseTags(t *testing.T) {
 }
 
 func TestParseTagsEmpty(t *testing.T) {
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	p := newParser(cfg, newFloat64ListPool(), 1)
+	deps := newServerDeps(t)
+	p := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
 	rawTags := []byte("")
 	tags := p.parseTags(rawTags)
 	assert.Nil(t, tags)
@@ -67,8 +66,8 @@ func TestUnsafeParseFloat(t *testing.T) {
 }
 
 func TestUnsafeParseFloatList(t *testing.T) {
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	p := newParser(cfg, newFloat64ListPool(), 1)
+	deps := newServerDeps(t)
+	p := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
 	unsafeFloats, err := p.parseFloat64List([]byte("1.1234:21.5:13"))
 	assert.NoError(t, err)
 	assert.Len(t, unsafeFloats, 3)
@@ -107,4 +106,22 @@ func TestUnsafeParseInt(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, integer, unsafeInteger)
+}
+
+func TestExtractContainerID(t *testing.T) {
+	deps := newServerDeps(t)
+	p := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	// Testing with a container ID
+	containerID := p.extractContainerID([]byte("c:1234567890abcdef"))
+	assert.Equal(t, []byte("1234567890abcdef"), containerID)
+	// Testing with an Inode
+	mockProvider := mock.NewMetricsProvider()
+	mockProvider.RegisterMetaCollector(&mock.MetaCollector{
+		CIDFromInode: map[uint64]string{
+			1234567890: "1234567890abcdef",
+		},
+	})
+	p.provider = mockProvider
+	containerIDFromInode := p.extractContainerID([]byte("c:in-1234567890"))
+	assert.Equal(t, []byte("1234567890abcdef"), containerIDFromInode)
 }

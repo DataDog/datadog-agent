@@ -9,11 +9,15 @@ package admission
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -154,4 +158,54 @@ func getDigest(b []byte) string {
 	h := fnv.New64()
 	_, _ = h.Write(b)
 	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+// Provider provides the functionality to populate the status output
+type Provider struct{}
+
+//go:embed status_templates
+var templatesFS embed.FS
+
+// Name returns the name
+func (Provider) Name() string {
+	return "Admission Controller"
+}
+
+// Section return the section
+func (Provider) Section() string {
+	return "Admission Controller"
+}
+
+// JSON populates the status map
+func (Provider) JSON(_ bool, stats map[string]interface{}) error {
+	populateStatus(stats)
+
+	return nil
+}
+
+// Text renders the text output
+func (Provider) Text(_ bool, buffer io.Writer) error {
+	return status.RenderText(templatesFS, "admissionwebhook.tmpl", buffer, getStatusInfo())
+}
+
+// HTML renders the html output
+func (Provider) HTML(_ bool, _ io.Writer) error {
+	return nil
+}
+
+func populateStatus(stats map[string]interface{}) {
+	apiCl, apiErr := apiserver.GetAPIClient()
+	if apiErr != nil {
+		stats["admissionWebhook"] = map[string]string{"Error": apiErr.Error()}
+	} else {
+		stats["admissionWebhook"] = GetStatus(apiCl.Cl)
+	}
+}
+
+func getStatusInfo() map[string]interface{} {
+	stats := make(map[string]interface{})
+
+	populateStatus(stats)
+
+	return stats
 }

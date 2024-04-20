@@ -9,6 +9,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -20,11 +21,13 @@ import (
 
 // RoleHandlers implements the Handlers interface for Kubernetes Roles.
 type RoleHandlers struct {
-	BaseHandlers
+	common.BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
-func (h *RoleHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *RoleHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.Role)
 	m.Yaml = yaml
 	return
@@ -32,7 +35,8 @@ func (h *RoleHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resour
 
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
-func (h *RoleHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+func (h *RoleHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	models := make([]*model.Role, 0, len(resourceModels))
 
 	for _, m := range resourceModels {
@@ -40,24 +44,28 @@ func (h *RoleHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resour
 	}
 
 	return &model.CollectorRole{
-		ClusterName: ctx.Cfg.KubeClusterName,
-		ClusterId:   ctx.ClusterID,
-		GroupId:     ctx.MsgGroupID,
+		ClusterName: pctx.Cfg.KubeClusterName,
+		ClusterId:   pctx.ClusterID,
+		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Roles:       models,
-		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
+		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
 	}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
-func (h *RoleHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *RoleHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*rbacv1.Role)
 	return k8sTransformers.ExtractRole(r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
-func (h *RoleHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *RoleHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*rbacv1.Role)
 	resources = make([]interface{}, 0, len(resourceList))
 
@@ -69,18 +77,24 @@ func (h *RoleHandlers) ResourceList(ctx *processors.ProcessorContext, list inter
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *RoleHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *RoleHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*rbacv1.Role).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *RoleHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *RoleHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*rbacv1.Role).ResourceVersion
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
-func (h *RoleHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *RoleHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*rbacv1.Role)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
 }

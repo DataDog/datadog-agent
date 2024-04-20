@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package probes contains constants for probe names to be shared in the project.
 package probes
 
 // ProbeFuncName stores the function name of the kernel probes setup for tracing
@@ -25,10 +26,13 @@ const (
 	TCPv6ConnectReturn ProbeFuncName = "kretprobe__tcp_v6_connect"
 
 	// ProtocolClassifierEntrySocketFilter runs a classifier algorithm as a socket filter
-	ProtocolClassifierEntrySocketFilter  ProbeFuncName = "socket__classifier_entry"
+	ProtocolClassifierEntrySocketFilter ProbeFuncName = "socket__classifier_entry"
+	// ProtocolClassifierQueuesSocketFilter runs a classification rules for Queue protocols.
 	ProtocolClassifierQueuesSocketFilter ProbeFuncName = "socket__classifier_queues"
-	ProtocolClassifierDBsSocketFilter    ProbeFuncName = "socket__classifier_dbs"
-	ProtocolClassifierGRPCSocketFilter   ProbeFuncName = "socket__classifier_grpc"
+	// ProtocolClassifierDBsSocketFilter runs a classification rules for DB protocols.
+	ProtocolClassifierDBsSocketFilter ProbeFuncName = "socket__classifier_dbs"
+	// ProtocolClassifierGRPCSocketFilter runs a classification rules for gRPC protocols.
+	ProtocolClassifierGRPCSocketFilter ProbeFuncName = "socket__classifier_grpc"
 
 	// NetDevQueue runs a tracepoint that allows us to correlate __sk_buf (in a socket filter) with the `struct sock*`
 	// belongs (but hidden) for it.
@@ -87,6 +91,8 @@ const (
 
 	// IPMakeSkb traces ip_make_skb
 	IPMakeSkb ProbeFuncName = "kprobe__ip_make_skb"
+	// IPMakeSkbPre4180 tracer ip_make_sbk on kernels prior to 4.18.0
+	IPMakeSkbPre4180 ProbeFuncName = "kprobe__ip_make_skb__pre_4_18_0"
 	// IPMakeSkbReturn traces return of ip_make_skb
 	IPMakeSkbReturn ProbeFuncName = "kretprobe__ip_make_skb"
 	// IP6MakeSkb traces ip6_make_skb
@@ -136,7 +142,9 @@ const (
 	// UDPDestroySockReturn traces the return of the udp_destroy_sock() system call
 	UDPDestroySockReturn ProbeFuncName = "kretprobe__udp_destroy_sock"
 
-	UDPv6DestroySock       ProbeFuncName = "kprobe__udpv6_destroy_sock"
+	// UDPv6DestroySock traces the udpv6_destroy_sock() system call
+	UDPv6DestroySock ProbeFuncName = "kprobe__udpv6_destroy_sock"
+	// UDPv6DestroySockReturn traces the return of the udpv6_destroy_sock() system call
 	UDPv6DestroySockReturn ProbeFuncName = "kretprobe__udpv6_destroy_sock"
 
 	// TCPRetransmit traces the params for the tcp_retransmit_skb() system call
@@ -167,12 +175,6 @@ const (
 
 	// ConntrackFillInfo is the probe for dumping existing conntrack entries
 	ConntrackFillInfo ProbeFuncName = "kprobe_ctnetlink_fill_info"
-
-	// SockFDLookup is the kprobe used for mapping socket FDs to kernel sock structs
-	SockFDLookup ProbeFuncName = "kprobe__sockfd_lookup_light"
-
-	// SockFDLookupRet is the kretprobe used for mapping socket FDs to kernel sock structs
-	SockFDLookupRet ProbeFuncName = "kretprobe__sockfd_lookup_light"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info
@@ -180,35 +182,58 @@ type BPFMapName = string
 
 // constants for the map names
 const (
-	ConnMap                           BPFMapName = "conn_stats"
-	TCPStatsMap                       BPFMapName = "tcp_stats"
-	TCPRetransmitsMap                 BPFMapName = "tcp_retransmits"
-	TCPConnectSockPidMap              BPFMapName = "tcp_ongoing_connect_pid"
-	ConnCloseEventMap                 BPFMapName = "conn_close_event"
-	TracerStatusMap                   BPFMapName = "tracer_status"
-	ConntrackStatusMap                BPFMapName = "conntrack_status"
-	PortBindingsMap                   BPFMapName = "port_bindings"
-	UDPPortBindingsMap                BPFMapName = "udp_port_bindings"
-	TelemetryMap                      BPFMapName = "telemetry"
-	ConnCloseBatchMap                 BPFMapName = "conn_close_batch"
-	ConntrackMap                      BPFMapName = "conntrack"
-	ConntrackTelemetryMap             BPFMapName = "conntrack_telemetry"
-	SockFDLookupArgsMap               BPFMapName = "sockfd_lookup_args"
-	SockByPidFDMap                    BPFMapName = "sock_by_pid_fd"
-	PidFDBySockMap                    BPFMapName = "pid_fd_by_sock"
-	TcpSendMsgArgsMap                 BPFMapName = "tcp_sendmsg_args"
-	TcpSendPageArgsMap                BPFMapName = "tcp_sendpage_args"
-	UdpSendPageArgsMap                BPFMapName = "udp_sendpage_args"
-	IpMakeSkbArgsMap                  BPFMapName = "ip_make_skb_args"
-	MapErrTelemetryMap                BPFMapName = "map_err_telemetry_map"
-	HelperErrTelemetryMap             BPFMapName = "helper_err_telemetry_map"
-	TcpRecvMsgArgsMap                 BPFMapName = "tcp_recvmsg_args"
-	ProtocolClassificationBufMap      BPFMapName = "classification_buf"
-	KafkaClientIDBufMap               BPFMapName = "kafka_client_id"
-	KafkaTopicNameBufMap              BPFMapName = "kafka_topic_name"
-	ConnectionProtocolMap             BPFMapName = "connection_protocol"
+	// ConnMap is the map storing connection stats
+	ConnMap BPFMapName = "conn_stats"
+	// TCPStatsMap is the map storing TCP stats
+	TCPStatsMap BPFMapName = "tcp_stats"
+	// TCPRetransmitsMap is the map storing TCP retransmits
+	TCPRetransmitsMap BPFMapName = "tcp_retransmits"
+	// TCPConnectSockPidMap is the map storing the PIDs of ongoing TCP connections
+	TCPConnectSockPidMap BPFMapName = "tcp_ongoing_connect_pid"
+	// ConnCloseEventMap is the map storing connection close events
+	ConnCloseEventMap BPFMapName = "conn_close_event"
+	// TracerStatusMap is the map storing the status of the tracer
+	TracerStatusMap BPFMapName = "tracer_status"
+	// ConntrackStatusMap is the map storing the status of the conntrack
+	ConntrackStatusMap BPFMapName = "conntrack_status"
+	// PortBindingsMap is the map storing the port bindings
+	PortBindingsMap BPFMapName = "port_bindings"
+	// UDPPortBindingsMap is the map storing the UDP port bindings
+	UDPPortBindingsMap BPFMapName = "udp_port_bindings"
+	// TelemetryMap is the map storing telemetry data
+	TelemetryMap BPFMapName = "telemetry"
+	// ConnCloseBatchMap is the map storing connection close batch events
+	ConnCloseBatchMap BPFMapName = "conn_close_batch"
+	// ConntrackMap is the map storing conntrack entries
+	ConntrackMap BPFMapName = "conntrack"
+	// ConntrackTelemetryMap is the map storing conntrack telemetry
+	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
+	// TCPSendMsgArgsMap is the map storing the arguments of the tcp_sendmsg() system call
+	TCPSendMsgArgsMap BPFMapName = "tcp_sendmsg_args"
+	// TCPSendPageArgsMap is the map storing the arguments of the tcp_sendpage() kernel function
+	TCPSendPageArgsMap BPFMapName = "tcp_sendpage_args"
+	// UDPSendPageArgsMap is the map storing the arguments of the udp_sendpage() kernel function
+	UDPSendPageArgsMap BPFMapName = "udp_sendpage_args"
+	// IPMakeSkbArgsMap is the map storing the arguments of the ip_make_skb() kernel function
+	IPMakeSkbArgsMap BPFMapName = "ip_make_skb_args"
+	// MapErrTelemetryMap is the map storing the map error telemetry
+	MapErrTelemetryMap BPFMapName = "map_err_telemetry_map"
+	// HelperErrTelemetryMap is the map storing the helper error telemetry
+	HelperErrTelemetryMap BPFMapName = "helper_err_telemetry_map"
+	// TCPRecvMsgArgsMap is the map storing the arguments of the tcp_recvmsg() kernel function
+	TCPRecvMsgArgsMap BPFMapName = "tcp_recvmsg_args"
+	// ProtocolClassificationBufMap is the map storing the classification buffer
+	ProtocolClassificationBufMap BPFMapName = "classification_buf"
+	// KafkaClientIDBufMap is the map storing the kafka client ID
+	KafkaClientIDBufMap BPFMapName = "kafka_client_id"
+	// KafkaTopicNameBufMap is the map storing the kafka topic name
+	KafkaTopicNameBufMap BPFMapName = "kafka_topic_name"
+	// ConnectionProtocolMap is the map storing the connection protocol
+	ConnectionProtocolMap BPFMapName = "connection_protocol"
+	// ConnectionTupleToSocketSKBConnMap is the map storing the connection tuple to socket skb conn tuple
 	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
-	ClassificationProgsMap            BPFMapName = "classification_progs"
-	TCPCloseProgsMap                  BPFMapName = "tcp_close_progs"
-	StaticTableMap                    BPFMapName = "http2_static_table"
+	// ClassificationProgsMap is the map storing the programs to run on classification events
+	ClassificationProgsMap BPFMapName = "classification_progs"
+	// TCPCloseProgsMap is the map storing the programs to run on TCP close events
+	TCPCloseProgsMap BPFMapName = "tcp_close_progs"
 )

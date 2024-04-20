@@ -10,16 +10,19 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/spf13/cast"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/hashicorp/go-multierror"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 )
 
 // MacroID represents the ID of a macro
@@ -34,6 +37,27 @@ const (
 	MergePolicy    CombinePolicy = "merge"
 	OverridePolicy CombinePolicy = "override"
 )
+
+// OverrideField defines a combine field
+type OverrideField = string
+
+const (
+	// OverrideAllFields used to override all the fields
+	OverrideAllFields OverrideField = "all"
+	// OverrideExpressionField used to override the expression
+	OverrideExpressionField OverrideField = "expression"
+	// OverrideActionFields used to override the actions
+	OverrideActionFields OverrideField = "actions"
+	// OverrideEveryField used to override the every field
+	OverrideEveryField OverrideField = "every"
+	// OverrideTagsField used to override the tags
+	OverrideTagsField OverrideField = "tags"
+)
+
+// OverrideOptions defines combine options
+type OverrideOptions struct {
+	Fields []OverrideField `yaml:"fields"`
+}
 
 // Ruleset loading operations
 const (
@@ -79,19 +103,21 @@ type RuleID = string
 
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
-	ID                     RuleID             `yaml:"id"`
-	Version                string             `yaml:"version"`
-	Expression             string             `yaml:"expression"`
-	Description            string             `yaml:"description"`
-	Tags                   map[string]string  `yaml:"tags"`
-	AgentVersionConstraint string             `yaml:"agent_version"`
-	Filters                []string           `yaml:"filters"`
-	Disabled               bool               `yaml:"disabled"`
-	Combine                CombinePolicy      `yaml:"combine"`
-	Actions                []ActionDefinition `yaml:"actions"`
-	Every                  time.Duration      `yaml:"every"`
+	ID                     RuleID              `yaml:"id"`
+	Version                string              `yaml:"version"`
+	Expression             string              `yaml:"expression"`
+	Description            string              `yaml:"description"`
+	Tags                   map[string]string   `yaml:"tags"`
+	AgentVersionConstraint string              `yaml:"agent_version"`
+	Filters                []string            `yaml:"filters"`
+	Disabled               bool                `yaml:"disabled"`
+	Combine                CombinePolicy       `yaml:"combine"`
+	OverrideOptions        OverrideOptions     `yaml:"override_options"`
+	Actions                []*ActionDefinition `yaml:"actions"`
+	Every                  time.Duration       `yaml:"every"`
+	Silent                 bool                `yaml:"silent"`
+	GroupID                string              `yaml:"group_id"`
 	Policy                 *Policy
-	Silent                 bool
 }
 
 // GetTag returns the tag value associated with a tag key
@@ -103,11 +129,40 @@ func (rd *RuleDefinition) GetTag(tagKey string) (string, bool) {
 	return "", false
 }
 
+func applyOverride(rd1, rd2 *RuleDefinition) {
+	// keep track of the combine
+	rd1.Combine = rd2.Combine
+
+	// for backward compatibility, by default only the expression is copied if no options
+	if len(rd2.OverrideOptions.Fields) == 0 {
+		rd1.Expression = rd2.Expression
+	} else if slices.Contains(rd2.OverrideOptions.Fields, OverrideAllFields) {
+		// keep the original policy
+		policy := rd1.Policy
+
+		*rd1 = *rd2
+		rd1.Policy = policy
+	} else {
+		if slices.Contains(rd2.OverrideOptions.Fields, OverrideExpressionField) {
+			rd1.Expression = rd2.Expression
+		}
+		if slices.Contains(rd2.OverrideOptions.Fields, OverrideActionFields) {
+			rd1.Actions = rd2.Actions
+		}
+		if slices.Contains(rd2.OverrideOptions.Fields, OverrideEveryField) {
+			rd1.Every = rd2.Every
+		}
+		if slices.Contains(rd2.OverrideOptions.Fields, OverrideTagsField) {
+			rd1.Tags = rd2.Tags
+		}
+	}
+}
+
 // MergeWith merges rule rd2 into rd
 func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	switch rd2.Combine {
 	case OverridePolicy:
-		rd.Expression = rd2.Expression
+		applyOverride(rd, rd2)
 	default:
 		if !rd2.Disabled {
 			return &ErrRuleLoad{Definition: rd2, Err: ErrDefinitionIDConflict}
@@ -115,64 +170,6 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	}
 	rd.Disabled = rd2.Disabled
 	return nil
-}
-
-// ActionDefinition describes a rule action section
-type ActionDefinition struct {
-	Set                        *SetDefinition `yaml:"set"`
-	InternalCallbackDefinition *InternalCallbackDefinition
-	Kill                       *KillDefinition `yaml:"kill"`
-}
-
-// Check returns an error if the action in invalid
-func (a *ActionDefinition) Check() error {
-	if a.Set == nil && a.InternalCallbackDefinition == nil && a.Kill == nil {
-		return errors.New("either 'set' or 'kill' section of an action must be specified")
-	}
-
-	if a.Set != nil {
-		if a.Kill != nil {
-			return errors.New("only of 'set' or 'kill' section of an action can be specified")
-		}
-
-		if a.Set.Name == "" {
-			return errors.New("action name is empty")
-		}
-
-		if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
-			return errors.New("either 'value' or 'field' must be specified")
-		}
-	} else if a.Kill != nil {
-		if a.Kill.Signal == "" {
-			a.Kill.Signal = "SIGTERM"
-		}
-
-		if _, found := model.SignalConstants[a.Kill.Signal]; !found {
-			return fmt.Errorf("unsupported signal '%s'", a.Kill.Signal)
-		}
-	}
-
-	return nil
-}
-
-// Scope describes the scope variables
-type Scope string
-
-// SetDefinition describes the 'set' section of a rule action
-type SetDefinition struct {
-	Name   string      `yaml:"name"`
-	Value  interface{} `yaml:"value"`
-	Field  string      `yaml:"field"`
-	Append bool        `yaml:"append"`
-	Scope  Scope       `yaml:"scope"`
-}
-
-// InternalCallbackDefinition describes an internal rule action
-type InternalCallbackDefinition struct{}
-
-// KillDefinition describes the 'kill' section of a rule action
-type KillDefinition struct {
-	Signal string `yaml:"signal"`
 }
 
 // Rule describes a rule of a ruleset
@@ -258,7 +255,7 @@ func (rs *RuleSet) AddMacros(parsingContext *ast.ParsingContext, macros []*Macro
 func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, macroDef *MacroDefinition) (*eval.Macro, error) {
 	var err error
 
-	if macro := rs.evalOpts.MacroStore.Get(macroDef.ID); macro != nil {
+	if rs.evalOpts.MacroStore.Contains(macroDef.ID) {
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: ErrDefinitionIDConflict}
 	}
 
@@ -295,12 +292,12 @@ func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, rules []*RuleDef
 	return result
 }
 
-func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefinition) *multierror.Error {
+func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefinition, opts PolicyLoaderOpts) *multierror.Error {
 	var errs *multierror.Error
 
 	for _, rule := range policyRules {
 		for _, action := range rule.Actions {
-			if err := action.Check(); err != nil {
+			if err := action.Check(opts); err != nil {
 				errs = multierror.Append(errs, fmt.Errorf("invalid action: %w", err))
 				continue
 			}
@@ -475,6 +472,25 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 		}
 	}
 
+	for _, action := range rule.Definition.Actions {
+		// compile action filter
+		if action.Filter != nil {
+			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
+				return nil, &ErrRuleLoad{Definition: ruleDef, Err: err}
+			}
+		}
+
+		if action.Set != nil && action.Set.Field != "" {
+			if _, found := rs.fieldEvaluators[action.Set.Field]; !found {
+				evaluator, err := rs.model.GetEvaluator(action.Set.Field, "")
+				if err != nil {
+					return nil, err
+				}
+				rs.fieldEvaluators[action.Set.Field] = evaluator
+			}
+		}
+	}
+
 	for _, event := range rule.GetEvaluator().EventTypes {
 		bucket, exists := rs.eventRuleBuckets[event]
 		if !exists {
@@ -491,19 +507,6 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 	rs.AddFields(rule.GetEvaluator().GetFields())
 
 	rs.rules[ruleDef.ID] = rule
-
-	// Generate evaluator for fields that are used in variables
-	for _, action := range rule.Definition.Actions {
-		if action.Set != nil && action.Set.Field != "" {
-			if _, found := rs.fieldEvaluators[action.Set.Field]; !found {
-				evaluator, err := rs.model.GetEvaluator(action.Set.Field, "")
-				if err != nil {
-					return nil, err
-				}
-				rs.fieldEvaluators[action.Set.Field] = evaluator
-			}
-		}
-	}
 
 	return rule.Rule, nil
 }
@@ -581,7 +584,7 @@ func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCa
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return GetApprovers(bucket.rules, model.NewDefaultEvent(), fieldCaps)
+	return GetApprovers(bucket.rules, model.NewFakeEvent(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field
@@ -629,6 +632,10 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 
 func (rs *RuleSet) runRuleActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
 	for _, action := range rule.Definition.Actions {
+		if !action.IsAccepted(ctx) {
+			continue
+		}
+
 		switch {
 		// action.Kill has to handled by a ruleset listener
 		case action.Set != nil:
@@ -686,20 +693,23 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	}
 
 	result := false
+
 	for _, rule := range bucket.rules {
-		if rule.GetEvaluator().Eval(ctx) {
+		utils.PprofDoWithoutContext(rule.GetPprofLabels(), func() {
+			if rule.GetEvaluator().Eval(ctx) {
 
-			if rs.logger.IsTracing() {
-				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+				if rs.logger.IsTracing() {
+					rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+				}
+
+				if err := rs.runRuleActions(event, ctx, rule); err != nil {
+					rs.logger.Errorf("Error while executing rule actions: %s", err)
+				}
+
+				rs.NotifyRuleMatch(rule, event)
+				result = true
 			}
-
-			rs.NotifyRuleMatch(rule, event)
-			result = true
-
-			if err := rs.runRuleActions(event, ctx, rule); err != nil {
-				rs.logger.Errorf("Error while executing rule actions: %s", err)
-			}
-		}
+		})
 	}
 
 	// no-op in the general case, only used to collect events in functional tests
@@ -724,7 +734,23 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 		rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
 	}
 
+	var mdiscsToCheck []*multiDiscarderCheck
+
 	for _, field := range bucket.fields {
+		if check := rs.getValidMultiDiscarder(field); check != nil {
+			value, err := event.GetFieldValue(field)
+			if err != nil {
+				rs.logger.Debugf("Failed to get field value for %s: %s", field, err)
+				continue
+			}
+
+			// currently only support string values
+			if valueStr, ok := value.(string); ok {
+				check.value = valueStr
+				mdiscsToCheck = append(mdiscsToCheck, check)
+			}
+		}
+
 		if rs.opts.SupportedDiscarders != nil {
 			if _, exists := rs.opts.SupportedDiscarders[field]; !exists {
 				continue
@@ -735,6 +761,59 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 			rs.NotifyDiscarderFound(event, field, eventType)
 		}
 	}
+
+	for _, check := range mdiscsToCheck {
+		isMultiDiscarder := true
+		for _, entry := range check.mdisc.Entries {
+			bucket := rs.eventRuleBuckets[entry.EventType]
+			if bucket == nil {
+				continue
+			}
+
+			dctx, err := buildDiscarderCtx(entry.Field, check.value)
+			if err != nil {
+				rs.logger.Errorf("failed to build discarder context: %v", err)
+				isMultiDiscarder = false
+				break
+			}
+
+			if isDiscarder, _ := IsDiscarder(dctx, entry.Field, bucket.rules); !isDiscarder {
+				isMultiDiscarder = false
+				break
+			}
+		}
+
+		if isMultiDiscarder {
+			rs.NotifyDiscarderFound(event, check.mdisc.FinalField, check.mdisc.FinalEventType)
+		}
+	}
+}
+
+func (rs *RuleSet) getValidMultiDiscarder(field string) *multiDiscarderCheck {
+	for _, mdisc := range rs.opts.SupportedMultiDiscarders {
+		for _, entry := range mdisc.Entries {
+			if entry.Field == field {
+				return &multiDiscarderCheck{
+					mdisc: mdisc,
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+type multiDiscarderCheck struct {
+	mdisc *MultiDiscarder
+	value string
+}
+
+func buildDiscarderCtx(field string, value interface{}) (*eval.Context, error) {
+	ev := model.NewFakeEvent()
+	if err := ev.SetFieldValue(field, value); err != nil {
+		return nil, err
+	}
+	return eval.NewContext(ev), nil
 }
 
 // GetEventTypes returns all the event types handled by the ruleset

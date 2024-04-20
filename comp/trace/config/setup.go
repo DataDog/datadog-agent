@@ -20,17 +20,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"go.opentelemetry.io/collector/component/componenttest"
+
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -55,7 +58,7 @@ const (
 	rcClientPollInterval = time.Second * 1
 )
 
-func setupConfigCommon(deps dependencies, apikey string) (*config.AgentConfig, error) {
+func setupConfigCommon(deps dependencies, _ string) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
 	return LoadConfigFile(confFilePath, deps.Config)
@@ -93,11 +96,16 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	// TODO: do not interface directly with pkg/config anywhere
 	coreConfigObject := c.Object()
 	if coreConfigObject == nil {
-		return nil, fmt.Errorf("No core config found! Bailing out.")
+		return nil, errors.New("no core config found! Bailing out")
 	}
 
 	if !coreConfigObject.GetBool("disable_file_logging") {
 		cfg.LogFilePath = DefaultLogFilePath
+	}
+
+	ipcAddress, err := coreconfig.GetIPCAddress()
+	if err != nil {
+		return nil, err
 	}
 
 	orch := fargate.GetOrchestrator() // Needs to be after loading config, because it relies on feature auto-detection
@@ -106,11 +114,14 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
 	if coreconfig.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote.NewGRPCClient(
-			rcClientName,
-			version.AgentVersion,
-			[]data.Product{data.ProductAPMSampling, data.ProductAgentConfig},
-			rcClientPollInterval,
+		client, err := rc.NewGRPCClient(
+			ipcAddress,
+			coreconfig.GetIPCPort(),
+			func() (string, error) { return security.FetchAuthToken(c) },
+			rc.WithAgent(rcClientName, version.AgentVersion),
+			rc.WithProducts(state.ProductAPMSampling, state.ProductAgentConfig),
+			rc.WithPollInterval(rcClientPollInterval),
+			rc.WithDirectorRootOverride(c.GetString("site"), c.GetString("remote_configuration.director_root")),
 		)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
@@ -140,7 +151,7 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 			continue
 		}
 		for _, key := range keys {
-			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: configUtils.SanitizeAPIKey(key)})
+			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: utils.SanitizeAPIKey(key)})
 		}
 	}
 	return endpoints
@@ -151,7 +162,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.Endpoints = []*config.Endpoint{{}}
 	}
 	if core.IsSet("api_key") {
-		c.Endpoints[0].APIKey = configUtils.SanitizeAPIKey(coreconfig.Datadog.GetString("api_key"))
+		c.Endpoints[0].APIKey = utils.SanitizeAPIKey(coreconfig.Datadog.GetString("api_key"))
 	}
 	if core.IsSet("hostname") {
 		c.Hostname = core.GetString("hostname")
@@ -204,7 +215,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.LogFilePath = coreconfig.Datadog.GetString("apm_config.log_file")
 	}
 
-	if env := configUtils.GetTraceAgentDefaultEnv(coreconfig.Datadog); env != "" {
+	if env := utils.GetTraceAgentDefaultEnv(coreconfig.Datadog); env != "" {
 		c.DefaultEnv = env
 	}
 
@@ -221,10 +232,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if core.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
-	}
-	c.PeerServiceAggregation = core.GetBool("apm_config.peer_service_aggregation")
-	if c.PeerServiceAggregation {
-		log.Warn("`apm_config.peer_service_aggregation` is deprecated, please use `apm_config.peer_tags_aggregation` instead")
 	}
 	c.PeerTagsAggregation = core.GetBool("apm_config.peer_tags_aggregation")
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
@@ -332,6 +339,14 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if otlp.IsEnabled(coreconfig.Datadog) {
 		grpcPort = core.GetInt(coreconfig.OTLPTracePort)
 	}
+
+	// We use a noop set of telemetry settings. This silences all warnings and metrics from the attributes translator.
+	// The Datadog exporter overrides this with its own attributes translator using its own telemetry settings.
+	attributesTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+	if err != nil {
+		return err
+	}
+
 	c.OTLPReceiver = &config.OTLP{
 		BindHost:               c.ReceiverHost,
 		GRPCPort:               grpcPort,
@@ -339,6 +354,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		SpanNameRemappings:     coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
 		SpanNameAsResourceName: core.GetBool("otlp_config.traces.span_name_as_resource_name"),
 		ProbabilisticSampling:  core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		AttributesTranslator:   attributesTranslator,
 	}
 
 	if core.IsSet("apm_config.install_id") {
@@ -384,6 +400,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.Obfuscation.Mongo.Enabled = true
 		c.Obfuscation.Memcached.Enabled = true
 		c.Obfuscation.Redis.Enabled = true
+		c.Obfuscation.CreditCards.Enabled = true
 
 		// TODO(x): There is an issue with coreconfig.Datadog.IsSet("apm_config.obfuscation"), probably coming from Viper,
 		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
@@ -549,12 +566,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if err := loadDeprecatedValues(c); err != nil {
 		return err
 	}
-
-	if strings.ToLower(core.GetString("log_level")) == "debug" && !core.IsSet("apm_config.log_throttling") {
-		// if we are in "debug mode" and log throttling behavior was not
-		// set by the user, disable it
-		c.LogThrottling = false
-	}
 	c.Site = core.GetString("site")
 	if c.Site == "" {
 		c.Site = coreconfig.DefaultSite
@@ -579,6 +590,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "apm_config.debugger_additional_endpoints"; core.IsSet(k) {
 		c.DebuggerProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
+	}
+	if k := "apm_config.debugger_diagnostics_dd_url"; core.IsSet(k) {
+		c.DebuggerDiagnosticsProxy.DDURL = core.GetString(k)
+	}
+	if k := "apm_config.debugger_diagnostics_api_key"; core.IsSet(k) {
+		c.DebuggerDiagnosticsProxy.APIKey = core.GetString(k)
+	}
+	if k := "apm_config.debugger_diagnostics_additional_endpoints"; core.IsSet(k) {
+		c.DebuggerDiagnosticsProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
 	if k := "apm_config.symdb_dd_url"; core.IsSet(k) {
 		c.SymDBProxy.DDURL = core.GetString(k)
@@ -620,10 +640,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 func loadDeprecatedValues(c *config.AgentConfig) error {
 	cfg := coreconfig.Datadog
 	if cfg.IsSet("apm_config.api_key") {
-		c.Endpoints[0].APIKey = configUtils.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
-	}
-	if cfg.IsSet("apm_config.log_throttling") {
-		c.LogThrottling = cfg.GetBool("apm_config.log_throttling")
+		c.Endpoints[0].APIKey = utils.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
 	}
 	if cfg.IsSet("apm_config.bucket_size_seconds") {
 		d := time.Duration(cfg.GetInt("apm_config.bucket_size_seconds"))
@@ -666,6 +683,9 @@ func compileReplaceRules(rules []*config.ReplaceRule) error {
 		if r.Name == "" {
 			return errors.New(`all rules must have a "name" property (use "*" to target all)`)
 		}
+		if r.Name == "env" {
+			log.Error("Replace tags should not be used to change the env in the Agent, as it could have negative side effects. THIS WILL BE DISALLOWED IN FUTURE AGENT VERSIONS. See https://docs.datadoghq.com/getting_started/tracing/#environment-name for instructions on setting the env, and https://github.com/DataDog/datadog-agent/issues/21253 for more details about this issue.")
+		}
 		if r.Pattern == "" {
 			return errors.New(`all rules must have a "pattern"`)
 		}
@@ -686,7 +706,7 @@ func getDuration(seconds int) time.Duration {
 func parseServiceAndOp(name string) (string, string, error) {
 	splits := strings.Split(name, "|")
 	if len(splits) != 2 {
-		return "", "", fmt.Errorf("Bad format for operation name and service name in: %s, it should have format: service_name|operation_name", name)
+		return "", "", fmt.Errorf("bad format for operation name and service name in: %s, it should have format: service_name|operation_name", name)
 	}
 	return splits[0], splits[1], nil
 }
@@ -774,7 +794,7 @@ func validate(c *config.AgentConfig, core corecompcfg.Component) error {
 	if c.Hostname == "" && !core.GetBool("serverless.enabled") {
 		// no user-set hostname, try to acquire
 		if err := acquireHostname(c); err != nil {
-			log.Debugf("Could not get hostname via gRPC: %v. Falling back to other methods.", err)
+			log.Infof("Could not get hostname via gRPC: %v. Falling back to other methods.", err)
 			if err := acquireHostnameFallback(c); err != nil {
 				return err
 			}
@@ -792,7 +812,13 @@ var fallbackHostnameFunc = os.Hostname
 func acquireHostname(c *config.AgentConfig) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	client, err := grpc.GetDDAgentClient(ctx)
+
+	ipcAddress, err := coreconfig.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+
+	client, err := grpc.GetDDAgentClient(ctx, ipcAddress, coreconfig.GetIPCPort())
 	if err != nil {
 		return err
 	}
@@ -801,11 +827,11 @@ func acquireHostname(c *config.AgentConfig) error {
 		return err
 	}
 	if c.HasFeature("disable_empty_hostname") && reply.Hostname == "" {
-		log.Debugf("Acquired empty hostname from gRPC but it's disallowed.")
+		log.Infof("Acquired empty hostname from gRPC but it's disallowed.")
 		return errors.New("empty hostname disallowed")
 	}
 	c.Hostname = reply.Hostname
-	log.Debugf("Acquired hostname from gRPC: %s", c.Hostname)
+	log.Infof("Acquired hostname from gRPC: %s", c.Hostname)
 	return nil
 }
 
@@ -821,7 +847,7 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	c.Hostname = strings.TrimSpace(out.String())
 	if emptyDisallowed := c.HasFeature("disable_empty_hostname") && c.Hostname == ""; err != nil || emptyDisallowed {
 		if emptyDisallowed {
-			log.Debugf("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
+			log.Infof("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
 		}
 		// There was either an error retrieving the hostname from the core agent, or
 		// it was empty and its disallowed by the disable_empty_hostname feature flag.
@@ -833,10 +859,10 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 			return errors.New("empty hostname disallowed")
 		}
 		c.Hostname = host
-		log.Debugf("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
+		log.Infof("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
 		return nil
 	}
-	log.Debugf("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
+	log.Infof("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
 	return nil
 }
 

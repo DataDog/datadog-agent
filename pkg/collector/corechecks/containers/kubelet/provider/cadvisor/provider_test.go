@@ -17,16 +17,15 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
@@ -96,21 +95,21 @@ func (suite *ProviderTestSuite) SetupTest() {
 	var err error
 
 	store := fxutil.Test[workloadmeta.Mock](suite.T(), fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 	))
 
 	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 
-	fakeTagger := local.NewFakeTagger()
+	fakeTagger := tagger.SetupFakeTagger(suite.T())
+	defer fakeTagger.ResetTagger()
 	for entity, tags := range commontesting.CommonTags {
 		fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
 	}
-	tagger.SetDefaultTagger(fakeTagger)
 
 	podUtils := common.NewPodUtils()
 

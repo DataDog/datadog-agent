@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"net/netip"
 	"sync"
 	"syscall"
 	"testing"
@@ -19,7 +20,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+	"go4.org/intern"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -541,7 +544,7 @@ func TestNoPriorRegistrationActiveConnections(t *testing.T) {
 func TestCleanupClient(t *testing.T) {
 	clientID := "1"
 
-	state := NewState(100*time.Millisecond, 50000, 75000, 75000, 75000, 75000)
+	state := NewState(100*time.Millisecond, 50000, 75000, 75000, 75000, 75000, false, false)
 	clients := state.(*networkState).getClients()
 	assert.Equal(t, 0, len(clients))
 
@@ -1580,12 +1583,10 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	client3 := "client3"
 	state := newDefaultState()
 
-	getRCodeFrom := func(delta Delta, c ConnectionStats, domain string, qtype dns.QueryType, code int) uint32 {
-		key, _ := DNSKey(&c)
-		stats, ok := delta.DNSStats[key]
-		require.Truef(t, ok, "couldn't find DNSStats for connection: %+v", c)
+	getRCodeFrom := func(c ConnectionStats, domain string, qtype dns.QueryType, code int) uint32 {
+		require.NotEmpty(t, c.DNSStats, "couldn't find DNSStats for connection: %+v", c)
 
-		domainStats, ok := stats[dns.ToHostname(domain)]
+		domainStats, ok := c.DNSStats[dns.ToHostname(domain)]
 		require.Truef(t, ok, "couldn't find DNSStats for domain: %s", domain)
 
 		queryTypeStats, ok := domainStats[qtype]
@@ -1609,7 +1610,7 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	delta := state.GetDelta(client1, latestEpochTime(), []ConnectionStats{c}, getStats(), nil)
 	require.Len(t, delta.Conns, 1)
 
-	rcode := getRCodeFrom(delta, delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
+	rcode := getRCodeFrom(delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
 	assert.EqualValues(t, 1, rcode)
 
 	// Register the third client but also pass in dns stats
@@ -1617,14 +1618,14 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	require.Len(t, delta.Conns, 1)
 
 	// DNS stats should be available for the new client
-	rcode = getRCodeFrom(delta, delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
+	rcode = getRCodeFrom(delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
 	assert.EqualValues(t, 1, rcode)
 
 	delta = state.GetDelta(client2, latestEpochTime(), []ConnectionStats{c}, getStats(), nil)
 	require.Len(t, delta.Conns, 1)
 
 	// 2nd client should get accumulated stats
-	rcode = getRCodeFrom(delta, delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
+	rcode = getRCodeFrom(delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
 	assert.EqualValues(t, 3, rcode)
 }
 
@@ -2344,6 +2345,367 @@ func TestKafkaStatsWithMultipleClients(t *testing.T) {
 	assert.Len(t, delta.Kafka, 2)
 }
 
+func TestConnectionRollup(t *testing.T) {
+	conns := []ConnectionStats{
+		{
+			// should be rolled up with next connection
+			Direction: OUTGOING,
+			Family:    AFINET,
+			IntraHost: false,
+			IPTranslation: &IPTranslation{
+				ReplDstIP:   util.AddressFromString("172.29.141.26"),
+				ReplDstPort: 50010,
+				ReplSrcIP:   util.AddressFromString("172.29.177.127"),
+				ReplSrcPort: 53,
+			},
+			SPortIsEphemeral: EphemeralTrue,
+			Source:           util.AddressFromString("172.29.141.26"),
+			SPort:            50010,
+			ContainerID:      struct{ Source, Dest *intern.Value }{intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f"), nil},
+			Monotonic: StatCounters{
+				RecvBytes:      342,
+				SentBytes:      156,
+				RecvPackets:    2,
+				SentPackets:    0,
+				Retransmits:    0,
+				TCPClosed:      0,
+				TCPEstablished: 0,
+			},
+			NetNS:    4026532341,
+			Pid:      28385,
+			Dest:     util.AddressFromString("10.100.0.10"),
+			DPort:    53,
+			Type:     UDP,
+			Cookie:   1,
+			Duration: time.Second,
+			IsClosed: true,
+		},
+		{
+			// should be rolled up with previous connection
+			Direction: OUTGOING,
+			Family:    AFINET,
+			IntraHost: false,
+			IPTranslation: &IPTranslation{
+				ReplDstIP:   util.AddressFromString("172.29.141.26"),
+				ReplDstPort: 49155,
+				ReplSrcIP:   util.AddressFromString("172.29.177.127"),
+				ReplSrcPort: 53,
+			},
+			SPortIsEphemeral: EphemeralTrue,
+			Source:           util.AddressFromString("172.29.141.26"),
+			SPort:            49155,
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			Monotonic: StatCounters{
+				RecvBytes:      314,
+				SentBytes:      128,
+				RecvPackets:    2,
+				SentPackets:    0,
+				Retransmits:    0,
+				TCPClosed:      0,
+				TCPEstablished: 0,
+			},
+			NetNS:    4026532341,
+			Pid:      28385,
+			Dest:     util.AddressFromString("10.100.0.10"),
+			DPort:    53,
+			Type:     UDP,
+			Cookie:   2,
+			Duration: time.Second,
+			IsClosed: true,
+		},
+		{
+			// should be rolled up with next connection
+			Direction: OUTGOING,
+			Family:    AFINET,
+			IntraHost: false,
+			IPTranslation: &IPTranslation{
+				ReplDstIP:   util.AddressFromString("172.29.141.26"),
+				ReplDstPort: 52907,
+				ReplSrcIP:   util.AddressFromString("172.29.151.242"),
+				ReplSrcPort: 53,
+			},
+			SPortIsEphemeral: EphemeralTrue,
+			Source:           util.AddressFromString("172.29.141.26"),
+			SPort:            52907,
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			Monotonic: StatCounters{
+				RecvBytes:      306,
+				SentBytes:      120,
+				RecvPackets:    2,
+				SentPackets:    0,
+				Retransmits:    0,
+				TCPClosed:      0,
+				TCPEstablished: 0,
+			},
+			NetNS:    4026532341,
+			Pid:      28385,
+			Dest:     util.AddressFromString("10.100.0.10"),
+			DPort:    53,
+			Type:     UDP,
+			Cookie:   3,
+			Duration: time.Second,
+			IsClosed: true,
+		},
+		{
+			// should be rolled up with previous connection
+			Direction: OUTGOING,
+			Family:    AFINET,
+			IntraHost: false,
+			IPTranslation: &IPTranslation{
+				ReplDstIP:   util.AddressFromString("172.29.141.26"),
+				ReplDstPort: 52904,
+				ReplSrcIP:   util.AddressFromString("172.29.151.242"),
+				ReplSrcPort: 53,
+			},
+			SPortIsEphemeral: EphemeralTrue,
+			Source:           util.AddressFromString("172.29.141.26"),
+			SPort:            52904,
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			Monotonic: StatCounters{
+				RecvBytes:      288,
+				SentBytes:      118,
+				RecvPackets:    2,
+				SentPackets:    0,
+				Retransmits:    0,
+				TCPClosed:      0,
+				TCPEstablished: 0,
+			},
+			NetNS:    4026532341,
+			Pid:      28385,
+			Dest:     util.AddressFromString("10.100.0.10"),
+			DPort:    53,
+			Type:     UDP,
+			Cookie:   4,
+			Duration: time.Second,
+			IsClosed: true,
+		},
+		{
+			// this should not be rolled up as the duration is > 2 mins
+			Direction: OUTGOING,
+			Family:    AFINET,
+			IntraHost: false,
+			IPTranslation: &IPTranslation{
+				ReplDstIP:   util.AddressFromString("172.29.141.26"),
+				ReplDstPort: 37240,
+				ReplSrcIP:   util.AddressFromString("172.29.151.242"),
+				ReplSrcPort: 53,
+			},
+			SPortIsEphemeral: EphemeralTrue,
+			Source:           util.AddressFromString("172.29.141.26"),
+			SPort:            37240,
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			Monotonic: StatCounters{
+				RecvBytes:      594,
+				SentBytes:      92,
+				RecvPackets:    2,
+				SentPackets:    0,
+				Retransmits:    0,
+				TCPClosed:      0,
+				TCPEstablished: 0,
+			},
+			NetNS:    4026532341,
+			Pid:      28385,
+			Dest:     util.AddressFromString("10.100.0.10"),
+			DPort:    53,
+			Type:     UDP,
+			Cookie:   5,
+			Duration: 3 * time.Minute,
+			IsClosed: true,
+		},
+		{
+			Pid:              5652,
+			Source:           util.AddressFromString("172.29.160.125"),
+			SPort:            8443,
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
+			Dest:             util.AddressFromString("172.29.166.243"),
+			DPort:            38633,
+			Family:           AFINET,
+			Type:             TCP,
+			SPortIsEphemeral: EphemeralFalse,
+			Monotonic: StatCounters{
+				SentBytes:      0,
+				RecvBytes:      306,
+				Retransmits:    0,
+				SentPackets:    1,
+				RecvPackets:    3,
+				TCPEstablished: 1,
+			},
+			Direction: INCOMING,
+			NetNS:     4026531992,
+			RTT:       262,
+			RTTVar:    131,
+			IntraHost: false,
+			Cookie:    6,
+			Duration:  time.Second,
+			IsClosed:  true,
+		},
+		{
+			Pid:              5652,
+			Source:           util.AddressFromString("172.29.160.125"),
+			SPort:            8443,
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
+			Dest:             util.AddressFromString("172.29.154.189"),
+			DPort:            60509,
+			Family:           AFINET,
+			Type:             TCP,
+			SPortIsEphemeral: EphemeralFalse,
+			Monotonic: StatCounters{
+				SentBytes:      0,
+				RecvBytes:      306,
+				Retransmits:    0,
+				SentPackets:    1,
+				RecvPackets:    3,
+				TCPEstablished: 1,
+			},
+			Direction: INCOMING,
+			NetNS:     4026531992,
+			RTT:       254,
+			RTTVar:    127,
+			IntraHost: false,
+			Cookie:    7,
+			Duration:  time.Second,
+			IsClosed:  true,
+		},
+		{
+			Pid:              5652,
+			Source:           util.AddressFromString("172.29.160.125"),
+			SPort:            8443,
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
+			Dest:             util.AddressFromString("172.29.166.243"),
+			DPort:            34715,
+			Family:           AFINET,
+			Type:             TCP,
+			SPortIsEphemeral: EphemeralFalse,
+			Monotonic: StatCounters{
+				SentBytes:      2392,
+				RecvBytes:      670,
+				Retransmits:    0,
+				SentPackets:    7,
+				RecvPackets:    8,
+				TCPEstablished: 1,
+			},
+			Direction: INCOMING,
+			NetNS:     4026531992,
+			RTT:       250,
+			RTTVar:    66,
+			IntraHost: false,
+			Cookie:    8,
+			Duration:  time.Second,
+			IsClosed:  true,
+		},
+	}
+
+	ns := newDefaultState()
+	ns.enableConnectionRollup = true
+	ns.processEventConsumerEnabled = true
+	ns.RegisterClient("foo")
+	delta := ns.GetDelta("foo", 0, conns, nil, nil)
+	// should have 5 connections
+	assert.Len(t, delta.Conns, 5)
+
+	findConnections := func(conns []ConnectionStats, _laddr, _raddr string) []ConnectionStats {
+		laddr, err := netip.ParseAddrPort(_laddr)
+		require.NoError(t, err, "could not parse laddr addr port")
+		raddr, err := netip.ParseAddrPort(_raddr)
+		require.NoError(t, err, "could not parse raddr addr port")
+		var found []ConnectionStats
+		for _, c := range conns {
+			if c.Source.Addr == laddr.Addr() &&
+				c.SPort == laddr.Port() &&
+				c.Dest.Addr == raddr.Addr() &&
+				c.DPort == raddr.Port() {
+				found = append(found, c)
+			}
+		}
+
+		return found
+	}
+
+	found := findConnections(conns, "172.29.141.26:37240", "10.100.0.10:53")
+	require.Len(t, found, 1)
+	c := found[0]
+	assert.NotNil(t, c.IPTranslation, "ip translation was nil")
+	assert.Equal(t, "172.29.141.26", c.IPTranslation.ReplDstIP.String())
+	assert.Equal(t, uint16(37240), c.IPTranslation.ReplDstPort)
+	assert.Equal(t, "172.29.151.242", c.IPTranslation.ReplSrcIP.String())
+	assert.Equal(t, uint16(53), c.IPTranslation.ReplSrcPort)
+	assert.Equal(t, StatCounters{
+		RecvBytes:      594,
+		SentBytes:      92,
+		RecvPackets:    2,
+		SentPackets:    0,
+		Retransmits:    0,
+		TCPClosed:      0,
+		TCPEstablished: 0,
+	}, c.Monotonic)
+	assert.Equal(t, uint32(28385), c.Pid)
+
+	found = findConnections(conns, "172.29.141.26:0", "10.100.0.10:53")
+	require.Len(t, found, 2)
+	c = found[0]
+	assert.NotNil(t, c.IPTranslation, "ip translation was nil")
+	assert.Equal(t, "172.29.141.26", c.IPTranslation.ReplDstIP.String())
+	assert.Equal(t, uint16(0), c.IPTranslation.ReplDstPort)
+	assert.Equal(t, "172.29.177.127", c.IPTranslation.ReplSrcIP.String())
+	assert.Equal(t, uint16(53), c.IPTranslation.ReplSrcPort)
+	assert.Equal(t, StatCounters{
+		RecvBytes:      314 + 342,
+		SentBytes:      156 + 128,
+		RecvPackets:    2 + 2,
+		SentPackets:    0,
+		Retransmits:    0,
+		TCPClosed:      0,
+		TCPEstablished: 0,
+	}, c.Monotonic)
+	assert.Equal(t, uint32(28385), c.Pid)
+
+	c = found[1]
+	assert.NotNil(t, c.IPTranslation, "ip translation was nil")
+	assert.Equal(t, "172.29.141.26", c.IPTranslation.ReplDstIP.String())
+	assert.Equal(t, uint16(0), c.IPTranslation.ReplDstPort)
+	assert.Equal(t, "172.29.151.242", c.IPTranslation.ReplSrcIP.String())
+	assert.Equal(t, uint16(53), c.IPTranslation.ReplSrcPort)
+	assert.Equal(t, StatCounters{
+		RecvBytes:      306 + 288,
+		SentBytes:      120 + 118,
+		RecvPackets:    2 + 2,
+		SentPackets:    0,
+		Retransmits:    0,
+		TCPClosed:      0,
+		TCPEstablished: 0,
+	}, c.Monotonic)
+	assert.Equal(t, uint32(28385), c.Pid)
+
+	found = findConnections(conns, "172.29.160.125:8443", "172.29.166.243:0")
+	require.Len(t, found, 1)
+	c = found[0]
+	assert.Nil(t, c.IPTranslation, "ip translation was nil")
+	assert.Equal(t, StatCounters{
+		RecvBytes:      306 + 670,
+		SentBytes:      0 + 2392,
+		RecvPackets:    3 + 8,
+		SentPackets:    1 + 7,
+		Retransmits:    0,
+		TCPClosed:      0,
+		TCPEstablished: 1 + 1,
+	}, c.Monotonic)
+	assert.Equal(t, uint32(5652), c.Pid)
+
+	found = findConnections(conns, "172.29.160.125:8443", "172.29.166.243:34715")
+	require.Len(t, found, 1)
+	c = found[0]
+	assert.Nil(t, c.IPTranslation, "ip translation was nil")
+	assert.Equal(t, StatCounters{
+		SentBytes:      2392,
+		RecvBytes:      670,
+		Retransmits:    0,
+		SentPackets:    7,
+		RecvPackets:    8,
+		TCPEstablished: 1,
+	}, c.Monotonic)
+	assert.Equal(t, uint32(5652), c.Pid)
+}
+
 func TestFilterConnections(t *testing.T) {
 	t.Run("filter", func(t *testing.T) {
 		var conns []ConnectionStats
@@ -2396,6 +2758,68 @@ func TestFilterConnections(t *testing.T) {
 	})
 }
 
+func TestDNSPIDCollision(t *testing.T) {
+	conns := []ConnectionStats{
+		{
+			Source:    util.AddressFromString("10.1.1.1"),
+			Dest:      util.AddressFromString("8.8.8.8"),
+			Pid:       1,
+			SPort:     1000,
+			DPort:     53,
+			Type:      UDP,
+			Family:    AFINET,
+			Direction: LOCAL,
+			Cookie:    1,
+			Monotonic: StatCounters{
+				RecvBytes: 2,
+			},
+		},
+		{
+			Source:    util.AddressFromString("10.1.1.1"),
+			Dest:      util.AddressFromString("8.8.8.8"),
+			Pid:       2,
+			SPort:     1000,
+			DPort:     53,
+			Type:      UDP,
+			Family:    AFINET,
+			Direction: LOCAL,
+			Cookie:    2,
+			Monotonic: StatCounters{
+				RecvBytes: 2,
+			},
+		},
+	}
+
+	dnsStats := dns.StatsByKeyByNameByType{
+		dns.Key{
+			ClientIP:   util.AddressFromString("10.1.1.1"),
+			ServerIP:   util.AddressFromString("8.8.8.8"),
+			ClientPort: uint16(1000),
+			Protocol:   syscall.IPPROTO_UDP,
+		}: map[dns.Hostname]map[dns.QueryType]dns.Stats{
+			dns.ToHostname("foo.com"): {
+				dns.TypeA: {
+					Timeouts:          0,
+					SuccessLatencySum: 0,
+					FailureLatencySum: 0,
+					CountByRcode:      map[uint32]uint32{0: 1},
+				},
+			},
+		},
+	}
+
+	config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", true)
+	config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", false)
+
+	state := newDefaultState()
+	state.RegisterClient("foo")
+	delta := state.GetDelta("foo", 0, conns, dnsStats, nil)
+
+	// Only the first connection should be bound to DNS stats in the context of a PID collision
+	assert.NotEmpty(t, delta.Conns[0].DNSStats, "dns stats should not be empty")
+	assert.Empty(t, delta.Conns[1].DNSStats, "dns stats should not be empty")
+}
+
 func generateRandConnections(n int) []ConnectionStats {
 	cs := make([]ConnectionStats, 0, n)
 	for i := 0; i < n; i++ {
@@ -2425,7 +2849,7 @@ func latestEpochTime() uint64 {
 
 func newDefaultState() *networkState {
 	// Using values from ebpf.NewConfig()
-	return NewState(2*time.Minute, 50000, 75000, 75000, 7500, 7500).(*networkState)
+	return NewState(2*time.Minute, 50000, 75000, 75000, 7500, 7500, false, false).(*networkState)
 }
 
 func getIPProtocol(nt ConnectionType) uint8 {

@@ -81,6 +81,7 @@
 //	1. HTTP transactions events are always in the scope of
 //		HTTPConnectionTraceTaskConnConn   21 [Local & Remote IP/Ports]
 //		HTTPConnectionTraceTaskConnClose  23
+//      HTTPConnectionTraceTaskConnCleanup 24
 //
 //
 //	2. HTTP Req/Resp (the same ActivityID)
@@ -92,15 +93,22 @@
 //
 //		  or
 //
+//
 //	   b. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
 //	      HTTPRequestTraceTaskParse          2     [verb, url]
 //	      HTTPRequestTraceTaskDeliver        3     [siteId, reqQueueName, url]
 //		  HTTPRequestTraceTaskFastResp       4     [statusCode, verb, headerLen, cachePolicy = 0]
 //		  HTTPRequestTraceTaskSendComplete  10     [httpStatus]
+
+//	   c. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
+//	      HTTPRequestTraceTaskParse          2     [verb, url]
+//		  HTTPRequestTraceTaskRejectedArgs  64     []
+//		  HTTPRequestTraceTaskSendComplete  10     [httpStatus]
+
 //
 //		  or
 //
-//	   c. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
+//	   d. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
 //	      HTTPRequestTraceTaskParse          2     [verb, url]
 //	      HTTPRequestTraceTaskDeliver        3     [siteId, reqQueueName, url]
 //		  HTTPRequestTraceTaskFastResp       4     [statusCode, verb, headerLen, cachePolicy=1]
@@ -109,7 +117,7 @@
 //
 //		  or
 //
-//	   d. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
+//	   e. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
 //	      HTTPRequestTraceTaskParse          2     [verb, url]
 //		  HTTPRequestTraceTaskSrvdFrmCache  16     [site, bytesSent]
 //
@@ -135,12 +143,14 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/comp/etw"
+	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type Http struct {
 	// Most of it just like driver's HTTP data ...
 	Txn driver.HttpTransactionType
@@ -163,12 +173,14 @@ type Http struct {
 	// ContentLength uint32
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type Conn struct {
 	tup          driver.ConnTupleType
 	connected    uint64
 	disconnected uint64
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type ConnOpen struct {
 	// conntuple
 	conn Conn
@@ -181,14 +193,21 @@ type ConnOpen struct {
 	httpPendingBackLinks map[etw.DDGUID]struct{}
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type HttpConnLink struct {
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	connActivityId etw.DDGUID
 
 	http WinHttpTransaction
 
 	url string
+
+	// list of etw notifications, in order, that this transaction has been seen
+	// this is for internal debugging; is not surfaced anywhere.
+	opcodes []uint16
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type Cache struct {
 	statusCode uint16
 	// <<<MORE ETW HttpService DETAILS>>>
@@ -199,34 +218,45 @@ type Cache struct {
 	reqRespBound bool
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type HttpCache struct {
 	cache Cache
 	http  WinHttpTransaction
 }
 
 const (
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	HttpServiceLogNone int = iota
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	HttpServiceLogSummary
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	HttpServiceLogVerbose
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	HttpServiceLogVeryVerbose
 )
 
 var (
 	// Should be controlled by config
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	HttpServiceLogVerbosity int = HttpServiceLogSummary
 )
 
 var (
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	httpServiceSubscribed bool = false
 	connOpened            map[etw.DDGUID]*ConnOpen
 	http2openConn         map[etw.DDGUID]*HttpConnLink
 	httpCache             map[string]*HttpCache
 
-	completedHttpTxMux      sync.Mutex
-	completedHttpTx         []WinHttpTransaction
+	//nolint:revive // TODO(WKIT) Fix revive linter
+	completedHttpTxMux sync.Mutex
+	//nolint:revive // TODO(WKIT) Fix revive linter
+	completedHttpTx []WinHttpTransaction
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	completedHttpTxMaxCount uint64 = 1000 // default max
 	maxRequestFragmentBytes uint64 = 25
-	completedHttpTxDropped  uint   = 0 // when should we reset this telemetry and how to expose it
+	//nolint:revive // TODO(WKIT) Fix revive linter
+	completedHttpTxDropped uint = 0 // when should we reset this telemetry and how to expose it
 
 	captureHTTP  bool
 	captureHTTPS bool
@@ -252,12 +282,14 @@ func init() {
 
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func cleanupActivityIdViaConnOpen(connOpen *ConnOpen, activityId etw.DDGUID) {
 	// Clean it up related containers
 	delete(http2openConn, activityId)
 	delete(connOpen.httpPendingBackLinks, activityId)
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func cleanupActivityIdViaConnActivityId(connActivityId etw.DDGUID, activityId etw.DDGUID) {
 	connOpen, connFound := connOpened[connActivityId]
 	if connFound {
@@ -265,13 +297,14 @@ func cleanupActivityIdViaConnActivityId(connActivityId etw.DDGUID, activityId et
 	}
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func getConnOpen(activityId etw.DDGUID) (*ConnOpen, bool) {
 	connOpen, connFound := connOpened[activityId]
 	if !connFound {
 		if captureHTTPS || HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 			missedConnectionCount++
 			if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
-				log.Warnf("* Warning!!!: ActivityId:%v. Failed to find connection object\n\n", etw.FormatGUID(activityId))
+				log.Warnf("* Warning!!!: ActivityId:%v. Failed to find connection object\n\n", FormatGUID(activityId))
 			}
 		}
 		return nil, false
@@ -280,13 +313,14 @@ func getConnOpen(activityId etw.DDGUID) (*ConnOpen, bool) {
 	return connOpen, connFound
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func getHttpConnLink(activityId etw.DDGUID) (*HttpConnLink, bool) {
 	httpConnLink, found := http2openConn[activityId]
 	if !found {
 		if captureHTTPS || HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 			missedConnectionCount++
 			if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
-				log.Warnf("* Warning: ActivityId:%v. Failed to find connection ActivityID\n\n", etw.FormatGUID(activityId))
+				log.Warnf("* Warning: ActivityId:%v. Failed to find connection ActivityID\n\n", FormatGUID(activityId))
 			}
 		}
 
@@ -296,7 +330,7 @@ func getHttpConnLink(activityId etw.DDGUID) (*HttpConnLink, bool) {
 	return httpConnLink, found
 }
 
-func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpConnLink) {
+func completeReqRespTracking(eventInfo *etw.DDEventRecord, httpConnLink *HttpConnLink) {
 
 	// Get connection
 	connOpen, connFound := connOpened[httpConnLink.connActivityId]
@@ -304,32 +338,32 @@ func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpCo
 		missedConnectionCount++
 
 		// No connection, no potint to keep it longer inthe pending HttpReqRespMap
-		delete(http2openConn, eventInfo.Event.ActivityId)
+		delete(http2openConn, eventInfo.EventHeader.ActivityID)
 
 		if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 			log.Warnf("* Warning!!!: ActivityId:%v. Connection ActivityId:%v. HTTPRequestTraceTaskFastResp failed to find connection object\n\n",
-				etw.FormatGUID(eventInfo.Event.ActivityId), etw.FormatGUID(httpConnLink.connActivityId))
+				FormatGUID(eventInfo.EventHeader.ActivityID), FormatGUID(httpConnLink.connActivityId))
 		}
 		return
 	}
 
 	// Time
-	httpConnLink.http.Txn.ResponseLastSeen = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
+	httpConnLink.http.Txn.ResponseLastSeen = winutil.FileTimeToUnixNano(uint64(eventInfo.EventHeader.TimeStamp))
 	if httpConnLink.http.Txn.ResponseLastSeen == httpConnLink.http.Txn.RequestStarted {
 		httpConnLink.http.Txn.ResponseLastSeen++
 	}
 
 	// Clean it up related containers
-	cleanupActivityIdViaConnOpen(connOpen, eventInfo.Event.ActivityId)
+	cleanupActivityIdViaConnOpen(connOpen, eventInfo.EventHeader.ActivityID)
 
 	// output details
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		log.Infof("  CompletedReq:   %v\n", completedRequestCount)
 		log.Infof("  Connected:      %v\n", connOpen.conn.connected)
-		log.Infof("  Requested:      %v\n", etw.FormatUnixTime(httpConnLink.http.Txn.RequestStarted))
-		log.Infof("  Responded:      %v\n", etw.FormatUnixTime(httpConnLink.http.Txn.ResponseLastSeen))
-		log.Infof("  ConnActivityId: %v\n", etw.FormatGUID(httpConnLink.connActivityId))
-		log.Infof("  ActivityId:     %v\n", etw.FormatGUID(eventInfo.Event.ActivityId))
+		log.Infof("  Requested:      %v\n", FormatUnixTime(httpConnLink.http.Txn.RequestStarted))
+		log.Infof("  Responded:      %v\n", FormatUnixTime(httpConnLink.http.Txn.ResponseLastSeen))
+		log.Infof("  ConnActivityId: %v\n", FormatGUID(httpConnLink.connActivityId))
+		log.Infof("  ActivityId:     %v\n", FormatGUID(eventInfo.EventHeader.ActivityID))
 		if connFound {
 			log.Infof("  Local:          %v\n", IPFormat(connOpen.conn.tup, true))
 			log.Infof("  Remote:         %v\n", IPFormat(connOpen.conn.tup, false))
@@ -337,7 +371,7 @@ func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpCo
 		}
 		log.Infof("  AppPool:        %v\n", httpConnLink.http.AppPool)
 		log.Infof("  Url:            %v\n", httpConnLink.url)
-		log.Infof("  Method:         %v\n", etw.HTTPMethodToStr(httpConnLink.http.Txn.RequestMethod))
+		log.Infof("  Method:         %v\n", Method(httpConnLink.http.Txn.RequestMethod).String())
 		log.Infof("  StatusCode:     %v\n", httpConnLink.http.Txn.ResponseStatusCode)
 		// <<<MORE ETW HttpService DETAILS>>>
 		// log.Infof("  HeaderLength:   %v\n", httpConnLink.http.HeaderLength)
@@ -346,13 +380,13 @@ func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpCo
 	} else if HttpServiceLogVerbosity == HttpServiceLogVerbose {
 		log.Infof("%v. %v L[%v], R[%v], F[%v], P[%v], C[%v], V[%v], U[%v]\n",
 			completedRequestCount,
-			etw.FormatUnixTime(httpConnLink.http.Txn.RequestStarted),
+			FormatUnixTime(httpConnLink.http.Txn.RequestStarted),
 			IPFormat(connOpen.conn.tup, true),
 			IPFormat(connOpen.conn.tup, false),
 			connOpen.conn.tup.Family,
 			httpConnLink.http.AppPool,
 			httpConnLink.http.Txn.ResponseStatusCode,
-			etw.HTTPMethodToStr(httpConnLink.http.Txn.RequestMethod),
+			Method(httpConnLink.http.Txn.RequestMethod).String(),
 			// <<<MORE ETW HttpService DETAILS>>>
 			// httpConnLink.http.HeaderLength,
 			// httpConnLink.http.ContentLength,
@@ -393,7 +427,7 @@ func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpCo
 
 // -----------------------------------------------------------
 // HttpService ETW Event #21 (HTTPConnectionTraceTaskConnConn)
-func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo) {
+func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEventRecord) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -441,18 +475,18 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 	//      72:
 	//  } EVENT_PARAM_HttpService_HTTPConnectionTraceTaskConnConnect_IP4;
 
-	userData := etw.GoBytes(unsafe.Pointer(eventInfo.Event.UserData), int(eventInfo.Event.UserDataLength))
+	userData := unsafe.Slice(eventInfo.UserData, int(eventInfo.UserDataLength))
 
 	// Check for size
-	if eventInfo.Event.UserDataLength < 48 {
-		log.Errorf("*** Error: User data length for EVENT_ID_HttpService_HTTPConnectionTraceTaskConnConn is too small %v\n\n", uintptr(eventInfo.Event.UserDataLength))
+	if eventInfo.UserDataLength < 48 {
+		log.Errorf("*** Error: User data length for EVENT_ID_HttpService_HTTPConnectionTraceTaskConnConn is too small %v\n\n", uintptr(eventInfo.UserDataLength))
 		return
 	}
 
 	localAddrLength := binary.LittleEndian.Uint32(userData[8:12])
 	if localAddrLength != 16 && localAddrLength != 28 {
 		log.Errorf("*** Error: ActivityId:%v. HTTPConnectionTraceTaskConnConn invalid local address size %v (only 16 or 28 allowed)\n\n",
-			etw.FormatGUID(eventInfo.Event.ActivityId), localAddrLength)
+			FormatGUID(eventInfo.EventHeader.ActivityID), localAddrLength)
 		return
 	}
 
@@ -462,7 +496,7 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 		remoteAddrLength := binary.LittleEndian.Uint32(userData[28:32])
 		if remoteAddrLength != 16 {
 			log.Errorf("*** Error: ActivityId:%v. HTTPConnectionTraceTaskConnConn invalid remote address size %v (only 16 allowed)\n\n",
-				etw.FormatGUID(eventInfo.Event.ActivityId), localAddrLength)
+				FormatGUID(eventInfo.EventHeader.ActivityID), localAddrLength)
 		}
 
 		// Local and remote ipaddress and port
@@ -472,15 +506,15 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 		connOpen.conn.tup.RemotePort = binary.BigEndian.Uint16(userData[34:36])
 		copy(connOpen.conn.tup.RemoteAddr[:], userData[36:40])
 	} else {
-		if eventInfo.Event.UserDataLength < 72 {
-			log.Errorf("*** Error: User data length for EVENT_ID_HttpService_HTTPConnectionTraceTaskConnConn is too small for IP6 %v\n\n", uintptr(eventInfo.Event.UserDataLength))
+		if eventInfo.UserDataLength < 72 {
+			log.Errorf("*** Error: User data length for EVENT_ID_HttpService_HTTPConnectionTraceTaskConnConn is too small for IP6 %v\n\n", uintptr(eventInfo.UserDataLength))
 			return
 		}
 
 		remoteAddrLength := binary.LittleEndian.Uint32(userData[40:44])
 		if remoteAddrLength != 28 {
 			log.Errorf("*** Error: ActivityId:%v. HTTPConnectionTraceTaskConnConn invalid remote address size %v (only 16 allowed)\n\n",
-				etw.FormatGUID(eventInfo.Event.ActivityId), localAddrLength)
+				FormatGUID(eventInfo.EventHeader.ActivityID), localAddrLength)
 		}
 
 		//  	20: uint16_t localIpAddress[8];
@@ -494,18 +528,18 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 	}
 
 	// Time
-	connOpen.conn.connected = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
+	connOpen.conn.connected = winutil.FileTimeToUnixNano(uint64(eventInfo.EventHeader.TimeStamp))
 
 	// Http back links (to cleanup on closure)
 	connOpen.httpPendingBackLinks = make(map[etw.DDGUID]struct{}, 10)
 
 	// Save to the map
-	connOpened[eventInfo.Event.ActivityId] = &connOpen
+	connOpened[eventInfo.EventHeader.ActivityID] = &connOpen
 
 	// output details
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
-		log.Infof("  Time:           %v\n", etw.FormatUnixTime(connOpen.conn.connected))
-		log.Infof("  ActivityId:     %v\n", etw.FormatGUID(eventInfo.Event.ActivityId))
+		log.Infof("  Time:           %v\n", FormatUnixTime(connOpen.conn.connected))
+		log.Infof("  ActivityId:     %v\n", FormatGUID(eventInfo.EventHeader.ActivityID))
 		log.Infof("  Local:          %v\n", IPFormat(connOpen.conn.tup, true))
 		log.Infof("  Remote:         %v\n", IPFormat(connOpen.conn.tup, false))
 		log.Infof("  Family:         %v\n", connOpen.conn.tup.Family)
@@ -514,41 +548,43 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 }
 
 // -------------------------------------------------------------
-// HttpService ETW Event #23 (HTTPConnectionTraceTaskConnClose)
-func httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo *etw.DDEtwEventInfo) {
+// HttpService ETW Event #24 (HTTPConnectionTraceTaskConnCleanup)
+func httpCallbackOnHTTPConnectionTraceTaskConnCleanup(eventInfo *etw.DDEventRecord) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
 
 	// output details
-	connOpen, found := connOpened[eventInfo.Event.ActivityId]
+	connOpen, found := connOpened[eventInfo.EventHeader.ActivityID]
 	if found {
 		// ... and clean it up related containers
-		delete(http2openConn, eventInfo.Event.ActivityId)
+		delete(http2openConn, eventInfo.EventHeader.ActivityID)
 
 		completedRequestCount++
 
 		// move it to close connection
-		connOpen.conn.disconnected = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
+		connOpen.conn.disconnected = winutil.FileTimeToUnixNano(uint64(eventInfo.EventHeader.TimeStamp))
 
 		// Clean pending http2openConn
+		//
+		//nolint:revive // TODO(WKIT) Fix revive linter
 		for httpReqRespActivityId := range connOpen.httpPendingBackLinks {
 			delete(http2openConn, httpReqRespActivityId)
 		}
 
 		// ... and remoe itself from the map
-		delete(connOpened, eventInfo.Event.ActivityId)
+		delete(connOpened, eventInfo.EventHeader.ActivityID)
 	}
 
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		if found {
 			log.Infof("  ActivityId: %v, Local[%v], Remote[%v], Family[%v]\n",
-				etw.FormatGUID(eventInfo.Event.ActivityId),
+				FormatGUID(eventInfo.EventHeader.ActivityID),
 				IPFormat(connOpen.conn.tup, true),
 				IPFormat(connOpen.conn.tup, false),
 				connOpen.conn.tup.Family)
 		} else {
-			log.Infof("  ActivityId: %v not found\n", etw.FormatGUID(eventInfo.Event.ActivityId))
+			log.Infof("  ActivityId: %v not found\n", FormatGUID(eventInfo.EventHeader.ActivityID))
 		}
 		log.Infof("\n")
 	}
@@ -556,7 +592,7 @@ func httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo *etw.DDEtwEventInf
 
 // -----------------------------------------------------------
 // HttpService ETW Event #1 (HTTPRequestTraceTaskRecvReq)
-func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
+func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEventRecord) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -572,7 +608,7 @@ func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
 	//      28: uint64_t remoteZeroPad;
 	//      36
 	// 	} EVENT_PARAM_HttpService_HTTPRequestTraceTaskRecvReq_IP4;
-	// userData := goBytes(unsafe.Pointer(eventInfo.Event.UserData), C.int(eventInfo.Event.UserDataLength))
+	// userData := goBytes(unsafe.Pointer(eventInfo.UserData), C.int(eventInfo.UserDataLength))
 
 	// Check for size
 	/*
@@ -607,34 +643,41 @@ func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
 	*/
 
 	// related activityid
-	if eventInfo.RelatedActivityId == nil {
+	rai := getRelatedActivityID(eventInfo)
+	if rai == nil {
 		parsingErrorCount++
 		log.Warnf("* Warning!!!: ActivityId:%v. HTTPRequestTraceTaskRecvReq event should have a reference to related activity id\n\n",
-			etw.FormatGUID(eventInfo.Event.ActivityId))
+			FormatGUID(eventInfo.EventHeader.ActivityID))
 		return
 	}
 
-	connOpen, connFound := getConnOpen(eventInfo.Event.ActivityId)
+	connOpen, connFound := getConnOpen(eventInfo.EventHeader.ActivityID)
 	if !connFound {
 		return
 	}
 
 	// Initialize ReqResp and Conn Link
-	reqRespAndLink := &HttpConnLink{}
-	reqRespAndLink.connActivityId = eventInfo.Event.ActivityId
-	reqRespAndLink.http.Txn.Tup = connOpen.conn.tup
-	reqRespAndLink.http.Txn.RequestStarted = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
+	reqRespAndLink := &HttpConnLink{
+		connActivityId: eventInfo.EventHeader.ActivityID,
+		opcodes:        make([]uint16, 0, 10), // allocate enough slots for the opcodes we expect.
+		http: WinHttpTransaction{
+			Txn: driver.HttpTransactionType{
+				Tup:            connOpen.conn.tup,
+				RequestStarted: winutil.FileTimeToUnixNano(uint64(eventInfo.EventHeader.TimeStamp)),
+			},
+		},
+	}
 
 	// Save Req/Resp Conn Link and back reference to it
-	http2openConn[*eventInfo.RelatedActivityId] = reqRespAndLink
+	http2openConn[*rai] = reqRespAndLink
 	var dummy struct{}
-	connOpen.httpPendingBackLinks[*eventInfo.RelatedActivityId] = dummy
+	connOpen.httpPendingBackLinks[*rai] = dummy
 
 	// output details
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
-		log.Infof("  Time:           %v\n", etw.FormatUnixTime(reqRespAndLink.http.Txn.RequestStarted))
-		log.Infof("  ActivityId:     %v\n", etw.FormatGUID(eventInfo.Event.ActivityId))
-		log.Infof("  RelActivityId:  %v\n", etw.FormatGUID(*eventInfo.RelatedActivityId))
+		log.Infof("  Time:           %v\n", FormatUnixTime(reqRespAndLink.http.Txn.RequestStarted))
+		log.Infof("  ActivityId:     %v\n", FormatGUID(eventInfo.EventHeader.ActivityID))
+		log.Infof("  RelActivityId:  %v\n", FormatGUID(*rai))
 		if connFound {
 			log.Infof("  Local:          %v\n", IPFormat(connOpen.conn.tup, true))
 			log.Infof("  Remote:         %v\n", IPFormat(connOpen.conn.tup, false))
@@ -646,7 +689,7 @@ func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #2 (HTTPRequestTraceTaskParse)
-func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEtwEventInfo) {
+func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEventRecord) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -657,35 +700,35 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEtwEventInfo) {
 	// 	    8:  uint32_t httpVerb;
 	// 	    12: unint8_t url;           // Unicode wide char zero terminating string
 	// } EVENT_PARAM_HttpService_HTTPRequestTraceTaskParse;
-	userData := etw.GoBytes(unsafe.Pointer(eventInfo.Event.UserData), int(eventInfo.Event.UserDataLength))
+	userData := etwimpl.GetUserData(eventInfo)
 
 	// Check for size
-	if eventInfo.Event.UserDataLength < 14 {
+	if eventInfo.UserDataLength < 14 {
 		parsingErrorCount++
 		log.Errorf("*** Error: ActivityId:%v. User data length for HTTPRequestTraceTaskParse is too small %v\n\n",
-			etw.FormatGUID(eventInfo.Event.ActivityId), uintptr(eventInfo.Event.UserDataLength))
+			FormatGUID(eventInfo.EventHeader.ActivityID), uintptr(eventInfo.UserDataLength))
 		return
 	}
 
 	// Get req/resp conn link
-	httpConnLink, found := getHttpConnLink(eventInfo.Event.ActivityId)
+	httpConnLink, found := getHttpConnLink(eventInfo.EventHeader.ActivityID)
 	if !found {
 		return
 	}
-
+	httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)
 	// Verb (in future we can cast number to)
-	httpConnLink.http.Txn.RequestMethod = etw.VerbToMethod(binary.LittleEndian.Uint32(userData[8:12]))
+	httpConnLink.http.Txn.RequestMethod = uint32(VerbToMethod(userData.GetUint32(8)))
 
 	// Parse Url
 	urlOffset := 12
-	uri, _, urlFound, urlTermZeroIdx := etw.ParseUnicodeString(userData, urlOffset)
+	uri, _, urlFound, urlTermZeroIdx := userData.ParseUnicodeString(urlOffset)
 	if !urlFound {
 		parsingErrorCount++
 		log.Errorf("*** Error: ActivityId:%v. HTTPRequestTraceTaskParse could not find terminating zero for Url. termZeroIdx=%v\n\n",
-			etw.FormatGUID(eventInfo.Event.ActivityId), urlTermZeroIdx)
+			FormatGUID(eventInfo.EventHeader.ActivityID), urlTermZeroIdx)
 
 		// If problem stop tracking and cleanup
-		cleanupActivityIdViaConnActivityId(httpConnLink.connActivityId, eventInfo.Event.ActivityId)
+		cleanupActivityIdViaConnActivityId(httpConnLink.connActivityId, eventInfo.EventHeader.ActivityID)
 		return
 	}
 
@@ -724,16 +767,16 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEtwEventInfo) {
 
 	// output details
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
-		log.Infof("  ActivityId:     %v\n", etw.FormatGUID(eventInfo.Event.ActivityId))
+		log.Infof("  ActivityId:     %v\n", FormatGUID(eventInfo.EventHeader.ActivityID))
 		log.Infof("  Url:            %v\n", httpConnLink.url)
-		log.Infof("  Method:         %v\n", etw.HTTPMethodToStr(httpConnLink.http.Txn.RequestMethod))
+		log.Infof("  Method:         %v\n", Method(httpConnLink.http.Txn.RequestMethod).String())
 		log.Infof("\n")
 	}
 }
 
 // -----------------------------------------------------------
 // HttpService ETW Event #3 (HTTPRequestTraceTaskDeliver)
-func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEtwEventInfo) {
+func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -747,62 +790,64 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEtwEventInfo) {
 	// 	        uint8_t  url[xxx];               // Unicode zero terminating string
 	// 	        uint32_t status;
 	// 	} EVENT_PARAM_HttpService_HTTPRequestTraceTaskDeliver;
-	userData := etw.GoBytes(unsafe.Pointer(eventInfo.Event.UserData), int(eventInfo.Event.UserDataLength))
+	userData := etwimpl.GetUserData(eventInfo)
 
 	// Check for size
-	if eventInfo.Event.UserDataLength < 24 {
+	if eventInfo.UserDataLength < 24 {
 		parsingErrorCount++
 		log.Errorf("*** Error: ActivityId:%v. User data length for EVENT_PARAM_HttpService_HTTPRequestTraceTaskDeliver is too small %v\n\n",
-			etw.FormatGUID(eventInfo.Event.ActivityId), uintptr(eventInfo.Event.UserDataLength))
+			FormatGUID(eventInfo.EventHeader.ActivityID), uintptr(eventInfo.UserDataLength))
 		return
 	}
 
 	// Get req/resp conn link
-	httpConnLink, found := getHttpConnLink(eventInfo.Event.ActivityId)
+	httpConnLink, found := getHttpConnLink(eventInfo.EventHeader.ActivityID)
 	if !found {
+		log.Warnf("connlink not found at tracetaskdeliver")
 		return
 	}
-
+	httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)
 	// Extra output
 	connOpen, connFound := getConnOpen(httpConnLink.connActivityId)
 	if !connFound {
 		// If no connection found then stop tracking
-		delete(http2openConn, eventInfo.Event.ActivityId)
+		delete(http2openConn, eventInfo.EventHeader.ActivityID)
 		return
 	}
 
 	// Parse RequestQueueName
 	appPoolOffset := 20
-	appPool, urlOffset, appPoolFound, appPoolTermZeroIdx := etw.ParseUnicodeString(userData, appPoolOffset)
+	appPool, urlOffset, appPoolFound, appPoolTermZeroIdx := userData.ParseUnicodeString(appPoolOffset)
 	if !appPoolFound {
 		parsingErrorCount++
 		log.Errorf("*** Error: ActivityId:%v. Connection ActivityId:%v. HTTPRequestTraceTaskDeliver could not find terminating zero for RequestQueueName. termZeroIdx=%v\n\n",
-			etw.FormatGUID(eventInfo.Event.ActivityId), etw.FormatGUID(httpConnLink.connActivityId), appPoolTermZeroIdx)
+			FormatGUID(eventInfo.EventHeader.ActivityID), FormatGUID(httpConnLink.connActivityId), appPoolTermZeroIdx)
 
 		// If problem stop tracking this
-		delete(http2openConn, eventInfo.Event.ActivityId)
+		delete(http2openConn, eventInfo.EventHeader.ActivityID)
 		return
 	}
 
 	httpConnLink.http.AppPool = appPool
-	httpConnLink.http.SiteID = binary.LittleEndian.Uint32(userData[16:24])
+	httpConnLink.http.SiteID = userData.GetUint32(16)
 	httpConnLink.http.SiteName = iisConfig.GetSiteNameFromID(httpConnLink.http.SiteID)
+
 	// Parse url
-	if urlOffset > len(userData) {
+	if urlOffset > userData.Length() {
 		parsingErrorCount++
 
 		log.Errorf("*** Error: ActivityId:%v. Connection ActivityId:%v. HTTPRequestTraceTaskDeliver could not find beginning of Url\n\n",
-			etw.FormatGUID(eventInfo.Event.ActivityId), etw.FormatGUID(httpConnLink.connActivityId))
+			FormatGUID(eventInfo.EventHeader.ActivityID), FormatGUID(httpConnLink.connActivityId))
 
 		// If problem stop tracking this
-		delete(http2openConn, eventInfo.Event.ActivityId)
+		delete(http2openConn, eventInfo.EventHeader.ActivityID)
 		return
 	}
 
 	// output details
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
-		log.Infof("  ConnActivityId: %v\n", etw.FormatGUID(httpConnLink.connActivityId))
-		log.Infof("  ActivityId:     %v\n", etw.FormatGUID(eventInfo.Event.ActivityId))
+		log.Infof("  ConnActivityId: %v\n", FormatGUID(httpConnLink.connActivityId))
+		log.Infof("  ActivityId:     %v\n", FormatGUID(eventInfo.EventHeader.ActivityID))
 		log.Infof("  AppPool:        %v\n", httpConnLink.http.AppPool)
 		log.Infof("  Url:            %v\n", httpConnLink.url)
 		if connFound {
@@ -816,7 +861,7 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #4, #8 (HTTPRequestTraceTaskFastResp, HTTPRequestTraceTaskRecvResp)
-func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *etw.DDEtwEventInfo) {
+func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *etw.DDEventRecord) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -832,22 +877,23 @@ func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *etw.DDEtwEventInfo) {
 	//          uint32_t  cachePolicy
 	// 	} EVENT_PARAM_HttpService_HTTPRequestTraceTaskRecvResp;
 
-	userData := etw.GoBytes(unsafe.Pointer(eventInfo.Event.UserData), int(eventInfo.Event.UserDataLength))
+	userData := etwimpl.GetUserData(eventInfo)
 
 	// Check for size
-	if eventInfo.Event.UserDataLength < 24 {
+	if eventInfo.UserDataLength < 24 {
 		parsingErrorCount++
 		log.Errorf("*** Error: ActivityId:%v. User data length for EVENT_PARAM_HttpService_HTTPRequestTraceTaskXxxResp is too small %v\n\n",
-			etw.FormatGUID(eventInfo.Event.ActivityId), uintptr(eventInfo.Event.UserDataLength))
+			FormatGUID(eventInfo.EventHeader.ActivityID), uintptr(eventInfo.UserDataLength))
 		return
 	}
 
 	// Get req/resp conn link
-	httpConnLink, found := getHttpConnLink(eventInfo.Event.ActivityId)
+	httpConnLink, found := getHttpConnLink(eventInfo.EventHeader.ActivityID)
 	if !found {
 		return
 	}
-	httpConnLink.http.Txn.ResponseStatusCode = binary.LittleEndian.Uint16(userData[16:18])
+	httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)
+	httpConnLink.http.Txn.ResponseStatusCode = userData.GetUint16(16)
 
 	// <<<MORE ETW HttpService DETAILS>>>
 	// verbOffset := 18
@@ -855,7 +901,7 @@ func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *etw.DDEtwEventInfo) {
 	//if !verbFound {
 	//	parsingErrorCount++
 	//	log.Errorf("*** Error: ActivityId:%v. Connection ActivityId:%v. HTTPRequestTraceTaskXxxResp could not find terminating zero for Verb. termZeroIdx=%v\n\n",
-	//		formatGuid(eventInfo.Event.ActivityId), etw.FormatGuid(httpConnLink.connActivityId), verbTermZeroIdx)
+	//		formatGuid(eventInfo.EventHeader.ActivityID), FormatGUID(httpConnLink.connActivityId), verbTermZeroIdx)
 	//	return
 	//}
 
@@ -863,7 +909,7 @@ func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *etw.DDEtwEventInfo) {
 	// // Parse headerLength (space for 32bit number)
 	// if (headerSizeOffset + 4) > len(userData) {
 	// 	log.Errorf("*** Error: ActivityId:%v. Connection ActivityId:%v. HTTPRequestTraceTaskXxxResp Not enough space for HeaderLength. userDataSize=%v, parsedDataSize=%v\n\n",
-	//  	formatGuid(eventInfo.Event.ActivityId), etw.FormatGuid(httpConnLink.connActivityId), len(userData), (headerSizeOffset + 4))
+	//  	formatGuid(eventInfo.EventHeader.ActivityID), FormatGUID(httpConnLink.connActivityId), len(userData), (headerSizeOffset + 4))
 	//	return
 	//}
 
@@ -873,7 +919,7 @@ func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *etw.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #16-17 (HTTPRequestTraceTaskSrvdFrmCache, HTTPRequestTraceTaskCachedNotModified)
-func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEtwEventInfo) {
+func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEventRecord) {
 
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -886,29 +932,29 @@ func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEtwEventInf
 	// 	   12: uint32_t bytesSent;
 	// } EVENT_PARAM_HttpService_HTTPRequestTraceTaskSrvdFrmCache;
 
-	// userData := goBytes(unsafe.Pointer(eventInfo.Event.UserData), C.int(eventInfo.Event.UserDataLength))
+	// userData := goBytes(unsafe.Pointer(eventInfo.UserData), C.int(eventInfo.UserDataLength))
 
 	// Check for size
-	if eventInfo.Event.UserDataLength < 12 {
+	if eventInfo.UserDataLength < 12 {
 		parsingErrorCount++
 		log.Errorf("*** Error: ActivityId:%v. User data length for EVENT_PARAM_HttpService_HTTPRequestTraceTaskSrvdFrmCache is too small %v\n\n",
-			etw.FormatGUID(eventInfo.Event.ActivityId), uintptr(eventInfo.Event.UserDataLength))
+			FormatGUID(eventInfo.EventHeader.ActivityID), uintptr(eventInfo.UserDataLength))
 		return
 	}
 
 	// Get req/resp conn link
-	httpConnLink, found := getHttpConnLink(eventInfo.Event.ActivityId)
+	httpConnLink, found := getHttpConnLink(eventInfo.EventHeader.ActivityID)
 	if !found {
 		return
 	}
-
+	httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)
 	// Get from HTTP.sys cache (httpCache)
 	cacheEntry, found := httpCache[httpConnLink.url]
 	if !found {
 		log.Warnf("* Warning!!!: HTTPRequestTraceTaskSrvdFrmCache failed to find HTTP cache entry by url %v\n\n", httpConnLink.url)
 
 		// If problem stop tracking and cleanup
-		cleanupActivityIdViaConnActivityId(httpConnLink.connActivityId, eventInfo.Event.ActivityId)
+		cleanupActivityIdViaConnActivityId(httpConnLink.connActivityId, eventInfo.EventHeader.ActivityID)
 		return
 	}
 
@@ -944,7 +990,7 @@ func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEtwEventInf
 
 // -----------------------------------------------------------
 // HttpService ETW Event #25 (HTTPCacheTraceTaskAddedCacheEntry)
-func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *etw.DDEtwEventInfo) {
+func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *etw.DDEventRecord) {
 
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -960,13 +1006,13 @@ func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *etw.DDEtwEventIn
 	//      //  uint64_t expirationTime;
 	// } EVENT_PARAM_HttpService_HTTPCacheTraceTaskAddedCacheEntry;
 
-	userData := etw.GoBytes(unsafe.Pointer(eventInfo.Event.UserData), int(eventInfo.Event.UserDataLength))
+	userData := etwimpl.GetUserData(eventInfo)
 
 	cacheEntry := &HttpCache{}
 
 	// Parse Url
 	urlOffset := 0
-	url, statusCodeOffset, urlFound, urlTermZeroIdx := etw.ParseUnicodeString(userData, urlOffset)
+	url, statusCodeOffset, urlFound, urlTermZeroIdx := userData.ParseUnicodeString(urlOffset)
 	if !urlFound {
 		parsingErrorCount++
 		log.Errorf("*** Error: HTTPCacheTraceTaskAddedCacheEntry could not find terminating zero for RequestQueueName. termZeroIdx=%v\n\n", urlTermZeroIdx)
@@ -974,7 +1020,7 @@ func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *etw.DDEtwEventIn
 	}
 
 	// Status code
-	cacheEntry.cache.statusCode = binary.LittleEndian.Uint16(userData[statusCodeOffset : statusCodeOffset+2])
+	cacheEntry.cache.statusCode = userData.GetUint16(statusCodeOffset)
 
 	// <<<MORE ETW HttpService DETAILS>>>
 	// // Parse Verb
@@ -1024,7 +1070,7 @@ func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *etw.DDEtwEventIn
 
 // -----------------------------------------------------------
 // HttpService ETW Event #26 (HTTPCacheTraceTaskFlushedCache)
-func httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo *etw.DDEtwEventInfo) {
+func httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo *etw.DDEventRecord) {
 
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -1040,11 +1086,11 @@ func httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo *etw.DDEtwEventInfo)
 	//      //  uint64_t expirationTime;
 	// } EVENT_PARAM_HttpService_HTTPCacheTraceTaskAddedCacheEntry;
 
-	userData := etw.GoBytes(unsafe.Pointer(eventInfo.Event.UserData), int(eventInfo.Event.UserDataLength))
+	userData := etwimpl.GetUserData(eventInfo)
 
 	// Parse Url
 	urlOffset := 0
-	url, _, urlFound, urlTermZeroIdx := etw.ParseUnicodeString(userData, urlOffset)
+	url, _, urlFound, urlTermZeroIdx := userData.ParseUnicodeString(urlOffset)
 	if !urlFound {
 		parsingErrorCount++
 		log.Errorf("*** Error: HTTPCacheTraceTaskFlushedCache could not find terminating zero for RequestQueueName. termZeroIdx=%v\n\n", urlTermZeroIdx)
@@ -1082,7 +1128,7 @@ func httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo *etw.DDEtwEventInfo)
 
 // -----------------------------------------------------------
 // HttpService ETW Event #10-14 (HTTPRequestTraceTaskXXXSendXXX)
-func httpCallbackOnHTTPRequestTraceTaskSend(eventInfo *etw.DDEtwEventInfo) {
+func httpCallbackOnHTTPRequestTraceTaskSend(eventInfo *etw.DDEventRecord) {
 
 	// We probably should use this event as a last event for a particular activity and use
 	// it to better measure duration is http procesing
@@ -1091,17 +1137,30 @@ func httpCallbackOnHTTPRequestTraceTaskSend(eventInfo *etw.DDEtwEventInfo) {
 	}
 
 	// Get req/resp conn link
-	httpConnLink, found := getHttpConnLink(eventInfo.Event.ActivityId)
+	httpConnLink, found := getHttpConnLink(eventInfo.EventHeader.ActivityID)
 	if !found {
 		return
 	}
+	if httpConnLink.http.Txn.ResponseStatusCode == 0 {
+		/*
+		 * this condition will happen in case (c).  If the request fails for some reason
+		 * (for example server is overloaded), then we won't get TaskFastResp, which usually
+		 * sets the status code.  So if we don't already have the status code, assign it
+		 * here.
+		 */
+		userData := etwimpl.GetUserData(eventInfo)
+		httpConnLink.http.Txn.ResponseStatusCode = userData.GetUint16(8)
+	}
 
+	httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)
 	completeReqRespTracking(eventInfo, httpConnLink)
 }
 
 // -----------------------------------------------------------
 // HttpService ETW Event #34 (EVENT_ID_HttpService_HTTPSSLTraceTaskSslConnEvent)
-func httpCallbackOnHttpSslConnEvent(eventInfo *etw.DDEtwEventInfo) {
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
+func httpCallbackOnHttpSslConnEvent(eventInfo *etw.DDEventRecord) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -1114,10 +1173,10 @@ func httpCallbackOnHttpSslConnEvent(eventInfo *etw.DDEtwEventInfo) {
 
 		if HttpServiceLogVerbosity != HttpServiceLogVeryVerbose {
 			// Drop it immediately ...
-			delete(connOpened, eventInfo.Event.ActivityId)
+			delete(connOpened, eventInfo.EventHeader.ActivityID)
 		} else {
 			// ... unless  if we want to track to the very end
-			connOpen, found := connOpened[eventInfo.Event.ActivityId]
+			connOpen, found := connOpened[eventInfo.EventHeader.ActivityID]
 			if found {
 				connOpen.ssl = true
 			}
@@ -1125,7 +1184,18 @@ func httpCallbackOnHttpSslConnEvent(eventInfo *etw.DDEtwEventInfo) {
 		}
 	}
 }
-func reportHttpCallbackEvents(eventInfo *etw.DDEtwEventInfo, willBeProcessed bool) {
+
+func httpCallbackOnHTTPRequestRejectedArgs(eventInfo *etw.DDEventRecord) {
+	// Get req/resp conn link
+	httpConnLink, found := getHttpConnLink(eventInfo.EventHeader.ActivityID)
+	if found {
+		httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)
+	}
+
+}
+
+//nolint:revive // TODO(WKIT) Fix revive linter
+func reportHttpCallbackEvents(eventInfo *etw.DDEventRecord, willBeProcessed bool) {
 	var processingStatus string
 	if willBeProcessed {
 		processingStatus = "processing"
@@ -1134,12 +1204,20 @@ func reportHttpCallbackEvents(eventInfo *etw.DDEtwEventInfo, willBeProcessed boo
 	}
 
 	log.Infof("Http-service (%v) Id:%v/%v, level:%v, opcode:%v, task:%v, keyword:0x%x, seq:%v\n",
-		processingStatus, eventInfo.Event.Id, etw.FormatHTTPServiceEventID(uint16(eventInfo.Event.Id)),
-		eventInfo.Event.Level, eventInfo.Event.Opcode, eventInfo.Event.Task, eventInfo.Event.Keyword,
+		processingStatus, eventInfo.EventHeader.EventDescriptor.ID,
+		FormatHTTPServiceEventID(uint16(eventInfo.EventHeader.EventDescriptor.ID)),
+		eventInfo.EventHeader.EventDescriptor.Level, eventInfo.EventHeader.EventDescriptor.Opcode,
+		eventInfo.EventHeader.EventDescriptor.Task, eventInfo.EventHeader.EventDescriptor.Keyword,
 		eventCount)
 }
 
-func httpCallbackOnHttpServiceNonProcessedEvents(eventInfo *etw.DDEtwEventInfo) {
+//nolint:revive // TODO(WKIT) Fix revive linter
+func httpCallbackOnHttpServiceNonProcessedEvents(eventInfo *etw.DDEventRecord) {
+	// Get req/resp conn link
+	httpConnLink, found := getHttpConnLink(eventInfo.EventHeader.ActivityID)
+	if found {
+		httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)
+	}
 	notHandledEventsCount++
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, false)
@@ -1147,6 +1225,7 @@ func httpCallbackOnHttpServiceNonProcessedEvents(eventInfo *etw.DDEtwEventInfo) 
 	}
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func etwHttpServiceSummary() {
 	lastSummaryTime = time.Now()
 	summaryCount++
@@ -1158,11 +1237,11 @@ func etwHttpServiceSummary() {
 	log.Debugf("  Conn map:                 %v\n", len(connOpened))
 	log.Debugf("  Req/Resp map:             %v\n", len(http2openConn))
 	log.Debugf("  Cache map:                %v\n", len(httpCache))
-	log.Debugf("  All Events(not handled):  %v(%v)\n", etw.FormatUInt(eventCount), etw.FormatUInt(notHandledEventsCount))
-	log.Debugf("  Requests(cached):         %v(%v)\n", etw.FormatUInt(completedRequestCount), etw.FormatUInt(servedFromCache))
-	log.Debugf("  Missed Conn:              %v\n", etw.FormatUInt(missedConnectionCount))
-	log.Debugf("  Parsing Error:            %v\n", etw.FormatUInt(parsingErrorCount))
-	log.Debugf("  ETW Bytes Total(Payload): %v(%v)\n", etw.BytesFormat(transferedETWBytesTotal), etw.BytesFormat(transferedETWBytesPayload))
+	log.Debugf("  All Events(not handled):  %v(%v)\n", FormatUInt(eventCount), FormatUInt(notHandledEventsCount))
+	log.Debugf("  Requests(cached):         %v(%v)\n", FormatUInt(completedRequestCount), FormatUInt(servedFromCache))
+	log.Debugf("  Missed Conn:              %v\n", FormatUInt(missedConnectionCount))
+	log.Debugf("  Parsing Error:            %v\n", FormatUInt(parsingErrorCount))
+	log.Debugf("  ETW Bytes Total(Payload): %v(%v)\n", BytesFormat(transferedETWBytesTotal), BytesFormat(transferedETWBytesPayload))
 	log.Debugf("  Dropped Tx (Limit):       %v(%v)\n", completedHttpTxDropped, completedHttpTxMaxCount)
 
 	/*
@@ -1184,71 +1263,82 @@ func etwHttpServiceSummary() {
 	*/
 }
 
-func (hei *EtwInterface) OnEvent(eventInfo *etw.DDEtwEventInfo) {
+//nolint:revive // TODO(WKIT) Fix revive linter
+func (hei *EtwInterface) OnEvent(eventInfo *etw.DDEventRecord) {
 
 	// Total number of bytes transferred to kernel from HTTP.sys driver. 0x68 is ETW header size
-	transferedETWBytesTotal += (uint64(eventInfo.Event.UserDataLength) + 0x68)
-	transferedETWBytesPayload += uint64(eventInfo.Event.UserDataLength)
+	transferedETWBytesTotal += (uint64(eventInfo.UserDataLength) + 0x68)
+	transferedETWBytesPayload += uint64(eventInfo.UserDataLength)
 
 	eventCount++
 
-	switch eventInfo.Event.Id {
+	switch eventInfo.EventHeader.EventDescriptor.ID {
 	// #21
-	case etw.EVENT_ID_HttpService_HTTPConnectionTraceTaskConnConn:
+	case EVENT_ID_HttpService_HTTPConnectionTraceTaskConnConn:
 		httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo)
 
 	// #23
-	case etw.EVENT_ID_HttpService_HTTPConnectionTraceTaskConnClose:
-		httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo)
+	//case EVENT_ID_HttpService_HTTPConnectionTraceTaskConnClose:
+	//	httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo)
 
+	// NOTE originally the cleanup function was done on (23) ConnClose. However it was discovered
+	// (the hard way) that every once in a while ConnCLose comes in out of order (in the test case)
+	// prior to (12) EVENT_ID_HttpService_HTTPRequestTraceTaskFastSend.  This would cause
+	// some connections to be dropped.  Using ConnCleanup (empirically) always comes last.
+	//
+	// #24
+	case EVENT_ID_HttpService_HTTPConnectionTraceTaskConnCleanup:
+		httpCallbackOnHTTPConnectionTraceTaskConnCleanup(eventInfo)
 	// #1
-	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskRecvReq:
+	case EVENT_ID_HttpService_HTTPRequestTraceTaskRecvReq:
 		httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo)
 
 	// #2
-	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskParse:
+	case EVENT_ID_HttpService_HTTPRequestTraceTaskParse:
 		httpCallbackOnHTTPRequestTraceTaskParse(eventInfo)
 
 	// #3
-	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskDeliver:
+	case EVENT_ID_HttpService_HTTPRequestTraceTaskDeliver:
 		httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo)
 
 	// #4, #8
-	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskRecvResp:
+	case EVENT_ID_HttpService_HTTPRequestTraceTaskRecvResp:
 		fallthrough
-	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskFastResp:
+	case EVENT_ID_HttpService_HTTPRequestTraceTaskFastResp:
 		httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo)
 
 	// #16, #17
-	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskSrvdFrmCache:
+	case EVENT_ID_HttpService_HTTPRequestTraceTaskSrvdFrmCache:
 		fallthrough
-	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskCachedNotModified:
+	case EVENT_ID_HttpService_HTTPRequestTraceTaskCachedNotModified:
 		httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo)
 
 	// #25
-	case etw.EVENT_ID_HttpService_HTTPCacheTraceTaskAddedCacheEntry:
+	case EVENT_ID_HttpService_HTTPCacheTraceTaskAddedCacheEntry:
 		httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo)
 
 	// #27
-	case etw.EVENT_ID_HttpService_HTTPCacheTraceTaskFlushedCache:
+	case EVENT_ID_HttpService_HTTPCacheTraceTaskFlushedCache:
 		httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo)
 
 	// #34
-	case etw.EVENT_ID_HttpService_HTTPSSLTraceTaskSslConnEvent:
+	case EVENT_ID_HttpService_HTTPSSLTraceTaskSslConnEvent:
 		httpCallbackOnHttpSslConnEvent(eventInfo)
 
 	// #10-14
-	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskSendComplete:
+	case EVENT_ID_HttpService_HTTPRequestTraceTaskSendComplete:
 		fallthrough
-	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskCachedAndSend:
+	case EVENT_ID_HttpService_HTTPRequestTraceTaskCachedAndSend:
 		fallthrough
-	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskFastSend:
+	case EVENT_ID_HttpService_HTTPRequestTraceTaskFastSend:
 		fallthrough
-	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskZeroSend:
+	case EVENT_ID_HttpService_HTTPRequestTraceTaskZeroSend:
 		fallthrough
-	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskLastSndError:
+	case EVENT_ID_HttpService_HTTPRequestTraceTaskLastSndError:
 		httpCallbackOnHTTPRequestTraceTaskSend(eventInfo)
 
+	case EVENT_ID_HttpService_HTTPRequestTraceTaskRequestRejectedArgs:
+		httpCallbackOnHTTPRequestRejectedArgs(eventInfo)
 	default:
 		httpCallbackOnHttpServiceNonProcessedEvents(eventInfo)
 	}
@@ -1262,6 +1352,8 @@ func (hei *EtwInterface) OnEvent(eventInfo *etw.DDEtwEventInfo) {
 }
 
 // can be called multiple times
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func initializeEtwHttpServiceSubscription() {
 	connOpened = make(map[etw.DDGUID]*ConnOpen)
 	http2openConn = make(map[etw.DDGUID]*HttpConnLink)
@@ -1294,6 +1386,8 @@ func (h *Http) String() string {
 	output.WriteString("}")
 	return output.String()
 }
+
+//nolint:revive // TODO(WKIT) Fix revive linter
 func ReadHttpTx() (httpTxs []WinHttpTransaction, err error) {
 	if !httpServiceSubscribed {
 		return nil, errors.New("ETW HttpService is not currently subscribed")
@@ -1303,6 +1397,8 @@ func ReadHttpTx() (httpTxs []WinHttpTransaction, err error) {
 	defer completedHttpTxMux.Unlock()
 
 	// Return accumulated httpTx and reset array
+	//
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	readHttpTx := completedHttpTx
 
 	completedHttpTx = make([]WinHttpTransaction, 0, 100)
@@ -1310,18 +1406,23 @@ func ReadHttpTx() (httpTxs []WinHttpTransaction, err error) {
 	return readHttpTx, nil
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func SetMaxFlows(maxFlows uint64) {
 	completedHttpTxMaxCount = maxFlows
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func SetMaxRequestBytes(maxRequestBytes uint64) {
 	maxRequestFragmentBytes = maxRequestBytes
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func SetEnabledProtocols(http, https bool) {
 	captureHTTP = http
 	captureHTTPS = https
 }
+
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) OnStart() {
 	initializeEtwHttpServiceSubscription()
 	httpServiceSubscribed = true
@@ -1339,6 +1440,7 @@ func (hei *EtwInterface) OnStart() {
 	}
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) OnStop() {
 	httpServiceSubscribed = false
 	initializeEtwHttpServiceSubscription()
@@ -1374,8 +1476,7 @@ func IPFormat(tup driver.ConnTupleType, local bool) string {
 	} else if tup.Family == 23 {
 		// IPv6
 		return fmt.Sprintf("[%v]:%v", ip6format(ip), port)
-	} else {
-		// everything else
-		return "<UNKNOWN>"
 	}
+	// everything else
+	return "<UNKNOWN>"
 }

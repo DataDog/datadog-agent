@@ -8,20 +8,12 @@
 package kprobe
 
 import (
-	"os"
-	"strings"
-
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
-)
-
-const (
-	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
-	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the `accept` syscall).
-	maxActive = 128
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 )
 
 var mainProbes = []probes.ProbeFuncName{
@@ -63,13 +55,11 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.Inet6Bind,
 	probes.InetBindRet,
 	probes.Inet6BindRet,
-	probes.SockFDLookup,
-	probes.SockFDLookupRet,
 	probes.UDPSendPage,
 	probes.UDPSendPageReturn,
 }
 
-func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler, runtimeTracer bool) error {
+func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler, runtimeTracer bool, cfg *config.Config) error {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
@@ -81,41 +71,24 @@ func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler, run
 		{Name: probes.UDPPortBindingsMap},
 		{Name: "pending_bind"},
 		{Name: probes.TelemetryMap},
-		{Name: probes.SockByPidFDMap},
 		{Name: probes.ConnectionProtocolMap},
-		{Name: probes.PidFDBySockMap},
-		{Name: probes.SockFDLookupArgsMap},
-		{Name: probes.TcpSendMsgArgsMap},
-		{Name: probes.TcpSendPageArgsMap},
-		{Name: probes.UdpSendPageArgsMap},
-		{Name: probes.IpMakeSkbArgsMap},
+		{Name: probes.TCPSendMsgArgsMap},
+		{Name: probes.TCPSendPageArgsMap},
+		{Name: probes.UDPSendPageArgsMap},
+		{Name: probes.IPMakeSkbArgsMap},
 		{Name: probes.MapErrTelemetryMap},
 		{Name: probes.HelperErrTelemetryMap},
-		{Name: probes.TcpRecvMsgArgsMap},
+		{Name: probes.TCPRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
 	}
-	mgr.PerfMaps = []*manager.PerfMap{
-		{
-			Map: manager.Map{Name: probes.ConnCloseEventMap},
-			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: 8 * os.Getpagesize(),
-				Watermark:          1,
-				RecordHandler:      closedHandler.RecordHandler,
-				LostHandler:        closedHandler.LostHandler,
-				RecordGetter:       closedHandler.RecordGetter,
-			},
-		},
-	}
+	util.SetupClosedConnHandler(connCloseEventHandler, mgr, cfg)
 	for _, funcName := range mainProbes {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: funcName,
 				UID:          probeUID,
 			},
-		}
-		if strings.HasPrefix(funcName, "kretprobe") {
-			p.KProbeMaxActive = maxActive
 		}
 		mgr.Probes = append(mgr.Probes, p)
 	}
@@ -132,6 +105,7 @@ func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler, run
 		// tracer.
 		mgr.Probes = append(mgr.Probes,
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPRetransmitPre470, UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.IPMakeSkbPre4180, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.IP6MakeSkbPre470, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.IP6MakeSkbPre5180, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPRecvMsgPre5190, UID: probeUID}},

@@ -16,13 +16,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // NodeMetadataMapping only fetch the endpoints from Kubernetes apiserver and add the metadataMapper of the
 // node to the cache
 // Only called when the node agent computes the metadata mapper locally and does not rely on the DCA.
 func (c *APIClient) NodeMetadataMapping(nodeName string, pods []*kubelet.Pod) error {
-	endpointList, err := c.Cl.CoreV1().Endpoints("").List(context.TODO(), metav1.ListOptions{TimeoutSeconds: &c.timeoutSeconds, ResourceVersion: "0"})
+	endpointList, err := c.Cl.CoreV1().Endpoints("").List(context.TODO(), metav1.ListOptions{TimeoutSeconds: pointer.Ptr(int64(c.defaultClientTimeout.Seconds())), ResourceVersion: "0"})
 	if err != nil {
 		log.Errorf("Could not collect endpoints from the API Server: %q", err.Error())
 		return err

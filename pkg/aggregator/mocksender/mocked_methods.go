@@ -104,6 +104,7 @@ func (m *MockSender) SetCheckService(service string) {
 	m.Called(service)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockSender) SetNoIndex(noIndex bool) {
 	m.Called(noIndex)
 }
@@ -127,4 +128,16 @@ func (m *MockSender) OrchestratorMetadata(msgs []types.ProcessMessageBody, clust
 // OrchestratorManifest submit orchestrator manifest messages
 func (m *MockSender) OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string) {
 	m.Called(msgs, clusterID)
+}
+
+// GaugeWithTimestamp adds a gauge with timestamp type to the mock calls.
+func (m *MockSender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+	m.Called(metric, value, hostname, tags, timestamp)
+	return nil
+}
+
+// CountWithTimestamp adds a count with timestamp type to the mock calls.
+func (m *MockSender) CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+	m.Called(metric, value, hostname, tags, timestamp)
+	return nil
 }

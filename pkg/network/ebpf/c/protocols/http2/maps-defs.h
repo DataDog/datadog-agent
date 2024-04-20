@@ -4,19 +4,16 @@
 // http2_remainder maps a connection tuple to the remainder from the previous packet.
 // It is possible for frames to be split to multiple tcp packets, so we need to associate the remainder from the previous
 // packet, to the current one.
-BPF_HASH_MAP(http2_remainder, conn_tuple_t, frame_header_remainder_t, 2048)
-
-// http2_static_table is the map that holding the supported static values by index and its static value.
-BPF_ARRAY_MAP(http2_static_table, static_table_value_t, 15)
+BPF_HASH_MAP(http2_remainder, conn_tuple_t, frame_header_remainder_t, 0)
 
 /* http2_dynamic_table is the map that holding the supported dynamic values - the index is the static index and the
    conn tuple and it is value is the buffer which contains the dynamic string. */
 BPF_HASH_MAP(http2_dynamic_table, dynamic_table_index_t, dynamic_table_entry_t, 0)
 
-/* http2_dynamic_counter_table is a map that holding the current dynamic values amount, in order to use for the
-   internal calculation of the internal index in the http2_dynamic_table, it is hold by conn_tup to support different
-   clients and the value is the current counter. */
-BPF_HASH_MAP(http2_dynamic_counter_table, conn_tuple_t, u64, 0)
+// A map between a stream (connection and a stream id) to the current global dynamic counter.
+// The value also a field called "previous" which is used to cache the last index we've cleaned during our cleanup
+// tail calls.
+BPF_HASH_MAP(http2_dynamic_counter_table, conn_tuple_t, dynamic_counter_t, 0)
 
 /* This map is used to keep track of in-flight HTTP2 transactions for each TCP connection */
 BPF_HASH_MAP(http2_in_flight, http2_stream_key_t, http2_stream_t, 0)
@@ -25,6 +22,10 @@ BPF_HASH_MAP(http2_in_flight, http2_stream_key_t, http2_stream_t, 0)
    identified by a tuple consisting of con_tup and skb_info.
    It allows retrieval of both the current offset and the number of iterations that have already been executed. */
 BPF_HASH_MAP(http2_iterations, dispatcher_arguments_t, http2_tail_call_state_t, 0)
+
+/* This map serves the purpose of maintaining the current state of tail calls for each frame.
+   It allows retrieval of both the current offset and the number of iterations that have already been executed. */
+BPF_HASH_MAP(tls_http2_iterations, tls_dispatcher_arguments_t, http2_tail_call_state_t, 0)
 
 /* Allocating an array of headers, to hold all interesting headers from the frame. */
 BPF_PERCPU_ARRAY_MAP(http2_headers_to_process, http2_header_t[HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING], 1)
@@ -47,5 +48,6 @@ BPF_PERCPU_ARRAY_MAP(http2_ctx_heap, http2_ctx_t, 1)
  * value is a http2 telemetry object
  */
 BPF_ARRAY_MAP(http2_telemetry, http2_telemetry_t, 1)
+BPF_ARRAY_MAP(tls_http2_telemetry, http2_telemetry_t, 1)
 
 #endif

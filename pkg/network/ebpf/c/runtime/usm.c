@@ -16,7 +16,9 @@
 #include "protocols/http/buffer.h"
 #include "protocols/http/http.h"
 #include "protocols/http2/decoding.h"
+#include "protocols/http2/decoding-tls.h"
 #include "protocols/kafka/kafka-parsing.h"
+#include "protocols/sockfd-probes.h"
 #include "protocols/tls/java/erpc_dispatcher.h"
 #include "protocols/tls/java/erpc_handlers.h"
 #include "protocols/tls/go-tls-types.h"
@@ -44,7 +46,7 @@ int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
 
 SEC("kprobe/tcp_sendmsg")
 int BPF_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
-    log_debug("kprobe/tcp_sendmsg: sk=%llx\n", sk);
+    log_debug("kprobe/tcp_sendmsg: sk=%p", sk);
     // map connection tuple during SSL_do_handshake(ctx)
     map_ssl_ctx_to_sock(sk);
 
@@ -53,7 +55,7 @@ int BPF_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
 
 SEC("tracepoint/net/netif_receive_skb")
 int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
-    log_debug("tracepoint/net/netif_receive_skb\n");
+    log_debug("tracepoint/net/netif_receive_skb");
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
     http_batch_flush(ctx);
@@ -72,7 +74,7 @@ int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
     u64 pid = pid_tgid >> 32;
     tls_offsets_data_t* od = get_offsets_data();
     if (od == NULL) {
-        log_debug("[go-tls-write] no offsets data in map for pid %d\n", pid);
+        log_debug("[go-tls-write] no offsets data in map for pid %llu", pid);
         return 0;
     }
 
@@ -80,7 +82,7 @@ int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
     go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
     if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
-        log_debug("[go-tls-write] failed reading go routine id for pid %d\n", pid);
+        log_debug("[go-tls-write] failed reading go routine id for pid %llu", pid);
         return 0;
     }
 
@@ -88,17 +90,17 @@ int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
     // (since the parameters might not be live by the time the return probe is hit).
     go_tls_write_args_data_t call_data = {0};
     if (read_location(ctx, &od->write_conn_pointer, sizeof(call_data.conn_pointer), &call_data.conn_pointer)) {
-        log_debug("[go-tls-write] failed reading conn pointer for pid %d\n", pid);
+        log_debug("[go-tls-write] failed reading conn pointer for pid %llu", pid);
         return 0;
     }
 
     if (read_location(ctx, &od->write_buffer.ptr, sizeof(call_data.b_data), &call_data.b_data)) {
-        log_debug("[go-tls-write] failed reading buffer pointer for pid %d\n", pid);
+        log_debug("[go-tls-write] failed reading buffer pointer for pid %llu", pid);
         return 0;
     }
 
     if (read_location(ctx, &od->write_buffer.len, sizeof(call_data.b_len), &call_data.b_len)) {
-        log_debug("[go-tls-write] failed reading buffer length for pid %d\n", pid);
+        log_debug("[go-tls-write] failed reading buffer length for pid %llu", pid);
         return 0;
     }
 
@@ -113,7 +115,7 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
     u64 pid = pid_tgid >> 32;
     tls_offsets_data_t* od = get_offsets_data();
     if (od == NULL) {
-        log_debug("[go-tls-write-return] no offsets data in map for pid %d\n", pid);
+        log_debug("[go-tls-write-return] no offsets data in map for pid %llu", pid);
         return 0;
     }
 
@@ -122,41 +124,41 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
     call_key.pid = pid;
 
     if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
-        log_debug("[go-tls-write-return] failed reading go routine id for pid %d\n", pid);
+        log_debug("[go-tls-write-return] failed reading go routine id for pid %llu", pid);
         return 0;
     }
 
     uint64_t bytes_written = 0;
     if (read_location(ctx, &od->write_return_bytes, sizeof(bytes_written), &bytes_written)) {
         bpf_map_delete_elem(&go_tls_write_args, &call_key);
-        log_debug("[go-tls-write-return] failed reading write return bytes location for pid %d\n", pid);
+        log_debug("[go-tls-write-return] failed reading write return bytes location for pid %llu", pid);
         return 0;
     }
 
     if (bytes_written <= 0) {
         bpf_map_delete_elem(&go_tls_write_args, &call_key);
-        log_debug("[go-tls-write-return] write returned non-positive for amount of bytes written for pid: %d\n", pid);
+        log_debug("[go-tls-write-return] write returned non-positive for amount of bytes written for pid: %llu", pid);
         return 0;
     }
 
     uint64_t err_ptr = 0;
     if (read_location(ctx, &od->write_return_error, sizeof(err_ptr), &err_ptr)) {
         bpf_map_delete_elem(&go_tls_write_args, &call_key);
-        log_debug("[go-tls-write-return] failed reading write return error location for pid %d\n", pid);
+        log_debug("[go-tls-write-return] failed reading write return error location for pid %llu", pid);
         return 0;
     }
 
     // check if err != nil
     if (err_ptr != 0) {
         bpf_map_delete_elem(&go_tls_write_args, &call_key);
-        log_debug("[go-tls-write-return] error in write for pid %d: data will be ignored\n", pid);
+        log_debug("[go-tls-write-return] error in write for pid %llu: data will be ignored", pid);
         return 0;
     }
 
     go_tls_write_args_data_t *call_data_ptr = bpf_map_lookup_elem(&go_tls_write_args, &call_key);
     if (call_data_ptr == NULL) {
         bpf_map_delete_elem(&go_tls_write_args, &call_key);
-        log_debug("[go-tls-write-return] no write information in write-return for pid %d\n", pid);
+        log_debug("[go-tls-write-return] no write information in write-return for pid %llu", pid);
         return 0;
     }
 
@@ -166,10 +168,17 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
         return 0;
     }
 
-    log_debug("[go-tls-write] processing %s\n", call_data_ptr->b_data);
     char *buffer_ptr = (char*)call_data_ptr->b_data;
+    log_debug("[go-tls-write] processing %s", buffer_ptr);
     bpf_map_delete_elem(&go_tls_write_args, &call_key);
-    tls_process(ctx, t, buffer_ptr, bytes_written, GO);
+    conn_tuple_t copy = {0};
+    bpf_memcpy(&copy, t, sizeof(conn_tuple_t));
+    // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
+    // the inverse direction, thus we're normalizing the tuples into a client <-> server direction, and then flipping it
+    // to the server <-> client direction.
+    normalize_tuple(&copy);
+    flip_tuple(&copy);
+    tls_process(ctx, &copy, buffer_ptr, bytes_written, GO);
     return 0;
 }
 
@@ -180,7 +189,7 @@ int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
     u64 pid = pid_tgid >> 32;
     tls_offsets_data_t* od = get_offsets_data();
     if (od == NULL) {
-        log_debug("[go-tls-read] no offsets data in map for pid %d\n", pid_tgid >> 32);
+        log_debug("[go-tls-read] no offsets data in map for pid %llu", pid_tgid >> 32);
         return 0;
     }
 
@@ -188,7 +197,7 @@ int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
     go_tls_function_args_key_t call_key = {0};
     call_key.pid = pid;
     if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
-        log_debug("[go-tls-read] failed reading go routine id for pid %d\n", pid_tgid >> 32);
+        log_debug("[go-tls-read] failed reading go routine id for pid %llu", pid_tgid >> 32);
         return 0;
     }
 
@@ -196,11 +205,11 @@ int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
     // (since the parameters might not be live by the time the return probe is hit).
     go_tls_read_args_data_t call_data = {0};
     if (read_location(ctx, &od->read_conn_pointer, sizeof(call_data.conn_pointer), &call_data.conn_pointer)) {
-        log_debug("[go-tls-read] failed reading conn pointer for pid %d\n", pid_tgid >> 32);
+        log_debug("[go-tls-read] failed reading conn pointer for pid %llu", pid_tgid >> 32);
         return 0;
     }
     if (read_location(ctx, &od->read_buffer.ptr, sizeof(call_data.b_data), &call_data.b_data)) {
-        log_debug("[go-tls-read] failed reading buffer pointer for pid %d\n", pid_tgid >> 32);
+        log_debug("[go-tls-read] failed reading buffer pointer for pid %llu", pid_tgid >> 32);
         return 0;
     }
 
@@ -215,7 +224,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     u64 pid = pid_tgid >> 32;
     tls_offsets_data_t* od = get_offsets_data();
     if (od == NULL) {
-        log_debug("[go-tls-read-return] no offsets data in map for pid %d\n", pid);
+        log_debug("[go-tls-read-return] no offsets data in map for pid %llu", pid);
         return 0;
     }
 
@@ -224,7 +233,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     __s64 goroutine_id = 0;
     // Read the PID and goroutine ID to make the partial call key
     if (read_goroutine_id(ctx, &od->goroutine_id, &goroutine_id)) {
-        log_debug("[go-tls-read-return] failed reading go routine id for pid %d\n", pid);
+        log_debug("[go-tls-read-return] failed reading go routine id for pid %llu", pid);
         return 0;
     }
 
@@ -234,13 +243,13 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 
     go_tls_read_args_data_t* call_data_ptr = bpf_map_lookup_elem(&go_tls_read_args, &call_key);
     if (call_data_ptr == NULL) {
-        log_debug("[go-tls-read-return] no read information in read-return for pid %d\n", pid);
+        log_debug("[go-tls-read-return] no read information in read-return for pid %llu", pid);
         return 0;
     }
 
     uint64_t bytes_read = 0;
     if (read_location(ctx, &od->read_return_bytes, sizeof(bytes_read), &bytes_read)) {
-        log_debug("[go-tls-read-return] failed reading return bytes location for pid %d\n", pid);
+        log_debug("[go-tls-read-return] failed reading return bytes location for pid %llu", pid);
         bpf_map_delete_elem(&go_tls_read_args, &call_key);
         return 0;
     }
@@ -250,7 +259,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     // For now for success validation we chose to check only the amount of bytes read
     // and make sure it's greater than zero.
     if (bytes_read <= 0) {
-        log_debug("[go-tls-read-return] read returned non-positive for amount of bytes read for pid: %d\n", pid);
+        log_debug("[go-tls-read-return] read returned non-positive for amount of bytes read for pid: %llu", pid);
         bpf_map_delete_elem(&go_tls_read_args, &call_key);
         return 0;
     }
@@ -264,7 +273,14 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     char *buffer_ptr = (char*)call_data_ptr->b_data;
     bpf_map_delete_elem(&go_tls_read_args, (go_tls_function_args_key_t*)&call_key);
 
-    tls_process(ctx, t, buffer_ptr, bytes_read, GO);
+    // The read tuple should be flipped (compared to the write tuple).
+    // tls_process and the appropriate parsers will flip it back if needed.
+    conn_tuple_t copy = {0};
+    bpf_memcpy(&copy, t, sizeof(conn_tuple_t));
+    // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
+    // the inverse direction, thus we're normalizing the tuples into a client <-> server direction.
+    normalize_tuple(&copy);
+    tls_process(ctx, &copy, buffer_ptr, bytes_read, GO);
     return 0;
 }
 
@@ -274,7 +290,7 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     tls_offsets_data_t* od = get_offsets_data();
     if (od == NULL) {
-        log_debug("[go-tls-close] no offsets data in map for pid %d\n", pid_tgid >> 32);
+        log_debug("[go-tls-close] no offsets data in map for pid %llu", pid_tgid >> 32);
         return 0;
     }
 
@@ -288,21 +304,22 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
 
     void* conn_pointer = NULL;
     if (read_location(ctx, &od->close_conn_pointer, sizeof(conn_pointer), &conn_pointer)) {
-        log_debug("[go-tls-close] failed reading close conn pointer for pid %d\n", pid_tgid >> 32);
+        log_debug("[go-tls-close] failed reading close conn pointer for pid %llu", pid_tgid >> 32);
         return 0;
     }
 
     conn_tuple_t* t = conn_tup_from_tls_conn(od, conn_pointer, pid_tgid);
     if (t == NULL) {
-        log_debug("[go-tls-close] failed getting conn tup from tls conn for pid %d\n", pid_tgid >> 32);
+        log_debug("[go-tls-close] failed getting conn tup from tls conn for pid %llu", pid_tgid >> 32);
         return 0;
     }
 
     // Clear the element in the map since this connection is closed
     bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &conn_pointer);
 
+    conn_tuple_t copy = *t;
     // tls_finish can launch a tail call, thus cleanup should be done before.
-    tls_finish(ctx, t);
+    tls_finish(ctx, &copy, false);
     return 0;
 }
 

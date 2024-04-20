@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -26,7 +27,6 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
-	"golang.org/x/exp/slices"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/tools/go/packages"
@@ -715,7 +715,7 @@ func formatBuildTags(buildTags string) []string {
 	var formattedBuildTags []string
 	for _, tag := range splittedBuildTags {
 		if tag != "" {
-			formattedBuildTags = append(formattedBuildTags, fmt.Sprintf("+build %s", tag))
+			formattedBuildTags = append(formattedBuildTags, fmt.Sprintf("go:build %s", tag))
 		}
 	}
 	return formattedBuildTags
@@ -776,12 +776,7 @@ func pascalCaseFieldName(fieldName string) string {
 }
 
 func getDefaultValueOfType(returnType string) string {
-	isArray := false
-
-	baseType, found := strings.CutPrefix(returnType, "[]")
-	if found {
-		isArray = true
-	}
+	baseType, isArray := strings.CutPrefix(returnType, "[]")
 
 	if baseType == "int" {
 		if isArray {
@@ -823,12 +818,10 @@ func getDefaultValueOfType(returnType string) string {
 			return "[]time.Time{}"
 		}
 		return "time.Time{}"
-	} else {
-		if isArray {
-			return "[]string{}"
-		}
-		return `""`
+	} else if isArray {
+		return "[]string{}"
 	}
+	return `""`
 }
 
 func needScrubbed(fieldName string) bool {

@@ -9,9 +9,8 @@ package events
 
 import (
 	"sync"
-	"unsafe"
 
-	"github.com/cilium/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 )
 
 var batchPool = sync.Pool{
@@ -23,19 +22,23 @@ var batchPool = sync.Pool{
 type batchReader struct {
 	sync.Mutex
 	numCPUs    int
-	batchMap   *ebpf.Map
+	batchMap   *maps.GenericMap[batchKey, batch]
 	offsets    *offsetManager
 	workerPool *workerPool
 	stopped    bool
 }
 
-func newBatchReader(offsetManager *offsetManager, batchMap *ebpf.Map, numCPUs int) (*batchReader, error) {
+func newBatchReader(offsetManager *offsetManager, batchMap *maps.GenericMap[batchKey, batch], numCPUs int) (*batchReader, error) {
 	// initialize eBPF maps
 	batch := new(batch)
 	for i := 0; i < numCPUs; i++ {
+		// Ring buffer events don't have CPU information, so we associate each
+		// batch entry with a CPU during startup. This information is used by
+		// the code that does the batch offset tracking.
+		batch.Cpu = uint16(i)
 		for j := 0; j < batchPagesPerCPU; j++ {
-			key := &batchKey{Cpu: uint32(i), Num: uint32(j)}
-			err := batchMap.Put(unsafe.Pointer(key), unsafe.Pointer(batch))
+			key := &batchKey{Cpu: batch.Cpu, Num: uint16(j)}
+			err := batchMap.Put(key, batch)
 			if err != nil {
 				return nil, err
 			}
@@ -81,7 +84,7 @@ func (r *batchReader) ReadAll(f func(cpu int, b *batch)) {
 				batchPool.Put(b)
 			}()
 
-			err := r.batchMap.Lookup(unsafe.Pointer(key), unsafe.Pointer(b))
+			err := r.batchMap.Lookup(key, b)
 			if err != nil {
 				return
 			}
@@ -111,8 +114,9 @@ func (r *batchReader) Stop() {
 
 func (r *batchReader) generateBatchKey(cpu int) (batchID int, key *batchKey) {
 	batchID = r.offsets.NextBatchID(cpu)
+	pageNum := uint64(batchID) % uint64(batchPagesPerCPU)
 	return batchID, &batchKey{
-		Cpu: uint32(cpu),
-		Num: uint32(batchID) % uint32(batchPagesPerCPU),
+		Cpu: uint16(cpu),
+		Num: uint16(pageNum),
 	}
 }

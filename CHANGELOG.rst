@@ -2,10 +2,804 @@
 Release Notes
 =============
 
+.. _Release Notes_7.52.1:
+
+7.52.1 / 6.52.1
+================
+
+.. _Release Notes_7.52.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-04-04
+
+
+.. _Release Notes_7.52.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add a check to the Windows installer to verify that the caller has the correct membership to install the Agent.
+- Ensure the metadata requests are delayed at Agent startup to reduce host tag delays.
+
+
+.. _Release Notes_7.52.0:
+
+7.52.0 / 6.52.0
+================
+
+.. _Release Notes_7.52.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-03-21
+
+- Please refer to the `7.52.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7520>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.52.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- To prevent misconfigurations, the Windows Datadog Agent installer now raises an error if
+  the user account running the installer MSI is provided as the ``ddagentuser`` (``DDAGENTUSER_NAME``) account.
+  If the account is a service account, such as LocalSystem or a gMSA account, no action is needed.
+  If the account is a regular account, configure a different Datadog Agent service account.
+
+
+.. _Release Notes_7.52.0_New Features:
+
+New Features
+------------
+
+- Add `device_type` to the device metadata.
+
+- Attach host tags to metrics for ``expected_tags_duration`` amount of time.
+
+- APM stats will now include, if present, the Git commit SHA from traces (or container tags) and the image tag from container tags.
+
+- Creation of a new packageSigning component to collect Linux package signature information and improve signature rotation process. More information can be found in DataDog documentation at `2024 linux key rotation <https://docs.datadoghq.com/agent/guide/linux-key-rotation-2024>`_.
+
+- Adds support for `span links <https://docs.datadoghq.com/tracing/trace_collection/span_links/>`_  in the trace agent. This field
+  contains a list of casual relationships between spans and is only
+  populated when v0.4 of the Trace API is used.
+
+- The Windows Agent now supports CWS for process and network threats.
+
+- CWS: Add ``chdir`` event to allow recent container escape detection.
+
+- CWS: [BETA] Add File Integrity Monitoring support on Windows, supporting both files and registry.
+
+- CWS: The Agent now automatically suppresses benign security events if they have already been reported for a particular container image.
+
+- Updating process agent discovery configuration to include a Data Scrubber for obfuscating sensitive information such as passwords, API keys, or tokens.
+
+- Add support for pinging network devices in the SNMP integration.
+
+- [oracle] Add ``oracle.locks.transaction_duration`` metric.
+
+- APM: Add support for Single Step Instrumentation remote configuration
+
+- Headless agent installation support on macOS 14 and later
+
+
+.. _Release Notes_7.52.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- [DBM] Increase the DBM dbm-metrics-intake endpoint's defaultInputChanSize value to 500.
+
+- Add debug level logs when files are evicted from ``registry.json``
+  after their TTL expires.
+
+- Add the instance ID returned by the IMDSv2 metadata endpoint to the list of EC2 host aliases.
+
+- This change adds journald permissions to the flare in the
+  ``logs_file_permissions.log`` file, in the form of either the
+  journald directory or a specific file (if specified by the
+  Agent journald configuration).
+
+- The Logs Agent now creates a file in the flare, called
+  ``logs_file_permissions.log``, which lists every file and
+  that file's permissions that the Logs Agent can detect.
+
+- Add the SBOM check to the output of the Agent status command and the Agent flare.
+
+- Add the Software Bill of Materials (SBOM) for container images to the output of the flare command.
+
+- Add ``repo_digest`` to containerd ContainerImage to remove duplicate images in container images UI.
+
+- Agents are now built with Go ``1.21.7``.
+
+- Agents are now built with Go ``1.21.8``.
+
+- CWS: Improved coverage on platforms with no eBPF support.
+
+- CWS: Send context of variables in events.
+
+- Add DD_APM_DEBUGGER_DIAGNOSTICS_DD_URL, DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY,
+  and DD_APM_DEBUGGER_DIAGNOSTICS_ADDITIONAL_ENDPOINTS to allow sending Live
+  Debugger / Dynamic Instrumentation diagnostic data to multiple intakes.
+
+- Added config that allows user to toggle on and off the collection of zombie processes in the Process Agent.
+
+- [oracle] Add ``ddagenthostname`` tag.
+
+- [oracle]: Add ``oracle.tablespace.maxsize`` metric.
+
+- OTLP ingest supports stable Java runtime metrics introduced in `opentelemetry-java-instrumentation` v2.0.0.
+  OTLP ingest supports Kafka metrics mapping. This allows users of the JMX Receiver/JMX Metrics Gatherer and Kafka metrics receiver to have access to the OOTB Kafka Dashboard.
+
+- Modified the process check to populate process with the newly created field "ProcessContext"
+
+- Rename the ``kubelet_core`` check to ``kubelet`` and change the metrics 
+  prefix from ``kubernetes_core`` to ``kubernetes`` so that it can replace 
+  the Python ``kubelet`` check.
+
+- APM: Adds `msgp_short_bytes` reason for trace payloads dropped to distinguish them from EOF errors.
+
+- When getting resource tags from an ECS task with zero containers, print a warn log instead of error log.
+
+
+.. _Release Notes_7.52.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Removal of the pod check from the process agent. The current check will run from the core agent.
+
+- This release drops support for Red Hat Enterprise Linux 6 and its derivatives.
+
+- [oracle] Deprecate the configuration parameter ``instant_client``. Replacing it with ``oracle_client``.
+
+- Removed the system-probe configuration value `data_streams_config.enabled` and replaced it with `service_monitoring_config.enable_kafka_monitoring`.
+  This also implies that the DsmEnabled field in the AgentConfiguration proto will consistently be set to false.
+
+
+.. _Release Notes_7.52.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Upgrade dependencies for systemd core check. This silences excessive warning logs on systemd v252.
+
+- oracle: Fix wrong tablespace metrics.
+
+- APM: Stop dropping incoming OTel payloads when the processing channel is full
+  and eliminate OOM issues in the trace agent and collector component in high
+  load scenarios, making the OTel pipeline more reliable.
+
+- Fix dogstatsd-capture. Message PID was not set after the 7.50 release.
+
+- Fix a memory exception where the flare controller tries to
+  ``stat`` a file that doesn't exist.
+
+- Fleet Automation filters in the Datadog UI now accurately reflect which products are enabled when deployed with the official DataDog Helm chart on Kubernetes.
+
+- Corrected a problem where the `ignore_autodiscovery_tags` parameter was not functioning correctly with pod
+  annotations or autodiscovery version 2 (adv2) annotations. This fix ensures that when this parameter is set
+  to `true`, autodiscovery tags are ignored as intended.
+  Example:
+  ```yaml
+  ad.datadoghq.com/redis.checks: |
+    {
+      "redisdb": {
+        "ignore_autodiscovery_tags": true,
+        "instances": [
+          {
+            "host": "%%host%%",
+            "port": "6379"
+          }
+        ]
+      }
+    }
+  ```
+  Moving forward, configurations that attempt to use hybrid setups—combining adv2 for check specification
+  while also employing `adv1` for `ignore_autodiscovery_tags`—are no longer supported by default.
+  Users should set the configuration parameter `cluster_checks.support_hybrid_ignore_ad_tags` to `true`
+  to enable this behavior.
+
+- [oracle]: Add support for more Asian character sets.
+
+- Prevention of OOMs when collecting a large number of zombie processes.
+
+- Fixed race conditions caused by concurrent execution of etw.StartEtw()
+  and etw.StopEtw() functions which may concurrently access and modify a
+  global map.
+
+- Fix recent PR #22664 which in turn fixes a race condition in the ETW package.
+  The previous PR introduced a minor error addressed in this PR.
+
+- [oracle] Add ``resource_manager`` configuration to ``conf.yaml.example``.
+
+- [oracle] Fix multi-tagging bug.
+
+- Fixes a bug in OTLP ingest where empty histograms were not being sent to the backend in the distributions mode. Empty histograms are now mapped as if they had a single `(min, max)` bucket.
+
+- Scrub authentication bearer token of any size, even invalid, from integration configuration (when being printed
+  through the `checksconfig` CLI command or other).
+
+- Empty UDS payloads no longer cause the DogStatsD server to close the socket.
+
+
+.. _Release Notes_7.52.0_Other Notes:
+
+Other Notes
+-----------
+
+- The version of Python required for tooling in README matches that which the CI uses.
+
+
+.. _Release Notes_7.51.1:
+
+7.51.1 / 6.51.1
+================
+
+.. _Release Notes_7.51.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-02-29
+
+- Please refer to the `7.51.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7511>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.51.1_New Features:
+
+New Features
+------------
+
+- Add the chdir event type to CWS.
+
+
+.. _Release Notes_7.51.1_Security Notes:
+
+Security Notes
+--------------
+
+- Bump embedded Python version to 3.11.8 to address CVE-2023-5678 on Windows.
+
+
+.. _Release Notes_7.51.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a crash in the ``win32_event_log`` check that occurs when processing an event that has
+  a missing publisher and no ``EventData``.
+
+
+.. _Release Notes_7.51.0:
+
+7.51.0 / 6.51.0
+================
+
+.. _Release Notes_7.51.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-02-19
+
+- Please refer to the `7.51.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7510>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.51.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- The orchestrator check is moving from the Process Agent to the Core Agent. Any orchestrator configuration set on the Process Agent will need to be moved to the Core Agent.  No other changes are required. If you need to go back to the old check, you can do so temporarily by manually setting the environment variable ``DD_ORCHESTRATOR_EXPLORER_RUN_ON_NODE_AGENT`` to ``false``. The Process Agent pod check will be deprecated in the following release.
+
+- Upgrade the Python version from 3.9 to 3.11.
+
+
+.. _Release Notes_7.51.0_New Features:
+
+New Features
+------------
+
+- Add support for ARM64 SLES flavor of datadog-agent
+
+- Add support for multiple users when listening for SNMP traps.
+
+- Add ``check_delay`` metric in Agent telemetry
+
+- Add an ETW component for ETW tracing.
+
+- Add an ETW APM tracer component to forward .Net ETW events to the Tracer Agent.
+
+- DBM: Add configuration options to SQL obfuscator to customize the normalization of SQL statements:
+  - ``KeepTrailingSemicolon`` - disable removing trailing semicolon. This option is only valid when ``ObfuscationMode`` is ``obfuscate_and_normalize``.
+  - ``KeepIdentifierQuotation`` - disable removing quotation marks around identifiers. This option is only valid when ``ObfuscationMode`` is ``obfuscate_and_normalize``.
+
+- CWS: [BETA] early support based on ptrace for platforms with no eBPF support.
+  Only processes and files are currently supported.
+
+- Add ``msodbcsql18`` linux dependency needed for SQL Server to run in Docker Agent.
+
+- Add timestamps to the logs HTTP client
+
+- Add support for Oracle Active Data Guard.
+
+- Re-enable Aerospike in SUSE packages.
+
+
+.. _Release Notes_7.51.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Updated the ntp check to support the default location of chrony.conf
+  on Ubuntu (/etc/chrony/chrony.conf).
+
+- Agents are now built with Go ``1.21.5``.
+
+- CWS: Reloading the datadog-agent-sysprobe systemd service now reloads the runtime security policies.
+
+- CWS: Added ssdeep file hashing algorithm support.
+
+- USM will report the actual status code of the HTTP traffic, instead of reporting
+  only the status code family (2xx, 3xx, etc.).
+
+- Improved performance of the activity sampling query on RDS and Oracle Cloud databases.
+
+- OTLP ingest log timestamps (i.e. '@timestamp') now include milliseconds.
+
+- Always report the following telemetry metrics about the retry queue capacity:
+    * ``datadog.agent.retry_queue_duration.capacity_secs``
+    * ``datadog.agent.retry_queue_duration.bytes_per_sec``
+    * ``datadog.agent.retry_queue_duration.capacity_bytes``
+
+- Support container metrics for kata containers using containerd.
+
+- System Probe can now expose its healthcheck on a dedicated HTTP port.
+  The Kubernetes daemonset uses this by default on port 5558.
+
+
+.. _Release Notes_7.51.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- The config value `ipc_address` is deprecated in favor of `cmd_host`.
+
+- `service_monitoring_config.process_service_inference.enabled` is deprecated and replaced by `system_probe_config.process_service_inference.enabled`
+  `service_monitoring_config.process_service_inference.use_windows_service_name` is deprecated and replaced by `system_probe_config.process_service_inference.use_windows_service_name`
+
+- Removes ``freetds`` and ``msodbcsql18`` dependencies for py2.
+
+- Removes ``postgresql`` dependency after upgrading ``psycopg2`` to v2.9 in integrations-core.
+  ``psycopg2`` now comes with pre-built wheel for arm architecture.
+
+- An error will now be logged if replace tags are used to change the Agent
+  "env", since this could have negative side effects. At this time, an error
+  is logged, but future versions may explicitly disallow this to avoid bugs.
+  See https://docs.datadoghq.com/getting_started/tracing/#environment-name
+  for instructions on setting the env, and
+  https://github.com/DataDog/datadog-agent/issues/21253 for more details
+  about this issue.
+
+
+.. _Release Notes_7.51.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- CWS/CSPM: Fixes the hostname value attached to CWS and CSPM events, which in rare cases
+  the security agent computed incorrectly.
+
+- Fix `file_handle` core check on Darwin by using `sysctl` system call.
+
+- Fix spikes for bandwidth usage metric when interface speed is auto-adjusted.
+
+- Fixes Agent startup script when enabling OOM Kill and TCP Queue Length checks to prevent crashes when restarting the container.
+
+- Fix a spewing error message ("DCA Client not initialized by main provider, cannot post heartbeat") in the cluster check runner log during CLC initialization.
+
+- Fixed Logs Agent additional endpoints to respect their
+  logs_no_ssl setting.
+
+- [DBM] Add Oracle broken connection handling on Windows
+
+- Fix indentation in `conf.yaml.example`.
+
+- Bug fix for empty database names in query samples.
+
+- Bug fix for the Korean character set for Windows.
+
+- Fixing the issue with a Korean character set for Windows.
+
+- Fix missing sysmetrics, such as shared pool and library cache.
+
+- Bug fix for missing tags.
+
+- Fixed obfuscation error false positive when the access or filter predicates are empty.
+
+- Fix resource manager metrics collection bugs.
+
+- Pause containers from the Rancher image-mirror repository (``rancher/mirrored-pause.*``)  are now excluded by default for containers and metrics collection.
+
+- Error messages from Go checks are now shown on the Agent GUI status page
+  instead of ``UNKNOWN ERROR``.
+
+
+.. _Release Notes_7.51.0_Other Notes:
+
+Other Notes
+-----------
+
+- Update s6-overlay version used in Datadog Agent container images to v2.2.0.3
+
+- Added a warning when ``logs_no_ssl`` is set and ``dd_url``
+  contains an https prefix. ``logs_no_ssl`` will take precedence
+  over the prefix in a future version.
+
+
+.. _Release Notes_7.50.3:
+
+7.50.3 / 6.50.3
+================
+
+.. _Release Notes_7.50.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-01-11
+
+
+.. _Release Notes_7.50.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix incorrect metadata about system-probe being sent to Inventory and Fleet Automation products.
+
+
+.. _Release Notes_7.50.2:
+
+7.50.2 / 6.50.2
+================
+
+.. _Release Notes_7.50.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-01-04
+
+- Please refer to the `7.50.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7502>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.50.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.20.12``.
+
+
+.. _Release Notes_7.50.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The CWS configuration parameter to enable anomaly detection is now working and taken
+  into account by the Agent.
+
+- Fix issue introduced in 7.47 that allowed all users to start/stop the
+  Windows Datadog Agent services. The Windows installer now, as in versions
+  before 7.47, grants this permission explicitly to ddagentuser.
+
+
+.. _Release Notes_7.50.1:
+
+7.50.1 / 6.50.1
+================
+
+.. _Release Notes_7.50.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-12-21
+
+Bug Fixes
+---------
+
+- Fixes a bug introduced in `7.50.0` preventing `DD_TAGS` to be added to `kubernetes_state.*` metrics.
+
+
+.. _Release Notes_7.50.0:
+
+7.50.0 / 6.50.0
+================
+
+.. _Release Notes_7.50.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-12-18
+
+- Please refer to the `7.50.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7500>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.50.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- The `win32_event_log check <https://docs.datadoghq.com/integrations/win32_event_log/?tab=events>`_
+  has moved from Python `(integrations-core#16108) <https://github.com/DataDog/integrations-core/pull/16108>`_
+  to Go `(#20701 <https://github.com/DataDog/datadog-agent/pull/20701>)`_.
+  All ``legacy_mode: false`` configuration options are backwards compatible except for some regular expressions
+  used in the ``included_messages`` and ``excluded_messages`` options.
+  For example, Go regular expressions do not support lookahead or lookbehind assertions. If you do not
+  use these options, then no configuration changes are necessary.
+  See the `Python regular expression docs <https://docs.python.org/3/library/re.html>`_ and the
+  `Go regular expression docs <https://github.com/google/re2/wiki/Syntax>`_ for more information on
+  the supported regular expression syntax.
+  Set ``legacy_mode_v2: true`` to revert to the Python implementation of the check. The Python implementation
+  may be removed in a future version of the Agent.
+
+
+.. _Release Notes_7.50.0_New Features:
+
+New Features
+------------
+
+- The orchestrator check is moving from the Process Agent to the Node Agent. In the next release, this new check will replace the current pod check in the Process Agent. You can start using this new check now by manually setting the environment variable ``DD_ORCHESTRATOR_EXPLORER_RUN_ON_NODE_AGENT`` to ``true``.
+
+- Adds the following CPU manager metrics to the kubelet core check: `kubernetes_core.kubelet.cpu_manager.pinning_errors_total`, `kubernetes_core.kubelet.cpu_manager.pinning_requests_total`.
+
+- Add a diagnosis for connecting to the agent logs endpoints. This is accessible through the ``agent diagnose`` command.
+
+- Add FIPS mode support for Network Device Monitoring products
+
+- Added support for collecting Cloud Foundry container names without the Cluster Agent.
+
+- The Kubernetes State Metrics Core check now collects `kubernetes_state.ingress.tls`.
+
+- APM: Added a new endpoint tracer_flare/v1/. This endpoint acts as a 
+  proxy to forward HTTP POST request from tracers to the serverless_flare 
+  endpoint, allowing tracer flares to be triggered via remote config, improving
+  the support experience by automating the collection of logs.
+
+- CWS: Ability to send a signal to a process when a rule was triggered.
+  CWS: Add Kubernetes user session context to events, in particular the username, UID and groups of the user that ran the commands remotely.
+
+- Enable container image collection by default.
+
+- Enable container lifecycle events collection by default.
+  This feature helps stopped containers to be cleaned from Datadog faster.
+
+- [netflow] Allow collecting configurable fields for Netflow V9/IPFIX
+
+- Add support for Oracle 12.1 and Oracle 11.
+
+- Add monitoring of Oracle ASM disk groups.
+
+- Add metrics for monitoring Oracle resource manager.
+
+- [corechecks/snmp] Load downloaded profiles
+
+- DBM: Add configuration option to SQL obfuscator to use go-sqllexer package to run SQL obfuscation and normalization
+
+- Support filtering metrics from endpoint and service checks based 
+  on namespace when the `DD_CONTAINER_EXCLUDE_METRICS` environment
+  variable is set.
+
+- The Windows Event Log tailer saves its current position in an event log and
+  resumes reading from that location when the Agent restarts. This allows
+  the Agent to collect events created before the Agent starts.
+
+
+.. _Release Notes_7.50.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- [corechecks/snmp] Support symbol modifiers for global metric tags and metadata tags.
+
+- Update the go-systemd package to the latest version (22.5.0).
+
+- Added default peer tags for APM stats aggregation which can be enabled through a new flag (`peer_tags_aggregation`).
+
+- Add a stop timeout to the Windows Agent services. If an Agent service
+  does not cleanly stop within 15 seconds after receiving a stop command
+  from the Service Control Manager, the service will hard stop.
+  The timeout can be configured by setting the DD_WINDOWS_SERVICE_STOP_TIMEOUT_SECONDS
+  environment variable.
+  Agent stop timeouts are logged to the Windows Event Log and can be monitored and alerted on.
+
+- APM: OTLP: Add support for custom container tags via resource attributes prefixed by `datadog.container.tag.*`.
+
+- Agents are now built with Go ``1.20.11``.
+
+- CWS: Support for Ubuntu 23.10.
+  CWS: Reduce memory usage of ring buffer on machines with more than 64 CPU cores.
+  CSPM: Move away from libapt to run Debian packages compliance checks.
+
+- DBM: Bump the minimum version of the `go-sqllexer` library to 0.0.7 to support collecting stored procedure names.
+
+- Add subcommand `diagnose show-metadata gohai` for gohai data
+
+- Upgraded JMXFetch to ``0.49.0`` which adds some more telemetry
+  and contains some small fixes.
+
+- Netflow now supports the `datadog-agent status` command, providing
+  configuration information. Any configuration errors encountered will be
+  listed.
+
+- Emit `database_instance` tag with the value `host/cdb`. The goal is to show each database separately in the DBM entry page. Currently, the backend initializes `database_instance` to `host`.
+  Also, the Agent will emit the new `db_server` tag because we have to initialize the `host` tag to `host/cdb`.
+
+- Improve obfuscator formatting. Prevent spaces after parentheses.
+  Prevent spaces before `#` when `#` is a part of an identifier.
+
+- Emit query metrics with zero executions to capture long runners spanning over several sampling periods.
+
+- Impose a time limit on query metrics processing. After exceeding the default limit of 20s, the Agent stops emitting execution plans and fqt events.
+
+- Add `oracle.inactive_seconds` metric. Add tags with session attributes to `oracle.process_pga*` metrics.
+
+- Stop override peer.service with other attributes in OTel spans.
+
+- Process-Agent: Improved parsing performance of the '/proc/pid/stat' file (Linux only)
+
+- [snmp_listener] Enable ``collect_topology`` by default.
+
+- dbm: add SQL obfuscation options to give customer more control over how SQL is obfuscated and normalized.
+  - ``RemoveSpaceBetweenParentheses`` - remove spaces between parentheses. This option is only valid when ``ObfuscationMode`` is ``obfuscate_and_normalize``.
+  - ``KeepNull` - disable obfuscating null values with ?. This option is only valid when ``ObfuscationMode`` is "obfuscate_only" or ``obfuscate_and_normalize``.
+  - ``KeepBoolean`` - disable obfuscating boolean values with ?. This option is only valid when ``ObfuscationMode`` is ``obfuscate_only`` or ``obfuscate_and_normalize``.
+  - ``KeepPositionalParameter`` - disable obfuscating positional parameters with ?. This option is only valid when ``ObfuscationMode`` is ``obfuscate_only`` or ``obfuscate_and_normalize``.
+
+- Add logic to support multiple tags created by a single label/annotaion. 
+  For example, add the following config to extract tags for chart_name and app_chart_name. 
+    podLabelsAsTags: 
+      chart_name: chart_name, app_chart_name 
+  Note: the format must be a comma-separated list of tags.
+
+- The logs collection pipeline has been through a refactor to support 
+  processing only the message content (instead of the whole raw message)
+  in the journald and Windows events tailers.
+  This feature is experimental and off by default since it changes how
+  existing `log_processing_rules` behaves with journald and Windows events
+  tailer.
+  Note that it will be switched on by default in a future release of the Agent.
+  A warning notifying about this is shown when the journald and Windows events
+  tailers are used with some `log_processing_rules`.
+
+- The Datadog agent container image is now using Ubuntu 23.10 mantic
+  as the base image.
+
+- The win32_event_log check now continuously collects and reports events instead of waiting for
+  ``min_collection_interval`` to collect.
+  ``min_collection_interval`` now controls how frequently the check attempts to reconnect
+  when the event subscription is in an error state.
+
+
+.. _Release Notes_7.50.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Installing the Agent on Windows Server versions lower than 2016 and client versions lower than 10 is now deprecated.
+
+- The ``timeout`` option for the win32_event_log check is no longer applicable and can be removed. If the option
+  is set, the check logs a deprecation warning and ignores the option.
+
+
+.. _Release Notes_7.50.0_Security Notes:
+
+Security Notes
+--------------
+
+- Fix ``CVE-2023-45283`` and ``CVE-2023-45284``
+
+- Update OpenSSL from 3.0.11 to 3.0.12.
+  This addresses CVE-2023-5363.
+
+
+.. _Release Notes_7.50.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On Windows, uninstalling the Agent should not fail if the Datadog Agent registry key is missing.
+
+- APM: OTLP: Only extract DD container tags from resource attributes. Previously, container tags were also extracted from span attributes.
+
+- APM: OTLP: Only add container tags in tag `_dd.tags.container`. Previously, container tags were also added as span tags.
+
+- Resolved an issue in the containerd collector where the SBOM collection did not correctly attach RepoTags and RepoDigests to the SBOM payload.
+
+- Add a workaround for a bug in a Windows API that can cause the Agent to
+  crash when collecting forwarded events from the Windows Event Log.
+
+- Resolve the issue with hostname resolution in the kube_apiserver provider when the useHostNetwork setting is enabled.
+
+- Fix an issue that prevented process ID (PID) from being associated with containers in Live Container View when the Agent is deployed in AWS Fargate.
+
+- APM: Fixed trace-agent not forwarding errors from remote configuration and reporting them all as 500s
+
+- On Windows, the `SE_DACL_AUTO_INHERITED` flag is reset on `%PROJECTLOCATION%` during upgrades and uninstalls.
+
+- Fixes a bug in the Windows NPM driver where NPM displays byte overcounts.
+
+- For USM on Windows, fixes the problem where paths were being erroneously
+  reported as truncated
+
+- Fixes journald log's Seek function to be set at the beginning or end upon initialization.
+
+- Fixed the cause of some crashes related to CPU instruction
+  incompatibility happening under certain CPUs when making calls to
+  the included libgmp library.
+
+- [kubelet] The Kubelet client no longer fails to initialize when the parameter ``kubelet_tls_verify`` is set to ``false`` with a misconfigured root certificate authority.
+
+- Fixes a bug where the process-agent process check command would fail to run 
+  when language detection was enabled.
+
+- Document query metrics `metric_prefix` parameter.
+
+- Set the tag `dd.internal.resource:database_instance` to `host` instead of `host/cdb`.
+
+- Switch to the new obfuscator where bugs such as getting an error when obfuscating `@!` and where comments on DMLs weren't being removed are fixed.
+
+- Fixes wrong values in Oracle query metrics data. Extreme cases had inflated statistics and missing statements. The affected were pure DML and PL/SQL statements.
+
+- Fix the bug that prevented Oracle DBM working properly on AWS RDS non-multitenant instances.
+
+- Fix an issue that caused the win32_event_log check to not stop running when the rate of incoming event
+  records was higher than the ``timeout`` option. The ``timeout`` option is now deprecated.
+
+- The Windows Event Log tailer automatically recovers and is able to resume collecting
+  events when a log provider is reinstalled, which sometimes happens during Windows updates.
+
+
+.. _Release Notes_7.49.1:
+
+7.49.1 / 6.49.1
+================
+
+.. _Release Notes_7.49.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-11-15
+
+- Please refer to the `7.49.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7491>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.49.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- CWS: add ``arch`` field into agent context included in CWS events.
+
+- APM: Fix a deadlock issue which can prevent the trace-agent from shutting down.
+
+- CWS: Fix the broken lineage check for process activity in CWS.
+
+- APM: fix a regression in the Trace Agent that caused container tagging
+  with UDS and cgroup v2 to fail.
+
+
 .. _Release Notes_7.49.0:
 
 7.49.0 / 6.49.0
-======
+================
 
 .. _Release Notes_7.49.0_Prelude:
 
@@ -277,7 +1071,7 @@ Other Notes
 .. _Release Notes_7.48.1:
 
 7.48.1 / 6.48.1
-======
+================
 
 .. _Release Notes_7.48.1_Prelude:
 
@@ -320,7 +1114,7 @@ Bug Fixes
 .. _Release Notes_7.48.0:
 
 7.48.0 / 6.48.0
-======
+================
 
 .. _Release Notes_7.48.0_Prelude:
 
@@ -620,7 +1414,7 @@ Other Notes
 .. _Release Notes_7.47.1:
 
 7.47.1 / 6.47.1
-======
+================
 
 .. _Release Notes_7.47.1_Prelude:
 
@@ -646,7 +1440,7 @@ Bug Fixes
 .. _Release Notes_7.47.0:
 
 7.47.0 / 6.47.0
-======
+================
 
 .. _Release Notes_7.47.0_Prelude:
 
@@ -917,7 +1711,7 @@ Other Notes
 .. _Release Notes_7.46.0:
 
 7.46.0 / 6.46.0
-======
+================
 
 .. _Release Notes_7.46.0_Prelude:
 
@@ -1182,7 +1976,7 @@ Bug Fixes
 .. _Release Notes_7.45.1:
 
 7.45.1 / 6.45.1
-======
+================
 
 .. _Release Notes_7.45.1_Prelude:
 
@@ -1205,7 +1999,7 @@ Security Notes
 .. _Release Notes_7.45.0:
 
 7.45.0 / 6.45.0
-======
+================
 
 .. _Release Notes_7.45.0_Prelude:
 
@@ -1433,7 +2227,7 @@ Bug Fixes
 .. _Release Notes_7.44.1:
 
 7.44.1 / 6.44.1
-======
+================
 
 .. _Release Notes_7.44.1_Prelude:
 
@@ -1465,7 +2259,7 @@ Bug Fixes
 .. _Release Notes_7.44.0:
 
 7.44.0 / 6.44.0
-======
+================
 
 .. _Release Notes_7.44.0_Prelude:
 
@@ -1663,7 +2457,7 @@ Other Notes
 .. _Release Notes_7.43.2:
 
 7.43.2 / 6.43.2
-======
+================
 
 .. _Release Notes_7.43.2_Prelude:
 
@@ -1684,7 +2478,7 @@ Enhancement Notes
 .. _Release Notes_7.43.1:
 
 7.43.1 / 6.43.1
-======
+================
 
 .. _Release Notes_7.43.1_Prelude:
 
@@ -1707,7 +2501,7 @@ Enhancement Notes
 .. _Release Notes_7.43.0:
 
 7.43.0 / 6.43.0
-======
+================
 
 .. _Release Notes_7.43.0_Prelude:
 
@@ -1876,7 +2670,7 @@ Other Notes
 .. _Release Notes_7.42.0:
 
 7.42.0 / 6.42.0
-======
+================
 
 .. _Release Notes_7.42.0_Prelude:
 
@@ -2055,7 +2849,7 @@ Other Notes
 .. _Release Notes_7.41.1:
 
 7.41.1 / 6.41.1
-======
+================
 
 .. _Release Notes_7.41.1_Prelude:
 
@@ -2070,7 +2864,7 @@ Release on: 2022-12-21
 .. _Release Notes_7.41.0:
 
 7.41.0 / 6.41.0
-======
+================
 
 .. _Release Notes_7.41.0_Prelude:
 
@@ -2246,7 +3040,7 @@ Bug Fixes
 .. _Release Notes_7.40.1:
 
 7.40.1
-======
+================
 
 .. _Release Notes_7.40.1_Prelude:
 
@@ -2277,7 +3071,7 @@ Bug Fixes
 .. _Release Notes_7.40.0:
 
 7.40.0 / 6.40.0
-======
+================
 
 .. _Release Notes_7.40.0_Prelude:
 
@@ -2476,7 +3270,7 @@ Other Notes
 .. _Release Notes_7.39.1:
 
 7.39.1 / 6.39.1
-======
+================
 
 .. _Release Notes_7.39.1_Prelude:
 
@@ -2507,7 +3301,7 @@ Other Notes
 .. _Release Notes_7.39.0:
 
 7.39.0 / 6.39.0
-======
+================
 
 .. _Release Notes_7.39.0_Prelude:
 
@@ -2663,7 +3457,7 @@ Bug Fixes
 .. _Release Notes_7.38.2:
 
 7.38.2 / 6.38.2
-======
+================
 
 .. _Release Notes_7.38.2_Prelude:
 
@@ -2687,7 +3481,7 @@ Bug Fixes
 .. _Release Notes_7.38.1:
 
 7.38.1 / 6.38.1
-======
+================
 
 .. _Release Notes_7.38.1_Prelude:
 
@@ -2708,7 +3502,7 @@ Bug Fixes
 .. _Release Notes_7.38.0:
 
 7.38.0 / 6.38.0
-======
+================
 
 .. _Release Notes_7.38.0_Prelude:
 
@@ -2838,7 +3632,7 @@ Bug Fixes
 .. _Release Notes_7.37.1:
 
 7.37.1 / 6.37.1
-======
+================
 
 .. _Release Notes_7.37.1_Prelude:
 
@@ -2859,7 +3653,7 @@ Bug Fixes
 .. _Release Notes_7.37.0:
 
 7.37.0 / 6.37.0
-======
+================
 
 .. _Release Notes_7.37.0_Prelude:
 
@@ -3054,7 +3848,7 @@ Other Notes
 .. _Release Notes_7.36.1:
 
 7.36.1 / 6.36.1
-======
+================
 
 .. _Release Notes_7.36.1_Prelude:
 
@@ -3082,7 +3876,7 @@ Bug Fixes
 .. _Release Notes_7.36.0:
 
 7.36.0 / 6.36.0
-======
+================
 
 .. _Release Notes_7.36.0_Prelude:
 
@@ -3274,7 +4068,7 @@ Other Notes
 .. _Release Notes_7.35.2:
 
 7.35.2 / 6.35.2
-======
+================
 
 .. _Release Notes_7.35.2_Prelude:
 
@@ -3293,7 +4087,7 @@ Bug Fixes
 .. _Release Notes_7.35.1:
 
 7.35.1 / 6.35.1
-======
+================
 
 .. _Release Notes_7.35.1_Prelude:
 
@@ -3316,7 +4110,7 @@ Bug Fixes
 .. _Release Notes_7.35.0:
 
 7.35.0 / 6.35.0
-======
+================
 
 .. _Release Notes_7.35.0_Prelude:
 
@@ -3644,7 +4438,7 @@ Other Notes
 .. _Release Notes_7.34.0:
 
 7.34.0 / 6.34.0
-======
+================
 
 .. _Release Notes_7.34.0_Prelude:
 
@@ -3840,7 +4634,7 @@ Bug Fixes
 .. _Release Notes_7.33.1:
 
 7.33.1 / 6.33.1
-======
+================
 
 .. _Release Notes_7.33.1_Prelude:
 
@@ -3863,7 +4657,7 @@ Bug Fixes
 .. _Release Notes_7.33.0:
 
 7.33.0 / 6.33.0
-======
+================
 
 .. _Release Notes_7.33.0_Prelude:
 
@@ -4082,7 +4876,7 @@ Other Notes
 .. _Release Notes_7.32.4:
 
 7.32.4 / 6.32.4
-======
+================
 
 .. _Release Notes_7.32.4_Prelude:
 
@@ -4097,7 +4891,7 @@ Release on: 2021-12-22
 .. _Release Notes_7.32.3:
 
 7.32.3 / 6.32.3
-======
+================
 
 .. _Release Notes_7.32.3_Prelude:
 
@@ -4113,7 +4907,7 @@ Release on: 2021-12-15
 .. _Release Notes_7.32.2:
 
 7.32.2 / 6.32.2
-======
+================
 
 .. _Release Notes_7.32.2_Prelude:
 
@@ -4134,7 +4928,7 @@ Security Notes
 .. _Release Notes_7.32.1:
 
 7.32.1 / 6.32.1
-======
+================
 
 .. _Release Notes_7.32.1_Prelude:
 
@@ -4162,7 +4956,7 @@ Bug Fixes
 .. _Release Notes_7.32.0:
 
 7.32.0 / 6.32.0
-======
+================
 
 .. _Release Notes_7.32.0_Prelude:
 
@@ -4337,7 +5131,7 @@ Bug Fixes
 .. _Release Notes_7.31.1:
 
 7.31.1
-======
+================
 
 .. _Release Notes_7.31.1_Prelude:
 
@@ -4356,7 +5150,7 @@ Bug Fixes
 .. _Release Notes_7.31.0:
 
 7.31.0 / 6.31.0
-======
+================
 
 .. _Release Notes_7.31.0_Prelude:
 
@@ -4545,7 +5339,7 @@ Other Notes
 .. _Release Notes_7.30.2:
 
 7.30.2
-======
+================
 
 .. _Release Notes_7.30.2_Prelude:
 
@@ -4567,7 +5361,7 @@ Bug Fixes
 .. _Release Notes_7.30.1:
 
 7.30.1
-======
+================
 
 .. _Release Notes_7.30.1_Prelude:
 
@@ -4582,7 +5376,7 @@ Release on: 2021-08-20
 .. _Release Notes_7.30.0:
 
 7.30.0 / 6.30.0
-======
+================
 
 .. _Release Notes_7.30.0_Prelude:
 
@@ -4750,7 +5544,7 @@ Other Notes
 .. _Release Notes_7.29.1:
 
 7.29.1
-======
+================
 
 .. _Release Notes_7.29.1_Prelude:
 
@@ -4781,7 +5575,7 @@ Bug Fixes
 .. _Release Notes_7.29.0:
 
 7.29.0 / 6.29.0
-======
+================
 
 .. _Release Notes_7.29.0_Prelude:
 
@@ -4971,7 +5765,7 @@ Other Notes
 .. _Release Notes_7.28.1:
 
 7.28.1
-======
+================
 
 .. _Release Notes_7.28.1_Prelude:
 
@@ -4986,7 +5780,7 @@ Release on: 2021-05-31
 .. _Release Notes_7.28.0:
 
 7.28.0 / 6.28.0
-======
+================
 
 .. _Release Notes_7.28.0_Prelude:
 
@@ -5161,7 +5955,7 @@ Other Notes
 .. _Release Notes_7.27.1:
 
 7.27.1 / 6.27.1
-======
+================
 
 .. _Release Notes_7.27.1_Prelude:
 
@@ -5184,7 +5978,7 @@ Bug Fixes
 .. _Release Notes_7.27.0:
 
 7.27.0 / 6.27.0
-======
+================
 
 .. _Release Notes_7.27.0_Prelude:
 
@@ -5455,7 +6249,7 @@ Other Notes
 .. _Release Notes_7.26.0:
 
 7.26.0 / 6.26.0
-======
+================
 
 .. _Release Notes_7.26.0_Prelude:
 
@@ -5626,7 +6420,7 @@ Other Notes
 .. _Release Notes_7.25.1:
 
 7.25.1
-======
+================
 
 .. _Release Notes_7.25.1_Prelude:
 
@@ -5663,7 +6457,7 @@ Release Notes
 .. _Release Notes_7.25.0:
 
 7.25.0 / 6.25.0
-======
+================
 
 .. _Release Notes_7.25.0_Prelude:
 
@@ -5834,7 +6628,7 @@ Other Notes
 .. _Release Notes_7.24.1:
 
 7.24.1
-======
+================
 
 .. _Release Notes_7.24.1_Bug Fixes:
 
@@ -5868,7 +6662,7 @@ Other Notes
 .. _Release Notes_7.24.0:
 
 7.24.0 / 6.24.0
-======
+================
 
 .. _Release Notes_7.24.0_Prelude:
 
@@ -6013,7 +6807,7 @@ Other Notes
 .. _Release Notes_7.23.1:
 
 7.23.1 / 6.23.1
-======
+================
 
 .. _Release Notes_7.23.1_Prelude:
 
@@ -6041,7 +6835,7 @@ Bug Fixes
 .. _Release Notes_7.23.0:
 
 7.23.0 / 6.23.0
-======
+================
 
 .. _Release Notes_7.23.0_Prelude:
 
@@ -6237,7 +7031,7 @@ Other Notes
 .. _Release Notes_7.22.1:
 
 7.22.1 / 6.22.1
-======
+================
 
 .. _Release Notes_7.22.1_Prelude:
 
@@ -6263,7 +7057,7 @@ Bug Fixes
 .. _Release Notes_7.22.0:
 
 7.22.0 / 6.22.0
-======
+================
 
 .. _Release Notes_7.22.0_Prelude:
 
@@ -6413,7 +7207,7 @@ Other Notes
 .. _Release Notes_7.21.1:
 
 7.21.1
-======
+================
 
 .. _Release Notes_7.21.1_Prelude:
 
@@ -6433,7 +7227,7 @@ Bug Fixes
 .. _Release Notes_7.21.0:
 
 7.21.0 / 6.21.0
-======
+================
 
 .. _Release Notes_7.21.0_Prelude:
 
@@ -6632,7 +7426,7 @@ Other Notes
 .. _Release Notes_7.20.2:
 
 7.20.2
-======
+=======
 
 .. _Release Notes_7.20.2_Prelude:
 
@@ -6647,7 +7441,7 @@ Release on: 2020-06-17
 .. _Release Notes_7.20.1:
 
 7.20.1
-======
+=======
 
 .. _Release Notes_7.20.1_Prelude:
 
@@ -6662,7 +7456,7 @@ Release on: 2020-06-11
 .. _Release Notes_7.20.0:
 
 7.20.0 / 6.20.0
-======
+================
 
 .. _Release Notes_7.20.0_Prelude:
 
@@ -6836,7 +7630,7 @@ Other Notes
 .. _Release Notes_7.19.2:
 
 7.19.2 / 6.19.2
-======
+================
 
 .. _Release Notes_7.19.2_Prelude:
 
@@ -6851,7 +7645,7 @@ Release on: 2020-05-12
 .. _Release Notes_7.19.1:
 
 7.19.1
-======
+=======
 
 .. _Release Notes_7.19.1_Prelude:
 
@@ -6873,7 +7667,7 @@ Bug Fixes
 .. _Release Notes_7.19.0:
 
 7.19.0 / 6.19.0
-======
+================
 
 .. _Release Notes_7.19.0_Prelude:
 
@@ -7065,7 +7859,7 @@ Bug Fixes
 .. _Release Notes_7.18.0:
 
 7.18.0 / 6.18.0
-======
+================
 
 .. _Release Notes_7.18.0_Prelude:
 
@@ -7277,7 +8071,7 @@ Bug Fixes
 .. _Release Notes_7.17.1:
 
 7.17.1 / 6.17.1
-======
+================
 
 .. _Release Notes_7.17.1_Prelude:
 
@@ -7304,7 +8098,7 @@ Bug Fixes
 .. _Release Notes_7.17.0:
 
 7.17.0 / 6.17.0
-======
+================
 
 .. _Release Notes_7.17.0_Prelude:
 
@@ -7432,7 +8226,7 @@ Other Notes
 .. _Release Notes_7.16.1:
 
 7.16.1 / 6.16.1
-========
+===============
 
 .. _Release Notes_7.16.1_Prelude:
 
@@ -7456,7 +8250,7 @@ Security Issues
 .. _Release Notes_7.16.0:
 
 7.16.0 / 6.16.0
-======
+================
 
 .. _Release Notes_7.16.0_Prelude:
 

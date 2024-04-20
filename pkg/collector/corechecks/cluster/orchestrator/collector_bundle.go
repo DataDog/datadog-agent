@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver && orchestrator
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 package orchestrator
 
 import (
@@ -40,7 +41,7 @@ var (
 // to easily run them all.
 type CollectorBundle struct {
 	check               *OrchestratorCheck
-	collectors          []collectors.Collector
+	collectors          []collectors.K8sCollector
 	discoverCollectors  bool
 	extraSyncTimeout    time.Duration
 	inventory           *inventory.CollectorInventory
@@ -67,11 +68,13 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		check:              chk,
 		inventory:          inventory.NewCollectorInventory(),
 		runCfg: &collectors.CollectorRunConfig{
-			APIClient:                   chk.apiClient,
-			ClusterID:                   chk.clusterID,
-			Config:                      chk.orchestratorConfig,
-			MsgGroupRef:                 chk.groupID,
-			OrchestratorInformerFactory: chk.orchestratorInformerFactory,
+			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+				APIClient:                   chk.apiClient,
+				OrchestratorInformerFactory: chk.orchestratorInformerFactory,
+			},
+			ClusterID:   chk.clusterID,
+			Config:      chk.orchestratorConfig,
+			MsgGroupRef: chk.groupID,
 		},
 		stopCh:              chk.stopCh,
 		manifestBuffer:      NewManifestBuffer(chk),
@@ -134,7 +137,7 @@ func (cb *CollectorBundle) skipImportingDefaultCollectors() bool {
 //   - <apigroup_and_version>/<collector_name> (e.g. "batch/v1/cronjobs")
 func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bool) {
 	var (
-		collector collectors.Collector
+		collector collectors.K8sCollector
 		err       error
 	)
 
@@ -166,7 +169,7 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bo
 	}
 
 	if err != nil {
-		_ = cb.check.Warnf("Unsupported collector: %s", collectorName)
+		_ = cb.check.Warnf("Unsupported collector: %s: %s", collectorName, err)
 		return
 	}
 
@@ -228,11 +231,11 @@ func (cb *CollectorBundle) importCollectorsFromDiscovery() bool {
 
 	collectors, err := discovery.NewAPIServerDiscoveryProvider().Discover(cb.inventory)
 	if err != nil {
-		_ = cb.check.Warnf("Collector discovery failed: %s", err)
+		_ = cb.check.Warnf("Kubernetes collector discovery failed: %s", err)
 		return false
 	}
 	if len(collectors) == 0 {
-		_ = cb.check.Warn("Collector discovery returned no collector")
+		_ = cb.check.Warn("Kubernetes collector discovery returned no collector")
 		return false
 	}
 

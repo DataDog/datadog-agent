@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -19,6 +20,15 @@ type mockDestination struct {
 	output     chan *message.Payload
 	isRetrying chan bool
 	stopChan   chan struct{}
+	isHA       bool
+}
+
+func (m *mockDestination) IsHA() bool {
+	return m.isHA
+}
+
+func (m *mockDestination) Target() string {
+	return "mock-dest"
 }
 
 func (m *mockDestination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan <-chan struct{}) {
@@ -29,13 +39,26 @@ func (m *mockDestination) Start(input chan *message.Payload, output chan *messag
 	return m.stopChan
 }
 
-func TestDestinationSender(t *testing.T) {
-
+func newDestinationSenderWithBufferSize(bufferSize int) (*mockDestination, *DestinationSender) {
 	output := make(chan *message.Payload)
 	dest := &mockDestination{}
-	d := NewDestinationSender(dest, output, 1)
+	cfg := getNewConfig()
+	d := NewDestinationSender(cfg, dest, output, bufferSize)
+	return dest, d
+}
 
-	d.Send(&message.Payload{})
+func newDestinationSenderWithConfigAndBufferSize(cfg pkgconfigmodel.Reader, bufferSize int) (*mockDestination, *DestinationSender) {
+	output := make(chan *message.Payload)
+	dest := &mockDestination{}
+	dest.isHA = cfg.GetBool("ha.enabled")
+	d := NewDestinationSender(cfg, dest, output, bufferSize)
+	return dest, d
+}
+
+func TestDestinationSender(_ *testing.T) {
+	dest, destSender := newDestinationSenderWithBufferSize(1)
+
+	destSender.Send(&message.Payload{})
 
 	<-dest.input
 
@@ -47,16 +70,13 @@ func TestDestinationSender(t *testing.T) {
 }
 
 func TestDestinationSenderCanBeCanceled(t *testing.T) {
-
-	output := make(chan *message.Payload)
-	dest := &mockDestination{}
-	d := NewDestinationSender(dest, output, 0)
+	dest, destSender := newDestinationSenderWithBufferSize(0)
 
 	sendSucceeded := make(chan bool)
 
-	// Send should block because intput is full.
+	// Send should block because input is full.
 	go func() {
-		sendSucceeded <- d.Send(&message.Payload{})
+		sendSucceeded <- destSender.Send(&message.Payload{})
 	}()
 	// trigger a retry state change to unblock it
 	dest.isRetrying <- true
@@ -65,23 +85,17 @@ func TestDestinationSenderCanBeCanceled(t *testing.T) {
 }
 
 func TestDestinationSenderAlreadyRetrying(t *testing.T) {
-
-	output := make(chan *message.Payload)
-	dest := &mockDestination{}
-	d := NewDestinationSender(dest, output, 0)
+	dest, destSender := newDestinationSenderWithBufferSize(0)
 	dest.isRetrying <- true
 
-	assert.False(t, d.Send(&message.Payload{}))
+	assert.False(t, destSender.Send(&message.Payload{}))
 }
 
 func TestDestinationSenderStopsRetrying(t *testing.T) {
-
-	output := make(chan *message.Payload)
-	dest := &mockDestination{}
-	d := NewDestinationSender(dest, output, 0)
+	dest, destSender := newDestinationSenderWithBufferSize(0)
 	dest.isRetrying <- true
 
-	assert.False(t, d.Send(&message.Payload{}))
+	assert.False(t, destSender.Send(&message.Payload{}))
 
 	dest.isRetrying <- false
 
@@ -93,19 +107,17 @@ func TestDestinationSenderStopsRetrying(t *testing.T) {
 	}()
 
 	// retry the send until it succeeds
-	for !d.Send(&message.Payload{}) {
+	for !destSender.Send(&message.Payload{}) { //revive:disable-line:empty-block
 	}
 
 	<-gotPayload
 }
 
-func TestDestinationSenderDeadlock(t *testing.T) {
-	output := make(chan *message.Payload)
-	dest := &mockDestination{}
-	d := NewDestinationSender(dest, output, 100)
+func TestDestinationSenderDeadlock(_ *testing.T) {
+	dest, destSender := newDestinationSenderWithBufferSize(100)
 
 	go func() {
-		for range dest.input {
+		for range dest.input { //revive:disable-line:empty-block
 		}
 	}()
 
@@ -124,7 +136,7 @@ func TestDestinationSenderDeadlock(t *testing.T) {
 	go func() {
 		<-syn
 		for i := 0; i < 1000; i++ {
-			d.Send(&message.Payload{})
+			destSender.Send(&message.Payload{})
 		}
 		wg.Done()
 	}()
@@ -132,4 +144,49 @@ func TestDestinationSenderDeadlock(t *testing.T) {
 	close(syn)
 	wg.Wait()
 	close(dest.input)
+}
+
+func TestDestinationSenderDisabled(t *testing.T) {
+	cfg := getNewConfig()
+	cfg.SetWithoutSource("ha.enabled", true)
+	cfg.SetWithoutSource("ha.failover", false)
+
+	dest, destSender := newDestinationSenderWithConfigAndBufferSize(cfg, 1)
+
+	assert.True(t, destSender.Send(&message.Payload{}), "sender should always indicate success when disabled in HA mode")
+	assert.Len(t, dest.input, 0, "sender should not send anything when disabled")
+}
+
+func TestDestinationSenderDisabledToEnabled(t *testing.T) {
+	cfg := getNewConfig()
+	cfg.SetWithoutSource("ha.enabled", true)
+	cfg.SetWithoutSource("ha.failover", false)
+
+	dest, destSender := newDestinationSenderWithConfigAndBufferSize(cfg, 1)
+
+	assert.True(t, destSender.Send(&message.Payload{}), "sender should always indicate success when disabled in HA mode")
+	assert.Len(t, dest.input, 0, "sender should not send payload when disabled")
+
+	cfg.SetWithoutSource("ha.failover", true)
+
+	assert.True(t, destSender.Send(&message.Payload{}), "sender should have buffer space to accept payload when enabled")
+	assert.Len(t, dest.input, 1, "sender should send payload when enabled")
+}
+
+func TestDestinationSenderEnabledToDisabled(t *testing.T) {
+	cfg := getNewConfig()
+	cfg.SetWithoutSource("ha.enabled", true)
+	cfg.SetWithoutSource("ha.failover", true)
+
+	dest, destSender := newDestinationSenderWithConfigAndBufferSize(cfg, 1)
+
+	assert.True(t, destSender.Send(&message.Payload{}), "sender should have buffer space to accept payload when enabled")
+	assert.Len(t, dest.input, 1, "sender should send payload when enabled")
+
+	// drain input channel and set to disabled
+	<-dest.input
+	cfg.SetWithoutSource("ha.failover", false)
+
+	assert.True(t, destSender.Send(&message.Payload{}), "sender should always indicate success when disabled in HA mode")
+	assert.Len(t, dest.input, 0, "sender should not send payload when disabled")
 }

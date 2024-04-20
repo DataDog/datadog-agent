@@ -39,7 +39,7 @@ type PlatformProbe interface {
 	FlushDiscarders() error
 	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error)
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
-	HandleActions(_ *rules.Rule, _ eval.Event)
+	HandleActions(_ *eval.Context, _ *rules.Rule)
 	NewEvent() *model.Event
 	GetFieldHandlers() model.FieldHandlers
 	DumpProcessCache(_ bool) (string, error)
@@ -79,7 +79,6 @@ type Probe struct {
 
 	// internals
 	scrubber *procutil.DataScrubber
-	event    *model.Event
 
 	// Events section
 	fullAccessEventHandlers [model.MaxAllEventType][]FullAccessEventHandler
@@ -162,7 +161,9 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 
 // HandleActions executes the actions of a triggered rule
 func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
-	p.PlatformProbe.HandleActions(rule, event)
+	ctx := eval.NewContext(event.(*model.Event))
+
+	p.PlatformProbe.HandleActions(ctx, rule)
 }
 
 // AddEventHandler sets a probe event handler
@@ -238,15 +239,11 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 	}
 
 	// send specific event
-	for _, handler := range p.customEventHandlers[event.GetEventType()] {
-		handler.HandleCustomEvent(rule, event)
+	if event.GetEventType() != model.UnknownEventType {
+		for _, handler := range p.customEventHandlers[event.GetEventType()] {
+			handler.HandleCustomEvent(rule, event)
+		}
 	}
-}
-
-func (p *Probe) zeroEvent() *model.Event {
-	p.event.Zero()
-	p.event.FieldHandlers = p.PlatformProbe.GetFieldHandlers()
-	return p.event
 }
 
 // StatsPollingInterval returns the stats polling interval
@@ -261,7 +258,7 @@ func (p *Probe) GetEventTags(containerID string) []string {
 
 // GetService returns the service name from the process tree
 func (p *Probe) GetService(ev *model.Event) string {
-	if service := ev.FieldHandlers.GetProcessService(ev); service != "" {
+	if service := ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent); service != "" {
 		return service
 	}
 	return p.Config.RuntimeSecurity.HostServiceName
@@ -277,6 +274,7 @@ func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleS
 		ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
 		if ruleSetTagValue == rules.DefaultRuleSetTagValue {
 			ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
+			ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
 		}
 
 		eventCtor := func() eval.Event {

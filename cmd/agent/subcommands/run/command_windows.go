@@ -13,6 +13,15 @@ import (
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
+	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
+	"github.com/DataDog/datadog-agent/comp/trace/etwtracer/etwtracerimpl"
+
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
 
@@ -26,30 +35,40 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
+	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
+	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl"
+	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
 	// core components
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -77,47 +96,60 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			telemetry telemetry.Component,
 			sysprobeconfig sysprobeconfig.Component,
 			server dogstatsdServer.Component,
-			serverDebug dogstatsddebug.Component,
-			capture replay.Component,
+			_ replay.Component,
 			wmeta workloadmeta.Component,
+			taggerComp tagger.Component,
+			ac autodiscovery.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
 			logsAgent optional.Option[logsAgent.Component],
+			processAgent processAgent.Component,
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
 			demultiplexer demultiplexer.Component,
-			hostMetadata host.Component,
-			invAgent inventoryagent.Component,
-			invHost inventoryhost.Component,
-			secretResolver secrets.Component,
+			_ host.Component,
+			_ inventoryagent.Component,
+			_ inventoryhost.Component,
+			_ secrets.Component,
+			invChecks inventorychecks.Component,
 			_ netflowServer.Component,
+			_ trapserver.Component,
 			agentAPI internalAPI.Component,
+			pkgSigning packagesigning.Component,
+			statusComponent status.Component,
+			collector collector.Component,
+			cloudfoundrycontainer cloudfoundrycontainer.Component,
+			_ autoexit.Component,
+			_ expvarserver.Component,
+			jmxlogger jmxlogger.Component,
+			settings settings.Component,
 		) error {
-
-			defer StopAgentWithDefaults(server, demultiplexer, agentAPI)
+			defer StopAgentWithDefaults(agentAPI)
 
 			err := startAgent(
-				&cliParams{GlobalParams: &command.GlobalParams{}},
 				log,
 				flare,
 				telemetry,
 				sysprobeconfig,
 				server,
-				capture,
-				serverDebug,
 				wmeta,
+				taggerComp,
+				ac,
 				rcclient,
 				logsAgent,
+				processAgent,
 				forwarder,
 				sharedSerializer,
 				otelcollector,
 				demultiplexer,
-				hostMetadata,
-				invAgent,
-				invHost,
-				secretResolver,
 				agentAPI,
+				invChecks,
+				statusComponent,
+				collector,
+				cloudfoundrycontainer,
+				jmxlogger,
+				settings,
 			)
 			if err != nil {
 				return err
@@ -145,7 +177,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				ConfigParams:         config.NewAgentParams(""),
 				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
-				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
+				LogParams:            logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			getSharedFxOption(),
 			getPlatformModules(),
@@ -167,14 +199,19 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 
 func getPlatformModules() fx.Option {
 	return fx.Options(
-		agentcrashdetectimpl.Module,
-		winregistryimpl.Module,
-		comptraceconfig.Module,
+		agentcrashdetectimpl.Module(),
+		etwtracerimpl.Module,
+		windowseventlogimpl.Module(),
+		winregistryimpl.Module(),
+		etwimpl.Module,
+		comptraceconfig.Module(),
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ agentcrashdetect.Component) {}),
+		fx.Invoke(func(_ etwtracer.Component) {}),
+		fx.Invoke(func(_ windowseventlog.Component) {}),
 		fx.Invoke(func(_ winregistry.Component) {}),
 	)
 }

@@ -9,14 +9,15 @@ import (
 	"strconv"
 	"time"
 
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var (
-	tlmPayloadsDropped = telemetry.NewCounter("logs_sender", "payloads_dropped", []string{"reliable", "destination"}, "Payloads dropped")
-	tlmMessagesDropped = telemetry.NewCounter("logs_sender", "messages_dropped", []string{"reliable", "destination"}, "Messages dropped")
+	tlmPayloadsDropped = telemetry.NewCounterWithOpts("logs_sender", "payloads_dropped", []string{"reliable", "destination"}, "Payloads dropped", telemetry.Options{DefaultMetric: true})
+	tlmMessagesDropped = telemetry.NewCounterWithOpts("logs_sender", "messages_dropped", []string{"reliable", "destination"}, "Messages dropped", telemetry.Options{DefaultMetric: true})
 	tlmSendWaitTime    = telemetry.NewCounter("logs_sender", "send_wait", []string{}, "Time spent waiting for all sends to finish")
 )
 
@@ -28,6 +29,7 @@ var (
 // the auditor or block the pipeline if they fail. There will always be at
 // least 1 reliable destination (the main destination).
 type Sender struct {
+	config       pkgconfigmodel.Reader
 	inputChan    chan *message.Payload
 	outputChan   chan *message.Payload
 	destinations *client.Destinations
@@ -36,8 +38,9 @@ type Sender struct {
 }
 
 // NewSender returns a new sender.
-func NewSender(inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int) *Sender {
+func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int) *Sender {
 	return &Sender{
+		config:       config,
 		inputChan:    inputChan,
 		outputChan:   outputChan,
 		destinations: destinations,
@@ -59,10 +62,10 @@ func (s *Sender) Stop() {
 }
 
 func (s *Sender) run() {
-	reliableDestinations := buildDestinationSenders(s.destinations.Reliable, s.outputChan, s.bufferSize)
+	reliableDestinations := buildDestinationSenders(s.config, s.destinations.Reliable, s.outputChan, s.bufferSize)
 
 	sink := additionalDestinationsSink(s.bufferSize)
-	unreliableDestinations := buildDestinationSenders(s.destinations.Unreliable, sink, s.bufferSize)
+	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, sink, s.bufferSize)
 
 	for payload := range s.inputChan {
 		var startInUse = time.Now()
@@ -122,16 +125,17 @@ func additionalDestinationsSink(bufferSize int) chan *message.Payload {
 	sink := make(chan *message.Payload, bufferSize)
 	go func() {
 		// drain channel, stop when channel is closed
+		//nolint:revive // TODO(AML) Fix revive linter
 		for range sink {
 		}
 	}()
 	return sink
 }
 
-func buildDestinationSenders(destinations []client.Destination, output chan *message.Payload, bufferSize int) []*DestinationSender {
+func buildDestinationSenders(config pkgconfigmodel.Reader, destinations []client.Destination, output chan *message.Payload, bufferSize int) []*DestinationSender {
 	destinationSenders := []*DestinationSender{}
 	for _, destination := range destinations {
-		destinationSenders = append(destinationSenders, NewDestinationSender(destination, output, bufferSize))
+		destinationSenders = append(destinationSenders, NewDestinationSender(config, destination, output, bufferSize))
 	}
 	return destinationSenders
 }

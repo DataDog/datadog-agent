@@ -15,7 +15,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -310,13 +310,27 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	currentChecksDistribution := d.currentDistribution()
 
 	proposedDistribution := newChecksDistribution(currentChecksDistribution.runnerWorkers())
+
+	// First all the checks that are excluded from rebalancing are added to the
+	// same runner where they are currently running.
+	for checkID, check := range currentChecksDistribution.Checks {
+		checkName := checkid.IDToCheckName(checkid.ID(checkID))
+		if _, excluded := d.excludedChecksFromDispatching[checkName]; excluded {
+			proposedDistribution.addCheck(checkID, check.WorkersNeeded, check.Runner)
+		}
+	}
+
+	// Place the checks that are not excluded from rebalancing
 	for _, checkID := range currentChecksDistribution.checksSortedByWorkersNeeded() {
-		proposedDistribution.addToLeastBusy(
-			checkID,
-			currentChecksDistribution.workersNeededForCheck(checkID),
-			currentChecksDistribution.runnerForCheck(checkID),
-			"",
-		)
+		checkName := checkid.IDToCheckName(checkid.ID(checkID))
+		if _, excluded := d.excludedChecksFromDispatching[checkName]; !excluded {
+			proposedDistribution.addToLeastBusy(
+				checkID,
+				currentChecksDistribution.workersNeededForCheck(checkID),
+				currentChecksDistribution.runnerForCheck(checkID),
+				"",
+			)
+		}
 	}
 
 	// We don't calculate the optimal distribution, so it might be worse than
@@ -364,15 +378,12 @@ func (d *dispatcher) currentDistribution() checksDistribution {
 
 	for nodeName, nodeStoreInfo := range d.store.nodes {
 		for checkID, stats := range nodeStoreInfo.clcRunnerStats {
-			digest, found := d.store.idToDigest[checkid.ID(checkID)]
-			if !found { // Not a cluster check
+			if !stats.IsClusterCheck {
 				continue
 			}
 
 			minCollectionInterval := defaults.DefaultCheckInterval
-
-			conf := d.store.digestToConfig[digest]
-
+			conf := d.store.digestToConfig[d.store.idToDigest[checkid.ID(checkID)]]
 			if len(conf.Instances) > 0 {
 				commonOptions := integration.CommonInstanceConfig{}
 				err := yaml.Unmarshal(conf.Instances[0], &commonOptions)

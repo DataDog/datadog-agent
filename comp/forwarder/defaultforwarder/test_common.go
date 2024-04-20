@@ -24,11 +24,20 @@ type testTransaction struct {
 	assertClient bool
 	processed    chan bool
 	pointCount   int
+	kind         transaction.Kind
 }
 
 func newTestTransaction() *testTransaction {
 	t := new(testTransaction)
 	t.assertClient = true
+	t.processed = make(chan bool, 1)
+	return t
+}
+
+func newTestTransactionWithKind(kind transaction.Kind) *testTransaction {
+	t := new(testTransaction)
+	t.assertClient = true
+	t.kind = kind
 	t.processed = make(chan bool, 1)
 	return t
 }
@@ -61,6 +70,10 @@ func (t *testTransaction) GetPriority() transaction.Priority {
 	return transaction.TransactionPriorityNormal
 }
 
+func (t *testTransaction) GetKind() transaction.Kind {
+	return t.kind
+}
+
 func (t *testTransaction) GetEndpointName() string {
 	return ""
 }
@@ -69,7 +82,7 @@ func (t *testTransaction) GetPayloadSize() int {
 	return t.Called().Get(0).(int)
 }
 
-func (t *testTransaction) SerializeTo(_ log.Component, serializer transaction.TransactionsSerializer) error {
+func (t *testTransaction) SerializeTo(_ log.Component, _ transaction.TransactionsSerializer) error {
 	return nil
 }
 
@@ -106,7 +119,7 @@ func (tf *MockedForwarder) SubmitSeries(payload transaction.BytesPayloads, extra
 }
 
 // SubmitV1Intake updates the internal mock struct
-func (tf *MockedForwarder) SubmitV1Intake(payload transaction.BytesPayloads, extra http.Header) error {
+func (tf *MockedForwarder) SubmitV1Intake(payload transaction.BytesPayloads, _ transaction.Kind, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
 }
 
@@ -171,7 +184,7 @@ func (tf *MockedForwarder) SubmitConnectionChecks(payload transaction.BytesPaylo
 }
 
 // SubmitOrchestratorChecks mock
-func (tf *MockedForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) (chan Response, error) {
+func (tf *MockedForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, _ int) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
 }
 

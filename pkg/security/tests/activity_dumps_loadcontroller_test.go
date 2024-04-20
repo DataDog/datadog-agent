@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -11,6 +11,7 @@ package tests
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -22,6 +23,8 @@ import (
 )
 
 func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -29,7 +32,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
@@ -85,6 +88,8 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 }
 
 func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -92,7 +97,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
@@ -145,7 +150,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		}
 		t.Run(testName, func(t *testing.T) {
 			// add all event types to the dump
-			test.addAllEventTypesOnDump(dockerInstance, dump, syscallTester)
+			test.addAllEventTypesOnDump(dockerInstance, syscallTester)
 			time.Sleep(time.Second * 3)
 			// trigger reducer
 			test.triggerLoadControllerReducer(dockerInstance, dump)
@@ -160,7 +165,15 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !isEventTypesStringSlicesEqual(activeEventTypes, presentEventTypes) {
+			activeTypes := make([]model.EventType, len(activeEventTypes))
+			for i, eventType := range activeEventTypes {
+				activeTypes[i] = eventType
+			}
+			if !slices.Contains(activeTypes, model.FileOpenEventType) {
+				// add open to the list of expected event types because mmaped files being present in the dump
+				activeTypes = append(activeTypes, model.FileOpenEventType)
+			}
+			if !isEventTypesStringSlicesEqual(activeTypes, presentEventTypes) {
 				t.Fatalf("Dump's event types are different as expected (%v) vs (%v)", activeEventTypes, presentEventTypes)
 			}
 			dump = nextDump
@@ -173,6 +186,8 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 }
 
 func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -180,7 +195,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 

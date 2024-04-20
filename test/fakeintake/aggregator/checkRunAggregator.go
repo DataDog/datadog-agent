@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
+// CheckRun represents a check run payload
 type CheckRun struct {
 	collectedTime time.Time
 	Check         string   `json:"check"`
@@ -65,10 +66,12 @@ func ParseCheckRunPayload(payload api.Payload) (checks []*CheckRun, err error) {
 	return checks, err
 }
 
+// CheckRunAggregator is an Aggregator for check run payloads
 type CheckRunAggregator struct {
 	Aggregator[*CheckRun]
 }
 
+// NewCheckRunAggregator returns a new CheckRunAggregator
 func NewCheckRunAggregator() CheckRunAggregator {
 	return CheckRunAggregator{
 		Aggregator: newAggregator(ParseCheckRunPayload),

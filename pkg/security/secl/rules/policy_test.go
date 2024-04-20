@@ -67,7 +67,7 @@ func TestMacroMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	event := model.NewDefaultEvent()
+	event := model.NewFakeEvent()
 	event.SetFieldValue("open.file.path", "/tmp/test")
 	event.SetFieldValue("process.comm", "/usr/bin/vi")
 
@@ -156,7 +156,7 @@ func TestActionSetVariable(t *testing.T) {
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
 			Expression: `open.file.path == "/tmp/test"`,
-			Actions: []ActionDefinition{{
+			Actions: []*ActionDefinition{{
 				Set: &SetDefinition{
 					Name:  "var1",
 					Value: true,
@@ -258,7 +258,7 @@ func TestActionSetVariable(t *testing.T) {
 		t.Fatal("failed to find test_rule in ruleset")
 	}
 
-	event := model.NewDefaultEvent()
+	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
 	processCacheEntry.Retain()
@@ -293,7 +293,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
 			Expression: `open.file.path == "/tmp/test"`,
-			Actions: []ActionDefinition{{
+			Actions: []*ActionDefinition{{
 				Set: &SetDefinition{
 					Name:  "var1",
 					Value: true,
@@ -514,7 +514,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.file.path == "/tmp/test"`,
-				Actions: []ActionDefinition{{
+				Actions: []*ActionDefinition{{
 					Set: &SetDefinition{
 						Name:  "var1",
 						Value: []string{"abc"},
@@ -536,7 +536,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.file.path == "/tmp/test"`,
-				Actions: []ActionDefinition{{
+				Actions: []*ActionDefinition{{
 					Set: &SetDefinition{
 						Name:  "var1",
 						Value: []bool{true},
@@ -561,7 +561,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.file.path == "/tmp/test"`,
-				Actions: []ActionDefinition{{
+				Actions: []*ActionDefinition{{
 					Set: &SetDefinition{
 						Name:  "var1",
 						Value: []interface{}{"string", true},
@@ -586,7 +586,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.file.path == "/tmp/test"`,
-				Actions: []ActionDefinition{{
+				Actions: []*ActionDefinition{{
 					Set: &SetDefinition{
 						Name:  "var1",
 						Value: nil,
@@ -607,7 +607,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.file.path == "/tmp/test"`,
-				Actions: []ActionDefinition{{
+				Actions: []*ActionDefinition{{
 					Set: &SetDefinition{
 						Name:   "var1",
 						Value:  []string{"abc"},
@@ -639,7 +639,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.file.path == "/tmp/test"`,
-				Actions: []ActionDefinition{{
+				Actions: []*ActionDefinition{{
 					Set: &SetDefinition{
 						Name:  "var1",
 						Field: "open.file.path",
@@ -670,7 +670,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.file.path == "/tmp/test"`,
-				Actions: []ActionDefinition{{
+				Actions: []*ActionDefinition{{
 					Set: &SetDefinition{
 						Name:   "var1",
 						Field:  "open.file.path",

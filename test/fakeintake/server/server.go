@@ -27,14 +27,37 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
-	"github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore"
 	"github.com/benbjohnson/clock"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore"
 )
 
+// defaultResponse is the default response returned by the fakeintake server
+var defaultResponseByMethod map[string]httpResponse
+
+func init() {
+	defaultResponseByMethod = map[string]httpResponse{
+		http.MethodGet: updateResponseFromData(httpResponse{
+			statusCode: http.StatusOK,
+		}),
+		http.MethodPost: updateResponseFromData(httpResponse{
+			statusCode:  http.StatusOK,
+			contentType: "application/json",
+			data: errorResponseBody{
+				Errors: make([]string, 0),
+			},
+		}),
+	}
+}
+
+// Option is a function that modifies a Server
+type Option func(*Server)
+
+// Server is a struct implementing a fakeintake server
 type Server struct {
 	server    http.Server
 	ready     chan bool
@@ -45,28 +68,46 @@ type Server struct {
 	urlMutex sync.RWMutex
 	url      string
 
-	store *serverstore.Store
+	storeDriver string
+	store       serverstore.Store
+
+	responseOverridesMutex    sync.RWMutex
+	responseOverridesByMethod map[string]map[string]httpResponse
 }
 
-// NewServer creates a new fake intake server and starts it on localhost:port
+// NewServer creates a new fakeintake server and starts it on localhost:port
 // options accept WithPort and WithReadyChan.
 // Call Server.Start() to start the server in a separate go-routine
 // If the port is 0, a port number is automatically chosen
-func NewServer(options ...func(*Server)) *Server {
+func NewServer(options ...Option) *Server {
 	fi := &Server{
-		urlMutex:  sync.RWMutex{},
-		clock:     clock.New(),
-		retention: 15 * time.Minute,
-		store:     serverstore.NewStore(),
+		urlMutex:                  sync.RWMutex{},
+		clock:                     clock.New(),
+		retention:                 15 * time.Minute,
+		responseOverridesMutex:    sync.RWMutex{},
+		responseOverridesByMethod: newResponseOverrides(),
+		server: http.Server{
+			Addr: "0.0.0.0:0",
+		},
+		storeDriver: "memory",
 	}
 
+	for _, opt := range options {
+		opt(fi)
+	}
+
+	fi.store = serverstore.NewStore(fi.storeDriver)
 	registry := prometheus.NewRegistry()
 
+	storeMetrics := fi.store.GetInternalMetrics()
 	registry.MustRegister(
-		collectors.NewBuildInfoCollector(),
-		collectors.NewGoCollector(),
-		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
-		fi.store.NbPayloads,
+		append(
+			[]prometheus.Collector{
+				collectors.NewBuildInfoCollector(),
+				collectors.NewGoCollector(),
+				collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+			},
+			storeMetrics...)...,
 	)
 
 	mux := http.NewServeMux()
@@ -75,6 +116,8 @@ func NewServer(options ...func(*Server)) *Server {
 	mux.HandleFunc("/fakeintake/health", fi.handleFakeHealth)
 	mux.HandleFunc("/fakeintake/routestats", fi.handleGetRouteStats)
 	mux.HandleFunc("/fakeintake/flushPayloads", fi.handleFlushPayloads)
+
+	mux.HandleFunc("/fakeintake/configure/override", fi.handleConfigureOverride)
 
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -87,32 +130,43 @@ func NewServer(options ...func(*Server)) *Server {
 		Registry:          registry,
 	}))
 
-	fi.server = http.Server{
-		Handler: mux,
-		Addr:    ":0",
-	}
-
-	for _, opt := range options {
-		opt(fi)
-	}
+	fi.server.Handler = mux
 
 	return fi
 }
 
-// WithPort changes the server port.
-// If the port is 0, a port number is automatically chosen
-func WithPort(port int) func(*Server) {
+// WithAddress changes the server host:port.
+// If host is empty, it will bind to 0.0.0.0
+// If the port is empty or 0, a port number is automatically chosen
+func WithAddress(addr string) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the port.")
 			return
 		}
-		fi.server.Addr = fmt.Sprintf(":%d", port)
+		fi.server.Addr = addr
 	}
 }
 
-// WithReadyChannel assign a boolean channel to get notified when the server is ready.
-func WithReadyChannel(ready chan bool) func(*Server) {
+// WithPort changes the server port.
+// If the port is 0, a port number is automatically chosen
+func WithPort(port int) Option {
+	return WithAddress(fmt.Sprintf("0.0.0.0:%d", port))
+}
+
+// WithStoreDriver changes the store driver used by the server
+func WithStoreDriver(driver string) func(*Server) {
+	return func(fi *Server) {
+		if fi.IsRunning() {
+			log.Println("Fake intake is already running. Stop it and try again to change the store driver.")
+			return
+		}
+		fi.storeDriver = driver
+	}
+}
+
+// WithReadyChannel assign a boolean channel to get notified when the server is ready
+func WithReadyChannel(ready chan bool) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the ready channel.")
@@ -122,7 +176,8 @@ func WithReadyChannel(ready chan bool) func(*Server) {
 	}
 }
 
-func WithClock(clock clock.Clock) func(*Server) {
+// WithClock changes the clock used by the server
+func WithClock(clock clock.Clock) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the clock.")
@@ -132,7 +187,8 @@ func WithClock(clock clock.Clock) func(*Server) {
 	}
 }
 
-func WithRetention(retention time.Duration) func(*Server) {
+// WithRetention changes the retention time of payloads in the store
+func WithRetention(retention time.Duration) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the ready channel.")
@@ -157,6 +213,7 @@ func (fi *Server) Start() {
 	go fi.cleanUpPayloadsRoutine()
 }
 
+// URL returns the URL of the fakeintake server
 func (fi *Server) URL() string {
 	fi.urlMutex.RLock()
 	defer fi.urlMutex.RUnlock()
@@ -169,6 +226,7 @@ func (fi *Server) setURL(url string) {
 	fi.url = url
 }
 
+// IsRunning returns true if the fakeintake server is running
 func (fi *Server) IsRunning() bool {
 	return fi.URL() != ""
 }
@@ -179,6 +237,7 @@ func (fi *Server) Stop() error {
 		return fmt.Errorf("server not running")
 	}
 	defer close(fi.shutdown)
+	defer fi.store.Close()
 	err := fi.server.Shutdown(context.Background())
 	if err != nil {
 		return err
@@ -239,42 +298,41 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 
 	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, req.Header)
 
-	if req.Method == http.MethodGet {
-		writeHTTPResponse(w, httpResponse{
-			statusCode: http.StatusOK,
-		})
-		return
+	switch req.Method {
+	case http.MethodPost:
+		err := fi.handleDatadogPostRequest(w, req)
+		if err == nil {
+			return
+		}
+	case http.MethodGet:
+		fallthrough
+	case http.MethodHead:
+		fallthrough
+	default:
+		if response, ok := fi.getResponseFromURLPath(req.Method, req.URL.Path); ok {
+			writeHTTPResponse(w, response)
+			return
+		}
 	}
 
-	// Datadog Agent sends a HEAD request to avoid redirect issue before sending the actual flare
-	if req.Method == http.MethodHead && req.URL.Path == "/support/flare" {
-		writeHTTPResponse(w, httpResponse{
-			statusCode: http.StatusOK,
-		})
-		return
-	}
+	response := buildErrorResponse(fmt.Errorf("invalid request with route %s and method %s", req.URL.Path, req.Method))
+	writeHTTPResponse(w, response)
+}
 
-	// from now on accept only POST requests
-	if req.Method != http.MethodPost {
-		response := buildErrorResponse(fmt.Errorf("invalid request with route %s and method %s", req.URL.Path, req.Method))
-		writeHTTPResponse(w, response)
-		return
-	}
-
+func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Request) error {
 	if req.Body == nil {
 		response := buildErrorResponse(errors.New("invalid request, nil body"))
 		writeHTTPResponse(w, response)
-		return
+		return nil
 	}
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
 		log.Printf("Error reading body: %v", err.Error())
 		response := buildErrorResponse(err)
 		writeHTTPResponse(w, response)
-		return
+		return nil
 	}
 
-	// TODO: store all headers directly, and fetch Content-Type/Content-Encoding values when parsing
 	encoding := req.Header.Get("Content-Encoding")
 	if req.URL.Path == "/support/flare" || encoding == "" {
 		encoding = req.Header.Get("Content-Type")
@@ -282,14 +340,17 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 
 	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, fi.clock.Now().UTC())
 	if err != nil {
-		log.Printf("Error caching payload: %v", err.Error())
 		response := buildErrorResponse(err)
 		writeHTTPResponse(w, response)
-		return
+		return nil
 	}
 
-	response := getResponseFromURLPath(req.URL.Path)
-	writeHTTPResponse(w, response)
+	if response, ok := fi.getResponseFromURLPath(http.MethodPost, req.URL.Path); ok {
+		writeHTTPResponse(w, response)
+		return nil
+	}
+
+	return fmt.Errorf("no POST response found for path %s", req.URL.Path)
 }
 
 func (fi *Server) handleFlushPayloads(w http.ResponseWriter, _ *http.Request) {
@@ -326,18 +387,18 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else if serverstore.IsRouteHandled(route) {
-		payloads := fi.store.GetJSONPayloads(route)
-		// build response
+		payloads, payloadErr := serverstore.GetJSONPayloads(fi.store, route)
+		if payloadErr != nil {
+			writeHTTPResponse(w, buildErrorResponse(payloadErr))
+			return
+		}
+
 		resp := api.APIFakeIntakePayloadsJsonGETResponse{
 			Payloads: payloads,
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else {
-		writeHTTPResponse(w, httpResponse{
-			contentType: "text/plain",
-			statusCode:  http.StatusBadRequest,
-			body:        []byte("invalid route parameter"),
-		})
+		writeHTTPResponse(w, buildErrorResponse(fmt.Errorf("invalid route parameter")))
 		return
 	}
 
@@ -363,7 +424,7 @@ func (fi *Server) handleFakeHealth(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) {
+func (fi *Server) handleGetRouteStats(w http.ResponseWriter, _ *http.Request) {
 	log.Print("Handling getRouteStats request")
 	routes := fi.store.GetRouteStats()
 	// build response
@@ -389,4 +450,83 @@ func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) 
 		statusCode:  http.StatusOK,
 		body:        jsonResp,
 	})
+}
+
+// handleConfigureOverride sets a hardcoded HTTP response for requests to a particular endpoint
+func (fi *Server) handleConfigureOverride(w http.ResponseWriter, req *http.Request) {
+	if req == nil {
+		response := buildErrorResponse(errors.New("invalid request, nil request"))
+		writeHTTPResponse(w, response)
+		return
+	}
+
+	if req.Method != http.MethodPost {
+		response := buildErrorResponse(fmt.Errorf("invalid request method %s", req.Method))
+		writeHTTPResponse(w, response)
+		return
+	}
+
+	if req.Body == nil {
+		response := buildErrorResponse(errors.New("invalid request, nil body"))
+		writeHTTPResponse(w, response)
+		return
+	}
+
+	var payload api.ResponseOverride
+	err := json.NewDecoder(req.Body).Decode(&payload)
+	if err != nil {
+		log.Printf("Error reading body: %v", err.Error())
+		response := buildErrorResponse(err)
+		writeHTTPResponse(w, response)
+		return
+	}
+
+	if payload.Method == "" {
+		payload.Method = http.MethodPost
+	}
+
+	if !isValidMethod(payload.Method) {
+		response := buildErrorResponse(fmt.Errorf("invalid request method %s", payload.Method))
+		writeHTTPResponse(w, response)
+		return
+	}
+
+	log.Printf("Handling configureOverride request for endpoint %s", payload.Endpoint)
+
+	fi.safeSetResponseOverride(payload.Method, payload.Endpoint, httpResponse{
+		statusCode:  payload.StatusCode,
+		contentType: payload.ContentType,
+		body:        payload.Body,
+	})
+
+	writeHTTPResponse(w, httpResponse{
+		statusCode: http.StatusOK,
+	})
+}
+
+func (fi *Server) safeSetResponseOverride(method string, endpoint string, response httpResponse) {
+	fi.responseOverridesMutex.Lock()
+	defer fi.responseOverridesMutex.Unlock()
+	fi.responseOverridesByMethod[method][endpoint] = response
+}
+
+// getResponseFromURLPath returns the HTTP response for a given URL path, or the default response if
+// no override exists
+func (fi *Server) getResponseFromURLPath(method string, path string) (httpResponse, bool) {
+	fi.responseOverridesMutex.RLock()
+	defer fi.responseOverridesMutex.RUnlock()
+
+	// by default, update the response for POST requests
+	if method == "" {
+		method = http.MethodPost
+	}
+
+	if respForMethod, ok := fi.responseOverridesByMethod[method]; ok {
+		if resp, ok := respForMethod[path]; ok {
+			return resp, true
+		}
+	}
+
+	response, found := defaultResponseByMethod[method]
+	return response, found
 }

@@ -9,9 +9,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -41,29 +40,27 @@ func (l *ActivityDumpRuntimeSetting) Name() string {
 }
 
 // Get returns the current value of the runtime setting
-func (l *ActivityDumpRuntimeSetting) Get() (interface{}, error) {
-	val := config.SystemProbe.Get(l.ConfigKey)
+func (l *ActivityDumpRuntimeSetting) Get(config config.Component) (interface{}, error) {
+	val := config.Get(l.ConfigKey)
 	return val, nil
 }
 
-func (l *ActivityDumpRuntimeSetting) setMaxDumpSize(v interface{}, source model.Source) {
+func (l *ActivityDumpRuntimeSetting) setMaxDumpSize(config config.Component, v interface{}, source model.Source) {
 	intVar, _ := strconv.Atoi(v.(string))
-	config.SystemProbe.Set(l.ConfigKey, intVar, source)
+	config.Set(l.ConfigKey, intVar, source)
 }
 
 // Set changes the value of the runtime setting
-func (l *ActivityDumpRuntimeSetting) Set(v interface{}, source model.Source) error {
+func (l *ActivityDumpRuntimeSetting) Set(config config.Component, v interface{}, source model.Source) error {
 	val := v.(string)
 	log.Infof("ActivityDumpRuntimeSetting Set %s = %s\n", l.ConfigKey, val)
 
 	switch l.ConfigKey {
 	case MaxDumpSizeConfKey:
-		l.setMaxDumpSize(v, source)
+		l.setMaxDumpSize(config, v, source)
 	default:
 		return fmt.Errorf("Field %s does not exist", l.ConfigKey)
 	}
 
-	// we trigger a new inventory metadata payload since the configuration was updated by the user.
-	inventories.Refresh()
 	return nil
 }

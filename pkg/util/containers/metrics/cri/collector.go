@@ -12,9 +12,11 @@ import (
 
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -26,7 +28,7 @@ const (
 func init() {
 	provider.RegisterCollector(provider.CollectorFactory{
 		ID: collectorID,
-		Constructor: func(cache *provider.Cache) (provider.CollectorMetadata, error) {
+		Constructor: func(cache *provider.Cache, _ optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 			return newCRICollector(cache)
 		},
 	})
@@ -56,12 +58,14 @@ func newCRICollector(cache *provider.Cache) (provider.CollectorMetadata, error) 
 	return provider.CollectorMetadata{
 		ID: collectorID,
 		Collectors: provider.CollectorCatalog{
-			provider.RuntimeNameCRIO: provider.MakeCached(collectorID, cache, collectors),
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameCRIO), ""): provider.MakeCached(collectorID, cache, collectors),
 		},
 	}, nil
 }
 
 // GetContainerStats returns stats by container ID.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (collector *criCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	stats, err := collector.getCriContainerStats(containerID)
 	if err != nil {

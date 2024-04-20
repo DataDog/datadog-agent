@@ -18,34 +18,47 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	awsResources "github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 type multiFakeIntakeEnv struct {
-	VM          client.VM
-	Agent       client.Agent
-	Fakeintake1 *client.Fakeintake
-	Fakeintake2 *client.Fakeintake
+	Host        *components.RemoteHost
+	Agent       *components.RemoteHostAgent
+	Fakeintake1 *components.FakeIntake
+	Fakeintake2 *components.FakeIntake
+}
+
+func (e *multiFakeIntakeEnv) Init(ctx e2e.Context) error {
+	if e.Agent != nil {
+		agent, err := client.NewHostAgentClient(ctx.T(), e.Host, true)
+		if err != nil {
+			return err
+		}
+		e.Agent.Client = agent
+	}
+
+	return nil
 }
 
 const (
 	// intakeName should only contains alphanumerical characters to ease pattern matching /etc/hosts
 	intakeName      = "ddintake"
-	fakeintake1Name = "1fakeintake"
-	fakeintake2Name = "2fakeintake"
+	fakeintake1Name = "1"
+	fakeintake2Name = "2"
 
 	logFile                 = "/tmp/test.log"
 	logService              = "custom_logs"
@@ -69,48 +82,49 @@ var customLogsConfigTmplFile string
 //go:embed testfixtures/config.yaml.tmpl
 var configTmplFile string
 
-func multiFakeintakeStackDef(agentOptions ...agentparams.Option) *e2e.StackDefinition[multiFakeIntakeEnv] {
-	return e2e.EnvFactoryStackDef(func(ctx *pulumi.Context) (*multiFakeIntakeEnv, error) {
-		awsEnv, err := awsResources.NewEnvironment(ctx)
+func multiFakeIntakeAWS(agentOptions ...agentparams.Option) e2e.Provisioner {
+	runFunc := func(ctx *pulumi.Context, env *multiFakeIntakeEnv) error {
+		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
-		vm, err := ec2vm.NewEC2VMWithEnv(awsEnv)
+		host, err := ec2.NewVM(awsEnv, "nssfailover")
 		if err != nil {
-			return nil, err
+			return err
 		}
+		host.Export(ctx, &env.Host.HostOutput)
 
-		fiExporter1, err := aws.NewEcsFakeintake(awsEnv, fakeintakeparams.WithName(fakeintake1Name), fakeintakeparams.WithoutLoadBalancer())
+		agent, err := agent.NewHostAgent(awsEnv.CommonEnvironment, host, agentOptions...)
 		if err != nil {
-			return nil, err
+			return err
 		}
+		agent.Export(ctx, &env.Agent.HostAgentOutput)
 
-		fiExporter2, err := aws.NewEcsFakeintake(awsEnv, fakeintakeparams.WithName(fakeintake2Name), fakeintakeparams.WithoutLoadBalancer())
+		fakeIntake1, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake1Name)
 		if err != nil {
-			return nil, err
+			return err
 		}
+		fakeIntake1.Export(ctx, &env.Fakeintake1.FakeintakeOutput)
 
-		agentInstaller, err := agent.NewInstaller(vm, agentOptions...)
+		fakeIntake2, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake2Name)
 		if err != nil {
-			return nil, err
+			return err
 		}
+		fakeIntake2.Export(ctx, &env.Fakeintake2.FakeintakeOutput)
 
-		return &multiFakeIntakeEnv{
-			VM:          client.NewPulumiStackVM(vm),
-			Agent:       client.NewPulumiStackAgent(agentInstaller),
-			Fakeintake1: client.NewFakeintake(fiExporter1),
-			Fakeintake2: client.NewFakeintake(fiExporter2),
-		}, nil
-	})
+		return nil
+	}
+
+	return e2e.NewTypedPulumiProvisioner("aws-nssfailover", runFunc, nil)
 }
 
 type multiFakeIntakeSuite struct {
-	e2e.Suite[multiFakeIntakeEnv]
+	e2e.BaseSuite[multiFakeIntakeEnv]
 }
 
 func TestMultiFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &multiFakeIntakeSuite{}, multiFakeintakeStackDef(), params.WithStackName("mystack000"))
+	e2e.Run(t, &multiFakeIntakeSuite{}, e2e.WithProvisioner(multiFakeIntakeAWS()))
 }
 
 // TestNSSFailover tests that the agent correctly picks-up an NSS change of the intake.
@@ -135,12 +149,12 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 	v.NoError(err)
 
 	// ensure host uses files for NSS
-	enforceNSSwitchFiles(v.T(), v.Env().VM)
+	enforceNSSwitchFiles(v.T(), v.Env().Host)
 
 	// setup NSS entry for intake
-	fakeintake1IP, err := hostIPFromURL(v.Env().Fakeintake1.URL())
+	fakeintake1IP, err := hostIPFromURL(v.Env().Fakeintake1.URL)
 	v.NoError(err)
-	setHostEntry(v.T(), v.Env().VM, intakeName, fakeintake1IP)
+	setHostEntry(v.T(), v.Env().Host, intakeName, fakeintake1IP)
 
 	// configure agent to use the custom intake, set connection_reset_interval, use logs, and processes
 	agentOptions := []agentparams.Option{
@@ -149,25 +163,25 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 		agentparams.WithIntakeHostname(intakeName),
 		agentparams.WithIntegration("custom_logs.d", customLogsConfig),
 	}
-	v.UpdateEnv(multiFakeintakeStackDef(agentOptions...))
+	v.UpdateEnv(multiFakeIntakeAWS(agentOptions...))
 
 	// check that fakeintake1 is used as intake and not fakeintake2
-	v.requireIntakeIsUsed(v.Env().Fakeintake1, intakeMaxWaitTime, intakeTick)
-	v.requireIntakeNotUsed(v.Env().Fakeintake2, intakeMaxWaitTime, intakeTick)
+	v.requireIntakeIsUsed(v.Env().Fakeintake1.Client(), intakeMaxWaitTime, intakeTick)
+	v.requireIntakeNotUsed(v.Env().Fakeintake2.Client(), intakeMaxWaitTime, intakeTick)
 
 	// perform NSS change
-	fakeintake2IP, err := hostIPFromURL(v.Env().Fakeintake2.URL())
+	fakeintake2IP, err := hostIPFromURL(v.Env().Fakeintake2.URL)
 	v.NoError(err)
-	setHostEntry(v.T(), v.Env().VM, intakeName, fakeintake2IP)
+	setHostEntry(v.T(), v.Env().Host, intakeName, fakeintake2IP)
 
 	// check that fakeintake2 is used as intake and not fakeintake1
 	intakeMaxWaitTime := connectionResetInterval*time.Second + intakeMaxWaitTime
-	v.requireIntakeIsUsed(v.Env().Fakeintake2, intakeMaxWaitTime, intakeTick)
-	v.requireIntakeNotUsed(v.Env().Fakeintake1, intakeMaxWaitTime, intakeTick)
+	v.requireIntakeIsUsed(v.Env().Fakeintake2.Client(), intakeMaxWaitTime, intakeTick)
+	v.requireIntakeNotUsed(v.Env().Fakeintake1.Client(), intakeMaxWaitTime, intakeTick)
 }
 
 // requireIntakeIsUsed checks that the given intakes receives metrics, logs, and flares
-func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *client.Fakeintake, intakeMaxWaitTime, intakeTick time.Duration) {
+func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *fi.Client, intakeMaxWaitTime, intakeTick time.Duration) {
 	checkFn := func(t *assert.CollectT) {
 		// check metrics
 		metricNames, err := intake.GetMetricNames()
@@ -175,13 +189,13 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *client.Fakeintake, in
 		assert.NotEmpty(t, metricNames)
 
 		// check logs
-		v.Env().VM.Execute(fmt.Sprintf("echo 'totoro' >> %s", logFile))
+		v.Env().Host.MustExecute(fmt.Sprintf("echo 'totoro' >> %s", logFile))
 		logs, err := intake.FilterLogs(logService)
 		require.NoError(t, err)
 		assert.NotEmpty(t, logs)
 
 		// check flares
-		v.Env().Agent.Flare(client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+		v.Env().Agent.Client.Flare(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 		_, err = intake.GetLatestFlare()
 		if err != nil {
 			require.ErrorIs(t, err, fi.ErrNoFlareAvailable)
@@ -194,16 +208,16 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *client.Fakeintake, in
 }
 
 // requireIntakeNotUsed checks that the given intake doesn't receive metrics, logs, and flares
-func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *client.Fakeintake, intakeMaxWaitTime, intakeTick time.Duration) {
+func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *fi.Client, intakeMaxWaitTime, intakeTick time.Duration) {
 	checkFn := func(t *assert.CollectT) {
 		// flush intake
 		intake.FlushServerAndResetAggregators()
 
 		// write a log
-		v.Env().VM.Execute(fmt.Sprintf("echo 'totoro' >> %s", logFile))
+		v.Env().Host.MustExecute(fmt.Sprintf("echo 'totoro' >> %s", logFile))
 
 		// send a flare
-		v.Env().Agent.Flare(client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+		v.Env().Agent.Client.Flare(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 		// give time to the agent to send things
 		time.Sleep(intakeUnusedWaitTime)
@@ -220,13 +234,13 @@ func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *client.Fakeintake, i
 
 // setHostEntry adds an entry in /etc/hosts for the given hostname and hostIP
 // if there is already an entry for that hostname, it is replaced
-func setHostEntry(t *testing.T, vm client.VM, hostname string, hostIP string) {
+func setHostEntry(t *testing.T, host *components.RemoteHost, hostname string, hostIP string) {
 	// we could remove the line and then add the new one,
 	// but it's better to avoid not having the line in the file between the two operations
 
 	t.Logf("set host entry for %s: %s", hostname, hostIP)
 
-	hostfile := vm.Execute("sudo cat /etc/hosts")
+	hostfile := host.MustExecute("sudo cat /etc/hosts")
 
 	// pattern to match the hostname entry
 	hostPattern := fmt.Sprintf("^.* %s$", regexp.QuoteMeta(hostname))
@@ -238,16 +252,16 @@ func setHostEntry(t *testing.T, vm client.VM, hostname string, hostIP string) {
 	entry := fmt.Sprintf("%s %s", hostIP, hostname)
 	if matched {
 		t.Logf("replace existing host entry for %s (%s)", hostname, hostIP)
-		vm.Execute(fmt.Sprintf("sudo sed -i 's/%s/%s/g' /etc/hosts", hostPattern, entry))
+		host.MustExecute(fmt.Sprintf("sudo sed -i 's/%s/%s/g' /etc/hosts", hostPattern, entry))
 	} else {
 		t.Logf("append new host entry for %s (%s)", hostname, hostIP)
-		vm.Execute(fmt.Sprintf("echo '%s' | sudo tee -a /etc/hosts", entry))
+		host.MustExecute(fmt.Sprintf("echo '%s' | sudo tee -a /etc/hosts", entry))
 	}
 }
 
 // enforceNSSwitchFiles ensures /etc/nsswitch.conf uses `files` first for the `hosts` entry
 // so that an NSS query uses /etc/hosts before DNS
-func enforceNSSwitchFiles(t *testing.T, vm client.VM) {
+func enforceNSSwitchFiles(t *testing.T, host *components.RemoteHost) {
 	// for the specifics of the nsswitch.conf file format, see its man page
 	//
 	// in short, the hosts line starts with "hosts:", then a whitespace separated list of "services"
@@ -256,7 +270,7 @@ func enforceNSSwitchFiles(t *testing.T, vm client.VM) {
 
 	t.Logf("enforce using files first in NSS")
 
-	nsswitchfile := vm.Execute("sudo cat /etc/nsswitch.conf")
+	nsswitchfile := host.MustExecute("sudo cat /etc/nsswitch.conf")
 
 	// enable multi-line mode in the Go regex
 	regex, err := regexp.Compile(`(?m:^hosts:\s+(.*)$)`)
@@ -270,11 +284,11 @@ func enforceNSSwitchFiles(t *testing.T, vm client.VM) {
 		if len(services) == 0 || services[0] != "files" || (len(services) >= 2 && services[1][0] == '[') {
 			t.Logf("replace existing hosts entry in /etc/nsswitch.conf")
 			// add `files` before previous services
-			vm.Execute(`sudo sed -E -i 's/^hosts:(\s+)(.*)$/hosts:\1files \2/g' /etc/nsswitch.conf`)
+			host.MustExecute(`sudo sed -E -i 's/^hosts:(\s+)(.*)$/hosts:\1files \2/g' /etc/nsswitch.conf`)
 		}
 	} else {
 		t.Logf("add hosts entry in /etc/nsswitch.conf")
-		vm.Execute("echo 'hosts: files' | sudo tee -a /etc/nsswitch.conf")
+		host.MustExecute("echo 'hosts: files' | sudo tee -a /etc/nsswitch.conf")
 	}
 }
 

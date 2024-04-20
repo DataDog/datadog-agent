@@ -13,6 +13,8 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -65,9 +67,41 @@ var (
 	}
 )
 
+// RuntimeFlavor is a typed string for supported container runtime flavors
+type RuntimeFlavor string
+
+// Known container runtime flavors
+const (
+	RuntimeFlavorDefault RuntimeFlavor = ""
+	RuntimeFlavorKata    RuntimeFlavor = "kata"
+)
+
+// RuntimeMetadata contains the runtime flavor and runtime name
+type RuntimeMetadata struct {
+	flavor  RuntimeFlavor
+	runtime Runtime
+}
+
+// NewRuntimeMetadata returns a new RuntimeMetadata
+func NewRuntimeMetadata(runtime, flavor string) RuntimeMetadata {
+	return RuntimeMetadata{
+		flavor:  RuntimeFlavor(flavor),
+		runtime: Runtime(runtime),
+	}
+}
+
+// String returns the runtime compose.
+func (r *RuntimeMetadata) String() string {
+	if r.flavor != "" {
+		return string(r.runtime) + "-" + string(r.flavor)
+	}
+
+	return string(r.runtime)
+}
+
 // Provider interface allows to mock the metrics provider
 type Provider interface {
-	GetCollector(runtime string) Collector
+	GetCollector(RuntimeMetadata) Collector
 	GetMetaCollector() MetaCollector
 }
 
@@ -78,26 +112,26 @@ var (
 
 // GenericProvider offers an interface to retrieve a metrics collector
 type GenericProvider struct {
-	collectors    map[Runtime]*collectorImpl
+	collectors    map[RuntimeMetadata]*collectorImpl
 	cache         *Cache
 	metaCollector *metaCollector
 }
 
 // GetProvider returns the metrics provider singleton
-func GetProvider() Provider {
+func GetProvider(wmeta optional.Option[workloadmeta.Component]) Provider {
 	initMetricsProvider.Do(func() {
-		metricsProvider = newProvider()
+		metricsProvider = newProvider(wmeta)
 	})
 
 	return metricsProvider
 }
 
-func newProvider() *GenericProvider {
+func newProvider(wmeta optional.Option[workloadmeta.Component]) *GenericProvider {
 	provider := &GenericProvider{
 		cache:         NewCache(cacheGCInterval),
 		metaCollector: newMetaCollector(),
 	}
-	registry.run(context.TODO(), provider.cache, provider.collectorsUpdatedCallback)
+	registry.run(context.TODO(), provider.cache, wmeta, provider.collectorsUpdatedCallback)
 
 	return provider
 }
@@ -105,9 +139,9 @@ func newProvider() *GenericProvider {
 // GetCollector returns the best collector for given runtime.
 // The best collector may change depending on other collectors availability.
 // You should not cache the result from this function.
-func (mp *GenericProvider) GetCollector(runtime string) Collector {
+func (mp *GenericProvider) GetCollector(r RuntimeMetadata) Collector {
 	// we can't return mp.collectors[runtime] directly because it will return a typed nil
-	if runtime, found := mp.collectors[Runtime(runtime)]; found {
+	if runtime, found := mp.collectors[r]; found {
 		return runtime
 	}
 
@@ -121,7 +155,7 @@ func (mp *GenericProvider) GetMetaCollector() MetaCollector {
 
 func (mp *GenericProvider) collectorsUpdatedCallback(collectorsCatalog CollectorCatalog) {
 	// Update local collectors
-	newCollectors := make(map[Runtime]*collectorImpl, len(collectorsCatalog))
+	newCollectors := make(map[RuntimeMetadata]*collectorImpl, len(collectorsCatalog))
 	for runtime, collectors := range collectorsCatalog {
 		newCollectors[runtime] = fromCollectors(collectors)
 	}

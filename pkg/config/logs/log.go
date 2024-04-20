@@ -15,14 +15,16 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/cihub/seelog"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/cihub/seelog"
 
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog"
 )
@@ -108,8 +110,23 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	}
 	_ = seelog.ReplaceLogger(loggerInterface)
 	log.SetupLogger(loggerInterface, seelogLogLevel)
-	scrubber.AddStrippedKeys(cfg.GetStringSlice("flare_stripped_keys"))
+	flareStrippedKeys := cfg.GetStringSlice("flare_stripped_keys")
+	if len(flareStrippedKeys) > 0 {
+		log.Warn("flare_stripped_keys is deprecated, please use scrubber.additional_keys instead.")
+	}
+	scrubber.AddStrippedKeys(mergeAdditionalKeysToScrubber(
+		flareStrippedKeys,
+		cfg.GetStringSlice("scrubber.additional_keys")))
 	return nil
+}
+
+// mergeAdditionalKeysToScrubber merges multiple slices of keys into a single slice
+func mergeAdditionalKeysToScrubber(elems ...[]string) []string {
+	set := []string{}
+	for _, elem := range elems {
+		set = append(set, elem...)
+	}
+	return slices.Compact(set)
 }
 
 // SetupJMXLogger sets up a logger with JMX logger name and log level
@@ -257,6 +274,35 @@ func NewLogWriter(additionalDepth int, logLevel seelog.LogLevel) (io.Writer, err
 func (s *logWriter) Write(p []byte) (n int, err error) {
 	s.logFunc(s.additionalDepth, strings.TrimSpace(string(p)))
 	return len(p), nil
+}
+
+const tlsHandshakeErrorKeyword = "http: TLS handshake error"
+
+// tlsHandshakeErrorWriter writes TLS handshake errors to log with
+// debug level, to avoid flooding of tls handshake errors.
+type tlsHandshakeErrorWriter struct {
+	writer io.Writer
+}
+
+// NewTLSHandshakeErrorWriter is a wrapper function which creates a new logWriter.
+func NewTLSHandshakeErrorWriter(additionalDepth int, logLevel seelog.LogLevel) (io.Writer, error) {
+	logWriter, err := NewLogWriter(additionalDepth, logLevel)
+	if err != nil {
+		return nil, err
+	}
+	tlsWriter := &tlsHandshakeErrorWriter{
+		writer: logWriter,
+	}
+	return tlsWriter, nil
+}
+
+// Write writes TLS handshake errors to log with debug level.
+func (t *tlsHandshakeErrorWriter) Write(p []byte) (n int, err error) {
+	if strings.Contains(string(p), tlsHandshakeErrorKeyword) {
+		log.DebugStackDepth(2, strings.TrimSpace(string(p)))
+		return len(p), nil
+	}
+	return t.writer.Write(p)
 }
 
 var levelToSyslogSeverity = map[seelog.LogLevel]int{

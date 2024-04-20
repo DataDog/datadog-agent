@@ -33,11 +33,13 @@ func newCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		check:              chk,
 		inventory:          inventory.NewCollectorInventory(),
 		runCfg: &collectors.CollectorRunConfig{
-			APIClient:                   chk.apiClient,
-			ClusterID:                   chk.clusterID,
-			Config:                      chk.orchestratorConfig,
-			MsgGroupRef:                 chk.groupID,
-			OrchestratorInformerFactory: chk.orchestratorInformerFactory,
+			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+				APIClient:                   chk.apiClient,
+				OrchestratorInformerFactory: chk.orchestratorInformerFactory,
+			},
+			ClusterID:   chk.clusterID,
+			Config:      chk.orchestratorConfig,
+			MsgGroupRef: chk.groupID,
 		},
 		stopCh:              chk.stopCh,
 		manifestBuffer:      NewManifestBuffer(chk),
@@ -55,8 +57,8 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	vpaClient := vpa.NewSimpleClientset()
 	crdClient := crd.NewSimpleClientset()
-	cl := &apiserver.APIClient{Cl: client, VPAClient: vpaClient, CRDClient: crdClient}
-	orchCheck := OrchestratorFactory().(*OrchestratorCheck)
+	cl := &apiserver.APIClient{InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient}
+	orchCheck := newCheck().(*OrchestratorCheck)
 	orchCheck.apiClient = cl
 
 	orchCheck.orchestratorInformerFactory = getOrchestratorInformerFactory(cl)
@@ -85,7 +87,6 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	writeNode(t, client, "2")
 
 	assert.True(t, waitTimeout(&wg, 2*time.Second))
-
 }
 
 func writeNode(t *testing.T, client *fake.Clientset, version string) {

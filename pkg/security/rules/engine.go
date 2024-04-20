@@ -11,6 +11,8 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"runtime"
 	"sync"
 	"time"
 
@@ -24,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/autosuppression"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -37,6 +41,8 @@ const (
 	ProbeEvaluationRuleSetTagValue = "probe_evaluation"
 	// ThreatScoreRuleSetTagValue defines the threat-score rule-set tag value
 	ThreatScoreRuleSetTagValue = "threat_score"
+	// TagMaxResolutionDelay maximum tag resolution delay
+	TagMaxResolutionDelay = 5 * time.Second
 )
 
 // RuleEngine defines a rule engine
@@ -54,15 +60,17 @@ type RuleEngine struct {
 	policyProviders           []rules.PolicyProvider
 	policyLoader              *rules.PolicyLoader
 	policyOpts                rules.PolicyLoaderOpts
-	policyMonitor             *PolicyMonitor
+	policyMonitor             *monitor.PolicyMonitor
 	statsdClient              statsd.ClientInterface
 	eventSender               events.EventSender
 	rulesetListeners          []rules.RuleSetListener
+	AutoSuppression           autosuppression.AutoSuppression
 }
 
 // APIServer defines the API server
 type APIServer interface {
-	Apply([]string)
+	ApplyRuleIDs([]rules.RuleID)
+	ApplyPolicyStates([]*monitor.PolicyState)
 }
 
 // NewRuleEngine returns a new rule engine
@@ -74,13 +82,19 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		eventSender:               sender,
 		rateLimiter:               rateLimiter,
 		reloading:                 atomic.NewBool(false),
-		policyMonitor:             NewPolicyMonitor(evm.StatsdClient, config.PolicyMonitorPerRuleEnabled),
+		policyMonitor:             monitor.NewPolicyMonitor(evm.StatsdClient, config.PolicyMonitorPerRuleEnabled),
 		currentRuleSet:            new(atomic.Value),
 		currentThreatScoreRuleSet: new(atomic.Value),
 		policyLoader:              rules.NewPolicyLoader(),
 		statsdClient:              statsdClient,
 		rulesetListeners:          rulesetListeners,
 	}
+
+	engine.AutoSuppression.Init(autosuppression.Opts{
+		SecurityProfileAutoSuppressionEnabled: config.SecurityProfileAutoSuppressionEnabled,
+		ActivityDumpAutoSuppressionEnabled:    config.ActivityDumpAutoSuppressionEnabled,
+		EventTypes:                            config.SecurityProfileAutoSuppressionEventTypes,
+	})
 
 	// register as event handler
 	if err := probe.AddFullAccessEventHandler(engine); err != nil {
@@ -116,7 +130,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	ruleFilterModel, err := NewRuleFilterModel()
+	ruleFilterModel, err := NewRuleFilterModel(e.probe.Origin())
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
@@ -125,8 +139,9 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 	ruleFilters = append(ruleFilters, seclRuleFilter)
 
 	e.policyOpts = rules.PolicyLoaderOpts{
-		MacroFilters: macroFilters,
-		RuleFilters:  ruleFilters,
+		MacroFilters:       macroFilters,
+		RuleFilters:        ruleFilters,
+		DisableEnforcement: !e.config.EnforcementEnabled,
 	}
 
 	if err := e.LoadPolicies(e.policyProviders, true); err != nil {
@@ -171,7 +186,18 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 			case <-ctx.Done():
 				return
 			case <-heartbeatTicker.C:
-				tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
+				tags := []string{
+					fmt.Sprintf("version:%s", version.AgentVersion),
+					fmt.Sprintf("os:%s", runtime.GOOS),
+				}
+
+				if os.Getenv("ECS_FARGATE") == "true" || os.Getenv("DD_ECS_FARGATE") == "true" {
+					tags = append(tags, "mode:fargate_ecs")
+				} else if os.Getenv("DD_EKS_FARGATE") == "true" {
+					tags = append(tags, "mode:fargate_eks")
+				} else {
+					tags = append(tags, "mode:default")
+				}
 
 				e.RLock()
 				for _, version := range e.policiesVersions {
@@ -312,22 +338,30 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 		// set the rate limiters on sending events to the backend
 		e.rateLimiter.Apply(probeEvaluationRuleSet, events.AllCustomRuleIDs())
 
+		// update the stats of auto-suppression rules
+		e.AutoSuppression.Apply(probeEvaluationRuleSet)
 	}
 
-	e.apiServer.Apply(ruleIDs)
+	policies := monitor.NewPoliciesState(evaluationSet.RuleSets, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
+	e.notifyAPIServer(ruleIDs, policies)
 
 	if sendLoadedReport {
-		ReportRuleSetLoaded(e.eventSender, e.statsdClient, evaluationSet.RuleSets, loadErrs)
-		e.policyMonitor.SetPolicies(evaluationSet.GetPolicies(), loadErrs)
+		monitor.ReportRuleSetLoaded(e.eventSender, e.statsdClient, policies)
+		e.policyMonitor.SetPolicies(policies)
 	}
 
 	return nil
 }
 
+func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor.PolicyState) {
+	e.apiServer.ApplyRuleIDs(ruleIDs)
+	e.apiServer.ApplyPolicyStates(policies)
+}
+
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
 
-	policyProviders = append(policyProviders, &BundledPolicyProvider{})
+	policyProviders = append(policyProviders, NewBundledPolicyProvider(e.config))
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
@@ -367,6 +401,15 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		return false
 	}
 
+	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
+	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
+		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
+	}
+
+	if e.AutoSuppression.Suppresses(rule, ev) {
+		return false
+	}
+
 	e.probe.HandleActions(rule, event)
 
 	if rule.Definition.Silent {
@@ -377,10 +420,6 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)
-
-	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
-		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
-	}
 
 	// do not send event if a anomaly detection event will be sent
 	if e.config.AnomalyDetectionSilentRuleEventsEnabled && ev.IsAnomalyDetectionEvent() {
@@ -394,9 +433,19 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
 	service := e.probe.GetService(ev)
-	containerID := ev.ContainerContext.ID
-	extTagsCb := func() []string {
-		return e.probe.GetEventTags(containerID)
+
+	var extTagsCb func() []string
+
+	if ev.ContainerContext.ID != "" {
+		// copy the container ID here to avoid later data race
+		containerID := ev.ContainerContext.ID
+
+		// the container tags might not be resolved yet
+		if time.Unix(0, int64(ev.ContainerContext.CreatedAt)).Add(TagMaxResolutionDelay).After(time.Now()) {
+			extTagsCb = func() []string {
+				return e.probe.GetEventTags(containerID)
+			}
+		}
 	}
 
 	e.eventSender.SendEvent(rule, ev, extTagsCb, service)
@@ -493,7 +542,7 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 
 	if ruleSet := e.GetRuleSet(); ruleSet != nil {
-		if (event.SecurityProfileContext.Status.IsEnabled(model.AutoSuppression) && event.IsInProfile()) || !ruleSet.Evaluate(event) {
+		if !ruleSet.Evaluate(event) {
 			ruleSet.EvaluateDiscarders(event)
 		}
 	}
@@ -505,19 +554,16 @@ func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {
 }
 
 func logLoadingErrors(msg string, m *multierror.Error) {
-	var errorLevel bool
 	for _, err := range m.Errors {
 		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
-			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) {
-				errorLevel = true
+			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) && !errors.Is(rErr.Err, rules.ErrRuleAgentFilter) {
+				seclog.Errorf(msg, rErr.Error())
+			} else {
+				seclog.Warnf(msg, rErr.Error())
 			}
+		} else {
+			seclog.Errorf(msg, err.Error())
 		}
-	}
-
-	if errorLevel {
-		seclog.Errorf(msg, m.Error())
-	} else {
-		seclog.Warnf(msg, m.Error())
 	}
 }
 

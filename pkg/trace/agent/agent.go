@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package agent implements the trace-agent.
 package agent
 
 import (
@@ -12,23 +13,24 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
-	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
-
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
+	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -67,6 +69,8 @@ type Agent struct {
 	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
 	TelemetryCollector    telemetry.TelemetryCollector
 	DebugServer           *api.DebugServer
+	Statsd                statsd.ClientInterface
+	Timing                timing.Reporter
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -89,47 +93,52 @@ type Agent struct {
 	// Used to synchronize on a clean exit
 	ctx context.Context
 
-	firstSpanOnce sync.Once
+	firstSpanMap sync.Map
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
-func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
+func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface) *Agent {
 	dynConf := sampler.NewDynamicConfig()
 	log.Infof("Starting Agent with processor trace buffer of size %d", conf.TraceBuffer)
 	in := make(chan *api.Payload, conf.TraceBuffer)
 	statsChan := make(chan *pb.StatsPayload, 1)
 	oconf := conf.Obfuscation.Export(conf)
 	if oconf.Statsd == nil {
-		oconf.Statsd = metrics.Client
+		oconf.Statsd = statsd
 	}
+	timing := timing.New(statsd)
 	agnt := &Agent{
-		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now()),
-		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsChan),
+		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now(), statsd),
+		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsChan, statsd),
 		Blacklister:           filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
-		PrioritySampler:       sampler.NewPrioritySampler(conf, dynConf),
-		ErrorsSampler:         sampler.NewErrorsSampler(conf),
-		RareSampler:           sampler.NewRareSampler(conf),
-		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf),
-		EventProcessor:        newEventProcessor(conf),
-		StatsWriter:           writer.NewStatsWriter(conf, statsChan, telemetryCollector),
+		PrioritySampler:       sampler.NewPrioritySampler(conf, dynConf, statsd),
+		ErrorsSampler:         sampler.NewErrorsSampler(conf, statsd),
+		RareSampler:           sampler.NewRareSampler(conf, statsd),
+		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf, statsd),
+		EventProcessor:        newEventProcessor(conf, statsd),
+		StatsWriter:           writer.NewStatsWriter(conf, statsChan, telemetryCollector, statsd, timing),
 		obfuscator:            obfuscate.NewObfuscator(oconf),
 		cardObfuscator:        newCreditCardsObfuscator(conf.Obfuscation.CreditCards),
 		In:                    in,
 		conf:                  conf,
 		ctx:                   ctx,
 		DebugServer:           api.NewDebugServer(conf),
+		Statsd:                statsd,
+		Timing:                timing,
 	}
-	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector)
-	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
+	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector, statsd, timing)
+	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf, statsd, timing)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
-	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector)
+	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing)
 	return agnt
 }
 
 // Run starts routers routines and individual pieces then stop them when the exit order is received.
 func (a *Agent) Run() {
+	a.Timing.Start()
+	defer a.Timing.Stop()
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
 		a.Concentrator,
@@ -223,20 +232,15 @@ func (a *Agent) loop() {
 func (a *Agent) setRootSpanTags(root *pb.Span) {
 	clientSampleRate := sampler.GetGlobalRate(root)
 	sampler.SetClientRate(root, clientSampleRate)
-	if a.conf.InAzureAppServices {
-		for k, v := range traceutil.GetAppServicesTags() {
-			traceutil.SetMeta(root, k, v)
-		}
-	}
 }
 
-// setFirstTraceTags sets additional tags on the first trace ever processed by the agent,
-// so that we can see that the customer has successfully onboarded onto APM.
+// setFirstTraceTags sets additional tags on the first trace for each service processed by the agent,
+// so that we can see that the service has successfully onboarded onto APM.
 func (a *Agent) setFirstTraceTags(root *pb.Span) {
-	if a.conf == nil || a.conf.InstallSignature.InstallType == "" || root == nil {
+	if a.conf == nil || a.conf.InstallSignature.InstallID == "" || root == nil {
 		return
 	}
-	a.firstSpanOnce.Do(func() {
+	if _, alreadySeenService := a.firstSpanMap.LoadOrStore(root.Service, true); !alreadySeenService {
 		// The install time and type can also be set on the trace by the tracer,
 		// in which case we do not want the agent to overwrite them.
 		if _, ok := traceutil.GetMeta(root, tagInstallID); !ok {
@@ -248,7 +252,7 @@ func (a *Agent) setFirstTraceTags(root *pb.Span) {
 		if _, ok := traceutil.GetMeta(root, tagInstallTime); !ok {
 			traceutil.SetMeta(root, tagInstallTime, strconv.FormatInt(a.conf.InstallSignature.InstallTime, 10))
 		}
-	})
+	}
 }
 
 // Process is the default work unit that receives a trace, transforms it and
@@ -259,7 +263,7 @@ func (a *Agent) Process(p *api.Payload) {
 		return
 	}
 	now := time.Now()
-	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
+	defer a.Timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
 	ts := p.Source
 	sampledChunks := new(writer.SampledChunks)
 	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
@@ -306,7 +310,6 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		// Extra sanitization steps of the trace.
-		appServicesTags := traceutil.GetAppServicesTags()
 		for _, span := range chunk.Spans {
 			for k, v := range a.conf.GlobalTags {
 				if k == tagOrigin {
@@ -314,10 +317,6 @@ func (a *Agent) Process(p *api.Payload) {
 				} else {
 					traceutil.SetMeta(span, k, v)
 				}
-			}
-			if a.conf.InAzureAppServices {
-				traceutil.SetMeta(span, "aas.site.name", appServicesTags["aas.site.name"])
-				traceutil.SetMeta(span, "aas.site.type", appServicesTags["aas.site.type"])
 			}
 			if a.ModifySpan != nil {
 				a.ModifySpan(chunk, span)
@@ -339,7 +338,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		a.setPayloadAttributes(p, root, chunk)
 
-		pt := processedTrace(p, chunk, root)
+		pt := processedTrace(p, chunk, root, p.TracerPayload.ContainerID, a.conf)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
 		}
@@ -392,30 +391,43 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 		p.TracerPayload.Env = traceutil.GetEnv(root, chunk)
 	}
 	if p.TracerPayload.AppVersion == "" {
-		p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
+		p.TracerPayload.AppVersion = version.GetAppVersionFromTrace(root, chunk)
 	}
 }
 
-// processedTrace creates a ProcessedTrace based on the provided chunk and root.
-func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span) *traceutil.ProcessedTrace {
-	return &traceutil.ProcessedTrace{
+// processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
+func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, containerID string, conf *config.AgentConfig) *traceutil.ProcessedTrace {
+	pt := &traceutil.ProcessedTrace{
 		TraceChunk:             chunk,
 		Root:                   root,
 		AppVersion:             p.TracerPayload.AppVersion,
 		TracerEnv:              p.TracerPayload.Env,
 		TracerHostname:         p.TracerPayload.Hostname,
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
+		GitCommitSha:           version.GetGitCommitShaFromTrace(root, chunk),
 	}
+	// TODO: We should find a way to not repeat container tags resolution downstream in the stats writer.
+	// We will first need to deprecate the `enable_cid_stats` feature flag.
+	gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(containerID, conf)
+	if err != nil {
+		log.Debugf("Trace agent is unable to resolve container ID (%s) to container tags: %v", containerID, err)
+	} else {
+		pt.ImageTag = imageTag
+		// Only override the GitCommitSha if it was not set in the trace.
+		if pt.GitCommitSha == "" {
+			pt.GitCommitSha = gitCommitSha
+		}
+	}
+	return pt
 }
 
 // newChunksArray creates a new array which will point only to sampled chunks.
-
 // The underlying array behind TracePayload.Chunks points to unsampled chunks
 // preventing them from being collected by the GC.
 func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
-	new := make([]*pb.TraceChunk, len(chunks))
-	copy(new, chunks)
-	return new
+	newChunks := make([]*pb.TraceChunk, len(chunks))
+	copy(newChunks, chunks)
+	return newChunks
 }
 
 var _ api.StatsProcessor = (*Agent)(nil)
@@ -640,7 +652,7 @@ func filteredByTags(root *pb.Span, require, reject []*config.Tag, requireRegex, 
 	return false
 }
 
-func newEventProcessor(conf *config.AgentConfig) *event.Processor {
+func newEventProcessor(conf *config.AgentConfig, statsd statsd.ClientInterface) *event.Processor {
 	extractors := []event.Extractor{event.NewMetricBasedExtractor()}
 	if len(conf.AnalyzedSpansByService) > 0 {
 		extractors = append(extractors, event.NewFixedRateExtractor(conf.AnalyzedSpansByService))
@@ -648,7 +660,7 @@ func newEventProcessor(conf *config.AgentConfig) *event.Processor {
 		extractors = append(extractors, event.NewLegacyExtractor(conf.AnalyzedRateByServiceLegacy))
 	}
 
-	return event.NewProcessor(extractors, conf.MaxEPS)
+	return event.NewProcessor(extractors, conf.MaxEPS, statsd)
 }
 
 // SetGlobalTagsUnsafe sets global tags to the agent configuration. Unsafe for concurrent use.

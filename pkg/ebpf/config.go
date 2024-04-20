@@ -25,14 +25,14 @@ type Config struct {
 	// BPFDir is the directory to load the eBPF program from
 	BPFDir string
 
-	// JavaDir is the directory to load the java agent program from
-	JavaDir string
-
 	// ExcludedBPFLinuxVersions lists Linux kernel versions that should not use BPF features
 	ExcludedBPFLinuxVersions []string
 
 	// ProcRoot is the root path to the proc filesystem
 	ProcRoot string
+
+	// InternalTelemetryEnabled indicates whether internal prometheus telemetry is enabled
+	InternalTelemetryEnabled bool
 
 	// EnableTracepoints enables use of tracepoints instead of kprobes for probing syscalls (if available on system)
 	EnableTracepoints bool
@@ -75,6 +75,9 @@ type Config struct {
 
 	// AttachKprobesWithKprobeEventsABI uses the kprobe_events ABI to attach kprobes rather than the newer perf ABI.
 	AttachKprobesWithKprobeEventsABI bool
+
+	// EBPFInstrumentationEnabled enables instrumenting eBPF programs via a trampoline instruction in the beginning of the bytecode sequence.
+	EBPFInstrumentationEnabled bool
 }
 
 func key(pieces ...string) string {
@@ -89,10 +92,10 @@ func NewConfig() *Config {
 	c := &Config{
 		BPFDebug:                 cfg.GetBool(key(spNS, "bpf_debug")),
 		BPFDir:                   cfg.GetString(key(spNS, "bpf_dir")),
-		JavaDir:                  cfg.GetString(key(spNS, "java_dir")),
 		ExcludedBPFLinuxVersions: cfg.GetStringSlice(key(spNS, "excluded_linux_versions")),
 		EnableTracepoints:        cfg.GetBool(key(spNS, "enable_tracepoints")),
 		ProcRoot:                 kernel.ProcFSRoot(),
+		InternalTelemetryEnabled: cfg.GetBool(key(spNS, "telemetry_enabled")),
 
 		EnableCORE: cfg.GetBool(key(spNS, "enable_co_re")),
 		BTFPath:    cfg.GetString(key(spNS, "btf_path")),
@@ -109,6 +112,7 @@ func NewConfig() *Config {
 		AllowRuntimeCompiledFallback: cfg.GetBool(key(spNS, "allow_runtime_compiled_fallback")),
 
 		AttachKprobesWithKprobeEventsABI: cfg.GetBool(key(spNS, "attach_kprobes_with_kprobe_events_abi")),
+		EBPFInstrumentationEnabled:       cfg.GetBool(key(spNS, "ebpf_instrumentation", "enabled")),
 	}
 
 	return c

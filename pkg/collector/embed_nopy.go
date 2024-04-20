@@ -7,10 +7,5 @@
 
 package collector
 
-func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
-	return "", "", ""
-}
-
-func pyPrepareEnv() error {
-	return nil
-}
+// InitPython is a no-op when the build tag is not set
+func InitPython(_ ...string) {}

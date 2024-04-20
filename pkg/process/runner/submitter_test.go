@@ -16,7 +16,9 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
+	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -66,7 +68,6 @@ func TestNewCollectorQueueSize(t *testing.T) {
 			c, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, testHostName)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.processResults.MaxSize())
-			assert.Equal(t, tc.expectedQueueSize, c.podResults.MaxSize())
 		})
 	}
 }
@@ -339,5 +340,5 @@ func newSubmitterDepsWithConfig(t *testing.T, config ddconfig.Config) submitterD
 }
 
 func getForwardersMockModules(configOverrides map[string]interface{}) fx.Option {
-	return fx.Options(config.MockModule, fx.Replace(config.MockParams{Overrides: configOverrides}), forwarders.MockModule, log.MockModule)
+	return fx.Options(config.MockModule(), fx.Replace(config.MockParams{Overrides: configOverrides}), forwardersimpl.MockModule(), logimpl.MockModule())
 }

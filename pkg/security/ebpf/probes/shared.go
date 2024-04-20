@@ -11,7 +11,7 @@ package probes
 import manager "github.com/DataDog/ebpf-manager"
 
 // getSharedProbes returns the list of probes that are shared across multiple events
-func getSharedProbes(fentry bool) []*manager.Probe {
+func getSharedProbes() []*manager.Probe {
 	return []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{

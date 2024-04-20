@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // team: container-integrations
@@ -34,18 +35,29 @@ type Mock interface {
 
 	// GetConfig returns a Config Reader for the internal injected config
 	GetNotifiedEvents() []CollectorEvent
+
+	// SubscribeToEvents returns a channel that receives events
+	SubscribeToEvents() chan CollectorEvent
 }
 
 // MockModule defines the fx options for the mock component.
-var MockModule fx.Option = fxutil.Component(
-	fx.Provide(newWorkloadMetaMock),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newWorkloadMetaMock),
+		fx.Provide(func(mock Mock) Component { return mock }),
+		fx.Provide(func(mock Mock) optional.Option[Component] { return optional.NewOption[Component](mock) }),
+	)
+}
 
 // TODO(components): For consistency, let's add an isV2 field to
 //                   Params, and leverage that in the constructor
 //                   to return the right implementation.
 
 // MockModuleV2 defines the fx options for the mock component.
-var MockModuleV2 fx.Option = fxutil.Component(
-	fx.Provide(newWorkloadMetaMockV2),
-)
+func MockModuleV2() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newWorkloadMetaMockV2),
+		fx.Provide(func(mock Mock) Component { return mock }),
+		fx.Provide(func(mock Mock) optional.Option[Component] { return optional.NewOption[Component](mock) }),
+	)
+}

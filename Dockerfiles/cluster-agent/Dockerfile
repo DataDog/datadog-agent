@@ -20,8 +20,12 @@ COPY ./install_info etc/datadog-agent/install_info
 COPY entrypoint.sh .
 COPY readsecret.sh readsecret_multiple_providers.sh ./
 
-RUN chmod 755 entrypoint.sh \
-    && chown root:root readsecret.sh readsecret_multiple_providers.sh \
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y adduser \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+    && addgroup --system secret-manager \
+    && chmod 755 entrypoint.sh \
+    && chown root:secret-manager readsecret.sh readsecret_multiple_providers.sh \
     && chmod 550 readsecret.sh readsecret_multiple_providers.sh \
     && chmod g+r,g+w,g+X -R etc/datadog-agent/ \
     && chmod +x opt/datadog-agent/bin/datadog-cluster-agent \
@@ -79,6 +83,8 @@ COPY --from=builder /output /
 # of an empty folder. Creating .placeholder files as a workaround.
 #
 RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
+    && addgroup --system secret-manager \
+    && usermod -a -G secret-manager dd-agent \
     && mkdir -p /var/log/datadog/ /conf.d \
     && touch /var/log/datadog/.placeholder \
     && touch /tmp/.placeholder \

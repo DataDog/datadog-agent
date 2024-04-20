@@ -8,15 +8,17 @@
 package otlp
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
+	"github.com/mohae/deepcopy"
 	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/mohae/deepcopy"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -57,7 +59,7 @@ func readConfigSection(cfg config.Reader, section string) *confmap.Conf {
 	// we check every key manually, and if it belongs to the OTLP receiver section,
 	// we set it. We need to do this to account for environment variable values.
 	prefix := section + "."
-	for _, key := range cfg.AllKeys() {
+	for _, key := range cfg.AllKeysLowercased() {
 		if strings.HasPrefix(key, prefix) && cfg.IsSet(key) {
 			mapKey := strings.ReplaceAll(key[len(prefix):], ".", confmap.KeyDelimiter)
 			// deep copy since `cfg.Get` returns a reference
@@ -82,6 +84,17 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
 	metricsConfig := readConfigSection(cfg, coreconfig.OTLPMetrics)
+	metricsConfigMap := metricsConfig.ToStringMap()
+
+	if _, ok := metricsConfigMap["apm_stats_receiver_addr"]; !ok {
+		metricsConfigMap["apm_stats_receiver_addr"] = fmt.Sprintf("http://localhost:%s/v0.6/stats", coreconfig.Datadog.GetString("apm_config.receiver_port"))
+	}
+
+	tags := strings.Join(util.GetStaticTagsSlice(context.TODO()), ",")
+	if tags != "" {
+		metricsConfigMap["tags"] = tags
+	}
+
 	debugConfig := readConfigSection(cfg, coreconfig.OTLPDebug)
 
 	return PipelineConfig{
@@ -90,7 +103,7 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 		MetricsEnabled:     metricsEnabled,
 		TracesEnabled:      tracesEnabled,
 		LogsEnabled:        logsEnabled,
-		Metrics:            metricsConfig.ToStringMap(),
+		Metrics:            metricsConfigMap,
 		Debug:              debugConfig.ToStringMap(),
 	}, multierr.Combine(errs...)
 }

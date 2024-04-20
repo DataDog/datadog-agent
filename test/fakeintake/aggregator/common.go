@@ -9,13 +9,25 @@ import (
 	"bytes"
 	"compress/gzip"
 	"compress/zlib"
+	"errors"
+	"flag"
+	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"reflect"
+	"runtime"
 	"sort"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
+var generateFixture = flag.Bool("generate", false, "generate fixture")
+
+// A PayloadItem is the interface for payload items stored in a generic aggregator
 type PayloadItem interface {
 	name() string
 	GetTags() []string
@@ -24,9 +36,12 @@ type PayloadItem interface {
 
 type parseFunc[P PayloadItem] func(payload api.Payload) (items []P, err error)
 
+// Aggregator is a generic payload aggregator
 type Aggregator[P PayloadItem] struct {
 	payloadsByName map[string][]P
 	parse          parseFunc[P]
+
+	mutex sync.RWMutex
 }
 
 const (
@@ -41,42 +56,63 @@ func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {
 	return Aggregator[P]{
 		payloadsByName: map[string][]P{},
 		parse:          parse,
+		mutex:          sync.RWMutex{},
 	}
 }
 
-// UnmarshallPayloads aggregate the payloads
+// UnmarshallPayloads parses a list of payloads and stores them in the aggregator
+// It replaces the current payloads with the new ones
 func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
-	// reset map
-	agg.Reset()
-	// build map
+	if *generateFixture {
+		_, filename, _, ok := runtime.Caller(0)
+		if !ok {
+			return errors.New("error generating fixture: unable to get the current file")
+		}
+
+		if len(payloads) == 0 {
+			return errors.New("error generating fixture: no payloads")
+		}
+
+		dir := filepath.Dir(filename)
+		// find aggregator name
+		tokens := strings.Split(reflect.TypeOf(agg.parse).Name(), "/")
+		aggName := tokens[len(tokens)-1]
+		aggName = strings.ReplaceAll(aggName, "]", "")
+		aggName = strings.ReplaceAll(aggName, "aggregator.", "")
+		aggName = strings.ReplaceAll(aggName, "Payload", "")
+		aggName = strings.ToLower(aggName)
+
+		return os.WriteFile(filepath.Join(dir, fmt.Sprintf("fixtures/%s_bytes", aggName)), payloads[0].Data, 0644)
+	}
+	fmt.Print(reflect.TypeOf(agg).Name())
+	// build new map
+	payloadsByName := map[string][]P{}
 	for _, p := range payloads {
 		payloads, err := agg.parse(p)
 		if err != nil {
 			return err
 		}
+
 		for _, item := range payloads {
-			if _, found := agg.payloadsByName[item.name()]; !found {
-				agg.payloadsByName[item.name()] = []P{}
+			if _, found := payloadsByName[item.name()]; !found {
+				payloadsByName[item.name()] = []P{}
 			}
-			agg.payloadsByName[item.name()] = append(agg.payloadsByName[item.name()], item)
+			payloadsByName[item.name()] = append(payloadsByName[item.name()], item)
 		}
 	}
+	agg.replace(payloadsByName)
 
 	return nil
 }
 
 // ContainsPayloadName return true if name match one of the payloads
 func (agg *Aggregator[P]) ContainsPayloadName(name string) bool {
-	_, found := agg.payloadsByName[name]
-	return found
+	return len(agg.GetPayloadsByName(name)) != 0
 }
 
 // ContainsPayloadNameAndTags return true if the payload name exist and on of the payloads contains all the tags
 func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string) bool {
-	payloads, found := agg.payloadsByName[name]
-	if !found {
-		return false
-	}
+	payloads := agg.GetPayloadsByName(name)
 
 	for _, payloadItem := range payloads {
 		if AreTagsSubsetOfOtherTags(tags, payloadItem.GetTags()) {
@@ -89,11 +125,18 @@ func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string)
 
 // GetNames return the names of the payloads
 func (agg *Aggregator[P]) GetNames() []string {
-	names := []string{}
+	names := agg.getNamesUnsorted()
+	sort.Strings(names)
+	return names
+}
+
+func (agg *Aggregator[P]) getNamesUnsorted() []string {
+	agg.mutex.RLock()
+	defer agg.mutex.RUnlock()
+	names := make([]string, 0, len(agg.payloadsByName))
 	for name := range agg.payloadsByName {
 		names = append(names, name)
 	}
-	sort.Strings(names)
 	return names
 }
 
@@ -124,12 +167,30 @@ func getReadCloserForEncoding(payload []byte, encoding string) (rc io.ReadCloser
 
 // GetPayloadsByName return the payloads for the resource name
 func (agg *Aggregator[P]) GetPayloadsByName(name string) []P {
-	return agg.payloadsByName[name]
+	agg.mutex.RLock()
+	defer agg.mutex.RUnlock()
+	payloads := agg.payloadsByName[name]
+	return payloads
 }
 
 // Reset the aggregation
 func (agg *Aggregator[P]) Reset() {
+	agg.mutex.Lock()
+	defer agg.mutex.Unlock()
+	agg.unsafeReset()
+}
+
+func (agg *Aggregator[P]) unsafeReset() {
 	agg.payloadsByName = map[string][]P{}
+}
+
+func (agg *Aggregator[P]) replace(payloadsByName map[string][]P) {
+	agg.mutex.Lock()
+	defer agg.mutex.Unlock()
+	agg.unsafeReset()
+	for name, payloads := range payloadsByName {
+		agg.payloadsByName[name] = payloads
+	}
 }
 
 // FilterByTags return the payloads that match all the tags

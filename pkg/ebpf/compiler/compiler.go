@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package compiler is the runtime compiler for eBPF
 package compiler
 
 import (
@@ -18,12 +19,13 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	datadogAgentEmbeddedPath = "/opt/datadog-agent/embedded"
+	datadogAgentEmbeddedPath = filepath.Join(setup.InstallPath, "embedded")
 	clangBinPath             = filepath.Join(datadogAgentEmbeddedPath, "bin/clang-bpf")
 	llcBinPath               = filepath.Join(datadogAgentEmbeddedPath, "bin/llc-bpf")
 
@@ -63,7 +65,7 @@ func kernelHeaderPaths(headerDirs []string) []string {
 }
 
 // CompileToObjectFile compiles an eBPF program
-func CompileToObjectFile(inFile, outputFile string, cflags []string, headerDirs []string) error {
+func CompileToObjectFile(inFile, outputFile string, cflags, llcFlags, headerDirs []string) error {
 	if len(headerDirs) == 0 {
 		return fmt.Errorf("unable to find kernel headers")
 	}
@@ -85,18 +87,20 @@ func CompileToObjectFile(inFile, outputFile string, cflags []string, headerDirs 
 	if err := clang(cflags, WithStdout(clangOut)); err != nil {
 		return fmt.Errorf("compiling asset to bytecode: %w", err)
 	}
-	if err := llc(clangOut, outputFile); err != nil {
+	if err := llc(clangOut, outputFile, llcFlags); err != nil {
 		return fmt.Errorf("error compiling bytecode to object file: %w", err)
 	}
 	return nil
 }
 
+// WithStdin assigns the provided io.Reader as Stdin for the command
 func WithStdin(in io.Reader) func(*exec.Cmd) {
 	return func(c *exec.Cmd) {
 		c.Stdin = in
 	}
 }
 
+// WithStdout assigns the provided io.Writer as Stdout for the command
 func WithStdout(out io.Writer) func(*exec.Cmd) {
 	return func(c *exec.Cmd) {
 		c.Stdout = out
@@ -136,12 +140,13 @@ func clang(cflags []string, options ...func(*exec.Cmd)) error {
 	return nil
 }
 
-func llc(in io.Reader, outputFile string) error {
+func llc(in io.Reader, outputFile string, llcFlags []string) error {
 	var llcErr bytes.Buffer
 	llcCtx, llcCancel := context.WithTimeout(context.Background(), compilationStepTimeout)
 	defer llcCancel()
 
-	bcToObj := exec.CommandContext(llcCtx, llcBinPath, "-march=bpf", "-filetype=obj", "-o", outputFile, "-")
+	llcArgs := append(llcFlags, "-march=bpf", "-filetype=obj", "-o", outputFile, "-")
+	bcToObj := exec.CommandContext(llcCtx, llcBinPath, llcArgs...)
 	bcToObj.Stdin = in
 	bcToObj.Stdout = nil
 	bcToObj.Stderr = &llcErr

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -57,8 +58,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
-					LogParams:    log.ForOneShot(globalParams.LoggerName, "off", true)}),
-				core.Bundle,
+					LogParams:    logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -67,7 +68,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func requestHealth(log log.Component, config config.Component, cliParams *cliParams) error {
+func requestHealth(_ log.Component, config config.Component, cliParams *cliParams) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	ipcAddress, err := pkgconfig.GetIPCAddress()
@@ -83,7 +84,7 @@ func requestHealth(log log.Component, config config.Component, cliParams *cliPar
 	}
 
 	// Set session token
-	err = util.SetAuthToken()
+	err = util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}
@@ -91,7 +92,7 @@ func requestHealth(log log.Component, config config.Component, cliParams *cliPar
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cliParams.timeout)*time.Second)
 	defer cancel()
 
-	r, err := util.DoGetWithContext(ctx, c, urlstr, util.LeaveConnectionOpen)
+	r, err := util.DoGetWithOptions(c, urlstr, &util.ReqOptions{Ctx: ctx, Conn: util.LeaveConnectionOpen})
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

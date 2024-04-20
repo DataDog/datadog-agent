@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 // Package probes holds probes related files
 package probes
@@ -21,7 +20,7 @@ type probeSelectorBuilder struct {
 
 type psbOption func(*probeSelectorBuilder)
 
-func kprobeOrFentry(funcName string, fentry bool, options ...psbOption) *manager.ProbeSelector {
+func kprobeOrFentry(funcName string, options ...psbOption) *manager.ProbeSelector {
 	psb := &probeSelectorBuilder{
 		uid: SecurityAgentUID,
 	}
@@ -38,7 +37,7 @@ func kprobeOrFentry(funcName string, fentry bool, options ...psbOption) *manager
 	}
 }
 
-func kretprobeOrFexit(funcName string, fentry bool, options ...psbOption) *manager.ProbeSelector {
+func kretprobeOrFexit(funcName string, options ...psbOption) *manager.ProbeSelector {
 	psb := &probeSelectorBuilder{
 		uid: SecurityAgentUID,
 	}

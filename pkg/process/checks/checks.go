@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package checks
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -20,8 +22,6 @@ const (
 	ContainerCheckName     = "container"
 	RTContainerCheckName   = "rtcontainer"
 	ConnectionsCheckName   = "connections"
-	PodCheckName           = "pod"
-	PodCheckManifestName   = "pod_manifest"
 	DiscoveryCheckName     = "process_discovery"
 	ProcessEventsCheckName = "process_events"
 )
@@ -33,8 +33,6 @@ type SysProbeConfig struct {
 	SystemProbeAddress string
 	// System probe process module on/off configuration
 	ProcessModuleEnabled bool
-	// Using GRPC server for communication with system probe
-	GRPCServerEnabled bool
 }
 
 // Check is an interface for Agent checks that collect data. Each check returns
@@ -75,10 +73,12 @@ type RunResult interface {
 // StandardRunResult is a run result containing payloads for standard run
 type StandardRunResult []model.MessageBody
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (p StandardRunResult) Payloads() []model.MessageBody {
 	return p
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (p StandardRunResult) RealtimePayloads() []model.MessageBody {
 	return nil
 }
@@ -89,10 +89,12 @@ type CombinedRunResult struct {
 	Realtime []model.MessageBody
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (p CombinedRunResult) Payloads() []model.MessageBody {
 	return p.Standard
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (p CombinedRunResult) RealtimePayloads() []model.MessageBody {
 	return p.Realtime
 }
@@ -100,13 +102,12 @@ func (p CombinedRunResult) RealtimePayloads() []model.MessageBody {
 // All is a list of all runnable checks. Putting a check in here does not guarantee it will be run,
 // it just guarantees that the collector will be able to find the check.
 // If you want to add a check you MUST register it here.
-func All(config, sysprobeYamlCfg ddconfig.ReaderWriter, syscfg *sysconfig.Config) []Check {
+func All(config, sysprobeYamlCfg ddconfig.ReaderWriter, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component) []Check {
 	return []Check{
-		NewProcessCheck(config),
-		NewContainerCheck(config),
-		NewRTContainerCheck(config),
-		NewConnectionsCheck(config, sysprobeYamlCfg, syscfg),
-		NewPodCheck(),
+		NewProcessCheck(config, sysprobeYamlCfg, wmeta),
+		NewContainerCheck(config, wmeta),
+		NewRTContainerCheck(config, wmeta),
+		NewConnectionsCheck(config, sysprobeYamlCfg, syscfg, wmeta),
 		NewProcessDiscoveryCheck(config),
 		NewProcessEventsCheck(config),
 	}

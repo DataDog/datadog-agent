@@ -8,6 +8,7 @@ package model
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -123,7 +124,7 @@ float_list:
 	config.ReadConfig(bytes.NewBuffer(yamlExample))
 
 	list, err := config.GetFloat64SliceE("float_list")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
 
 	yamlExample = []byte(`---
@@ -156,7 +157,7 @@ float_list:
 	t.Setenv("DD_FLOAT_LIST", "1.1 2.2 3.3")
 
 	list, err := config.GetFloat64SliceE("float_list")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
 }
 
@@ -199,11 +200,11 @@ func TestSet(t *testing.T) {
 	config.Set("foo", "quux", SourceRC)
 	config.Set("foo", "corge", SourceCLI)
 
-	assert.Equal(t, config.AllFileSettingsWithoutDefault(), map[string]interface{}{"foo": "bar"})
-	assert.Equal(t, config.AllEnvVarSettingsWithoutDefault(), map[string]interface{}{"foo": "baz"})
-	assert.Equal(t, config.AllAgentRuntimeSettingsWithoutDefault(), map[string]interface{}{"foo": "qux"})
-	assert.Equal(t, config.AllRemoteSettingsWithoutDefault(), map[string]interface{}{"foo": "quux"})
-	assert.Equal(t, config.AllCliSettingsWithoutDefault(), map[string]interface{}{"foo": "corge"})
+	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceFile), map[string]interface{}{"foo": "bar"})
+	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceEnvVar), map[string]interface{}{"foo": "baz"})
+	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceAgentRuntime), map[string]interface{}{"foo": "qux"})
+	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceRC), map[string]interface{}{"foo": "quux"})
+	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceCLI), map[string]interface{}{"foo": "corge"})
 
 	assert.Equal(t, config.Get("foo"), "corge")
 }
@@ -220,6 +221,57 @@ func TestIsSet(t *testing.T) {
 	assert.False(t, config.IsSetForSource("foo", SourceFile))
 	config.Set("foo", "bar", SourceFile)
 	assert.True(t, config.IsSetForSource("foo", SourceFile))
+}
+
+func TestIsKnown(t *testing.T) {
+	testCases := []struct {
+		setDefault bool
+		setEnv     bool
+		setKnown   bool
+		expected   bool
+	}{
+		{false, false, false, false},
+		{false, false, true, true},
+		{false, true, false, true},
+		{false, true, true, true},
+		{true, false, false, true},
+		{true, false, true, true},
+		{true, true, false, true},
+		{true, true, true, true},
+	}
+
+	configDefault := "somedefault"
+	configEnv := "SOME_ENV"
+
+	for _, tc := range testCases {
+		testName := "isknown"
+		if tc.setKnown {
+			testName += "-known"
+		}
+		if tc.setDefault {
+			testName += "-default"
+		}
+		if tc.setEnv {
+			testName += "-env"
+		}
+		t.Run(testName, func(t *testing.T) {
+			for _, configName := range []string{"foo", "BAR", "BaZ", "foo_BAR", "foo.BAR", "foo.BAR.baz"} {
+				config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+				if tc.setKnown {
+					config.SetKnown(configName)
+				}
+				if tc.setDefault {
+					config.SetDefault(configName, configDefault)
+				}
+				if tc.setEnv {
+					config.BindEnv(configName, configEnv)
+				}
+
+				assert.Equal(t, tc.expected, config.IsKnown(configName))
+			}
+		})
+	}
 }
 
 func TestUnsetForSource(t *testing.T) {
@@ -239,6 +291,73 @@ func TestAllFileSettingsWithoutDefault(t *testing.T) {
 		map[string]interface{}{
 			"baz": "qux",
 		},
-		config.AllFileSettingsWithoutDefault(),
+		config.AllSourceSettingsWithoutDefault(SourceFile),
 	)
+}
+
+func TestSourceFileReadConfig(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	yamlExample := []byte(`
+foo: bar
+`)
+
+	tempfile, err := os.CreateTemp("", "test-*.yaml")
+	assert.NoError(t, err, "failed to create temporary file")
+	tempfile.Write(yamlExample)
+	defer os.Remove(tempfile.Name())
+
+	config.SetConfigFile(tempfile.Name())
+	config.ReadInConfig()
+
+	assert.Equal(t, "bar", config.Get("foo"))
+	assert.Equal(t, SourceFile, config.GetSource("foo"))
+	assert.Equal(t, map[string]interface{}{"foo": "bar"}, config.AllSourceSettingsWithoutDefault(SourceFile))
+}
+
+func TestNotification(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	updatedKeyCB1 := []string{}
+	updatedKeyCB2 := []string{}
+
+	config.OnUpdate(func(key string, _, _ any) { updatedKeyCB1 = append(updatedKeyCB1, key) })
+
+	config.Set("foo", "bar", SourceFile)
+	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
+
+	config.OnUpdate(func(key string, _, _ any) { updatedKeyCB2 = append(updatedKeyCB2, key) })
+
+	config.Set("foo", "bar2", SourceFile)
+	config.Set("foo2", "bar2", SourceFile)
+	assert.Equal(t, []string{"foo", "foo", "foo2"}, updatedKeyCB1)
+	assert.Equal(t, []string{"foo", "foo2"}, updatedKeyCB2)
+}
+
+func TestNotificationNoChange(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	updatedKeyCB1 := []string{}
+
+	config.OnUpdate(func(key string, _, _ any) { updatedKeyCB1 = append(updatedKeyCB1, key) })
+
+	config.Set("foo", "bar", SourceFile)
+	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
+
+	config.Set("foo", "bar", SourceFile)
+	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
+}
+
+func TestCheckKnownKey(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")).(*safeConfig)
+
+	config.SetKnown("foo")
+	config.Get("foo")
+	assert.Empty(t, config.unknownKeys)
+
+	assert.NotContains(t, config.unknownKeys, "foobar")
+	config.Get("foobar")
+	assert.Contains(t, config.unknownKeys, "foobar")
+
+	config.Get("foobar")
+	assert.Contains(t, config.unknownKeys, "foobar")
 }

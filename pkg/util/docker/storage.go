@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/system"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,8 +23,9 @@ import (
 var (
 	// ErrStorageStatsNotAvailable is returned if the storage stats are not in the docker info.
 	ErrStorageStatsNotAvailable = errors.New("docker storage stats not available")
-	diskBytesRe                 = regexp.MustCompile("([0-9.]+)\\s?([a-zA-Z]+)")
-	diskUnits                   = map[string]uint64{
+	//nolint:gosimple // TODO(CINT) Fix gosimple linter
+	diskBytesRe = regexp.MustCompile("([0-9.]+)\\s?([a-zA-Z]+)")
+	diskUnits   = map[string]uint64{
 		"b":  1,
 		"kb": 1000,
 		"mb": 1000000,
@@ -64,13 +65,13 @@ func (s *StorageStats) GetPercentUsed() float64 {
 	}
 
 	if s.Used != nil && total != nil {
-		return (100.0 * float64(*s.Used) / float64(*total))
+		return 100.0 * float64(*s.Used) / float64(*total)
 	}
 	if s.Free != nil && total != nil {
 		return 100.0 - (100.0 * float64(*s.Free) / float64(*total))
 	}
 	if s.Used != nil && s.Free != nil {
-		return (100.0 * float64(*s.Used) / float64(*s.Used+*s.Free))
+		return 100.0 * float64(*s.Used) / float64(*s.Used+*s.Free)
 	}
 	return math.NaN()
 }
@@ -78,7 +79,7 @@ func (s *StorageStats) GetPercentUsed() float64 {
 // parseStorageStatsFromInfo converts the [][2]string DriverStatus from docker
 // info into a reliable StorageStats struct. It only supports DeviceMapper
 // stats for now.
-func parseStorageStatsFromInfo(info types.Info) ([]*StorageStats, error) {
+func parseStorageStatsFromInfo(info system.Info) ([]*StorageStats, error) {
 	statsArray := []*StorageStats{}
 	statsPerName := make(map[string]*StorageStats)
 

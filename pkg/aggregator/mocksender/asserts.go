@@ -5,6 +5,7 @@
 
 //go:build test
 
+//nolint:revive // TODO(AML) Fix revive linter
 package mocksender
 
 import (
@@ -31,6 +32,14 @@ func (m *MockSender) AssertServiceCheck(t *testing.T, checkName string, status s
 // Additional tags over the ones specified don't make it fail
 func (m *MockSender) AssertMetric(t *testing.T, method string, metric string, value float64, hostname string, tags []string) bool {
 	return m.Mock.AssertCalled(t, method, metric, value, hostname, MatchTagsContains(tags))
+}
+
+// AssertMetric that the metric is emitted only once
+// Additional tags over the ones specified don't make it fail
+func (m *MockSender) AssertMetricOnce(t *testing.T, method string, metric string, value float64, hostname string, tags []string) bool {
+	okCall := m.Mock.AssertCalled(t, method, metric, value, hostname, MatchTagsContains(tags))
+	notOkCalls := m.Mock.AssertNotCalled(t, method, metric, AnythingBut(value), hostname, MatchTagsContains(tags))
+	return okCall && notOkCalls
 }
 
 // AssertMonotonicCount allows to assert a monotonic count was emitted with given parameters.
@@ -60,6 +69,12 @@ func (m *MockSender) AssertMetricTaggedWith(t *testing.T, method string, metric 
 // AssertMetricNotTaggedWith allows to assert tags were never emitted for a metric.
 func (m *MockSender) AssertMetricNotTaggedWith(t *testing.T, method string, metric string, tags []string) bool {
 	return m.Mock.AssertNotCalled(t, method, metric, mock.AnythingOfType("float64"), mock.AnythingOfType("string"), MatchTagsContains(tags))
+}
+
+// AssertMetricWithTimestamp allows to assert a metric was emitted with given parameters and timestamp.
+// Additional tags over the ones specified don't make it fail
+func (m *MockSender) AssertMetricWithTimestamp(t *testing.T, method string, metric string, value float64, hostname string, tags []string, ts float64) bool {
+	return m.Mock.AssertCalled(t, method, metric, value, hostname, MatchTagsContains(tags), ts)
 }
 
 // AssertEvent assert the expectedEvent was emitted with the following values:

@@ -12,28 +12,39 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Telemetry is a struct to hold the telemetry for the kafka protocol
 type Telemetry struct {
 	metricGroup *libtelemetry.MetricGroup
 
-	totalHits *libtelemetry.Counter
-	dropped   *libtelemetry.Counter // this happens when KafkaStatKeeper reaches capacity
+	produceHits, fetchHits *apiVersionCounter
+	dropped                *libtelemetry.Counter // this happens when KafkaStatKeeper reaches capacity
 }
 
+// NewTelemetry creates a new Telemetry
 func NewTelemetry() *Telemetry {
-	metricGroup := libtelemetry.NewMetricGroup("usm.kafka", libtelemetry.OptStatsd)
+	metricGroup := libtelemetry.NewMetricGroup("usm.kafka")
 
 	return &Telemetry{
 		metricGroup: metricGroup,
-		// these metrics are also exported as statsd metrics
-		totalHits: metricGroup.NewCounter("total_hits"),
-		dropped:   metricGroup.NewCounter("dropped"),
+		produceHits: newAPIVersionCounter(metricGroup, "total_hits", "operation:produce", libtelemetry.OptStatsd),
+		fetchHits:   newAPIVersionCounter(metricGroup, "total_hits", "operation:fetch", libtelemetry.OptStatsd),
+		dropped:     metricGroup.NewCounter("dropped", libtelemetry.OptStatsd),
 	}
 }
 
-func (t *Telemetry) Count(_ *EbpfTx) {
-	t.totalHits.Add(1)
+// Count increments the total hits counter
+func (t *Telemetry) Count(tx *EbpfTx) {
+	switch tx.Request_api_key {
+	case 0:
+		t.produceHits.Add(tx)
+	case 1:
+		t.fetchHits.Add(tx)
+	default:
+		log.Errorf("unsupported request api key: %d", tx.Request_api_key)
+	}
 }
 
+// Log logs the kafka stats summary
 func (t *Telemetry) Log() {
 	log.Debugf("kafka stats summary: %s", t.metricGroup.Summary())
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package log implements the trace-agent logger.
 package log
 
 import (
@@ -156,40 +157,40 @@ var NoopLogger = noopLogger{}
 type noopLogger struct{}
 
 // Trace implements Logger.
-func (noopLogger) Trace(v ...interface{}) {}
+func (noopLogger) Trace(_ ...interface{}) {}
 
 // Tracef implements Logger.
-func (noopLogger) Tracef(format string, params ...interface{}) {}
+func (noopLogger) Tracef(_ string, _ ...interface{}) {}
 
 // Debug implements Logger.
-func (noopLogger) Debug(v ...interface{}) {}
+func (noopLogger) Debug(_ ...interface{}) {}
 
 // Debugf implements Logger.
-func (noopLogger) Debugf(format string, params ...interface{}) {}
+func (noopLogger) Debugf(_ string, _ ...interface{}) {}
 
 // Info implements Logger.
-func (noopLogger) Info(v ...interface{}) {}
+func (noopLogger) Info(_ ...interface{}) {}
 
 // Infof implements Logger.
-func (noopLogger) Infof(format string, params ...interface{}) {}
+func (noopLogger) Infof(_ string, _ ...interface{}) {}
 
 // Warn implements Logger.
-func (noopLogger) Warn(v ...interface{}) error { return nil }
+func (noopLogger) Warn(_ ...interface{}) error { return nil }
 
 // Warnf implements Logger.
-func (noopLogger) Warnf(format string, params ...interface{}) error { return nil }
+func (noopLogger) Warnf(_ string, _ ...interface{}) error { return nil }
 
 // Error implements Logger.
-func (noopLogger) Error(v ...interface{}) error { return nil }
+func (noopLogger) Error(_ ...interface{}) error { return nil }
 
 // Errorf implements Logger.
-func (noopLogger) Errorf(format string, params ...interface{}) error { return nil }
+func (noopLogger) Errorf(_ string, _ ...interface{}) error { return nil }
 
 // Critical implements Logger.
-func (noopLogger) Critical(v ...interface{}) error { return nil }
+func (noopLogger) Critical(_ ...interface{}) error { return nil }
 
 // Criticalf implements Logger.
-func (noopLogger) Criticalf(format string, params ...interface{}) error { return nil }
+func (noopLogger) Criticalf(_ string, _ ...interface{}) error { return nil }
 
 // Flush implements Logger.
 func (noopLogger) Flush() {}

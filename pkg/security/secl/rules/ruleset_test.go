@@ -39,11 +39,11 @@ func (rs *RuleSet) setRuleSetTagValue(value eval.RuleSetTagValue) error {
 	return nil
 }
 
-func (f *testHandler) RuleMatch(rule *Rule, event eval.Event) bool {
+func (f *testHandler) RuleMatch(_ *Rule, _ eval.Event) bool {
 	return true
 }
 
-func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field string, eventType eval.EventType) {
+func (f *testHandler) EventDiscarderFound(_ *RuleSet, event eval.Event, field string, _ eval.EventType) {
 	values, ok := f.filters[event.GetType()]
 	if !ok {
 		values = make(testFieldValues)
@@ -94,13 +94,13 @@ func addRuleExpr(t *testing.T, rs *RuleSet, exprs ...string) {
 	}
 }
 
-func newDefaultEvent() eval.Event {
-	return model.NewDefaultEvent()
+func newFakeEvent() eval.Event {
+	return model.NewFakeEvent()
 }
 
 func newRuleSet() *RuleSet {
 	ruleOpts, evalOpts := NewEvalOpts(map[eval.EventType]bool{"*": true})
-	return NewRuleSet(&model.Model{}, newDefaultEvent, ruleOpts, evalOpts)
+	return NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 }
 
 func TestRuleBuckets(t *testing.T) {
@@ -144,13 +144,13 @@ func TestRuleSetDiscarders(t *testing.T) {
 
 	addRuleExpr(t, rs, exprs...)
 
-	ev1 := model.NewDefaultEvent()
+	ev1 := model.NewFakeEvent()
 	ev1.Type = uint32(model.FileOpenEventType)
 	ev1.SetFieldValue("open.file.path", "/usr/local/bin/rootkit")
 	ev1.SetFieldValue("open.flags", syscall.O_RDONLY)
 	ev1.SetFieldValue("process.uid", 0)
 
-	ev2 := model.NewDefaultEvent()
+	ev2 := model.NewFakeEvent()
 	ev2.Type = uint32(model.FileMkdirEventType)
 	ev2.SetFieldValue("mkdir.file.path", "/usr/local/bin/rootkit")
 	ev2.SetFieldValue("mkdir.mode", 0777)
@@ -584,7 +584,7 @@ func TestGetRuleEventType(t *testing.T) {
 		t.Fatalf("should get an event type: %s", err)
 	}
 
-	event := model.NewDefaultEvent()
+	event := model.NewFakeEvent()
 	fieldEventType, err := event.GetFieldEventType("open.file.name")
 	if err != nil {
 		t.Fatal("should get a field event type")

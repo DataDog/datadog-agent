@@ -13,21 +13,23 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // OOMKillProbe Factory
 var OOMKillProbe = module.Factory{
 	Name:             config.OOMKillProbeModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *config.Config) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component]) (module.Module, error) {
 		log.Infof("Starting the OOM Kill probe")
 		okp, err := oomkill.NewProbe(ebpf.NewConfig())
 		if err != nil {
@@ -37,6 +39,9 @@ var OOMKillProbe = module.Factory{
 			Probe:     okp,
 			lastCheck: atomic.NewInt64(0),
 		}, nil
+	},
+	NeedsEBPF: func() bool {
+		return true
 	},
 }
 
@@ -54,11 +59,6 @@ func (o *oomKillModule) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, stats)
 	}))
 
-	return nil
-}
-
-// RegisterGRPC register to system probe gRPC server
-func (o *oomKillModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

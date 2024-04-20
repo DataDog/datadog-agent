@@ -19,39 +19,13 @@
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
+    - source /root/.bashrc
   script:
     - inv -e install-tools
     - inv -e system-probe.object-files
-    - invoke -e lint-go --build system-probe-unit-tests --cpus 4 --targets ./pkg
+    - invoke -e linter.go --build system-probe-unit-tests --cpus 4 --targets ./pkg
     - invoke -e security-agent.run-ebpf-unit-tests --verbose
-    - invoke -e lint-go --targets=./pkg/security/tests --cpus 4 --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata" --arch=$TASK_ARCH
-
-.tests_windows_sysprobe:
-  stage: source_test
-  needs: ["go_deps"]
-  tags: [ "runner:windows-docker", "windowsversion:1809" ]
-  script:
-    - $ErrorActionPreference = "Stop"
-    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
-    - !reference [.setup_python_mirror_win]
-    - >
-      docker run --rm
-      -m 16384M
-      -v "$(Get-Location):c:\mnt"
-      -e AWS_NETWORKING=true
-      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
-      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
-      -e SIGN_WINDOWS_DD_WCS=true
-      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
-      -e GOMODCACHE="c:\modcache"
-      -e PIP_INDEX_URL=${PIP_INDEX_URL}
-      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
-      c:\mnt\tasks\winbuildscripts\sysprobe.bat
-    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-  artifacts:
-    when: always
-    paths:
-      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
+    - invoke -e linter.go --targets=./pkg/security/tests --cpus 4 --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata" --arch=$TASK_ARCH
 
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
@@ -74,14 +48,16 @@ tests_ebpf_arm64:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["go_deps"]
+  needs: ["go_deps", "go_tools_deps"]
   artifacts:
     when: always
     paths:
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
   before_script:
+    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
     - !reference [.retrieve_sysprobe_deps]
   script:
@@ -103,12 +79,3 @@ prepare_ebpf_functional_tests_x64:
   tags: ["arch:amd64"]
   variables:
     ARCH: amd64
-
-tests_windows_sysprobe_x64:
-  extends: .tests_windows_sysprobe
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  variables:
-    PYTHON_RUNTIMES: 3
-    ARCH: "x64"

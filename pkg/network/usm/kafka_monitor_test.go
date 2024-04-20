@@ -10,8 +10,6 @@ package usm
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/stretchr/testify/suite"
 	"io"
 	"net"
 	nethttp "net/http"
@@ -19,11 +17,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kversion"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
@@ -65,15 +65,15 @@ type kafkaParsingTestAttributes struct {
 type kafkaParsingValidation struct {
 	expectedNumberOfProduceRequests int
 	expectedNumberOfFetchRequests   int
-	expectedApiVersionProduce       int
-	expectedApiVersionFetch         int
+	expectedAPIVersionProduce       int
+	expectedAPIVersionFetch         int
 }
 
 func skipTestIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < http.MinimumKernelVersion {
-		t.Skip(fmt.Sprintf("Kafka feature not available on pre %s kernels", http.MinimumKernelVersion.String()))
+		t.Skipf("Kafka feature not available on pre %s kernels", http.MinimumKernelVersion.String())
 	}
 }
 
@@ -141,6 +141,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
 						kgo.ConsumeTopics(topicName),
+						kgo.ClientID("xk6-kafka_linux_amd64@foobar (github.com/segmentio/kafka-go)"),
 					},
 				})
 				require.NoError(t, err)
@@ -166,8 +167,8 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: 2,
 					expectedNumberOfFetchRequests:   4,
-					expectedApiVersionProduce:       8,
-					expectedApiVersionFetch:         11,
+					expectedAPIVersionProduce:       8,
+					expectedAPIVersionFetch:         11,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -208,8 +209,8 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: 2,
 					expectedNumberOfFetchRequests:   0,
-					expectedApiVersionProduce:       5,
-					expectedApiVersionFetch:         0,
+					expectedAPIVersionProduce:       5,
+					expectedAPIVersionFetch:         0,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -252,8 +253,8 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: numberOfIterations * 2,
 					expectedNumberOfFetchRequests:   0,
-					expectedApiVersionProduce:       8,
-					expectedApiVersionFetch:         0,
+					expectedAPIVersionProduce:       8,
+					expectedAPIVersionFetch:         0,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -341,8 +342,8 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					kafkaParsingValidation{
 						expectedNumberOfProduceRequests: 2,
 						expectedNumberOfFetchRequests:   0,
-						expectedApiVersionProduce:       8,
-						expectedApiVersionFetch:         0,
+						expectedAPIVersionProduce:       8,
+						expectedAPIVersionFetch:         0,
 					})
 			},
 			teardown: kafkaTeardown,
@@ -391,6 +392,50 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				cfg.EnableHTTPMonitoring = true
 				return cfg
 			},
+		},
+		{
+			name: "Multiple records within the same produce requests",
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras: map[string]interface{}{
+					"topic_name": s.getTopicName(),
+				},
+			},
+			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+				topicName := ctx.extras["topic_name"].(string)
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{
+						kgo.MaxVersions(kversion.V2_5_0()),
+						kgo.ConsumeTopics(topicName),
+					},
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+				require.NoError(t, client.CreateTopic(topicName))
+
+				record1 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
+				record2 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka again!")}
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record2).FirstErr(), "record had a produce error while synchronously producing")
+
+				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce + 1 fetch) * 2 = (4 stats)
+				kafkaStats := getAndValidateKafkaStats(t, monitor, 4)
+
+				// kgo client is sending an extra fetch request before running the test, so double the expected fetch request
+				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
+					expectedNumberOfProduceRequests: 4,
+					expectedNumberOfFetchRequests:   2, // The presence of 2 fetch requests is due to kgo
+					expectedAPIVersionProduce:       8,
+					expectedAPIVersionFetch:         11,
+				})
+			},
+			teardown:      kafkaTeardown,
+			configuration: getDefaultTestConfiguration,
 		},
 	}
 
@@ -454,13 +499,11 @@ func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.Req
 		require.Equal(t, topicName, kafkaKey.TopicName)
 		switch kafkaKey.RequestAPIKey {
 		case kafka.ProduceAPIKey:
-			require.Equal(t, uint16(validation.expectedApiVersionProduce), kafkaKey.RequestVersion)
+			require.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)
 			numberOfProduceRequests += kafkaStat.Count
-			break
 		case kafka.FetchAPIKey:
-			require.Equal(t, uint16(validation.expectedApiVersionFetch), kafkaKey.RequestVersion)
+			require.Equal(t, uint16(validation.expectedAPIVersionFetch), kafkaKey.RequestVersion)
 			numberOfFetchRequests += kafkaStat.Count
-			break
 		default:
 			require.FailNow(t, "Expecting only produce or fetch kafka requests")
 		}
@@ -489,7 +532,7 @@ func getDefaultTestConfiguration() *config.Config {
 }
 
 func newKafkaMonitor(t *testing.T, cfg *config.Config) *Monitor {
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	monitor, err := NewMonitor(cfg, nil)
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
 	t.Cleanup(func() {

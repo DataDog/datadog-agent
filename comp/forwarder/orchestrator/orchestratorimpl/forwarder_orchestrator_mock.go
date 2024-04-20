@@ -17,9 +17,10 @@ import (
 )
 
 // MockModule defines the fx options for this mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(NewMockOrchestratorForwarder),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(NewMockOrchestratorForwarder))
+}
 
 // NewMockOrchestratorForwarder returns an orchestratorForwarder
 func NewMockOrchestratorForwarder() orchestrator.Component {

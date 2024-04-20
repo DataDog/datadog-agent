@@ -5,6 +5,7 @@
 
 //go:build test
 
+// Package kafka provides a simple wrapper around 3rd party kafka client.
 package kafka
 
 import (
@@ -20,16 +21,19 @@ const (
 	defaultTimeout = time.Second * 10
 )
 
+// Options is a struct to hold the options for the kafka client
 type Options struct {
 	ServerAddress string
 	Dialer        *net.Dialer
 	CustomOptions []kgo.Opt
 }
 
+// Client is a wrapper around the kafka client
 type Client struct {
 	Client *kgo.Client
 }
 
+// NewClient creates a new kafka client
 func NewClient(opts Options) (*Client, error) {
 	kafkaOptions := []kgo.Opt{kgo.SeedBrokers(opts.ServerAddress)}
 	kafkaOptions = append(kafkaOptions, opts.CustomOptions...)
@@ -52,18 +56,11 @@ func NewClient(opts Options) (*Client, error) {
 	}, nil
 }
 
+// CreateTopic creates a topic named topicName.
 func (c *Client) CreateTopic(topicName string) error {
 	adminClient := kadm.NewClient(c.Client)
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	_, err := adminClient.CreateTopics(ctxTimeout, 1, 1, nil, topicName)
-	return err
-}
-
-func (c *Client) DeleteTopic(topicName string) error {
-	adminClient := kadm.NewClient(c.Client)
-	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-	_, err := adminClient.DeleteTopics(ctxTimeout, topicName)
 	return err
 }

@@ -1,0 +1,65 @@
+name: "Go update commenter"
+
+on:
+  pull_request:
+    # Only run on PR label events (in particular not on every commit)
+    types: [ labeled ]
+
+jobs:
+  old-versions-match:
+    # Only run if the PR is labeled with 'go-update'
+    if: ${{ github.event.label.name == 'go-update' }}
+    runs-on: ubuntu-latest
+    steps:
+      # get the Go version of the target branch
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+      - name: Get former Go version
+        id: former_go_version
+        run: |
+          echo version="$(cat .go-version)" >> $GITHUB_OUTPUT
+
+      # get the Go version of the PR branch
+      - uses: actions/checkout@v4
+      - name: Get current Go version
+        id: new_go_version
+        run: |
+          echo version="$(cat .go-version)" >> $GITHUB_OUTPUT
+
+      # build the comment
+      - name: Build full comment
+        id: old_versions
+        run: |
+          set -euo pipefail
+          # build the base of the Github URL to the current commit
+          GITHUB_HEAD_URL='${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}'
+          {
+            echo "matches<<EOF"
+            echo "Here are potential matches of the former version:"
+            echo ""
+
+            # this step builds a Markdown list of potential matches
+            # the script `detect-old-version.sh` displays each matching line as "file:line_number:line_content"
+            # the sed command transforms this format into a markdown list with Github permalink URL for each file/line
+            # note that the sed command only works properly with GNU sed (MacOS sed doesn't seem to understand \S properly)
+            bash -x ./tools/go-update/detect-old-version.sh "${{ steps.former_go_version.outputs.version }}" "${{ steps.new_go_version.outputs.version }}" | \
+              sed -E 's|^([^:]+):([^:]+):\s*(\S.*)$|- [\1:\2]('"$GITHUB_HEAD_URL"'/\1#L\2): `\3`|'
+
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      # and display it
+      - uses: actions/github-script@v7
+        env:
+          # We need to store the output in an environment variable and not use it directly in the createComment,
+          # as it will likely not be a valid JS string (eg. if it contains a quote character)
+          CONTENT: ${{ steps.old_versions.outputs.matches }}
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: process.env.CONTENT
+            })

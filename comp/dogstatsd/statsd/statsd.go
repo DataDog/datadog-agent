@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -19,9 +20,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newStatsdService),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newStatsdService))
+}
 
 type service struct {
 	sync.Mutex
@@ -84,6 +86,9 @@ func createClient(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientI
 			ddgostatsd.WithChannelMode(),
 			ddgostatsd.WithClientSideAggregation(),
 			ddgostatsd.WithExtendedClientSideAggregation(),
+			// Increase timeouts to avoid dropping packets that could have waited a bit more.
+			ddgostatsd.WithWriteTimeout(500 * time.Millisecond),
+			ddgostatsd.WithConnectTimeout(3 * time.Second),
 		},
 		options...,
 	)

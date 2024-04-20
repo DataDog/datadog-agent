@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"strings"
@@ -17,6 +18,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/debug"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optdestroy"
@@ -34,16 +38,31 @@ const (
 	stackUpTimeout      = 60 * time.Minute
 	stackDestroyTimeout = 60 * time.Minute
 	stackDeleteTimeout  = 20 * time.Minute
+	stackUpMaxRetry     = 2
 )
 
 var (
+	defaultWorkspaceEnvVars = map[string]string{
+		"PULUMI_SKIP_UPDATE_CHECK": "true",
+	}
+
 	stackManager     *StackManager
 	initStackManager sync.Once
 )
 
+type internalError struct {
+	err error
+}
+
+func (i internalError) Error() string {
+	return fmt.Sprintf("E2E INTERNAL ERROR: %v", i.err)
+}
+
 // StackManager handles
 type StackManager struct {
 	stacks *safeStackMap
+
+	knownErrors []knownError
 }
 
 type safeStackMap struct {
@@ -95,17 +114,22 @@ func GetStackManager() *StackManager {
 
 func newStackManager() (*StackManager, error) {
 	return &StackManager{
-		stacks: newSafeStackMap(),
+		stacks:      newSafeStackMap(),
+		knownErrors: getKnownErrors(),
 	}, nil
 }
 
 // GetStack creates or return a stack based on stack name and config, if error occurs during stack creation it destroy all the resources created
-func (sm *StackManager) GetStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
+func (sm *StackManager) GetStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (_ *auto.Stack, _ auto.UpResult, err error) {
+	defer func() {
+		if err != nil {
+			err = internalError{err}
+		}
+	}()
 
-	stack, upResult, err := sm.getStack(ctx, name, config, deployFunc, failOnMissing)
-
+	stack, upResult, err := sm.getStack(ctx, name, config, deployFunc, failOnMissing, nil)
 	if err != nil {
-		errDestroy := sm.deleteStack(ctx, name, stack)
+		errDestroy := sm.deleteStack(ctx, name, stack, nil)
 		if errDestroy != nil {
 			return stack, upResult, errors.Join(err, errDestroy)
 		}
@@ -115,13 +139,23 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 }
 
 // GetStackNoDeleteOnFailure creates or return a stack based on stack name and config, if error occurs during stack creation, it will not destroy the created resources. Using this can lead to resource leaks.
-func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
+func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool, logWriter io.Writer) (_ *auto.Stack, _ auto.UpResult, err error) {
+	defer func() {
+		if err != nil {
+			err = internalError{err}
+		}
+	}()
 
-	return sm.getStack(ctx, name, config, deployFunc, failOnMissing)
+	return sm.getStack(ctx, name, config, deployFunc, failOnMissing, logWriter)
 }
 
 // DeleteStack safely deletes a stack
-func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
+func (sm *StackManager) DeleteStack(ctx context.Context, name string, logWriter io.Writer) (err error) {
+	defer func() {
+		if err != nil {
+			err = internalError{err}
+		}
+	}()
 
 	stack, ok := sm.stacks.Get(name)
 	if !ok {
@@ -141,12 +175,17 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
 		stack = &newStack
 	}
 
-	return sm.deleteStack(ctx, name, stack)
+	return sm.deleteStack(ctx, name, stack, logWriter)
 }
 
 // ForceRemoveStackConfiguration removes the configuration files pulumi creates for managing a stack.
 // It DOES NOT perform any cleanup of the resources created by the stack. Call `DeleteStack` for correct cleanup.
-func (sm *StackManager) ForceRemoveStackConfiguration(ctx context.Context, name string) error {
+func (sm *StackManager) ForceRemoveStackConfiguration(ctx context.Context, name string) (err error) {
+	defer func() {
+		if err != nil {
+			err = internalError{err}
+		}
+	}()
 
 	stack, ok := sm.stacks.Get(name)
 	if !ok {
@@ -160,26 +199,82 @@ func (sm *StackManager) ForceRemoveStackConfiguration(ctx context.Context, name 
 
 // Cleanup delete any existing stack
 func (sm *StackManager) Cleanup(ctx context.Context) []error {
-
 	var errors []error
 
 	sm.stacks.Range(func(stackID string, stack *auto.Stack) {
-		err := sm.deleteStack(ctx, stackID, stack)
+		err := sm.deleteStack(ctx, stackID, stack, nil)
 		if err != nil {
-			errors = append(errors, err)
+			errors = append(errors, internalError{err})
 		}
 	})
 
 	return errors
 }
 
-func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *auto.Stack) error {
+func (sm *StackManager) getLoggingOptions() (debug.LoggingOptions, error) {
+	logLevel, err := runner.GetProfile().ParamStore().GetIntWithDefault(parameters.PulumiLogLevel, 1)
+	if err != nil {
+		return debug.LoggingOptions{}, err
+	}
+	pulumiLogLevel := uint(logLevel)
+	pulumiLogToStdErr, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiLogToStdErr, false)
+	if err != nil {
+		return debug.LoggingOptions{}, err
+	}
+
+	return debug.LoggingOptions{
+		FlowToPlugins: true,
+		LogLevel:      &pulumiLogLevel,
+		LogToStdErr:   pulumiLogToStdErr,
+	}, nil
+}
+
+func (sm *StackManager) getProgressStreamsOnUp(logger io.Writer) optup.Option {
+	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
+	if err != nil {
+		return optup.ErrorProgressStreams(logger)
+	}
+
+	if progressStreams {
+		return optup.ProgressStreams(logger)
+	}
+
+	return optup.ErrorProgressStreams(logger)
+}
+
+func (sm *StackManager) getProgressStreamsOnDestroy(logger io.Writer) optdestroy.Option {
+	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
+	if err != nil {
+		return optdestroy.ErrorProgressStreams(logger)
+	}
+
+	if progressStreams {
+		return optdestroy.ProgressStreams(logger)
+	}
+	return optdestroy.ErrorProgressStreams(logger)
+}
+
+func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *auto.Stack, logWriter io.Writer) error {
 	if stack == nil {
 		return fmt.Errorf("unable to find stack, skipping deletion of: %s", stackID)
 	}
 
 	destroyContext, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
-	_, err := stack.Destroy(destroyContext, optdestroy.ProgressStreams(os.Stdout))
+
+	loggingOptions, err := sm.getLoggingOptions()
+	if err != nil {
+		return err
+	}
+	var logger io.Writer
+
+	if logWriter == nil {
+		logger = os.Stdout
+	} else {
+		logger = logWriter
+	}
+	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
+
+	_, err = stack.Destroy(destroyContext, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 	cancel()
 	if err != nil {
 		return err
@@ -191,7 +286,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	return err
 }
 
-func (sm *StackManager) getStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
+func (sm *StackManager) getStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool, logWriter io.Writer) (*auto.Stack, auto.UpResult, error) {
 	// Build configuration from profile
 	profile := runner.GetProfile()
 	stackName := buildStackName(profile.NamePrefix(), name)
@@ -228,17 +323,61 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		return nil, auto.UpResult{}, err
 	}
 
-	upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
-	var loglevel uint = 1
-	defer cancel()
-	upResult, err := stack.Up(upCtx, optup.ProgressStreams(os.Stderr), optup.DebugLogging(debug.LoggingOptions{
-		LogToStdErr:   true,
-		FlowToPlugins: true,
-		LogLevel:      &loglevel,
-	}))
+	loggingOptions, err := sm.getLoggingOptions()
+	if err != nil {
+		return nil, auto.UpResult{}, err
+	}
+	var logger io.Writer
+
+	if logWriter == nil {
+		logger = os.Stderr
+	} else {
+		logger = logWriter
+	}
+
+	progressStreamsUpOption := sm.getProgressStreamsOnUp(logger)
+	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
+
+	var upResult auto.UpResult
+	upCount := 0
+
+	for {
+		upCount++
+		upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
+		upResult, err = stack.Up(upCtx, progressStreamsUpOption, optup.DebugLogging(loggingOptions))
+		cancel()
+
+		if err == nil {
+			err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", name), "", []string{"operation:up", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)}, logger)
+			if err != nil {
+				fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
+			}
+			break
+		}
+
+		retryStrategy := sm.getRetryStrategyFrom(err, upCount)
+		err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), err.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)}, logger)
+		if err != nil {
+			fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
+		}
+		switch retryStrategy {
+		case reUp:
+			fmt.Fprint(logger, "Got error during stack up, retrying")
+		case reCreate:
+			fmt.Fprint(logger, "Got error during stack up, recreating stack")
+			destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
+			_, err := stack.Destroy(destroyCtx, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
+			cancel()
+			if err != nil {
+				return stack, auto.UpResult{}, err
+			}
+		case noRetry:
+			fmt.Fprint(logger, "Got error during stack up, giving up")
+			return stack, upResult, err
+		}
+	}
 
 	return stack, upResult, err
-
 }
 
 func buildWorkspace(ctx context.Context, profile runner.Profile, stackName string, runFunc pulumi.RunFunc) (auto.Workspace, error) {
@@ -261,7 +400,13 @@ func buildWorkspace(ctx context.Context, profile runner.Profile, stackName strin
 		return nil, fmt.Errorf("unable to create temporary folder at: %s, err: %w", workspaceStackDir, err)
 	}
 
-	return auto.NewLocalWorkspace(ctx, auto.Project(project), auto.Program(runFunc), auto.WorkDir(workspaceStackDir))
+	fmt.Printf("Creating workspace for stack: %s at %s", stackName, workspaceStackDir)
+	return auto.NewLocalWorkspace(ctx,
+		auto.Project(project),
+		auto.Program(runFunc),
+		auto.WorkDir(workspaceStackDir),
+		auto.EnvVars(defaultWorkspaceEnvVars),
+	)
 }
 
 func buildStackName(namePrefix, stackName string) string {
@@ -283,11 +428,67 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 	}
 }
 
+func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) retryType {
+	// if first attempt + retries count are higher than max retry, give up
+	if upCount > stackUpMaxRetry {
+		return noRetry
+	}
+
+	for _, knownError := range sm.knownErrors {
+		if strings.Contains(err.Error(), knownError.errorMessage) {
+			return knownError.retryType
+		}
+	}
+
+	return reUp
+}
+
+// sendEventToDatadog sends an event to Datadog, it will use the API Key from environment variable DD_API_KEY if present, otherwise it will use the one from SSM Parameter Store
+func sendEventToDatadog(title string, message string, tags []string, logger io.Writer) error {
+	apiKey, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.APIKey, "")
+	if err != nil {
+		fmt.Fprintf(logger, "error when getting API key from parameter store: %v", err)
+		return err
+	}
+
+	if apiKey == "" {
+		fmt.Fprintf(logger, "Skipping sending event because API key is empty")
+		return nil
+	}
+
+	ctx := context.WithValue(context.Background(), datadog.ContextAPIKeys, map[string]datadog.APIKey{
+		"apiKeyAuth": {
+			Key: apiKey,
+		},
+	})
+
+	configuration := datadog.NewConfiguration()
+	apiClient := datadog.NewAPIClient(configuration)
+	api := datadogV1.NewEventsApi(apiClient)
+
+	_, r, err := api.CreateEvent(ctx, datadogV1.EventCreateRequest{
+		Title: title,
+		Text:  message,
+		Tags:  append([]string{"repository:datadog/datadog-agent", "test:new-e2e", "source:pulumi"}, tags...),
+	})
+	if err != nil {
+		fmt.Fprintf(logger, "error when calling `EventsApi.CreateEvent`: %v", err)
+		fmt.Fprintf(logger, "Full HTTP response: %v\n", r)
+		return err
+	}
+	return nil
+}
+
 // GetPulumiStackName returns the Pulumi stack name
 // The internal Pulumi stack name should normally remain hidden as all the Pulumi interactions
 // should be done via the StackManager.
 // The only use case for getting the internal Pulumi stack name is to interact directly with Pulumi for debug purposes.
-func (sm *StackManager) GetPulumiStackName(name string) (string, error) {
+func (sm *StackManager) GetPulumiStackName(name string) (_ string, err error) {
+	defer func() {
+		if err != nil {
+			err = internalError{err}
+		}
+	}()
 
 	stack, ok := sm.stacks.Get(name)
 	if !ok {

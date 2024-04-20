@@ -23,10 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
@@ -54,11 +54,18 @@ type OTLPReceiver struct {
 	out         chan<- *Payload     // the outgoing payload channel
 	conf        *config.AgentConfig // receiver config
 	cidProvider IDProvider          // container ID provider
+	statsd      statsd.ClientInterface
+	timing      timing.Reporter
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
-func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver {
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot)}
+func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
+	computeTopLevelBySpanKindVal := 0.0
+	if cfg.HasFeature("enable_otlp_compute_top_level_by_span_kind") {
+		computeTopLevelBySpanKindVal = 1.0
+	}
+	_ = statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot), statsd: statsd, timing: timing}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -69,7 +76,10 @@ func (o *OTLPReceiver) Start() {
 		if err != nil {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
-			o.grpcsrv = grpc.NewServer(grpc.MaxRecvMsgSize(10 * 1024 * 1024))
+			o.grpcsrv = grpc.NewServer(
+				grpc.MaxRecvMsgSize(10*1024*1024),
+				grpc.MaxConcurrentStreams(1), // Each payload must be sent to processing stage before we decode the next.
+			)
 			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
 			o.wg.Add(1)
 			go func() {
@@ -93,9 +103,9 @@ func (o *OTLPReceiver) Stop() {
 
 // Export implements ptraceotlp.Server
 func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
-	defer timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
+	defer o.timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
 	md, _ := metadata.FromIncomingContext(ctx)
-	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md)), 1)
+	_ = o.statsd.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md)), 1)
 	o.processRequest(ctx, http.Header(md), in)
 	return ptraceotlp.NewExportResponse(), nil
 }
@@ -175,13 +185,7 @@ func (o *OTLPReceiver) sample(tid uint64) sampler.SamplingPriority {
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
-	attr := rspans.Resource().Attributes()
-	rattr := make(map[string]string, attr.Len())
-	attr.Range(func(k string, v pcommon.Value) bool {
-		rattr[k] = v.AsString()
-		return true
-	})
-	src, srcok := attributes.SourceFromAttrs(attr)
+	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), traceutil.SignalTypeSet)
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
@@ -189,6 +193,13 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			srcok = true
 		}
 	}
+
+	attr := rspans.Resource().Attributes()
+	rattr := make(map[string]string, attr.Len())
+	attr.Range(func(k string, v pcommon.Value) bool {
+		rattr[k] = v.AsString()
+		return true
+	})
 	if !srcok {
 		hostFromMap(rattr, "_dd.hostname")
 	}
@@ -248,12 +259,12 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		}
 	}
 	tags := tagstats.AsTags()
-	metrics.Count("datadog.trace_agent.otlp.spans", spancount, tags, 1)
-	metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
+	_ = o.statsd.Count("datadog.trace_agent.otlp.spans", spancount, tags, 1)
+	_ = o.statsd.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	p := Payload{
 		Source:                 tagstats,
 		ClientComputedStats:    rattr[keyStatsComputed] != "" || httpHeader.Get(header.ComputedStats) != "",
-		ClientComputedTopLevel: httpHeader.Get(header.ComputedTopLevel) != "",
+		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") || httpHeader.Get(header.ComputedTopLevel) != "",
 	}
 	if env == "" {
 		env = o.conf.DefaultEnv
@@ -299,12 +310,8 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			tagContainersTags: payloadTags.String(),
 		}
 	}
-	select {
-	case o.out <- &p:
-		// success
-	default:
-		log.Warn("Payload in channel full. Dropped 1 payload.")
-	}
+
+	o.out <- &p
 	return src
 }
 
@@ -513,8 +520,14 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	for k, v := range rattr {
 		setMetaOTLP(span, k, v)
 	}
+
+	spanKind := in.Kind()
+	if o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") {
+		computeTopLevelAndMeasured(span, spanKind)
+	}
+
 	setMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
-	setMetaOTLP(span, "span.kind", spanKindName(in.Kind()))
+	setMetaOTLP(span, "span.kind", spanKindName(spanKind))
 	if _, ok := span.Meta["version"]; !ok {
 		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
 			setMetaOTLP(span, "version", ver)
@@ -711,4 +724,23 @@ func spanKindName(k ptrace.SpanKind) string {
 		return "unknown"
 	}
 	return name
+}
+
+// computeTopLevelAndMeasured updates the span's top-level and measured attributes.
+//
+// An OTLP span is considered top-level if it is a root span or has a span kind of server or consumer.
+// An OTLP span is marked as measured if it has a span kind of client or producer.
+func computeTopLevelAndMeasured(span *pb.Span, spanKind ptrace.SpanKind) {
+	if span.ParentID == 0 {
+		// span is a root span
+		traceutil.SetTopLevel(span, true)
+	}
+	if spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer {
+		// span is a server-side span
+		traceutil.SetTopLevel(span, true)
+	}
+	if spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer {
+		// span is a client-side span, not top-level but we still want stats
+		traceutil.SetMeasured(span, true)
+	}
 }

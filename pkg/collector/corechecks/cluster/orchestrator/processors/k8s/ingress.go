@@ -9,6 +9,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -20,11 +21,13 @@ import (
 
 // IngressHandlers implements the Handlers interface for Kubernetes Ingresss.
 type IngressHandlers struct {
-	BaseHandlers
+	common.BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
-func (h *IngressHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *IngressHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.Ingress)
 	m.Yaml = yaml
 	return
@@ -32,7 +35,8 @@ func (h *IngressHandlers) AfterMarshalling(ctx *processors.ProcessorContext, res
 
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
-func (h *IngressHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+func (h *IngressHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	models := make([]*model.Ingress, 0, len(resourceModels))
 
 	for _, m := range resourceModels {
@@ -40,24 +44,28 @@ func (h *IngressHandlers) BuildMessageBody(ctx *processors.ProcessorContext, res
 	}
 
 	return &model.CollectorIngress{
-		ClusterName: ctx.Cfg.KubeClusterName,
-		ClusterId:   ctx.ClusterID,
-		GroupId:     ctx.MsgGroupID,
+		ClusterName: pctx.Cfg.KubeClusterName,
+		ClusterId:   pctx.ClusterID,
+		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Ingresses:   models,
-		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
+		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
 	}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
-func (h *IngressHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *IngressHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*netv1.Ingress)
 	return k8sTransformers.ExtractIngress(r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
-func (h *IngressHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *IngressHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*netv1.Ingress)
 	resources = make([]interface{}, 0, len(resourceList))
 
@@ -69,23 +77,31 @@ func (h *IngressHandlers) ResourceList(ctx *processors.ProcessorContext, list in
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *IngressHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *IngressHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*netv1.Ingress).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (h *IngressHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *IngressHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*netv1.Ingress).ResourceVersion
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
-func (h *IngressHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *IngressHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*netv1.Ingress)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before
 // it is marshalled to generate a manifest.
-func (h *IngressHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *IngressHandlers) ScrubBeforeMarshalling(ctx processors.ProcessorContext, resource interface{}) {
 }

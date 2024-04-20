@@ -94,7 +94,7 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, sizeKB, dev fs
 
 		sizeKB, err := sizeKB(mount)
 		if err != nil {
-			log.Info(err)
+			log.Debug(err)
 			continue
 		}
 
@@ -111,7 +111,7 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, sizeKB, dev fs
 
 		dev, err := dev(mount)
 		if err != nil {
-			log.Info(err)
+			log.Debug(err)
 			continue
 		}
 

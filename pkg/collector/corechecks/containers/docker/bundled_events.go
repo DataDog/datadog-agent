@@ -59,14 +59,14 @@ func (t *bundledTransformer) aggregateEvents(events []*docker.ContainerEvent) ma
 	eventsByImage := make(map[string]*dockerEventBundle)
 
 	for _, event := range events {
-		dockerEvents.Inc(event.Action)
+		dockerEvents.Inc(string(event.Action))
 
-		if _, ok := t.filteredEventTypes[event.Action]; ok {
+		if _, ok := t.filteredEventTypes[string(event.Action)]; ok {
 			continue
 		}
 
 		bundle, found := eventsByImage[event.ImageName]
-		if found == false {
+		if !found {
 			bundle = newDockerEventBundler(event.ImageName)
 			eventsByImage[event.ImageName] = bundle
 		}

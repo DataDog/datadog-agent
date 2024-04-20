@@ -10,16 +10,19 @@ package ptracer
 
 import (
 	"bytes"
-	"os"
+	"encoding/binary"
+	"fmt"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/elastic/go-seccomp-bpf"
 	"github.com/elastic/go-seccomp-bpf/arch"
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
+	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 // CallbackType represents a callback type
@@ -36,9 +39,15 @@ const (
 	// MaxStringSize defines the max read size
 	MaxStringSize = 4096
 
-	// Nsig number of signal
-	// https://elixir.bootlin.com/linux/v6.5.12/source/arch/x86/include/uapi/asm/signal.h#L16
-	Nsig = 32
+	ptraceFlags = 0 |
+		syscall.PTRACE_O_TRACEVFORK |
+		syscall.PTRACE_O_TRACEFORK |
+		syscall.PTRACE_O_TRACECLONE |
+		syscall.PTRACE_O_TRACEEXEC |
+		syscall.PTRACE_O_TRACESYSGOOD |
+		unix.PTRACE_O_TRACESECCOMP
+
+	defaultUserGroupRateLimit = time.Second
 )
 
 // Tracer represents a tracer
@@ -48,11 +57,28 @@ type Tracer struct {
 
 	// internals
 	info *arch.Info
+	opts TracerOpts
+	// user and group cache
+	// TODO: user opens of passwd/group files to reset the limiters?
+	userCache                map[int]string
+	userCacheRefreshLimiter  *rate.Limiter
+	lastPasswdMTime          uint64
+	groupCache               map[int]string
+	groupCacheRefreshLimiter *rate.Limiter
+	lastGroupMTime           uint64
 }
 
-// Opts defines syscall filters
-type Opts struct {
+// Creds defines credentials
+type Creds struct {
+	UID *uint32
+	GID *uint32
+}
+
+// TracerOpts defines ptracer options
+type TracerOpts struct {
 	Syscalls []string
+	Creds    Creds
+	Logger   Logger
 }
 
 func processVMReadv(pid int, addr uintptr, data []byte) (int, error) {
@@ -82,6 +108,34 @@ func (t *Tracer) readString(pid int, ptr uint64) (string, error) {
 		return "", nil
 	}
 	return string(data[:n]), nil
+}
+
+func (t *Tracer) readInt32(pid int, ptr uint64) (int32, error) {
+	data := make([]byte, 4)
+
+	_, err := processVMReadv(pid, uintptr(ptr), data)
+	if err != nil {
+		return 0, err
+	}
+
+	// []byte to int32
+	buf := bytes.NewReader(data)
+	var val int32
+	err = binary.Read(buf, native.Endian, &val)
+	if err != nil {
+		return 0, err
+	}
+	return val, nil
+}
+
+func (t *Tracer) readData(pid int, ptr uint64, size uint) ([]byte, error) {
+	data := make([]byte, size)
+
+	_, err := processVMReadv(pid, uintptr(ptr), data)
+	if err != nil {
+		return []byte{}, err
+	}
+	return data, nil
 }
 
 // PeekString peeks and returns a string from a pid at a given addr ptr
@@ -124,6 +178,18 @@ func (t *Tracer) ReadArgInt32(regs syscall.PtraceRegs, arg int) int32 {
 	return int32(t.argToRegValue(regs, arg))
 }
 
+// ReadArgInt32Ptr reads the regs and returns the wanted arg as int32
+func (t *Tracer) ReadArgInt32Ptr(pid int, regs syscall.PtraceRegs, arg int) (int32, error) {
+	ptr := t.argToRegValue(regs, arg)
+	return t.readInt32(pid, ptr)
+}
+
+// ReadArgData reads the regs and returns the wanted arg as byte array
+func (t *Tracer) ReadArgData(pid int, regs syscall.PtraceRegs, arg int, size uint) ([]byte, error) {
+	ptr := t.argToRegValue(regs, arg)
+	return t.readData(pid, ptr, size)
+}
+
 // ReadArgUint32 reads the regs and returns the wanted arg as uint32
 func (t *Tracer) ReadArgUint32(regs syscall.PtraceRegs, arg int) uint32 {
 	return uint32(t.argToRegValue(regs, arg))
@@ -156,7 +222,7 @@ func (t *Tracer) ReadArgStringArray(pid int, regs syscall.PtraceRegs, arg int) (
 			return result, err
 		}
 
-		ptr := model.ByteOrder.Uint64(data)
+		ptr := native.Endian.Uint64(data)
 		if ptr == 0 {
 			break
 		}
@@ -174,81 +240,97 @@ func (t *Tracer) ReadArgStringArray(pid int, regs syscall.PtraceRegs, arg int) (
 }
 
 // Trace traces a process
-func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs)) error {
+func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
 	var waitStatus syscall.WaitStatus
 
 	if err := syscall.PtraceCont(t.PID, 0); err != nil {
 		return err
 	}
 
-	var regs syscall.PtraceRegs
+	var (
+		regs   syscall.PtraceRegs
+		prevNr int
+	)
 
 	for {
 		pid, err := syscall.Wait4(-1, &waitStatus, 0, nil)
 		if err != nil {
+			t.opts.Logger.Debugf("unable to wait for pid %d: %v", pid, err)
 			break
 		}
 
-		if waitStatus.Exited() || waitStatus.Signaled() {
+		if waitStatus.Exited() || waitStatus.CoreDump() || waitStatus.Signaled() {
 			if pid == t.PID {
 				break
 			}
-			cb(CallbackExitType, ExitNr, pid, 0, regs)
+			cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
 			continue
 		}
 
 		if waitStatus.Stopped() {
 			if signal := waitStatus.StopSignal(); signal != syscall.SIGTRAP {
-				if signal < Nsig {
-					_ = syscall.PtraceCont(pid, int(signal))
+				if signal == syscall.SIGSTOP {
+					signal = syscall.Signal(0)
+				}
+				if err := syscall.PtraceCont(pid, int(signal)); err == nil {
+					continue
+				}
+			}
 
-				} else {
-					_ = syscall.PtraceCont(pid, 0)
+			if err := syscall.PtraceGetRegs(pid, &regs); err != nil {
+				t.opts.Logger.Debugf("unable to get registers for pid %d: %v", pid, err)
+
+				// it got probably killed
+				cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
+
+				if pid == t.PID {
+					break
 				}
 				continue
 			}
 
-			if err := syscall.PtraceGetRegs(pid, &regs); err != nil {
-				break
-			}
-
 			nr := GetSyscallNr(regs)
+			if nr == 0 {
+				nr = prevNr
+			}
+			prevNr = nr
 
 			switch waitStatus.TrapCause() {
 			case syscall.PTRACE_EVENT_CLONE, syscall.PTRACE_EVENT_FORK, syscall.PTRACE_EVENT_VFORK:
 				if npid, err := syscall.PtraceGetEventMsg(pid); err == nil {
-					cb(CallbackPostType, nr, int(npid), pid, regs)
+					cb(CallbackPostType, nr, int(npid), pid, regs, nil)
 				}
+			case syscall.PTRACE_EVENT_EXEC:
+				cb(CallbackPostType, ExecveNr, pid, 0, regs, nil)
 			case unix.PTRACE_EVENT_SECCOMP:
 				switch nr {
-				case ForkNr, VforkNr, CloneNr:
+				case ForkNr, VforkNr, CloneNr, Clone3Nr:
 					// already handled
 				default:
-					cb(CallbackPreType, nr, pid, 0, regs)
+					cb(CallbackPreType, nr, pid, 0, regs, nil)
 
 					// force a ptrace syscall in order to get to return value
 					if err := syscall.PtraceSyscall(pid, 0); err != nil {
-						continue
+						t.opts.Logger.Debugf("unable to call ptrace syscall for pid %d: %v", pid, err)
 					}
+					continue
 				}
 			default:
 				switch nr {
-				case ForkNr, VforkNr, CloneNr:
+				case ForkNr, VforkNr, CloneNr, Clone3Nr:
 					// already handled
 				case ExecveNr, ExecveatNr:
-					// does not return on success, thus ret value stay at syscall.ENOSYS
-					if ret := -t.ReadRet(regs); ret == int64(syscall.ENOSYS) {
-						cb(CallbackPostType, nr, pid, 0, regs)
-					}
+					// triggered in case of error
+					cb(CallbackPostType, nr, pid, 0, regs, nil)
 				default:
-					if ret := -t.ReadRet(regs); ret != int64(syscall.ENOSYS) {
-						cb(CallbackPostType, nr, pid, 0, regs)
+					if ret := t.ReadRet(regs); ret != -int64(syscall.ENOSYS) {
+						cb(CallbackPostType, nr, pid, 0, regs, nil)
 					}
 				}
 			}
 
 			if err := syscall.PtraceCont(pid, 0); err != nil {
-				continue
+				t.opts.Logger.Debugf("unable to call ptrace continue for pid %d: %v", pid, err)
 			}
 		}
 	}
@@ -256,7 +338,7 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 	return nil
 }
 
-func traceFilterProg(opts Opts) (*syscall.SockFprog, error) {
+func traceFilterProg(opts TracerOpts) (*syscall.SockFprog, error) {
 	policy := seccomp.Policy{
 		DefaultAction: seccomp.ActionAllow,
 		Syscalls: []seccomp.SyscallGroup{
@@ -292,7 +374,7 @@ func traceFilterProg(opts Opts) (*syscall.SockFprog, error) {
 }
 
 // NewTracer returns a tracer
-func NewTracer(path string, args []string, opts Opts) (*Tracer, error) {
+func NewTracer(path string, args []string, envs []string, opts TracerOpts) (*Tracer, error) {
 	info, err := arch.GetInfo("")
 	if err != nil {
 		return nil, err
@@ -300,28 +382,31 @@ func NewTracer(path string, args []string, opts Opts) (*Tracer, error) {
 
 	prog, err := traceFilterProg(opts)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to compile bpf prog: %w", err)
 	}
 
 	runtime.LockOSThread()
 
-	pid, err := forkExec(path, args, os.Environ(), prog)
+	pid, err := forkExec(path, args, envs, opts.Creds, prog)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to execute `%s`: %w", path, err)
 	}
 
 	var wstatus syscall.WaitStatus
 	if _, err = syscall.Wait4(pid, &wstatus, 0, nil); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to call wait4 on `%s`: %w", path, err)
 	}
 
 	err = syscall.PtraceSetOptions(pid, ptraceFlags)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to ptrace `%s`, please verify the capabilities: %w", path, err)
 	}
 
 	return &Tracer{
-		PID:  pid,
-		info: info,
+		PID:                      pid,
+		info:                     info,
+		opts:                     opts,
+		userCacheRefreshLimiter:  rate.NewLimiter(rate.Every(defaultUserGroupRateLimit), 1),
+		groupCacheRefreshLimiter: rate.NewLimiter(rate.Every(defaultUserGroupRateLimit), 1),
 	}, nil
 }

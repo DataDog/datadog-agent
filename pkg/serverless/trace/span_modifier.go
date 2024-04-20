@@ -19,9 +19,11 @@ const (
 )
 
 type spanModifier struct {
-	tags            map[string]string
-	lambdaSpanChan  chan<- *pb.Span
+	tags           map[string]string
+	lambdaSpanChan chan<- *pb.Span
+	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId uint64
+	ddOrigin        string
 }
 
 // ModifySpan applies extra logic to the given span
@@ -38,7 +40,7 @@ func (s *spanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
 
 	// ensure all spans have tag _dd.origin in addition to span.Origin
 	if origin := span.Meta[ddOriginTagName]; origin == "" {
-		traceutil.SetMeta(span, ddOriginTagName, ddOriginTagValue)
+		traceutil.SetMeta(span, ddOriginTagName, s.ddOrigin)
 	}
 
 	if span.Name == "aws.lambda.load" {

@@ -4,8 +4,7 @@ on:
   push:
     branches:
       - main
-      - 7.[0-9][0-9].x
-      - mq-working-branch-*
+      - "[0-9]+.[0-9]+.x"
   pull_request:
 
 concurrency:
@@ -17,12 +16,12 @@ jobs:
     runs-on: windows-2019 # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md
     steps:
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 #needed for 'git describe' to work
 
       - name: Install python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.9.5"
           cache: "pip"
@@ -31,12 +30,12 @@ jobs:
           If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
       - name: Install go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: ".go-version"
 
       - name: Install Dotnet
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '7.0.x'
 
@@ -62,5 +61,4 @@ jobs:
           echo $PATH
           powershell.exe -Command ./tasks/winbuildscripts/pre-go-build.ps1
           inv -e rtloader.format --raise-if-changed
-          inv -e lint-go --timeout 30
-
+          inv -e linter.go --timeout 30

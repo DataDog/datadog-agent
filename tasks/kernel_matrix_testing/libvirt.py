@@ -1,11 +1,26 @@
-from .tool import info
+from __future__ import annotations
+
+import sys
+from typing import TYPE_CHECKING, Callable, Iterable
+
+from tasks.kernel_matrix_testing.tool import info
+
+if TYPE_CHECKING:
+    import libvirt
+
+    from tasks.kernel_matrix_testing.types import TNamed
+else:
+    try:
+        import libvirt
+    except ImportError:
+        libvirt = None
 
 
-def resource_in_stack(stack, resource):
-    return stack in resource
+def resource_in_stack(stack: str, resource: str) -> bool:
+    return f"-{stack}" in resource
 
 
-def get_resources_in_stack(stack, list_fn):
+def get_resources_in_stack(stack: str, list_fn: Callable[[], Iterable[TNamed]]) -> list[TNamed]:
     resources = list_fn()
     stack_resources = list()
     for resource in resources:
@@ -15,7 +30,7 @@ def get_resources_in_stack(stack, list_fn):
     return stack_resources
 
 
-def delete_domains(conn, stack):
+def delete_domains(conn: libvirt.virConnect, stack: str):
     domains = get_resources_in_stack(stack, conn.listAllDomains)
     info(f"[*] {len(domains)} VMs running in stack {stack}")
 
@@ -23,15 +38,21 @@ def delete_domains(conn, stack):
         name = domain.name()
         if domain.isActive():
             domain.destroy()
-        domain.undefine()
+
+        undefine_flags = 0
+        if sys.platform == "darwin":
+            undefine_flags |= libvirt.VIR_DOMAIN_UNDEFINE_NVRAM
+
+        domain.undefineFlags(undefine_flags)
+
         info(f"[+] VM {name} deleted")
 
 
-def getAllStackVolumesFn(conn, stack):
-    def getAllStackVolumes():
+def getAllStackVolumesFn(conn: libvirt.virConnect, stack: str):
+    def getAllStackVolumes() -> list[libvirt.virStorageVol]:
         pools = get_resources_in_stack(stack, conn.listAllStoragePools)
 
-        volumes = list()
+        volumes: list[libvirt.virStorageVol] = list()
         for pool in pools:
             if not pool.isActive():
                 continue
@@ -42,7 +63,7 @@ def getAllStackVolumesFn(conn, stack):
     return getAllStackVolumes
 
 
-def delete_volumes(conn, stack):
+def delete_volumes(conn: libvirt.virConnect, stack: str):
     volumes = get_resources_in_stack(stack, getAllStackVolumesFn(conn, stack))
     info(f"[*] {len(volumes)} storage volumes running in stack {stack}")
 
@@ -53,7 +74,7 @@ def delete_volumes(conn, stack):
         info(f"[+] Storage volume {name} deleted")
 
 
-def delete_pools(conn, stack):
+def delete_pools(conn: libvirt.virConnect, stack: str):
     pools = get_resources_in_stack(stack, conn.listAllStoragePools)
     info(f"[*] {len(pools)} storage pools running in stack {stack}")
 
@@ -65,7 +86,7 @@ def delete_pools(conn, stack):
         info(f"[+] Storage pool {name} deleted")
 
 
-def delete_networks(conn, stack):
+def delete_networks(conn: libvirt.virConnect, stack: str):
     networks = get_resources_in_stack(stack, conn.listAllNetworks)
     info(f"[*] {len(networks)} networks running in stack {stack}")
 
@@ -77,7 +98,7 @@ def delete_networks(conn, stack):
         info(f"[+] Network {name} deleted")
 
 
-def pause_domains(conn, stack):
+def pause_domains(conn: libvirt.virConnect, stack: str):
     domains = get_resources_in_stack(stack, conn.listAllDomains)
     info(f"[*] {len(domains)} VMs running in stack {stack}")
 
@@ -88,7 +109,7 @@ def pause_domains(conn, stack):
         info(f"[+] VM {name} is paused")
 
 
-def resume_network(conn, stack):
+def resume_network(conn: libvirt.virConnect, stack: str):
     networks = get_resources_in_stack(stack, conn.listAllNetworks)
     info(f"[*] {len(networks)} networks running in stack {stack}")
 
@@ -99,7 +120,7 @@ def resume_network(conn, stack):
         info(f"[+] Network {name} resumed")
 
 
-def resume_domains(conn, stack):
+def resume_domains(conn: libvirt.virConnect, stack: str):
     domains = get_resources_in_stack(stack, conn.listAllDomains)
     info(f"[*] {len(domains)} VMs running in stack {stack}")
 

@@ -42,6 +42,8 @@ const (
 	MethodOptions
 	// MethodPatch represents the PATCH request method
 	MethodPatch
+	// MethodTrace represents the TRACE request method
+	MethodTrace
 )
 
 // Method returns a string representing the HTTP method of the request
@@ -61,6 +63,8 @@ func (m Method) String() string {
 		return "OPTIONS"
 	case MethodPatch:
 		return "PATCH"
+	case MethodTrace:
+		return "TRACE"
 	default:
 		return "UNKNOWN"
 	}
@@ -78,6 +82,11 @@ type Key struct {
 	Path Path
 	types.ConnectionKey
 	Method Method
+}
+
+// String returns a string representation of the Key
+func (k Key) String() string {
+	return "{IP: " + k.ConnectionKey.String() + ", Method: " + k.Method.String() + ", Path: " + k.Path.Content.Get() + "}"
 }
 
 // NewKey generates a new Key
@@ -127,11 +136,13 @@ func (r *RequestStat) initSketch() (err error) {
 	return
 }
 
+// RequestStats stores HTTP request statistics.
 type RequestStats struct {
 	aggregateByStatusCode bool
 	Data                  map[uint16]*RequestStat
 }
 
+// NewRequestStats creates a new RequestStats object.
 func NewRequestStats(aggregateByStatusCode bool) *RequestStats {
 	return &RequestStats{
 		aggregateByStatusCode: aggregateByStatusCode,
@@ -139,6 +150,7 @@ func NewRequestStats(aggregateByStatusCode bool) *RequestStats {
 	}
 }
 
+// NormalizeStatusCode normalizes the status code into a status code family.
 func (r *RequestStats) NormalizeStatusCode(status uint16) uint16 {
 	if r.aggregateByStatusCode {
 		return status

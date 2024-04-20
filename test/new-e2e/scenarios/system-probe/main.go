@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// Package main is the entrypoint for the system-probe e2e testing scenario
 package main
 
 import (
@@ -17,10 +18,9 @@ import (
 	systemProbe "github.com/DataDog/datadog-agent/test/new-e2e/system-probe"
 )
 
-var DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
-var defaultVMConfigPath = filepath.Join(".", "system-probe", "config", "vmconfig.json")
+var defaultVMConfigPath = filepath.Join(".", "system-probe", "config", "vmconfig-system-probe.json")
 
-func run(envName, x86InstanceType, armInstanceType string, destroy bool, opts *systemProbe.SystemProbeEnvOpts) error {
+func run(envName, x86InstanceType, armInstanceType string, destroy bool, opts *systemProbe.EnvOpts) error {
 	if destroy {
 		return systemProbe.Destroy(envName)
 	}
@@ -43,16 +43,17 @@ func main() {
 	armInstanceTypePtr := flag.String("instance-type-arm", "", "arm64 instance type")
 	x86AmiIDPtr := flag.String("x86-ami-id", "", "x86 ami for metal instance")
 	armAmiIDPtr := flag.String("arm-ami-id", "", "arm ami for metal instance")
-	toProvisionPtr := flag.Bool("run-provision", true, "run provision step for metal instance")
 	shutdownPtr := flag.Int("shutdown-period", 0, "shutdown after specified interval in minutes")
 	sshKeyFile := flag.String("ssh-key-path", "", "path of private ssh key for ec2 instances")
 	sshKeyName := flag.String("ssh-key-name", "", "name of ssh key pair to use for ec2 instances")
 	infraEnv := flag.String("infra-env", "", "name of infra env to use")
-	dependenciesDirectoryPtr := flag.String("dependencies-dir", DD_AGENT_TESTING_DIR, "directory where dependencies package is present")
+	dependenciesDirectoryPtr := flag.String("dependencies-dir", os.Getenv("DD_AGENT_TESTING_DIR"), "directory where dependencies package is present")
 	vmconfigPathPtr := flag.String("vmconfig", defaultVMConfigPath, "vmconfig path")
 	local := flag.Bool("local", false, "is scenario running locally")
 	runAgentPtr := flag.Bool("run-agent", false, "Run datadog agent on the metal instance")
 	agentVersionPtr := flag.String("agent-version", "", "Version of datadog-agent")
+	provisionInstancePtr := flag.Bool("provision-instance", false, "run provision step for metal instance")
+	provisionMicrovmsPtr := flag.Bool("provision-microvms", false, "run provision step for microvms")
 
 	flag.Parse()
 
@@ -61,11 +62,12 @@ func main() {
 		failOnMissing = true
 	}
 
-	opts := systemProbe.SystemProbeEnvOpts{
+	opts := systemProbe.EnvOpts{
 		X86AmiID:              *x86AmiIDPtr,
 		ArmAmiID:              *armAmiIDPtr,
 		ShutdownPeriod:        *shutdownPtr,
-		Provision:             *toProvisionPtr,
+		ProvisionInstance:     *provisionInstancePtr,
+		ProvisionMicrovms:     *provisionMicrovmsPtr,
 		FailOnMissing:         failOnMissing,
 		SSHKeyPath:            *sshKeyFile,
 		SSHKeyName:            *sshKeyName,

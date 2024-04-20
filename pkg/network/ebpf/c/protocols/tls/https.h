@@ -55,7 +55,13 @@ static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, 
 }
 
 static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, void *buffer_ptr, size_t len, __u64 tags) {
-    protocol_stack_t *stack = get_protocol_stack(t);
+    conn_tuple_t final_tuple = {0};
+    conn_tuple_t normalized_tuple = *t;
+    normalize_tuple(&normalized_tuple);
+    normalized_tuple.pid = 0;
+    normalized_tuple.netns = 0;
+
+    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
     if (!stack) {
         return;
     }
@@ -69,13 +75,18 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         }
         read_into_user_buffer_classification(request_fragment, buffer_ptr);
 
-        classify_decrypted_payload(stack, t, request_fragment, len);
+        classify_decrypted_payload(stack, &normalized_tuple, request_fragment, len);
         protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     }
     tls_prog_t prog;
     switch (protocol) {
     case PROTOCOL_HTTP:
         prog = TLS_HTTP_PROCESS;
+        final_tuple = normalized_tuple;
+        break;
+    case PROTOCOL_HTTP2:
+        prog = TLS_HTTP2_FIRST_FRAME;
+        final_tuple = *t;
         break;
     default:
         return;
@@ -83,18 +94,27 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
 
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (args == NULL) {
-        log_debug("dispatcher failed to save arguments for tls tail call\n");
+        log_debug("dispatcher failed to save arguments for tls tail call");
         return;
     }
-    bpf_memset(args, 0, sizeof(tls_dispatcher_arguments_t));
-    bpf_memcpy(&args->tup, t, sizeof(conn_tuple_t));
-    args->buffer_ptr = buffer_ptr;
-    args->tags = tags;
+    *args = (tls_dispatcher_arguments_t){
+        .tup = final_tuple,
+        .tags = tags,
+        .buffer_ptr = buffer_ptr,
+        .data_end = len,
+        .data_off = 0,
+    };
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
-static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
-    protocol_stack_t *stack = get_protocol_stack(t);
+static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, bool skip_http) {
+    conn_tuple_t final_tuple = {0};
+    conn_tuple_t normalized_tuple = *t;
+    normalize_tuple(&normalized_tuple);
+    normalized_tuple.pid = 0;
+    normalized_tuple.netns = 0;
+
+    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
     if (!stack) {
         return;
     }
@@ -103,7 +123,17 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     switch (protocol) {
     case PROTOCOL_HTTP:
+        // HTTP is a special case. As of today, regardless of TLS or plaintext traffic, we ignore the PID and NETNS while processing it.
+        // The termination, both for TLS and plaintext, for HTTP traffic is taken care of in the socket filter.
+        // Until we split the TLS and plaintext management for HTTP traffic, there are flows (such as those being called from tcp_close)
+        // in which we don't want to terminate HTTP traffic, but instead leave it to the socket filter.
+        if (skip_http) {return;}
         prog = TLS_HTTP_TERMINATION;
+        final_tuple = normalized_tuple;
+        break;
+    case PROTOCOL_HTTP2:
+        prog = TLS_HTTP2_TERMINATION;
+        final_tuple = *t;
         break;
     default:
         return;
@@ -112,11 +142,11 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
     const __u32 zero = 0;
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (args == NULL) {
-        log_debug("dispatcher failed to save arguments for tls tail call\n");
+        log_debug("dispatcher failed to save arguments for tls tail call");
         return;
     }
     bpf_memset(args, 0, sizeof(tls_dispatcher_arguments_t));
-    bpf_memcpy(&args->tup, t, sizeof(conn_tuple_t));
+    bpf_memcpy(&args->tup, &final_tuple, sizeof(conn_tuple_t));
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
@@ -158,21 +188,7 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
         return NULL;
     }
 
-    // Set the `.netns` and `.pid` values to always be 0.
-    // They can't be sourced from inside `read_conn_tuple_skb`,
-    // which is used elsewhere to produce the same `conn_tuple_t` value from a `struct __sk_buff*` value,
-    // so we ensure it is always 0 here so that both paths produce the same `conn_tuple_t` value.
-    // `netns` is not used in the userspace program part that binds http information to `ConnectionStats`,
-    // so this is isn't a problem.
-    t.netns = 0;
-    t.pid = 0;
-
     bpf_memcpy(&ssl_sock->tup, &t, sizeof(conn_tuple_t));
-
-    if (!is_ephemeral_port(ssl_sock->tup.sport)) {
-        flip_tuple(&ssl_sock->tup);
-    }
-
     return &ssl_sock->tup;
 }
 
@@ -194,9 +210,6 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
     if (!read_conn_tuple(&ssl_sock.tup, skp, pid_tgid, CONN_TYPE_TCP)) {
         return;
     }
-    ssl_sock.tup.netns = 0;
-    ssl_sock.tup.pid = 0;
-    normalize_tuple(&ssl_sock.tup);
 
     // copy map value to stack. required for older kernels
     void *ssl_ctx = *ssl_ctx_map_val;
@@ -215,27 +228,27 @@ static __always_inline tls_offsets_data_t* get_offsets_data() {
 
     inode = BPF_CORE_READ(t, mm, exe_file, f_inode);
     if (!inode) {
-        log_debug("get_offsets_data: could not read f_inode field\n");
+        log_debug("get_offsets_data: could not read f_inode field");
         return NULL;
     }
 
     int err;
     err = BPF_CORE_READ_INTO(&key.ino, inode, i_ino);
     if (err) {
-        log_debug("get_offsets_data: could not read i_ino field\n");
+        log_debug("get_offsets_data: could not read i_ino field");
         return NULL;
     }
 
     err = BPF_CORE_READ_INTO(&dev_id, inode, i_sb, s_dev);
     if (err) {
-        log_debug("get_offsets_data: could not read s_dev field\n");
+        log_debug("get_offsets_data: could not read s_dev field");
         return NULL;
     }
 
     key.device_id_major = MAJOR(dev_id);
     key.device_id_minor = MINOR(dev_id);
 
-    log_debug("get_offsets_data: task binary inode number: %ld; device ID %x:%x\n", key.ino, key.device_id_major, key.device_id_minor);
+    log_debug("get_offsets_data: task binary inode number: %llu; device ID %x:%x", key.ino, key.device_id_major, key.device_id_minor);
 
     return bpf_map_lookup_elem(&offsets_data, &key);
 }

@@ -16,18 +16,19 @@ import (
 	log "github.com/cihub/seelog"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
-	complog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -79,7 +80,7 @@ func TestMain(m *testing.M) {
 	var lastRunResult int
 	var retryCount int
 
-	err := setup()
+	store, err := setup()
 	if err != nil {
 		log.Infof("Test setup failed: %v", err)
 		tearOffAndExit(1)
@@ -90,7 +91,7 @@ func TestMain(m *testing.M) {
 		case <-retryTicker.C:
 			retryCount++
 			log.Infof("Starting run %d", retryCount)
-			lastRunResult = doRun(m)
+			lastRunResult = doRun(m, store)
 			if lastRunResult == 0 {
 				tearOffAndExit(0)
 			}
@@ -101,33 +102,38 @@ func TestMain(m *testing.M) {
 	}
 }
 
+type testDeps struct {
+	fx.In
+	Store      workloadmeta.Component
+	TaggerComp tagger.Component
+}
+
 // Called before for first test run: compose up
-func setup() error {
+func setup() (workloadmeta.Component, error) {
 	// Setup global conf
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.ReadConfig(strings.NewReader(datadogCfgString))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	config.SetFeaturesNoCleanup(config.Docker)
 
 	// Note: workloadmeta will be started by fx with the App
-	var store workloadmeta.Component
-	fxApp, store, err = fxutil.TestApp[workloadmeta.Component](fx.Options(
+	var deps testDeps
+	fxApp, deps, err = fxutil.TestApp[testDeps](fx.Options(
 		fx.Supply(compcfg.NewAgentParams(
 			"", compcfg.WithConfigMissingOK(true))),
-		compcfg.Module,
-		fx.Supply(complog.ForOneShot("TEST", "info", false)),
-		complog.Module,
+		compcfg.Module(),
+		fx.Supply(optional.NewNoneOption[secrets.Component]()),
+		fx.Supply(logimpl.ForOneShot("TEST", "info", false)),
+		logimpl.Module(),
 		fx.Supply(workloadmeta.NewParams()),
 		collectors.GetCatalog(),
-		workloadmeta.Module,
+		workloadmeta.Module(),
+		tagger.Module(),
+		fx.Supply(tagger.NewTaggerParams()),
 	))
-	workloadmeta.SetGlobalStore(store)
-
-	// Setup tagger
-	tagger.SetDefaultTagger(local.NewTagger(store))
-	tagger.Init(context.TODO())
+	store := deps.Store
 
 	// Start compose recipes
 	for projectName, file := range defaultCatalog.composeFilesByProjects {
@@ -138,15 +144,17 @@ func setup() error {
 		output, err := compose.Start()
 		if err != nil {
 			log.Errorf("Compose didn't start properly: %s", string(output))
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return store, nil
 }
 
 // Reset the state and trigger a new run
-func doRun(m *testing.M) int {
-	dockerCheck = docker.DockerFactory()
+func doRun(m *testing.M, store workloadmeta.Component) int {
+	factory := docker.Factory(store)
+	checkFactory, _ := factory.Get()
+	dockerCheck = checkFactory()
 
 	// Setup mock sender
 	sender = mocksender.NewMockSender(dockerCheck.ID())

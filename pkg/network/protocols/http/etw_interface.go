@@ -8,14 +8,20 @@
 package http
 
 import (
+	"fmt"
 	"sync"
 	"time"
+	"unsafe"
 
+	"github.com/DataDog/datadog-agent/comp/etw"
+	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
+
+	"golang.org/x/sys/windows"
 )
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type EtwInterface struct {
 	maxEntriesBuffered int
 	DataChannel        chan []WinHttpTransaction
@@ -23,34 +29,72 @@ type EtwInterface struct {
 	captureHTTP        bool
 	captureHTTPS       bool
 	requestSize        int64
+
+	// ETW component
+	httpguid windows.GUID
+	session  etw.Session
 }
 
-func NewEtwInterface(c *config.Config) *EtwInterface {
-	return &EtwInterface{
+// NewEtwInterface returns a new EtwInterface instance
+func NewEtwInterface(c *config.Config) (*EtwInterface, error) {
+	ei := &EtwInterface{
 		maxEntriesBuffered: c.MaxHTTPStatsBuffered,
 		DataChannel:        make(chan []WinHttpTransaction),
 		captureHTTPS:       c.EnableNativeTLSMonitoring,
 		captureHTTP:        c.EnableHTTPMonitoring,
 		requestSize:        c.HTTPMaxRequestFragment,
 	}
+	etwSessionName := "SystemProbeUSM_ETW"
+	etwcomp, err := etwimpl.NewEtw()
+	if err != nil {
+		return nil, err
+	}
+
+	ei.session, err = etwcomp.NewSession(etwSessionName)
+	if err != nil {
+		return nil, err
+	}
+	// Microsoft-Windows-HttpService  {dd5ef90a-6398-47a4-ad34-4dcecdef795f}
+	//     https://github.com/repnz/etw-providers-docs/blob/master/Manifests-Win10-18990/Microsoft-Windows-HttpService.xml
+	ei.httpguid, err = windows.GUIDFromString("{dd5ef90a-6398-47a4-ad34-4dcecdef795f}")
+	if err != nil {
+		return nil, fmt.Errorf("Error creating GUID for HTTPService ETW provider: %v", err)
+	}
+	pidsList := []uint32{0}
+	ei.session.ConfigureProvider(ei.httpguid, func(cfg *etw.ProviderConfiguration) {
+		cfg.TraceLevel = etw.TRACE_LEVEL_INFORMATION
+		cfg.PIDs = pidsList
+		cfg.MatchAnyKeyword = 0x136
+	})
+	err = ei.session.EnableProvider(ei.httpguid)
+	if err != nil {
+		return nil, fmt.Errorf("Error enabling HTTPService ETW provider: %v", err)
+	}
+	return ei, nil
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) SetCapturedProtocols(http, https bool) {
 	hei.captureHTTP = http
 	hei.captureHTTPS = https
 	SetEnabledProtocols(http, https)
 }
+
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) SetMaxFlows(maxFlows uint64) {
 	log.Debugf("Setting max flows in ETW http source to %v", maxFlows)
 	SetMaxFlows(maxFlows)
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) SetMaxRequestBytes(maxRequestBytes uint64) {
 	log.Debugf("Setting max request bytes in ETW http source to to %v", maxRequestBytes)
 	SetMaxRequestBytes(maxRequestBytes)
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) StartReadingHttpFlows() {
+	hei.OnStart()
 	hei.eventLoopWG.Add(2)
 
 	startingEtwChan := make(chan struct{})
@@ -59,16 +103,14 @@ func (hei *EtwInterface) StartReadingHttpFlows() {
 	// because it is blocked until subscription is stopped
 	go func() {
 		defer hei.eventLoopWG.Done()
-
-		// By default this function call never exits and its callbacks or rather events
-		// will be returned on the very the same thread until ETW is canceled via
-		// etw.StopEtw(). There is asynchronous flag which implicitly will create a real
-		// (Windows API) thread but it is not tested yet.
-		log.Infof("Starting ETW HttpService subscription")
-
 		startingEtwChan <- struct{}{}
-
-		err := etw.StartEtw("ddnpm-httpservice", etw.EtwProviderHTTPService, hei)
+		err := hei.session.StartTracing(func(e *etw.DDEventRecord) {
+			// By default this function call never exits and its callbacks or rather events
+			// will be returned on the very the same thread until ETW is canceled via
+			// etw.StopEtw(). There is asynchronous flag which implicitly will create a real
+			// (Windows API) thread but it is not tested yet.
+			hei.OnEvent(e)
+		})
 
 		if err == nil {
 			log.Infof("ETW HttpService subscription completed")
@@ -114,9 +156,36 @@ func (hei *EtwInterface) StartReadingHttpFlows() {
 	}()
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) Close() {
-	etw.StopEtw("ddnpm-httpservice")
-
-	hei.eventLoopWG.Wait()
+	hei.OnStop()
+	if hei.session != nil {
+		_ = hei.session.StopTracing()
+		hei.eventLoopWG.Wait()
+	}
 	close(hei.DataChannel)
+}
+
+func getRelatedActivityID(e *etw.DDEventRecord) *etw.DDGUID {
+
+	if e.ExtendedDataCount == 0 || e.ExtendedData == nil {
+		return nil
+	}
+	exDatas := unsafe.Slice(e.ExtendedData, e.ExtendedDataCount)
+	for _, exData := range exDatas {
+		var g etw.DDGUID
+		if exData.ExtType == etw.EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID && exData.DataSize == uint16(unsafe.Sizeof(g)) {
+			activityID := (*etw.DDGUID)(unsafe.Pointer(exData.DataPtr))
+			return activityID
+		}
+	}
+	return nil
+}
+
+// FormatGUID converts a guid structure to a go string
+func FormatGUID(guid etw.DDGUID) string {
+	return fmt.Sprintf("{%08X-%04X-%04X-%02X%02X%02X%02X%02X%02X%02X%02X}",
+		guid.Data1, guid.Data2, guid.Data3,
+		guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3],
+		guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7])
 }

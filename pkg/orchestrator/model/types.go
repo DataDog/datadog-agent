@@ -17,7 +17,7 @@ import (
 type NodeType int
 
 // CheckName is the cluster check name of the orchestrator check
-var CheckName = "orchestrator"
+const CheckName = "orchestrator"
 
 // ExtraLogContext is used to add check name into log context
 var ExtraLogContext = []interface{}{"check", CheckName}
@@ -25,56 +25,62 @@ var ExtraLogContext = []interface{}{"check", CheckName}
 // NoExpiration maps to go-cache corresponding value
 const NoExpiration = cache.NoExpiration
 
-// The order of this list should be consistent with https://github.com/DataDog/agent-payload/blob/master/proto/process/agent.proto#L647-L673
+// The values in these enfms should match the values defined in the agent payload schema, defined here:
+// https://github.com/DataDog/agent-payload/blob/master/proto/process/agent.proto (within enum K8sResource)
+// we do not utilize iota as these types are used in external systems, not just within the agent instance.
 const (
 	// K8sUnsetType represents a Kubernetes unset type
-	K8sUnsetType NodeType = iota
+	K8sUnsetType NodeType = 0
 	// K8sPod represents a Kubernetes Pod
-	K8sPod
+	K8sPod = 1
 	// K8sReplicaSet represents a Kubernetes ReplicaSet
-	K8sReplicaSet
+	K8sReplicaSet = 2
 	// K8sService represents a Kubernetes Service
-	K8sService
+	K8sService = 3
 	// K8sNode represents a Kubernetes Node
-	K8sNode
+	K8sNode = 4
 	// K8sCluster represents a Kubernetes Cluster
-	K8sCluster
+	K8sCluster = 5
 	// K8sJob represents a Kubernetes Job
-	K8sJob
+	K8sJob = 6
 	// K8sCronJob represents a Kubernetes CronJob
-	K8sCronJob
+	K8sCronJob = 7
 	// K8sDaemonSet represents a Kubernetes DaemonSet
-	K8sDaemonSet
+	K8sDaemonSet = 8
 	// K8sStatefulSet represents a Kubernetes StatefulSet
-	K8sStatefulSet
+	K8sStatefulSet = 9
 	// K8sPersistentVolume represents a Kubernetes PersistentVolume
-	K8sPersistentVolume
+	K8sPersistentVolume = 10
 	// K8sPersistentVolumeClaim represents a Kubernetes PersistentVolumeClaim
-	K8sPersistentVolumeClaim
+	K8sPersistentVolumeClaim = 11
 	// K8sRole represents a Kubernetes Role
-	K8sRole
+	K8sRole = 12
 	// K8sRoleBinding represents a Kubernetes RoleBinding
-	K8sRoleBinding
+	K8sRoleBinding = 13
 	// K8sClusterRole represents a Kubernetes ClusterRole
-	K8sClusterRole
+	K8sClusterRole = 14
 	// K8sClusterRoleBinding represents a Kubernetes ClusterRoleBinding
-	K8sClusterRoleBinding
+	K8sClusterRoleBinding = 15
 	// K8sServiceAccount represents a Kubernetes ServiceAccount
-	K8sServiceAccount
+	K8sServiceAccount = 16
 	// K8sIngress represents a Kubernetes Ingress
-	K8sIngress
+	K8sIngress = 17
 	// K8sDeployment represents a Kubernetes Deployment
-	K8sDeployment
+	K8sDeployment = 18
 	// K8sNamespace represents a Kubernetes Namespace
-	K8sNamespace
+	K8sNamespace = 19
 	// K8sCRD represents a Kubernetes CRD
-	K8sCRD
+	K8sCRD = 20
 	// K8sCR represents a Kubernetes CR
-	K8sCR
+	K8sCR = 21
 	// K8sVerticalPodAutoscaler represents a Kubernetes VerticalPod Autoscaler
-	K8sVerticalPodAutoscaler
+	K8sVerticalPodAutoscaler = 22
 	// K8sHorizontalPodAutoscaler represents a Kubernetes Horizontal Pod Autoscaler
-	K8sHorizontalPodAutoscaler
+	K8sHorizontalPodAutoscaler = 23
+	// K8sNetworkPolicy represents a Kubernetes NetworkPolicy
+	K8sNetworkPolicy = 24
+	// ECSTask represents an ECS Task
+	ECSTask = 150
 )
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
@@ -103,6 +109,8 @@ func NodeTypes() []NodeType {
 		K8sCRD,
 		K8sVerticalPodAutoscaler,
 		K8sHorizontalPodAutoscaler,
+		K8sNetworkPolicy,
+		ECSTask,
 	}
 }
 
@@ -154,8 +162,12 @@ func (n NodeType) String() string {
 		return "VerticalPodAutoscaler"
 	case K8sHorizontalPodAutoscaler:
 		return "HorizontalPodAutoscaler"
+	case K8sNetworkPolicy:
+		return "NetworkPolicy"
 	case K8sUnsetType:
 		return "UnsetType"
+	case ECSTask:
+		return "ECSTask"
 	default:
 		_ = log.Errorf("Trying to convert unknown NodeType iota: %d", n)
 		return "Unknown"
@@ -188,8 +200,11 @@ func (n NodeType) Orchestrator() string {
 		K8sNamespace,
 		K8sVerticalPodAutoscaler,
 		K8sHorizontalPodAutoscaler,
+		K8sNetworkPolicy,
 		K8sUnsetType:
 		return "k8s"
+	case ECSTask:
+		return "ecs"
 	default:
 		log.Errorf("Unknown NodeType %v", n)
 		return ""

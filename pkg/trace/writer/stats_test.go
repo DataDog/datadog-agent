@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
@@ -110,22 +112,24 @@ func TestStatsWriter(t *testing.T) {
 			AgentHostname: "agenthost",
 			AgentEnv:      "agentenv",
 			AgentVersion:  "agent-version",
-			Stats: []*pb.ClientStatsPayload{{
-				Hostname:         testHostname,
-				Env:              testEnv,
-				Version:          "version",
-				Lang:             "lang",
-				TracerVersion:    "tracer-version",
-				RuntimeID:        "runtime-id",
-				Sequence:         34,
-				AgentAggregation: "aggregation",
-				Service:          "service",
-				ContainerID:      "container-id",
-				Stats: []*pb.ClientStatsBucket{
-					testutil.RandomBucket(5),
-					testutil.RandomBucket(5),
-					testutil.RandomBucket(5),
-				}},
+			Stats: []*pb.ClientStatsPayload{
+				{
+					Hostname:         testHostname,
+					Env:              testEnv,
+					Version:          "version",
+					Lang:             "lang",
+					TracerVersion:    "tracer-version",
+					RuntimeID:        "runtime-id",
+					Sequence:         34,
+					AgentAggregation: "aggregation",
+					Service:          "service",
+					ContainerID:      "container-id",
+					Stats: []*pb.ClientStatsBucket{
+						testutil.RandomBucket(5),
+						testutil.RandomBucket(5),
+						testutil.RandomBucket(5),
+					},
+				},
 			},
 		}
 
@@ -196,6 +200,39 @@ func TestStatsWriter(t *testing.T) {
 		assert.Equal(5, len(s[0].Stats[1].Stats))
 		assert.Equal(5, len(s[0].Stats[2].Stats))
 	})
+
+	t.Run("container-tags", func(t *testing.T) {
+		assert := assert.New(t)
+		sw, _, _ := testStatsWriter()
+		stats := &pb.StatsPayload{
+			AgentHostname: "agenthost",
+			AgentEnv:      "agentenv",
+			AgentVersion:  "agent-version",
+			Stats: []*pb.ClientStatsPayload{
+				{
+					Hostname:         testHostname,
+					Env:              testEnv,
+					Version:          "version",
+					Lang:             "lang",
+					TracerVersion:    "tracer-version",
+					RuntimeID:        "runtime-id",
+					Sequence:         34,
+					AgentAggregation: "aggregation",
+					Service:          "service",
+					ContainerID:      "container-id",
+					Tags:             []string{"tag1", "tag2"},
+					Stats: []*pb.ClientStatsBucket{
+						testutil.RandomBucket(5),
+					},
+				},
+			},
+		}
+
+		payloads := sw.buildPayloads(stats, 12)
+		assert.Equal(1, len(payloads))
+		assert.Equal("container-id", payloads[0].Stats[0].ContainerID)
+		assert.Equal([]string{"tag1", "tag2"}, payloads[0].Stats[0].Tags)
+	})
 }
 
 func TestStatsResetBuffer(t *testing.T) {
@@ -237,7 +274,8 @@ func TestStatsSyncWriter(t *testing.T) {
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 					},
-				}}},
+				}},
+			},
 			{
 				Stats: []*pb.ClientStatsPayload{{
 					Hostname: testHostname,
@@ -247,7 +285,8 @@ func TestStatsSyncWriter(t *testing.T) {
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 					},
-				}}},
+				}},
+			},
 		}
 		statsChannel <- testSets[0]
 		statsChannel <- testSets[1]
@@ -271,7 +310,8 @@ func TestStatsSyncWriter(t *testing.T) {
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 					},
-				}}},
+				}},
+			},
 			{
 				Stats: []*pb.ClientStatsPayload{{
 					Hostname: testHostname,
@@ -281,7 +321,8 @@ func TestStatsSyncWriter(t *testing.T) {
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 					},
-				}}},
+				}},
+			},
 		}
 		statsChannel <- testSets[0]
 		statsChannel <- testSets[1]
@@ -300,7 +341,7 @@ func testStatsWriter() (*StatsWriter, chan *pb.StatsPayload, *testServer) {
 		StatsWriter:   &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 		ContainerTags: func(cid string) ([]string, error) { return nil, nil },
 	}
-	return NewStatsWriter(cfg, in, telemetry.NewNoopCollector()), in, srv
+	return NewStatsWriter(cfg, in, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}), in, srv
 }
 
 func testStatsSyncWriter() (*StatsWriter, chan *pb.StatsPayload, *testServer) {
@@ -313,7 +354,7 @@ func testStatsSyncWriter() (*StatsWriter, chan *pb.StatsPayload, *testServer) {
 		StatsWriter:         &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 		SynchronousFlushing: true,
 	}
-	return NewStatsWriter(cfg, in, telemetry.NewNoopCollector()), in, srv
+	return NewStatsWriter(cfg, in, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}), in, srv
 }
 
 type key struct {

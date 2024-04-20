@@ -11,79 +11,45 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
-	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // GetWorkloadmetaInit provides the InitHelper for workloadmeta so it can be injected as a Param
 // at workloadmeta comp fx injection.
 func GetWorkloadmetaInit() workloadmeta.InitHelper {
 	return workloadmeta.InitHelper(func(ctx context.Context, wm workloadmeta.Component) error {
-		var t tagger.Tagger
-		var e error
-		if config.IsCLCRunner() {
-			options, err := remote.CLCRunnerOptions()
-			if err != nil {
-				e = fmt.Errorf("unable to configure the remote tagger: %s", err)
-				t = local.NewFakeTagger()
-			} else if options.Disabled {
-				// TODO(components): log the remote tagger being disabled.
-				// wm.log.Info("remote tagger is disabled")
-				t = local.NewFakeTagger()
-			} else {
-				t = remote.NewTagger(options)
-			}
-		} else {
-			t = local.NewTagger(wm)
-		}
-
 		// SBOM scanner needs to be called here as initialization is required prior to the
 		// catalog getting instantiated and initialized.
-		sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
+		sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog, optional.NewOption(wm))
 		if err != nil {
-			log.Errorf("failed to create SBOM scanner: %s", err)
+			return fmt.Errorf("failed to create SBOM scanner: %s", err)
 		} else if sbomScanner != nil {
 			sbomScanner.Start(ctx)
 		}
 
-		tagger.SetDefaultTagger(t)
-		if err := tagger.Init(ctx); err != nil {
-			e = fmt.Errorf("failed to start the tagger: %s", err)
-		}
-
-		return e
+		return nil
 	})
 }
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(senderManager sender.SenderManager, secretResolver secrets.Component, confdPath string) {
-
+func LoadComponents(_ secrets.Component, wmeta workloadmeta.Component, ac autodiscovery.Component, confdPath string) {
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(path.GetDistPath(), "conf.d"),
 		"",
 	}
 
-	// setup autodiscovery. must be done after the tagger is initialized.
-
-	// TODO(components): revise this pattern.
-	// Currently the workloadmeta init hook will initialize the tagger.
-	// No big concern here, but be sure to understand there is an implicit
-	// assumption about the initializtion of the tagger prior to being here.
-	// because of subscription to metadata store.
-	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler(), secretResolver)
-
-	// create the Collector instance and start all the components
-	// NOTICE: this will also setup the Python environment, if available
-	Coll = collector.NewCollector(senderManager, GetPythonPaths()...)
+	// TODO: (components) - This is a temporary fix to start the autodiscovery component in CLI mode (agent flare and diagnose in forcelocal checks)
+	// because the autodiscovery component is not started by the agent automatically. Probably we can start it inside
+	// fx lifecycle and remove this call.
+	if !ac.IsStarted() {
+		ac.Start()
+	}
+	setupAutoDiscovery(confSearchPaths, wmeta, ac)
 }

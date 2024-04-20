@@ -17,20 +17,62 @@ import (
 
 // MetricsProvider can be used to create tests
 type MetricsProvider struct {
-	collectors    map[provider.Runtime]provider.Collector
+	collectors    map[provider.RuntimeMetadata]provider.Collector
 	metaCollector provider.MetaCollector
+}
+
+// MetaCollector is a mocked provider.MetaCollector
+type MetaCollector struct {
+	ContainerID           string
+	CIDFromPID            map[int]string
+	CIDFromInode          map[uint64]string
+	CIDFromPodUIDContName map[string]string
+}
+
+// GetSelfContainerID returns the container ID for current container.
+func (mc *MetaCollector) GetSelfContainerID() (string, error) {
+	return mc.ContainerID, nil
+}
+
+// GetContainerIDForPID returns a container ID for given PID.
+func (mc *MetaCollector) GetContainerIDForPID(pid int, _ time.Duration) (string, error) {
+	if val, found := mc.CIDFromPID[pid]; found {
+		return val, nil
+	}
+	return "", nil
+}
+
+// GetContainerIDForInode returns a container ID for the given inode.
+func (mc *MetaCollector) GetContainerIDForInode(inode uint64, _ time.Duration) (string, error) {
+	if val, found := mc.CIDFromInode[inode]; found {
+		return val, nil
+	}
+	return "", nil
+}
+
+// ContainerIDForPodUIDAndContName returns a container ID for the given pod uid and container name.
+func (mc *MetaCollector) ContainerIDForPodUIDAndContName(podUID, contName string, initCont bool, _ time.Duration) (string, error) {
+	initPrefix := ""
+	if initCont {
+		initPrefix = "i-"
+	}
+	cacheKey := initPrefix + podUID + "/" + contName
+	if val, found := mc.CIDFromPodUIDContName[cacheKey]; found {
+		return val, nil
+	}
+	return "", nil
 }
 
 // NewMetricsProvider creates a mock provider
 func NewMetricsProvider() *MetricsProvider {
 	return &MetricsProvider{
-		collectors: make(map[provider.Runtime]provider.Collector),
+		collectors: make(map[provider.RuntimeMetadata]provider.Collector),
 	}
 }
 
 // GetCollector emulates the MetricsProvider interface
-func (mp *MetricsProvider) GetCollector(runtime string) provider.Collector {
-	return mp.collectors[provider.Runtime(runtime)]
+func (mp *MetricsProvider) GetCollector(r provider.RuntimeMetadata) provider.Collector {
+	return mp.collectors[r]
 }
 
 // GetMetaCollector returns the registered MetaCollector
@@ -43,7 +85,7 @@ func (mp *MetricsProvider) RegisterCollector(provider.CollectorFactory) {
 }
 
 // RegisterConcreteCollector registers a collector
-func (mp *MetricsProvider) RegisterConcreteCollector(runtime provider.Runtime, c provider.Collector) {
+func (mp *MetricsProvider) RegisterConcreteCollector(runtime provider.RuntimeMetadata, c provider.Collector) {
 	mp.collectors[runtime] = c
 }
 
@@ -53,13 +95,13 @@ func (mp *MetricsProvider) RegisterMetaCollector(c provider.MetaCollector) {
 }
 
 // RemoveCollector removes a collector
-func (mp *MetricsProvider) RemoveCollector(runtime provider.Runtime) {
+func (mp *MetricsProvider) RemoveCollector(runtime provider.RuntimeMetadata) {
 	delete(mp.collectors, runtime)
 }
 
 // Clear removes all collectors
 func (mp *MetricsProvider) Clear() {
-	mp.collectors = make(map[provider.Runtime]provider.Collector)
+	mp.collectors = make(map[provider.RuntimeMetadata]provider.Collector)
 }
 
 // ContainerEntry allows to customize mock responses

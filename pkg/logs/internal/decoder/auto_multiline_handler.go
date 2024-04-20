@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package decoder
 
 import (
@@ -14,9 +15,9 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -68,6 +69,7 @@ type AutoMultilineHandler struct {
 	detectedPattern     *DetectedPattern
 	clk                 clock.Clock
 	autoMultiLineStatus *status.MappedInfo
+	tailerInfo          *status.InfoRegistry
 }
 
 // NewAutoMultilineHandler returns a new AutoMultilineHandler.
@@ -107,6 +109,7 @@ func NewAutoMultilineHandler(
 		detectedPattern:     detectedPattern,
 		clk:                 clock.New(),
 		autoMultiLineStatus: status.NewMappedInfo("Auto Multi-line"),
+		tailerInfo:          tailerInfo,
 	}
 
 	h.singleLineHandler = NewSingleLineHandler(outputFn, lineLimit)
@@ -204,7 +207,7 @@ func (h *AutoMultilineHandler) switchToMultilineHandler(r *regexp.Regexp) {
 	h.singleLineHandler = nil
 
 	// Build and start a multiline-handler
-	h.multiLineHandler = NewMultiLineHandler(h.outputFn, r, h.flushTimeout, h.lineLimit, true)
+	h.multiLineHandler = NewMultiLineHandler(h.outputFn, r, h.flushTimeout, h.lineLimit, true, h.tailerInfo)
 	h.source.RegisterInfo(h.multiLineHandler.countInfo)
 	h.source.RegisterInfo(h.multiLineHandler.linesCombinedInfo)
 	// stay with the multiline handler
@@ -241,4 +244,6 @@ var formatsToTry = []*regexp.Regexp{
 	regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`),
 	// 2021-01-31 - with stricter matching around the months/days
 	regexp.MustCompile(`^\d{4}-(1[012]|0?[1-9])-([12][0-9]|3[01]|0?[1-9])`),
+	// 2023/02/20 14:33:24
+	regexp.MustCompile(`^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}`),
 }

@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package status
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -19,11 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	compStatus "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/process"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
-	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -76,8 +77,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runStatus,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-				core.Bundle,
-				process.Bundle,
+				fx.Supply(
+					compStatus.Params{
+						PythonVersionGetFunc: python.GetPythonVersion,
+					},
+				),
+				core.Bundle(),
+				process.Bundle(),
 			)
 		},
 	}
@@ -93,7 +99,7 @@ func writeNotRunning(log log.Component, w io.Writer) {
 }
 
 func writeError(log log.Component, w io.Writer, e error) {
-	tpl, err := template.New("").Funcs(render.Textfmap()).Parse(errorMessage)
+	tpl, err := template.New("").Funcs(compStatus.TextFmap()).Parse(errorMessage)
 	if err != nil {
 		_ = log.Error(err)
 	}
@@ -114,48 +120,14 @@ func fetchStatus(statusURL string) ([]byte, error) {
 }
 
 // getAndWriteStatus calls the status server and writes it to `w`
-func getAndWriteStatus(log log.Component, statusURL string, w io.Writer, options ...status.StatusOption) {
+func getAndWriteStatus(log log.Component, statusURL string, w io.Writer) {
 	body, err := fetchStatus(statusURL)
 	if err != nil {
-		switch err.(type) {
-		case status.ConnectionError:
-			writeNotRunning(log, w)
-		default:
-			writeError(log, w, err)
-		}
+		writeNotRunning(log, w)
 		return
 	}
 
-	// If options to override the status are provided, we need to deserialize and serialize it again
-	if len(options) > 0 {
-		var s status.Status
-		err = json.Unmarshal(body, &s)
-		if err != nil {
-			writeError(log, w, err)
-			return
-		}
-
-		for _, option := range options {
-			option(&s)
-		}
-
-		status := map[string]interface{}{}
-		status["processAgentStatus"] = s
-
-		body, err = json.Marshal(status)
-		if err != nil {
-			writeError(log, w, err)
-			return
-		}
-	}
-
-	stats, err := render.FormatProcessAgentStatus(body)
-	if err != nil {
-		writeError(log, w, err)
-		return
-	}
-
-	_, err = w.Write([]byte(stats))
+	_, err = w.Write([]byte(body))
 	if err != nil {
 		_ = log.Error(err)
 	}

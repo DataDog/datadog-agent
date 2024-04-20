@@ -18,8 +18,9 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
@@ -28,11 +29,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 const (
-	containerdCheckName = "containerd"
+	// CheckName is the name of the check
+	CheckName           = "containerd"
 	pullImageGrpcMethod = "PullImage"
 	cacheValidity       = 2 * time.Second
 )
@@ -48,6 +51,7 @@ type ContainerdCheck struct {
 	containerFilter *containers.Filter
 	client          cutil.ContainerdItf
 	httpClient      http.Client
+	store           workloadmeta.Component
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
@@ -57,16 +61,15 @@ type ContainerdConfig struct {
 	OpenmetricsEndpoint string   `yaml:"openmetrics_endpoint"`
 }
 
-func init() {
-	corechecks.RegisterCheck(containerdCheckName, ContainerdFactory)
-}
-
-// ContainerdFactory is used to create register the check and initialize it.
-func ContainerdFactory() check.Check {
-	return &ContainerdCheck{
-		CheckBase: corechecks.NewCheckBase(containerdCheckName),
-		instance:  &ContainerdConfig{},
-	}
+// Factory is used to create register the check and initialize it.
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return &ContainerdCheck{
+			CheckBase: corechecks.NewCheckBase(CheckName),
+			instance:  &ContainerdConfig{},
+			store:     store,
+		}
+	})
 }
 
 // Parse is used to get the configuration set by the user
@@ -96,7 +99,7 @@ func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, integrat
 	}
 
 	c.httpClient = http.Client{Timeout: time.Duration(1) * time.Second}
-	c.processor = generic.NewProcessor(metrics.GetProvider(), generic.MetadataContainerAccessor{}, metricsAdapter{}, getProcessorFilter(c.containerFilter))
+	c.processor = generic.NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(c.containerFilter, c.store))
 	c.processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
 	c.subscriber = createEventSubscriber("ContainerdCheck", c.client, cutil.FiltersWithNamespaces(c.instance.ContainerdFilters))
 

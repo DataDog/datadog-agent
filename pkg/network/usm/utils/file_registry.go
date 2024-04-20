@@ -62,13 +62,15 @@ type FilePath struct {
 	PID      uint32
 }
 
+// NewFilePath creates a new `FilePath` instance from a given `namespacedPath`
 func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) {
+	base := "root"
 	// Use cwd of the process as root if the namespacedPath is relative
 	if namespacedPath[0] != '/' {
-		namespacedPath = "/cwd" + namespacedPath
+		base = "cwd/"
 	}
 
-	path := fmt.Sprintf("%s/%d/root%s", procRoot, pid, namespacedPath)
+	path := fmt.Sprintf("%s/%d/%s%s", procRoot, pid, base, namespacedPath)
 	pathID, err := NewPathIdentifier(path)
 	if err != nil {
 		return FilePath{}, err
@@ -79,6 +81,7 @@ func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) 
 
 type callback func(FilePath) error
 
+// NewFileRegistry creates a new `FileRegistry` instance
 func NewFileRegistry(programName string) *FileRegistry {
 	blocklistByID, err := simplelru.NewLRU[PathIdentifier, struct{}](2000, nil)
 	if err != nil {
@@ -176,7 +179,6 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	r.telemetry.totalFiles.Set(int64(len(r.byID)))
 	r.telemetry.totalPIDs.Set(int64(len(r.byPID)))
 	log.Debugf("registering file %s path %s by pid %d", pathID.String(), path.HostPath, pid)
-	return
 }
 
 // Unregister a PID if it exists

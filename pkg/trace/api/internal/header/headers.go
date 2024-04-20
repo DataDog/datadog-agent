@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// package header defines HTTP headers known convention used by the Trace Agent and Datadog's APM intake.
+// Package header defines HTTP headers known convention used by the Trace Agent and Datadog's APM intake.
 package header
 
 const (
@@ -14,6 +14,12 @@ const (
 	// ContainerID specifies the name of the header which contains the ID of the
 	// container where the request originated.
 	ContainerID = "Datadog-Container-ID"
+
+	// EntityID specifies the name of the header which contains entityID of the
+	// sender of the payload. This entityID can either be "cid-<container-id>", or
+	// "in-<cgroupv2-inode>" and is used to retrieve the container-id. It could be
+	// extended to support other entities such as the pid.
+	EntityID = "Datadog-Entity-ID"
 
 	// Lang specifies the name of the header which contains the language from
 	// which the traces originate.
@@ -55,7 +61,7 @@ const (
 	// If both agent and client have the same version, the agent won't return rates in API response.
 	RatesPayloadVersion = "Datadog-Rates-Payload-Version"
 
-	// SendTrueHTTPStatus can be sent by the client to signal to the agent that
+	// SendRealHTTPStatus can be sent by the client to signal to the agent that
 	// it wants to receive the "real" status in the response. By default, the agent
 	// will send a 200 OK response for every payload, even those dropped due to
 	// intake limits.

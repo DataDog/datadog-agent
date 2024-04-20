@@ -6,10 +6,11 @@
 package logs
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
+
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -206,6 +207,7 @@ func (l *LambdaLogAPIMessage) handlePlatformReport(objectRecord map[string]inter
 	log.Debugf("Enhanced metrics: %+v\n", l.objectRecord.reportLogItem)
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (l *LambdaLogAPIMessage) handlePlatformInitStart(objectRecord map[string]interface{}) {
 	l.objectRecord.reportLogItem.initStartTime = l.time
 }

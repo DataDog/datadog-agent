@@ -8,6 +8,7 @@ package selftests
 
 import (
 	json "encoding/json"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -22,6 +23,9 @@ const (
 	policyName    = "datadog-agent-cws-self-test-policy" //nolint: deadcode, unused
 	ruleIDPrefix  = "datadog_agent_cws_self_test_rule"   //nolint: deadcode, unused
 
+	// DefaultTimeout default timeout
+	DefaultTimeout = 30 * time.Second
+
 	// PolicyProviderType name of the self test policy provider
 	PolicyProviderType = "selfTesterPolicyProvider"
 )
@@ -29,26 +33,26 @@ const (
 // SelfTestEvent is used to report a self test result
 type SelfTestEvent struct {
 	events.CustomEventCommonFields
-	Success    []string                                `json:"succeeded_tests"`
-	Fails      []string                                `json:"failed_tests"`
-	TestEvents map[string]*serializers.EventSerializer `json:"test_events"`
+	Success    []eval.RuleID                                `json:"succeeded_tests"`
+	Fails      []eval.RuleID                                `json:"failed_tests"`
+	TestEvents map[eval.RuleID]*serializers.EventSerializer `json:"test_events"`
 }
 
 // ToJSON marshal using json format
 func (t SelfTestEvent) ToJSON() ([]byte, error) {
 	// cleanup the serialization of potentially nil slices
 	if t.Success == nil {
-		t.Success = []string{}
+		t.Success = []eval.RuleID{}
 	}
 	if t.Fails == nil {
-		t.Fails = []string{}
+		t.Fails = []eval.RuleID{}
 	}
 
 	return json.Marshal(t)
 }
 
 // NewSelfTestEvent returns the rule and the result of the self test
-func NewSelfTestEvent(success []string, fails []string, testEvents map[string]*serializers.EventSerializer) (*rules.Rule, *events.CustomEvent) {
+func NewSelfTestEvent(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) (*rules.Rule, *events.CustomEvent) {
 	evt := SelfTestEvent{
 		Success:    success,
 		Fails:      fails,
@@ -61,7 +65,7 @@ func NewSelfTestEvent(success []string, fails []string, testEvents map[string]*s
 }
 
 // SetOnNewPoliciesReadyCb implements the PolicyProvider interface
-func (t *SelfTester) SetOnNewPoliciesReadyCb(cb func()) { //nolint:revive // TODO fix revive unused-parameter
+func (t *SelfTester) SetOnNewPoliciesReadyCb(_ func()) {
 }
 
 // Type return the type of this policy provider
@@ -76,5 +80,5 @@ func (t *SelfTester) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 }
 
 // EventDiscarderFound implement the rule engine interface
-func (t *SelfTester) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) { //nolint:revive // TODO fix revive unused-parameter
+func (t *SelfTester) EventDiscarderFound(_ *rules.RuleSet, _ eval.Event, _ eval.Field, _ eval.EventType) {
 }

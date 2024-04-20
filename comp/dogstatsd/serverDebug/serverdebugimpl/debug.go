@@ -23,6 +23,7 @@ import (
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -32,9 +33,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newServerDebug),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newServerDebug))
+}
 
 type dependencies struct {
 	fx.In
@@ -72,7 +74,7 @@ type serverDebugImpl struct {
 
 // NewServerlessServerDebug creates a new instance of serverDebug.Component
 func NewServerlessServerDebug() serverdebug.Component {
-	return newServerDebugCompat(logComponent.NewTemporaryLoggerWithoutInit(), config.Datadog)
+	return newServerDebugCompat(logComponentImpl.NewTemporaryLoggerWithoutInit(), config.Datadog)
 }
 
 // newServerDebug creates a new instance of a ServerDebug

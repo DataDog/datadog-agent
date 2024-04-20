@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -36,7 +37,7 @@ func testProc(pid int32, cmdline []string) *procutil.Process {
 }
 
 func TestExtractor(t *testing.T) {
-	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
+	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 
 	extractor := NewWorkloadMetaExtractor(config.Mock(t))
 
@@ -49,7 +50,9 @@ func TestExtractor(t *testing.T) {
 
 	// Silly test container id's for fun, doesn't matter what they are they just have to be unique.
 	var (
+		//nolint:revive // TODO(PROC) Fix revive linter
 		ctrId1 = "containers-are-awesome"
+		//nolint:revive // TODO(PROC) Fix revive linter
 		ctrId2 = "we-all-live-in-a-yellow-container"
 	)
 	extractor.SetLastPidToCid(map[int]string{
@@ -270,7 +273,7 @@ func BenchmarkHashProcess(b *testing.B) {
 // asserts that the extractor is able to properly handle updating a ContainerID from "" to a valid cid, and
 // will re-generate the EventSet for that process once the pidToCid mapping is up-to-date.
 func TestLateContainerId(t *testing.T) {
-	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
+	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 
 	extractor := NewWorkloadMetaExtractor(config.Mock(t))
 
@@ -296,6 +299,7 @@ func TestLateContainerId(t *testing.T) {
 	}, <-extractor.ProcessCacheDiff())
 
 	var (
+		//nolint:revive // TODO(PROC) Fix revive linter
 		ctrId1 = "containers-are-awesome"
 	)
 	extractor.SetLastPidToCid(map[int]string{

@@ -45,6 +45,8 @@ func NewLauncher() *Launcher {
 }
 
 // Start starts the launcher.
+//
+//nolint:revive // TODO(WINA) Fix revive linter
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
 	l.sources = sourceProvider.GetAddedForType(config.WindowsEventType)

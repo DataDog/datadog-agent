@@ -20,6 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+
+	//nolint:revive // TODO(CINT) Fix revive linter
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,16 +39,15 @@ const (
 func init() {
 	provider.RegisterCollector(provider.CollectorFactory{
 		ID: collectorID,
-		Constructor: func(cache *provider.Cache) (provider.CollectorMetadata, error) {
+		Constructor: func(cache *provider.Cache, _ optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 			return newContainerdCollector(cache)
 		},
 	})
 }
 
 type containerdCollector struct {
-	client            cutil.ContainerdItf
-	workloadmetaStore workloadmeta.Component
-	pidCache          *provider.Cache
+	client   cutil.ContainerdItf
+	pidCache *provider.Cache
 }
 
 func newContainerdCollector(cache *provider.Cache) (provider.CollectorMetadata, error) {
@@ -61,10 +63,8 @@ func newContainerdCollector(cache *provider.Cache) (provider.CollectorMetadata, 
 	}
 
 	collector := &containerdCollector{
-		client: client,
-		// TODO(components): remove use of glbal, rely on injected component instead
-		workloadmetaStore: workloadmeta.GetGlobalStore(),
-		pidCache:          provider.NewCache(pidCacheGCInterval),
+		client:   client,
+		pidCache: provider.NewCache(pidCacheGCInterval),
 	}
 
 	collectors := &provider.Collectors{
@@ -74,10 +74,15 @@ func newContainerdCollector(cache *provider.Cache) (provider.CollectorMetadata, 
 		ContainerIDForPID: provider.MakeRef[provider.ContainerIDForPIDRetriever](collector, collectorPriority),
 	}
 
+	kataCollectors := &provider.Collectors{
+		Stats: provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
+	}
+
 	return provider.CollectorMetadata{
 		ID: collectorID,
 		Collectors: provider.CollectorCatalog{
-			provider.RuntimeNameContainerd: provider.MakeCached(collectorID, cache, collectors),
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), ""):                                 provider.MakeCached(collectorID, cache, collectors),
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), string(provider.RuntimeFlavorKata)): provider.MakeCached(collectorID, cache, kataCollectors),
 		},
 	}, nil
 }

@@ -14,8 +14,9 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/richardartoul/molecule"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -108,7 +109,7 @@ func describeItem(serie *metrics.Serie) string {
 // MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
 // If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
-func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext) (transaction.BytesPayloads, error) {
+func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component) (transaction.BytesPayloads, error) {
 	var err error
 	var compressor *stream.Compressor
 	buf := bufferContext.PrecompressionBuf
@@ -122,9 +123,9 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 	// the backend accepts payloads up to specific compressed / uncompressed
 	// sizes, but prefers small uncompressed payloads.  For series, there is
 	// also a maximum number of points.
-	maxPayloadSize := config.Datadog.GetInt("serializer_max_series_payload_size")
-	maxUncompressedSize := config.Datadog.GetInt("serializer_max_series_uncompressed_payload_size")
-	maxPointsPerPayload := config.Datadog.GetInt("serializer_max_series_points_per_payload")
+	maxPayloadSize := config.GetInt("serializer_max_series_payload_size")
+	maxUncompressedSize := config.GetInt("serializer_max_series_uncompressed_payload_size")
+	maxPointsPerPayload := config.GetInt("serializer_max_series_points_per_payload")
 
 	// constants for the protobuf data we will be writing, taken from MetricPayload in
 	// https://github.com/DataDog/agent-payload/blob/master/proto/metrics/agent_payload.proto
@@ -177,7 +178,7 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 		compressor, err = stream.NewCompressor(
 			bufferContext.CompressorInput, bufferContext.CompressorOutput,
 			maxPayloadSize, maxUncompressedSize,
-			[]byte{}, []byte{}, []byte{})
+			[]byte{}, []byte{}, []byte{}, strategy)
 		if err != nil {
 			return err
 		}
@@ -344,11 +345,11 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 					if err != nil {
 						return err
 					}
-					err = ps.Int32(serieMetadataOriginOriginCategory, MetricSourceToOriginCategory(serie.Source))
+					err = ps.Int32(serieMetadataOriginOriginCategory, metricSourceToOriginCategory(serie.Source))
 					if err != nil {
 						return err
 					}
-					return ps.Int32(serieMetadataOriginOriginService, MetricSourceToOriginService(serie.Source))
+					return ps.Int32(serieMetadataOriginOriginService, metricSourceToOriginService(serie.Source))
 				})
 			})
 			if err != nil {

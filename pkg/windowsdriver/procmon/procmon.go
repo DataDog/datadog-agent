@@ -5,31 +5,42 @@
 
 //go:build windows
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 package procmon
 
 import (
+	"fmt"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/driver"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/olreader"
 )
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type ProcessStartNotification struct {
-	Pid       uint64
-	PPid      uint64
-	ImageFile string
-	CmdLine   string
+	Pid               uint64
+	PPid              uint64
+	CreatingProcessId uint64
+	CreatingThreadId  uint64
+	OwnerSidString    string
+	ImageFile         string
+	CmdLine           string
+	// if this is nonzero, functions as notification to
+	// the probe that the buffer size isn't large enough
+	RequiredSize uint32
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type ProcessStopNotification struct {
 	Pid uint64
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type WinProcmon struct {
 	onStart chan *ProcessStartNotification
 	onStop  chan *ProcessStopNotification
+	onError chan bool
 
 	reader *olreader.OverlappedReader
 }
@@ -39,18 +50,45 @@ const (
 	deviceName = `\\.\ddprocmon`
 	// driverName is the name of the driver service
 	driverName = "ddprocmon"
+
+	// ProcmonDefaultReceiveSize is the default size of the receive buffer
+	// 140k is the maximum size a notification can be, resulting in more memory usage traded off for
+	// not missing notifications.
+	ProcmonDefaultReceiveSize = (140 * 1024)
+
+	// ProcmonDefaultNumBufs is the default number of overlapped receive buffers
+	ProcmonDefaultNumBufs = 50
 )
 
-func NewWinProcMon(onStart chan *ProcessStartNotification, onStop chan *ProcessStopNotification) (*WinProcmon, error) {
+var (
+	// signature
+	procmonSignature = ProcmonSignature
+)
 
+// NewWinProcMon creates a new WinProcmon
+//
+// requires 3 channels for notification of data (one for start notifications, stop notifications, and error notifications)
+//
+// the bufsize and numbufs params, respectively, can be used to override the defaults for those parameters
+// (if 0 is provided then defaults are used)
+// Allows caller to configure the number & size of the overlapped buffers used for receiving notifications from the driver
+func NewWinProcMon(onStart chan *ProcessStartNotification, onStop chan *ProcessStopNotification, onError chan bool, bufsize, numbufs int) (*WinProcmon, error) {
+
+	if bufsize == 0 {
+		return nil, fmt.Errorf("invalid buffer size")
+	}
+	if numbufs == 0 {
+		return nil, fmt.Errorf("invalid number of buffers")
+	}
 	wp := &WinProcmon{
 		onStart: onStart,
 		onStop:  onStop,
+		onError: onError,
 	}
 	if err := driver.StartDriverService(driverName); err != nil {
 		return nil, err
 	}
-	reader, err := olreader.NewOverlappedReader(wp, 1024, 100)
+	reader, err := olreader.NewOverlappedReader(wp, bufsize, numbufs)
 	if err != nil {
 		return nil, err
 	}
@@ -62,48 +100,37 @@ func NewWinProcMon(onStart chan *ProcessStartNotification, onStop chan *ProcessS
 	return wp, nil
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (wp *WinProcmon) OnData(data []uint8) {
 	var consumed uint32
 	returnedsize := uint32(len(data))
-	for consumed < returnedsize {
-		t, pid, img, cmd, used := decodeStruct(data[consumed:], returnedsize-consumed)
-		consumed += used
-		if t == ProcmonNotifyStart {
+	start, stop := decodeStruct(data[consumed:], returnedsize-consumed)
 
-			// for now, calculate PPID here in user mode.
-			// by calculating here, we can replace with kernel mode later and no
-			// downstream code will have to change
-			// TODO.  Add parent pid
-			ppid, err := procutil.GetParentPid(uint32(pid))
-			if err != nil {
-				ppid = 0
-			}
-			s := &ProcessStartNotification{
-				Pid:       pid,
-				PPid:      uint64(ppid),
-				ImageFile: img,
-				CmdLine:   cmd,
-			}
-			wp.onStart <- s
-		} else if t == ProcmonNotifyStop {
-			s := &ProcessStopNotification{
-				Pid: pid,
-			}
-			wp.onStop <- s
-		}
+	if start != nil {
+
+		wp.onStart <- start
+	} else if stop != nil {
+
+		wp.onStop <- stop
 	}
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (wp *WinProcmon) OnError(err error) {
 
+	// if we get this error notification, then the driver can't continue.
+	// stop the notifications so that the driver can't get backed up
+	wp.Stop()
 }
+
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (wp *WinProcmon) Stop() {
 	// since we're stopping, if for some reason this ioctl fails, there's nothing we can
 	// do, we're on our way out.  Closing the handle will ultimately cause the same cleanup
 	// to happen.
 	_ = wp.reader.Ioctl(ProcmonStopIOCTL,
-		nil, // inBuffer
-		0,
+		(*byte)(unsafe.Pointer(&procmonSignature)), // inBuffer
+		uint32(unsafe.Sizeof(procmonSignature)),
 		nil,
 		0,
 		nil,
@@ -112,6 +139,8 @@ func (wp *WinProcmon) Stop() {
 
 	_ = driver.StopDriverService(driverName, false)
 }
+
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (wp *WinProcmon) Start() error {
 	err := wp.reader.Read()
 	if err != nil {
@@ -120,8 +149,8 @@ func (wp *WinProcmon) Start() error {
 	// this will initiate the driver actually sending things up
 	// start grabbing notifications
 	err = wp.reader.Ioctl(ProcmonStartIOCTL,
-		nil, // inBuffer
-		0,
+		(*byte)(unsafe.Pointer(&procmonSignature)), // inBuffer
+		uint32(unsafe.Sizeof(procmonSignature)),
 		nil,
 		0,
 		nil,
@@ -132,16 +161,53 @@ func (wp *WinProcmon) Start() error {
 	return err
 }
 
-func decodeStruct(data []uint8, sz uint32) (t DDProcessNotifyType, pid uint64, imagefile, cmdline string, consumed uint32) {
-	n := *(*DDProcessNotification)(unsafe.Pointer(&data[0]))
+//nolint:revive // TODO(WKIT) Fix revive linter
+func decodeStruct(data []uint8, sz uint32) (start *ProcessStartNotification, stop *ProcessStopNotification) {
+	if unsafe.Sizeof(DDProcessNotification{}.Size) > uintptr(sz) {
+		return nil, nil
+	}
 
-	consumed = uint32(n.Size)
-	pid = uint64(n.ProcessId)
-	t = DDProcessNotifyType(n.NotifyType)
+	n := *(*DDProcessNotification)(unsafe.Pointer(&data[0]))
+	if n.Size > uint64(sz) {
+		return nil, nil
+	}
+
+	t := DDProcessNotifyType(n.NotifyType)
 
 	if t == ProcmonNotifyStart {
-		imagefile = winutil.ConvertWindowsString(data[n.ImageFileOffset : n.ImageFileOffset+n.ImageFileLen])
-		cmdline = winutil.ConvertWindowsString(data[n.CommandLineOffset : n.CommandLineOffset+n.CommandLineLen])
+		var imagefile string
+		var cmdline string
+		var sidstring string
+
+		if n.ImageFileLen > 0 {
+			imagefile = winutil.ConvertWindowsString(data[n.ImageFileOffset : n.ImageFileOffset+n.ImageFileLen])
+		}
+		if n.CommandLineLen > 0 {
+			cmdline = winutil.ConvertWindowsString(data[n.CommandLineOffset : n.CommandLineOffset+n.CommandLineLen])
+		}
+
+		if n.SidLen > 0 {
+			sidstring = winutil.ConvertWindowsString(data[n.SidOffset : n.SidOffset+n.SidLen])
+		}
+		start = &ProcessStartNotification{
+			Pid:               n.ProcessId,
+			PPid:              n.ParentProcessId,
+			CreatingProcessId: n.CreatingProcessId,
+			CreatingThreadId:  n.CreatingThreadId,
+			ImageFile:         imagefile,
+			CmdLine:           cmdline,
+			OwnerSidString:    sidstring,
+		}
+		if n.SizeNeeded > n.Size {
+			start.RequiredSize = uint32(n.SizeNeeded)
+		}
+
+		return start, nil
+	} else if t == ProcmonNotifyStop {
+		stop = &ProcessStopNotification{
+			Pid: n.ProcessId,
+		}
+		return nil, stop
 	}
-	return
+	return nil, nil
 }

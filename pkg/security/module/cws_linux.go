@@ -27,7 +27,7 @@ func DisableRuntimeSecurity(config *config.Config) {
 }
 
 // platform specific init function
-func (c *CWSConsumer) init(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts Opts) error { //nolint:revive // TODO fix revive unused-parameter
+func (c *CWSConsumer) init(evm *eventmonitor.EventMonitor, _ *config.RuntimeSecurityConfig, _ Opts) error {
 	// Activity dumps related
 	if p, ok := evm.Probe.PlatformProbe.(*probe.EBPFProbe); ok {
 		p.AddActivityDumpHandler(c)

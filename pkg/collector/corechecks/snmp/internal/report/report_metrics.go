@@ -13,19 +13,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
 // MetricSender is a wrapper around sender.Sender
 type MetricSender struct {
-	sender           sender.Sender
-	hostname         string
-	submittedMetrics int
-	interfaceConfigs []snmpintegration.InterfaceConfig
+	sender                  sender.Sender
+	hostname                string
+	submittedMetrics        int
+	interfaceConfigs        []snmpintegration.InterfaceConfig
+	interfaceBandwidthState InterfaceBandwidthState
 }
 
 // MetricSample is a collected metric sample with its metadata, ready to be submitted through the metric sender
@@ -38,11 +39,12 @@ type MetricSample struct {
 }
 
 // NewMetricSender create a new MetricSender
-func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig) *MetricSender {
+func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig, interfaceBandwidthState InterfaceBandwidthState) *MetricSender {
 	return &MetricSender{
-		sender:           sender,
-		hostname:         hostname,
-		interfaceConfigs: interfaceConfigs,
+		sender:                  sender,
+		hostname:                hostname,
+		interfaceConfigs:        interfaceConfigs,
+		interfaceBandwidthState: interfaceBandwidthState,
 	}
 }
 
@@ -110,7 +112,7 @@ func (ms *MetricSender) reportScalarMetrics(metric profiledefinition.MetricsConf
 		return MetricSample{}, err
 	}
 
-	scalarTags := common.CopyStrings(tags)
+	scalarTags := utils.CopyStrings(tags)
 	scalarTags = append(scalarTags, metric.GetSymbolTags()...)
 	sample := MetricSample{
 		value:      value,
@@ -142,7 +144,7 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.Metri
 		for fullIndex, value := range metricValues {
 			// cache row tags by fullIndex to avoid rebuilding it for every column rows
 			if _, ok := rowTagsCache[fullIndex]; !ok {
-				tmpTags := common.CopyStrings(tags)
+				tmpTags := utils.CopyStrings(tags)
 				tmpTags = append(tmpTags, metricConfig.StaticTags...)
 				tmpTags = append(tmpTags, getTagsFromMetricTagConfigList(metricConfig.MetricTags, fullIndex, values)...)
 				if isInterfaceTableMetric(symbol.OID) {
@@ -252,8 +254,8 @@ func (ms *MetricSender) MonotonicCount(metric string, value float64, tags []stri
 }
 
 // ServiceCheck wraps Sender.ServiceCheck
-func (ms *MetricSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, tags []string, message string) {
-	ms.sender.ServiceCheck(checkName, status, ms.hostname, tags, message)
+func (ms *MetricSender) ServiceCheck(CheckName string, status servicecheck.ServiceCheckStatus, tags []string, message string) {
+	ms.sender.ServiceCheck(CheckName, status, ms.hostname, tags, message)
 }
 
 // GetSubmittedMetrics returns submitted metrics count

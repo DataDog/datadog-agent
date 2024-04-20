@@ -15,9 +15,9 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -174,7 +174,9 @@ func SetCheckMetadata(checkID, name, value *C.char) {
 	key := C.GoString(name)
 	val := C.GoString(value)
 
-	inventories.SetCheckMetadata(cid, key, val)
+	if inv, err := check.GetInventoryChecksContext(); err == nil {
+		inv.Set(cid, key, val)
+	}
 }
 
 // WritePersistentCache stores a value for one check instance
@@ -258,7 +260,7 @@ type sqlConfig struct {
 
 	// RemoveSpaceBetweenParentheses specifies whether to remove spaces between parentheses.
 	// By default, spaces are inserted between parentheses during normalization.
-	// This option is only valid when ObfuscationMode is "obfuscate_and_normalize".
+	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
 	RemoveSpaceBetweenParentheses bool `json:"remove_space_between_parentheses"`
 
 	// KeepNull specifies whether to disable obfuscate NULL value with ?.
@@ -272,6 +274,16 @@ type sqlConfig struct {
 	// KeepPositionalParameter specifies whether to disable obfuscate positional parameter with ?.
 	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
 	KeepPositionalParameter bool `json:"keep_positional_parameter"`
+
+	// KeepTrailingSemicolon specifies whether to keep trailing semicolon.
+	// By default, trailing semicolon is removed during normalization.
+	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
+	KeepTrailingSemicolon bool `json:"keep_trailing_semicolon"`
+
+	// KeepIdentifierQuotation specifies whether to keep identifier quotation, e.g. "my_table" or [my_table].
+	// By default, identifier quotation is removed during normalization.
+	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
+	KeepIdentifierQuotation bool `json:"keep_identifier_quotation"`
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
@@ -304,6 +316,8 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 		KeepNull:                      sqlOpts.KeepNull,
 		KeepBoolean:                   sqlOpts.KeepBoolean,
 		KeepPositionalParameter:       sqlOpts.KeepPositionalParameter,
+		KeepTrailingSemicolon:         sqlOpts.KeepTrailingSemicolon,
+		KeepIdentifierQuotation:       sqlOpts.KeepIdentifierQuotation,
 	})
 	if err != nil {
 		// memory will be freed by caller

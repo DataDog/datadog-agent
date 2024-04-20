@@ -22,6 +22,11 @@ type Proxy struct {
 	NoProxy []string `mapstructure:"no_proxy"`
 }
 
+// NotificationReceiver represents the callback type to receive notifications each time the `Set` method is called. The
+// configuration will call each NotificationReceiver registered through the 'OnUpdate' method, therefore
+// 'NotificationReceiver' should not be blocking.
+type NotificationReceiver func(setting string, oldValue, newValue any)
+
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
 	Get(key string) interface{}
@@ -48,12 +53,10 @@ type Reader interface {
 
 	AllSettings() map[string]interface{}
 	AllSettingsWithoutDefault() map[string]interface{}
-	AllFileSettingsWithoutDefault() map[string]interface{}
-	AllEnvVarSettingsWithoutDefault() map[string]interface{}
-	AllAgentRuntimeSettingsWithoutDefault() map[string]interface{}
-	AllRemoteSettingsWithoutDefault() map[string]interface{}
-	AllCliSettingsWithoutDefault() map[string]interface{}
-	AllKeys() []string
+	AllSourceSettingsWithoutDefault(source Source) map[string]interface{}
+	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
+	// Note that it returns the keys lowercased.
+	AllKeysLowercased() []string
 
 	IsSet(key string) bool
 	IsSetForSource(key string, source Source) bool
@@ -64,9 +67,10 @@ type Reader interface {
 	// IsKnown returns whether this key is known
 	IsKnown(key string) bool
 
-	// GetKnownKeys returns all the keys that meet at least one of these criteria:
+	// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
 	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
-	GetKnownKeys() map[string]interface{}
+	// Note that it returns the keys lowercased.
+	GetKnownKeysLowercased() map[string]interface{}
 
 	// GetEnvVars returns a list of the env vars that the config supports.
 	// These have had the EnvPrefix applied, as well as the EnvKeyReplacer.
@@ -81,6 +85,10 @@ type Reader interface {
 
 	// Object returns Reader to config (completes config.Component interface)
 	Object() Reader
+
+	// OnUpdate adds a callback to the list receivers to be called each time a value is change in the configuration
+	// by a call to the 'Set' method. The configuration will sequentially call each receiver.
+	OnUpdate(callback NotificationReceiver)
 }
 
 // Writer is a subset of Config that only allows writing the configuration
@@ -116,7 +124,6 @@ type Loader interface {
 	ReadInConfig() error
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
-	MergeConfigOverride(in io.Reader) error
 	MergeConfigMap(cfg map[string]any) error
 
 	AddConfigPath(in string)

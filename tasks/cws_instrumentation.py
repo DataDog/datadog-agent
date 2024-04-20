@@ -7,9 +7,8 @@ import shutil
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_build_tags
-from .system_probe import CURRENT_ARCH
-from .utils import (
+from tasks.build_tags import get_build_tags
+from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
@@ -18,6 +17,7 @@ from .utils import (
     get_go_version,
     get_version,
 )
+from tasks.system_probe import CURRENT_ARCH
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "cws-instrumentation", bin_name("cws-instrumentation"))
@@ -37,6 +37,7 @@ def build(
     arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     static=False,
+    no_strip_binary=False,
 ):
     """
     Build cws-instrumentation
@@ -65,9 +66,11 @@ def build(
     go_build_tags = " ".join(build_tags)
     agent_bin = BIN_PATH
 
+    strip_flags = "" if no_strip_binary else "-s -w"
+
     cmd = (
         f'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
-        f'-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags} -s -w" {REPO_PATH}/cmd/cws-instrumentation'
+        f'-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags} {strip_flags}" {REPO_PATH}/cmd/cws-instrumentation'
     )
 
     ctx.run(cmd, env=env)

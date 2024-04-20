@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
+
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -19,16 +21,20 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
@@ -40,20 +46,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
-func demuxOpts() aggregator.AgentDemultiplexerOptions {
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = 1 * time.Hour
-	opts.DontStartForwarders = true
-	return opts
-}
-
 type deps struct {
 	fx.In
 	Demultiplexer demultiplexer.Mock
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, demultiplexer.MockModule, log.MockModule)
+	return fxutil.Test[deps](t, compressionimpl.MockModule(), demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle())
 }
 
 func Test_Run_simpleCase(t *testing.T) {
@@ -312,12 +311,12 @@ tags:
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4"}
-	snmpGlobalTags := append(common.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
-	snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
-	telemetryTags := append(common.CopyStrings(snmpGlobalTagsWithLoader), "agent_version:"+version.AgentVersion)
-	row1Tags := append(common.CopyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
-	row2Tags := append(common.CopyStrings(snmpGlobalTags), "if_index:2", "if_desc:desc2")
-	scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+	snmpGlobalTags := append(utils.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
+	snmpGlobalTagsWithLoader := append(utils.CopyStrings(snmpGlobalTags), "loader:core")
+	telemetryTags := append(utils.CopyStrings(snmpGlobalTagsWithLoader), "agent_version:"+version.AgentVersion)
+	row1Tags := append(utils.CopyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
+	row2Tags := append(utils.CopyStrings(snmpGlobalTags), "if_index:2", "if_desc:desc2")
+	scalarTags := append(utils.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpGlobalTags)
@@ -336,12 +335,14 @@ tags:
 }
 
 func Test_Run_customIfSpeed(t *testing.T) {
+	report.TimeNow = common.MockTimeNow
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
+
 	chk := Check{sessionFactory: sessionFactory}
 
 	senderManager := deps.Demultiplexer
@@ -386,6 +387,7 @@ metrics:
 
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
+	chk.singleDeviceCk.SetInterfaceBandwidthState(report.MockInterfaceRateMap("1", 50_000_000, 40_000_000, 20, 10, int64(946684785000000000)))
 
 	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.SetupAcceptAll()
@@ -466,10 +468,12 @@ metrics:
 
 	// ((2000000 * 8) / (50 * 1000000)) * 100 = 32
 	//   ^ifHCInOctets   ^custom in_speed
-	sender.AssertMetric(t, "Rate", "snmp.ifBandwidthInUsage.rate", float64(32), "", tags)
+	// previous: 20
+	sender.AssertMetric(t, "Gauge", "snmp.ifBandwidthInUsage.rate", float64(12.0/15.0), "", tags)
 	// ((1000000 * 8) / (40 * 1000000)) * 100 = 20
 	//   ^ifHCOutOctets   ^custom out_speed
-	sender.AssertMetric(t, "Rate", "snmp.ifBandwidthOutUsage.rate", float64(20), "", tags)
+	// previous: 10
+	sender.AssertMetric(t, "Gauge", "snmp.ifBandwidthOutUsage.rate", float64(10.0/15.0), "", tags)
 
 	chk.Cancel()
 }
@@ -833,8 +837,8 @@ profiles:
 		"static_tag:from_profile_root",
 		"static_tag:from_base_profile",
 	}
-	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "mac_address:00:00:00:00:00:01", "table_static_tag:val")
-	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "mac_address:00:00:00:00:00:02", "table_static_tag:val")
+	row1Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "mac_address:00:00:00:00:00:01", "table_static_tag:val")
+	row2Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "mac_address:00:00:00:00:00:02", "table_static_tag:val")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
@@ -879,7 +883,8 @@ profiles:
       "profile": "f5-big-ip",
       "vendor": "f5",
       "subnet": "127.0.0.0/30",
-      "serial_number": "a-serial-num"
+      "serial_number": "a-serial-num",
+	  "device_type": "load_balancer"
     }
   ],
   "interfaces": [
@@ -975,10 +980,10 @@ community_string: public
 
 func TestCheckID(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
-	check1 := snmpFactory()
-	check2 := snmpFactory()
-	check3 := snmpFactory()
-	checkSubnet := snmpFactory()
+	check1 := newCheck()
+	check2 := newCheck()
+	check3 := newCheck()
+	checkSubnet := newCheck()
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
@@ -1520,7 +1525,8 @@ tags:
       "name": "foo_sys_name",
       "description": "my_desc",
       "sys_object_id": "1.2.3.4",
-      "subnet": "127.0.0.0/30"
+      "subnet": "127.0.0.0/30",
+	  "device_type": "other"
     }
   ],
   "interfaces": [
@@ -1659,7 +1665,8 @@ tags:
       ],
       "ip_address": "1.2.3.5",
       "status": 2,
-      "subnet": "127.0.0.0/30"
+      "subnet": "127.0.0.0/30",
+	  "device_type": "other"
     }
   ],
   "diagnoses": [
@@ -1936,9 +1943,9 @@ metric_tags:
 
 	for _, deviceData := range deviceMap {
 		snmpTags := []string{"device_namespace:default", "snmp_device:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30"}
-		snmpGlobalTags := append(common.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
-		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
-		scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+		snmpGlobalTags := append(utils.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
+		snmpGlobalTagsWithLoader := append(utils.CopyStrings(snmpGlobalTags), "loader:core")
+		scalarTags := append(utils.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
 
 		sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
 		sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpGlobalTags)
@@ -1970,7 +1977,8 @@ metric_tags:
       "ip_address": "%s",
       "status": 1,
       "name": "foo_sys_name",
-      "subnet": "10.10.0.0/30"
+      "subnet": "10.10.0.0/30",
+	  "device_type": "other"
     }
   ],
   "interfaces": [
@@ -2095,8 +2103,8 @@ metric_tags:
 
 	for i := 0; i < 4; i++ {
 		snmpTags := []string{fmt.Sprintf("snmp_device:10.10.0.%d", i)}
-		snmpGlobalTags := common.CopyStrings(snmpTags)
-		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
+		snmpGlobalTags := utils.CopyStrings(snmpTags)
+		snmpGlobalTagsWithLoader := append(utils.CopyStrings(snmpGlobalTags), "loader:core")
 
 		sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
 		sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
@@ -2269,9 +2277,9 @@ use_device_id_as_hostname: true
 
 	hostname := "device:default:1.2.3.4"
 	snmpTags := []string{"snmp_device:1.2.3.4"}
-	snmpGlobalTags := common.CopyStrings(snmpTags)
-	snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
-	scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+	snmpGlobalTags := utils.CopyStrings(snmpTags)
+	snmpGlobalTagsWithLoader := append(utils.CopyStrings(snmpGlobalTags), "loader:core")
+	scalarTags := append(utils.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), hostname, snmpGlobalTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), hostname, snmpGlobalTags)
@@ -2489,9 +2497,9 @@ metrics:
 	for _, deviceData := range deviceMap {
 		hostname := "device:" + deviceData.deviceID
 		snmpTags := []string{"snmp_device:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30", "agent_host:my-hostname"}
-		snmpGlobalTags := common.CopyStrings(snmpTags)
-		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
-		scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+		snmpGlobalTags := utils.CopyStrings(snmpTags)
+		snmpGlobalTagsWithLoader := append(utils.CopyStrings(snmpGlobalTags), "loader:core")
+		scalarTags := append(utils.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
 
 		sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), hostname, snmpGlobalTags)
 		sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), hostname, snmpGlobalTags)

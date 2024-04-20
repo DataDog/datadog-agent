@@ -11,16 +11,18 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
-	infraURLPrefix = "https://app."
+	// InfraURLPrefix is the default infra URL prefix for datadog
+	InfraURLPrefix = "https://app."
 )
 
-func getResolvedDDUrl(c config.Reader, urlKey string) string {
+func getResolvedDDUrl(c pkgconfigmodel.Reader, urlKey string) string {
 	resolvedDDURL := c.GetString(urlKey)
 	if c.IsSet("site") {
 		log.Infof("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", urlKey, urlKey, c.GetString(urlKey))
@@ -68,7 +70,7 @@ func mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints map[string][]st
 }
 
 // GetMainEndpointBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key
-func GetMainEndpointBackwardCompatible(c config.Reader, prefix string, ddURLKey string, backwardKey string) string {
+func GetMainEndpointBackwardCompatible(c pkgconfigmodel.Reader, prefix string, ddURLKey string, backwardKey string) string {
 	if c.IsSet(ddURLKey) && c.GetString(ddURLKey) != "" {
 		// value under ddURLKey takes precedence over backwardKey and 'site'
 		return getResolvedDDUrl(c, ddURLKey)
@@ -78,11 +80,11 @@ func GetMainEndpointBackwardCompatible(c config.Reader, prefix string, ddURLKey 
 	} else if c.GetString("site") != "" {
 		return prefix + strings.TrimSpace(c.GetString("site"))
 	}
-	return prefix + config.DefaultSite
+	return prefix + pkgconfigsetup.DefaultSite
 }
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
-func GetMultipleEndpoints(c config.Reader) (map[string][]string, error) {
+func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]string, error) {
 	ddURL := GetInfraEndpoint(c)
 	// Validating domain
 	if _, err := url.Parse(ddURL); err != nil {
@@ -96,23 +98,61 @@ func GetMultipleEndpoints(c config.Reader) (map[string][]string, error) {
 	}
 
 	additionalEndpoints := c.GetStringMapStringSlice("additional_endpoints")
+
+	// populate with HA endpoints too
+	if c.GetBool("ha.enabled") {
+		haURL, err := GetHAInfraEndpoint(c)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse HA endpoint: %s", err)
+		}
+		additionalEndpoints[haURL] = []string{c.GetString("ha.api_key")}
+	}
 	return mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
 }
 
+// BuildURLWithPrefix will return an HTTP(s) URL for a site given a certain prefix
+func BuildURLWithPrefix(prefix, site string) string {
+	return prefix + strings.TrimSpace(site)
+}
+
 // GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
-func GetMainEndpoint(c config.Reader, prefix string, ddURLKey string) string {
+func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) string {
 	// value under ddURLKey takes precedence over 'site'
 	if c.IsSet(ddURLKey) && c.GetString(ddURLKey) != "" {
 		return getResolvedDDUrl(c, ddURLKey)
 	} else if c.GetString("site") != "" {
-		return prefix + strings.TrimSpace(c.GetString("site"))
+		return BuildURLWithPrefix(prefix, c.GetString("site"))
 	}
-	return prefix + config.DefaultSite
+	return BuildURLWithPrefix(prefix, pkgconfigsetup.DefaultSite)
+}
+
+// GetHAEndpoint returns the HA DD URL defined in the config, based on `ha.site` and the prefix, or ddHaURLKey
+func GetHAEndpoint(c pkgconfigmodel.Reader, prefix, ddHaURLKey string) (string, error) {
+	// value under ddURLKey takes precedence over 'ha.site'
+	if c.IsSet(ddHaURLKey) && c.GetString(ddHaURLKey) != "" {
+		return getResolvedHaDdURL(c, ddHaURLKey), nil
+	} else if c.GetString("ha.site") != "" {
+		return BuildURLWithPrefix(prefix, c.GetString("ha.site")), nil
+	}
+	return "", fmt.Errorf("`ha.site` or `ha.dd_url` must be set when High Availability is enabled")
+}
+
+func getResolvedHaDdURL(c pkgconfigmodel.Reader, haURLKey string) string {
+	resolvedHaDdURL := c.GetString(haURLKey)
+	if c.IsSet("ha.site") {
+		log.Infof("'ha.site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", haURLKey, haURLKey, resolvedHaDdURL)
+	}
+	return resolvedHaDdURL
 }
 
 // GetInfraEndpoint returns the main DD Infra URL defined in config, based on the value of `site` and `dd_url`
-func GetInfraEndpoint(c config.Reader) string {
-	return GetMainEndpoint(c, infraURLPrefix, "dd_url")
+func GetInfraEndpoint(c pkgconfigmodel.Reader) string {
+	return GetMainEndpoint(c, InfraURLPrefix, "dd_url")
+}
+
+// GetHAInfraEndpoint returns the HA DD Infra URL defined in config, based on the value of `ha.site` and `ha.dd_url`
+func GetHAInfraEndpoint(c pkgconfigmodel.Reader) (string, error) {
+	return GetHAEndpoint(c, InfraURLPrefix, "ha.dd_url")
 }
 
 // ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// ConstantFetcher is the generated asset for constant_fetcher.c
 var ConstantFetcher = newGeneratedAsset("constant_fetcher.c")
 
 // generatedAsset represents an asset whose contents will be dynamically generated at runtime
@@ -37,7 +38,7 @@ func newGeneratedAsset(filename string) *generatedAsset {
 
 // Compile compiles the provided c code to an object file, writes it to the configured output directory, and
 // then opens and returns the compiled output
-func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, additionalFlags []string, client statsd.ClientInterface) (CompiledOutput, error) {
+func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, additionalFlags []string, llcFlags []string, client statsd.ClientInterface) (CompiledOutput, error) {
 	log.Debugf("starting runtime compilation of %s", a.filename)
 
 	start := time.Now()
@@ -49,7 +50,7 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 		}
 	}()
 
-	opts := kernel.KernelHeaderOptions{
+	opts := kernel.HeaderOptions{
 		DownloadEnabled: config.EnableKernelHeaderDownload,
 		Dirs:            config.KernelHeadersDirs,
 		DownloadDir:     config.KernelHeadersDownloadDir,
@@ -86,7 +87,7 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 		}
 	}()
 
-	out, result, err := compileToObjectFile(protectedFile.Name(), outputDir, a.filename, inputHash, additionalFlags, kernelHeaders)
+	out, result, err := compileToObjectFile(protectedFile.Name(), outputDir, a.filename, inputHash, additionalFlags, llcFlags, kernelHeaders)
 	a.tm.compilationResult = result
 
 	return out, err

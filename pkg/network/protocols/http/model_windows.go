@@ -10,6 +10,7 @@ package http
 import (
 	"encoding/binary"
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
 
@@ -28,6 +29,7 @@ func isIPV4(tup *driver.ConnTupleType) bool {
 	return tup.Family == windows.AF_INET
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func ipLow(isIp4 bool, addr [16]uint8) uint64 {
 	// Source & dest IP are given to us as a 16-byte slices in network byte order (BE). To convert to
 	// low/high representation, we must convert to host byte order (LE).
@@ -37,6 +39,7 @@ func ipLow(isIp4 bool, addr [16]uint8) uint64 {
 	return binary.LittleEndian.Uint64(addr[8:])
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func ipHigh(isIp4 bool, addr [16]uint8) uint64 {
 	if isIp4 {
 		return uint64(0)
@@ -65,10 +68,12 @@ func dstIPHigh(tup *driver.ConnTupleType) uint64 {
 // driverHttpTX interface
 //
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) RequestLatency() float64 {
 	return requestLatency(tx.Txn.ResponseLastSeen, tx.Txn.RequestStarted)
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
 		SrcIPHigh: srcIPHigh(&tx.Txn.Tup),
@@ -80,20 +85,26 @@ func (tx *WinHttpTransaction) ConnTuple() types.ConnectionKey {
 	}
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) Method() Method {
 	return Method(tx.Txn.RequestMethod)
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) StatusCode() uint16 {
 	return tx.Txn.ResponseStatusCode
 }
 
 // Static Tags are not part of windows driver http transactions
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) StaticTags() uint64 {
 	return 0
 }
 
 // Dynamic Tags are not part of windows driver http transactions
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) DynamicTags() []string {
 	if len(tx.AppPool) != 0 || len(tx.SiteName) != 0 {
 		return []string{
@@ -105,9 +116,22 @@ func (tx *WinHttpTransaction) DynamicTags() []string {
 	return nil
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) String() string {
 	var output strings.Builder
+	var l netip.Addr
+	var r netip.Addr
+	if isIPV4(&tx.Txn.Tup) {
+		l = netip.AddrFrom4([4]byte(tx.Txn.Tup.LocalAddr[:4]))
+		r = netip.AddrFrom4([4]byte(tx.Txn.Tup.RemoteAddr[:4]))
+	} else {
+		l = netip.AddrFrom16(tx.Txn.Tup.LocalAddr)
+		r = netip.AddrFrom16(tx.Txn.Tup.RemoteAddr)
+	}
+	lap := netip.AddrPortFrom(l, tx.Txn.Tup.LocalPort)
+	rap := netip.AddrPortFrom(r, tx.Txn.Tup.RemotePort)
 	output.WriteString("httpTX{")
+	output.WriteString("\n LocalAddr: " + lap.String() + " RemoteAddr: " + rap.String())
 	output.WriteString("\n  Method: '" + tx.Method().String() + "', ")
 	output.WriteString("\n  MaxRequest: '" + strconv.Itoa(int(tx.Txn.MaxRequestFragment)) + "', ")
 	//output.WriteString("Fragment: '" + hex.EncodeToString(tx.RequestFragment[:]) + "', ")
@@ -118,29 +142,38 @@ func (tx *WinHttpTransaction) String() string {
 
 // Windows does not have incomplete http transactions because flows in the windows driver
 // see both directions of traffic
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) Incomplete() bool {
 	return false
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) Path(buffer []byte) ([]byte, bool) {
 	return computePath(buffer, tx.RequestFragment)
 }
+
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) SetStatusCode(code uint16) {
 	tx.Txn.ResponseStatusCode = code
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) ResponseLastSeen() uint64 {
 	return tx.Txn.ResponseLastSeen
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) SetResponseLastSeen(ls uint64) {
 	tx.Txn.ResponseLastSeen = ls
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) RequestStarted() uint64 {
 	return tx.Txn.RequestStarted
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) SetRequestMethod(m Method) {
 	tx.Txn.RequestMethod = uint32(m)
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux && !windows
+//go:build !unix && !windows
 
 package config
 
@@ -17,4 +17,9 @@ const (
 // ValidateSocketAddress validates that the sysprobe socket config option is of the correct format.
 func ValidateSocketAddress(sockPath string) error { //nolint:revive // TODO fix revive unused-parameter
 	return fmt.Errorf("system-probe unsupported")
+}
+
+// ProcessEventDataStreamSupported returns true if process event data stream is supported
+func ProcessEventDataStreamSupported() bool {
+	return false
 }
