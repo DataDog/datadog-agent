@@ -165,10 +165,11 @@ def _lint_go(
     if not check_tools_version(ctx, ['go', 'golangci-lint']):
         print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
 
+    modules, flavor = process_input_args(module, targets, flavor, headless_mode)
+
     lint_results = run_lint_go(
         ctx=ctx,
-        module=module,
-        targets=targets,
+        modules=modules,
         flavor=flavor,
         build=build,
         build_tags=build_tags,
@@ -195,8 +196,7 @@ def _lint_go(
 
 def run_lint_go(
     ctx,
-    module=None,
-    targets=None,
+    modules=None,
     flavor=None,
     build="lint",
     build_tags=None,
@@ -210,8 +210,6 @@ def run_lint_go(
     headless_mode=False,
     include_sds=False,
 ):
-    modules, flavor = process_input_args(module, targets, flavor, headless_mode)
-
     linter_tags = build_tags or compute_build_tags_for_flavor(
         flavor=flavor,
         build=build,
