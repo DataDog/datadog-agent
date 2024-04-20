@@ -11,8 +11,13 @@ readonly STABLE_INSTALLER=${PACKAGES_DIR}/datadog-installer/stable/bin/installer
 readonly PACKAGES_LOCK_DIR=/var/run/datadog-packages
 
 bootstrap() {
-    $BOOTSTRAP_INSTALLER bootstrap --package "datadog-installer" && \
-    $STABLE_INSTALLER bootstrap
+    if [ -z "$DD_INSTALLER_OCI_URL" ]; then
+        $BOOTSTRAP_INSTALLER bootstrap --package "datadog-installer" && \
+        $STABLE_INSTALLER bootstrap
+    else
+        $BOOTSTRAP_INSTALLER bootstrap --url "$DD_INSTALLER_OCI_URL" && \
+        $STABLE_INSTALLER bootstrap
+    fi
 }
 
 add_user_and_group() {

@@ -66,8 +66,11 @@ fi
 # Set helper rights
 chmod 750 ${HELPER}
 
-$BOOTSTRAP_INSTALLER bootstrap --package "datadog-installer"
+if [ -z "$DD_INSTALLER_OCI_URL" ]; then
+    $BOOTSTRAP_INSTALLER bootstrap --package "datadog-installer"
+else
+    $BOOTSTRAP_INSTALLER bootstrap --url "$DD_INSTALLER_OCI_URL"
+fi
 $STABLE_INSTALLER bootstrap
 
 exit 0
-

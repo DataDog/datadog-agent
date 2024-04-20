@@ -6,7 +6,8 @@
   tags: ["arch:amd64"]
   stage: deploy_packages
   rules:
-    !reference [.on_deploy]
+    - !reference [.except_mergequeue]
+    - when: on_success
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
@@ -21,6 +22,8 @@
     - cd /tmp/datadog-packages/cmd/datadog-package
     - go build .
     - ./datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:${VERSION} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${MAJOR_VERSION}.*.oci.tar
+    # This is used for E2E tests. Doesn't cost more than an additional tag in the registry.
+    - ./datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${MAJOR_VERSION}.*.oci.tar
   variables:
     MAJOR_VERSION: 7
 
