@@ -63,7 +63,7 @@ func SetupAgent(ctx context.Context) (err error) {
 	if err = createDDAgentUser(ctx); err != nil {
 		return
 	}
-	packagePath, err := filepath.EvalSymlinks("/opt/datadog-packages/datadog-agent/stable")
+	packagePath, err := filepath.EvalSymlinks("/opt/datadog-packages/datadog-agent/stable/")
 	if err != nil {
 		log.Errorf("Failed to resolve agent package path: %s", err)
 		return
@@ -156,7 +156,7 @@ func RemoveAgent(ctx context.Context) {
 
 // StartAgentExperiment starts the agent experiment
 func StartAgentExperiment(ctx context.Context) error {
-	packagePath, err := filepath.EvalSymlinks("/opt/datadog-packages/datadog-agent/experiment")
+	packagePath, err := filepath.EvalSymlinks("/opt/datadog-packages/datadog-agent/experiment/")
 	if err != nil {
 		return err
 	}
