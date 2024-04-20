@@ -474,12 +474,11 @@ def codecov(
     ctx,
     module=None,
     targets=None,
-    flavors=None,
+    flavor=None,
 ):
-    modules, flavors = process_input_args(module, targets, flavors)
+    modules, flavor = process_input_args(module, targets, flavor)
 
-    for flavor in flavors:
-        codecov_flavor(ctx, flavor, modules)
+    codecov_flavor(ctx, flavor, modules)
 
 
 @task
