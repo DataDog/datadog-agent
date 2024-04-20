@@ -31,6 +31,12 @@ const (
 	DatadogCodeSignatureThumbprint = `B03F29CC07566505A718583E9270A6EE17678742`
 	// RegistryKeyPath is the root registry key that the Datadog Agent uses to store some state
 	RegistryKeyPath = "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent"
+	// DefaultInstallPath is the default install path for the Datadog Agent
+	DefaultInstallPath = `C:\Program Files\Datadog\Datadog Agent`
+	// DefaultConfigRoot is the default config root for the Datadog Agent
+	DefaultConfigRoot = `C:\ProgramData\Datadog`
+	// DefaultAgentUserName is the default user name for the Datadog Agent
+	DefaultAgentUserName = `ddagentuser`
 )
 
 // GetDatadogAgentProductCode returns the product code GUID for the Datadog Agent

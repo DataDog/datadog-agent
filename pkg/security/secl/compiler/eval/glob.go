@@ -14,7 +14,7 @@ import (
 // Glob describes file glob object
 type Glob struct {
 	pattern         string
-	elements        []string
+	elements        []patternElement
 	isScalar        bool
 	caseInsensitive bool
 	normalizePaths  bool
@@ -26,20 +26,19 @@ func (g *Glob) contains(filename string) bool {
 	}
 
 	// pattern "/"
-	if len(g.elements) == 2 && g.elements[1] == "" {
+	if len(g.elements) == 2 && g.elements[1].pattern == "" {
 		return true
 	}
 
 	// normalize */ == /*/
-	if g.elements[0] == "*" {
+	if g.elements[0].pattern == "*" {
 		filename = filename[1:]
 	}
 
-	var elp, elf string
 	for start, end, i := 0, 0, 0; end != len(filename); end++ {
 		if filename[end] == '/' {
-			elf, elp = filename[start:end], g.elements[i]
-			if !PatternMatches(elp, elf, g.caseInsensitive) && elp != "**" {
+			elf, elp := filename[start:end], g.elements[i]
+			if !PatternMatchesWithSegments(elp, elf, g.caseInsensitive) && elp.pattern != "**" {
 				return false
 			}
 			start = end + 1
@@ -51,11 +50,11 @@ func (g *Glob) contains(filename string) bool {
 		}
 
 		if end+1 >= len(filename) {
-			elf, elp = filename[start:end+1], g.elements[i]
+			elf, elp := filename[start:end+1], g.elements[i]
 			if len(elf) == 0 {
 				return true
 			}
-			if !PatternMatches(elp, elf, g.caseInsensitive) && elp != "**" {
+			if !PatternMatchesWithSegments(elp, elf, g.caseInsensitive) && elp.pattern != "**" {
 				return false
 			}
 		}
@@ -70,17 +69,18 @@ func (g *Glob) matches(filename string) bool {
 	}
 
 	// normalize */ == /*/
-	if g.elements[0] == "*" {
+	if g.elements[0].pattern == "*" {
 		filename = filename[1:]
 	}
 
-	var elp, elf string
+	var elp patternElement
+	var elf string
 	var start, end, i int
 
 	for start, end, i = 0, 0, 0; end != len(filename); end++ {
 		if filename[end] == '/' {
 			elf, elp = filename[start:end], g.elements[i]
-			if !PatternMatches(elp, elf, g.caseInsensitive) && elp != "**" {
+			if !PatternMatchesWithSegments(elp, elf, g.caseInsensitive) && elp.pattern != "**" {
 				return false
 			}
 			start = end + 1
@@ -88,17 +88,17 @@ func (g *Glob) matches(filename string) bool {
 		}
 
 		if i+1 > len(g.elements) {
-			return elp == "**"
+			return elp.pattern == "**"
 		}
 
 		if end+1 >= len(filename) {
 			elf, elp = filename[start:end+1], g.elements[i]
 			if len(elf) == 0 {
-				return elp == "*"
+				return elp.pattern == "*"
 			}
-			if PatternMatches(elp, elf, g.caseInsensitive) && i+1 == len(g.elements) {
+			if PatternMatchesWithSegments(elp, elf, g.caseInsensitive) && i+1 == len(g.elements) {
 				return true
-			} else if elp != "**" {
+			} else if elp.pattern != "**" {
 				return false
 			}
 		}
@@ -108,7 +108,7 @@ func (g *Glob) matches(filename string) bool {
 	if len(elf) == 0 {
 		return false
 	}
-	return PatternMatches(elp, elf, g.caseInsensitive)
+	return PatternMatchesWithSegments(elp, elf, g.caseInsensitive)
 }
 
 // Contains returns whether the glob pattern matches the beginning of the filename
@@ -145,15 +145,17 @@ func NewGlob(pattern string, caseInsensitive bool, normalizePaths bool) (*Glob, 
 	}
 
 	els := strings.Split(pattern, "/")
+	elements := make([]patternElement, 0, len(els))
 	for i, el := range els {
 		if el == "**" && i+1 != len(els) || strings.Contains(el, "**") && len(el) != len("**") {
 			return nil, errors.New("`**` is allowed only at the end of patterns")
 		}
+		elements = append(elements, newPatternElement(el))
 	}
 
 	return &Glob{
 		pattern:         pattern,
-		elements:        els,
+		elements:        elements,
 		isScalar:        !strings.Contains(pattern, "*"),
 		caseInsensitive: caseInsensitive,
 		normalizePaths:  normalizePaths,

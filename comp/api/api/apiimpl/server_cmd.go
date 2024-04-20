@@ -21,14 +21,15 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
@@ -64,7 +65,6 @@ func startCMDServer(
 	tlsCertPool *x509.CertPool,
 	configService optional.Option[rcservice.Component],
 	configServiceHA optional.Option[rcserviceha.Component],
-	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
 	pidMap pidmap.Component,
@@ -85,6 +85,8 @@ func startCMDServer(
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
 	gui optional.Option[gui.Component],
+	settings settings.Component,
+	providers []api.EndpointProvider,
 ) (err error) {
 	// get the transport we're going to use under HTTP
 	cmdListener, err = getListener(cmdAddr)
@@ -151,7 +153,6 @@ func startCMDServer(
 		http.StripPrefix("/agent",
 			agent.SetupHandlers(
 				agentMux,
-				flare,
 				dogstatsdServer,
 				serverDebug,
 				wmeta,
@@ -169,6 +170,8 @@ func startCMDServer(
 				eventPlatformReceiver,
 				ac,
 				gui,
+				settings,
+				providers,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	cmdMux.Handle("/", gwmux)

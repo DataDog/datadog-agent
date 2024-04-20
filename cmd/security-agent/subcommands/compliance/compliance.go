@@ -17,9 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
+	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -27,7 +27,7 @@ import (
 
 // StartCompliance runs the compliance sub-agent running compliance benchmarks
 // and checks.
-func StartCompliance(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, senderManager sender.SenderManager, wmeta workloadmeta.Component) (*compliance.Agent, error) {
+func StartCompliance(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, wmeta workloadmeta.Component) (*compliance.Agent, error) {
 	enabled := config.GetBool("compliance_config.enabled")
 	configDir := config.GetString("compliance_config.dir")
 	metricsEnabled := config.GetBool("compliance_config.metrics.enabled")
@@ -67,7 +67,9 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 	}
 
 	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context)
-	agent := compliance.NewAgent(senderManager, wmeta, compliance.AgentOptions{
+	telemetrySender := telemetry.NewSimpleTelemetrySenderFromStatsd(statsdClient)
+
+	agent := compliance.NewAgent(telemetrySender, wmeta, compliance.AgentOptions{
 		ResolverOptions:               resolverOptions,
 		ConfigDir:                     configDir,
 		Reporter:                      reporter,

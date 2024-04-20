@@ -22,6 +22,8 @@ const (
 	MessageTypeHello
 	// MessageTypeSyscall syscall type
 	MessageTypeSyscall
+	// MessageTypeGoodbye event type
+	MessageTypeGoodbye
 )
 
 // SyscallType defines the type of a syscall message
@@ -107,6 +109,7 @@ type ExecSyscallMsg struct {
 	TTY           string
 	Credentials   *Credentials
 	PPID          uint32
+	FromProcFS    bool
 }
 
 // ForkSyscallMsg defines a fork message
@@ -253,12 +256,20 @@ type UnloadModuleSyscallMsg struct {
 	Name string
 }
 
+// SpanContext stores a span context (if any)
+type SpanContext struct {
+	SpanID  uint64
+	TraceID uint64
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	Type         SyscallType
 	PID          uint32
+	SpanContext  *SpanContext `json:",omitempty"`
 	Timestamp    uint64
 	Retval       int64
+	ContainerID  string
 	Exec         *ExecSyscallMsg         `json:",omitempty"`
 	Open         *OpenSyscallMsg         `json:",omitempty"`
 	Fork         *ForkSyscallMsg         `json:",omitempty"`

@@ -10,6 +10,16 @@ Click the links for more documentation.
 
 Package agent implements the "agent" bundle,
 
+### [comp/agent/autoexit](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/autoexit)
+
+Package autoexit lets setup automatic shutdown mechanism if necessary
+
+### [comp/agent/cloudfoundrycontainer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer)
+
+*Datadog Team*: platform-integrations
+
+Package cloudfoundrycontainer provides the cloud foundry container component.
+
 ### [comp/agent/expvarserver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/expvarserver)
 
 Package expvarserver contains the component type for the expVar server.
@@ -19,10 +29,6 @@ Package expvarserver contains the component type for the expVar server.
 *Datadog Team*: agent-metrics-logs
 
 Package jmxlogger implements the logger for JMX.
-
-### [comp/agent/metadatascheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/metadatascheduler)
-
-Package metadatascheduler provides the metadata scheduler component.
 
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 
@@ -208,7 +214,7 @@ Package status implements the core status component information provider interfa
 
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder) (Component Bundle)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-processing-and-routing
 
 Package forwarder implements the "forwarder" bundle
 
@@ -218,25 +224,17 @@ Package defaultforwarder implements a component to send payloads to the backend
 
 ### [comp/forwarder/eventplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatform)
 
-*Datadog Team*: agent-metrics-logs
-
 Package eventplatform contains the logic for forwarding events to the event platform
 
 ### [comp/forwarder/eventplatformreceiver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver)
-
-*Datadog Team*: agent-metrics-logs
 
 Package eventplatformreceiver implements the receiver for the event platform package
 
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
 
-*Datadog Team*: agent-metrics-logs
-
 Package orchestrator implements the orchestrator forwarder component.
 
 ### [comp/forwarder/orchestrator/orchestratorinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface)
-
-*Datadog Team*: agent-metrics-logs
 
 Package orchestratorinterface defines the interface for the orchestrator forwarder component.
 
@@ -255,6 +253,10 @@ Package client implements a component to send process metadata to the Cluster-Ag
 *Datadog Team*: agent-metrics-logs
 
 
+
+### [comp/logs/adscheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/adscheduler)
+
+Package adscheduler is glue code to connect autodiscovery to the logs agent. It receives and filters events and converts them into log sources.
 
 ### [comp/logs/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/agent)
 
@@ -520,6 +522,10 @@ Package localapi is the updater local api component.
 ### [comp/updater/localapiclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapiclient)
 
 Package localapiclient provides the local API client component.
+
+### [comp/updater/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/telemetry)
+
+Package telemetry provides the installer telemetry component.
 
 ### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
 

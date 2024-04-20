@@ -21,6 +21,8 @@ import (
 	"syscall"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/avast/retry-go/v4"
 	"github.com/vmihailenco/msgpack/v5"
 	"golang.org/x/sys/unix"
@@ -124,20 +126,15 @@ func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
 	return client, nil
 }
 
-func sendMsg(client net.Conn, msg *ebpfless.Message) error {
-	data, err := msgpack.Marshal(msg)
-	if err != nil {
-		return fmt.Errorf("unable to marshal message: %v", err)
-	}
-
+func sendMsgData(client net.Conn, data []byte) error {
 	// write size
 	var size [4]byte
 	native.Endian.PutUint32(size[:], uint32(len(data)))
-	if _, err = client.Write(size[:]); err != nil {
+	if _, err := client.Write(size[:]); err != nil {
 		return fmt.Errorf("unabled to send size: %v", err)
 	}
 
-	if _, err = client.Write(data); err != nil {
+	if _, err := client.Write(data); err != nil {
 		return fmt.Errorf("unabled to send message: %v", err)
 	}
 	return nil
@@ -205,6 +202,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	syscallHandlers := make(map[int]syscallHandler)
 	PtracedSyscalls := registerFIMHandlers(syscallHandlers)
 	PtracedSyscalls = append(PtracedSyscalls, registerProcessHandlers(syscallHandlers)...)
+	PtracedSyscalls = append(PtracedSyscalls, registerSpanHandlers(syscallHandlers)...)
 
 	tracerOpts := TracerOpts{
 		Syscalls: PtracedSyscalls,
@@ -218,14 +216,30 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	}
 
 	var (
-		msgChan        = make(chan *ebpfless.Message, 100000)
+		msgDataChan    = make(chan []byte, 100000)
 		traceChan      = make(chan bool)
 		ctx, cancelFnc = context.WithCancel(context.Background())
+		seq            = atomic.NewUint64(0)
 	)
 
 	send := func(msg *ebpfless.Message) {
+		msg.SeqNum = seq.Load()
+		seq.Inc()
+
+		logger.Debugf("sending message: %s", msg)
+
+		if probeAddr == "" {
+			return
+		}
+
+		data, err := msgpack.Marshal(msg)
+		if err != nil {
+			logger.Errorf("unable to marshal message: %v", err)
+			return
+		}
+
 		select {
-		case msgChan <- msg:
+		case msgDataChan <- data:
 		default:
 			logger.Errorf("unable to send message")
 		}
@@ -240,8 +254,6 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-
-		var seq uint64
 
 		// start tracing
 		traceChan <- true
@@ -262,18 +274,10 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 
 		for {
 			select {
-			case msg := <-msgChan:
-				msg.SeqNum = seq
-
-				if probeAddr != "" {
-					logger.Debugf("sending message: %s", msg)
-					if err := sendMsg(client, msg); err != nil {
-						logger.Debugf("%v", err)
-					}
-				} else {
-					logger.Debugf("sending message: %s", msg)
+			case data := <-msgDataChan:
+				if err := sendMsgData(client, data); err != nil {
+					logger.Debugf("%v", err)
 				}
-				seq++
 			case <-ctx.Done():
 				return
 			}
@@ -299,6 +303,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		go func() {
 			defer wg.Done()
 
+			// introduce a delay before starting to scan procfs to let the tracer event first
+			time.Sleep(2 * time.Second)
+
 			scanProcfs(ctx, tracer.PID, send, every, logger)
 		}()
 	}
@@ -316,6 +323,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 			}
 			msg.PID = uint32(process.Tgid)
 			msg.Timestamp = uint64(time.Now().UnixNano())
+			msg.ContainerID = containerID
 			send(&ebpfless.Message{
 				Type:    ebpfless.MessageTypeSyscall,
 				Syscall: msg,
@@ -340,6 +348,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 					return
 				}
 			}
+
+			// if available, gather span
+			syscallMsg.SpanContext = fillSpanContext(tracer, process.Tgid, pid, pc.GetSpan(process.Tgid))
 
 			/* internal special cases */
 			switch nr {
@@ -383,6 +394,8 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 				if process.Pid != process.Tgid {
 					pc.Add(process.Tgid, process)
 				}
+			case IoctlNr:
+				pc.SetSpan(process.Tgid, handleIoctl(tracer, process, regs))
 
 			}
 		case CallbackPostType:
@@ -408,6 +421,8 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 			case ExecveNr, ExecveatNr:
 				// now the pid is the tgid
 				process.Pid = process.Tgid
+				// remove previously registered TLS
+				pc.UnsetSpan(process.Tgid)
 			case CloneNr:
 				if flags := tracer.ReadArgUint64(regs, 0); flags&uint64(unix.SIGCHLD) == 0 {
 					pc.SetAsThreadOf(process, ppid)
@@ -475,7 +490,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		// stop client and msg chan reader
 		cancelFnc()
 		wg.Wait()
-		close(msgChan)
+		close(msgDataChan)
 	}()
 
 	if err := tracer.Trace(cb); err != nil {

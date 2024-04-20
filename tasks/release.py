@@ -40,6 +40,9 @@ VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
 # Regex matching rc version tag format like 7.50.0-rc.1
 RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]\d+-rc\.\d+')
 
+# Regex matching minor release rc version tag like x.y.0-rc.1 (semver PATCH == 0), but not x.y.1-rc.1 (semver PATCH > 0)
+MINOR_RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]0-rc\.\d+')
+
 UNFREEZE_REPO_AGENT = "datadog-agent"
 UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
 RELEASE_JSON_FIELDS_TO_UPDATE = [
@@ -240,6 +243,7 @@ def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
         v6_tag = _find_v6_tag(ctx, new_version)
         if v6_tag:
             ctx.run(f"sed {sed_i_arg} -E 's#^{new_version}#{new_version} / {v6_tag}#' /tmp/new_changelog.rst")
+            ctx.run(f"sed {sed_i_arg} -E 's#^======$#================#' /tmp/new_changelog.rst")
     # remove the old header from the existing changelog
     ctx.run(f"sed {sed_i_arg} -e '1,4d' {changelog_file}")
 
@@ -370,7 +374,7 @@ def list_major_change(_, milestone):
 
 
 def _load_release_json():
-    with open("release.json", "r") as release_json_stream:
+    with open("release.json") as release_json_stream:
         return json.load(release_json_stream, object_pairs_hook=OrderedDict)
 
 
@@ -864,7 +868,6 @@ def __get_force_option(force: bool) -> str:
 def __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel):
     """Tag a given module."""
     for tag in module.tag(agent_version):
-
         if devel:
             tag += "-devel"
 
@@ -1124,7 +1127,7 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
-def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
+def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin", slack_webhook=None):
     """
     Updates the release entries in release.json to prepare the next RC build.
     If the previous version of the Agent (determined as the latest tag on the
@@ -1151,6 +1154,8 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     Updates internal module dependencies with the new RC.
 
     Commits the above changes, and then creates a PR on the upstream repository with the change.
+
+    If slack_webhook is provided, it tries to send the PR URL to the provided webhook. This is meant to be used mainly in automation.
 
     Notes:
     This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
@@ -1244,12 +1249,19 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
             code=1,
         )
 
-    create_pr(
+    pr_url = create_pr(
         f"[release] Update release.json and Go modules for {versions_string}",
         current_branch,
         update_branch,
         new_final_version,
     )
+
+    # Step 4 - If slack workflow webhook is provided, send a slack message
+    if slack_webhook:
+        print(color_message("Sending slack notification", "bold"))
+        ctx.run(
+            f"curl -X POST -H 'Content-Type: application/json' --data '{{\"pr_url\":\"{pr_url}\"}}' {slack_webhook}"
+        )
 
 
 def create_pr(title, base_branch, target_branch, version, changelog_pr=False):
@@ -1312,6 +1324,8 @@ Make sure that milestone is open before trying again.""",
 
     print(color_message(f"Set labels and milestone for PR #{updated_pr.number}", "bold"))
     print(color_message(f"Done preparing release PR. The PR is available here: {updated_pr.html_url}", "bold"))
+
+    return updated_pr.html_url
 
 
 @task
@@ -1458,7 +1472,7 @@ def create_and_update_release_branch(ctx, repo, release_branch, base_directory="
             _save_release_json(rj)
 
             # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml jobs
-            with open(".gitlab-ci.yml", "r") as gl:
+            with open(".gitlab-ci.yml") as gl:
                 file_content = gl.readlines()
 
             with open(".gitlab-ci.yml", "w") as gl:
@@ -1605,11 +1619,12 @@ def check_omnibus_branches(ctx):
 
 
 @task
-def update_build_links(_ctx, new_version):
+def update_build_links(_ctx, new_version, patch_version=False):
     """
     Updates Agent release candidates build links on https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2889876360/Build+links
 
-    new_version - should be given as an Agent 7 RC version, ie. '7.50.0-rc.1' format.
+    new_version - should be given as an Agent 7 RC version, ie. '7.50.0-rc.1' format. Does not support patch version unless patch_version is set to True.
+    patch_version - if set to True, then task can be used for patch releases (3 digits), ie. '7.50.1-rc.1' format. Otherwise patch release number will be considered as invalid.
 
     Notes:
     Attlasian credentials are required to be available as ATLASSIAN_USERNAME and ATLASSIAN_PASSWORD as environment variables.
@@ -1621,11 +1636,11 @@ def update_build_links(_ctx, new_version):
 
     BUILD_LINKS_PAGE_ID = 2889876360
 
-    match = RC_VERSION_RE.match(new_version)
+    match = RC_VERSION_RE.match(new_version) if patch_version else MINOR_RC_VERSION_RE.match(new_version)
     if not match:
         raise Exit(
             color_message(
-                f"{new_version} is not a valid Agent RC version number/tag. \nCorrect example: 7.50.0-rc.1",
+                f"{new_version} is not a valid {'patch' if patch_version else 'minor'} Agent RC version number/tag.\nCorrect example: 7.50{'.1' if patch_version else '.0'}-rc.1",
                 "red",
             ),
             code=1,

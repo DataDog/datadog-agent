@@ -2,7 +2,6 @@
 msi namespaced tasks
 """
 
-
 import mmap
 import os
 import shutil
