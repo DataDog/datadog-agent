@@ -74,13 +74,6 @@ func TestDebianX86(t *testing.T) {
 	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault, true)
 }
 
-func (v *vmUpdaterSuite) SetupSuite() {
-	v.BaseSuite.SetupSuite()
-
-	// the datadog.yaml file is created by root in the test-infra-definitions repo
-	v.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo chown -R dd-agent:dd-agent %s", confDir))
-}
-
 func (v *vmUpdaterSuite) TestUserGroupsCreation() {
 	// users exist and is a system user
 	require.Equal(v.T(), "/usr/sbin/nologin\n", v.Env().RemoteHost.MustExecute(`getent passwd dd-agent | cut -d: -f7`), "unexpected: user does not exist or is not a system user")
