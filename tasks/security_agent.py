@@ -950,3 +950,9 @@ def sync_secl_win_pkg(ctx):
         else:
             ctx.run(f"sed -i '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
         ctx.run(f"gofmt -s -w pkg/security/seclwin/model/{fto}")
+
+
+@task
+def freeze_friday(ctx):
+    # sync seclwin package
+    sync_secl_win_pkg(ctx)
