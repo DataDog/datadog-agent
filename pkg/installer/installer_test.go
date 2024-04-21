@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/installer/packages/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/installer/packages/service"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -78,12 +79,12 @@ func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
 	}
 }
 
-func newTestInstaller(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) *installerImpl {
+func newTestInstaller(t *testing.T, s *testDownloadServer, rcc *testRemoteConfigClient, defaultFixture fixtures.Fixture) *installerImpl {
 	u, _, _ := newTestInstallerWithPaths(t, s, rcc, defaultFixture)
 	return u
 }
 
-func newTestInstallerWithPaths(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) (*installerImpl, string, string) {
+func newTestInstallerWithPaths(t *testing.T, s *testDownloadServer, rcc *testRemoteConfigClient, defaultFixture fixtures.Fixture) (*installerImpl, string, string) {
 	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	var b = true
 	cfg.Set("updater.remote_updates", &b, model.SourceDefault)
@@ -96,43 +97,43 @@ func newTestInstallerWithPaths(t *testing.T, s *testFixturesServer, rcc *testRem
 	u.packageManager.configsDir = t.TempDir()
 	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
 	u.catalog = s.Catalog()
-	u.bootstrapVersions[defaultFixture.pkg] = defaultFixture.version
+	u.bootstrapVersions[defaultFixture.Package] = defaultFixture.Version
 	u.Start(context.Background())
 	return u, rootPath, locksPath
 }
 
 func TestBootstrapDefault(t *testing.T) {
-	s := newTestFixturesServer(t)
+	s := newTestDownloadServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
+	installer := newTestInstaller(t, s, rc, fixtures.FixtureSimpleV1)
 
-	err := installer.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+	err := installer.BootstrapDefault(context.Background(), fixtures.FixtureSimpleV1.Package)
 	assert.NoError(t, err)
 
-	r := installer.repositories.Get(fixtureSimpleV1.pkg)
+	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
 	assert.NoError(t, err)
-	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
 	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
+	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
 }
 
 func TestBootstrapURL(t *testing.T) {
-	s := newTestFixturesServer(t)
+	s := newTestDownloadServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
+	installer := newTestInstaller(t, s, rc, fixtures.FixtureSimpleV1)
 
-	err := installer.BootstrapURL(context.Background(), s.Package(fixtureSimpleV1).URL)
+	err := installer.BootstrapURL(context.Background(), s.Package(fixtures.FixtureSimpleV1).URL)
 	assert.NoError(t, err)
 
-	r := installer.repositories.Get(fixtureSimpleV1.pkg)
+	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
 	assert.NoError(t, err)
-	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
 	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
+	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
 }
 
 func TestPurge(t *testing.T) {
@@ -140,21 +141,21 @@ func TestPurge(t *testing.T) {
 		t.Skip("FIXME: broken on darwin")
 	}
 
-	s := newTestFixturesServer(t)
+	s := newTestDownloadServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	installer, rootPath, locksPath := newTestInstallerWithPaths(t, s, rc, fixtureSimpleV1)
+	installer, rootPath, locksPath := newTestInstallerWithPaths(t, s, rc, fixtures.FixtureSimpleV1)
 
 	bootstrapAndAssert := func() {
-		err := installer.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+		err := installer.BootstrapDefault(context.Background(), fixtures.FixtureSimpleV1.Package)
 		assert.NoError(t, err)
 
-		r := installer.repositories.Get(fixtureSimpleV1.pkg)
+		r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 		state, err := r.GetState()
 		assert.NoError(t, err)
-		assert.Equal(t, fixtureSimpleV1.version, state.Stable)
+		assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
 		assert.False(t, state.HasExperiment())
-		assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
+		assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
 	}
 	bootstrapAndAssert()
 	assert.Nil(t, os.WriteFile(filepath.Join(locksPath, "not_empty"), []byte("morbier\n"), 0644))
@@ -184,135 +185,135 @@ func assertDirExistAndEmpty(t *testing.T, path string) {
 }
 
 func TestBootstrapWithRC(t *testing.T) {
-	s := newTestFixturesServer(t)
+	s := newTestDownloadServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
+	installer := newTestInstaller(t, s, rc, fixtures.FixtureSimpleV1)
 
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
-		Package: fixtureSimpleV2.pkg,
+		Package: fixtures.FixtureSimpleV2.Package,
 		Method:  methodBootstrap,
-		Params:  json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
+		Params:  json.RawMessage(`{"version":"` + fixtures.FixtureSimpleV2.Version + `"}`),
 	})
 	installer.requestsWG.Wait()
 
-	r := installer.repositories.Get(fixtureSimpleV2.pkg)
+	r := installer.repositories.Get(fixtures.FixtureSimpleV2.Package)
 	state, err := r.GetState()
 	assert.NoError(t, err)
-	assert.Equal(t, fixtureSimpleV2.version, state.Stable)
+	assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Stable)
 	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.StableFS())
+	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.StableFS())
 }
 
 // hacky name to avoid hitting https://github.com/golang/go/issues/62614
 func TestBootUpd(t *testing.T) {
-	s := newTestFixturesServer(t)
+	s := newTestDownloadServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
+	installer := newTestInstaller(t, s, rc, fixtures.FixtureSimpleV1)
 	installer.catalog = catalog{}
 
-	err := installer.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+	err := installer.BootstrapDefault(context.Background(), fixtures.FixtureSimpleV1.Package)
 	assert.Error(t, err)
 	rc.SubmitCatalog(s.Catalog())
-	err = installer.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+	err = installer.BootstrapDefault(context.Background(), fixtures.FixtureSimpleV1.Package)
 	assert.NoError(t, err)
 }
 
 func TestStartExperiment(t *testing.T) {
-	s := newTestFixturesServer(t)
+	s := newTestDownloadServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
+	installer := newTestInstaller(t, s, rc, fixtures.FixtureSimpleV1)
 
-	err := installer.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+	err := installer.BootstrapDefault(context.Background(), fixtures.FixtureSimpleV1.Package)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
-		Package: fixtureSimpleV1.pkg,
+		Package: fixtures.FixtureSimpleV1.Package,
 		ExpectedState: expectedState{
-			Stable: fixtureSimpleV1.version,
+			Stable: fixtures.FixtureSimpleV1.Version,
 		},
 		Method: methodStartExperiment,
-		Params: json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
+		Params: json.RawMessage(`{"version":"` + fixtures.FixtureSimpleV2.Version + `"}`),
 	})
 	installer.requestsWG.Wait()
 
-	r := installer.repositories.Get(fixtureSimpleV1.pkg)
+	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
 	assert.NoError(t, err)
-	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
-	assert.Equal(t, fixtureSimpleV2.version, state.Experiment)
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.ExperimentFS())
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
+	assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Experiment)
+	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
+	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.ExperimentFS())
 }
 
 func TestPromoteExperiment(t *testing.T) {
-	s := newTestFixturesServer(t)
+	s := newTestDownloadServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
+	installer := newTestInstaller(t, s, rc, fixtures.FixtureSimpleV1)
 
-	err := installer.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+	err := installer.BootstrapDefault(context.Background(), fixtures.FixtureSimpleV1.Package)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
-		Package: fixtureSimpleV1.pkg,
+		Package: fixtures.FixtureSimpleV1.Package,
 		ExpectedState: expectedState{
-			Stable: fixtureSimpleV1.version,
+			Stable: fixtures.FixtureSimpleV1.Version,
 		},
 		Method: methodStartExperiment,
-		Params: json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
+		Params: json.RawMessage(`{"version":"` + fixtures.FixtureSimpleV2.Version + `"}`),
 	})
 	installer.requestsWG.Wait()
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
-		Package: fixtureSimpleV1.pkg,
+		Package: fixtures.FixtureSimpleV1.Package,
 		ExpectedState: expectedState{
-			Stable:     fixtureSimpleV1.version,
-			Experiment: fixtureSimpleV2.version,
+			Stable:     fixtures.FixtureSimpleV1.Version,
+			Experiment: fixtures.FixtureSimpleV2.Version,
 		},
 		Method: methodPromoteExperiment,
 	})
 	installer.requestsWG.Wait()
 
-	r := installer.repositories.Get(fixtureSimpleV1.pkg)
+	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
 	assert.NoError(t, err)
-	assert.Equal(t, fixtureSimpleV2.version, state.Stable)
+	assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Stable)
 	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.StableFS())
+	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.StableFS())
 }
 
 func TestStopExperiment(t *testing.T) {
-	s := newTestFixturesServer(t)
+	s := newTestDownloadServer(t)
 	defer s.Close()
 	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
+	installer := newTestInstaller(t, s, rc, fixtures.FixtureSimpleV1)
 
-	err := installer.BootstrapDefault(context.Background(), fixtureSimpleV1.pkg)
+	err := installer.BootstrapDefault(context.Background(), fixtures.FixtureSimpleV1.Package)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
-		Package: fixtureSimpleV1.pkg,
+		Package: fixtures.FixtureSimpleV1.Package,
 		ExpectedState: expectedState{
-			Stable: fixtureSimpleV1.version,
+			Stable: fixtures.FixtureSimpleV1.Version,
 		},
 		Method: methodStartExperiment,
-		Params: json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
+		Params: json.RawMessage(`{"version":"` + fixtures.FixtureSimpleV2.Version + `"}`),
 	})
 	installer.requestsWG.Wait()
-	r := installer.repositories.Get(fixtureSimpleV1.pkg)
+	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.True(t, state.HasExperiment())
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
-		Package: fixtureSimpleV1.pkg,
+		Package: fixtures.FixtureSimpleV1.Package,
 		ExpectedState: expectedState{
-			Stable:     fixtureSimpleV1.version,
-			Experiment: fixtureSimpleV2.version,
+			Stable:     fixtures.FixtureSimpleV1.Version,
+			Experiment: fixtures.FixtureSimpleV2.Version,
 		},
 		Method: methodStopExperiment,
 	})
@@ -320,7 +321,7 @@ func TestStopExperiment(t *testing.T) {
 
 	state, err = r.GetState()
 	assert.NoError(t, err)
-	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
 	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
+	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
 }

@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/installer/packages/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/installer/packages/repository"
 )
 
@@ -90,82 +91,82 @@ func newTestPackageManager(t *testing.T, rootPath string, locksPath string) *tes
 	}
 }
 
-func (i *testPackageManager) ConfigFS(f fixture) fs.FS {
-	return os.DirFS(filepath.Join(i.configsDir, f.pkg))
+func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
+	return os.DirFS(filepath.Join(i.configsDir, f.Package))
 }
 
 func TestInstallStable(t *testing.T) {
-	s := newTestFixturesServer(t)
+	s := newTestDownloadServer(t)
 	defer s.Close()
 	installer := newTestPackageManager(t, t.TempDir(), t.TempDir())
 
-	err := installer.installStable(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
+	err := installer.installStable(testCtx, fixtures.FixtureSimpleV1.Package, fixtures.FixtureSimpleV1.Version, s.Image(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
-	r := installer.repositories.Get(fixtureSimpleV1.pkg)
+	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
 	assert.NoError(t, err)
-	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
 	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
-	assertEqualFS(t, s.ConfigFS(fixtureSimpleV1), installer.ConfigFS(fixtureSimpleV1))
+	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
+	assertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV1), installer.ConfigFS(fixtures.FixtureSimpleV1))
 }
 
 func TestInstallExperiment(t *testing.T) {
-	s := newTestFixturesServer(t)
+	s := newTestDownloadServer(t)
 	defer s.Close()
 	installer := newTestPackageManager(t, t.TempDir(), t.TempDir())
 
-	err := installer.installStable(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
+	err := installer.installStable(testCtx, fixtures.FixtureSimpleV1.Package, fixtures.FixtureSimpleV1.Version, s.Image(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
-	err = installer.installExperiment(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
+	err = installer.installExperiment(testCtx, fixtures.FixtureSimpleV1.Package, fixtures.FixtureSimpleV2.Version, s.Image(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)
-	r := installer.repositories.Get(fixtureSimpleV1.pkg)
+	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
 	assert.NoError(t, err)
-	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
-	assert.Equal(t, fixtureSimpleV2.version, state.Experiment)
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.ExperimentFS())
-	assertEqualFS(t, s.ConfigFS(fixtureSimpleV2), installer.ConfigFS(fixtureSimpleV2))
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
+	assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Experiment)
+	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
+	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.ExperimentFS())
+	assertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
 }
 
 func TestInstallPromoteExperiment(t *testing.T) {
-	s := newTestFixturesServer(t)
+	s := newTestDownloadServer(t)
 	defer s.Close()
 	installer := newTestPackageManager(t, t.TempDir(), t.TempDir())
 
-	err := installer.installStable(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
+	err := installer.installStable(testCtx, fixtures.FixtureSimpleV1.Package, fixtures.FixtureSimpleV1.Version, s.Image(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
-	err = installer.installExperiment(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
+	err = installer.installExperiment(testCtx, fixtures.FixtureSimpleV1.Package, fixtures.FixtureSimpleV2.Version, s.Image(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)
-	err = installer.promoteExperiment(testCtx, fixtureSimpleV1.pkg)
+	err = installer.promoteExperiment(testCtx, fixtures.FixtureSimpleV1.Package)
 	assert.NoError(t, err)
-	r := installer.repositories.Get(fixtureSimpleV1.pkg)
+	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
 	assert.NoError(t, err)
-	assert.Equal(t, fixtureSimpleV2.version, state.Stable)
+	assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Stable)
 	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.StableFS())
-	assertEqualFS(t, s.ConfigFS(fixtureSimpleV2), installer.ConfigFS(fixtureSimpleV2))
+	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.StableFS())
+	assertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
 }
 
 func TestUninstallExperiment(t *testing.T) {
-	s := newTestFixturesServer(t)
+	s := newTestDownloadServer(t)
 	defer s.Close()
 	installer := newTestPackageManager(t, t.TempDir(), t.TempDir())
 
-	err := installer.installStable(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
+	err := installer.installStable(testCtx, fixtures.FixtureSimpleV1.Package, fixtures.FixtureSimpleV1.Version, s.Image(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
-	err = installer.installExperiment(testCtx, fixtureSimpleV1.pkg, fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
+	err = installer.installExperiment(testCtx, fixtures.FixtureSimpleV1.Package, fixtures.FixtureSimpleV2.Version, s.Image(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)
-	err = installer.uninstallExperiment(testCtx, fixtureSimpleV1.pkg)
+	err = installer.uninstallExperiment(testCtx, fixtures.FixtureSimpleV1.Package)
 	assert.NoError(t, err)
-	r := installer.repositories.Get(fixtureSimpleV1.pkg)
+	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
 	assert.NoError(t, err)
-	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
 	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
+	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
 	// we do not rollback configuration examples to their previous versions currently
-	assertEqualFS(t, s.ConfigFS(fixtureSimpleV2), installer.ConfigFS(fixtureSimpleV2))
+	assertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
 }

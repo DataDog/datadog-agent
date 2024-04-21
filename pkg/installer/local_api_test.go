@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/installer/packages/fixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,9 +25,9 @@ type testLocalAPI struct {
 	c *localAPIClientImpl
 }
 
-func newTestLocalAPI(t *testing.T, s *testFixturesServer) *testLocalAPI {
+func newTestLocalAPI(t *testing.T, s *testDownloadServer) *testLocalAPI {
 	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
+	installer := newTestInstaller(t, s, rc, fixtures.FixtureSimpleV1)
 	rc.SubmitCatalog(s.Catalog())
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -52,58 +53,58 @@ func TestLocalAPI(t *testing.T) {
 		t.Skip("FIXME: broken on darwin")
 	}
 
-	s := newTestFixturesServer(t)
+	s := newTestDownloadServer(t)
 	defer s.Close()
 	api := newTestLocalAPI(t, s)
 	defer api.Stop()
 
 	// test bootstrap
-	err := api.c.BootstrapVersion(fixtureSimpleV1.pkg, fixtureSimpleV1.version)
+	err := api.c.BootstrapVersion(fixtures.FixtureSimpleV1.Package, fixtures.FixtureSimpleV1.Version)
 	assert.NoError(t, err)
 
 	state, err := api.c.Status()
 	assert.NoError(t, err)
 	assert.Len(t, state.Packages, 1)
-	assert.Contains(t, state.Packages, fixtureSimpleV1.pkg)
-	pkg := state.Packages[fixtureSimpleV1.pkg]
-	assert.Equal(t, fixtureSimpleV1.version, pkg.Stable)
+	assert.Contains(t, state.Packages, fixtures.FixtureSimpleV1.Package)
+	pkg := state.Packages[fixtures.FixtureSimpleV1.Package]
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, pkg.Stable)
 	assert.Empty(t, pkg.Experiment)
 
 	// test start experiment
-	err = api.c.StartExperiment(fixtureSimpleV2.pkg, fixtureSimpleV2.version)
+	err = api.c.StartExperiment(fixtures.FixtureSimpleV2.Package, fixtures.FixtureSimpleV2.Version)
 	assert.NoError(t, err)
 
 	state, err = api.c.Status()
 	assert.NoError(t, err)
 	assert.Len(t, state.Packages, 1)
-	assert.Contains(t, state.Packages, fixtureSimpleV2.pkg)
-	pkg = state.Packages[fixtureSimpleV2.pkg]
-	assert.Equal(t, fixtureSimpleV1.version, pkg.Stable)
-	assert.Equal(t, fixtureSimpleV2.version, pkg.Experiment)
+	assert.Contains(t, state.Packages, fixtures.FixtureSimpleV2.Package)
+	pkg = state.Packages[fixtures.FixtureSimpleV2.Package]
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, pkg.Stable)
+	assert.Equal(t, fixtures.FixtureSimpleV2.Version, pkg.Experiment)
 
 	// test stop experiment
-	err = api.c.StopExperiment(fixtureSimpleV2.pkg)
+	err = api.c.StopExperiment(fixtures.FixtureSimpleV2.Package)
 	assert.NoError(t, err)
 
 	state, err = api.c.Status()
 	assert.NoError(t, err)
 	assert.Len(t, state.Packages, 1)
-	assert.Contains(t, state.Packages, fixtureSimpleV2.pkg)
-	pkg = state.Packages[fixtureSimpleV2.pkg]
-	assert.Equal(t, fixtureSimpleV1.version, pkg.Stable)
+	assert.Contains(t, state.Packages, fixtures.FixtureSimpleV2.Package)
+	pkg = state.Packages[fixtures.FixtureSimpleV2.Package]
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, pkg.Stable)
 	assert.Empty(t, pkg.Experiment)
 
 	// test promote experiment
-	err = api.c.StartExperiment(fixtureSimpleV2.pkg, fixtureSimpleV2.version)
+	err = api.c.StartExperiment(fixtures.FixtureSimpleV2.Package, fixtures.FixtureSimpleV2.Version)
 	assert.NoError(t, err)
-	err = api.c.PromoteExperiment(fixtureSimpleV2.pkg)
+	err = api.c.PromoteExperiment(fixtures.FixtureSimpleV2.Package)
 	assert.NoError(t, err)
 
 	state, err = api.c.Status()
 	assert.NoError(t, err)
 	assert.Len(t, state.Packages, 1)
-	assert.Contains(t, state.Packages, fixtureSimpleV2.pkg)
-	pkg = state.Packages[fixtureSimpleV2.pkg]
-	assert.Equal(t, fixtureSimpleV2.version, pkg.Stable)
+	assert.Contains(t, state.Packages, fixtures.FixtureSimpleV2.Package)
+	pkg = state.Packages[fixtures.FixtureSimpleV2.Package]
+	assert.Equal(t, fixtures.FixtureSimpleV2.Version, pkg.Stable)
 	assert.Empty(t, pkg.Experiment)
 }
