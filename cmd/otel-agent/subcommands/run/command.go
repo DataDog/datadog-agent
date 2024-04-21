@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -78,7 +79,12 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 			return params.ConfPaths
 		}),
 		fx.Provide(func() (config.Component, error) {
-			return agentconfig.NewConfigComponent(params.ConfPaths)
+			c, err := agentconfig.NewConfigComponent(params.ConfPaths)
+			if err != nil {
+				return nil, err
+			}
+			env.DetectFeatures(c)
+			return c, nil
 		}),
 		fx.Provide(pipeline.NewProvider),
 		corelogimpl.Module(),
