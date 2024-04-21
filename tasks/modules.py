@@ -200,6 +200,7 @@ DEFAULT_MODULES = {
     "pkg/config/utils": GoModule("pkg/config/utils", independent=True),
     "pkg/config/logs": GoModule("pkg/config/logs", independent=True),
     "pkg/config/remote": GoModule("pkg/config/remote", independent=True),
+    "pkg/installer/packages": GoModule("pkg/installer/packages", independent=True),
     "pkg/logs/auditor": GoModule("pkg/logs/auditor", independent=True),
     "pkg/logs/client": GoModule("pkg/logs/client", independent=True),
     "pkg/logs/diagnostic": GoModule("pkg/logs/diagnostic", independent=True),
