@@ -316,6 +316,8 @@ func (i *installerImpl) scheduleRemoteAPIRequest(request remoteAPIRequest) error
 }
 
 func (i *installerImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error) {
+	i.m.Lock()
+	defer i.m.Unlock()
 	defer i.requestsWG.Done()
 	ctx := newRequestContext(request)
 	i.refreshState(ctx)
@@ -331,30 +333,37 @@ func (i *installerImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err er
 		i.refreshState(ctx)
 		return nil
 	}
-
 	defer func() { setRequestDone(ctx, err) }()
+
+	i.m.Unlock()
 	switch request.Method {
 	case methodStartExperiment:
 		log.Infof("Installer: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
-		var params taskWithVersionParams
-		err := json.Unmarshal(request.Params, &params)
-		if err != nil {
-			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
-		}
-		experimentPackage, ok := i.catalog.getPackage(request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
-		if !ok {
-			return fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
-		}
-		return i.StartExperiment(ctx, experimentPackage.URL)
+		err = i.remoteAPIStartExperiment(ctx, request)
 	case methodStopExperiment:
 		log.Infof("Installer: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
-		return i.StopExperiment(ctx, request.Package)
+		err = i.StopExperiment(ctx, request.Package)
 	case methodPromoteExperiment:
 		log.Infof("Installer: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
-		return i.PromoteExperiment(ctx, request.Package)
+		err = i.PromoteExperiment(ctx, request.Package)
 	default:
-		return fmt.Errorf("unknown method: %s", request.Method)
+		err = fmt.Errorf("unknown method: %s", request.Method)
 	}
+	i.m.Lock()
+	return err
+}
+
+func (i *installerImpl) remoteAPIStartExperiment(ctx context.Context, request remoteAPIRequest) error {
+	var params taskWithVersionParams
+	err := json.Unmarshal(request.Params, &params)
+	if err != nil {
+		return fmt.Errorf("could not unmarshal start experiment params: %w", err)
+	}
+	experimentPackage, ok := i.catalog.getPackage(request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
+	if !ok {
+		return fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
+	}
+	return i.StartExperiment(ctx, experimentPackage.URL)
 }
 
 type requestKey int
