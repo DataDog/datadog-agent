@@ -56,7 +56,7 @@ static __always_inline usm_context_t* __get_usm_context(struct __sk_buff *skb) {
 static __always_inline void __init_buffer(struct __sk_buff *skb, skb_info_t *skb_info, classification_buffer_t* buffer) {
     bpf_memset(buffer->data, 0, sizeof(buffer->data));
     read_into_buffer_for_classification((char *)buffer->data, skb, skb_info->data_off);
-    const size_t payload_length = skb->len - skb_info->data_off;
+    const size_t payload_length = skb_info->data_end - skb_info->data_off;
     buffer->size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
 }
 

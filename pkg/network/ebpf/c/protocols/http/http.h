@@ -225,7 +225,7 @@ static __always_inline bool http_allow_packet(conn_tuple_t *tuple, struct __sk_b
         return false;
     }
 
-    bool empty_payload = skb_info->data_off == skb->len;
+    bool empty_payload = skb_info->data_off == skb_info->data_end;
     if (empty_payload || tuple->sport == HTTPS_PORT || tuple->dport == HTTPS_PORT) {
         // if the payload data is empty or encrypted packet, we only
         // process it if the packet represents a TCP termination
