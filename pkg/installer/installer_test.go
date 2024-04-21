@@ -262,6 +262,7 @@ func TestRemoteRequest(t *testing.T) {
 	i.pm.On("State", testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
 	i.pm.On("InstallExperiment", mock.Anything, testExperimentPackage.URL).Return(nil).Once()
 	i.rcc.SubmitRequest(testRequest)
+	i.requestsWG.Wait()
 
 	testRequest = remoteAPIRequest{
 		ID:            "test-request-2",
@@ -272,6 +273,7 @@ func TestRemoteRequest(t *testing.T) {
 	i.pm.On("State", testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
 	i.pm.On("RemoveExperiment", mock.Anything, testExperimentPackage.Name).Return(nil).Once()
 	i.rcc.SubmitRequest(testRequest)
+	i.requestsWG.Wait()
 
 	testRequest = remoteAPIRequest{
 		ID:            "test-request-3",
@@ -282,7 +284,7 @@ func TestRemoteRequest(t *testing.T) {
 	i.pm.On("State", testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
 	i.pm.On("PromoteExperiment", mock.Anything, testExperimentPackage.Name).Return(nil).Once()
 	i.rcc.SubmitRequest(testRequest)
-
 	i.requestsWG.Wait()
+
 	i.pm.AssertExpectations(t)
 }
