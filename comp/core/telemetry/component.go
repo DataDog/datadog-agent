@@ -55,5 +55,5 @@ type Component interface {
 	NewSimpleHistogramWithOpts(subsystem, name, help string, buckets []float64, opts Options) SimpleHistogram
 
 	// GatherDefault exposes metrics from the default telemetry registry (see options.DefaultMetric)
-	GatherDefault() ([]*MetricFamily, error)
+	GatherDefault(defaultGather bool) ([]*MetricFamily, error)
 }

@@ -339,7 +339,7 @@ func (i *installerImpl) BootstrapURL(ctx context.Context, url string) (err error
 
 func (i *installerImpl) bootstrapPackage(ctx context.Context, url string, expectedPackage string, expectedVersion string) error {
 	// both tmp and repository paths are checked for available disk space in case they are on different partitions
-	err := checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
+	err := checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath)
 	if err != nil {
 		return fmt.Errorf("not enough disk space to install package: %w", err)
 	}
@@ -372,7 +372,7 @@ func (i *installerImpl) StartExperiment(ctx context.Context, pkg string, version
 
 	log.Infof("Installer: Starting experiment for package %s version %s", pkg, version)
 	// both tmp and repository paths are checked for available disk space in case they are on different partitions
-	err = checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
+	err = checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath)
 	if err != nil {
 		return fmt.Errorf("not enough disk space to install package: %w", err)
 	}

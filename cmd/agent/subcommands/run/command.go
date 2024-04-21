@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
+	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry"
+	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry/agenttelemetryimpl"
 
 	// checks implemented as components
 
@@ -229,6 +231,7 @@ func run(log log.Component,
 	_ healthprobe.Component,
 	_ autoexit.Component,
 	settings settings.Component,
+	_ agenttelemetry.Component,
 ) error {
 	defer func() {
 		stopAgent(agentAPI)
@@ -445,6 +448,7 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		settingsimpl.Module(),
+		agenttelemetryimpl.Module(),
 	)
 }
 
