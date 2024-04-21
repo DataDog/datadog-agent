@@ -66,6 +66,7 @@ type managerImpl struct {
 	repositories *repository.Repositories
 	configsDir   string
 	tmpDirPath   string
+	packagesPath string
 }
 
 // Options are the options for the package manager.
@@ -108,6 +109,7 @@ func NewManager(opts ...Options) Manager {
 		repositories: repository.NewRepositories(PackagesPath, LocksPack),
 		configsDir:   defaultConfigsDir,
 		tmpDirPath:   TmpDirPath,
+		packagesPath: PackagesPath,
 	}
 }
 
@@ -125,7 +127,7 @@ func (m *managerImpl) States() (map[string]repository.State, error) {
 func (m *managerImpl) Install(ctx context.Context, url string) error {
 	m.m.Lock()
 	defer m.m.Unlock()
-	err := utils.CheckAvailableDiskSpace(mininumDiskSpace, PackagesPath)
+	err := utils.CheckAvailableDiskSpace(mininumDiskSpace, m.packagesPath)
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
@@ -155,7 +157,7 @@ func (m *managerImpl) Install(ctx context.Context, url string) error {
 func (m *managerImpl) InstallExperiment(ctx context.Context, url string) error {
 	m.m.Lock()
 	defer m.m.Unlock()
-	err := utils.CheckAvailableDiskSpace(mininumDiskSpace, PackagesPath)
+	err := utils.CheckAvailableDiskSpace(mininumDiskSpace, m.packagesPath)
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
