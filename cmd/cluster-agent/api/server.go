@@ -42,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -114,7 +115,7 @@ func StartServer(w workloadmeta.Component, taggerComp tagger.Component, ac autod
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := config.NewTLSHandshakeErrorWriter(4, seelog.WarnLvl)
+	logWriter, _ := config.NewTLSHandshakeErrorWriter(4, seelog.WarnLvl, &(api.TLSHandshakeErrors))
 
 	authInterceptor := grpcutil.AuthInterceptor(func(token string) (interface{}, error) {
 		if token != util.GetDCAAuthToken() {
