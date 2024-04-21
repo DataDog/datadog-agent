@@ -1,0 +1,30 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+exporters:
+  debug:
+    verbosity: detailed
+  otlp:
+    endpoint: localhost:4317
+    tls:
+      insecure: true
+  datadog:
+    hostname: my-test-host
+    api:
+      key: $DD_API_KEY
+processors:
+  probabilistic_sampler:
+    hash_seed: 22
+    sampling_percentage: 15.3
+  batch:
+    timeout: 10s
+  resourcedetection:
+    detectors: [system, env]
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch, resourcedetection]
+      exporters: [datadog]

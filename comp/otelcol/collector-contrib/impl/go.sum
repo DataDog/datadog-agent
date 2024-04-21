@@ -143,8 +143,6 @@ github.com/Code-Hex/go-generics-cache v1.3.1 h1:i8rLwyhoyhaerr7JpjtYjJZUcCbWOdiY
 github.com/Code-Hex/go-generics-cache v1.3.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
-github.com/DataDog/datadog-agent/pkg/proto v0.51.1-0.20240301173728-334e775e420a h1:vN5cl8mKqADznzz6cnz/lgoBfHVs4zDgz0fr0ZkeXa4=
-github.com/DataDog/datadog-agent/pkg/proto v0.51.1-0.20240301173728-334e775e420a/go.mod h1:wjr5YlVvGip6VmAGzHrdBaGUu1LaA9B6gHvInm5kHiY=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/zstd v1.5.0 h1:+K/VEwIAaPcHiMtQvpLD4lqW7f0Gk3xdYZmI1hD+CXo=
 github.com/DataDog/zstd v1.5.0/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
@@ -1207,8 +1205,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/collectdrecei
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/collectdreceiver v0.98.0/go.mod h1:ZSGDjnKEgFqqlP+RIWKcTEAS4j1X314n1pA6oSNeibs=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/couchdbreceiver v0.98.0 h1:AcUDk8ROKhLzVV20DUGxtLjIbDymZH0x8g3bUMr4sTw=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/couchdbreceiver v0.98.0/go.mod h1:sIr8BPN5rWg7ukMcJX5hivkal3CiiI5Oo9Hu5CyCf4o=
-github.com/open-telemetry/opentelemetry-collector-contrib/receiver/datadogreceiver v0.98.0 h1:LkNwmqZpbKN1czzUeGDIXLoX+dRV01d02buWUDNZGVw=
-github.com/open-telemetry/opentelemetry-collector-contrib/receiver/datadogreceiver v0.98.0/go.mod h1:X16ycJt9Vma7G8C1fxGe75g7xlVFW7FD1ef8CnDhDYY=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsreceiver v0.98.0 h1:+l3egIFnvgsdbjhJbyBrFPum5pGYz5PQUP+5ctJumos=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsreceiver v0.98.0/go.mod h1:Rk7IXjlZ0yRoucw73hniIp3PrfXIBcfdexhEo9UpaS4=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/elasticsearchreceiver v0.98.0 h1:iHvfQ5pGqOJ2qWpIPrWXuJdIWJdoRIvF8ToQ8ZZqOT8=
@@ -1546,10 +1542,6 @@ github.com/valyala/fastjson v1.6.4 h1:uAUNq9Z6ymTgGhcm0UynUAB6tlbakBrz6CQFax3BXV
 github.com/valyala/fastjson v1.6.4/go.mod h1:CLCAqky6SMuOcxStkYQvblddUtoRxhYMGLrsQns1aXY=
 github.com/vincent-petithory/dataurl v1.0.0 h1:cXw+kPto8NLuJtlMsI152irrVw9fRDX8AbShPRpg2CI=
 github.com/vincent-petithory/dataurl v1.0.0/go.mod h1:FHafX5vmDzyP+1CQATJn7WFKc9CvnvxyvZy6I1MrG/U=
-github.com/vmihailenco/msgpack/v4 v4.3.13 h1:A2wsiTbvp63ilDaWmsk2wjx6xZdxQOvpiNlKBGKKXKI=
-github.com/vmihailenco/msgpack/v4 v4.3.13/go.mod h1:gborTTJjAo/GWTqqRjrLCn9pgNN+NXzzngzBKDPIqw4=
-github.com/vmihailenco/tagparser v0.1.2 h1:gnjoVuB/kljJ5wICEEOpx98oXMWPLj22G67Vbd1qPqc=
-github.com/vmihailenco/tagparser v0.1.2/go.mod h1:OeAg3pn3UbLjkWt+rN9oFYB6u/cQgqMEUPoW2WPyhdI=
 github.com/vmware/go-vmware-nsxt v0.0.0-20230223012718-d31b8a1ca05e h1:Vu41Q0Pv3yMdd+tcDW6QeEUIK2L+9ZrPrq8NAMrKSLc=
 github.com/vmware/go-vmware-nsxt v0.0.0-20230223012718-d31b8a1ca05e/go.mod h1:aRq5pxwgdJpAuP97SCjX1+Db32z/b0dggQ07FDF+fqE=
 github.com/vmware/govmomi v0.36.3 h1:1Ng3CBNQVbFjCQbKtfsewy5o3dFa+EoTjqeThVISUBc=
@@ -1649,6 +1641,8 @@ go.opentelemetry.io/collector/exporter/debugexporter v0.98.0 h1:zAFCXYzpxDh64BIV
 go.opentelemetry.io/collector/exporter/debugexporter v0.98.0/go.mod h1:S15ELDQFoP5da3NHzXJR2I8FGUnM2C1Hp6e/OhaCtw0=
 go.opentelemetry.io/collector/exporter/otlpexporter v0.98.0 h1:uhiR/luaJCwMnvvkIS/gIxBbSAp+/vbqeC3AXmuc/kg=
 go.opentelemetry.io/collector/exporter/otlpexporter v0.98.0/go.mod h1:1ySnK/6Cl+67FTP6ty04PX9nrXPYFPuBqZ+Xn9Jzz6Y=
+go.opentelemetry.io/collector/exporter/otlphttpexporter v0.95.0 h1:qYwzbWoO0+lo8ZCvlJnejTLaidnPmfNB4JbIzQ5isHY=
+go.opentelemetry.io/collector/exporter/otlphttpexporter v0.95.0/go.mod h1:GuZWJMiyHXmLQTKMdniu4uNScrAuUSkp2RSW7+zDjpY=
 go.opentelemetry.io/collector/extension v0.98.0 h1:08B5ipEsoNmPHY96j5EUsUrFre01GOZ4zgttUDtPUkY=
 go.opentelemetry.io/collector/extension v0.98.0/go.mod h1:fZ1Hnnahszl5j3xcW2sMRJ0FLWDOFkFMQeVDP0Se7i8=
 go.opentelemetry.io/collector/extension/auth v0.98.0 h1:7b1jioijJbTMqaOCrz5Hoqf+zJn2iPlGmtN7pXLNWbA=

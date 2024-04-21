@@ -8,13 +8,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	logsagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"go.opentelemetry.io/collector/component"
@@ -24,21 +23,11 @@ import (
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/featuregate"
-	"go.opentelemetry.io/collector/pdata/pcommon"
+
 	"go.uber.org/zap"
 )
 
-const metadataReporterPeriod = 30 * time.Minute
-
-func consumeResource(metadataReporter *inframetadata.Reporter, res pcommon.Resource, logger *zap.Logger) {
-	if err := metadataReporter.ConsumeResource(res); err != nil {
-		logger.Warn("failed to consume resource for host metadata", zap.Error(err), zap.Any("resource", res))
-	}
-}
-
 type factory struct {
-	onceMetadata sync.Once
-
 	onceAttributesTranslator sync.Once
 	attributesTranslator     *attributes.Translator
 	attributesErr            error
@@ -46,6 +35,7 @@ type factory struct {
 	registry  *featuregate.Registry
 	s         serializer.MetricSerializer
 	logsAgent logsagent.Component
+	h         hostname.Component
 }
 
 func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attributes.Translator, error) {
@@ -55,18 +45,18 @@ func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attrib
 	return f.attributesTranslator, f.attributesErr
 }
 
-func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricSerializer, logsagent logsagent.Component) exporter.Factory {
+func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricSerializer, logsagent logsagent.Component, h hostname.Component) exporter.Factory {
 	f := &factory{
 		registry:  registry,
 		s:         s,
 		logsAgent: logsagent,
+		h:         h,
 	}
 
-	sf := serializerexporter.NewFactory(s, &tagEnricher{}, hostname.Get)
 	return exporter.NewFactory(
 		Type,
 		f.createDefaultConfig,
-		exporter.WithMetrics(sf.CreateMetricsExporter, MetricsStability),
+		exporter.WithMetrics(f.createMetricsExporter, MetricsStability),
 		exporter.WithTraces(f.createTracesExporter, TracesStability),
 		exporter.WithLogs(f.createLogsExporter, LogsStability),
 	)
@@ -87,8 +77,8 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 }
 
 // NewFactory creates a Datadog exporter factory
-func NewFactory(s serializer.MetricSerializer, logsAgent logsagent.Component) exporter.Factory {
-	return newFactoryWithRegistry(featuregate.GlobalRegistry(), s, logsAgent)
+func NewFactory(s serializer.MetricSerializer, logsAgent logsagent.Component, h hostname.Component) exporter.Factory {
+	return newFactoryWithRegistry(featuregate.GlobalRegistry(), s, logsAgent, h)
 }
 
 func defaultClientConfig() confighttp.ClientConfig {
@@ -167,6 +157,17 @@ func (f *factory) createTracesExporter(
 ) (exporter.Traces, error) {
 	// TODO implement
 	return nil, nil
+}
+
+// createTracesExporter creates a trace exporter based on this config.
+func (f *factory) createMetricsExporter(
+	ctx context.Context,
+	set exporter.CreateSettings,
+	c component.Config,
+) (exporter.Metrics, error) {
+	cfg := checkAndCastConfig(c, set.Logger)
+	sf := serializerexporter.NewFactory(f.s, &tagEnricher{}, f.h.Get)
+	return sf.CreateMetricsExporter(ctx, set, cfg.Metrics)
 }
 
 // createLogsExporter creates a logs exporter based on the config.

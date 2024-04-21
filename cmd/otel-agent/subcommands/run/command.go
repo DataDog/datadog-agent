@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2016-present Datcomp/.
 
 package run
 
 import (
 	"context"
+	"fmt"
 
+	agentconfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -26,15 +28,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/spf13/cobra"
-	otelcollector "go.opentelemetry.io/collector/otelcol"
 
 	"go.uber.org/fx"
 )
@@ -71,21 +71,24 @@ func (o *orchestratorinterfaceimpl) Reset() {
 }
 
 func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) error {
+	fmt.Printf("Running the agent with params: %v\n", params)
 	err := fxutil.Run(
 		forwarder.Bundle(),
-		fx.Provide(func(s serializer.MetricSerializer, logsAgent chan *message.Message) (otelcollector.Factories, error) {
-			return otlp.GetCoreComponents(s, logsAgent)
+		fx.Provide(func() []string {
+			return params.ConfPaths
 		}),
-		// TODO: remove this once we start reading the collector config
-		// We need to create a new config module from the collector config
+		fx.Provide(func() (config.Component, error) {
+			return agentconfig.NewConfigComponent(params.ConfPaths)
+		}),
+		fx.Provide(pipeline.NewProvider),
 		corelogimpl.Module(),
-		inventoryagentimpl.Module(),
+		inventoryagentimpl.MockModule(),
 		workloadmeta.Module(),
 		hostnameimpl.Module(),
 		sysprobeconfig.NoneModule(),
 		fetchonlyimpl.Module(),
 		collectorcontribFx.Module(),
-
+		collector.ContribModule(),
 		fx.Provide(func() workloadmeta.Params {
 			return workloadmeta.NewParams()
 		}),
@@ -108,8 +111,8 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 			return s
 		}),
 		fx.Provide(func(h hostname.Component) string {
-			hn, _ := h.Get(context.Background())
-			return hn
+			// hn, _ := h.Get(context.Background())
+			return "hostname"
 		}),
 
 		fx.Provide(newForwarderParams),
@@ -121,6 +124,7 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 		}),
 	)
 	if err != nil {
+		fmt.Printf("Error running the agent: %v\n", err)
 		return err
 	}
 	return nil

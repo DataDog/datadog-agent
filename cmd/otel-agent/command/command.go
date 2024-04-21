@@ -32,6 +32,7 @@ var defaultConfigPath = filepath.Join(setup.InstallPath, "etc/otel-config.yaml")
 func MakeRootCommand() *cobra.Command {
 	globalParams := subcommands.GlobalParams{
 		ConfigName: "datadog-otel",
+		LoggerName: loggerName,
 	}
 
 	return makeCommands(&globalParams)
@@ -39,9 +40,7 @@ func MakeRootCommand() *cobra.Command {
 
 func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	globalConfGetter := func() *subcommands.GlobalParams {
-		return &subcommands.GlobalParams{
-			LoggerName: loggerName,
-		}
+		return globalParams
 	}
 	commands := []*cobra.Command{
 		run.MakeCommand(globalConfGetter),
@@ -57,7 +56,6 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	}
 
 	otelAgentCmd.PersistentFlags().StringSliceVarP(&globalParams.ConfPaths, "config", "c", []string{defaultConfigPath}, "path to the configuration file")
-	otelAgentCmd.PersistentFlags().StringSliceVarP(&globalParams.FeatureGates, "feature-gates", "", []string{}, "comma-separated list of feature gates to enable")
 
 	return &otelAgentCmd
 }

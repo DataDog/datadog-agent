@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -31,13 +31,16 @@ func NewConfigComponent(uris []string) (config.Component, error) {
 		),
 		Converters: []confmap.Converter{expandconverter.New(confmap.ConverterSettings{})},
 	}
+	fmt.Printf("Loading config from %s\n", uris)
 
 	resolver, err := confmap.NewResolver(rs)
 	if err != nil {
+		fmt.Printf("Error creating resolver: %v\n", err)
 		return nil, err
 	}
 	cfg, err := resolver.Resolve(context.Background())
 	if err != nil {
+		fmt.Printf("Error resolving config: %v\n", err)
 		return nil, err
 	}
 	var configs []*datadogexporter.Config
@@ -71,13 +74,19 @@ func NewConfigComponent(uris []string) (config.Component, error) {
 		}
 	}
 	// Create a new config
-	agentConfig := pkgconfigmodel.NewConfig("OTel", "DD", strings.NewReplacer(".", "_"))
+	pkgconfig := pkgconfigmodel.NewConfig("OTel", "DD", strings.NewReplacer(".", "_"))
 	// Set Default values
-	pkgconfigsetup.InitConfig(agentConfig)
-	agentConfig.Set("api_key", apiKey, pkgconfigmodel.SourceFile)
-	agentConfig.Set("site", site, pkgconfigmodel.SourceFile)
-
-	return agentConfig, nil
+	pkgconfigsetup.InitConfig(pkgconfig)
+	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("site", site, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("logs_config.use_compression", true, pkgconfigmodel.SourceFile)
+	// TODO: set the correct value
+	pkgconfig.Set("log_level", "info", pkgconfigmodel.SourceFile)
+	pkgconfig.Set("forwarder_timeout", 10, pkgconfigmodel.SourceDefault)
+	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceFile)
+	return pkgconfig, nil
 }
 
 func makeMapProvidersMap(providers ...confmap.Provider) map[string]confmap.Provider {

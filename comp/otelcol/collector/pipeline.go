@@ -65,7 +65,7 @@ type collector struct {
 	col  *otlp.Pipeline
 }
 
-func (c *collector) Start() error {
+func (c *collector) Start(ctx context.Context) error {
 	deps := c.deps
 	on := otlp.IsEnabled(deps.Config)
 	deps.InventoryAgent.Set(otlpEnabled, on)
@@ -88,7 +88,6 @@ func (c *collector) Start() error {
 	c.col = col
 	// the context passed to this function has a startup deadline which
 	// will shutdown the collector prematurely
-	ctx := context.Background()
 	go func() {
 		if err := col.Run(ctx); err != nil {
 			deps.Log.Errorf("Error running the OTLP ingest pipeline: %v", err)
@@ -97,19 +96,20 @@ func (c *collector) Start() error {
 	return nil
 }
 
-func (c *collector) Stop() {
+func (c *collector) Stop(ctx context.Context) error {
 	if c.col != nil {
 		c.col.Stop()
 	}
-}
-
-func (c *collector) stop(context.Context) error {
-	c.Stop()
 	return nil
 }
 
-func (c *collector) start(context.Context) error {
-	return c.Start()
+func (c *collector) stop(ctx context.Context) error {
+	c.Stop(ctx)
+	return nil
+}
+
+func (c *collector) start(ctx context.Context) error {
+	return c.Start(ctx)
 }
 
 // Status returns the status of the collector.
