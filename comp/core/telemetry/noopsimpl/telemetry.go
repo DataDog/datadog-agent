@@ -98,7 +98,7 @@ func (t *noopImpl) UnregisterCollector(telemetry.Collector) bool {
 	return true
 }
 
-func (t *noopImpl) GatherDefault(bool) ([]*telemetry.MetricFamily, error) {
+func (t *noopImpl) Gather(bool) ([]*telemetry.MetricFamily, error) {
 	return nil, nil
 }
 

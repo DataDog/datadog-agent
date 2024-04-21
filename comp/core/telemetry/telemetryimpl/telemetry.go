@@ -247,7 +247,7 @@ func (t *telemetryImpl) mustRegister(c prometheus.Collector, opts telemetry.Opti
 	}
 }
 
-func (t *telemetryImpl) GatherDefault(defaultGather bool) ([]*telemetry.MetricFamily, error) {
+func (t *telemetryImpl) Gather(defaultGather bool) ([]*telemetry.MetricFamily, error) {
 	if defaultGather {
 		return t.defaultRegistry.Gather()
 	}
