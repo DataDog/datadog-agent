@@ -6,7 +6,7 @@
 // for now the installer is not supported on windows
 //go:build !windows
 
-package installer
+package packages
 
 import (
 	"bytes"
@@ -77,13 +77,13 @@ func fsContainsAll(a fs.FS, b fs.FS) error {
 }
 
 type testPackageManager struct {
-	packageManager
+	managerImpl
 }
 
 func newTestPackageManager(t *testing.T, rootPath string, locksPath string) *testPackageManager {
 	repositories := repository.NewRepositories(rootPath, locksPath)
 	return &testPackageManager{
-		packageManager{
+		managerImpl{
 			repositories: repositories,
 			configsDir:   t.TempDir(),
 			tmpDirPath:   rootPath,
@@ -100,7 +100,7 @@ func TestInstallStable(t *testing.T) {
 	defer s.Close()
 	installer := newTestPackageManager(t, t.TempDir(), t.TempDir())
 
-	err := installer.installStable(testCtx, fixtures.FixtureSimpleV1.Package, fixtures.FixtureSimpleV1.Version, s.Image(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
 	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
@@ -116,9 +116,9 @@ func TestInstallExperiment(t *testing.T) {
 	defer s.Close()
 	installer := newTestPackageManager(t, t.TempDir(), t.TempDir())
 
-	err := installer.installStable(testCtx, fixtures.FixtureSimpleV1.Package, fixtures.FixtureSimpleV1.Version, s.Image(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
-	err = installer.installExperiment(testCtx, fixtures.FixtureSimpleV1.Package, fixtures.FixtureSimpleV2.Version, s.Image(fixtures.FixtureSimpleV2))
+	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
 	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
@@ -135,11 +135,11 @@ func TestInstallPromoteExperiment(t *testing.T) {
 	defer s.Close()
 	installer := newTestPackageManager(t, t.TempDir(), t.TempDir())
 
-	err := installer.installStable(testCtx, fixtures.FixtureSimpleV1.Package, fixtures.FixtureSimpleV1.Version, s.Image(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
-	err = installer.installExperiment(testCtx, fixtures.FixtureSimpleV1.Package, fixtures.FixtureSimpleV2.Version, s.Image(fixtures.FixtureSimpleV2))
+	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
-	err = installer.promoteExperiment(testCtx, fixtures.FixtureSimpleV1.Package)
+	err = installer.PromoteExperiment(testCtx, fixtures.FixtureSimpleV1.Package)
 	assert.NoError(t, err)
 	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
@@ -155,11 +155,11 @@ func TestUninstallExperiment(t *testing.T) {
 	defer s.Close()
 	installer := newTestPackageManager(t, t.TempDir(), t.TempDir())
 
-	err := installer.installStable(testCtx, fixtures.FixtureSimpleV1.Package, fixtures.FixtureSimpleV1.Version, s.Image(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
-	err = installer.installExperiment(testCtx, fixtures.FixtureSimpleV1.Package, fixtures.FixtureSimpleV2.Version, s.Image(fixtures.FixtureSimpleV2))
+	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
-	err = installer.uninstallExperiment(testCtx, fixtures.FixtureSimpleV1.Package)
+	err = installer.RemoveExperiment(testCtx, fixtures.FixtureSimpleV1.Package)
 	assert.NoError(t, err)
 	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()

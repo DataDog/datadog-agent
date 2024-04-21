@@ -11,22 +11,61 @@ package installer
 import (
 	"context"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/installer/packages/fixtures"
-	"github.com/DataDog/datadog-agent/pkg/installer/packages/service"
+	"github.com/DataDog/datadog-agent/pkg/installer/packages/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
+
+type testPackageManager struct {
+	mock.Mock
+}
+
+func (m *testPackageManager) State(pkg string) (repository.State, error) {
+	args := m.Called(pkg)
+	return args.Get(0).(repository.State), args.Error(1)
+}
+
+func (m *testPackageManager) States() (map[string]repository.State, error) {
+	args := m.Called()
+	return args.Get(0).(map[string]repository.State), args.Error(1)
+}
+
+func (m *testPackageManager) Install(ctx context.Context, url string) error {
+	args := m.Called(ctx, url)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) Remove(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) InstallExperiment(ctx context.Context, url string) error {
+	args := m.Called(ctx, url)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) RemoveExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) PromoteExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) GarbageCollect(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
 
 type testRemoteConfigClient struct {
 	listeners map[string][]client.Handler
@@ -79,249 +118,171 @@ func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
 	}
 }
 
-func newTestInstaller(t *testing.T, s *testDownloadServer, rcc *testRemoteConfigClient, defaultFixture fixtures.Fixture) *installerImpl {
-	u, _, _ := newTestInstallerWithPaths(t, s, rcc, defaultFixture)
-	return u
+type testInstaller struct {
+	*installerImpl
+	rcc *testRemoteConfigClient
+	pm  *testPackageManager
 }
 
-func newTestInstallerWithPaths(t *testing.T, s *testDownloadServer, rcc *testRemoteConfigClient, defaultFixture fixtures.Fixture) (*installerImpl, string, string) {
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	var b = true
-	cfg.Set("updater.remote_updates", &b, model.SourceDefault)
+func newTestInstaller() *testInstaller {
+	pm := &testPackageManager{}
+	pm.On("States").Return(map[string]repository.State{}, nil)
+	rcc := newTestRemoteConfigClient()
 	rc := &remoteConfig{client: rcc}
-	rootPath := t.TempDir()
-	locksPath := t.TempDir()
-	u, err := newInstaller(rc, rootPath, locksPath, cfg)
-	u.packageManager = &newTestPackageManager(t, rootPath, locksPath).packageManager
-	assert.NoError(t, err)
-	u.packageManager.configsDir = t.TempDir()
-	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
-	u.catalog = s.Catalog()
-	u.bootstrapVersions[defaultFixture.Package] = defaultFixture.Version
-	u.Start(context.Background())
-	return u, rootPath, locksPath
+	i := &testInstaller{
+		installerImpl: newInstaller(rc, pm, true),
+		rcc:           rcc,
+		pm:            pm,
+	}
+	i.Start(context.Background())
+	return i
 }
 
-func TestBootstrapDefault(t *testing.T) {
-	s := newTestDownloadServer(t)
-	defer s.Close()
-	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtures.FixtureSimpleV1)
-
-	err := installer.BootstrapDefault(context.Background(), fixtures.FixtureSimpleV1.Package)
-	assert.NoError(t, err)
-
-	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
-	state, err := r.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
-	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
+func (i *testInstaller) Stop() {
+	i.installerImpl.Stop(context.Background())
 }
 
-func TestBootstrapURL(t *testing.T) {
-	s := newTestDownloadServer(t)
-	defer s.Close()
-	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtures.FixtureSimpleV1)
+func TestInstall(t *testing.T) {
+	i := newTestInstaller()
+	defer i.Stop()
 
-	err := installer.BootstrapURL(context.Background(), s.Package(fixtures.FixtureSimpleV1).URL)
-	assert.NoError(t, err)
+	testURL := "oci://example.com/test-package:1.0.0"
+	i.pm.On("Install", mock.Anything, testURL).Return(nil).Once()
 
-	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
-	state, err := r.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
-	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
-}
-
-func TestPurge(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("FIXME: broken on darwin")
+	err := i.Install(context.Background(), testURL)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	s := newTestDownloadServer(t)
-	defer s.Close()
-	rc := newTestRemoteConfigClient()
-	installer, rootPath, locksPath := newTestInstallerWithPaths(t, s, rc, fixtures.FixtureSimpleV1)
-
-	bootstrapAndAssert := func() {
-		err := installer.BootstrapDefault(context.Background(), fixtures.FixtureSimpleV1.Package)
-		assert.NoError(t, err)
-
-		r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
-		state, err := r.GetState()
-		assert.NoError(t, err)
-		assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
-		assert.False(t, state.HasExperiment())
-		assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
-	}
-	bootstrapAndAssert()
-	assert.Nil(t, os.WriteFile(filepath.Join(locksPath, "not_empty"), []byte("morbier\n"), 0644))
-	assertDirNotEmpty(t, locksPath)
-	assertDirNotEmpty(t, rootPath)
-	purge(testCtx, locksPath, rootPath)
-	assertDirExistAndEmpty(t, locksPath)
-	assertDirExistAndEmpty(t, rootPath)
-	bootstrapAndAssert()
-	assertDirNotEmpty(t, rootPath)
-}
-
-func assertDirNotEmpty(t *testing.T, path string) {
-	_, err := os.Stat(path)
-	assert.Nil(t, err)
-	entry, err := os.ReadDir(path)
-	assert.Nil(t, err)
-	assert.NotEmpty(t, entry)
-}
-
-func assertDirExistAndEmpty(t *testing.T, path string) {
-	_, err := os.Stat(path)
-	assert.Nil(t, err)
-	entry, err := os.ReadDir(path)
-	assert.Nil(t, err)
-	assert.Len(t, entry, 0)
-}
-
-func TestBootstrapWithRC(t *testing.T) {
-	s := newTestDownloadServer(t)
-	defer s.Close()
-	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtures.FixtureSimpleV1)
-
-	rc.SubmitRequest(remoteAPIRequest{
-		ID:      uuid.NewString(),
-		Package: fixtures.FixtureSimpleV2.Package,
-		Method:  methodBootstrap,
-		Params:  json.RawMessage(`{"version":"` + fixtures.FixtureSimpleV2.Version + `"}`),
-	})
-	installer.requestsWG.Wait()
-
-	r := installer.repositories.Get(fixtures.FixtureSimpleV2.Package)
-	state, err := r.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Stable)
-	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.StableFS())
-}
-
-// hacky name to avoid hitting https://github.com/golang/go/issues/62614
-func TestBootUpd(t *testing.T) {
-	s := newTestDownloadServer(t)
-	defer s.Close()
-	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtures.FixtureSimpleV1)
-	installer.catalog = catalog{}
-
-	err := installer.BootstrapDefault(context.Background(), fixtures.FixtureSimpleV1.Package)
-	assert.Error(t, err)
-	rc.SubmitCatalog(s.Catalog())
-	err = installer.BootstrapDefault(context.Background(), fixtures.FixtureSimpleV1.Package)
-	assert.NoError(t, err)
+	i.pm.AssertExpectations(t)
 }
 
 func TestStartExperiment(t *testing.T) {
-	s := newTestDownloadServer(t)
-	defer s.Close()
-	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtures.FixtureSimpleV1)
+	i := newTestInstaller()
+	defer i.Stop()
 
-	err := installer.BootstrapDefault(context.Background(), fixtures.FixtureSimpleV1.Package)
-	assert.NoError(t, err)
-	rc.SubmitRequest(remoteAPIRequest{
-		ID:      uuid.NewString(),
-		Package: fixtures.FixtureSimpleV1.Package,
-		ExpectedState: expectedState{
-			Stable: fixtures.FixtureSimpleV1.Version,
-		},
-		Method: methodStartExperiment,
-		Params: json.RawMessage(`{"version":"` + fixtures.FixtureSimpleV2.Version + `"}`),
-	})
-	installer.requestsWG.Wait()
+	testURL := "oci://example.com/test-package:1.0.0"
+	i.pm.On("InstallExperiment", mock.Anything, testURL).Return(nil).Once()
 
-	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
-	state, err := r.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
-	assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Experiment)
-	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
-	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.ExperimentFS())
-}
+	err := i.StartExperiment(context.Background(), testURL)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-func TestPromoteExperiment(t *testing.T) {
-	s := newTestDownloadServer(t)
-	defer s.Close()
-	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtures.FixtureSimpleV1)
-
-	err := installer.BootstrapDefault(context.Background(), fixtures.FixtureSimpleV1.Package)
-	assert.NoError(t, err)
-	rc.SubmitRequest(remoteAPIRequest{
-		ID:      uuid.NewString(),
-		Package: fixtures.FixtureSimpleV1.Package,
-		ExpectedState: expectedState{
-			Stable: fixtures.FixtureSimpleV1.Version,
-		},
-		Method: methodStartExperiment,
-		Params: json.RawMessage(`{"version":"` + fixtures.FixtureSimpleV2.Version + `"}`),
-	})
-	installer.requestsWG.Wait()
-	rc.SubmitRequest(remoteAPIRequest{
-		ID:      uuid.NewString(),
-		Package: fixtures.FixtureSimpleV1.Package,
-		ExpectedState: expectedState{
-			Stable:     fixtures.FixtureSimpleV1.Version,
-			Experiment: fixtures.FixtureSimpleV2.Version,
-		},
-		Method: methodPromoteExperiment,
-	})
-	installer.requestsWG.Wait()
-
-	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
-	state, err := r.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Stable)
-	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.StableFS())
+	i.pm.AssertExpectations(t)
 }
 
 func TestStopExperiment(t *testing.T) {
-	s := newTestDownloadServer(t)
-	defer s.Close()
-	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtures.FixtureSimpleV1)
+	i := newTestInstaller()
+	defer i.Stop()
 
-	err := installer.BootstrapDefault(context.Background(), fixtures.FixtureSimpleV1.Package)
-	assert.NoError(t, err)
-	rc.SubmitRequest(remoteAPIRequest{
-		ID:      uuid.NewString(),
-		Package: fixtures.FixtureSimpleV1.Package,
-		ExpectedState: expectedState{
-			Stable: fixtures.FixtureSimpleV1.Version,
-		},
-		Method: methodStartExperiment,
-		Params: json.RawMessage(`{"version":"` + fixtures.FixtureSimpleV2.Version + `"}`),
-	})
-	installer.requestsWG.Wait()
-	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
-	state, err := r.GetState()
-	assert.NoError(t, err)
-	assert.True(t, state.HasExperiment())
-	rc.SubmitRequest(remoteAPIRequest{
-		ID:      uuid.NewString(),
-		Package: fixtures.FixtureSimpleV1.Package,
-		ExpectedState: expectedState{
-			Stable:     fixtures.FixtureSimpleV1.Version,
-			Experiment: fixtures.FixtureSimpleV2.Version,
-		},
-		Method: methodStopExperiment,
-	})
-	installer.requestsWG.Wait()
+	pkg := "test-package"
+	i.pm.On("RemoveExperiment", mock.Anything, pkg).Return(nil).Once()
 
-	state, err = r.GetState()
+	err := i.StopExperiment(context.Background(), pkg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	i.pm.AssertExpectations(t)
+}
+
+func TestPromoteExperiment(t *testing.T) {
+	i := newTestInstaller()
+	defer i.Stop()
+
+	pkg := "test-package"
+	i.pm.On("PromoteExperiment", mock.Anything, pkg).Return(nil).Once()
+
+	err := i.PromoteExperiment(context.Background(), pkg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	i.pm.AssertExpectations(t)
+}
+
+func TestUpdateCatalog(t *testing.T) {
+	i := newTestInstaller()
+	defer i.Stop()
+
+	testPackage := Package{
+		Name:     "test-package",
+		Version:  "1.0.0",
+		URL:      "oci://example.com/test-package@sha256:2fa082d512a120a814e32ddb80454efce56595b5c84a37cc1a9f90cf9cc7ba85",
+		Platform: runtime.GOOS,
+		Arch:     runtime.GOARCH,
+	}
+	c := catalog{
+		Packages: []Package{testPackage},
+	}
+	i.rcc.SubmitCatalog(c)
+	pkg, err := i.installerImpl.GetPackage("test-package", "1.0.0")
+
 	assert.NoError(t, err)
-	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
-	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
+	assert.Equal(t, testPackage, pkg)
+	assert.Equal(t, c, i.installerImpl.catalog)
+	i.pm.AssertExpectations(t)
+}
+
+func TestRemoteRequest(t *testing.T) {
+	i := newTestInstaller()
+	defer i.Stop()
+
+	testStablePackage := Package{
+		Name:     "test-package",
+		Version:  "0.0.1",
+		URL:      "oci://example.com/test-package@sha256:2fa082d512a120a814e32ddb80454efce56595b5c84a37cc1a9f90cf9cc7ba85",
+		Platform: runtime.GOOS,
+		Arch:     runtime.GOARCH,
+	}
+	testExperimentPackage := Package{
+		Name:     "test-package",
+		Version:  "1.0.0",
+		URL:      "oci://example.com/test-package@sha256:5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+		Platform: runtime.GOOS,
+		Arch:     runtime.GOARCH,
+	}
+	c := catalog{
+		Packages: []Package{testExperimentPackage},
+	}
+	versionParams := taskWithVersionParams{
+		Version: testExperimentPackage.Version,
+	}
+	versionParamsJSON, _ := json.Marshal(versionParams)
+	i.rcc.SubmitCatalog(c)
+
+	testRequest := remoteAPIRequest{
+		ID:            "test-request-1",
+		Method:        methodStartExperiment,
+		Package:       testExperimentPackage.Name,
+		ExpectedState: expectedState{Stable: testStablePackage.Version},
+		Params:        versionParamsJSON,
+	}
+	i.pm.On("State", testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
+	i.pm.On("InstallExperiment", mock.Anything, testExperimentPackage.URL).Return(nil).Once()
+	i.rcc.SubmitRequest(testRequest)
+
+	testRequest = remoteAPIRequest{
+		ID:            "test-request-2",
+		Method:        methodStopExperiment,
+		Package:       testExperimentPackage.Name,
+		ExpectedState: expectedState{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version},
+	}
+	i.pm.On("State", testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
+	i.pm.On("RemoveExperiment", mock.Anything, testExperimentPackage.Name).Return(nil).Once()
+	i.rcc.SubmitRequest(testRequest)
+
+	testRequest = remoteAPIRequest{
+		ID:            "test-request-3",
+		Method:        methodPromoteExperiment,
+		Package:       testExperimentPackage.Name,
+		ExpectedState: expectedState{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version},
+	}
+	i.pm.On("State", testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
+	i.pm.On("PromoteExperiment", mock.Anything, testExperimentPackage.Name).Return(nil).Once()
+	i.rcc.SubmitRequest(testRequest)
+
+	i.requestsWG.Wait()
+	i.pm.AssertExpectations(t)
 }

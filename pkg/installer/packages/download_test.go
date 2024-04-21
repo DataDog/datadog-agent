@@ -6,7 +6,7 @@
 // for now the installer is not supported on windows
 //go:build !windows
 
-package installer
+package packages
 
 import (
 	"context"
@@ -16,7 +16,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/installer/packages/fixtures"
 	oci "github.com/google/go-containerregistry/pkg/v1"
 )
@@ -32,13 +31,11 @@ func newTestDownloadServer(t *testing.T) *testDownloadServer {
 }
 
 func (s *testDownloadServer) Downloader() *downloader {
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	return newDownloader(cfg, s.Client(), "")
+	return newDownloader(s.Client(), RegistryAuthDefault, "")
 }
 
 func (s *testDownloadServer) DownloaderRegistryOverride() *downloader {
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	return newDownloader(cfg, s.Client(), "my.super/registry")
+	return newDownloader(s.Client(), RegistryAuthDefault, "my.super/registry")
 }
 
 func (s *testDownloadServer) Image(f fixtures.Fixture) oci.Image {
@@ -47,23 +44,6 @@ func (s *testDownloadServer) Image(f fixtures.Fixture) oci.Image {
 		panic(err)
 	}
 	return downloadedPackage.Image
-}
-
-func (s *testDownloadServer) Package(f fixtures.Fixture) Package {
-	return Package{
-		Name:    f.Package,
-		Version: f.Version,
-		URL:     s.PackageURL(f),
-	}
-}
-
-func (s *testDownloadServer) Catalog() catalog {
-	return catalog{
-		Packages: []Package{
-			s.Package(fixtures.FixtureSimpleV1),
-			s.Package(fixtures.FixtureSimpleV2),
-		},
-	}
 }
 
 func TestDownload(t *testing.T) {
@@ -115,18 +95,13 @@ func TestGetRegistryURL(t *testing.T) {
 	s := newTestDownloadServer(t)
 	defer s.Close()
 
-	pkg := Package{
-		Name:    "simple",
-		Version: "v1",
-		URL:     s.URL() + "/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d",
-		SHA256:  "2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d",
-	}
+	testURL := s.URL() + "/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d"
 
 	d := s.Downloader()
-	url := d.getRegistryURL(pkg.URL)
+	url := d.getRegistryURL(testURL)
 	assert.Equal(t, s.URL()+"/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d", url)
 
 	d = s.DownloaderRegistryOverride()
-	url = d.getRegistryURL(pkg.URL)
+	url = d.getRegistryURL(testURL)
 	assert.Equal(t, "my.super/registry/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d", url)
 }
