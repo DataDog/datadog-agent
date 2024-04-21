@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// package noopsimpl creates the noop telemetry component
+// Package noopsimpl creates the noop telemetry component
 package noopsimpl
 
 import (
@@ -22,7 +22,7 @@ func newTelemetry() telemetry.Component {
 
 type dummy struct{}
 
-func (d *dummy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (d *dummy) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("Telemtry is not enabled"))
 	w.WriteHeader(200)
 }
@@ -40,7 +40,7 @@ func (t *noopImpl) NewCounter(subsystem, name string, tags []string, help string
 	return t.NewCounterWithOpts(subsystem, name, tags, help, telemetry.DefaultOptions)
 }
 
-func (t *noopImpl) NewCounterWithOpts(subsystem, name string, tags []string, help string, opts telemetry.Options) telemetry.Counter {
+func (t *noopImpl) NewCounterWithOpts(_, _ string, _ []string, _ string, _ telemetry.Options) telemetry.Counter {
 	return &slsCounter{}
 
 }
@@ -49,7 +49,7 @@ func (t *noopImpl) NewSimpleCounter(subsystem, name, help string) telemetry.Simp
 	return t.NewSimpleCounterWithOpts(subsystem, name, help, telemetry.DefaultOptions)
 }
 
-func (t *noopImpl) NewSimpleCounterWithOpts(subsystem, name, help string, opts telemetry.Options) telemetry.SimpleCounter {
+func (t *noopImpl) NewSimpleCounterWithOpts(_, _, _ string, _ telemetry.Options) telemetry.SimpleCounter {
 	return &simpleNoOpCounter{}
 
 }
@@ -58,7 +58,7 @@ func (t *noopImpl) NewGauge(subsystem, name string, tags []string, help string) 
 	return t.NewGaugeWithOpts(subsystem, name, tags, help, telemetry.DefaultOptions)
 }
 
-func (t *noopImpl) NewGaugeWithOpts(subsystem, name string, tags []string, help string, opts telemetry.Options) telemetry.Gauge {
+func (t *noopImpl) NewGaugeWithOpts(_, _ string, _ []string, _ string, _ telemetry.Options) telemetry.Gauge {
 	return &slsGauge{}
 
 }
@@ -67,7 +67,7 @@ func (t *noopImpl) NewSimpleGauge(subsystem, name, help string) telemetry.Simple
 	return t.NewSimpleGaugeWithOpts(subsystem, name, help, telemetry.DefaultOptions)
 }
 
-func (t *noopImpl) NewSimpleGaugeWithOpts(subsystem, name, help string, opts telemetry.Options) telemetry.SimpleGauge {
+func (t *noopImpl) NewSimpleGaugeWithOpts(_, _, _ string, _ telemetry.Options) telemetry.SimpleGauge {
 	return &simpleNoOpGauge{}
 
 }
@@ -76,7 +76,7 @@ func (t *noopImpl) NewHistogram(subsystem, name string, tags []string, help stri
 	return t.NewHistogramWithOpts(subsystem, name, tags, help, buckets, telemetry.DefaultOptions)
 }
 
-func (t *noopImpl) NewHistogramWithOpts(subsystem, name string, tags []string, help string, buckets []float64, opts telemetry.Options) telemetry.Histogram {
+func (t *noopImpl) NewHistogramWithOpts(_, _ string, _ []string, _ string, _ []float64, _ telemetry.Options) telemetry.Histogram {
 	return &slsHistogram{}
 }
 
@@ -84,17 +84,17 @@ func (t *noopImpl) NewSimpleHistogram(subsystem, name, help string, buckets []fl
 	return t.NewSimpleHistogramWithOpts(subsystem, name, help, buckets, telemetry.DefaultOptions)
 }
 
-func (t *noopImpl) NewSimpleHistogramWithOpts(subsystem, name, help string, buckets []float64, opts telemetry.Options) telemetry.SimpleHistogram {
+func (t *noopImpl) NewSimpleHistogramWithOpts(_, _, _ string, _ []float64, _ telemetry.Options) telemetry.SimpleHistogram {
 	return &simpleNoOpHistogram{}
 }
 
-func (t *noopImpl) Meter(name string, opts ...telemetry.MeterOption) telemetry.Meter {
+func (t *noopImpl) Meter(_ string, _ ...telemetry.MeterOption) telemetry.Meter {
 	return nil
 }
 
-func (t *noopImpl) RegisterCollector(c telemetry.Collector) {}
+func (t *noopImpl) RegisterCollector(telemetry.Collector) {}
 
-func (t *noopImpl) UnregisterCollector(c telemetry.Collector) bool {
+func (t *noopImpl) UnregisterCollector(telemetry.Collector) bool {
 	return true
 }
 
@@ -102,6 +102,8 @@ func (t *noopImpl) GatherDefault() ([]*telemetry.MetricFamily, error) {
 	return nil, nil
 }
 
+// GetCompatComponent returns a component wrapping telemetry global variables
+// TODO (components): Remove this when all telemetry is migrated to the component
 func GetCompatComponent() telemetry.Component {
 	return newTelemetry()
 }

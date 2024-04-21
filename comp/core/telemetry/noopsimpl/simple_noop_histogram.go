@@ -12,7 +12,7 @@ type simpleNoOpHistogram struct {
 }
 
 // Observe the value to the Histogram value.
-func (s *simpleNoOpHistogram) Observe(value float64) {}
+func (s *simpleNoOpHistogram) Observe(float64) {}
 
 func (s *simpleNoOpHistogram) Get() telemetry.HistogramValue {
 	return telemetry.HistogramValue{}

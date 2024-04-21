@@ -11,29 +11,29 @@ import "github.com/DataDog/datadog-agent/comp/core/telemetry"
 type slsGauge struct{}
 
 // Set stores the value for the given tags.
-func (g *slsGauge) Set(value float64, tagsValue ...string) {}
+func (g *slsGauge) Set(float64, ...string) {}
 
 // Inc increments the Gauge value.
-func (g *slsGauge) Inc(tagsValue ...string) {}
+func (g *slsGauge) Inc(...string) {}
 
 // Dec decrements the Gauge value.
-func (g *slsGauge) Dec(tagsValue ...string) {}
+func (g *slsGauge) Dec(...string) {}
 
 // Delete deletes the value for the Gauge with the given tags.
-func (g *slsGauge) Delete(tagsValue ...string) {}
+func (g *slsGauge) Delete(...string) {}
 
 // Add adds the value to the Gauge value.
-func (g *slsGauge) Add(value float64, tagsValue ...string) {}
+func (g *slsGauge) Add(float64, ...string) {}
 
 // Sub subtracts the value to the Gauge value.
-func (g *slsGauge) Sub(value float64, tagsValue ...string) {}
+func (g *slsGauge) Sub(float64, ...string) {}
 
 // WithValues returns SimpleGauge for this metric with the given tag values.
-func (g *slsGauge) WithValues(tagsValue ...string) telemetry.SimpleGauge {
+func (g *slsGauge) WithValues(...string) telemetry.SimpleGauge {
 	return &simpleNoOpGauge{}
 }
 
 // Withtags returns SimpleGauge for this metric with the given tag values.
-func (g *slsGauge) WithTags(tags map[string]string) telemetry.SimpleGauge {
+func (g *slsGauge) WithTags(map[string]string) telemetry.SimpleGauge {
 	return &simpleNoOpGauge{}
 }

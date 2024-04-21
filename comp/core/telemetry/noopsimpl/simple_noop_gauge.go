@@ -14,13 +14,13 @@ func (s *simpleNoOpGauge) Inc() {}
 func (s *simpleNoOpGauge) Dec() {}
 
 // Add increments the gauge by given amount.
-func (s *simpleNoOpGauge) Add(val float64) {}
+func (s *simpleNoOpGauge) Add(float64) {}
 
 // Sub decrements the gauge by given amount.
-func (s *simpleNoOpGauge) Sub(val float64) {}
+func (s *simpleNoOpGauge) Sub(float64) {}
 
 // Set sets the value of the gauge.
-func (s *simpleNoOpGauge) Set(val float64) {}
+func (s *simpleNoOpGauge) Set(float64) {}
 
 // Get gets the value of the gauge.
 func (s *simpleNoOpGauge) Get() float64 {

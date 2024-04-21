@@ -11,19 +11,19 @@ import "github.com/DataDog/datadog-agent/comp/core/telemetry"
 type slsHistogram struct{}
 
 // Observe samples the value for the given tags.
-func (h *slsHistogram) Observe(value float64, tagsValue ...string) {}
+func (h *slsHistogram) Observe(float64, ...string) {}
 
 // Delete deletes the value for the Histogram with the given tags.
-func (h *slsHistogram) Delete(tagsValue ...string) {}
+func (h *slsHistogram) Delete(...string) {}
 
 // WithValues returns SimpleHistogram for this metric with the given tag values.
-func (h *slsHistogram) WithValues(tagsValue ...string) telemetry.SimpleHistogram {
+func (h *slsHistogram) WithValues(...string) telemetry.SimpleHistogram {
 	// Prometheus does not directly expose the underlying histogram so we have to cast it.
 	return &simpleNoOpHistogram{}
 }
 
 // WithValues returns SimpleHistogram for this metric with the given tag values.
-func (h *slsHistogram) WithTags(tags map[string]string) telemetry.SimpleHistogram {
+func (h *slsHistogram) WithTags(map[string]string) telemetry.SimpleHistogram {
 	// Prometheus does not directly expose the underlying histogram so we have to cast it.
 	return &simpleNoOpHistogram{}
 }

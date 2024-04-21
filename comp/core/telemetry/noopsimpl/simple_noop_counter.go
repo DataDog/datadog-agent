@@ -11,7 +11,7 @@ type simpleNoOpCounter struct{}
 func (s *simpleNoOpCounter) Inc() {}
 
 // Add increments the counter by given amount.
-func (s *simpleNoOpCounter) Add(val float64) {}
+func (s *simpleNoOpCounter) Add(float64) {}
 
 // Get gets the current counter value
 func (s *simpleNoOpCounter) Get() float64 {
