@@ -16,7 +16,7 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/pkg/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/installer/packages/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )

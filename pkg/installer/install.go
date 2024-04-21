@@ -19,8 +19,8 @@ import (
 	oci "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 
+	"github.com/DataDog/datadog-agent/pkg/installer/packages/repository"
 	"github.com/DataDog/datadog-agent/pkg/installer/packages/service"
-	"github.com/DataDog/datadog-agent/pkg/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

@@ -10,6 +10,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
+	github.com/DataDog/gopsutil v1.2.2
 	github.com/stretchr/testify v1.9.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.62.0
 )
@@ -37,6 +38,7 @@ require (
 	github.com/DataDog/sketches-go v1.4.2 // indirect
 	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
+	github.com/StackExchange/wmi v0.0.0-20181212234831-e0a55b97c705 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -62,6 +64,7 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.7.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.23.12 // indirect
+	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/spf13/afero v1.1.2 // indirect
 	github.com/spf13/cast v1.5.1 // indirect

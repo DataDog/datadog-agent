@@ -20,7 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/installer/packages/repository"
 )
 
 var testCtx = context.TODO()

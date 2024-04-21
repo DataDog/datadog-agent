@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/installer/errors"
-	"github.com/DataDog/datadog-agent/pkg/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/installer/packages/repository"
 	"github.com/DataDog/datadog-agent/pkg/installer/packages/service"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
