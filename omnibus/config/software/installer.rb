@@ -36,16 +36,6 @@ build do
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
     mkdir "#{install_dir}/systemd/"
-
-
-    # Config
-    mkdir "/etc/datadog-agent"
-    mkdir "/etc/init"
-    mkdir "/var/log/datadog"
-    mkdir "/var/run/datadog-packages"
-
-    # Packages
-    mkdir "/opt/datadog-packages"
     copy 'bin/installer', "#{install_dir}/bin/"
 
     uninstall_command="sudo yum remove datadog-installer"

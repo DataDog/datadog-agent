@@ -137,12 +137,6 @@ end
 # Dependencies
 # ------------------------------------
 
-if linux_target?
-  extra_package_file '/var/log/datadog/'
-  extra_package_file '/var/run/datadog-packages/'
-  extra_package_file '/opt/datadog-packages/'
-end
-
 # Include all package scripts for the intermediary XZ package, or only those
 # for the package being created
 if linux_target?
