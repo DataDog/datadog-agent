@@ -73,12 +73,16 @@ func nextGroupID() func() int32 {
 
 // Commands returns a slice of subcommands for the `check` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	return []*cobra.Command{MakeCommand(globalParams, "check")}
+}
+
+func MakeCommand(globalParams *command.GlobalParams, name string) *cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
 
 	checkCmd := &cobra.Command{
-		Use:   "check",
+		Use:   name,
 		Short: "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery, process_events",
 
 		Args: cobra.ExactArgs(1),
@@ -129,7 +133,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	checkCmd.Flags().BoolVar(&cliParams.checkOutputJSON, "json", false, "Output check results in JSON")
 	checkCmd.Flags().DurationVarP(&cliParams.waitInterval, "wait", "w", defaultWaitInterval, "How long to wait before running the check")
 
-	return []*cobra.Command{checkCmd}
+	return checkCmd
 }
 
 func runCheckCmd(deps dependencies) error {
