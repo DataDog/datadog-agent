@@ -29,8 +29,11 @@ const SDSEnabled = true
 // has to ensure of the thread safety.
 type Scanner struct {
 	*sds.Scanner
+	// lock used to separate between the lifecycle of the scanner (Reconfigure, Delete)
+	// and the use of the scanner (Scan).
 	sync.Mutex
-
+	// standard rules as received through the remote configuration, indexed
+	// by the standard rule ID for O(1) access when receiving user configurations.
 	standardRules map[string]StandardRuleConfig
 	// rawConfig is the raw config previously received through RC.
 	rawConfig []byte
@@ -46,6 +49,20 @@ func CreateScanner() *Scanner {
 	log.Debugf("creating a new SDS scanner (internal id: %p)", scanner)
 	return scanner
 }
+
+// MatchActions as exposed by the RC configurations.
+const (
+	matchActionRCHash          = "hash"
+	matchActionRCNone          = "none"
+	matchActionRCPartialRedact = "partial_redact"
+	matchActionRCRedact        = "redact"
+
+	RCPartialRedactFirstCharacters = "first"
+	RCPartialRedactLastCharacters  = "last"
+
+	RCSecondaryValidationChineseIdChecksum = "chinese_id_checksum"
+	RCSecondaryValidationLuhnChecksum      = "luhn_checksum"
+)
 
 // Reconfigure uses the given `ReconfigureOrder` to reconfigure in-memory
 // standard rules or user configuration.
@@ -133,12 +150,11 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 		return fmt.Errorf("Can't unmarshal raw configuration: %v", err)
 	}
 
-
 	// ignore disabled rules
 	totalRulesReceived := len(config.Rules)
 	config = config.OnlyEnabled()
 
-	log.Infof("Starting an SDS reconfiguration: %d rules received (in which %d are disabled)", totalRulesReceived, totalRulesReceived - len(config.Rules))
+	log.Infof("Starting an SDS reconfiguration: %d rules received (in which %d are disabled)", totalRulesReceived, totalRulesReceived-len(config.Rules))
 
 	// if we received an empty array of rules or all rules disabled, interprets this as "stop SDS".
 	if len(config.Rules) == 0 {
@@ -164,36 +180,12 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 			continue
 		}
 
-		// from here: `standardRule` contains the definition, with the name, pattern, etc.
-		//            `userRule`     contains the configuration done by the user: match action, etc.
-
-		var extraConfig sds.ExtraConfig
-		if len(userRule.IncludedKeywords.Keywords) > 0 {
-			extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(userRule.IncludedKeywords.CharacterCount, userRule.IncludedKeywords.Keywords, nil)
-		}
-
-		// create the rules for the scanner
-		matchAction := strings.ToLower(userRule.MatchAction.Type)
-		switch matchAction {
-		case strings.ToLower(string(sds.MatchActionNone)):
-			sdsRules = append(sdsRules, sds.NewMatchingRule(standardRule.Name, standardRule.Pattern, extraConfig))
-		case strings.ToLower(string(sds.MatchActionRedact)):
-			sdsRules = append(sdsRules, sds.NewRedactingRule(standardRule.Name, standardRule.Pattern, userRule.MatchAction.Placeholder, extraConfig))
-		case strings.ToLower(string(sds.MatchActionPartialRedact)):
-			direction := sds.LastCharacters
-			switch userRule.MatchAction.Direction {
-			case string(sds.LastCharacters):
-				direction = sds.LastCharacters
-			case string(sds.FirstCharacters):
-				direction = sds.FirstCharacters
-			default:
-				log.Warnf("Unknown PartialRedact direction (%v), falling back on LastCharacters", userRule.MatchAction.Direction)
-			}
-			sdsRules = append(sdsRules, sds.NewPartialRedactRule(standardRule.Name, standardRule.Pattern, userRule.MatchAction.CharacterCount, direction, extraConfig))
-		case strings.ToLower(string(sds.MatchActionHash)):
-			sdsRules = append(sdsRules, sds.NewHashRule(standardRule.Name, standardRule.Pattern, extraConfig))
-		default:
-			log.Warnf("Unknown MatchAction type (%v) for rule '%s':", matchAction, standardRule.Name)
+		if rule, err := interpretRCRule(userRule, standardRule); err != nil {
+			// we warn that we can't interpret this rule, but we continue in order
+			// to properly continue processing with the rest of the rules.
+			log.Warnf("%v", err.Error())
+		} else {
+			sdsRules = append(sdsRules, rule)
 		}
 	}
 
@@ -219,6 +211,58 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	s.Scanner = scanner
 
 	return nil
+}
+
+// interpretRCRule interprets a rule as received through RC to return
+// an sds.Rule usable with the shared library.
+// `standardRule` contains the definition, with the name, pattern, etc.
+// `userRule`     contains the configuration done by the user: match action, etc.
+func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.Rule, error) {
+	var extraConfig sds.ExtraConfig
+
+	// proximity keywords support
+	if len(userRule.IncludedKeywords.Keywords) > 0 {
+		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(userRule.IncludedKeywords.CharacterCount, userRule.IncludedKeywords.Keywords, nil)
+	}
+
+	// the RC schema supports multiple of them,
+	// for now though, the lib only supports one, so we'll just use the first one.
+	if len(standardRule.SecondaryValidators) > 0 {
+		received := standardRule.SecondaryValidators[0]
+		switch received.Type {
+		case RCSecondaryValidationChineseIdChecksum:
+			extraConfig.SecondaryValidator = sds.ChineseIdChecksum
+		case RCSecondaryValidationLuhnChecksum:
+			extraConfig.SecondaryValidator = sds.LuhnChecksum
+		default:
+			log.Warnf("Unknown secondary validator: ", string(received.Type))
+			// TODO(remy): telemetry
+		}
+	}
+
+	// create the rules for the scanner
+	matchAction := strings.ToLower(userRule.MatchAction.Type)
+	switch matchAction {
+	case matchActionRCNone:
+		return sds.NewMatchingRule(standardRule.Name, standardRule.Pattern, extraConfig), nil
+	case matchActionRCRedact:
+		return sds.NewRedactingRule(standardRule.Name, standardRule.Pattern, userRule.MatchAction.Placeholder, extraConfig), nil
+	case matchActionRCPartialRedact:
+		direction := sds.LastCharacters
+		switch userRule.MatchAction.Direction {
+		case string(RCPartialRedactLastCharacters):
+			direction = sds.LastCharacters
+		case string(RCPartialRedactFirstCharacters):
+			direction = sds.FirstCharacters
+		default:
+			log.Warnf("Unknown PartialRedact direction (%v), falling back on LastCharacters", userRule.MatchAction.Direction)
+		}
+		return sds.NewPartialRedactRule(standardRule.Name, standardRule.Pattern, userRule.MatchAction.CharacterCount, direction, extraConfig), nil
+	case matchActionRCHash:
+		return sds.NewHashRule(standardRule.Name, standardRule.Pattern, extraConfig), nil
+	}
+
+	return sds.Rule{}, fmt.Errorf("Unknown MatchAction type (%v) received through RC for rule '%s':", matchAction, standardRule.Name)
 }
 
 // Scan scans the given `event` using the internal SDS scanner.
@@ -266,8 +310,11 @@ func (s *Scanner) GetRuleByIdx(idx uint32) (RuleConfig, error) {
 }
 
 // Delete deallocates the internal SDS scanner.
-// This method is NOT thread safe, caller has to ensure the thread safety.
+// This method is thread safe, a reconfiguration or a scan can't happen at the same time.
 func (s *Scanner) Delete() {
+	s.Lock()
+	defer s.Unlock()
+
 	if s.Scanner != nil {
 		s.Scanner.Delete()
 		s.rawConfig = nil

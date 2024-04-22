@@ -977,6 +977,4 @@ func (adm *ActivityDumpManager) StopDumpsWithSelector(selector cgroupModel.Workl
 		}
 		ad.Unlock()
 	}
-	//nolint:gosimple // TODO(SEC) Fix gosimple linter
-	return
 }

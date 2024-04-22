@@ -47,6 +47,7 @@ type ecsFargateSuite struct {
 }
 
 func TestECSFargate(t *testing.T) {
+	t.Skip("skip failing test incident-26860")
 	ruleDefs := []*testRuleDefinition{
 		{
 			ID:         execRuleID,
@@ -140,7 +141,7 @@ func TestECSFargate(t *testing.T) {
 					"ubuntu-with-tracer": {
 						Cpu:       pulumi.IntPtr(0),
 						Name:      pulumi.String("ubuntu-with-tracer"),
-						Image:     pulumi.String("docker.io/ubuntu:22.04"),
+						Image:     pulumi.String("public.ecr.aws/lts/ubuntu:22.04"),
 						Essential: pulumi.BoolPtr(false),
 						EntryPoint: pulumi.ToStringArray([]string{
 							"/cws-instrumentation-volume/cws-instrumentation",

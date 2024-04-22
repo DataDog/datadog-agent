@@ -274,6 +274,7 @@ func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleS
 		ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
 		if ruleSetTagValue == rules.DefaultRuleSetTagValue {
 			ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
+			ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
 		}
 
 		eventCtor := func() eval.Event {

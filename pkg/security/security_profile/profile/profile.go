@@ -50,6 +50,12 @@ type VersionContext struct {
 	Tags []string
 }
 
+// LoadOpts defines options applied when loading a profile
+type LoadOpts struct {
+	DNSMatchMaxDepth  int
+	DifferentiateArgs bool
+}
+
 // SecurityProfile defines a security profile
 type SecurityProfile struct {
 	sync.Mutex
@@ -61,6 +67,7 @@ type SecurityProfile struct {
 	eventTypes          []model.EventType
 	versionContextsLock sync.Mutex
 	versionContexts     map[string]*VersionContext
+	pathsReducer        *activity_tree.PathsReducer
 
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
@@ -73,7 +80,7 @@ type SecurityProfile struct {
 }
 
 // NewSecurityProfile creates a new instance of Security Profile
-func NewSecurityProfile(selector cgroupModel.WorkloadSelector, eventTypes []model.EventType) *SecurityProfile {
+func NewSecurityProfile(selector cgroupModel.WorkloadSelector, eventTypes []model.EventType, pathsReducer *activity_tree.PathsReducer) *SecurityProfile {
 	// TODO: we need to keep track of which event types / fields can be used in profiles (for anomaly detection, hardening
 	// or suppression). This is missing for now, and it will be necessary to smoothly handle the transition between
 	// profiles that allow for evaluating new event types, and profiles that don't. As such, the event types allowed to
@@ -88,6 +95,7 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, eventTypes []mode
 		eventTypes:      eventTypes,
 		versionContexts: make(map[string]*VersionContext),
 		timeResolver:    tr,
+		pathsReducer:    pathsReducer,
 	}
 	if selector.Tag != "" && selector.Tag != "*" {
 		sp.versionContexts[selector.Tag] = &VersionContext{
@@ -95,6 +103,39 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, eventTypes []mode
 		}
 	}
 	return sp
+}
+
+// LoadFromProtoFile populates the security-profile from the protobuf file
+func (p *SecurityProfile) LoadFromProtoFile(path string, opts LoadOpts) error {
+	sp, err := LoadProtoFromFile(path)
+	if err != nil {
+		return err
+	}
+	p.LoadFromProto(sp, opts)
+
+	return nil
+}
+
+// LoadFromProto populates the security-profile from the protobuf version
+func (p *SecurityProfile) LoadFromProto(input *proto.SecurityProfile, opts LoadOpts) {
+	// decode the content of the profile
+	ProtoToSecurityProfile(p, p.pathsReducer, input)
+
+	p.ActivityTree.DNSMatchMaxDepth = opts.DNSMatchMaxDepth
+
+	if opts.DifferentiateArgs && input.Metadata.DifferentiateArgs {
+		p.ActivityTree.DifferentiateArgs()
+	}
+
+	p.loadedInKernel = false
+	// compute activity tree initial stats
+	p.ActivityTree.ComputeActivityTreeStats()
+	// generate cookies for the profile
+	p.generateCookies()
+	// if the input is an activity dump then change the selector to a profile selector
+	if input.Selector.GetImageTag() != "*" {
+		p.selector.Tag = "*"
+	}
 }
 
 // reset empties all internal fields so that this profile can be used again in the future
@@ -145,8 +186,8 @@ func (p *SecurityProfile) NewProcessNodeCallback(_ *activity_tree.ProcessNode) {
 	// TODO: debounce and regenerate profile filters & programs
 }
 
-// LoadProfileFromFile loads profile from file
-func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
+// LoadProtoFromFile loads proto profile from file
+func LoadProtoFromFile(filepath string) (*proto.SecurityProfile, error) {
 	f, err := os.Open(filepath)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't open profile: %w", err)
@@ -155,14 +196,14 @@ func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
 
 	raw, err := io.ReadAll(f)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't open profile: %w", err)
+		return nil, fmt.Errorf("couldn't read profile: %w", err)
 	}
 
-	profile := &proto.SecurityProfile{}
-	if err = profile.UnmarshalVT(raw); err != nil {
+	pp := &proto.SecurityProfile{}
+	if err = pp.UnmarshalVT(raw); err != nil {
 		return nil, fmt.Errorf("couldn't decode protobuf profile: %w", err)
 	}
-	return profile, nil
+	return pp, nil
 }
 
 // SendStats sends profile stats

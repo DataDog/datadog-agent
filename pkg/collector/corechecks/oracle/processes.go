@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 )
 
+const userSessionsMetricName = common.IntegrationName + ".user_sessions"
+
 const pgaQuery12 = `SELECT
 	c.name as pdb_name,
 	p.pid as pid, p.program as server_process,
@@ -48,6 +50,11 @@ const pgaQueryOldIntegration = `SELECT
 	nvl(pga_freeable_mem,0) pga_freeable_mem,
 	nvl(pga_max_mem,0) pga_max_mem
 FROM gv$process p`
+
+const sessionCountQuery = `SELECT
+	count(*) as count
+FROM v$session
+WHERE type != 'BACKGROUND'`
 
 type sessionTagColumns struct {
 	Sid      sql.NullInt64  `db:"SID"`
@@ -136,6 +143,16 @@ func (c *Check) ProcessMemory() error {
 			sendMetric(c, gauge, fmt.Sprintf("%s.session.inactive_seconds", common.IntegrationName), float64(r.LastCallEt.Int64), tags)
 		}
 	}
+
+	if c.config.UserSessionsCount.Enabled && !c.legacyIntegrationCompatibilityMode {
+		var sessionCount int
+		err = getWrapper(c, &sessionCount, sessionCountQuery)
+		if err != nil {
+			return fmt.Errorf("failed to collect session count: %w", err)
+		}
+		sendMetric(c, gauge, userSessionsMetricName, float64(sessionCount), c.tags)
+	}
+
 	sender.Commit()
 	return nil
 }

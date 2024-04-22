@@ -23,8 +23,12 @@ log() {
 
 startupTimes=()
 
-# loop 10 times to incur no false positive/negative alarms
-for i in {1..10}
+# Cold start container enough times to get a reasonable histogram in <= 1 hour.
+# Pick an odd number to avoid having to average two elements. Larger iteration
+# counts are useful for exploiting large-sample-size statistics.
+ITERATION_COUNT=301
+
+for i in $(seq 1 ${ITERATION_COUNT})
 do
     # create a new container to ensure cold start
     dockerId=$(docker run -d datadogci/lambda-extension)
@@ -37,6 +41,9 @@ done
 medianMs=$(calculate_median "${startupTimes[@]}")
 
 log "Median=$medianMs | Threshold=$STARTUP_TIME_THRESHOLD"
+
+# Log raw startup time data to a single line for exploratory data analysis
+log "RawData=${startupTimes[*]}"
 
 # check whether or not the median duration exceeds the threshold
 if (( medianMs > STARTUP_TIME_THRESHOLD )); then

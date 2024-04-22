@@ -107,3 +107,12 @@ func TestPatternMatches(t *testing.T) {
 		}
 	})
 }
+
+func BenchmarkNextSegment(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		star, segment, _ := nextSegment("*test*123*")
+		if !star || segment != "test" {
+			b.Fatalf("expected segment not found: %v, %v", star, segment)
+		}
+	}
+}

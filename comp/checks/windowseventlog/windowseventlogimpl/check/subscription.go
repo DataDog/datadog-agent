@@ -9,7 +9,12 @@ package evtlog
 
 import (
 	"fmt"
+	"sync"
 
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -43,7 +48,12 @@ func (c *Check) initSubscription() error {
 	}
 	channelPath, isSet := c.config.instance.ChannelPath.Get()
 	if !isSet {
-		return fmt.Errorf("channel path is not set")
+		// TODO: handle this better when the profile file is created
+		if _, isSet := c.config.instance.DDSecurityEvents.Get(); isSet {
+			channelPath = "Security"
+		} else {
+			return fmt.Errorf("channel path is not set")
+		}
 	}
 	query, isSet := c.config.instance.Query.Get()
 	if !isSet {
@@ -143,9 +153,85 @@ func (c *Check) startSubscription() error {
 	// events as they come instead of being behind by check_interval (15s).
 	c.fetchEventsLoopStop = make(chan struct{})
 	c.fetchEventsLoopWaiter.Add(1)
-	go c.fetchEventsLoop(sender)
+	pipelineWaiter := sync.WaitGroup{}
+	eventCh := make(chan *evtapi.EventRecord)
+	go c.fetchEventsLoop(eventCh, &pipelineWaiter)
 
+	// pipeline: event -> message filter -> submitter
+	eventWithMessageCh := c.eventMessageFilter(c.fetchEventsLoopStop, eventCh, &pipelineWaiter)
+	if _, isSet := c.config.instance.ChannelPath.Get(); isSet {
+		// send events
+		c.ddEventSubmitter(sender, eventWithMessageCh, &pipelineWaiter)
+	} else if _, isSet := c.config.instance.DDSecurityEvents.Get(); isSet {
+		logsAgent, isSet := c.logsAgent.Get()
+		if !isSet {
+			// validateConfig should prevent this from happening
+			return fmt.Errorf("no logs agent available")
+		}
+		// send logs
+		c.ddLogSubmitter(logsAgent, c.fetchEventsLoopStop, eventWithMessageCh, &pipelineWaiter)
+	} else {
+		// validateConfig should prevent this from happening
+		return fmt.Errorf("neither channel path nor dd_security_events is set")
+	}
 	return nil
+}
+
+func (c *Check) eventMessageFilter(doneCh <-chan struct{}, inCh <-chan *evtapi.EventRecord, wg *sync.WaitGroup) <-chan *eventWithMessage {
+	outCh := make(chan *eventWithMessage)
+	eventMessageFilter := &eventMessageFilter{
+		doneCh: doneCh,
+		inCh:   inCh,
+		outCh:  outCh,
+		// config
+		interpretMessages: isaffirmative(c.config.instance.InterpretMessages),
+		includedMessages:  c.includedMessages,
+		excludedMessages:  c.excludedMessages,
+		// eventlog
+		evtapi:              c.evtapi,
+		systemRenderContext: c.systemRenderContext,
+		userRenderContext:   c.userRenderContext,
+	}
+	wg.Add(1)
+	go eventMessageFilter.run(wg)
+	return outCh
+}
+
+func (c *Check) ddEventSubmitter(sender sender.Sender, inCh <-chan *eventWithMessage, wg *sync.WaitGroup) {
+	channelPath := ""
+	if val, isSet := c.config.instance.ChannelPath.Get(); isSet {
+		channelPath = val
+	}
+	ddEventSubmitter := &ddEventSubmitter{
+		sender:        sender,
+		inCh:          inCh,
+		bookmarkSaver: c.bookmarkSaver,
+		// config
+		eventPriority: c.eventPriority,
+		remoteSession: c.session != nil,
+		channelPath:   channelPath,
+		tagEventID:    isaffirmative(c.config.instance.TagEventID),
+		tagSID:        isaffirmative(c.config.instance.TagSID),
+		// eventlog
+		evtapi: c.evtapi,
+	}
+	wg.Add(1)
+	go ddEventSubmitter.run(wg)
+}
+
+func (c *Check) ddLogSubmitter(logsAgent logsAgent.Component, doneCh <-chan struct{}, inCh <-chan *eventWithMessage, wg *sync.WaitGroup) {
+	ddEventSubmitter := &ddLogSubmitter{
+		logsAgent:     logsAgent,
+		doneCh:        doneCh,
+		inCh:          inCh,
+		bookmarkSaver: c.bookmarkSaver,
+		logSource: sources.NewLogSource("dd_security_events", &logsConfig.LogsConfig{
+			Source:  logsSource,
+			Service: "Windows",
+		}),
+	}
+	wg.Add(1)
+	go ddEventSubmitter.run(wg)
 }
 
 func (c *Check) stopSubscription() {
