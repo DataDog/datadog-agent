@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -91,7 +92,16 @@ func SetupAgent(ctx context.Context) (err error) {
 			return
 		}
 	}
-	err = createAgentSymlink(ctx)
+	if err = createAgentSymlink(ctx); err != nil {
+		return
+	}
+
+	// write installinfo before start, or the agent could write it
+	// TODO: add installer version properly
+	if err = installinfo.WriteInstallInfo("installer_package", "manual_update"); err != nil {
+		return
+	}
+
 	return
 }
 
@@ -132,6 +142,7 @@ func RemoveAgent(ctx context.Context) error {
 	if err := rmAgentSymlink(ctx); err != nil {
 		return fmt.Errorf("Failed to remove agent symlink: %s", err)
 	}
+	installinfo.RmInstallInfo()
 	return nil
 }
 
