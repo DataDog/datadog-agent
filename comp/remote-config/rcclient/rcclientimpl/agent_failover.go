@@ -10,19 +10,19 @@ import (
 	"fmt"
 )
 
-// highAvailabilityConfig is a deserialized high availability configuration file
-type highAvailabilityConfig struct {
+// multiRegionFailoverConfig is a deserialized multi-region failover configuration file
+type multiRegionFailoverConfig struct {
 	FailoverMetrics *bool `json:"failover_metrics"`
 	FailoverLogs    *bool `json:"failover_logs"`
 }
 
-// parseHighAvailabilityConfig parses an agent task config
-func parseHighAvailabilityConfig(data []byte) (*highAvailabilityConfig, error) {
-	var d highAvailabilityConfig
+// parseMultiRegionFailoverConfig parses an AGENT_FAILOVER multi-region failover configuration file
+func parseMultiRegionFailoverConfig(data []byte) (*multiRegionFailoverConfig, error) {
+	var d multiRegionFailoverConfig
 
 	err := json.Unmarshal(data, &d)
 	if err != nil {
-		return nil, fmt.Errorf("unexpected failover configs received through remote-config: %s", err)
+		return nil, fmt.Errorf("unexpected multi-region failover configs received through remote-config: %s", err)
 	}
 
 	return &d, nil
