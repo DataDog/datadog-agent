@@ -156,6 +156,8 @@ func (i *installerImpl) GetPackage(pkg string, version string) (Package, error) 
 
 // Start starts remote config and the garbage collector.
 func (i *installerImpl) Start(_ context.Context) error {
+	i.m.Lock()
+	defer i.m.Unlock()
 	go func() {
 		for {
 			select {
@@ -186,6 +188,8 @@ func (i *installerImpl) Start(_ context.Context) error {
 
 // Stop stops the garbage collector.
 func (i *installerImpl) Stop(_ context.Context) error {
+	i.m.Lock()
+	defer i.m.Unlock()
 	i.rc.Close()
 	close(i.stopChan)
 	i.requestsWG.Wait()
