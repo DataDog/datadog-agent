@@ -59,12 +59,12 @@ func NewSenderManagerMock(s sender.SenderManager) *SenderManagerProxy {
 }
 
 // GetSender returns a sender.Sender with passed ID
-func (s *SenderManagerProxy) GetSender(id checkid.ID) (sender.Sender, error) { //nolint:revive // TODO fix revive unused-parameter
+func (s *SenderManagerProxy) GetSender(id checkid.ID) (sender.Sender, error) {
 	return s.innerSenderManager.GetSender(id)
 }
 
 // SetSender returns the passed sender with the passed ID.
-func (s *SenderManagerProxy) SetSender(sender sender.Sender, id checkid.ID) error { //nolint:revive // TODO fix revive unused-parameter
+func (s *SenderManagerProxy) SetSender(sender sender.Sender, id checkid.ID) error {
 	return s.innerSenderManager.SetSender(sender, id)
 }
 
@@ -72,10 +72,10 @@ func (s *SenderManagerProxy) SetSender(sender sender.Sender, id checkid.ID) erro
 func (s *SenderManagerProxy) DestroySender(id checkid.ID) {
 	s.innerSenderManager.DestroySender(id)
 	s.destroyChannel <- id
-} //nolint:revive // TODO fix revive unused-parameter
+}
 
 // GetDefaultSender returns a default sender.
-func (s *SenderManagerProxy) GetDefaultSender() (sender.Sender, error) { //nolint:revive // TODO fix revive unused-parameter
+func (s *SenderManagerProxy) GetDefaultSender() (sender.Sender, error) {
 	return s.innerSenderManager.GetDefaultSender()
 }
 
