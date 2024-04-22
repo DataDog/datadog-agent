@@ -89,6 +89,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
     - inv -e install-tools
     - !reference [.retrieve_sysprobe_deps]
   script:
+    - inv -e kmt.prepare --ci --component="security-agent"
     - invoke -e security-agent.kitchen-prepare --skip-linters
     - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
     - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
