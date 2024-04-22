@@ -6,7 +6,7 @@
 // for now the installer is not supported on windows
 //go:build !windows
 
-package installer
+package daemon
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/installer/packages/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

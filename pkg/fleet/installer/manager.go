@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package packages provides a package manager that installs and uninstalls packages.
-package packages
+// Package installer provides a package manager that installs and uninstalls packages.
+package installer
 
 import (
 	"context"
@@ -17,9 +17,9 @@ import (
 	oci "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 
-	"github.com/DataDog/datadog-agent/pkg/installer/packages/repository"
-	"github.com/DataDog/datadog-agent/pkg/installer/packages/service"
-	"github.com/DataDog/datadog-agent/pkg/installer/packages/utils"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

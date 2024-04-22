@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package installer
+package daemon
 
 import (
 	"bytes"
@@ -16,14 +16,14 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/pkg/installer/packages"
-	"github.com/DataDog/datadog-agent/pkg/installer/packages/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
-	defaultSocketPath = packages.PackagesPath + "/installer.sock"
+	defaultSocketPath = installer.PackagesPath + "/installer.sock"
 )
 
 // StatusResponse is the response to the status endpoint.

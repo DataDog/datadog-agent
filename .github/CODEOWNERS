@@ -381,8 +381,7 @@
 /pkg/runtime/                           @DataDog/agent-shared-components
 /pkg/serializer/                        @DataDog/agent-processing-and-routing
 /pkg/tagset/                            @DataDog/agent-shared-components
-/pkg/updater/                           @DataDog/fleet
-/pkg/installer/                         @DataDog/fleet
+/pkg/fleet/                             @DataDog/fleet
 /pkg/util/                              @DataDog/agent-shared-components
 /pkg/util/aggregatingqueue              @DataDog/container-integrations
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/platform-integrations

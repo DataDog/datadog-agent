@@ -6,7 +6,7 @@
 // for now the installer is not supported on windows
 //go:build !windows
 
-package packages
+package installer
 
 import (
 	"bytes"
@@ -20,8 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/installer/packages/fixtures"
-	"github.com/DataDog/datadog-agent/pkg/installer/packages/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
 var testCtx = context.TODO()

@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater"
-	"github.com/DataDog/datadog-agent/pkg/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -46,10 +46,10 @@ func newUpdaterComponent(lc fx.Lifecycle, dependencies dependencies) (updatercom
 	if !ok {
 		return nil, errRemoteConfigRequired
 	}
-	installer, err := installer.NewInstaller(remoteConfig, dependencies.Config)
+	daemon, err := daemon.NewInstaller(remoteConfig, dependencies.Config)
 	if err != nil {
 		return nil, fmt.Errorf("could not create updater: %w", err)
 	}
-	lc.Append(fx.Hook{OnStart: installer.Start, OnStop: installer.Stop})
-	return installer, nil
+	lc.Append(fx.Hook{OnStart: daemon.Start, OnStop: daemon.Stop})
+	return daemon, nil
 }

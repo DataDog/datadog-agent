@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package installer implements the installer.
-package installer
+// Package daemon implements the fleet long running daemon.
+package daemon
 
 import (
 	"context"
@@ -18,10 +18,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/installer/packages"
-	installerErrors "github.com/DataDog/datadog-agent/pkg/installer/packages/errors"
-	"github.com/DataDog/datadog-agent/pkg/installer/packages/repository"
-	"github.com/DataDog/datadog-agent/pkg/installer/packages/service"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -49,7 +49,7 @@ type installerImpl struct {
 	m        sync.Mutex
 	stopChan chan struct{}
 
-	packageManager packages.Manager
+	packageManager installer.Manager
 	remoteUpdates  bool
 	rc             *remoteConfig
 	catalog        catalog
@@ -93,21 +93,21 @@ func Bootstrap(ctx context.Context, config config.Reader) error {
 
 // Remove removes an individual package
 func Remove(ctx context.Context, pkg string) error {
-	packageManager := packages.NewManager()
+	packageManager := installer.NewManager()
 	return packageManager.Remove(ctx, pkg)
 }
 
-func newPackageManager(config config.Reader) packages.Manager {
+func newPackageManager(config config.Reader) installer.Manager {
 	registry := config.GetString("updater.registry")
 	registryAuth := config.GetString("updater.registry_auth")
-	var opts []packages.Options
+	var opts []installer.Options
 	if registry != "" {
-		opts = append(opts, packages.WithRegistry(registry))
+		opts = append(opts, installer.WithRegistry(registry))
 	}
 	if registryAuth != "" {
-		opts = append(opts, packages.WithRegistryAuth(packages.RegistryAuth(registryAuth)))
+		opts = append(opts, installer.WithRegistryAuth(installer.RegistryAuth(registryAuth)))
 	}
-	return packages.NewManager(opts...)
+	return installer.NewManager(opts...)
 }
 
 // NewInstaller returns a new Installer.
@@ -121,7 +121,7 @@ func NewInstaller(rcFetcher client.ConfigFetcher, config config.Reader) (Install
 	return newInstaller(rc, packagesManager, remoteUpdates), nil
 }
 
-func newInstaller(rc *remoteConfig, packageManager packages.Manager, remoteUpdates bool) *installerImpl {
+func newInstaller(rc *remoteConfig, packageManager installer.Manager, remoteUpdates bool) *installerImpl {
 	i := &installerImpl{
 		remoteUpdates:  remoteUpdates,
 		rc:             rc,
