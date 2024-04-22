@@ -78,7 +78,7 @@ pull_test_dockers_arm64:
     - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
   variables:
     DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/btfs
-    BTF_DIR: system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
+    BTF_DIR: /opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
 
 upload_minimized_btfs_sysprobe_x64:
