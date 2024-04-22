@@ -14,11 +14,11 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -111,23 +111,25 @@ type Check struct {
 	processor         *processor
 	sender            sender.Sender
 	stopCh            chan struct{}
+	cfg               config.Component
 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, cfg config.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
 		return core.NewLongRunningCheckWrapper(&Check{
 			CheckBase:         core.NewCheckBase(CheckName),
 			workloadmetaStore: store,
 			instance:          &Config{},
 			stopCh:            make(chan struct{}),
+			cfg:               cfg,
 		})
 	})
 }
 
 // Configure parses the check configuration and initializes the sbom check
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	if !ddConfig.Datadog.GetBool("sbom.enabled") {
+	if !c.cfg.GetBool("sbom.enabled") {
 		return errors.New("collection of SBOM is disabled")
 	}
 
@@ -152,7 +154,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		sender,
 		c.instance.ChunkSize,
 		time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second,
-		ddConfig.Datadog.GetBool("sbom.host.enabled"),
+		c.cfg.GetBool("sbom.host.enabled"),
 		time.Duration(c.instance.HostHeartbeatValiditySeconds)*time.Second); err != nil {
 		return err
 	}
@@ -229,7 +231,7 @@ func (c *Check) Run() error {
 func (c *Check) sendUsageMetrics() {
 	c.sender.Count("datadog.agent.sbom.container_images.running", 1.0, "", nil)
 
-	if ddConfig.Datadog.GetBool("sbom.host.enabled") {
+	if c.cfg.GetBool("sbom.host.enabled") {
 		c.sender.Count("datadog.agent.sbom.hosts.running", 1.0, "", nil)
 	}
 
