@@ -126,23 +126,22 @@ def get_components_and_bundles():
         for component_entry in component_directory.iterdir():
 
             # If we encounter a file at the first level it could be a bundle
-            if component_entry.is_file():
-                if component_entry.name == "bundle.go":
-                    content = list(component_entry.open())
-                    if has_type_component(content):
-                        print(f"** {component_entry} defines a Component interface (bundles should not do so)")
-                        ok = False
-                        pass
+            if component_entry.is_file() and component_entry.name == "bundle.go":
+                content = list(component_entry.open())
+                if has_type_component(content):
+                    print(f"** {component_entry} defines a Component interface (bundles should not do so)")
+                    ok = False
+                    pass
 
-                    path = str(component_entry)[: -len('/bundle.go')]
-                    team = find_team(content)
-                    doc = find_doc(content)
+                path = str(component_entry)[: -len('/bundle.go')]
+                team = find_team(content)
+                doc = find_doc(content)
 
-                    if team is None:
-                        print(f"** {component_entry} does not specify a team owner")
-                        ok = False
+                if team is None:
+                    print(f"** {component_entry} does not specify a team owner")
+                    ok = False
 
-                    bundles.append(Bundle(path, doc, team, []))
+                bundles.append(Bundle(path, doc, team, []))
                 continue
 
             component_root = locate_root(component_entry)
