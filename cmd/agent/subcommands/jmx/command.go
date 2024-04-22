@@ -59,7 +59,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -161,7 +161,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() inventorychecks.Component { return nil }),
 			fx.Provide(func() packagesigning.Component { return nil }),
 			fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewNoneOption[rcservice.Component]() }),
-			fx.Provide(func() optional.Option[rcserviceha.Component] { return optional.NewNoneOption[rcserviceha.Component]() }),
+			fx.Provide(func() optional.Option[rcservicemrf.Component] {
+				return optional.NewNoneOption[rcservicemrf.Component]()
+			}),
 			fx.Provide(func() status.Component { return nil }),
 			fx.Provide(func() eventplatformreceiver.Component { return nil }),
 			fx.Provide(func() optional.Option[collector.Component] { return optional.NewNoneOption[collector.Component]() }),

@@ -99,13 +99,13 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]string, error) 
 
 	additionalEndpoints := c.GetStringMapStringSlice("additional_endpoints")
 
-	// populate with HA endpoints too
-	if c.GetBool("ha.enabled") {
-		haURL, err := GetHAInfraEndpoint(c)
+	// populate with MRF endpoints too
+	if c.GetBool("multi_region_failover.enabled") {
+		haURL, err := GetMRFInfraEndpoint(c)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse HA endpoint: %s", err)
+			return nil, fmt.Errorf("could not parse MRF endpoint: %s", err)
 		}
-		additionalEndpoints[haURL] = []string{c.GetString("ha.api_key")}
+		additionalEndpoints[haURL] = []string{c.GetString("multi_region_failover.api_key")}
 	}
 	return mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
 }
@@ -126,23 +126,23 @@ func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) st
 	return BuildURLWithPrefix(prefix, pkgconfigsetup.DefaultSite)
 }
 
-// GetHAEndpoint returns the HA DD URL defined in the config, based on `ha.site` and the prefix, or ddHaURLKey
-func GetHAEndpoint(c pkgconfigmodel.Reader, prefix, ddHaURLKey string) (string, error) {
-	// value under ddURLKey takes precedence over 'ha.site'
-	if c.IsSet(ddHaURLKey) && c.GetString(ddHaURLKey) != "" {
-		return getResolvedHaDdURL(c, ddHaURLKey), nil
-	} else if c.GetString("ha.site") != "" {
-		return BuildURLWithPrefix(prefix, c.GetString("ha.site")), nil
+// GetHAEndpoint returns the MRF DD URL defined in the config, based on `multi_region_failover.site` and the prefix, or ddMRFURLKey
+func GetMRFEndpoint(c pkgconfigmodel.Reader, prefix, ddMRFURLKey string) (string, error) {
+	// value under ddURLKey takes precedence over 'multi_region_failover.site'
+	if c.IsSet(ddMRFURLKey) && c.GetString(ddMRFURLKey) != "" {
+		return getResolvedMRFDDURL(c, ddMRFURLKey), nil
+	} else if c.GetString("multi_region_failover.site") != "" {
+		return BuildURLWithPrefix(prefix, c.GetString("multi_region_failover.site")), nil
 	}
-	return "", fmt.Errorf("`ha.site` or `ha.dd_url` must be set when High Availability is enabled")
+	return "", fmt.Errorf("`multi_region_failover.site` or `multi_region_failover.dd_url` must be set when Multi-Region Failover is enabled")
 }
 
-func getResolvedHaDdURL(c pkgconfigmodel.Reader, haURLKey string) string {
-	resolvedHaDdURL := c.GetString(haURLKey)
-	if c.IsSet("ha.site") {
-		log.Infof("'ha.site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", haURLKey, haURLKey, resolvedHaDdURL)
+func getResolvedMRFDDURL(c pkgconfigmodel.Reader, mrfURLKey string) string {
+	resolvedMRFDDURL := c.GetString(mrfURLKey)
+	if c.IsSet("multi_region_failover.site") {
+		log.Infof("'multi_region_failover.site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", mrfURLKey, mrfURLKey, resolvedMRFDDURL)
 	}
-	return resolvedHaDdURL
+	return resolvedMRFDDURL
 }
 
 // GetInfraEndpoint returns the main DD Infra URL defined in config, based on the value of `site` and `dd_url`
@@ -150,9 +150,9 @@ func GetInfraEndpoint(c pkgconfigmodel.Reader) string {
 	return GetMainEndpoint(c, InfraURLPrefix, "dd_url")
 }
 
-// GetHAInfraEndpoint returns the HA DD Infra URL defined in config, based on the value of `ha.site` and `ha.dd_url`
-func GetHAInfraEndpoint(c pkgconfigmodel.Reader) (string, error) {
-	return GetHAEndpoint(c, InfraURLPrefix, "ha.dd_url")
+// GetMRFInfraEndpoint returns the MRF DD Infra URL defined in config, based on the value of `multi_region_failover.site` and `multi_region_failover.dd_url`
+func GetMRFInfraEndpoint(c pkgconfigmodel.Reader) (string, error) {
+	return GetMRFEndpoint(c, InfraURLPrefix, "multi_region_failover.dd_url")
 }
 
 // ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
