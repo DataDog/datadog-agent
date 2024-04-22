@@ -17,6 +17,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 )
 
 func TestEmbeddedBTFMatch(t *testing.T) {
@@ -26,22 +28,23 @@ func TestEmbeddedBTFMatch(t *testing.T) {
 	loader.embeddedDir = filepath.Join(cd, "testdata")
 
 	tests := []struct {
-		platform, platformVersion, kernelVersion string
-		expectedPath                             string
-		err                                      bool
+		platform                       btfPlatform
+		platformVersion, kernelVersion string
+		expectedPath                   string
+		err                            bool
 	}{
 		// correct
-		{"amazon", "2", "4.14.320-242.534.amzn2.aarch64", "amazon/4.14.320-242.534.amzn2.aarch64.btf.tar.xz", false},
+		{platformAmazon, "2", "4.14.320-242.534.amzn2.aarch64", "amzn/4.14.320-242.534.amzn2.aarch64.btf.tar.xz", false},
 		// unique BTF path, but wrong platform and version
-		{"ubuntu", "22.04", "4.14.320-242.534.amzn2.aarch64", "amazon/4.14.320-242.534.amzn2.aarch64.btf.tar.xz", false},
+		{platformUbuntu, "22.04", "4.14.320-242.534.amzn2.aarch64", "amzn/4.14.320-242.534.amzn2.aarch64.btf.tar.xz", false},
 		// ubuntu, unique, but wrong platform version
-		{"ubuntu", "22.04", "4.15.0-1029-aws", "ubuntu/18.04/4.15.0-1029-aws.btf.tar.xz", false},
+		{platformUbuntu, "22.04", "4.15.0-1029-aws", "ubuntu/18.04/4.15.0-1029-aws.btf.tar.xz", false},
 		// multiple BTFs in 18.04 and 20.04, unable to narrow down
-		{"ubuntu", "22.04", "5.4.0-80-generic", "", true},
+		{platformUbuntu, "22.04", "5.4.0-80-generic", "", true},
 		// non-existent kernel version
-		{"ubuntu", "22.04", "15.0", "", true},
-		// kernel is in testdata for centos, and fakecentos, so multiple matches, but platform filter
-		{"redhat", "7", "3.10.0-1062.0.0.0.1.el7.x86_64", "centos/3.10.0-1062.0.0.0.1.el7.x86_64.btf.tar.xz", false},
+		{platformUbuntu, "22.04", "15.0", "", true},
+		// kernel is in testdata for centos/7 and ubuntu/22.04, so multiple matches, but platform filter
+		{platformRedhat, "7", "3.10.0-1062.0.0.0.1.el7.x86_64", "centos/3.10.0-1062.0.0.0.1.el7.x86_64.btf.tar.xz", false},
 	}
 
 	for i, test := range tests {
@@ -58,10 +61,10 @@ func TestEmbeddedBTFMatch(t *testing.T) {
 
 func TestBTFTelemetry(t *testing.T) {
 	loader := initBTFLoader(NewConfig())
-	spec, result, err := loader.Get()
+	ret, result, err := loader.Get()
 	require.NoError(t, err)
-	require.NotNil(t, spec)
-	require.NotEqual(t, COREResult(btfNotFound), result)
+	require.NotNil(t, ret)
+	require.NotEqual(t, ebpftelemetry.COREResult(ebpftelemetry.BtfNotFound), result)
 }
 
 func curDir() (string, error) {

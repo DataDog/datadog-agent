@@ -28,6 +28,8 @@ func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
 	h.daemon.LambdaLibraryStateLock.Lock()
 	defer h.daemon.LambdaLibraryStateLock.Unlock()
+	h.daemon.LambdaLibraryStateLock.Lock()
+	defer h.daemon.LambdaLibraryStateLock.Unlock()
 	h.daemon.LambdaLibraryDetected = true
 }
 
@@ -55,7 +57,7 @@ type StartInvocation struct {
 
 func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.StartInvocation route.")
-	s.daemon.SetExecutionSpanComplete(false)
+	s.daemon.SetExecutionSpanIncomplete(true)
 	startTime := time.Now()
 	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -89,7 +91,7 @@ type EndInvocation struct {
 
 func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.EndInvocation route.")
-	e.daemon.SetExecutionSpanComplete(true)
+	e.daemon.SetExecutionSpanIncomplete(false)
 	endTime := time.Now()
 	ecs := e.daemon.ExecutionContext.GetCurrentState()
 	coldStartTags := e.daemon.ExecutionContext.GetColdStartTagsForRequestID(ecs.LastRequestID)

@@ -24,7 +24,6 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -35,14 +34,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // CliParams needs to be exported because the compliance subcommand is tightly coupled to this subcommand and tests need to be able to access this type.
@@ -102,18 +99,18 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 		},
 	}
 
-	cmd.Flags().StringVarP(&checkArgs.framework, flags.Framework, "", "", "Framework to run the checks from")
-	cmd.Flags().StringVarP(&checkArgs.file, flags.File, "f", "", "Compliance suite file to read rules from")
-	cmd.Flags().BoolVarP(&checkArgs.verbose, flags.Verbose, "v", false, "Include verbose details")
-	cmd.Flags().BoolVarP(&checkArgs.report, flags.Report, "r", false, "Send report")
-	cmd.Flags().StringVarP(&checkArgs.overrideRegoInput, flags.OverrideRegoInput, "", "", "Rego input to use when running rego checks")
-	cmd.Flags().StringVarP(&checkArgs.dumpReports, flags.DumpReports, "", "", "Path to file where to dump reports")
+	cmd.Flags().StringVarP(&checkArgs.framework, "framework", "", "", "Framework to run the checks from")
+	cmd.Flags().StringVarP(&checkArgs.file, "file", "f", "", "Compliance suite file to read rules from")
+	cmd.Flags().BoolVarP(&checkArgs.verbose, "verbose", "v", false, "Include verbose details")
+	cmd.Flags().BoolVarP(&checkArgs.report, "report", "r", false, "Send report")
+	cmd.Flags().StringVarP(&checkArgs.overrideRegoInput, "override-rego-input", "", "", "Rego input to use when running rego checks")
+	cmd.Flags().StringVarP(&checkArgs.dumpReports, "dump-reports", "", "", "Path to file where to dump reports")
 
 	return []*cobra.Command{cmd}
 }
 
 // RunCheck runs a check
-func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, checkArgs *CliParams) error {
+func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CliParams) error {
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return err
@@ -122,7 +119,7 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 	var statsdClient ddgostatsd.ClientInterface
 	metricsEnabled := config.GetBool("compliance_config.metrics.enabled")
 	if metricsEnabled {
-		cl, err := statsd.CreateForHostPort(pkgconfig.GetBindHost(), config.GetInt("dogstatsd_port"))
+		cl, err := statsdComp.Get()
 		if err != nil {
 			log.Warnf("Error creating statsd Client: %s", err)
 		} else {
@@ -222,7 +219,7 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 		}
 	}
 	if checkArgs.report {
-		if err := reportComplianceEvents(log, config, events); err != nil {
+		if err := reportComplianceEvents(log, events); err != nil {
 			log.Error(err)
 			return err
 		}
@@ -245,23 +242,17 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 	return nil
 }
 
-func reportComplianceEvents(log log.Component, config config.Component, events []*compliance.CheckEvent) error {
+func reportComplianceEvents(log log.Component, events []*compliance.CheckEvent) error {
 	hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.Background())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
-
-	stopper := startstop.NewSerialStopper()
-	defer stopper.Stop()
-	runPath := config.GetString("compliance_config.run_path")
 	endpoints, context, err := common.NewLogContextCompliance()
 	if err != nil {
 		return fmt.Errorf("reporter: could not reate log context for compliance: %w", err)
 	}
-	reporter, err := compliance.NewLogReporter(hostnameDetected, stopper, "compliance-agent", "compliance", runPath, endpoints, context)
-	if err != nil {
-		return fmt.Errorf("reporter: could not create: %w", err)
-	}
+	reporter := compliance.NewLogReporter(hostnameDetected, "compliance-agent", "compliance", endpoints, context)
+	defer reporter.Stop()
 	for _, event := range events {
 		reporter.ReportEvent(event)
 	}

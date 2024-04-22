@@ -21,11 +21,12 @@ const (
 func TestCPULow(t *testing.T) {
 	assert := assert.New(t)
 	runtime.GC()
+	info := NewCurrentInfo()
 
-	_, _ = CPU(time.Now())
-	globalCurrentInfo.cacheDelay = testDuration
+	_, _ = info.CPU(time.Now())
+	info.cacheDelay = testDuration
 	time.Sleep(testDuration)
-	c, _ := CPU(time.Now())
+	c, _ := info.CPU(time.Now())
 	t.Logf("CPU (sleep): %v", c)
 
 	// checking that CPU is low enough, this is theoretically flaky,
@@ -42,6 +43,7 @@ func TestCPUHigh(t *testing.T) {
 		{10, false},
 		{100, false},
 	}
+	info := NewCurrentInfo()
 	for _, tc := range tests {
 		t.Run(fmt.Sprintf("%d_goroutines", tc.n), func(t *testing.T) {
 			if !tc.runShort && testing.Short() {
@@ -51,8 +53,8 @@ func TestCPUHigh(t *testing.T) {
 			runtime.GC()
 
 			done := make(chan struct{}, 1)
-			CPU(time.Now())
-			globalCurrentInfo.cacheDelay = testDuration
+			info.CPU(time.Now())
+			info.cacheDelay = testDuration
 			for i := 0; i < tc.n; i++ {
 				go func() {
 					j := 0
@@ -67,7 +69,7 @@ func TestCPUHigh(t *testing.T) {
 				}()
 			}
 			time.Sleep(testDuration)
-			c, _ := CPU(time.Now())
+			c, _ := info.CPU(time.Now())
 			for i := 0; i < tc.n; i++ {
 				done <- struct{}{}
 			}
@@ -85,10 +87,11 @@ func TestMemLow(t *testing.T) {
 	assert := assert.New(t)
 	runtime.GC()
 
-	oldM := Mem()
-	globalCurrentInfo.cacheDelay = testDuration
+	info := NewCurrentInfo()
+	oldM := info.Mem()
+	info.cacheDelay = testDuration
 	time.Sleep(testDuration)
-	m := Mem()
+	m := info.Mem()
 	t.Logf("Mem (sleep): %v", m)
 
 	// Checking that Mem is low enough, this is theorically flaky,
@@ -103,8 +106,9 @@ func doTestMemHigh(t *testing.T, n int) {
 
 	done := make(chan struct{}, 1)
 	data := make(chan []byte, 1)
-	oldM := Mem()
-	globalCurrentInfo.cacheDelay = testDuration
+	info := NewCurrentInfo()
+	oldM := info.Mem()
+	info.cacheDelay = testDuration
 	go func() {
 		a := make([]byte, n)
 		a[0] = 1
@@ -113,7 +117,7 @@ func doTestMemHigh(t *testing.T, n int) {
 		<-done
 	}()
 	time.Sleep(testDuration)
-	m := Mem()
+	m := info.Mem()
 	done <- struct{}{}
 
 	t.Logf("Mem (%d bytes): %v %v", n, oldM, m)
@@ -133,21 +137,21 @@ func TestMemHigh(t *testing.T) {
 }
 
 func BenchmarkCPU(b *testing.B) {
-	CPU(time.Now())                  // make sure globalCurrentInfo exists
-	globalCurrentInfo.cacheDelay = 0 // disable cache
+	info := NewCurrentInfo()
+	info.cacheDelay = 0 // disable cache
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, _ = CPU(time.Now())
+		_, _ = info.CPU(time.Now())
 	}
 }
 
 func BenchmarkMem(b *testing.B) {
-	Mem()                            // make sure globalCurrentInfo exists
-	globalCurrentInfo.cacheDelay = 0 // disable cache
+	info := NewCurrentInfo()
+	info.cacheDelay = 0 // disable cache
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_ = Mem()
+		_ = info.Mem()
 	}
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -582,4 +583,29 @@ func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
 	assert.NoError(err2)
 
 	assert.Equal(v1, v2)
+}
+
+func TestExpectedTagDuration(t *testing.T) {
+
+	mockConfig := coreConfig.Mock(t)
+
+	tags := []string{"tag1:value1"}
+
+	mockConfig.SetWithoutSource("tags", tags)
+	defer mockConfig.SetWithoutSource("tags", nil)
+
+	mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "5s")
+	defer mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "0")
+
+	mockJournal := &MockJournal{m: &sync.Mutex{}}
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	tailer := NewTailer(source, make(chan *message.Message, 1), mockJournal, true)
+
+	mockJournal.entries = append(mockJournal.entries, &sdjournal.JournalEntry{Fields: map[string]string{"MESSAGE": "foobar"}})
+
+	tailer.Start("")
+	assert.Equal(t, tags, (<-tailer.outputChan).Tags())
+
+	tailer.Stop()
+
 }

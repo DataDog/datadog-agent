@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"runtime"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -24,13 +25,12 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -43,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	winmodel "github.com/DataDog/datadog-agent/pkg/security/seclwin/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -55,6 +56,7 @@ type checkPoliciesCliParams struct {
 
 	dir                      string
 	evaluateAllPolicySources bool
+	windowsModel             bool
 }
 
 func commonPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -74,10 +76,11 @@ func commonPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
 type evalCliParams struct {
 	*command.GlobalParams
 
-	dir       string
-	ruleID    string
-	eventFile string
-	debug     bool
+	dir          string
+	ruleID       string
+	eventFile    string
+	debug        bool
+	windowsModel bool
 }
 
 func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -100,12 +103,15 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 
-	evalCmd.Flags().StringVar(&evalArgs.dir, flags.PoliciesDir, pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
-	evalCmd.Flags().StringVar(&evalArgs.ruleID, flags.RuleID, "", "Rule ID to evaluate")
-	_ = evalCmd.MarkFlagRequired(flags.RuleID)
-	evalCmd.Flags().StringVar(&evalArgs.eventFile, flags.EventFile, "", "File of the event data")
-	_ = evalCmd.MarkFlagRequired(flags.EventFile)
-	evalCmd.Flags().BoolVar(&evalArgs.debug, flags.Debug, false, "Display an event dump if the evaluation fail")
+	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	evalCmd.Flags().StringVar(&evalArgs.ruleID, "rule-id", "", "Rule ID to evaluate")
+	_ = evalCmd.MarkFlagRequired("rule-id")
+	evalCmd.Flags().StringVar(&evalArgs.eventFile, "event-file", "", "File of the event data")
+	_ = evalCmd.MarkFlagRequired("event-file")
+	evalCmd.Flags().BoolVar(&evalArgs.debug, "debug", false, "Display an event dump if the evaluation fail")
+	if runtime.GOOS == "linux" {
+		evalCmd.Flags().BoolVar(&evalArgs.windowsModel, "windows-model", false, "Use the Windows model")
+	}
 
 	return []*cobra.Command{evalCmd}
 }
@@ -130,8 +136,11 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 		},
 	}
 
-	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
-	commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.evaluateAllPolicySources, flags.EvaluateLoadedPolicies, false, "Evaluate loaded policies")
+	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.evaluateAllPolicySources, "loaded-policies", false, "Evaluate loaded policies")
+	if runtime.GOOS == "linux" {
+		commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.windowsModel, "windows-model", false, "Evaluate policies using the Windows model")
+	}
 
 	return []*cobra.Command{commonCheckPoliciesCmd}
 }
@@ -199,8 +208,8 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 		},
 	}
 
-	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, flags.Check, false, "Check policies after downloading")
-	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.outputPath, flags.OutputPath, "", "Output path for downloaded policies")
+	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, "check", false, "Check policies after downloading")
+	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.outputPath, "output-path", "", "Output path for downloaded policies")
 
 	return []*cobra.Command{downloadPolicyCmd}
 }
@@ -232,7 +241,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			)
 		},
 	}
-	processCacheDumpCmd.Flags().BoolVar(&cliParams.withArgs, flags.WithArgs, false, "add process arguments to the dump")
+	processCacheDumpCmd.Flags().BoolVar(&cliParams.withArgs, "with-args", false, "add process arguments to the dump")
 
 	processCacheCmd := &cobra.Command{
 		Use:   "process-cache",
@@ -270,7 +279,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 			)
 		},
 	}
-	dumpNetworkNamespaceCmd.Flags().BoolVar(&cliParams.snapshotInterfaces, flags.SnapshotInterfaces, true, "snapshot the interfaces of each network namespace during the dump")
+	dumpNetworkNamespaceCmd.Flags().BoolVar(&cliParams.snapshotInterfaces, "snapshot-interfaces", true, "snapshot the interfaces of each network namespace during the dump")
 
 	networkNamespaceCmd := &cobra.Command{
 		Use:   "network-namespace",
@@ -366,6 +375,10 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 
 func checkPolicies(_ log.Component, _ config.Component, args *checkPoliciesCliParams) error {
 	if args.evaluateAllPolicySources {
+		if args.windowsModel {
+			return errors.New("unable to evaluator loaded policies using the windows model")
+		}
+
 		client, err := secagent.NewRuntimeSecurityClient()
 		if err != nil {
 			return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -397,8 +410,12 @@ func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.
 	return nil
 }
 
-func newDefaultEvent() eval.Event {
-	return model.NewDefaultEvent()
+func newFakeEvent() eval.Event {
+	return model.NewFakeEvent()
+}
+
+func newFakeWindowsEvent() eval.Event {
+	return winmodel.NewFakeEvent()
 }
 
 func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
@@ -437,7 +454,12 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 
 	loader := rules.NewPolicyLoader(provider)
 
-	ruleSet := rules.NewRuleSet(&model.Model{}, newDefaultEvent, ruleOpts, evalOpts)
+	var ruleSet *rules.RuleSet
+	if args.windowsModel {
+		ruleSet = rules.NewRuleSet(&winmodel.Model{}, newFakeWindowsEvent, ruleOpts, evalOpts)
+	} else {
+		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	}
 	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
 	if err != nil {
 		return err
@@ -446,15 +468,17 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 		return err
 	}
 
-	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
-	if err != nil {
-		return err
-	}
+	if !args.windowsModel {
+		report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
+		if err != nil {
+			return err
+		}
 
-	content, _ := json.MarshalIndent(report, "", "\t")
-	_, err = fmt.Fprintf(writer, "%s\n", string(content))
-	if err != nil {
-		return fmt.Errorf("unable to write out report: %w", err)
+		content, _ := json.MarshalIndent(report, "", "\t")
+		_, err = fmt.Fprintf(writer, "%s\n", string(content))
+		if err != nil {
+			return fmt.Errorf("unable to write out report: %w", err)
+		}
 	}
 
 	return nil
@@ -550,7 +574,12 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 
 	loader := rules.NewPolicyLoader(provider)
 
-	ruleSet := rules.NewRuleSet(&model.Model{}, newDefaultEvent, ruleOpts, evalOpts)
+	var ruleSet *rules.RuleSet
+	if evalArgs.windowsModel {
+		ruleSet = rules.NewRuleSet(&winmodel.Model{}, newFakeWindowsEvent, ruleOpts, evalOpts)
+	} else {
+		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	}
 	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
 	if err != nil {
 		return err
@@ -569,11 +598,13 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 		Event: event,
 	}
 
-	approvers, err := ruleSet.GetApprovers(kfilters.GetCapababilities())
-	if err != nil {
-		report.Error = err
-	} else {
-		report.Approvers = approvers
+	if !evalArgs.windowsModel {
+		approvers, err := ruleSet.GetApprovers(kfilters.GetCapababilities())
+		if err != nil {
+			report.Error = err
+		} else {
+			report.Approvers = approvers
+		}
 	}
 
 	report.Succeeded = ruleSet.Evaluate(event)
@@ -627,7 +658,7 @@ func reloadRuntimePolicies(_ log.Component, _ config.Component, _ secrets.Compon
 }
 
 // StartRuntimeSecurity starts runtime security
-func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, _ ddgostatsd.ClientInterface, senderManager sender.SenderManager) (*secagent.RuntimeSecurityAgent, error) {
+func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, wmeta workloadmeta.Component) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := config.GetBool("runtime_security_config.enabled")
 	if !enabled {
 		log.Info("Datadog runtime security agent disabled by config")
@@ -636,10 +667,10 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 
 	// start/stop order is important, agent need to be stopped first and started after all the others
 	// components
-	agent, err := secagent.NewRuntimeSecurityAgent(senderManager, hostname, secagent.RSAOptions{
+	agent, err := secagent.NewRuntimeSecurityAgent(statsdClient, hostname, secagent.RSAOptions{
 		LogProfiledWorkloads:    config.GetBool("runtime_security_config.log_profiled_workloads"),
 		IgnoreDDAgentContainers: config.GetBool("runtime_security_config.telemetry.ignore_dd_agent_containers"),
-	})
+	}, wmeta)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create a runtime security agent instance: %w", err)
 	}
@@ -652,8 +683,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	}
 	stopper.Add(ctx)
 
-	runPath := config.GetString("runtime_security_config.run_path")
-	reporter, err := reporter.NewCWSReporter(hostname, runPath, stopper, endpoints, ctx)
+	reporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, ctx)
 	if err != nil {
 		return nil, err
 	}

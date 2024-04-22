@@ -33,7 +33,7 @@ func TestGetAlias(t *testing.T) {
 	metadataURL = ts.URL
 
 	aliases, err := GetHostAliases(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	require.Len(t, aliases, 1)
 	assert.Equal(t, expected, aliases[0])
 	assert.Equal(t, lastRequest.URL.Path, "/metadata/instance/compute/vmId")
@@ -192,7 +192,7 @@ func TestGetPublicIPv4(t *testing.T) {
 	metadataURL = ts.URL
 	val, err := GetPublicIPv4(ctx)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.True(t, strings.HasPrefix(lastRequest.URL.Path, pathPrefix))
 }

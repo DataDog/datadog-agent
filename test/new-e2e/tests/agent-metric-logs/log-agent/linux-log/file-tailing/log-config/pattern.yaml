@@ -1,0 +1,9 @@
+logs:
+  - type: file
+    path: '/var/log/e2e_test_logs/hello-world.log'
+    service: hello
+    source: custom_log 
+    log_processing_rules:
+        - type: multi_line
+          name: custom_pattern_prefix
+          pattern: fake-log-prefix

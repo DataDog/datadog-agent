@@ -17,11 +17,11 @@ import (
 type statusMock struct {
 }
 
-func (s *statusMock) GetStatus(string, bool) ([]byte, error) {
+func (s *statusMock) GetStatus(string, bool, ...string) ([]byte, error) {
 	return []byte{}, nil
 }
 
-func (s *statusMock) GetStatusBySection(string, string, bool) ([]byte, error) {
+func (s *statusMock) GetStatusBySections([]string, string, bool) ([]byte, error) {
 	return []byte{}, nil
 }
 

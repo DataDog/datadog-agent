@@ -14,9 +14,9 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -31,9 +31,9 @@ const (
 	intakeTrackType = "compliance"
 )
 
-func runCompliance(ctx context.Context, senderManager sender.SenderManager, apiCl *apiserver.APIClient, isLeader func() bool) error {
+func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmeta workloadmeta.Component, apiCl *apiserver.APIClient, isLeader func() bool) error {
 	stopper := startstop.NewSerialStopper()
-	if err := startCompliance(senderManager, stopper, apiCl, isLeader); err != nil {
+	if err := startCompliance(senderManager, wmeta, stopper, apiCl, isLeader); err != nil {
 		return err
 	}
 
@@ -48,7 +48,7 @@ func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*c
 	if err != nil {
 		endpoints, err = config.BuildHTTPEndpoints(coreconfig.Datadog, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, coreconfig.Datadog)
 			endpoints, err = config.BuildEndpoints(coreconfig.Datadog, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		}
 	}
@@ -72,14 +72,13 @@ func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, 
 	return newLogContext(logsConfigComplianceKeys, "cspm-intake.")
 }
 
-func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
+func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Component, stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
 	endpoints, ctx, err := newLogContextCompliance()
 	if err != nil {
 		log.Error(err)
 	}
 	stopper.Add(ctx)
 
-	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
 
@@ -88,15 +87,13 @@ func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopp
 		return err
 	}
 
-	reporter, err := compliance.NewLogReporter(hname, stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
+	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", endpoints, ctx)
+	statsdClient, err := simpleTelemetrySenderFromSenderManager(senderManager)
 	if err != nil {
 		return err
 	}
 
-	runner := runner.NewRunner(senderManager)
-	stopper.Add(runner)
-
-	agent := compliance.NewAgent(senderManager, compliance.AgentOptions{
+	agent := compliance.NewAgent(statsdClient, wmeta, compliance.AgentOptions{
 		ConfigDir:     configDir,
 		Reporter:      reporter,
 		CheckInterval: checkInterval,

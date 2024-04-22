@@ -99,7 +99,6 @@ var javaTLSSpec = &protocols.ProtocolSpec{
 				EBPFFuncName: doVfsIoctlKprobeName,
 				UID:          probeUID,
 			},
-			KProbeMaxActive: maxActive,
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -159,10 +158,12 @@ func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
 	}, nil
 }
 
+// Name return the program's name.
 func (p *javaTLSProgram) Name() string {
 	return "Java TLS"
 }
 
+// ConfigureOptions changes map attributes to the given options.
 func (p *javaTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[javaTLSConnectionsMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
@@ -261,15 +262,18 @@ func (p *javaTLSProgram) newJavaProcess(pid uint32) {
 	}
 }
 
+// PreStart subscribes to the exec events to inject the java agent.
 func (p *javaTLSProgram) PreStart(*manager.Manager) error {
 	p.cleanupExec = p.processMonitor.SubscribeExec(p.newJavaProcess)
 	return nil
 }
 
+// PostStart is a no-op.
 func (p *javaTLSProgram) PostStart(*manager.Manager) error {
 	return nil
 }
 
+// Stop unsubscribes from the exec events.
 func (p *javaTLSProgram) Stop(*manager.Manager) {
 	if p.cleanupExec != nil {
 		p.cleanupExec()
@@ -280,8 +284,10 @@ func (p *javaTLSProgram) Stop(*manager.Manager) {
 	}
 }
 
+// DumpMaps is a no-op.
 func (p *javaTLSProgram) DumpMaps(io.Writer, string, *ebpf.Map) {}
 
+// GetStats is a no-op.
 func (p *javaTLSProgram) GetStats() *protocols.ProtocolStats {
 	return nil
 }

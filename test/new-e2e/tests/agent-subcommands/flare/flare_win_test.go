@@ -9,10 +9,13 @@ package flare
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,12 +24,14 @@ type windowsFlareSuite struct {
 }
 
 func TestWindowsFlareSuite(t *testing.T) {
-	e2e.Run(t, &windowsFlareSuite{}, e2e.FakeIntakeStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS))))
+	e2e.Run(t, &windowsFlareSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
 }
 
-func (v *windowsFlareSuite) TestFlareWindows() {
-	v.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS))))
-	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent, v.Env().Fakeintake, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+// Add zz to name to run this test last in order to don't break other tests
+// Will need to rename it to TestFlareWithAllConfiguration after the fix of Paola's PR
+// To keep in mind that we will need to create the directory then create file in it and specify to delete file as the same time as the directory
+func (v *windowsFlareSuite) TestzzzFlareWindows() {
+	flare, _ := requestAgentFlareAndFetchFromFakeIntake(&v.baseFlareSuite, agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, windowsFiles)
 	assertEventlogFolderOnlyContainsWindoesEventLog(v.T(), flare)

@@ -20,9 +20,14 @@ const CollectorSection string = "collector"
 // Component interface to access the agent status.
 type Component interface {
 	// Returns all the agent status information for the format type
-	GetStatus(format string, verbose bool) ([]byte, error)
-	// Returns only the agent status for the especify section and format type
-	GetStatusBySection(section string, format string, verbose bool) ([]byte, error)
+	GetStatus(format string, verbose bool, excludeSection ...string) ([]byte, error)
+	// Returns only the agent status for the specified sections and format type
+	GetStatusBySections(sections []string, format string, verbose bool) ([]byte, error)
+}
+
+// Params store configurable options for the status component
+type Params struct {
+	PythonVersionGetFunc func() string
 }
 
 // Provider interface
@@ -32,9 +37,9 @@ type Provider interface {
 	// Section is used to group the status providers.
 	// When displaying the Text output the section is render as a header
 	Section() string
-	JSON(stats map[string]interface{}) error
-	Text(buffer io.Writer) error
-	HTML(buffer io.Writer) error
+	JSON(verbose bool, stats map[string]interface{}) error
+	Text(verbose bool, buffer io.Writer) error
+	HTML(verbose bool, buffer io.Writer) error
 }
 
 // HeaderProvider interface
@@ -43,9 +48,9 @@ type HeaderProvider interface {
 	Index() int
 	// When displaying the Text output the name is render as a header
 	Name() string
-	JSON(stats map[string]interface{}) error
-	Text(buffer io.Writer) error
-	HTML(buffer io.Writer) error
+	JSON(verbose bool, stats map[string]interface{}) error
+	Text(verbose bool, buffer io.Writer) error
+	HTML(verbose bool, buffer io.Writer) error
 }
 
 // InformationProvider stores the Provider instance

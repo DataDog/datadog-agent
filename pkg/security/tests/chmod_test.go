@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -14,12 +14,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestChmod(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `chmod.file.path == "{{.Root}}/test-chmod" && chmod.file.destination.rights in [0707, 0717, 0757] && chmod.file.uid == 98 && chmod.file.gid == 99`,
@@ -57,7 +60,7 @@ func TestChmod(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assertRights(t, uint16(event.Chmod.Mode), 0o707)
-			assert.Equal(t, getInode(t, testFile), event.Chmod.File.Inode, "wrong inode")
+			assertInode(t, getInode(t, testFile), event.Chmod.File.Inode)
 			assertRights(t, event.Chmod.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
@@ -80,7 +83,33 @@ func TestChmod(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assertRights(t, uint16(event.Chmod.Mode), 0o757)
-			assert.Equal(t, getInode(t, testFile), event.Chmod.File.Inode, "wrong inode")
+			assertInode(t, getInode(t, testFile), event.Chmod.File.Inode)
+			assertRights(t, event.Chmod.File.Mode, expectedMode)
+			assertNearTime(t, event.Chmod.File.MTime)
+			assertNearTime(t, event.Chmod.File.CTime)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			test.validateChmodSchema(t, event)
+		})
+	})
+
+	t.Run("fchmodat2", func(t *testing.T) {
+		defer func() { expectedMode = 0o757 }()
+
+		test.WaitSignal(t, func() error {
+			if _, _, errno := syscall.Syscall6(unix.SYS_FCHMODAT2, 0, uintptr(testFilePtr), uintptr(0o757), 0, 0, 0); errno != 0 {
+				if errno == unix.ENOSYS {
+					return ErrSkipTest{"openat2 is not supported"}
+				}
+				return error(errno)
+			}
+			return nil
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
+			assertRights(t, uint16(event.Chmod.Mode), 0o757)
+			assertInode(t, getInode(t, testFile), event.Chmod.File.Inode)
 			assertRights(t, event.Chmod.File.Mode, expectedMode)
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
@@ -101,7 +130,7 @@ func TestChmod(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assertRights(t, uint16(event.Chmod.Mode), 0o717, "wrong mode")
-			assert.Equal(t, getInode(t, testFile), event.Chmod.File.Inode, "wrong inode")
+			assertInode(t, getInode(t, testFile), event.Chmod.File.Inode)
 			assertRights(t, event.Chmod.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)

@@ -8,9 +8,11 @@ package httpsec
 import (
 	"bytes"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,13 +33,16 @@ type ProxyLifecycleProcessor struct {
 
 	// Parsed invocation event value
 	invocationEvent interface{}
+
+	demux aggregator.Demultiplexer
 }
 
 // NewProxyLifecycleProcessor returns a new httpsec proxy processor monitored with the
 // given Monitorer.
-func NewProxyLifecycleProcessor(appsec Monitorer) *ProxyLifecycleProcessor {
+func NewProxyLifecycleProcessor(appsec Monitorer, demux aggregator.Demultiplexer) *ProxyLifecycleProcessor {
 	return &ProxyLifecycleProcessor{
 		appsec: appsec,
+		demux:  demux,
 	}
 }
 
@@ -61,8 +66,11 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 	eventType := trigger.GetEventType(lowercaseEventPayload)
 	if eventType == trigger.Unknown {
 		log.Debugf("appsec: proxy-lifecycle: Failed to extract event type")
+	} else {
+		log.Debugf("appsec: proxy-lifecycle: Extracted event type: %v", eventType)
 	}
 
+	lp.invocationEvent = nil
 	var event interface{}
 	switch eventType {
 	default:
@@ -89,8 +97,8 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 		return
 	}
 
-	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
 	lp.invocationEvent = event
+	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
 }
 
 // OnInvokeEnd is the hook triggered when an invocation has ended
@@ -126,12 +134,21 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	}
 	log.Debugf("appsec: found service entry span of the currently monitored request id `%s`", currentReqId)
 
+	span := (*spanWrapper)(s)
+
 	if lp.invocationEvent == nil {
 		log.Debug("appsec: ignoring unsupported lamdba event")
+		// Add a span tag so we can tell if this was an unsupported event type.
+		// _dd.appsec.enabled:1 covers the supported case, which can only be set
+		// in this case because it involves ASM billing.
+		span.SetMetricsTag("_dd.appsec.unsupported_event_type", 1)
 		return // skip: unsupported event
 	}
 
-	span := (*spanWrapper)(s)
+	// Count ASM-supported invocations
+	if lp.demux != nil {
+		serverlessMetrics.SendASMInvocationEnhancedMetric(nil, lp.demux)
+	}
 
 	var ctx context
 	switch event := lp.invocationEvent.(type) {
@@ -210,8 +227,10 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			&ctx,
 			nil,
 			&event.Path,
-			event.MultiValueHeaders,
-			event.MultiValueQueryStringParameters,
+			// Depending on how the ALB is configured, headers will be either in MultiValueHeaders or Headers (not both).
+			multiOrSingle(event.MultiValueHeaders, event.Headers),
+			// Depending on how the ALB is configured, query parameters will be either in MultiValueQueryStringParameters or QueryStringParameters (not both).
+			multiOrSingle(event.MultiValueQueryStringParameters, event.QueryStringParameters),
 			nil,
 			"",
 			&event.Body,
@@ -247,15 +266,30 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	} else {
 		log.Debug("appsec: missing span tag http.status_code")
 	}
+	if ctx.requestRoute != nil {
+		span.SetMetaTag("http.route", *ctx.requestRoute)
+	} else {
+		log.Debug("appsec: missing span tag http.route")
+	}
 
 	if res := lp.appsec.Monitor(ctx.toAddresses()); res.HasEvents() {
 		setSecurityEventsTags(span, res.Events, reqHeaders, nil)
 		chunk.Priority = int32(sampler.PriorityUserKeep)
-		if ctx.requestRoute != nil {
-			span.SetMetaTag("http.route", *ctx.requestRoute)
-		}
 		setAPISecurityTags(span, res.Derivatives)
 	}
+}
+
+// multiOrSingle picks the first non-nil map, and returns the content formatted
+// as the multi-map.
+func multiOrSingle(multi map[string][]string, single map[string]string) map[string][]string {
+	if multi == nil && single != nil {
+		// There is no multi-map, but there is a single-map, so we'll make a multi-map out of that.
+		multi = make(map[string][]string, len(single))
+		for key, value := range single {
+			multi[key] = []string{value}
+		}
+	}
+	return multi
 }
 
 //nolint:revive // TODO(ASM) Fix revive linter

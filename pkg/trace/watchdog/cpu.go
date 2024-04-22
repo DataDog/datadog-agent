@@ -5,7 +5,7 @@
 
 //go:build !windows && !aix
 
-//nolint:revive // TODO(APM) Fix revive linter
+// Package watchdog monitors the trace-agent resource usage.
 package watchdog
 
 import (

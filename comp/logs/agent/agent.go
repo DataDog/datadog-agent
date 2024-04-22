@@ -15,9 +15,15 @@ import (
 	"go.uber.org/fx"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -26,12 +32,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -52,10 +61,22 @@ const (
 type dependencies struct {
 	fx.In
 
-	Lc             fx.Lifecycle
-	Log            logComponent.Component
-	Config         configComponent.Component
-	InventoryAgent inventoryagent.Component
+	Lc                 fx.Lifecycle
+	Log                logComponent.Component
+	Config             configComponent.Component
+	InventoryAgent     inventoryagent.Component
+	Hostname           hostname.Component
+	WMeta              optional.Option[workloadmeta.Component]
+	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
+}
+
+type provides struct {
+	fx.Out
+
+	Comp           optional.Option[Component]
+	FlareProvider  flaretypes.Provider
+	StatusProvider statusComponent.InformationProvider
+	RCListener     rctypes.ListenerProvider
 }
 
 // agent represents the data pipeline that collects, decodes,
@@ -65,6 +86,7 @@ type agent struct {
 	log            logComponent.Component
 	config         pkgConfig.Reader
 	inventoryAgent inventoryagent.Component
+	hostname       hostname.Component
 
 	sources                   *sources.LogSources
 	services                  *service.Services
@@ -77,12 +99,15 @@ type agent struct {
 	launchers                 *launchers.Launchers
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
+	flarecontroller           *flareController.FlareController
+	wmeta                     optional.Option[workloadmeta.Component]
+	schedulerProviders        []schedulers.Scheduler
 
 	// started is true if the logs agent is running
 	started *atomic.Bool
 }
 
-func newLogsAgent(deps dependencies) optional.Option[Component] {
+func newLogsAgent(deps dependencies) provides {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
@@ -92,22 +117,42 @@ func newLogsAgent(deps dependencies) optional.Option[Component] {
 			log:            deps.Log,
 			config:         deps.Config,
 			inventoryAgent: deps.InventoryAgent,
+			hostname:       deps.Hostname,
 			started:        atomic.NewBool(false),
 
-			sources:  sources.NewLogSources(),
-			services: service.NewServices(),
-			tracker:  tailers.NewTailerTracker(),
+			sources:            sources.NewLogSources(),
+			services:           service.NewServices(),
+			tracker:            tailers.NewTailerTracker(),
+			flarecontroller:    flareController.NewFlareController(),
+			wmeta:              deps.WMeta,
+			schedulerProviders: deps.SchedulerProviders,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
 			OnStop:  logsAgent.stop,
 		})
 
-		return optional.NewOption[Component](logsAgent)
+		var rcListener rctypes.ListenerProvider
+		if sds.SDSEnabled {
+			rcListener.ListenerProvider = rctypes.RCListener{
+				state.ProductSDSAgentConfig: logsAgent.onUpdateSDSAgentConfig,
+				state.ProductSDSRules:       logsAgent.onUpdateSDSRules,
+			}
+		}
+
+		return provides{
+			Comp:           optional.NewOption[Component](logsAgent),
+			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
+			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
+			RCListener:     rcListener,
+		}
 	}
 
 	deps.Log.Info("logs-agent disabled")
-	return optional.NewNoneOption[Component]()
+	return provides{
+		Comp:           optional.NewNoneOption[Component](),
+		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
+	}
 }
 
 func (a *agent) start(context.Context) error {
@@ -133,6 +178,10 @@ func (a *agent) start(context.Context) error {
 
 	a.startPipeline()
 	a.log.Info("logs-agent started")
+
+	for _, scheduler := range a.schedulerProviders {
+		a.AddScheduler(scheduler)
+	}
 
 	return nil
 }
@@ -163,7 +212,7 @@ func (a *agent) setupAgent() error {
 		status.AddGlobalWarning(invalidProcessingRules, multiLineWarning)
 	}
 
-	a.SetupPipeline(processingRules)
+	a.SetupPipeline(processingRules, a.wmeta)
 	return nil
 }
 
@@ -253,4 +302,56 @@ func (a *agent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
 
 func (a *agent) GetPipelineProvider() pipeline.Provider {
 	return a.pipelineProvider
+}
+
+func (a *agent) onUpdateSDSRules(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
+	var err error
+	for _, config := range updates {
+		if rerr := a.pipelineProvider.ReconfigureSDSStandardRules(config.Config); rerr != nil {
+			err = rerr
+		}
+	}
+
+	if err != nil {
+		log.Errorf("Can't update SDS standard rules: %v", err)
+	}
+
+	// Apply the new status to all configs
+	for cfgPath := range updates {
+		if err == nil {
+			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		} else {
+			applyStateCallback(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+		}
+	}
+
+}
+
+func (a *agent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
+	var err error
+
+	for _, config := range updates {
+		if rerr := a.pipelineProvider.ReconfigureSDSAgentConfig(config.Config); rerr != nil {
+			err = rerr
+		}
+	}
+
+	if err != nil {
+		log.Errorf("Can't update SDS configurations: %v", err)
+	}
+
+	// Apply the new status to all configs
+	for cfgPath := range updates {
+		if err == nil {
+			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		} else {
+			applyStateCallback(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+		}
+	}
 }

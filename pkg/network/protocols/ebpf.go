@@ -39,10 +39,14 @@ const (
 	ProgramHTTP2FrameFilter ProgramType = C.PROG_HTTP2_FRAME_FILTER
 	// ProgramHTTP2HeadersParser is the Golang representation of the C.PROG_HTTP2_HEADERS_PARSER enum
 	ProgramHTTP2HeadersParser ProgramType = C.PROG_HTTP2_HEADERS_PARSER
+	// ProgramHTTP2DynamicTableCleaner is the Golang representation of the C.PROG_HTTP2_DYNAMIC_TABLE_CLEANER enum
+	ProgramHTTP2DynamicTableCleaner ProgramType = C.PROG_HTTP2_DYNAMIC_TABLE_CLEANER
 	// ProgramHTTP2EOSParser is the Golang representation of the C.PROG_HTTP2_EOS_PARSER enum
 	ProgramHTTP2EOSParser ProgramType = C.PROG_HTTP2_EOS_PARSER
 	// ProgramKafka is the Golang representation of the C.PROG_KAFKA enum
 	ProgramKafka ProgramType = C.PROG_KAFKA
+	// ProgramKafkaResponseParser is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARSER enum
+	ProgramKafkaResponseParser ProgramType = C.PROG_KAFKA_RESPONSE_PARSER
 )
 
 // Application layer of the protocol stack.
@@ -110,6 +114,8 @@ const (
 	ProgramTLSHTTP2Filter TLSProgramType = C.TLS_HTTP2_FILTER
 	// ProgramTLSHTTP2HeaderParser is tail call to parse the previously filtered http2 header frames.
 	ProgramTLSHTTP2HeaderParser TLSProgramType = C.TLS_HTTP2_HEADERS_PARSER
+	// ProgramTLSHTTP2DynamicTableCleaner is tail call to clean the dynamic table.
+	ProgramTLSHTTP2DynamicTableCleaner TLSProgramType = C.TLS_HTTP2_DYNAMIC_TABLE_CLEANER
 	// ProgramTLSHTTP2EOSParser is tail call to process End-Of-Stream frames.
 	ProgramTLSHTTP2EOSParser TLSProgramType = C.TLS_HTTP2_EOS_PARSER
 	// ProgramTLSHTTP2Termination is tail call to process TLS HTTP2 termination.

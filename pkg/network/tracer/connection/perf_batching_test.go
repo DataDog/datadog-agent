@@ -10,13 +10,13 @@ package connection
 import (
 	"testing"
 	"time"
-	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 )
@@ -32,13 +32,14 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 
 		batch := new(netebpf.Batch)
 		batch.Id = 0
+		batch.Cpu = 0
 		batch.C0.Tup.Pid = 1
 		batch.C1.Tup.Pid = 2
 		batch.C2.Tup.Pid = 3
 		batch.C3.Tup.Pid = 4
 
 		buffer := network.NewConnectionBuffer(256, 256)
-		manager.ExtractBatchInto(buffer, batch, 0)
+		manager.ExtractBatchInto(buffer, batch)
 		conns := buffer.Connections()
 		assert.Len(t, conns, 4)
 		assert.Equal(t, uint32(1), conns[0].Pid)
@@ -52,6 +53,7 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 
 		batch := new(netebpf.Batch)
 		batch.Id = 0
+		batch.Cpu = 0
 		batch.C0.Tup.Pid = 1
 		batch.C1.Tup.Pid = 2
 		batch.C2.Tup.Pid = 3
@@ -63,7 +65,7 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 		}
 
 		buffer := network.NewConnectionBuffer(256, 256)
-		manager.ExtractBatchInto(buffer, batch, 0)
+		manager.ExtractBatchInto(buffer, batch)
 		conns := buffer.Connections()
 		assert.Len(t, conns, 1)
 		assert.Equal(t, uint32(4), conns[0].Pid)
@@ -79,9 +81,9 @@ func TestGetPendingConns(t *testing.T) {
 	batch.C1.Tup.Pid = pidMax + 2
 	batch.Len = 2
 
-	cpu := 0
+	cpu := uint32(0)
 	updateBatch := func() {
-		err := manager.batchMap.Put(unsafe.Pointer(&cpu), unsafe.Pointer(batch))
+		err := manager.batchMap.Put(&cpu, batch)
 		require.NoError(t, err)
 	}
 	updateBatch()
@@ -134,8 +136,8 @@ func TestPerfBatchStateCleanup(t *testing.T) {
 	batch.C1.Tup.Pid = 2
 	batch.Len = 2
 
-	cpu := 0
-	err := manager.batchMap.Put(unsafe.Pointer(&cpu), unsafe.Pointer(batch))
+	cpu := uint32(0)
+	err := manager.batchMap.Put(&cpu, batch)
 	require.NoError(t, err)
 
 	buffer := network.NewConnectionBuffer(256, 256)
@@ -162,7 +164,7 @@ func newEmptyBatchManager() *perfBatchManager {
 }
 
 func newTestBatchManager(t *testing.T) *perfBatchManager {
-	rlimit.RemoveMemlock()
+	require.NoError(t, rlimit.RemoveMemlock())
 	m, err := ebpf.NewMap(&ebpf.MapSpec{
 		Type:       ebpf.Hash,
 		KeySize:    4,
@@ -172,7 +174,9 @@ func newTestBatchManager(t *testing.T) *perfBatchManager {
 	require.NoError(t, err)
 	t.Cleanup(func() { m.Close() })
 
-	mgr, err := newPerfBatchManager(m, numTestCPUs)
+	gm, err := ebpfmaps.Map[uint32, netebpf.Batch](m)
+	require.NoError(t, err)
+	mgr, err := newPerfBatchManager(gm, numTestCPUs)
 	require.NoError(t, err)
 	return mgr
 }

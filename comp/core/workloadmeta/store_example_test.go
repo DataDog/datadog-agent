@@ -23,8 +23,7 @@ func TestExampleStoreSubscribe(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
-	SetGlobalStore(s)
+	s := newWorkloadmetaObject(deps)
 
 	filterParams := FilterParams{
 		Kinds:     []Kind{KindContainer},
@@ -33,7 +32,7 @@ func TestExampleStoreSubscribe(t *testing.T) {
 	}
 	filter := NewFilter(&filterParams)
 
-	ch := GetGlobalStore().Subscribe("test", NormalPriority, filter)
+	ch := s.Subscribe("test", NormalPriority, filter)
 
 	go func() {
 		for bundle := range ch {
@@ -51,7 +50,7 @@ func TestExampleStoreSubscribe(t *testing.T) {
 	}()
 
 	// unsubscribe immediately so that this example does not hang
-	GetGlobalStore().Unsubscribe(ch)
+	s.Unsubscribe(ch)
 
 	// Output:
 }

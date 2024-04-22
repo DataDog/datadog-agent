@@ -28,7 +28,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -120,9 +119,6 @@ type goTLSProgram struct {
 	// analysis
 	binAnalysisMetric *libtelemetry.Counter
 
-	// sockFDMap is the user mode handler of `sock_by_pid_fd` map, which is shared among NPM and USM.
-	sockFDMap *ebpf.Map
-
 	registry *utils.FileRegistry
 }
 
@@ -162,7 +158,7 @@ var goTLSSpec = &protocols.ProtocolSpec{
 	},
 }
 
-func newGoTLSProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map) protocols.ProtocolFactory {
+func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
 		if !c.EnableGoTLSSupport {
 			return nil, nil
@@ -181,7 +177,6 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map) pro
 			cfg:               c,
 			manager:           m,
 			procRoot:          c.ProcRoot,
-			sockFDMap:         sockFDMap,
 			binAnalysisMetric: libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
 			registry:          utils.NewFileRegistry("go-tls"),
 		}, nil
@@ -204,19 +199,9 @@ func (p *goTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Opt
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
-
-	if options.MapEditors == nil {
-		options.MapEditors = make(map[string]*ebpf.Map)
-	}
-
-	options.MapSpecEditors[probes.SockByPidFDMap] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxTrackedConnections,
-		EditorFlag: manager.EditMaxEntries,
-	}
-	options.MapEditors[probes.SockByPidFDMap] = p.sockFDMap
 }
 
-// Start launches the goTLS main goroutine to handle events.
+// PreStart launches the goTLS main goroutine to handle events.
 func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 	var err error
 
@@ -259,18 +244,21 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 	return nil
 }
 
-func (p *goTLSProgram) PostStart(_ *manager.Manager) error {
+// PostStart is a no-op.
+func (p *goTLSProgram) PostStart(*manager.Manager) error {
 	return nil
 }
 
-func (p *goTLSProgram) DumpMaps(_ io.Writer, _ string, _ *ebpf.Map) {}
+// DumpMaps is a no-op.
+func (p *goTLSProgram) DumpMaps(io.Writer, string, *ebpf.Map) {}
 
+// GetStats is a no-op.
 func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
 	return nil
 }
 
 // Stop terminates goTLS main goroutine.
-func (p *goTLSProgram) Stop(_ *manager.Manager) {
+func (p *goTLSProgram) Stop(*manager.Manager) {
 	close(p.done)
 	// Waiting for the main event loop to finish.
 	p.wg.Wait()

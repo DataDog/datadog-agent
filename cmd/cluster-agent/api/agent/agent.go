@@ -10,68 +10,78 @@ package agent
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"sort"
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
+	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/flare"
-	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
-func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, senderManager sender.DiagnoseSenderManager) {
+func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], statusComponent status.Component, secretResolver secrets.Component, settings settings.Component) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, senderManager) }).Methods("POST")
+	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) {
+		makeFlare(w, r, senderManager, collector, secretResolver, wmeta, statusComponent, ac)
+	}).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	r.HandleFunc("/status", getStatus).Methods("GET")
+	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
-	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
-	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")
-	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
+	r.HandleFunc("/config-check", func(w http.ResponseWriter, r *http.Request) {
+		getConfigCheck(w, r, ac)
+	}).Methods("GET")
+	r.HandleFunc("/config", settings.GetFullConfig("")).Methods("GET")
+	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
+	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		setting := vars["setting"]
+		settings.GetValue(setting, w, r)
+	}).Methods("GET")
+	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		setting := vars["setting"]
+		settings.SetValue(setting, w, r)
+	}).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
 		getWorkloadList(w, r, wmeta)
 	}).Methods("GET")
 }
 
-func getStatus(w http.ResponseWriter, r *http.Request) {
+func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {
 	log.Info("Got a request for the status. Making status.")
 	verbose := r.URL.Query().Get("verbose") == "true"
-	s, err := clusteragentStatus.GetStatus(verbose)
+	format := r.URL.Query().Get("format")
+	s, err := statusComponent.GetStatus(format, verbose)
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
 		setJSONError(w, err, 500)
 		return
 	}
-	jsonStats, err := json.Marshal(s)
-	if err != nil {
-		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
-		setJSONError(w, err, 500)
-		return
-	}
-	w.Write(jsonStats)
+	w.Write(s)
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
@@ -131,7 +141,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.DiagnoseSenderManager) {
+func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, wmeta workloadmeta.Component, statusComponent status.Component, ac autodiscovery.Component) {
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
 
@@ -154,7 +164,8 @@ func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.Diag
 	if logFile == "" {
 		logFile = path.DefaultDCALogFile
 	}
-	filePath, err := flare.CreateDCAArchive(false, path.GetDistPath(), logFile, profile, senderManager)
+	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption(wmeta), optional.NewOption[autodiscovery.Component](ac))
+	filePath, err := flare.CreateDCAArchive(false, path.GetDistPath(), logFile, profile, diagnoseDeps, statusComponent)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
@@ -168,23 +179,17 @@ func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.Diag
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func getConfigCheck(w http.ResponseWriter, r *http.Request) {
+func getConfigCheck(w http.ResponseWriter, r *http.Request, ac autodiscovery.Component) {
 	var response response.ConfigCheckResponse
 
-	if common.AC == nil {
-		log.Errorf("Trying to use /config-check before the agent has been initialized.")
-		setJSONError(w, errors.New("agent not initialized"), 503)
-		return
-	}
-
-	configSlice := common.AC.LoadedConfigs()
+	configSlice := ac.LoadedConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})
 	response.Configs = configSlice
-	response.ResolveWarnings = autodiscovery.GetResolveWarnings()
-	response.ConfigErrors = autodiscovery.GetConfigErrors()
-	response.Unresolved = common.AC.GetUnresolvedTemplates()
+	response.ResolveWarnings = autodiscoveryimpl.GetResolveWarnings()
+	response.ConfigErrors = autodiscoveryimpl.GetConfigErrors()
+	response.Unresolved = ac.GetUnresolvedTemplates()
 
 	jsonConfig, err := json.Marshal(response)
 	if err != nil {

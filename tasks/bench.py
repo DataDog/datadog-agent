@@ -2,13 +2,12 @@
 Benchmarking tasks
 """
 
-
 import os
 
 from invoke import task
 
-from .build_tags import get_default_build_tags
-from .utils import REPO_PATH, bin_name
+from tasks.build_tags import get_default_build_tags
+from tasks.libs.common.utils import REPO_PATH, bin_name
 
 # constants
 BENCHMARKS_BIN_PATH = os.path.join(".", "bin", "benchmarks")

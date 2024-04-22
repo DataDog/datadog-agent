@@ -16,10 +16,12 @@ import (
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
-	fx.Provide(newEtw),
+	fx.Provide(NewEtw),
 )
 
-func newEtw() (etw.Component, error) {
+// NewEtw returns a new etw component. It is exported so that it can
+// be used by consumers that aren't components themselves.
+func NewEtw() (etw.Component, error) {
 	return &etwImpl{}, nil
 }
 
@@ -28,6 +30,14 @@ type etwImpl struct {
 
 func (s *etwImpl) NewSession(sessionName string) (etw.Session, error) {
 	session, err := createEtwSession(sessionName)
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+func (s *etwImpl) NewWellKnownSession(sessionName string) (etw.Session, error) {
+	session, err := createWellKnownEtwSession(sessionName)
 	if err != nil {
 		return nil, err
 	}

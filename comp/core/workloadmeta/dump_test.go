@@ -25,7 +25,7 @@ func TestDump(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadmetaObject(deps)
 
 	container := &Container{
 		EntityID: EntityID{
@@ -119,6 +119,7 @@ Tag:
 ID: 
 Raw Name: 
 Short Name: 
+Repo Digest: 
 ----------- Container Info -----------
 Runtime: docker
 RuntimeFlavor: kata
@@ -147,6 +148,7 @@ Tag: latest
 ID: 
 Raw Name: 
 Short Name: 
+Repo Digest: 
 ----------- Container Info -----------
 Runtime: 
 RuntimeFlavor: 
@@ -175,6 +177,7 @@ Tag: latest
 ID: 
 Raw Name: 
 Short Name: 
+Repo Digest: 
 ----------- Container Info -----------
 Runtime: docker
 RuntimeFlavor: kata

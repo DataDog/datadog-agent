@@ -16,12 +16,12 @@ import (
 	"hash"
 	"io"
 	"os"
+	"slices"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/glaslos/ssdeep"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -74,6 +74,14 @@ type ResolverOpts struct {
 	EventTypes []model.EventType
 }
 
+// LRUCacheKey is the structure used to access cached hashes
+type LRUCacheKey struct {
+	path        string
+	containerID string
+	inode       uint64
+	pathID      uint32
+}
+
 // LRUCacheEntry is the structure used to cache hashes
 type LRUCacheEntry struct {
 	state  model.HashState
@@ -87,7 +95,7 @@ type Resolver struct {
 	limiter        *rate.Limiter
 	cgroupResolver *cgroup.Resolver
 
-	cache *lru.Cache[model.PathKey, *LRUCacheEntry]
+	cache *lru.Cache[LRUCacheKey, *LRUCacheEntry]
 
 	// stats
 	hashCount    map[model.EventType]map[model.HashAlgorithm]*atomic.Uint64
@@ -105,10 +113,10 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		}, nil
 	}
 
-	var cache *lru.Cache[model.PathKey, *LRUCacheEntry]
+	var cache *lru.Cache[LRUCacheKey, *LRUCacheEntry]
 	if c.HashResolverCacheSize > 0 {
 		var err error
-		cache, err = lru.New[model.PathKey, *LRUCacheEntry](c.HashResolverCacheSize)
+		cache, err = lru.New[LRUCacheKey, *LRUCacheEntry](c.HashResolverCacheSize)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create hash resolver cache: %w", err)
 		}
@@ -206,8 +214,14 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 	}
 
 	// check if the hash(es) of this file is in cache
+	fileKey := LRUCacheKey{
+		path:        file.PathnameStr,
+		containerID: process.ContainerID,
+		inode:       file.Inode,
+		pathID:      file.PathKey.PathID,
+	}
 	if resolver.cache != nil {
-		cacheEntry, ok := resolver.cache.Get(file.PathKey)
+		cacheEntry, ok := resolver.cache.Get(fileKey)
 		if ok {
 			file.HashState = cacheEntry.state
 			file.Hashes = cacheEntry.hashes
@@ -341,7 +355,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 			hashes: make([]string, len(file.Hashes)),
 		}
 		copy(cacheEntry.hashes, file.Hashes)
-		resolver.cache.Add(file.PathKey, cacheEntry)
+		resolver.cache.Add(fileKey, cacheEntry)
 	}
 }
 

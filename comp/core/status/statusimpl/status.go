@@ -10,9 +10,12 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"path"
 	"sort"
+	"strings"
 	"text/template"
 	"unicode"
 
@@ -21,6 +24,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -31,9 +35,17 @@ var templatesFS embed.FS
 type dependencies struct {
 	fx.In
 	Config config.Component
+	Params status.Params
 
 	Providers       []status.Provider       `group:"status"`
 	HeaderProviders []status.HeaderProvider `group:"header_status"`
+}
+
+type provides struct {
+	fx.Out
+
+	Comp          status.Component
+	FlareProvider flaretypes.Provider
 }
 
 type statusImplementation struct {
@@ -57,20 +69,22 @@ func sortByName(providers []status.Provider) []status.Provider {
 	return providers
 }
 
-func newStatus(deps dependencies) (status.Component, error) {
+func newStatus(deps dependencies) provides {
 	// Sections are sorted by name
 	// The exception is the collector section. We want that to be the first section to be displayed
 	// We manually insert the collector section in the first place after sorting them alphabetically
 	sortedSectionNames := []string{}
 	collectorSectionPresent := false
 
-	for _, provider := range deps.Providers {
+	providers := fxutil.GetAndFilterGroup(deps.Providers)
+
+	for _, provider := range providers {
 		if provider.Section() == status.CollectorSection && !collectorSectionPresent {
 			collectorSectionPresent = true
 		}
 
 		if !present(provider.Section(), sortedSectionNames) && provider.Section() != status.CollectorSection {
-			sortedSectionNames = append(sortedSectionNames, provider.Section())
+			sortedSectionNames = append(sortedSectionNames, strings.ToLower(provider.Section()))
 		}
 	}
 
@@ -81,10 +95,12 @@ func newStatus(deps dependencies) (status.Component, error) {
 	}
 
 	// Providers of each section are sort alphabetically by name
+	// Section names are stored lower case
 	sortedProvidersBySection := map[string][]status.Provider{}
-	for _, provider := range deps.Providers {
-		providers := sortedProvidersBySection[provider.Section()]
-		sortedProvidersBySection[provider.Section()] = append(providers, provider)
+	for _, provider := range providers {
+		lowerSectionName := strings.ToLower(provider.Section())
+		providers := sortedProvidersBySection[lowerSectionName]
+		sortedProvidersBySection[lowerSectionName] = append(providers, provider)
 	}
 	for section, providers := range sortedProvidersBySection {
 		sortedProvidersBySection[section] = sortByName(providers)
@@ -92,43 +108,58 @@ func newStatus(deps dependencies) (status.Component, error) {
 
 	// Header providers are sorted by index
 	// We manually insert the common header provider in the first place after sorting is done
-	sortedHeaderProviders := deps.HeaderProviders
+	sortedHeaderProviders := []status.HeaderProvider{}
+	sortedHeaderProviders = append(sortedHeaderProviders, fxutil.GetAndFilterGroup(deps.HeaderProviders)...)
+
 	sort.SliceStable(sortedHeaderProviders, func(i, j int) bool {
 		return sortedHeaderProviders[i].Index() < sortedHeaderProviders[j].Index()
 	})
 
-	sortedHeaderProviders = append([]status.HeaderProvider{newCommonHeaderProvider(deps.Config)}, sortedHeaderProviders...)
+	sortedHeaderProviders = append([]status.HeaderProvider{newCommonHeaderProvider(deps.Params, deps.Config)}, sortedHeaderProviders...)
 
-	return &statusImplementation{
+	c := &statusImplementation{
 		sortedSectionNames:       sortedSectionNames,
 		sortedProvidersBySection: sortedProvidersBySection,
 		sortedHeaderProviders:    sortedHeaderProviders,
-	}, nil
+	}
+
+	return provides{
+		Comp:          c,
+		FlareProvider: flaretypes.NewProvider(c.fillFlare),
+	}
+
 }
 
-func (s *statusImplementation) GetStatus(format string, _ bool) ([]byte, error) {
-	var errors []error
+func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSections ...string) ([]byte, error) {
+	var errs []error
 
 	switch format {
 	case "json":
 		stats := make(map[string]interface{})
 		for _, sc := range s.sortedHeaderProviders {
-			if err := sc.JSON(stats); err != nil {
-				errors = append(errors, err)
+			if present(sc.Name(), excludeSections) {
+				continue
+			}
+
+			if err := sc.JSON(verbose, stats); err != nil {
+				errs = append(errs, err)
 			}
 		}
 
 		for _, providers := range s.sortedProvidersBySection {
 			for _, provider := range providers {
-				if err := provider.JSON(stats); err != nil {
-					errors = append(errors, err)
+				if present(provider.Section(), excludeSections) {
+					continue
+				}
+				if err := provider.JSON(verbose, stats); err != nil {
+					errs = append(errs, err)
 				}
 			}
 		}
 
-		if len(errors) > 0 {
+		if len(errs) > 0 {
 			errorsInfo := []string{}
-			for _, error := range errors {
+			for _, error := range errs {
 				errorsInfo = append(errorsInfo, error.Error())
 			}
 			stats["errors"] = errorsInfo
@@ -139,30 +170,45 @@ func (s *statusImplementation) GetStatus(format string, _ bool) ([]byte, error) 
 		var b = new(bytes.Buffer)
 
 		for _, sc := range s.sortedHeaderProviders {
-			printHeader(b, sc.Name())
-			newLine(b)
-
-			if err := sc.Text(b); err != nil {
-				errors = append(errors, err)
+			name := sc.Name()
+			if present(name, excludeSections) {
+				continue
 			}
 
-			newLine(b)
+			if len(name) > 0 {
+				printHeader(b, name)
+				newLine(b)
+
+				if err := sc.Text(verbose, b); err != nil {
+					errs = append(errs, err)
+				}
+
+				newLine(b)
+			}
 		}
 
 		for _, section := range s.sortedSectionNames {
-			printHeader(b, section)
-			newLine(b)
-
-			for _, provider := range s.sortedProvidersBySection[section] {
-				if err := provider.Text(b); err != nil {
-					errors = append(errors, err)
-				}
+			if present(section, excludeSections) {
+				continue
 			}
 
-			newLine(b)
+			if len(section) > 0 {
+
+				for i, provider := range s.sortedProvidersBySection[section] {
+					if i == 0 {
+						printHeader(b, provider.Section())
+						newLine(b)
+					}
+					if err := provider.Text(verbose, b); err != nil {
+						errs = append(errs, err)
+					}
+				}
+
+				newLine(b)
+			}
 		}
-		if len(errors) > 0 {
-			if err := renderErrors(b, errors); err != nil {
+		if len(errs) > 0 {
+			if err := renderErrors(b, errs); err != nil {
 				return []byte{}, err
 			}
 
@@ -174,15 +220,23 @@ func (s *statusImplementation) GetStatus(format string, _ bool) ([]byte, error) 
 		var b = new(bytes.Buffer)
 
 		for _, sc := range s.sortedHeaderProviders {
-			err := sc.HTML(b)
+			if present(sc.Name(), excludeSections) {
+				continue
+			}
+
+			err := sc.HTML(verbose, b)
 			if err != nil {
 				return b.Bytes(), err
 			}
 		}
 
 		for _, section := range s.sortedSectionNames {
+			if present(section, excludeSections) {
+				continue
+			}
+
 			for _, provider := range s.sortedProvidersBySection[section] {
-				err := provider.HTML(b)
+				err := provider.HTML(verbose, b)
 				if err != nil {
 					return b.Bytes(), err
 				}
@@ -194,25 +248,24 @@ func (s *statusImplementation) GetStatus(format string, _ bool) ([]byte, error) 
 	}
 }
 
-func (s *statusImplementation) GetStatusBySection(section string, format string, _ bool) ([]byte, error) {
-	var errors []error
+func (s *statusImplementation) GetStatusBySections(sections []string, format string, verbose bool) ([]byte, error) {
+	var errs []error
 
-	switch section {
-	case "header":
+	if len(sections) == 1 && sections[0] == "header" {
 		providers := s.sortedHeaderProviders
 		switch format {
 		case "json":
 			stats := make(map[string]interface{})
 
 			for _, sc := range providers {
-				if err := sc.JSON(stats); err != nil {
-					errors = append(errors, err)
+				if err := sc.JSON(verbose, stats); err != nil {
+					errs = append(errs, err)
 				}
 			}
 
-			if len(errors) > 0 {
+			if len(errs) > 0 {
 				errorsInfo := []string{}
-				for _, error := range errors {
+				for _, error := range errs {
 					errorsInfo = append(errorsInfo, error.Error())
 				}
 				stats["errors"] = errorsInfo
@@ -228,16 +281,16 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 					newLine(b)
 				}
 
-				err := sc.Text(b)
+				err := sc.Text(verbose, b)
 				if err != nil {
-					errors = append(errors, err)
+					errs = append(errs, err)
 				}
 			}
 
 			newLine(b)
 
-			if len(errors) > 0 {
-				if err := renderErrors(b, errors); err != nil {
+			if len(errs) > 0 {
+				if err := renderErrors(b, errs); err != nil {
 					return []byte{}, err
 				}
 
@@ -249,64 +302,7 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 			var b = new(bytes.Buffer)
 
 			for _, sc := range providers {
-				err := sc.HTML(b)
-				if err != nil {
-					return b.Bytes(), err
-				}
-			}
-			return b.Bytes(), nil
-		default:
-			return []byte{}, nil
-		}
-	default:
-		providers := s.sortedProvidersBySection[section]
-		switch format {
-		case "json":
-			stats := make(map[string]interface{})
-
-			for _, sc := range providers {
-				if err := sc.JSON(stats); err != nil {
-					errors = append(errors, err)
-				}
-			}
-
-			if len(errors) > 0 {
-				errorsInfo := []string{}
-				for _, error := range errors {
-					errorsInfo = append(errorsInfo, error.Error())
-				}
-				stats["errors"] = errorsInfo
-			}
-
-			return json.Marshal(stats)
-		case "text":
-			var b = new(bytes.Buffer)
-
-			for i, sc := range providers {
-				if i == 0 {
-					printHeader(b, section)
-					newLine(b)
-				}
-
-				if err := sc.Text(b); err != nil {
-					errors = append(errors, err)
-				}
-			}
-
-			if len(errors) > 0 {
-				if err := renderErrors(b, errors); err != nil {
-					return []byte{}, err
-				}
-
-				return b.Bytes(), nil
-			}
-
-			return b.Bytes(), nil
-		case "html":
-			var b = new(bytes.Buffer)
-
-			for _, sc := range providers {
-				err := sc.HTML(b)
+				err := sc.HTML(verbose, b)
 				if err != nil {
 					return b.Bytes(), err
 				}
@@ -316,11 +312,87 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 			return []byte{}, nil
 		}
 	}
+
+	// Get provider lists from one or more sections
+	var providers []status.Provider
+	for _, section := range sections {
+		providersForSection, ok := s.sortedProvidersBySection[strings.ToLower(section)]
+		if !ok {
+			res, _ := json.Marshal(append([]string{"header"}, s.sortedSectionNames...))
+			errorMsg := fmt.Sprintf("unknown status section '%s', available sections are: %s", section, string(res))
+			return nil, errors.New(errorMsg)
+		}
+		providers = append(providers, providersForSection...)
+	}
+
+	switch format {
+	case "json":
+		stats := make(map[string]interface{})
+
+		for _, sc := range providers {
+			if err := sc.JSON(verbose, stats); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		if len(errs) > 0 {
+			errorsInfo := []string{}
+			for _, error := range errs {
+				errorsInfo = append(errorsInfo, error.Error())
+			}
+			stats["errors"] = errorsInfo
+		}
+
+		return json.Marshal(stats)
+	case "text":
+		var b = new(bytes.Buffer)
+
+		for i, sc := range providers {
+			if i == 0 {
+				printHeader(b, sc.Section())
+				newLine(b)
+			}
+
+			if err := sc.Text(verbose, b); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		if len(errs) > 0 {
+			if err := renderErrors(b, errs); err != nil {
+				return []byte{}, err
+			}
+
+			return b.Bytes(), nil
+		}
+
+		return b.Bytes(), nil
+	case "html":
+		var b = new(bytes.Buffer)
+
+		for _, sc := range providers {
+			err := sc.HTML(verbose, b)
+			if err != nil {
+				return b.Bytes(), err
+			}
+		}
+		return b.Bytes(), nil
+	default:
+		return []byte{}, nil
+	}
+}
+
+// fillFlare add the inventory payload to flares.
+func (s *statusImplementation) fillFlare(fb flaretypes.FlareBuilder) error {
+	fb.AddFileFromFunc("status.log", func() ([]byte, error) { return s.GetStatus("text", true) })
+	return nil
 }
 
 func present(value string, container []string) bool {
+	valueLower := strings.ToLower(value)
+
 	for _, v := range container {
-		if v == value {
+		if strings.ToLower(v) == valueLower {
 			return true
 		}
 	}

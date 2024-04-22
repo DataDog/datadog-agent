@@ -11,16 +11,18 @@ package ksm
 import (
 	"context"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	//nolint:revive // TODO(CINT) Fix revive linter
@@ -33,7 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/exp/maps"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,8 +47,9 @@ import (
 )
 
 const (
-	kubeStateMetricsCheckName = "kubernetes_state_core"
-	maximumWaitForAPIServer   = 10 * time.Second
+	// CheckName is the name of the check
+	CheckName               = "kubernetes_state_core"
+	maximumWaitForAPIServer = 10 * time.Second
 
 	// createdByKindKey represents the KSM label key created_by_kind
 	createdByKindKey = "created_by_kind"
@@ -194,10 +197,6 @@ var labelRegexp *regexp.Regexp
 
 func init() {
 	labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
-}
-
-func init() {
-	core.RegisterCheck(kubeStateMetricsCheckName, KubeStateMetricsFactory)
 }
 
 // Configure prepares the configuration of the KSM check instance
@@ -837,10 +836,14 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 	}
 }
 
-// KubeStateMetricsFactory returns a new KSMCheck
-func KubeStateMetricsFactory() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return newKSMCheck(
-		core.NewCheckBase(kubeStateMetricsCheckName),
+		core.NewCheckBase(CheckName),
 		&KSMConfig{
 			LabelsMapper: make(map[string]string),
 			LabelJoins:   make(map[string]*JoinsConfigWithoutLabelsMapping),
@@ -851,7 +854,7 @@ func KubeStateMetricsFactory() check.Check {
 // KubeStateMetricsFactoryWithParam is used only by test/benchmarks/kubernetes_state
 func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins map[string]*JoinsConfigWithoutLabelsMapping, allStores [][]cache.Store) *KSMCheck {
 	check := newKSMCheck(
-		core.NewCheckBase(kubeStateMetricsCheckName),
+		core.NewCheckBase(CheckName),
 		&KSMConfig{
 			LabelsMapper: labelsMapper,
 			LabelJoins:   labelJoins,

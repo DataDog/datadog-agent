@@ -54,6 +54,10 @@ static __always_inline struct inet_sock *inet_sk(const struct sock *sk)
 static __always_inline u64 offset_socket_sk();
 #endif
 
+#ifndef MSG_SPLICE_PAGES
+#define MSG_SPLICE_PAGES 0x8000000
+#endif
+
 static __always_inline struct sock * socket_sk(struct socket *sock) {
     struct sock * sk = NULL;
 #ifdef COMPILE_PREBUILT
@@ -192,7 +196,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
         }
 
         if (t->saddr_l == 0 || t->daddr_l == 0) {
-            log_debug("ERR(read_conn_tuple.v4): src or dst addr not set src=%d, dst=%d\n", t->saddr_l, t->daddr_l);
+            log_debug("ERR(read_conn_tuple.v4): src or dst addr not set src=%llu, dst=%llu", t->saddr_l, t->daddr_l);
             err = 1;
         }
     } else if (family == AF_INET6) {
@@ -210,13 +214,13 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
         /* We can only pass 4 args to bpf_trace_printk */
         /* so split those 2 statements to be able to log everything */
         if (!(t->saddr_h || t->saddr_l)) {
-            log_debug("ERR(read_conn_tuple.v6): src addr not set: src_l:%d,src_h:%d\n",
+            log_debug("ERR(read_conn_tuple.v6): src addr not set: src_l:%llu,src_h:%llu",
                 t->saddr_l, t->saddr_h);
             err = 1;
         }
 
         if (!(t->daddr_h || t->daddr_l)) {
-            log_debug("ERR(read_conn_tuple.v6): dst addr not set: dst_l:%d,dst_h:%d\n",
+            log_debug("ERR(read_conn_tuple.v6): dst addr not set: dst_l:%llu,dst_h:%llu",
                 t->daddr_l, t->daddr_h);
             err = 1;
         }
@@ -232,7 +236,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
             t->metadata |= CONN_V6;
         }
     } else {
-        log_debug("ERR(read_conn_tuple): unknown family %d\n", family);
+        log_debug("ERR(read_conn_tuple): unknown family %d", family);
         err = 1;
     }
 
@@ -245,7 +249,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
     }
 
     if (t->sport == 0 || t->dport == 0) {
-        log_debug("ERR(read_conn_tuple.v4): src/dst port not set: src:%d, dst:%d\n", t->sport, t->dport);
+        log_debug("ERR(read_conn_tuple.v4): src/dst port not set: src:%d, dst:%d", t->sport, t->dport);
         err = 1;
     }
 

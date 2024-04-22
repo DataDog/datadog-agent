@@ -67,7 +67,7 @@ func (r *HTTPReceiver) debuggerProxyHandler(urlTemplate string, proxyConfig conf
 		apiKey = strings.TrimSpace(k)
 	}
 	transport := newMeasuringForwardingTransport(
-		r.conf.NewHTTPTransport(), target, apiKey, proxyConfig.AdditionalEndpoints, "datadog.trace_agent.debugger", []string{})
+		r.conf.NewHTTPTransport(), target, apiKey, proxyConfig.AdditionalEndpoints, "datadog.trace_agent.debugger", []string{}, r.statsd)
 	return newDebuggerProxy(r.conf, transport, hostTags)
 }
 
@@ -113,6 +113,7 @@ func getDirector(hostTags string, cidProvider IDProvider, containerTags func(str
 		}
 		tags = tags[0:maxLen]
 		q.Set("ddtags", tags)
+		log.Debugf("Setting query value ddtags=%s for debugger proxy", tags)
 		req.URL.RawQuery = q.Encode()
 	}
 }

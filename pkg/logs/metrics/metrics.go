@@ -46,7 +46,13 @@ var (
 	// TlmBytesSent is the total number of sent bytes before encoding if any
 	TlmBytesSent = telemetry.NewCounter("logs", "bytes_sent",
 		nil, "Total number of bytes send before encoding if any")
-
+	// RetryCount is the total number of times we have retried payloads that failed to send
+	RetryCount = expvar.Int{}
+	// TlmRetryCountis the total number of times we have retried payloads that failed to send
+	TlmRetryCount = telemetry.NewCounter("logs", "retry_count",
+		nil, "Total number of retried paylaods")
+	// RetryTimeSpent is the total time spent retrying payloads that failed to send
+	RetryTimeSpent = expvar.Int{}
 	// EncodedBytesSent is the total number of sent bytes after encoding if any
 	EncodedBytesSent = expvar.Int{}
 	// TlmEncodedBytesSent is the total number of sent bytes after encoding if any
@@ -74,6 +80,8 @@ func init() {
 	LogsExpvars.Set("DestinationErrors", &DestinationErrors)
 	LogsExpvars.Set("DestinationLogsDropped", &DestinationLogsDropped)
 	LogsExpvars.Set("BytesSent", &BytesSent)
+	LogsExpvars.Set("RetryCount", &RetryCount)
+	LogsExpvars.Set("RetryTimeSpent", &RetryTimeSpent)
 	LogsExpvars.Set("EncodedBytesSent", &EncodedBytesSent)
 	LogsExpvars.Set("SenderLatency", &SenderLatency)
 	LogsExpvars.Set("HttpDestinationStats", &DestinationExpVars)

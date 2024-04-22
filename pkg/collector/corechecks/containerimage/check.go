@@ -12,22 +12,20 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	checkName = "container_image"
+	// CheckName is the name of the check
+	CheckName = "container_image"
 )
-
-func init() {
-	core.RegisterCheck(checkName, CheckFactory)
-}
 
 // Config holds the container_image check configuration
 type Config struct {
@@ -94,15 +92,16 @@ type Check struct {
 	stopCh            chan struct{}
 }
 
-// CheckFactory registers the container_image check
-func CheckFactory() check.Check {
-	return &Check{
-		CheckBase: core.NewCheckBase(checkName),
-		// TODO)components): stop using global and rely instead on injected workloadmeta component.
-		workloadmetaStore: workloadmeta.GetGlobalStore(),
-		instance:          &Config{},
-		stopCh:            make(chan struct{}),
-	}
+// Factory returns a new check factory
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return core.NewLongRunningCheckWrapper(&Check{
+			CheckBase:         core.NewCheckBase(CheckName),
+			workloadmetaStore: store,
+			instance:          &Config{},
+			stopCh:            make(chan struct{}),
+		})
+	})
 }
 
 // Configure parses the check configuration and initializes the container_image check
@@ -140,7 +139,7 @@ func (c *Check) Run() error {
 		EventType: workloadmeta.EventTypeSet, // We don’t care about images removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
 	}
 	imgEventsCh := c.workloadmetaStore.Subscribe(
-		checkName,
+		CheckName,
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(&filterParams),
 	)

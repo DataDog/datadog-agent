@@ -17,6 +17,7 @@ import (
 	bpflib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -42,31 +43,32 @@ func LoadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.O
 }
 
 func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
-	var result COREResult
+	var result ebpftelemetry.COREResult
 	base := strings.TrimSuffix(filename, path.Ext(filename))
 	defer func() {
 		c.reportTelemetry(base, result)
 	}()
 
-	btfData, result, err := c.btfLoader.Get()
+	ret, result, err := c.btfLoader.Get()
 	if err != nil {
 		return fmt.Errorf("BTF load: %w", err)
 	}
-	if btfData == nil {
+	if ret == nil {
 		return fmt.Errorf("no BTF data")
 	}
 
 	buf, err := bytecode.GetReader(c.coreDir, filename)
 	if err != nil {
-		result = assetReadError
+		result = ebpftelemetry.AssetReadError
 		return fmt.Errorf("error reading %s: %s", filename, err)
 	}
 	defer buf.Close()
 
 	opts := manager.Options{
+		KernelModuleBTFLoadFunc: ret.moduleLoadFunc,
 		VerifierOptions: bpflib.CollectionOptions{
 			Programs: bpflib.ProgramOptions{
-				KernelTypes: btfData,
+				KernelTypes: ret.vmlinux,
 				LogSize:     10 * 1024 * 1024,
 			},
 		},
@@ -76,16 +78,16 @@ func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.A
 	if err != nil {
 		var ve *bpflib.VerifierError
 		if errors.As(err, &ve) {
-			result = verifierError
+			result = ebpftelemetry.VerifierError
 		} else {
-			result = loaderError
+			result = ebpftelemetry.LoaderError
 		}
 	}
 	return err
 }
 
-func (c *coreAssetLoader) reportTelemetry(assetName string, result COREResult) {
-	storeCORETelemetryForAsset(assetName, result)
+func (c *coreAssetLoader) reportTelemetry(assetName string, result ebpftelemetry.COREResult) {
+	ebpftelemetry.StoreCORETelemetryForAsset(assetName, result)
 
 	var err error
 	platform, err := getBTFPlatform()
@@ -107,14 +109,14 @@ func (c *coreAssetLoader) reportTelemetry(assetName string, result COREResult) {
 
 	// capacity should match number of tags
 	tags := make([]string, 0, 6)
-	tags = append(tags, platform, platformVersion, kernelVersion, arch, assetName)
-	if BTFResult(result) < btfNotFound {
-		switch BTFResult(result) {
-		case successCustomBTF:
+	tags = append(tags, platform.String(), platformVersion, kernelVersion, arch, assetName)
+	if ebpftelemetry.BTFResult(result) < ebpftelemetry.BtfNotFound {
+		switch ebpftelemetry.BTFResult(result) {
+		case ebpftelemetry.SuccessCustomBTF:
 			tags = append(tags, "custom")
-		case successEmbeddedBTF:
+		case ebpftelemetry.SuccessEmbeddedBTF:
 			tags = append(tags, "embedded")
-		case successDefaultBTF:
+		case ebpftelemetry.SuccessDefaultBTF:
 			tags = append(tags, "default")
 		default:
 			return
@@ -123,15 +125,15 @@ func (c *coreAssetLoader) reportTelemetry(assetName string, result COREResult) {
 		return
 	}
 
-	if BTFResult(result) == btfNotFound {
+	if ebpftelemetry.BTFResult(result) == ebpftelemetry.BtfNotFound {
 		tags = append(tags, "btf_not_found")
 	} else {
 		switch result {
-		case assetReadError:
+		case ebpftelemetry.AssetReadError:
 			tags = append(tags, "asset_read")
-		case verifierError:
+		case ebpftelemetry.VerifierError:
 			tags = append(tags, "verifier")
-		case loaderError:
+		case ebpftelemetry.LoaderError:
 			tags = append(tags, "loader")
 		default:
 			return

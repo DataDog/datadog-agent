@@ -15,14 +15,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 type mockProvider struct {
@@ -42,7 +43,7 @@ func (m mockProvider) Section() string {
 	return m.section
 }
 
-func (m mockProvider) JSON(stats map[string]interface{}) error {
+func (m mockProvider) JSON(_ bool, stats map[string]interface{}) error {
 	if m.returnError {
 		return fmt.Errorf("JSON error")
 	}
@@ -54,7 +55,7 @@ func (m mockProvider) JSON(stats map[string]interface{}) error {
 	return nil
 }
 
-func (m mockProvider) Text(buffer io.Writer) error {
+func (m mockProvider) Text(_ bool, buffer io.Writer) error {
 	if m.returnError {
 		return fmt.Errorf("Text error")
 	}
@@ -63,7 +64,7 @@ func (m mockProvider) Text(buffer io.Writer) error {
 	return err
 }
 
-func (m mockProvider) HTML(buffer io.Writer) error {
+func (m mockProvider) HTML(_ bool, buffer io.Writer) error {
 	if m.returnError {
 		return fmt.Errorf("HTML error")
 	}
@@ -89,7 +90,7 @@ func (m mockHeaderProvider) Name() string {
 	return m.name
 }
 
-func (m mockHeaderProvider) JSON(stats map[string]interface{}) error {
+func (m mockHeaderProvider) JSON(_ bool, stats map[string]interface{}) error {
 	if m.returnError {
 		return fmt.Errorf("JSON error")
 	}
@@ -101,7 +102,7 @@ func (m mockHeaderProvider) JSON(stats map[string]interface{}) error {
 	return nil
 }
 
-func (m mockHeaderProvider) Text(buffer io.Writer) error {
+func (m mockHeaderProvider) Text(_ bool, buffer io.Writer) error {
 	if m.returnError {
 		return fmt.Errorf("Text error")
 	}
@@ -110,7 +111,7 @@ func (m mockHeaderProvider) Text(buffer io.Writer) error {
 	return err
 }
 
-func (m mockHeaderProvider) HTML(buffer io.Writer) error {
+func (m mockHeaderProvider) HTML(_ bool, buffer io.Writer) error {
 	if m.returnError {
 		return fmt.Errorf("HTML error")
 	}
@@ -129,6 +130,10 @@ var (
 	testTitle           = fmt.Sprintf("%s (v%s)", humanReadbaleFlavor, agentVersion)
 )
 
+var agentParams = status.Params{
+	PythonVersionGetFunc: func() string { return "n/a" },
+}
+
 var testTextHeader = fmt.Sprintf(`%s
 %s
 %s`, status.PrintDashes(testTitle, "="), testTitle, status.PrintDashes(testTitle, "="))
@@ -141,13 +146,14 @@ func TestGetStatus(t *testing.T) {
 
 	defer func() {
 		nowFunc = time.Now
-		startTimeProvider = pkgConfig.StartTime
+		startTimeProvider = pkgconfigsetup.StartTime
 		os.Setenv("TZ", originalTZ)
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
+			agentParams,
 			status.NewInformationProvider(mockProvider{
 				data: map[string]interface{}{
 					"foo": "bar",
@@ -215,25 +221,39 @@ func TestGetStatus(t *testing.T) {
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	testCases := []struct {
-		name       string
-		format     string
-		assertFunc func(*testing.T, []byte)
+		name            string
+		format          string
+		excludeSections []string
+		assertFunc      func(*testing.T, []byte)
 	}{
 		{
 			name:   "JSON",
 			format: "json",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
 				assert.Equal(t, "bar", result["foo"])
+				assert.Equal(t, "header_bar", result["header_foo"])
+			},
+		},
+		{
+			name:            "JSON exclude section",
+			format:          "json",
+			excludeSections: []string{status.CollectorSection},
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := map[string]interface{}{}
+				err := json.Unmarshal(bytes, &result)
+
+				assert.NoError(t, err)
+
+				assert.Nil(t, result["foo"])
 				assert.Equal(t, "header_bar", result["header_foo"])
 			},
 		},
@@ -250,6 +270,12 @@ func TestGetStatus(t *testing.T) {
   Build arch: %s
   Agent flavor: %s
   Log Level: info
+
+  Paths
+  =====
+    Config File: There is no config file
+    conf.d: %s
+    checks.d: %s
 
 ==========
 Header Foo
@@ -274,7 +300,53 @@ X Section
  text from a
  text from x
 
-`, testTextHeader, pid, goVersion, arch, agentFlavor)
+`, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
+				// We replace windows line break by linux so the tests pass on every OS
+				expectedResult := strings.Replace(expectedStatusTextOutput, "\r\n", "\n", -1)
+				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+
+				assert.Equal(t, expectedResult, output)
+			},
+		},
+		{
+			name:            "Text exclude section",
+			format:          "text",
+			excludeSections: []string{status.CollectorSection},
+			assertFunc: func(t *testing.T, bytes []byte) {
+				expectedStatusTextOutput := fmt.Sprintf(`%s
+  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
+  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
+  Pid: %d
+  Go Version: %s
+  Python Version: n/a
+  Build arch: %s
+  Agent flavor: %s
+  Log Level: info
+
+  Paths
+  =====
+    Config File: There is no config file
+    conf.d: %s
+    checks.d: %s
+
+==========
+Header Foo
+==========
+  header foo: header bar
+  header foo2: header bar 2
+
+=========
+A Section
+=========
+ text from a
+
+=========
+X Section
+=========
+ text from a
+ text from x
+
+`, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.Replace(expectedStatusTextOutput, "\r\n", "\n", -1)
@@ -336,11 +408,59 @@ X Section
 				assert.Equal(t, expectedResult, output)
 			},
 		},
+		{
+			name:            "HTML exclude section",
+			format:          "html",
+			excludeSections: []string{status.CollectorSection},
+			assertFunc: func(t *testing.T, bytes []byte) {
+				// We have to do this strings replacement because html/temaplte escapes the `+` sign
+				// https://github.com/golang/go/issues/42506
+				result := string(bytes)
+				unescapedResult := strings.Replace(result, "&#43;", "+", -1)
+
+				expectedStatusHTMLOutput := fmt.Sprintf(`<div class="stat">
+  <span class="stat_title">Agent Info</span>
+  <span class="stat_data">
+    Version: %s
+    <br>Flavor: %s
+    <br>PID: %d
+    <br>Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
+    <br>Log Level: info
+    <br>Config File: There is no config file
+    <br>Conf.d Path: %s
+    <br>Checks.d Path: %s
+  </span>
+</div>
+
+<div class="stat">
+  <span class="stat_title">System Info</span>
+  <span class="stat_data">
+    System time: 2018-01-05 11:25:15 UTC (1515151515000)
+    <br>Go Version: %s
+    <br>Python Version: n/a
+    <br>Build arch: %s
+  </span>
+</div>
+<div class="stat">
+  <span class="stat_title">Header Foo</span>
+  <span class="stat_data">
+    <br>Header Bar: bar
+  </span>
+</div>
+`, agentVersion, agentFlavor, pid, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"), goVersion, arch)
+
+				// We replace windows line break by linux so the tests pass on every OS
+				expectedResult := strings.Replace(expectedStatusHTMLOutput, "\r\n", "\n", -1)
+				output := strings.Replace(unescapedResult, "\r\n", "\n", -1)
+
+				assert.Equal(t, expectedResult, output)
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			bytesResult, err := statusComponent.GetStatus(testCase.format, false)
+			bytesResult, err := statusComponent.GetStatus(testCase.format, false, testCase.excludeSections...)
 
 			assert.NoError(t, err)
 
@@ -357,13 +477,14 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 
 	defer func() {
 		nowFunc = time.Now
-		startTimeProvider = pkgConfig.StartTime
+		startTimeProvider = pkgconfigsetup.StartTime
 		os.Setenv("TZ", originalTZ)
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
+			agentParams,
 			status.NewInformationProvider(mockProvider{
 				data: map[string]interface{}{
 					"foo": "bar",
@@ -375,9 +496,8 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	bytesResult, err := statusComponent.GetStatus("text", false)
 
@@ -393,12 +513,18 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
   Agent flavor: %s
   Log Level: info
 
+  Paths
+  =====
+    Config File: There is no config file
+    conf.d: %s
+    checks.d: %s
+
 =======
 Section
 =======
  text from a
 
-`, testTextHeader, pid, goVersion, arch, agentFlavor)
+`, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 	// We replace windows line break by linux so the tests pass on every OS
 	expectedResult := strings.Replace(expectedOutput, "\r\n", "\n", -1)
@@ -415,13 +541,14 @@ func TestGetStatusWithErrors(t *testing.T) {
 
 	defer func() {
 		nowFunc = time.Now
-		startTimeProvider = pkgConfig.StartTime
+		startTimeProvider = pkgconfigsetup.StartTime
 		os.Setenv("TZ", originalTZ)
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
+			agentParams,
 			status.NewInformationProvider(mockProvider{
 				section:     "error section",
 				name:        "a",
@@ -438,9 +565,8 @@ func TestGetStatusWithErrors(t *testing.T) {
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	testCases := []struct {
 		name       string
@@ -452,7 +578,7 @@ func TestGetStatusWithErrors(t *testing.T) {
 			format: "json",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
@@ -473,6 +599,12 @@ func TestGetStatusWithErrors(t *testing.T) {
   Agent flavor: agent
   Log Level: info
 
+  Paths
+  =====
+    Config File: There is no config file
+    conf.d: %s
+    checks.d: %s
+
 =========
 Collector
 =========
@@ -487,7 +619,7 @@ Status render errors
 ====================
   - Text error
 
-`, testTextHeader, pid, goVersion, arch)
+`, testTextHeader, pid, goVersion, arch, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.Replace(expectedStatusTextErrorOutput, "\r\n", "\n", -1)
@@ -513,6 +645,7 @@ func TestGetStatusBySection(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
+			agentParams,
 			status.NewInformationProvider(mockProvider{
 				data: map[string]interface{}{
 					"foo": "bar",
@@ -579,9 +712,8 @@ func TestGetStatusBySection(t *testing.T) {
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	testCases := []struct {
 		name       string
@@ -595,7 +727,7 @@ func TestGetStatusBySection(t *testing.T) {
 			format:  "json",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
@@ -641,11 +773,30 @@ X Section
 				assert.Equal(t, expectedResult, output)
 			},
 		},
+		{
+			name:    "Text case insensitive",
+			format:  "text",
+			section: "X SeCtIoN",
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := `=========
+X Section
+=========
+ text from a
+ text from x
+`
+
+				// We replace windows line break by linux so the tests pass on every OS
+				expectedResult := strings.Replace(result, "\r\n", "\n", -1)
+				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+
+				assert.Equal(t, expectedResult, output)
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			bytesResult, err := statusComponent.GetStatusBySection(testCase.section, testCase.format, false)
+			bytesResult, err := statusComponent.GetStatusBySections([]string{testCase.section}, testCase.format, false)
 
 			assert.NoError(t, err)
 
@@ -662,13 +813,14 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 
 	defer func() {
 		nowFunc = time.Now
-		startTimeProvider = pkgConfig.StartTime
+		startTimeProvider = pkgconfigsetup.StartTime
 		os.Setenv("TZ", originalTZ)
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
+			agentParams,
 			status.NewInformationProvider(mockProvider{
 				returnError: true,
 				section:     "error section",
@@ -690,9 +842,8 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	testCases := []struct {
 		name       string
@@ -706,7 +857,7 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 			section: "error section",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
@@ -741,7 +892,7 @@ Status render errors
 			section: "header",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
@@ -764,12 +915,18 @@ Status render errors
   Agent flavor: agent
   Log Level: info
 
+  Paths
+  =====
+    Config File: There is no config file
+    conf.d: %s
+    checks.d: %s
+
 ====================
 Status render errors
 ====================
   - Text error
 
-`, testTextHeader, pid, goVersion, arch)
+`, testTextHeader, pid, goVersion, arch, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.Replace(expectedStatusTextErrorOutput, "\r\n", "\n", -1)
@@ -782,11 +939,204 @@ Status render errors
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			bytesResult, err := statusComponent.GetStatusBySection(testCase.section, testCase.format, false)
+			bytesResult, err := statusComponent.GetStatusBySections([]string{testCase.section}, testCase.format, false)
 
 			assert.NoError(t, err)
 
 			testCase.assertFunc(t, bytesResult)
 		})
 	}
+}
+
+func TestGetStatusByMultipleSections(t *testing.T) {
+	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
+	startTimeProvider = time.Unix(1515151515, 0)
+	originalTZ := os.Getenv("TZ")
+	os.Setenv("TZ", "UTC")
+
+	defer func() {
+		nowFunc = time.Now
+		startTimeProvider = pkgconfigsetup.StartTime
+		os.Setenv("TZ", originalTZ)
+	}()
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule(),
+		fx.Supply(
+			agentParams,
+			status.NewInformationProvider(mockProvider{
+				data: map[string]interface{}{
+					"foo_1": "bar_1",
+				},
+				name:    "zoo_1",
+				text:    "text from zoo_1\n",
+				section: "moo_1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				data: map[string]interface{}{
+					"foo_2": "bar_2",
+				},
+				name:    "zoo_2",
+				text:    "text from zoo_2\n",
+				section: "moo_2",
+			}),
+			status.NewInformationProvider(mockProvider{
+				data: map[string]interface{}{
+					"foo_3": "bar_3",
+				},
+				name:    "zoo_3",
+				text:    "text from zoo_3\n",
+				section: "moo_3",
+			}),
+			status.NewInformationProvider(mockProvider{
+				data: map[string]interface{}{
+					"foo_4": "bar_4",
+				},
+				name:    "zoo_4",
+				text:    "text from zoo_4\n",
+				section: "moo_4",
+			}),
+		),
+	))
+
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
+
+	testCases := []struct {
+		name          string
+		format        string
+		sections      []string
+		shouldSuccess bool
+		assertFunc    func(*testing.T, []byte)
+	}{
+		{
+			name:          "single section",
+			format:        "json",
+			sections:      []string{"moo_1"},
+			shouldSuccess: true,
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := map[string]interface{}{}
+				err := json.Unmarshal(bytes, &result)
+
+				assert.NoError(t, err)
+				assert.Equal(t, 1, len(result))
+				assert.Equal(t, "bar_1", result["foo_1"])
+			},
+		},
+		{
+			name:          "triple section",
+			format:        "json",
+			sections:      []string{"moo_1", "moo_2", "moo_4"},
+			shouldSuccess: true,
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := map[string]interface{}{}
+				err := json.Unmarshal(bytes, &result)
+
+				assert.NoError(t, err)
+				assert.Equal(t, 3, len(result))
+				assert.Equal(t, "bar_1", result["foo_1"])
+				assert.Equal(t, "bar_2", result["foo_2"])
+				assert.Equal(t, "bar_4", result["foo_4"])
+			},
+		},
+		{
+			name:          "only one section exists",
+			format:        "json",
+			sections:      []string{"moo_1", "fake_moo_2", "fake_moo_4"},
+			shouldSuccess: false,
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := map[string]interface{}{}
+				assert.Equal(t, 0, len(result))
+			},
+		},
+		{
+			name:          "no section exists",
+			format:        "json",
+			sections:      []string{"fake_moo_1"},
+			shouldSuccess: false,
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := map[string]interface{}{}
+				assert.Equal(t, 0, len(result))
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			bytesResult, err := statusComponent.GetStatusBySections(testCase.sections, testCase.format, false)
+
+			if testCase.shouldSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+			testCase.assertFunc(t, bytesResult)
+		})
+	}
+}
+
+func TestFlareProvider(t *testing.T) {
+	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
+	startTimeProvider = time.Unix(1515151515, 0)
+	originalTZ := os.Getenv("TZ")
+	os.Setenv("TZ", "UTC")
+
+	defer func() {
+		nowFunc = time.Now
+		startTimeProvider = pkgconfigsetup.StartTime
+		os.Setenv("TZ", originalTZ)
+	}()
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule(),
+		fx.Supply(agentParams),
+	))
+
+	provides := newStatus(deps)
+	flareProvider := provides.FlareProvider.Provider
+
+	assert.NotNil(t, flareProvider)
+}
+
+func TestGetStatusBySectionIncorrect(t *testing.T) {
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule(),
+		fx.Supply(
+			agentParams,
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "Lorem",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "ipsum",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "doloR",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "Sit",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "AmEt",
+				name:        "1",
+			}),
+		),
+	))
+
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
+
+	bytesResult, err := statusComponent.GetStatusBySections([]string{"consectetur"}, "json", false)
+
+	assert.Nil(t, bytesResult)
+	assert.EqualError(t, err, `unknown status section 'consectetur', available sections are: ["header","amet","dolor","ipsum","lorem","sit"]`)
 }

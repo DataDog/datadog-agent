@@ -6,9 +6,12 @@
 package status
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	htemplate "html/template"
+	"io"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,6 +21,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
+	"github.com/spf13/cast"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -89,6 +93,26 @@ func TextFmap() ttemplate.FuncMap {
 }
 
 const timeFormat = "2006-01-02 15:04:05.999 MST"
+
+// RenderHTML reads, parse and execute template from embed.FS
+func RenderHTML(templateFS embed.FS, template string, buffer io.Writer, data any) error {
+	tmpl, tmplErr := templateFS.ReadFile(path.Join("status_templates", template))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := htemplate.Must(htemplate.New(template).Funcs(HTMLFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
+}
+
+// RenderText reads, parse and execute template from embed.FS
+func RenderText(templateFS embed.FS, template string, buffer io.Writer, data any) error {
+	tmpl, tmplErr := templateFS.ReadFile(path.Join("status_templates", template))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := ttemplate.Must(ttemplate.New(template).Funcs(TextFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
+}
 
 func doNotEscape(value string) htemplate.HTML {
 	return htemplate.HTML(value)
@@ -171,12 +195,13 @@ func toUnsortedList(s map[string]interface{}) string {
 }
 
 // mkHuman adds commas to large numbers to assist readability in status outputs
-func mkHuman(f float64) string {
-	return humanize.Commaf(f)
+func mkHuman(f interface{}) string {
+	return humanize.Commaf(cast.ToFloat64(f))
 }
 
 // mkHumanDuration makes time values more readable
-func mkHumanDuration(f float64, unit string) string {
+func mkHumanDuration(i interface{}, unit string) string {
+	f := cast.ToFloat64(i)
 	var duration time.Duration
 	if unit != "" {
 		duration, _ = time.ParseDuration(fmt.Sprintf("%f%s", f, unit))

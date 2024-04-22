@@ -36,7 +36,8 @@ typedef enum
     HTTP_DELETE,
     HTTP_HEAD,
     HTTP_OPTIONS,
-    HTTP_PATCH
+    HTTP_PATCH,
+    HTTP_TRACE
 } http_method_t;
 
 // HTTP transaction information associated to a certain socket (conn_tuple_t)

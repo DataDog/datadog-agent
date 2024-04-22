@@ -16,10 +16,12 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	systemutils "github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -34,7 +36,7 @@ const (
 func init() {
 	provider.RegisterCollector(provider.CollectorFactory{
 		ID: systemCollectorID,
-		Constructor: func(cache *provider.Cache) (provider.CollectorMetadata, error) {
+		Constructor: func(cache *provider.Cache, _ optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 			return newSystemCollector(cache)
 		},
 	})
@@ -67,7 +69,7 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 	)
 	if err != nil {
 		// Cgroup provider is pretty static. Except not having required mounts, it should always work.
-		log.Errorf("Unable to initialize cgroup provider (cgroups not mounted?), err: %v", err)
+		log.Infof("Unable to initialize cgroup provider (cgroups not mounted?), err: %v", err)
 		return collectorMetadata, provider.ErrPermaFail
 	}
 
@@ -78,7 +80,7 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 	)
 	if err != nil {
 		// Cgroup provider is pretty static. Except not having required mounts, it should always work.
-		log.Errorf("Unable to initialize self cgroup reader, err: %v", err)
+		log.Infof("Unable to initialize self cgroup reader, err: %v", err)
 		return collectorMetadata, provider.ErrPermaFail
 	}
 	systemCollector := &systemCollector{

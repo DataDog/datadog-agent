@@ -5,6 +5,7 @@
 
 //go:build containerd
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 package containerd
 
 import "github.com/DataDog/datadog-agent/comp/core/workloadmeta"

@@ -15,30 +15,63 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/cilium/ebpf/btf"
 	"github.com/mholt/archiver/v3"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// BTFResult enumerates BTF loading success & failure modes
-type BTFResult int
+const btfFlushDelay = 1 * time.Minute
+
+type btfPlatform string
 
 const (
-	successCustomBTF   BTFResult = 0
-	successEmbeddedBTF BTFResult = 1
-	successDefaultBTF  BTFResult = 2
-	btfNotFound        BTFResult = 3
+	platformAmazon       btfPlatform = "amzn"
+	platformCentOS       btfPlatform = "centos"
+	platformDebian       btfPlatform = "debian"
+	platformFedora       btfPlatform = "fedora"
+	platformOpenSUSELeap btfPlatform = "opensuse-leap"
+	platformOracle       btfPlatform = "ol"
+	platformRedhat       btfPlatform = "rhel"
+	platformSUSE         btfPlatform = "sles"
+	platformUbuntu       btfPlatform = "ubuntu"
 )
 
-const btfFlushDelay = 1 * time.Minute
+func (p btfPlatform) String() string {
+	return string(p)
+}
+
+func btfPlatformFromString(platform string) (btfPlatform, error) {
+	switch platform {
+	case "amzn", "amazon":
+		return platformAmazon, nil
+	case "suse", "sles":
+		return platformSUSE, nil
+	case "opensuse", "opensuse-leap":
+		return platformOpenSUSELeap, nil
+	case "redhat", "rhel":
+		return platformRedhat, nil
+	case "oracle", "ol":
+		return platformOracle, nil
+	case "ubuntu":
+		return platformUbuntu, nil
+	case "centos":
+		return platformCentOS, nil
+	case "debian":
+		return platformDebian, nil
+	case "fedora":
+		return platformFedora, nil
+	default:
+		return "", fmt.Errorf("%s unsupported", platform)
+	}
+}
 
 // FlushBTF deletes any cache of loaded BTF data, regardless of how it was sourced.
 func FlushBTF() {
@@ -53,12 +86,19 @@ func FlushBTF() {
 	}
 }
 
+type kernelModuleBTFLoadFunc func(string) (*btf.Spec, error)
+
+type returnBTF struct {
+	vmlinux        *btf.Spec
+	moduleLoadFunc kernelModuleBTFLoadFunc
+}
+
 type orderedBTFLoader struct {
 	userBTFPath string
 	embeddedDir string
 
-	result         BTFResult
-	loadFunc       funcs.CachedFunc[btf.Spec]
+	result         ebpftelemetry.BTFResult
+	loadFunc       funcs.CachedFunc[returnBTF]
 	delayedFlusher *time.Timer
 }
 
@@ -66,22 +106,22 @@ func initBTFLoader(cfg *Config) *orderedBTFLoader {
 	btfLoader := &orderedBTFLoader{
 		userBTFPath: cfg.BTFPath,
 		embeddedDir: filepath.Join(cfg.BPFDir, "co-re", "btf"),
-		result:      btfNotFound,
+		result:      ebpftelemetry.BtfNotFound,
 	}
-	btfLoader.loadFunc = funcs.CacheWithCallback[btf.Spec](btfLoader.get, loadKernelSpec.Flush)
+	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, loadKernelSpec.Flush)
 	btfLoader.delayedFlusher = time.AfterFunc(btfFlushDelay, btfLoader.Flush)
 	return btfLoader
 }
 
-type btfLoaderFunc func() (*btf.Spec, error)
+type btfLoaderFunc func() (*returnBTF, error)
 
 // Get returns BTF for the running kernel
-func (b *orderedBTFLoader) Get() (*btf.Spec, COREResult, error) {
-	spec, err := b.loadFunc.Do()
-	if spec != nil {
+func (b *orderedBTFLoader) Get() (*returnBTF, ebpftelemetry.COREResult, error) {
+	ret, err := b.loadFunc.Do()
+	if ret != nil && ret.vmlinux != nil {
 		b.delayedFlusher.Reset(btfFlushDelay)
 	}
-	return spec, COREResult(b.result), err
+	return ret, ebpftelemetry.COREResult(b.result), err
 }
 
 // Flush deletes any cached BTF
@@ -90,21 +130,21 @@ func (b *orderedBTFLoader) Flush() {
 	b.loadFunc.Flush()
 }
 
-func (b *orderedBTFLoader) get() (*btf.Spec, error) {
+func (b *orderedBTFLoader) get() (*returnBTF, error) {
 	loaders := []struct {
-		result BTFResult
+		result ebpftelemetry.BTFResult
 		loader btfLoaderFunc
 		desc   string
 	}{
-		{successCustomBTF, b.loadUser, "configured BTF file"},
-		{successDefaultBTF, b.loadKernel, "kernel"},
-		{successEmbeddedBTF, b.loadEmbedded, "embedded collection"},
+		{ebpftelemetry.SuccessCustomBTF, b.loadUser, "configured BTF file"},
+		{ebpftelemetry.SuccessDefaultBTF, b.loadKernel, "kernel"},
+		{ebpftelemetry.SuccessEmbeddedBTF, b.loadEmbedded, "embedded collection"},
 	}
 	var err error
-	var spec *btf.Spec
+	var ret *returnBTF
 	for _, l := range loaders {
 		log.Debugf("attempting BTF load from %s", l.desc)
-		spec, err = l.loader()
+		ret, err = l.loader()
 		if err != nil {
 			err = fmt.Errorf("BTF load from %s: %w", l.desc, err)
 			// attempting default kernel when not supported will return this error
@@ -113,39 +153,98 @@ func (b *orderedBTFLoader) get() (*btf.Spec, error) {
 			}
 			continue
 		}
-		if spec != nil {
+		if ret != nil {
 			log.Debugf("successfully loaded BTF from %s", l.desc)
 			b.result = l.result
-			return spec, nil
+			return ret, nil
 		}
 	}
 	return nil, err
 }
 
-func (b *orderedBTFLoader) loadKernel() (*btf.Spec, error) {
-	return GetKernelSpec()
+func (b *orderedBTFLoader) loadKernel() (*returnBTF, error) {
+	spec, err := GetKernelSpec()
+	if err != nil {
+		return nil, err
+	}
+	return &returnBTF{vmlinux: spec, moduleLoadFunc: nil}, nil
 }
 
-func (b *orderedBTFLoader) loadUser() (*btf.Spec, error) {
+func (b *orderedBTFLoader) loadUser() (*returnBTF, error) {
 	if b.userBTFPath == "" {
 		return nil, nil
 	}
-	return loadBTFFrom(b.userBTFPath)
+	spec, err := loadBTFFrom(b.userBTFPath)
+	if err != nil {
+		return nil, err
+	}
+	return &returnBTF{vmlinux: spec, moduleLoadFunc: nil}, nil
 }
 
-func (b *orderedBTFLoader) loadEmbedded() (*btf.Spec, error) {
+func (b *orderedBTFLoader) checkForMinimizedBTF(extractDir string) (*returnBTF, error) {
+	// <relative_path_in_tarball>/<kernel_version>/<kernel_version>.btf
+	btfRelativePath := filepath.Join(extractDir, filepath.Base(extractDir)+".btf")
+	extractedBtfPath := filepath.Join(b.embeddedDir, btfRelativePath)
+	if _, err := os.Stat(extractedBtfPath); err == nil {
+		spec, err := loadBTFFrom(extractedBtfPath)
+		if err != nil {
+			return nil, err
+		}
+		// no module load function for minimized single file BTF
+		return &returnBTF{vmlinux: spec, moduleLoadFunc: nil}, nil
+	}
+	return nil, nil
+}
+
+func (b *orderedBTFLoader) checkForUnminimizedBTF(extractDir string) (*returnBTF, error) {
+	absExtractDir := filepath.Join(b.embeddedDir, extractDir)
+	modLoadFunc := func(mod string) (*btf.Spec, error) {
+		b.delayedFlusher.Reset(btfFlushDelay)
+		return loadBTFFrom(filepath.Join(absExtractDir, mod))
+	}
+	btfRelativePath := filepath.Join(extractDir, "vmlinux")
+	extractedBtfPath := filepath.Join(b.embeddedDir, btfRelativePath)
+	if _, err := os.Stat(extractedBtfPath); err == nil {
+		spec, err := loadBTFFrom(extractedBtfPath)
+		if err != nil {
+			return nil, err
+		}
+		return &returnBTF{vmlinux: spec, moduleLoadFunc: modLoadFunc}, nil
+	}
+	return nil, nil
+}
+
+func (b *orderedBTFLoader) checkforBTF(extractDir string) (*returnBTF, error) {
+	ret, err := b.checkForMinimizedBTF(extractDir)
+	if err != nil || ret != nil {
+		return ret, err
+	}
+	ret, err = b.checkForUnminimizedBTF(extractDir)
+	if err != nil || ret != nil {
+		return ret, err
+	}
+	return nil, nil
+}
+
+func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
 	btfRelativeTarballFilename, err := b.embeddedPath()
 	if err != nil {
 		return nil, err
 	}
-	btfRelativePath := strings.TrimSuffix(btfRelativeTarballFilename, ".tar.xz")
+	kernelVersion, err := kernel.Release()
+	if err != nil {
+		return nil, fmt.Errorf("kernel release: %s", err)
+	}
+	// <relative_path_in_tarball>/<kernel_version>
+	extractDir := filepath.Join(filepath.Dir(btfRelativeTarballFilename), kernelVersion)
+	absExtractDir := filepath.Join(b.embeddedDir, extractDir)
 
 	// If we've previously extracted the BTF file in question, we can just load it
-	extractedBtfPath := filepath.Join(b.embeddedDir, btfRelativePath)
-	if _, err := os.Stat(extractedBtfPath); err == nil {
-		return loadBTFFrom(extractedBtfPath)
+	ret, err := b.checkforBTF(extractDir)
+	if err != nil || ret != nil {
+		return ret, err
 	}
-	log.Debugf("extracted btf file not found at %s: attempting to extract from embedded archive", extractedBtfPath)
+	log.Debugf("extracted btf file not found at %s: attempting to extract from embedded archive", absExtractDir)
 
 	// The embedded BTFs are compressed twice: the individual BTFs themselves are compressed, and the collection
 	// of BTFs as a whole is also compressed.
@@ -159,10 +258,14 @@ func (b *orderedBTFLoader) loadEmbedded() (*btf.Spec, error) {
 		}
 	}
 
-	if err := archiver.NewTarXz().Unarchive(btfTarball, filepath.Dir(extractedBtfPath)); err != nil {
+	if err := archiver.NewTarXz().Unarchive(btfTarball, absExtractDir); err != nil {
 		return nil, fmt.Errorf("extract kernel BTF from tarball: %w", err)
 	}
-	return loadBTFFrom(extractedBtfPath)
+	ret, err = b.checkforBTF(extractDir)
+	if err != nil || ret != nil {
+		return ret, err
+	}
+	return nil, fmt.Errorf("embedded BTF not found at %s", extractDir)
 }
 
 func (b *orderedBTFLoader) embeddedPath() (string, error) {
@@ -183,33 +286,34 @@ func (b *orderedBTFLoader) embeddedPath() (string, error) {
 
 var kernelVersionPatterns = []struct {
 	pattern   *regexp.Regexp
-	platforms []string
+	platforms []btfPlatform
 }{
-	{regexp.MustCompile(`\.amzn[1-2]\.`), []string{"amazon"}},
-	{regexp.MustCompile(`\.el7\.`), []string{"redhat", "centos", "oracle"}},
-	{regexp.MustCompile(`\.el8(_\d)?\.`), []string{"redhat", "centos", "oracle"}},
-	{regexp.MustCompile(`\.el[7-8]uek\.`), []string{"oracle"}},
-	{regexp.MustCompile(`\.deb10\.`), []string{"debian"}},
-	{regexp.MustCompile(`\.fc\d{2}\.`), []string{"fedora"}},
+	{regexp.MustCompile(`\.amzn[1-2]\.`), []btfPlatform{platformAmazon}},
+	{regexp.MustCompile(`\.el7\.`), []btfPlatform{platformRedhat, platformCentOS, platformOracle}},
+	{regexp.MustCompile(`\.el8(_\d)?\.`), []btfPlatform{platformRedhat, platformCentOS, platformOracle}},
+	{regexp.MustCompile(`\.el[7-8]uek\.`), []btfPlatform{platformOracle}},
+	{regexp.MustCompile(`\.deb10\.`), []btfPlatform{platformDebian}},
+	{regexp.MustCompile(`\.fc\d{2}\.`), []btfPlatform{platformFedora}},
+	{regexp.MustCompile(`-lp15\d\.`), []btfPlatform{platformOpenSUSELeap}},
+	{regexp.MustCompile(`-150300\.`), []btfPlatform{platformOpenSUSELeap}},
 }
 
 var errIncorrectOSReleaseMount = errors.New("please mount the /etc/os-release file as /host/etc/os-release in the system-probe container to resolve this")
 
 // getEmbeddedBTF returns the relative path to the BTF *tarball* file
-func (b *orderedBTFLoader) getEmbeddedBTF(platform, platformVersion, kernelVersion string) (string, error) {
-	btfFilename := kernelVersion + ".btf"
-	btfTarball := btfFilename + ".tar.xz"
+func (b *orderedBTFLoader) getEmbeddedBTF(platform btfPlatform, platformVersion, kernelVersion string) (string, error) {
+	btfTarball := kernelVersion + ".btf.tar.xz"
 	possiblePaths := b.searchEmbeddedCollection(btfTarball)
 	if len(possiblePaths) == 0 {
 		return "", fmt.Errorf("no BTF file in embedded collection matching kernel version `%s`", kernelVersion)
 	}
 
-	btfRelativePath := filepath.Join(platform, btfTarball)
-	if platform == "ubuntu" {
+	btfRelativePath := filepath.Join(platform.String(), btfTarball)
+	if platform == platformUbuntu {
 		// Ubuntu BTFs are stored in subdirectories corresponding to platform version.
 		// This is because we have BTFs for different versions of ubuntu with the exact same
 		// kernel name, so kernel name alone is not a unique identifier.
-		btfRelativePath = filepath.Join(platform, platformVersion, btfTarball)
+		btfRelativePath = filepath.Join(platform.String(), platformVersion, btfTarball)
 	}
 	if slices.Contains(possiblePaths, btfRelativePath) {
 		return btfRelativePath, nil
@@ -225,10 +329,10 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform, platformVersion, kernelVersi
 	if len(possiblePaths) == 1 {
 		pathParts := strings.Split(possiblePaths[0], string(os.PathSeparator))
 		if len(pathParts) > 0 {
-			if pathParts[0] != platform {
+			if pathParts[0] != platform.String() {
 				log.Warnf("BTF platform incorrectly detected as `%s`, using `%s` instead. Mount the /etc/os-release file as /host/etc/os-release in the system-probe container to resolve this warning", platform, pathParts[0])
 			}
-			if pathParts[0] == "ubuntu" && len(pathParts) > 2 && pathParts[1] != platformVersion {
+			if pathParts[0] == platformUbuntu.String() && len(pathParts) > 2 && pathParts[1] != platformVersion {
 				log.Warnf("ubuntu platform version incorrectly detected as `%s`, using `%s` instead. Mount the /etc/os-release file as /host/etc/os-release in the system-probe container to resolve this warning", platformVersion, pathParts[1])
 			}
 			return possiblePaths[0], nil
@@ -242,7 +346,11 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform, platformVersion, kernelVersi
 			// remove possible paths that do not match possible platforms
 			possiblePaths = slices.DeleteFunc(possiblePaths, func(s string) bool {
 				pform := strings.Split(s, string(os.PathSeparator))[0]
-				return !slices.Contains(kvp.platforms, pform)
+				btfp, err := btfPlatformFromString(pform)
+				if err != nil {
+					return true
+				}
+				return !slices.Contains(kvp.platforms, btfp)
 			})
 			if len(possiblePaths) == 1 {
 				// eliminated down to one matching
@@ -253,16 +361,22 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform, platformVersion, kernelVersi
 	}
 
 	// still unsure between multiple possible paths, log all unique platforms
-	possiblePlatforms := make(map[string]bool)
+	possiblePlatforms := make(map[btfPlatform]bool)
 	for _, p := range possiblePaths {
 		pform := strings.Split(p, string(os.PathSeparator))[0]
-		possiblePlatforms[pform] = true
+		if btfp, err := btfPlatformFromString(pform); err == nil {
+			possiblePlatforms[btfp] = true
+		}
 	}
 	// handle case where ubuntu is actually correct
-	if len(possiblePlatforms) == 1 && platform == "ubuntu" && possiblePlatforms[platform] {
+	if len(possiblePlatforms) == 1 && platform == platformUbuntu && possiblePlatforms[platform] {
 		return "", fmt.Errorf("ubuntu platform version incorrectly detected as `%s`. %w", platformVersion, errIncorrectOSReleaseMount)
 	}
-	return "", fmt.Errorf("BTF platform incorrectly detected as `%s`. It is likely one of `%s`, but we are unable to automatically decide. %w", platform, strings.Join(maps.Keys(possiblePlatforms), ","), errIncorrectOSReleaseMount)
+	platformStrings := make([]string, 0, len(possiblePlatforms))
+	for pp := range possiblePlatforms {
+		platformStrings = append(platformStrings, pp.String())
+	}
+	return "", fmt.Errorf("BTF platform incorrectly detected as `%s`. It is likely one of `%s`, but we are unable to automatically decide. %w", platform, strings.Join(platformStrings, ","), errIncorrectOSReleaseMount)
 }
 
 func (b *orderedBTFLoader) searchEmbeddedCollection(filename string) []string {
@@ -276,7 +390,11 @@ func (b *orderedBTFLoader) searchEmbeddedCollection(filename string) []string {
 
 		if !f.IsDir() {
 			if filepath.Base(th.Name) == filename {
-				matchingPaths = append(matchingPaths, th.Name)
+				pform := strings.Split(th.Name, string(os.PathSeparator))[0]
+				// must be a recognized platform
+				if _, err := btfPlatformFromString(pform); err == nil {
+					matchingPaths = append(matchingPaths, th.Name)
+				}
 			}
 		}
 		return nil
@@ -288,27 +406,12 @@ func (b *orderedBTFLoader) searchEmbeddedCollection(filename string) []string {
 	return matchingPaths
 }
 
-var getBTFPlatform = funcs.Memoize(func() (string, error) {
+var getBTFPlatform = funcs.Memoize(func() (btfPlatform, error) {
 	platform, err := kernel.Platform()
 	if err != nil {
 		return "", fmt.Errorf("kernel platform: %s", err)
 	}
-
-	// using directory names from .gitlab/deps_build.yml
-	switch platform {
-	case "amzn", "amazon":
-		return "amazon", nil
-	case "suse", "sles": //opensuse treated differently on purpose
-		return "sles", nil
-	case "redhat", "rhel":
-		return "redhat", nil
-	case "oracle", "ol":
-		return "oracle", nil
-	case "ubuntu", "centos", "debian", "fedora":
-		return platform, nil
-	default:
-		return "", fmt.Errorf("%s unsupported", platform)
-	}
+	return btfPlatformFromString(platform)
 })
 
 func loadBTFFrom(path string) (*btf.Spec, error) {

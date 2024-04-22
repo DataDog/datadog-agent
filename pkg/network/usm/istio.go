@@ -22,17 +22,22 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
+const (
+	istioSslReadRetprobe  = "istio_uretprobe__SSL_read"
+	istioSslWriteRetprobe = "istio_uretprobe__SSL_write"
+)
+
 var istioProbes = []manager.ProbesSelector{
 	&manager.AllOf{
 		Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: ssDoHandshakeProbe,
+					EBPFFuncName: sslDoHandshakeProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: ssDoHandshakeRetprobe,
+					EBPFFuncName: sslDoHandshakeRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
@@ -47,7 +52,7 @@ var istioProbes = []manager.ProbesSelector{
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: sslReadRetprobe,
+					EBPFFuncName: istioSslReadRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
@@ -57,7 +62,7 @@ var istioProbes = []manager.ProbesSelector{
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: sslWriteRetprobe,
+					EBPFFuncName: istioSslWriteRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
@@ -120,6 +125,7 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 	}
 }
 
+// Start the istioMonitor
 func (m *istioMonitor) Start() {
 	if m == nil {
 		return
@@ -169,6 +175,7 @@ func (m *istioMonitor) Start() {
 	log.Debug("Istio monitoring enabled")
 }
 
+// Stop the istioMonitor.
 func (m *istioMonitor) Stop() {
 	if m == nil {
 		return
@@ -199,7 +206,7 @@ func (m *istioMonitor) sync() {
 	})
 
 	// At this point all entries from deletionCandidates are no longer alive, so
-	// we should dettach our SSL probes from them
+	// we should detach our SSL probes from them
 	for pid := range deletionCandidates {
 		m.handleProcessExit(pid)
 	}

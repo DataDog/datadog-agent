@@ -8,12 +8,16 @@ name 'system-probe'
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
+always_build true
+
 build do
   license :project_license
 
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/runtime"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re"
+  # ensure previous agent version extracted BTFs are removed
+  delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
   mkdir "#{install_dir}/embedded/share/system-probe/java"
 

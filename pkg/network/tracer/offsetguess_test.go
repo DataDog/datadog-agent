@@ -13,7 +13,6 @@ import (
 	"net"
 	"testing"
 	"time"
-	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
@@ -24,10 +23,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -214,7 +215,7 @@ func testOffsetGuess(t *testing.T) {
 		}
 	}
 
-	buf, err := runtime.OffsetguessTest.Compile(&cfg.Config, getCFlags(cfg), statsd.Client)
+	buf, err := runtime.OffsetguessTest.Compile(&cfg.Config, getCFlags(cfg), nil /* llc flags */, statsd.Client)
 	require.NoError(t, err)
 	defer buf.Close()
 
@@ -273,22 +274,27 @@ func testOffsetGuess(t *testing.T) {
 	_, err = unix.GetsockoptByte(int(f.Fd()), unix.IPPROTO_TCP, unix.TCP_INFO)
 	require.NoError(t, err)
 
-	mp, _, err := mgr.GetMap("offsets")
+	mp, err := maps.GetMap[offsetT, uint64](mgr, "offsets")
 	require.NoError(t, err)
 
-	kv, err := kernel.HostVersion()
+	kv, err := ebpfkernel.NewKernelVersion()
 	require.NoError(t, err)
 
 	for o := offsetSaddr; o < offsetMax; o++ {
 		switch o {
 		case offsetSkBuffHead, offsetSkBuffSock, offsetSkBuffTransportHeader:
-			if kv < kernel.VersionCode(4, 7, 0) {
+			if kv.Code < kernel.VersionCode(4, 7, 0) {
 				continue
 			}
 		case offsetSaddrFl6, offsetDaddrFl6, offsetSportFl6, offsetDportFl6:
 			// TODO: offset guessing for these fields is currently broken on kernels 5.18+
 			// see https://datadoghq.atlassian.net/browse/NET-2984
-			if kv >= kernel.VersionCode(5, 18, 0) {
+			if kv.Code >= kernel.VersionCode(5, 18, 0) {
+				continue
+			}
+		case offsetCtOrigin, offsetCtIno, offsetCtNetns, offsetCtReply:
+			// offset guessing for conntrack fields is broken on pre-4.14 kernels
+			if !ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
 				continue
 			}
 		}
@@ -296,7 +302,7 @@ func testOffsetGuess(t *testing.T) {
 		var offset uint64
 		//nolint:revive // TODO(NET) Fix revive linter
 		var name offsetT = o
-		require.NoError(t, mp.Lookup(unsafe.Pointer(&name), unsafe.Pointer(&offset)))
+		require.NoError(t, mp.Lookup(&name, &offset))
 		assert.Equal(t, offset, consts[o], "unexpected offset for %s", o)
 		t.Logf("offset %s expected: %d guessed: %d", o, offset, consts[o])
 	}

@@ -14,17 +14,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	//nolint:revive // TODO(CINT) Fix revive linter
+
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,7 +46,6 @@ type processor struct {
 	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
 	sbomScanner           *sbomscanner.Scanner
 	hostSBOM              bool
-	hostScanOpts          sbom.ScanOptions
 	hostname              string
 	hostCache             string
 	hostLastFullSBOM      time.Time
@@ -55,8 +53,6 @@ type processor struct {
 }
 
 func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
-	hostScanOpts := sbom.ScanOptionsFromConfig(ddConfig.Datadog, false)
-	hostScanOpts.NoCache = true
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")
@@ -80,14 +76,13 @@ func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender
 				return
 			}
 
-			sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerSBOM)
+			sender.EventPlatformEvent(encoded, eventplatform.EventTypeContainerSBOM)
 		}),
 		workloadmetaStore:     workloadmetaStore,
 		imageRepoDigests:      make(map[string]string),
 		imageUsers:            make(map[string]map[string]struct{}),
 		sbomScanner:           sbomScanner,
 		hostSBOM:              hostSBOM,
-		hostScanOpts:          hostScanOpts,
 		hostname:              hname,
 		hostHeartbeatValidity: hostHeartbeatValidity,
 	}, nil
@@ -191,6 +186,7 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	}
 
 	if result.Error != nil {
+		log.Errorf("Scan error: %v", result.Error)
 		sbom.Sbom = &model.SBOMEntity_Error{
 			Error: result.Error.Error(),
 		}
@@ -223,24 +219,18 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	p.queue <- sbom
 }
 
-func (p *processor) triggerHostScan(ch chan sbom.ScanResult) {
+func (p *processor) triggerHostScan() {
 	if !p.hostSBOM {
 		return
 	}
-
-	if ch == nil {
-		log.Errorf("scan result channel is nil")
-		return
-	}
-
 	log.Debugf("Triggering host SBOM refresh")
 
-	scanRequest := &host.ScanRequest{Path: "/"}
-	if hostRoot := os.Getenv("HOST_ROOT"); config.IsContainerized() && hostRoot != "" {
-		scanRequest.Path = hostRoot
+	scanRequest := host.NewScanRequest("/")
+	if hostRoot := os.Getenv("HOST_ROOT"); ddConfig.IsContainerized() && hostRoot != "" {
+		scanRequest = host.NewScanRequest(hostRoot)
 	}
 
-	if err := p.sbomScanner.Scan(scanRequest, p.hostScanOpts, ch); err != nil {
+	if err := p.sbomScanner.Scan(scanRequest); err != nil {
 		log.Errorf("Failed to trigger SBOM generation for host: %s", err)
 		return
 	}
@@ -295,6 +285,18 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			}
 		}
 
+		repoDigests := make([]string, 0, len(img.RepoDigests))
+		for _, repoDigest := range img.RepoDigests {
+			if strings.HasPrefix(repoDigest, repo+"@sha256:") {
+				repoDigests = append(repoDigests, repoDigest)
+			}
+		}
+
+		if len(repoDigests) == 0 {
+			log.Errorf("The image %s has no repo digest for repo %s", img.ID, repo)
+			continue
+		}
+
 		// Because we split a single image entity into different payloads if it has several repo digests,
 		// me must re-compute `image_id`, `image_name`, `short_image` and `image_tag` tags.
 		ddTags2 := make([]string, 0, len(ddTags))
@@ -316,11 +318,12 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		}
 
 		sbom := &model.SBOMEntity{
-			Type:     model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
-			Id:       id,
-			DdTags:   ddTags2,
-			RepoTags: repoTags,
-			InUse:    inUse,
+			Type:        model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+			Id:          id,
+			DdTags:      ddTags2,
+			RepoTags:    repoTags,
+			RepoDigests: repoDigests,
+			InUse:       inUse,
 		}
 
 		switch img.SBOM.Status {

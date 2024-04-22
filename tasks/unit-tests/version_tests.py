@@ -1,7 +1,7 @@
 import random
 import unittest
 
-from ..libs.version import Version
+from tasks.libs.types.version import Version
 
 
 class TestVersionComparison(unittest.TestCase):
@@ -203,7 +203,3 @@ class TestNextVersion(unittest.TestCase):
         expected_version = Version(major=1, minor=0, patch=1)
 
         self.assertEqual(new_version, expected_version)
-
-
-if __name__ == '__main__':
-    unittest.main()

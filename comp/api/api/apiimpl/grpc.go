@@ -10,19 +10,24 @@ import (
 	"fmt"
 	"time"
 
-	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/replay"
+	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/replay"
-	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,9 +41,11 @@ type serverSecure struct {
 	pb.UnimplementedAgentSecureServer
 	taggerServer       *taggerserver.Server
 	workloadmetaServer *workloadmetaServer.Server
-	configService      *remoteconfig.Service
+	configService      optional.Option[rcservice.Component]
+	configServiceHA    optional.Option[rcserviceha.Component]
 	dogstatsdServer    dogstatsdServer.Component
 	capture            dsdReplay.Component
+	pidMap             pidmap.Component
 }
 
 func (s *server) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -74,7 +81,7 @@ func (s *serverSecure) DogstatsdCaptureTrigger(_ context.Context, req *pb.Captur
 		return &pb.CaptureTriggerResponse{}, err
 	}
 
-	p, err := s.capture.Start(req.GetPath(), d, req.GetCompressed())
+	p, err := s.capture.StartCapture(req.GetPath(), d, req.GetCompressed())
 	if err != nil {
 		return &pb.CaptureTriggerResponse{}, err
 	}
@@ -91,7 +98,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	if req == nil || req.State == nil {
 		log.Debugf("API: empty request or state")
 		tagger.ResetCaptureTagger()
-		dsdReplay.SetPidMap(nil)
+		s.pidMap.SetPidMap(nil)
 		return &pb.TaggerStateResponse{Loaded: false}, nil
 	}
 
@@ -103,8 +110,8 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	t.LoadState(req.State)
 
 	log.Debugf("API: setting capture state tagger")
-	tagger.SetCaptureTagger(t)
-	dsdReplay.SetPidMap(req.PidMap)
+	tagger.SetNewCaptureTagger(t)
+	s.pidMap.SetPidMap(req.PidMap)
 
 	log.Debugf("API: loaded state successfully")
 
@@ -112,21 +119,42 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 }
 
 var rcNotInitializedErr = status.Error(codes.Unimplemented, "remote configuration service not initialized")
+var haRcNotInitializedErr = status.Error(codes.Unimplemented, "HA remote configuration service not initialized")
 
 func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
-	if s.configService == nil {
+	rcService, isSet := s.configService.Get()
+	if !isSet || rcService == nil {
 		log.Debug(rcNotInitializedErr.Error())
 		return nil, rcNotInitializedErr
 	}
-	return s.configService.ClientGetConfigs(ctx, in)
+	return rcService.ClientGetConfigs(ctx, in)
 }
 
 func (s *serverSecure) GetConfigState(_ context.Context, _ *emptypb.Empty) (*pb.GetStateConfigResponse, error) {
-	if s.configService == nil {
+	rcService, isSet := s.configService.Get()
+	if !isSet || rcService == nil {
 		log.Debug(rcNotInitializedErr.Error())
 		return nil, rcNotInitializedErr
 	}
-	return s.configService.ConfigGetState()
+	return rcService.ConfigGetState()
+}
+
+func (s *serverSecure) ClientGetConfigsHA(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
+	rcServiceHA, isSet := s.configServiceHA.Get()
+	if !isSet || rcServiceHA == nil {
+		log.Debug(haRcNotInitializedErr.Error())
+		return nil, haRcNotInitializedErr
+	}
+	return rcServiceHA.ClientGetConfigs(ctx, in)
+}
+
+func (s *serverSecure) GetConfigStateHA(_ context.Context, _ *emptypb.Empty) (*pb.GetStateConfigResponse, error) {
+	rcServiceHA, isSet := s.configServiceHA.Get()
+	if !isSet || rcServiceHA == nil {
+		log.Debug(haRcNotInitializedErr.Error())
+		return nil, haRcNotInitializedErr
+	}
+	return rcServiceHA.ConfigGetState()
 }
 
 // WorkloadmetaStreamEntities streams entities from the workloadmeta store applying the given filter

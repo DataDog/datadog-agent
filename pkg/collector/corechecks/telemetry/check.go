@@ -11,17 +11,18 @@ import (
 	"fmt"
 	"strings"
 
-	dto "github.com/prometheus/client_model/go"
-
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	dto "github.com/prometheus/client_model/go"
 )
 
 const (
-	checkName = "telemetry"
+	// CheckName is the name of the check
+	CheckName = "telemetry"
 	prefix    = "datadog.agent."
 )
 
@@ -30,7 +31,7 @@ type checkImpl struct {
 }
 
 func (c *checkImpl) Run() error {
-	mfs, err := telemetry.GetCompatComponent().GatherDefault()
+	mfs, err := telemetryimpl.GetCompatComponent().Gather(true)
 	if err != nil {
 		return err
 	}
@@ -103,16 +104,13 @@ func (c *checkImpl) buildTags(lps []*dto.LabelPair) []string {
 	return out
 }
 
-func newCheck() *checkImpl {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return &checkImpl{
-		CheckBase: corechecks.NewCheckBase(checkName),
+		CheckBase: corechecks.NewCheckBase(CheckName),
 	}
-}
-
-func factory() check.Check {
-	return newCheck()
-}
-
-func init() {
-	corechecks.RegisterCheck(checkName, factory)
 }

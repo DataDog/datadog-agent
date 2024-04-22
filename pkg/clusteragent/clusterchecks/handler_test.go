@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -151,7 +151,6 @@ func TestHandlerRun(t *testing.T) {
 		leadershipChan:       make(chan state, 1),
 		dispatcher:           newDispatcher(),
 		leaderStatusCallback: le.get,
-		port:                 5005,
 		leaderForwarder:      api.NewLeaderForwarder(testPort, 10),
 	}
 

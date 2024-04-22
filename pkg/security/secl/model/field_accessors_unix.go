@@ -134,6 +134,174 @@ func (ev *Event) GetCapsetCapPermitted() uint64 {
 	return ev.Capset.CapPermitted
 }
 
+// GetChdirFileChangeTime returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFileChangeTime() uint64 {
+	if ev.GetEventType().String() != "chdir" {
+		return uint64(0)
+	}
+	return ev.Chdir.File.FileFields.CTime
+}
+
+// GetChdirFileFilesystem returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFileFilesystem() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Chdir.File)
+}
+
+// GetChdirFileGid returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFileGid() uint32 {
+	if ev.GetEventType().String() != "chdir" {
+		return uint32(0)
+	}
+	return ev.Chdir.File.FileFields.GID
+}
+
+// GetChdirFileGroup returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFileGroup() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chdir.File.FileFields)
+}
+
+// GetChdirFileHashes returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFileHashes() []string {
+	if ev.GetEventType().String() != "chdir" {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chdir.File)
+}
+
+// GetChdirFileInUpperLayer returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFileInUpperLayer() bool {
+	if ev.GetEventType().String() != "chdir" {
+		return false
+	}
+	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Chdir.File.FileFields)
+}
+
+// GetChdirFileInode returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFileInode() uint64 {
+	if ev.GetEventType().String() != "chdir" {
+		return uint64(0)
+	}
+	return ev.Chdir.File.FileFields.PathKey.Inode
+}
+
+// GetChdirFileMode returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFileMode() uint16 {
+	if ev.GetEventType().String() != "chdir" {
+		return uint16(0)
+	}
+	return ev.Chdir.File.FileFields.Mode
+}
+
+// GetChdirFileModificationTime returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFileModificationTime() uint64 {
+	if ev.GetEventType().String() != "chdir" {
+		return uint64(0)
+	}
+	return ev.Chdir.File.FileFields.MTime
+}
+
+// GetChdirFileMountId returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFileMountId() uint32 {
+	if ev.GetEventType().String() != "chdir" {
+		return uint32(0)
+	}
+	return ev.Chdir.File.FileFields.PathKey.MountID
+}
+
+// GetChdirFileName returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFileName() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Chdir.File)
+}
+
+// GetChdirFileNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFileNameLength() int {
+	if ev.GetEventType().String() != "chdir" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.Chdir.File))
+}
+
+// GetChdirFilePackageName returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFilePackageName() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolvePackageName(ev, &ev.Chdir.File)
+}
+
+// GetChdirFilePackageSourceVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFilePackageSourceVersion() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Chdir.File)
+}
+
+// GetChdirFilePackageVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFilePackageVersion() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Chdir.File)
+}
+
+// GetChdirFilePath returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFilePath() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Chdir.File)
+}
+
+// GetChdirFilePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFilePathLength() int {
+	if ev.GetEventType().String() != "chdir" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Chdir.File))
+}
+
+// GetChdirFileRights returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFileRights() int {
+	if ev.GetEventType().String() != "chdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveRights(ev, &ev.Chdir.File.FileFields)
+}
+
+// GetChdirFileUid returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFileUid() uint32 {
+	if ev.GetEventType().String() != "chdir" {
+		return uint32(0)
+	}
+	return ev.Chdir.File.FileFields.UID
+}
+
+// GetChdirFileUser returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirFileUser() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chdir.File.FileFields)
+}
+
+// GetChdirRetval returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirRetval() int64 {
+	if ev.GetEventType().String() != "chdir" {
+		return int64(0)
+	}
+	return ev.Chdir.SyscallEvent.Retval
+}
+
 // GetChmodFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetChmodFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "chmod" {
@@ -601,6 +769,21 @@ func (ev *Event) GetDnsQuestionType() uint16 {
 // GetEventAsync returns the value of the field, resolving if necessary
 func (ev *Event) GetEventAsync() bool {
 	return ev.FieldHandlers.ResolveAsync(ev)
+}
+
+// GetEventOrigin returns the value of the field, resolving if necessary
+func (ev *Event) GetEventOrigin() string {
+	return ev.BaseEvent.Origin
+}
+
+// GetEventOs returns the value of the field, resolving if necessary
+func (ev *Event) GetEventOs() string {
+	return ev.BaseEvent.Os
+}
+
+// GetEventService returns the value of the field, resolving if necessary
+func (ev *Event) GetEventService() string {
+	return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 }
 
 // GetEventTimestamp returns the value of the field, resolving if necessary

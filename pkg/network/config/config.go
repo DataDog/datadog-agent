@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	cebpf "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
+
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -20,7 +23,6 @@ const (
 	spNS   = "system_probe_config"
 	netNS  = "network_config"
 	smNS   = "service_monitoring_config"
-	dsNS   = "data_streams_config"
 	evNS   = "event_monitoring_config"
 	smjtNS = smNS + ".tls.java"
 
@@ -37,9 +39,6 @@ type Config struct {
 
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
-
-	// DataStreamsEnabled is whether the data streams feature is enabled or not
-	DataStreamsEnabled bool
 
 	// CollectTCPv4Conns specifies whether the tracer should collect traffic statistics for TCPv4 connections
 	CollectTCPv4Conns bool
@@ -91,6 +90,9 @@ type Config struct {
 	// EnableIstioMonitoring specifies whether USM should monitor Istio traffic
 	EnableIstioMonitoring bool
 
+	// EnableNodeJSMonitoring specifies whether USM should monitor NodeJS TLS traffic
+	EnableNodeJSMonitoring bool
+
 	// EnableGoTLSSupport specifies whether the tracer should monitor HTTPS
 	// traffic done through Go's standard library's TLS implementation
 	EnableGoTLSSupport bool
@@ -126,6 +128,9 @@ type Config struct {
 
 	// JavaAgentBlockRegex define a regex, if matching /proc/pid/cmdline the java agent will not be injected
 	JavaAgentBlockRegex string
+
+	// JavaDir is the directory to load the java agent program from
+	JavaDir string
 
 	// UDPConnTimeout determines the length of traffic inactivity between two
 	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
@@ -208,10 +213,6 @@ type Config struct {
 	// EnableEbpfConntracker enables the ebpf based network conntracker. Used only for testing at the moment
 	EnableEbpfConntracker bool
 
-	// AllowNetlinkConntrackerFallback enables falling back to the netlink conntracker if we
-	// can't load the ebpf-based conntracker
-	AllowNetlinkConntrackerFallback bool
-
 	// ClosedChannelSize specifies the size for closed channel for the tracer
 	ClosedChannelSize int
 
@@ -263,8 +264,23 @@ type Config struct {
 	// instead of the status code family.
 	EnableHTTPStatsByStatusCode bool
 
+	// EnableNPMConnectionRollup enables aggregating connections by rolling up ephemeral ports
+	EnableNPMConnectionRollup bool
+
 	// EnableUSMQuantization enables endpoint quantization for USM programs
 	EnableUSMQuantization bool
+
+	// NPMRingbuffersEnabled specifies whether ringbuffers are enabled or not
+	NPMRingbuffersEnabled bool
+
+	// EnableUSMConnectionRollup enables the aggregation of connection data belonging to a same (client, server) pair
+	EnableUSMConnectionRollup bool
+
+	// EnableUSMRingBuffers enables the use of eBPF Ring Buffer types on
+	// supported kernels.
+	// Defaults to true. Setting this to false on a Kernel that supports ring
+	// buffers (>=5.8) will result in forcing the use of Perf Maps instead.
+	EnableUSMRingBuffers bool
 }
 
 func join(pieces ...string) string {
@@ -281,7 +297,6 @@ func New() *Config {
 
 		NPMEnabled:               cfg.GetBool(join(netNS, "enabled")),
 		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
-		DataStreamsEnabled:       cfg.GetBool(join(dsNS, "enabled")),
 
 		CollectTCPv4Conns: cfg.GetBool(join(netNS, "collect_tcp_v4")),
 		CollectTCPv6Conns: cfg.GetBool(join(netNS, "collect_tcp_v6")),
@@ -314,10 +329,14 @@ func New() *Config {
 
 		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
+		NPMRingbuffersEnabled: cfg.GetBool(join(netNS, "enable_ringbuffers")),
+
 		EnableHTTPMonitoring:      cfg.GetBool(join(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),
+		EnableKafkaMonitoring:     cfg.GetBool(join(smNS, "enable_kafka_monitoring")),
 		EnableNativeTLSMonitoring: cfg.GetBool(join(smNS, "tls", "native", "enabled")),
 		EnableIstioMonitoring:     cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
+		EnableNodeJSMonitoring:    cfg.GetBool(join(smNS, "tls", "nodejs", "enabled")),
 		MaxUSMConcurrentRequests:  uint32(cfg.GetInt(join(smNS, "max_concurrent_requests"))),
 		MaxHTTPStatsBuffered:      cfg.GetInt(join(smNS, "max_http_stats_buffered")),
 		MaxKafkaStatsBuffered:     cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
@@ -326,15 +345,14 @@ func New() *Config {
 		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),
 		HTTPMaxRequestFragment:    cfg.GetInt64(join(smNS, "http_max_request_fragment")),
 
-		EnableConntrack:                 cfg.GetBool(join(spNS, "enable_conntrack")),
-		ConntrackMaxStateSize:           cfg.GetInt(join(spNS, "conntrack_max_state_size")),
-		ConntrackRateLimit:              cfg.GetInt(join(spNS, "conntrack_rate_limit")),
-		ConntrackRateLimitInterval:      3 * time.Second,
-		EnableConntrackAllNamespaces:    cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
-		IgnoreConntrackInitFailure:      cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
-		ConntrackInitTimeout:            cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
-		EnableEbpfConntracker:           true,
-		AllowNetlinkConntrackerFallback: cfg.GetBool(join(netNS, "allow_netlink_conntracker_fallback")),
+		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
+		ConntrackMaxStateSize:        cfg.GetInt(join(spNS, "conntrack_max_state_size")),
+		ConntrackRateLimit:           cfg.GetInt(join(spNS, "conntrack_rate_limit")),
+		ConntrackRateLimitInterval:   3 * time.Second,
+		EnableConntrackAllNamespaces: cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
+		IgnoreConntrackInitFailure:   cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
+		ConntrackInitTimeout:         cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
+		EnableEbpfConntracker:        true,
 
 		EnableGatewayLookup: cfg.GetBool(join(netNS, "enable_gateway_lookup")),
 
@@ -352,16 +370,21 @@ func New() *Config {
 		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
+		EnableNPMConnectionRollup: cfg.GetBool(join(netNS, "enable_connection_rollup")),
+
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),
 		JavaAgentDebug:              cfg.GetBool(join(smjtNS, "debug")),
 		JavaAgentArgs:               cfg.GetString(join(smjtNS, "args")),
 		JavaAgentAllowRegex:         cfg.GetString(join(smjtNS, "allow_regex")),
 		JavaAgentBlockRegex:         cfg.GetString(join(smjtNS, "block_regex")),
+		JavaDir:                     cfg.GetString(join(smjtNS, "dir")),
 		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "tls", "go", "enabled")),
 		GoTLSExcludeSelf:            cfg.GetBool(join(smNS, "tls", "go", "exclude_self")),
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
+		EnableUSMConnectionRollup:   cfg.GetBool(join(smNS, "enable_connection_rollup")),
+		EnableUSMRingBuffers:        cfg.GetBool(join(smNS, "enable_ring_buffers")),
 	}
 
 	httpRRKey := join(smNS, "http_replace_rules")
@@ -388,10 +411,12 @@ func New() *Config {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}
 
-	c.EnableKafkaMonitoring = c.DataStreamsEnabled
-
 	if c.EnableProcessEventMonitoring {
 		log.Info("network process event monitoring enabled")
 	}
 	return c
+}
+
+func (c *Config) RingBufferSupportedNPM() bool {
+	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
 }

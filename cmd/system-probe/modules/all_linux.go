@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && !arm64
 
 // Package modules is all the module definitions for system-probe
 package modules
@@ -20,11 +20,14 @@ var All = []module.Factory{
 	NetworkTracer,
 	TCPQueueLength,
 	OOMKillProbe,
+	// there is a dependency from EventMonitor -> NetworkTracer
+	// so EventMonitor has to follow NetworkTracer
 	EventMonitor,
 	Process,
-	DynamicInstrumentation,
 	LanguageDetectionModule,
 	ComplianceModule,
+	Pinger,
+	Traceroute,
 }
 
 func inactivityEventLog(_ time.Duration) {

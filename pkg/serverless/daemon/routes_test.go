@@ -12,12 +12,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/slices"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type mockLifecycleProcessor struct {
@@ -354,7 +356,7 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 	}
 }
 
-func TestStartEndInvocationIsExecutionSpanComplete(t *testing.T) {
+func TestStartEndInvocationIsExecutionSpanIncomplete(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
@@ -372,7 +374,7 @@ func TestStartEndInvocationIsExecutionSpanComplete(t *testing.T) {
 	assert.Nil(err)
 	startResp.Body.Close()
 	assert.True(m.OnInvokeStartCalled)
-	assert.False(d.IsExecutionSpanComplete())
+	assert.True(d.IsExecutionSpanIncomplete())
 
 	body = bytes.NewBuffer([]byte(`{}`))
 	endReq, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/end-invocation", port), body)
@@ -381,7 +383,7 @@ func TestStartEndInvocationIsExecutionSpanComplete(t *testing.T) {
 	assert.Nil(err)
 	endResp.Body.Close()
 	assert.True(m.OnInvokeEndCalled)
-	assert.True(d.IsExecutionSpanComplete())
+	assert.False(d.IsExecutionSpanIncomplete())
 }
 
 // Helper function for reading test file
@@ -394,6 +396,12 @@ func getEventFromFile(filename string) string {
 }
 
 func BenchmarkStartEndInvocation(b *testing.B) {
+	// Set the logger up, so that it does not buffer all entries forever (some of these are BIG as they include the
+	// JSON payload). We're not interested in any output here, so we send it all to `io.Discard`.
+	l, err := seelog.LoggerFromWriterWithMinLevel(io.Discard, seelog.ErrorLvl)
+	assert.Nil(b, err)
+	log.SetupLogger(l, "error")
+
 	// relative to location of this test file
 	payloadFiles, err := os.ReadDir("../trace/testdata/event_samples")
 	if err != nil {
@@ -408,6 +416,7 @@ func BenchmarkStartEndInvocation(b *testing.B) {
 			rr := httptest.NewRecorder()
 
 			d := startAgents()
+			defer d.Stop()
 			start := &StartInvocation{d}
 			end := &EndInvocation{d}
 
@@ -424,7 +433,6 @@ func BenchmarkStartEndInvocation(b *testing.B) {
 				end.ServeHTTP(rr, endReq)
 			}
 			b.StopTimer()
-			d.Stop()
 		})
 	}
 }

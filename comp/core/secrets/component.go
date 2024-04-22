@@ -12,10 +12,23 @@ import (
 
 // team: agent-shared-components
 
+// ConfigParams holds parameters for configuration
+type ConfigParams struct {
+	Command          string
+	Arguments        []string
+	Timeout          int
+	MaxSize          int
+	RefreshInterval  int
+	GroupExecPerm    bool
+	RemoveLinebreak  bool
+	RunPath          string
+	AuditFileMaxSize int
+}
+
 // Component is the component type.
 type Component interface {
 	// Configure the executable command that is used for decoding secrets
-	Configure(command string, arguments []string, timeout, maxSize, refreshInterval int, groupExecPerm, removeLinebreak bool)
+	Configure(config ConfigParams)
 	// Get debug information and write it to the parameter
 	GetDebugInfo(w io.Writer)
 	// Resolve resolves the secrets in the given yaml data by replacing secrets handles by their corresponding secret value
@@ -23,5 +36,5 @@ type Component interface {
 	// SubscribeToChanges registers a callback to be invoked whenever secrets are resolved or refreshed
 	SubscribeToChanges(callback SecretChangeCallback)
 	// Refresh will resolve secret handles again, notifying any subscribers of changed values
-	Refresh() error
+	Refresh() (string, error)
 }

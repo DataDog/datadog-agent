@@ -99,9 +99,11 @@ func TestFinishTimeoutExecutionSpan(t *testing.T) {
 	d.InvocationProcessor = mock
 	defer d.Stop()
 
-	assert.False(t, d.IsExecutionSpanComplete())
+	assert.False(t, d.IsExecutionSpanIncomplete())
+	d.SetExecutionSpanIncomplete(true)
+	assert.True(t, d.IsExecutionSpanIncomplete())
 	finishTimeoutExecutionSpan(d, true, true)
-	assert.True(t, d.IsExecutionSpanComplete())
+	assert.False(t, d.IsExecutionSpanIncomplete())
 	assert.True(t, mock.isError)
 	assert.True(t, mock.isTimeout)
 	assert.True(t, mock.isColdStart)

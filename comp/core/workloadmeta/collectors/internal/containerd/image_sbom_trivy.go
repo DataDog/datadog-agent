@@ -12,9 +12,11 @@ import (
 	"fmt"
 
 	"github.com/CycloneDX/cyclonedx-go"
+
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/containerd"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,7 +31,6 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return nil
 	}
 
-	c.scanOptions = sbom.ScanOptionsFromConfig(config.Datadog, true)
 	c.sbomScanner = scanner.GetGlobalScanner()
 	if c.sbomScanner == nil {
 		return fmt.Errorf("error retrieving global SBOM scanner")
@@ -45,7 +46,14 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(&filterParams),
 	)
-	resultChan := make(chan sbom.ScanResult, 2000)
+	scanner := collectors.GetContainerdScanner()
+	if scanner == nil {
+		return fmt.Errorf("error retrieving global containerd scanner")
+	}
+	resultChan := scanner.Channel()
+	if resultChan == nil {
+		return fmt.Errorf("error retrieving global containerd scanner channel")
+	}
 	go func() {
 		for {
 			select {
@@ -57,22 +65,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 					// closed channel case
 					return
 				}
-				eventBundle.Acknowledge()
-
-				for _, event := range eventBundle.Events {
-					image := event.Entity.(*workloadmeta.ContainerImageMetadata)
-
-					if image.SBOM.Status != workloadmeta.Pending {
-						// BOM already stored. Can happen when the same image ID
-						// is referenced with different names.
-						log.Debugf("Image: %s/%s (id %s) SBOM already available", image.Namespace, image.Name, image.ID)
-						continue
-					}
-
-					if err := c.extractSBOMWithTrivy(ctx, image, resultChan); err != nil {
-						log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", image.Namespace, image.Name, err)
-					}
-				}
+				c.handleEventBundle(ctx, eventBundle)
 			}
 		}
 	}()
@@ -82,19 +75,28 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	return nil
 }
 
-func (c *collector) extractSBOMWithTrivy(_ context.Context, storedImage *workloadmeta.ContainerImageMetadata, resultChan chan<- sbom.ScanResult) error {
-	containerdImage, err := c.containerdClient.Image(storedImage.Namespace, storedImage.Name)
-	if err != nil {
-		return err
-	}
+// handleEventBundle handles ContainerImageMetadata set events for which no SBOM generation attempt was done.
+func (c *collector) handleEventBundle(ctx context.Context, eventBundle workloadmeta.EventBundle) {
+	eventBundle.Acknowledge()
+	for _, event := range eventBundle.Events {
+		image := event.Entity.(*workloadmeta.ContainerImageMetadata)
 
-	scanRequest := &containerd.ScanRequest{
-		Image:            containerdImage,
-		ImageMeta:        storedImage,
-		ContainerdClient: c.containerdClient,
-		FromFilesystem:   config.Datadog.GetBool("sbom.container_image.use_mount"),
+		if image.SBOM.Status != workloadmeta.Pending {
+			// A generation attempt has already been done. In that case, it should go through the retry logic.
+			// We can't handle them here otherwise it would keep retrying in a while loop.
+			log.Debugf("Image: %s/%s (id %s) SBOM already available", image.Namespace, image.Name, image.ID)
+			continue
+		}
+
+		if err := c.extractSBOMWithTrivy(ctx, image.ID); err != nil {
+			log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", image.Namespace, image.Name, err)
+		}
 	}
-	if err = c.sbomScanner.Scan(scanRequest, c.scanOptions, resultChan); err != nil {
+}
+
+// extractSBOMWithTrivy emits a scan request to the SBOM scanner. The scan result will be sent to the resultChan.
+func (c *collector) extractSBOMWithTrivy(_ context.Context, imageID string) error {
+	if err := c.sbomScanner.Scan(containerd.NewScanRequest(imageID)); err != nil {
 		log.Errorf("Failed to trigger SBOM generation for containerd: %s", err)
 		return err
 	}
@@ -102,6 +104,7 @@ func (c *collector) extractSBOMWithTrivy(_ context.Context, storedImage *workloa
 	return nil
 }
 
+// The scanResultHandler receives SBOM scan results and updates the workloadmeta entities accordingly.
 func (c *collector) startScanResultHandler(ctx context.Context, resultChan <-chan sbom.ScanResult) {
 	for {
 		select {
