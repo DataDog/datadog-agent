@@ -6,15 +6,15 @@ is invoked, different components may be instantiated.
 ## What is a Component?
 
 Any well-defined portion of the codebase, with a clearly documented API, _should_ be a component. The ultimate goal of
-component is to clearly encapsulate the logic/feature block that composed the Datadog Agent. Components can be small or very
-large but all share the same goals.
+any component is to clearly encapsulate the logic/feature block that composes the Datadog Agent. Components can be small
+or very large but all share the same goals.
 
 A component must:
 
 * **Limit blast radius**:
     + Have a single interface clearly highlighting how the component must be used and what features it offers.
     + Encapsulate and abstract all the complexity of its subject. As much as possible a user of a component should not
-      have to know all the internals of this one. As well, any change to the internals of a component should have no
+      have to know all the internals of it. As well, any change to the internals of a component should have no
       impact on the code using it.
     + Clearly list its dependencies, which could be passed using dependency injection (more on this below).
 * **Increase development velocity**:

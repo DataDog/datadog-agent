@@ -22,10 +22,10 @@ A bundle eases the aggregation of multiple components and lives in `comp/<bundle
 
         // We import all the components that we want to aggregate. A bundle must only aggregate components within its
         // sub-folders.
-        comp1 "github.com/DataDog/datadog-agent/comp/<bundleName>/comp1/fx"
-        comp2 "github.com/DataDog/datadog-agent/comp/<bundleName>/comp2/fx"
-        comp3 "github.com/DataDog/datadog-agent/comp/<bundleName>/comp3/fx"
-        comp4 "github.com/DataDog/datadog-agent/comp/<bundleName>/comp4/fx"
+        comp1fx "github.com/DataDog/datadog-agent/comp/<bundleName>/comp1/fx"
+        comp2fx "github.com/DataDog/datadog-agent/comp/<bundleName>/comp2/fx"
+        comp3fx "github.com/DataDog/datadog-agent/comp/<bundleName>/comp3/fx"
+        comp4fx "github.com/DataDog/datadog-agent/comp/<bundleName>/comp4/fx"
     )
 
     // A single team must own the bundle, even if they don't own all the sub-components
@@ -34,10 +34,10 @@ A bundle eases the aggregation of multiple components and lives in `comp/<bundle
     // Bundle defines the fx options for this bundle.
     func Bundle() fxutil.BundleOptions {
         return fxutil.Bundle(
-            comp1.Module(),
-            comp2.Module(),
-            comp3.Module(),
-            comp4.Module(),
+            comp1fx.Module(),
+            comp2fx.Module(),
+            comp3fx.Module(),
+            comp4fx.Module(),
     }
     ```
 
