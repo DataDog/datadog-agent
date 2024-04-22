@@ -268,6 +268,8 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 // Scan scans the given `event` using the internal SDS scanner.
 // Returns an error if the internal SDS scanner is not ready. If you need to
 // validate that the internal SDS scanner can be used, use `IsReady()`.
+// Returns a boolean indicating if the Scan has mutated the event and the returned
+// one should be used instead.
 // This method is thread safe, a reconfiguration can't happen at the same time.
 func (s *Scanner) Scan(event []byte, msg *message.Message) (bool, []byte, error) {
 	s.Lock()
@@ -278,11 +280,9 @@ func (s *Scanner) Scan(event []byte, msg *message.Message) (bool, []byte, error)
 	}
 
 	// scanning
-	processed, rulesMatch, err := s.Scanner.Scan(event)
-	matched := false
-	if len(rulesMatch) > 0 {
-		matched = true
-		for _, match := range rulesMatch {
+	scanResult, err := s.Scanner.Scan(event)
+	if len(scanResult.Matches) > 0 {
+		for _, match := range scanResult.Matches {
 			if rc, err := s.GetRuleByIdx(match.RuleIdx); err != nil {
 				log.Warnf("can't apply rule tags: %v", err)
 			} else {
@@ -294,7 +294,7 @@ func (s *Scanner) Scan(event []byte, msg *message.Message) (bool, []byte, error)
 	// using a tag.
 	msg.ProcessingTags = append(msg.ProcessingTags, ScannedTag)
 
-	return matched, processed, err
+	return scanResult.Mutated, scanResult.Event, err
 }
 
 // GetRuleByIdx returns the configured rule by its idx, referring to the idx
