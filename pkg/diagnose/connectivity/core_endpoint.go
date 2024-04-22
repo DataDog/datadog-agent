@@ -104,7 +104,7 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 				}
 
 				// Check if there is a response and if it's valid
-				report, reportErr := verifyEndpointResponse(statusCode, responseBody, err)
+				report, reportErr := verifyEndpointResponse(diagCfg, statusCode, responseBody, err)
 				diagnosisName := "Connectivity to " + logURL
 				d := createDiagnosis(diagnosisName, logURL, report, reportErr)
 
@@ -189,7 +189,7 @@ func createEndpointURL(domain string, endpointInfo endpointInfo) string {
 
 // vertifyEndpointResponse interprets the endpoint response and displays information on if the connectivity
 // check was successful or not
-func verifyEndpointResponse(statusCode int, responseBody []byte, err error) (string, error) {
+func verifyEndpointResponse(diagCfg diagnosis.Config, statusCode int, responseBody []byte, err error) (string, error) {
 
 	if err != nil {
 		return fmt.Sprintf("Could not get a response from the endpoint : %v\n%s\n",
@@ -198,9 +198,16 @@ func verifyEndpointResponse(statusCode int, responseBody []byte, err error) (str
 
 	var verifyReport string
 	var newErr error
+
+	scrubbedResponseBody := scrubber.ScrubLine(string(responseBody))
+	if !diagCfg.Verbose && len(scrubbedResponseBody) > 500 {
+		scrubbedResponseBody = fmt.Sprint(len(scrubbedResponseBody) > 500, scrubbedResponseBody[:500]+"...")
+		scrubbedResponseBody += "\nBody is too long to display. If you want to display the whole body, please add \"--verbose\" flag to the command."
+	}
+
 	if statusCode >= 400 {
 		newErr = fmt.Errorf("bad request")
-		verifyReport = fmt.Sprintf("Received response : '%v'\n", scrubber.ScrubLine(string(responseBody)))
+		verifyReport = fmt.Sprintf("Received response : '%v'\n", scrubbedResponseBody)
 	}
 
 	verifyReport += fmt.Sprintf("Received status code %v from the endpoint", statusCode)
