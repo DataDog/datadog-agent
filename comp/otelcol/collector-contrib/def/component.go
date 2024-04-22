@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package collectorcontrib defines the interface for the collectorcontrib component
+// Package collectorcontrib defines the OTel collector-contrib component
 package collectorcontrib
 
 import (
 	"go.opentelemetry.io/collector/otelcol"
 )
+
+// team: opentelemetry
 
 // Component is the interface for the collector-contrib
 type Component interface {
