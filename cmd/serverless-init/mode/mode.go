@@ -7,23 +7,47 @@ package mode
 
 import (
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 )
 
 const (
-	modeEnvVar        = "DD_SERVERLESS_MODE"
-	initLoggerName    = "SERVERLESS_INIT"
-	sidecarLoggerName = "SERVERLESS_SIDECAR"
+	envVarMode        = "DD_SERVERLESS_MODE"
+	loggerNameInit    = "SERVERLESS_INIT"
+	loggerNameSidecar = "SERVERLESS_SIDECAR"
 )
 
 func DetectMode() (string, func(logConfig *serverlessLog.Config)) {
-	defaultModeRunner := RunInit
-	defaultLoggerName := initLoggerName
 
-	if os.Getenv(modeEnvVar) == "sidecar" {
-		defaultModeRunner = RunSidecar
-		defaultLoggerName = sidecarLoggerName
+	envToSet := map[string]string{
+		"DD_REMOTE_CONFIGURATION_ENABLED": "false",
+		"DD_HOSTNAME":                     "none",
+		"DD_APM_ENABLED":                  "true",
+		"DD_TRACE_ENABLED":                "true",
+		"DD_LOGS_ENABLED":                 "true",
 	}
 
+	defaultModeRunner := RunInit
+	defaultLoggerName := loggerNameInit
+
+	if os.Getenv(envVarMode) == "sidecar" {
+		defaultModeRunner = RunSidecar
+		defaultLoggerName = loggerNameSidecar
+		envToSet["DD_APM_NON_LOCAL_TRAFFIC"] = "true"
+		envToSet["DD_DOGSTATSD_NON_LOCAL_TRAFFIC"] = "true"
+	}
+
+	setupEnv(envToSet)
+
 	return defaultLoggerName, defaultModeRunner
+}
+
+func setupEnv(envToSet map[string]string) {
+	for envName, envVal := range envToSet {
+		if val, set := os.LookupEnv(envName); !set {
+			os.Setenv(envName, envVal)
+		} else {
+			log.Debugf("%s already set with %s, skipping setting it", envName, val)
+		}
+	}
 }

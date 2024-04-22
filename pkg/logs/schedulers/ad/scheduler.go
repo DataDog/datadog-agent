@@ -64,6 +64,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 		if !config.IsLogConfig() {
 			continue
 		}
+
 		if config.HasFilter(containers.LogsFilter) {
 			log.Debugf("Config %s is filtered out for logs collection, ignoring it", s.configName(config))
 			continue
@@ -80,7 +81,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				s.mgr.AddSource(source)
 			}
 		default:
-			// invalid integration config
+			log.Debugf("Invalid integration config: %s", config)
 			continue
 		}
 	}
