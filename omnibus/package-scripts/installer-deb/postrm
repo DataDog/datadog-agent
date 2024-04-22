@@ -12,13 +12,7 @@ set -e
 
 case "$1" in
     purge)
-        echo "Deleting dd-agent user"
-        deluser dd-agent --quiet
-        deluser dd-installer --quiet
-        echo "Deleting dd-agent group"
-        (getent group dd-agent >/dev/null && delgroup dd-agent --quiet) || true
-        (getent group dd-installer >/dev/null && delgroup dd-installer --quiet) || true
-        echo "Force-deleting $INSTALL_DIR, $PACKAGES_DIR"
+        echo "Force-deleting $INSTALL_DIR, $PACKAGES_DIR, $PACKAGES_LOCK_DIR"
         rm -rf $INSTALL_DIR
         rm -rf $PACKAGES_DIR
         rm -rf $PACKAGES_LOCK_DIR
