@@ -111,9 +111,9 @@ func executeCommandStruct(ctx context.Context, command privilegeCommand) error {
 	return executeHelperCommand(ctx, privilegeCommandJSON)
 }
 
-// IsSystemdRunning checks if systemd is running using the documented way
+// isSystemdRunning checks if systemd is running using the documented way
 // https://www.freedesktop.org/software/systemd/man/latest/sd_booted.html#Notes
-func IsSystemdRunning() (running bool, err error) {
+func isSystemdRunning() (running bool, err error) {
 	_, err = os.Stat("/run/systemd/system")
 	if os.IsNotExist(err) {
 		log.Infof("Installer: systemd is not running, skip unit setup")

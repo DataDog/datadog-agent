@@ -9,13 +9,14 @@ package service
 
 import "context"
 
-// SetupInstallerUnits noop
-func SetupInstallerUnits(_ context.Context) (err error) {
+// SetupInstaller noop
+func SetupInstaller(_ context.Context) error {
 	return nil
 }
 
-// RemoveInstallerUnits noop
-func RemoveInstallerUnits(_ context.Context) {
+// RemoveInstaller noop
+func RemoveInstaller(_ context.Context) error {
+	return nil
 }
 
 // StartInstallerExperiment noop
