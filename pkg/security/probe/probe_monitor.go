@@ -11,7 +11,6 @@ package probe
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
@@ -86,30 +85,29 @@ func (m *EBPFMonitors) GetEventStreamMonitor() *eventstream.Monitor {
 
 // SendStats sends statistics about the probe to Datadog
 func (m *EBPFMonitors) SendStats() error {
-	// delay between two send in order to reduce the statsd pool presure
-	const delay = time.Second
-	time.Sleep(delay)
-
 	if resolvers := m.ebpfProbe.Resolvers; resolvers != nil {
 		if err := resolvers.ProcessResolver.SendStats(); err != nil {
 			return fmt.Errorf("failed to send process_resolver stats: %w", err)
 		}
-		time.Sleep(delay)
 
 		if err := resolvers.DentryResolver.SendStats(); err != nil {
 			return fmt.Errorf("failed to send process_resolver stats: %w", err)
 		}
+
 		if err := resolvers.NamespaceResolver.SendStats(); err != nil {
 			return fmt.Errorf("failed to send namespace_resolver stats: %w", err)
 		}
+
 		if err := resolvers.MountResolver.SendStats(); err != nil {
 			return fmt.Errorf("failed to send mount_resolver stats: %w", err)
 		}
+
 		if resolvers.SBOMResolver != nil {
 			if err := resolvers.SBOMResolver.SendStats(); err != nil {
 				return fmt.Errorf("failed to send sbom_resolver stats: %w", err)
 			}
 		}
+
 		if resolvers.HashResolver != nil {
 			if err := resolvers.HashResolver.SendStats(); err != nil {
 				return fmt.Errorf("failed to send hash_resolver stats: %w", err)
@@ -120,7 +118,6 @@ func (m *EBPFMonitors) SendStats() error {
 	if err := m.eventStreamMonitor.SendStats(); err != nil {
 		return fmt.Errorf("failed to send events stats: %w", err)
 	}
-	time.Sleep(delay)
 
 	if m.ebpfProbe.config.Probe.RuntimeMonitor {
 		if err := m.runtimeMonitor.SendStats(); err != nil {

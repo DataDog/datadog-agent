@@ -16,13 +16,14 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/pkg/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/installer/packages"
+	"github.com/DataDog/datadog-agent/pkg/installer/packages/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
-	defaultSocketPath = defaultRepositoriesPath + "/installer.sock"
+	defaultSocketPath = packages.PackagesPath + "/installer.sock"
 )
 
 // StatusResponse is the response to the status endpoint.
@@ -99,7 +100,7 @@ func (l *localAPIImpl) handler() http.Handler {
 	r.HandleFunc("/{package}/experiment/start", l.startExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/experiment/stop", l.stopExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/experiment/promote", l.promoteExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/bootstrap", l.bootstrap).Methods(http.MethodPost)
+	r.HandleFunc("/{package}/install", l.install).Methods(http.MethodPost)
 	return r
 }
 
@@ -137,7 +138,13 @@ func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Infof("Received local request to start experiment for package %s version %s", pkg, request.Version)
-	err = l.installer.StartExperiment(r.Context(), pkg, request.Version)
+	catalogPkg, err := l.installer.GetPackage(pkg, request.Version)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+	err = l.installer.StartExperiment(r.Context(), catalogPkg.URL)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -179,8 +186,8 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/bootstrap -d '{"version":"1.21.5"}'
-func (l *localAPIImpl) bootstrap(w http.ResponseWriter, r *http.Request) {
+// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/install -d '{"version":"1.21.5"}'
+func (l *localAPIImpl) install(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
 	var request taskWithVersionParams
@@ -197,14 +204,16 @@ func (l *localAPIImpl) bootstrap(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if request.Version != "" {
-		log.Infof("Received local request to bootstrap package %s version %s", pkg, request.Version)
-		err = l.installer.BootstrapVersion(r.Context(), pkg, request.Version)
-	} else {
-		log.Infof("Received local request to bootstrap package %s", pkg)
-		err = l.installer.BootstrapDefault(r.Context(), pkg)
 
+	catalogPkg, err := l.installer.GetPackage(pkg, request.Version)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Error = &APIError{Message: err.Error()}
+		return
 	}
+
+	log.Infof("Received local request to install package %s version %s", pkg, request.Version)
+	err = l.installer.Install(r.Context(), catalogPkg.URL)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -216,10 +225,10 @@ func (l *localAPIImpl) bootstrap(w http.ResponseWriter, r *http.Request) {
 type LocalAPIClient interface {
 	Status() (StatusResponse, error)
 
+	Install(pkg, version string) error
 	StartExperiment(pkg, version string) error
 	StopExperiment(pkg string) error
 	PromoteExperiment(pkg string) error
-	BootstrapVersion(pkg, version string) error
 }
 
 // LocalAPIClient is a client to interact with the locally exposed installer API.
@@ -345,8 +354,8 @@ func (c *localAPIClientImpl) PromoteExperiment(pkg string) error {
 	return nil
 }
 
-// BootstrapVersion bootstraps a package to a specific version.
-func (c *localAPIClientImpl) BootstrapVersion(pkg, version string) error {
+// Install installs a package with a specific version.
+func (c *localAPIClientImpl) Install(pkg, version string) error {
 	params := taskWithVersionParams{
 		Version: version,
 	}
@@ -354,7 +363,7 @@ func (c *localAPIClientImpl) BootstrapVersion(pkg, version string) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/bootstrap", c.addr, pkg), bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/install", c.addr, pkg), bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}

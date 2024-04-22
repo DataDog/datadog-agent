@@ -54,6 +54,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestLoadModule",
 			"~TestUnloadModule",
 			"~TestOsOrigin",
+			"~TestSpan",
 		}
 
 		exclude := []string{

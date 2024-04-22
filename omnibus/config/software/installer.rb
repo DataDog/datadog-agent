@@ -48,6 +48,15 @@ build do
     mkdir "/opt/datadog-packages"
     copy 'bin/installer', "#{install_dir}/bin/"
 
+    uninstall_command="sudo yum remove datadog-installer"
+    if debian_target?
+        uninstall_command="sudo apt-get remove datadog-installer"
+    end
+    erb source: "README.md.erb",
+       dest: "#{install_dir}/README.md",
+       mode: 0644,
+       vars: { uninstall_command: uninstall_command}
+
     systemdPath = "#{install_dir}/systemd/"
     erb source: "datadog-installer.service.erb",
        dest: systemdPath + "datadog-installer.service",
@@ -91,6 +100,11 @@ build do
     end
 
   end
+
+  # Remove empty/unneeded folders
+  delete "#{install_dir}/embedded/bin"
+  delete "#{install_dir}/embedded/lib"
+  delete "#{install_dir}/embedded/"
 
   # The file below is touched by software builds that don't put anything in the installation
   # directory (libgcc right now) so that the git_cache gets updated let's remove it from the
