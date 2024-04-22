@@ -81,6 +81,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
   artifacts:
     when: always
     paths:
+      - $CI_PROJECT_DIR/kmt-deps
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
   before_script:
     - source /root/.bashrc
