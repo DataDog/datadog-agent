@@ -164,7 +164,7 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 	// Add tracing and send the request
 	req = req.WithContext(ctx)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("DD-API-KEY", apiKey+"cc")
+	req.Header.Set("DD-API-KEY", apiKey)
 
 	resp, err := client.Do(req)
 
