@@ -18,6 +18,7 @@ func TestFillFlare(t *testing.T) {
 
 	check := &checkMocks.Check{}
 	check.On("Name").Return("process")
+	check.On("Realtime").Return(false)
 
 	fc := NewFlareHelper([]checks.Check{check})
 
