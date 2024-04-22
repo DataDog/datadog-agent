@@ -262,6 +262,7 @@
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
 /comp/checks/windowseventlog @DataDog/windows-agent
 /comp/checks/winregistry @DataDog/windows-agent
+/comp/core/agenttelemetry @DataDog/agent-metrics-logs
 /comp/core/autodiscovery @DataDog/container-integrations
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/tagger @DataDog/container-integrations
@@ -367,6 +368,7 @@
 /pkg/flare/*_win.go                     @Datadog/windows-agent
 /pkg/flare/*_windows.go                 @Datadog/windows-agent
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent
+/pkg/fleet/                             @DataDog/fleet
 /pkg/otlp/                              @DataDog/opentelemetry
 /pkg/otlp/*_serverless*.go              @DataDog/serverless
 /pkg/otlp/*_not_serverless*.go          @DataDog/opentelemetry

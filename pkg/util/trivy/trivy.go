@@ -18,8 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -62,14 +62,15 @@ const (
 // ContainerdAccessor is a function that should return a containerd client
 type ContainerdAccessor func() (cutil.ContainerdItf, error)
 
-// CollectorConfig allows to pass configuration
-type CollectorConfig struct {
-	ClearCacheOnClose bool
+// collectorConfig allows to pass configuration
+type collectorConfig struct {
+	clearCacheOnClose bool
+	maxCacheSize      int
 }
 
 // Collector uses trivy to generate a SBOM
 type Collector struct {
-	config           CollectorConfig
+	config           collectorConfig
 	cacheInitialized sync.Once
 	cache            CacheWithCleaner
 	osScanner        ospkg.Scanner
@@ -118,14 +119,6 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 	return option
 }
 
-// defaultCollectorConfig returns a default collector configuration
-// However, accessors still need to be filled in externally
-func defaultCollectorConfig() CollectorConfig {
-	return CollectorConfig{
-		ClearCacheOnClose: true,
-	}
-}
-
 // DefaultDisabledCollectors returns default disabled collectors
 func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	sort.Strings(enabledAnalyzers)
@@ -169,12 +162,12 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 }
 
 // NewCollector returns a new collector
-func NewCollector(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) (*Collector, error) {
-	conf := defaultCollectorConfig()
-	conf.ClearCacheOnClose = cfg.GetBool("sbom.clear_cache_on_exit")
-
+func NewCollector(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) (*Collector, error) {
 	return &Collector{
-		config:      conf,
+		config: collectorConfig{
+			clearCacheOnClose: cfg.GetBool("sbom.clear_cache_on_exit"),
+			maxCacheSize:      cfg.GetInt("sbom.cache.max_disk_size"),
+		},
 		osScanner:   ospkg.NewScanner(),
 		langScanner: langpkg.NewScanner(),
 		vulnClient:  vulnerability.NewClient(db.Config{}),
@@ -184,7 +177,7 @@ func NewCollector(cfg config.Config, wmeta optional.Option[workloadmeta.Componen
 }
 
 // GetGlobalCollector gets the global collector
-func GetGlobalCollector(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) (*Collector, error) {
+func GetGlobalCollector(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) (*Collector, error) {
 	if globalCollector != nil {
 		return globalCollector, nil
 	}
@@ -204,7 +197,7 @@ func (c *Collector) Close() error {
 		return nil
 	}
 
-	if c.config.ClearCacheOnClose {
+	if c.config.clearCacheOnClose {
 		if err := c.cache.Clear(); err != nil {
 			return fmt.Errorf("error when clearing trivy cache: %w", err)
 		}
@@ -229,7 +222,7 @@ func (c *Collector) getCache() (CacheWithCleaner, error) {
 		c.cache, err = NewCustomBoltCache(
 			c.wmeta,
 			defaultCacheDir(),
-			config.Datadog.GetInt("sbom.cache.max_disk_size"),
+			c.config.maxCacheSize,
 		)
 	})
 
