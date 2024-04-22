@@ -39,16 +39,13 @@ func (fh *FlareHelper) FillFlare(fb flaretypes.FlareBuilder) error {
 		checkName := check.Name()
 		filename := fmt.Sprintf("%s_check_output.json", checkName)
 		fb.AddFileFromFunc(filename, func() ([]byte, error) {
-			var out []byte
 			checkOutput, ok := checks.GetCheckOutput(checkName)
 			if !ok {
-				out = append(out, []byte(checkName+" check is not running or has not been scheduled yet\n")...)
-				return out, nil
+				return []byte(checkName+" check is not running or has not been scheduled yet\n"), nil
 			}
 			checkJSON, err := json.MarshalIndent(checkOutput, "", "  ")
 			if err != nil {
-				out = append(out, []byte(fmt.Sprintf("error: %v", err.Error()))...)
-				return out, err
+				return []byte(fmt.Sprintf("error: %s", err.Error())), err
 			}
 			return checkJSON, nil
 		})

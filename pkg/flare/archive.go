@@ -63,7 +63,7 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList)
 		fb.AddFileFromFunc("process-agent_tagger-list.json", getProcessAgentTaggerList)
 		if !config.Datadog.GetBool("process_config.run_in_core_agent.enabled") {
-			getProcessChecksFromProcessAgent(fb, config.GetProcessAPIAddressPort)
+			getChecksFromProcessAgent(fb, config.GetProcessAPIAddressPort)
 		}
 	}
 
@@ -240,7 +240,7 @@ func getConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]strin
 	}
 }
 
-func getProcessChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func() (url string, err error)) {
+func getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func() (url string, err error)) {
 	addressPort, err := getAddressPort()
 	if err != nil {
 		log.Errorf("Could not zip process agent checks: wrong configuration to connect to process-agent: %s", err.Error())
