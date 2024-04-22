@@ -43,7 +43,7 @@ func (s *scanRequest) Collector() string {
 }
 
 // Type returns the scan request type
-func (s *scanRequest) Type() string {
+func (s *scanRequest) Type(sbom.ScanOptions) string {
 	return s.scanRequestType
 }
 
@@ -121,6 +121,7 @@ func TestRetryLogic_Error(t *testing.T) {
 			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 			cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 			cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
+			cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
 
 			// Create a scanner and start it
 			scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
@@ -187,6 +188,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
+	cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
 
 	// Create a scanner and start it
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
@@ -252,6 +254,7 @@ func TestRetryChannelFull(t *testing.T) {
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
+	cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
 
 	// Create a scanner and start it
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))

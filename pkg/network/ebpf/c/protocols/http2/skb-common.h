@@ -82,7 +82,7 @@ static __always_inline bool process_and_skip_literal_headers(struct __sk_buff *s
 }
 
 // handle_dynamic_table_update handles the dynamic table size update.
-static __always_inline void handle_dynamic_table_update(struct __sk_buff *skb, skb_info_t *skb_info){
+static __always_inline void handle_dynamic_table_update(struct __sk_buff *skb, skb_info_t *restrict skb_info){
     // To determine the size of the dynamic table update, we read an integer representation byte by byte.
     // We continue reading bytes until we encounter a byte without the Most Significant Bit (MSB) set,
     // indicating that we've consumed the complete integer. While in the context of the dynamic table

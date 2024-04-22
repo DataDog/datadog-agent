@@ -156,6 +156,8 @@ func (i *installerImpl) GetPackage(pkg string, version string) (Package, error) 
 
 // Start starts remote config and the garbage collector.
 func (i *installerImpl) Start(_ context.Context) error {
+	i.m.Lock()
+	defer i.m.Unlock()
 	go func() {
 		for {
 			select {
@@ -186,10 +188,11 @@ func (i *installerImpl) Start(_ context.Context) error {
 
 // Stop stops the garbage collector.
 func (i *installerImpl) Stop(_ context.Context) error {
+	i.m.Lock()
+	defer i.m.Unlock()
 	i.rc.Close()
 	close(i.stopChan)
 	i.requestsWG.Wait()
-	close(i.requests)
 	return nil
 }
 
@@ -213,11 +216,15 @@ func (i *installerImpl) Bootstrap(ctx context.Context) (err error) {
 }
 
 // Install installs the package from the given URL.
-func (i *installerImpl) Install(ctx context.Context, url string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "start_experiment")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+func (i *installerImpl) Install(ctx context.Context, url string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
+	return i.install(ctx, url)
+}
+
+func (i *installerImpl) install(ctx context.Context, url string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "start_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	i.refreshState(ctx)
 	defer i.refreshState(ctx)
 
@@ -231,11 +238,15 @@ func (i *installerImpl) Install(ctx context.Context, url string) (err error) {
 }
 
 // StartExperiment starts an experiment with the given package.
-func (i *installerImpl) StartExperiment(ctx context.Context, url string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "start_experiment")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+func (i *installerImpl) StartExperiment(ctx context.Context, url string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
+	return i.startExperiment(ctx, url)
+}
+
+func (i *installerImpl) startExperiment(ctx context.Context, url string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "start_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	i.refreshState(ctx)
 	defer i.refreshState(ctx)
 
@@ -249,11 +260,15 @@ func (i *installerImpl) StartExperiment(ctx context.Context, url string) (err er
 }
 
 // PromoteExperiment promotes the experiment to stable.
-func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "promote_experiment")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
+	return i.promoteExperiment(ctx, pkg)
+}
+
+func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "promote_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	i.refreshState(ctx)
 	defer i.refreshState(ctx)
 
@@ -267,11 +282,15 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) (err 
 }
 
 // StopExperiment stops the experiment.
-func (i *installerImpl) StopExperiment(ctx context.Context, pkg string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "stop_experiment")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+func (i *installerImpl) StopExperiment(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
+	return i.stopExperiment(ctx, pkg)
+}
+
+func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "stop_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	i.refreshState(ctx)
 	defer i.refreshState(ctx)
 
@@ -318,35 +337,28 @@ func (i *installerImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err er
 	}
 	defer func() { setRequestDone(ctx, err) }()
 
-	i.m.Unlock()
 	switch request.Method {
 	case methodStartExperiment:
+		var params taskWithVersionParams
+		err = json.Unmarshal(request.Params, &params)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
+		}
+		experimentPackage, ok := i.catalog.getPackage(request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
+		if !ok {
+			return fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
+		}
 		log.Infof("Installer: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
-		err = i.remoteAPIStartExperiment(ctx, request)
+		return i.startExperiment(ctx, experimentPackage.URL)
 	case methodStopExperiment:
 		log.Infof("Installer: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
-		err = i.StopExperiment(ctx, request.Package)
+		return i.stopExperiment(ctx, request.Package)
 	case methodPromoteExperiment:
 		log.Infof("Installer: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
-		err = i.PromoteExperiment(ctx, request.Package)
+		return i.promoteExperiment(ctx, request.Package)
 	default:
-		err = fmt.Errorf("unknown method: %s", request.Method)
+		return fmt.Errorf("unknown method: %s", request.Method)
 	}
-	i.m.Lock()
-	return err
-}
-
-func (i *installerImpl) remoteAPIStartExperiment(ctx context.Context, request remoteAPIRequest) error {
-	var params taskWithVersionParams
-	err := json.Unmarshal(request.Params, &params)
-	if err != nil {
-		return fmt.Errorf("could not unmarshal start experiment params: %w", err)
-	}
-	experimentPackage, ok := i.catalog.getPackage(request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
-	if !ok {
-		return fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
-	}
-	return i.StartExperiment(ctx, experimentPackage.URL)
 }
 
 type requestKey int
