@@ -163,6 +163,9 @@ func (p *WindowsProbe) initEtwFIM() error {
 		return err
 	}
 	p.auditSession, err = etwcomp.NewWellKnownSession(auditSessionName)
+	if err != nil {
+		return err
+	}
 
 	// provider name="Microsoft-Windows-Kernel-File" guid="{edd08927-9cc4-4e65-b970-c2560fb5c289}"
 	p.fileguid, err = windows.GUIDFromString("{edd08927-9cc4-4e65-b970-c2560fb5c289}")
