@@ -213,3 +213,17 @@ deploy_installer_rpm_amd64:
   needs: ["installer_rpm-amd64"]
   variables:
     PACKAGE_ARCH: x86_64
+
+deploy_installer_suse_rpm_arm64:
+  extends: .deploy_installer_rpm
+  needs: ["installer_suse_rpm-arm64"]
+  variables:
+    PACKAGE_ARCH: aarch64
+    ARTIFACTS_PREFIX: suse_
+
+deploy_installer_suse_rpm_amd64:
+  extends: .deploy_installer_rpm
+  needs: ["installer_suse_rpm-amd64"]
+  variables:
+    PACKAGE_ARCH: x86_64
+    ARTIFACTS_PREFIX: suse_
