@@ -1032,7 +1032,7 @@ def update_platform_info(ctx: Context, version: str | None = None, update_only_m
                 if mkey in keyvals:
                     platforms[arch][image_name][pkey] = keyvals[mkey]
 
-            platforms[arch][image_name]['image'] = image_filename
+            platforms[arch][image_name]['image'] = image_filename + ".xz"
             platforms[arch][image_name]['image_version'] = version
 
             if 'VERSION_CODENAME' in keyvals:
@@ -1060,6 +1060,40 @@ def update_platform_info(ctx: Context, version: str | None = None, update_only_m
 
     with open(platforms_file, "w") as f:
         json.dump(platforms, f, indent=2)
+
+
+@task
+def validate_platform_info(ctx: Context):
+    """Validate the platform info file for correctness, ensuring that all images can be found"""
+    platforms = get_platforms()
+    errors: set[str] = set()
+
+    for arch in arch_ls:
+        for image_name, platinfo in platforms[arch].items():
+            image = platinfo.get('image')
+            if image is None:
+                warn(f"[!] {image_name} does not have an image filename")
+                errors.add(image_name)
+                continue
+
+            version = platinfo.get('image_version')
+            if version is None:
+                warn(f"[!] {image_name} does not have an image version")
+                errors.add(image_name)
+                continue
+
+            remote = f"{platforms['url_base']}/{version}/{image}"
+            res = ctx.run(f"curl -s -I {remote}")
+            if res is None or not res.ok:
+                warn(f"[!] {image_name}: {image} for version {version} not found at {remote}")
+                errors.add(image_name)
+            else:
+                info(f"[+] {image_name}: {image} for version {version} found at {remote}")
+
+    if len(errors) == 0:
+        info("[+] Platform info file is valid")
+    else:
+        raise Exit(f"[!] Found {len(errors)} errors in the platform info file. Images failed: {', '.join(errors)}")
 
 
 @task
