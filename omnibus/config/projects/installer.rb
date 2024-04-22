@@ -13,7 +13,7 @@ third_party_licenses "../LICENSE-3rdparty.csv"
 
 homepage 'http://www.datadoghq.com'
 
-INSTALL_DIR = ENV['INSTALL_DIR'] || '/opt/datadog-packages/installer_boot'
+INSTALL_DIR = ENV['INSTALL_DIR'] || '/opt/datadog-installer'
 
 install_dir INSTALL_DIR
 
@@ -137,29 +137,18 @@ end
 # Dependencies
 # ------------------------------------
 
-if linux_target?
-  systemd_directory = "/usr/lib/systemd/system"
-  if debian_target?
-    systemd_directory = "/lib/systemd/system"
-  end
-  extra_package_file "#{systemd_directory}/datadog-installer.service"
-  extra_package_file '/etc/datadog-agent/'
-  extra_package_file '/var/log/datadog/'
-  extra_package_file '/var/run/datadog-packages/'
-  extra_package_file '/opt/datadog-packages/'
-end
-
 # Include all package scripts for the intermediary XZ package, or only those
 # for the package being created
 if linux_target?
   if !generate_distro_package
-    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/updater-deb"
-    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/updater-rpm"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/installer-deb"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/installer-rpm"
+    extra_package_file "#{Omnibus::Config.project_root}/config/templates/installer/README.md.erb"
   end
   if debian_target?
-      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/updater-deb"
-  elsif redhat_target?
-      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/updater-rpm"
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/installer-deb"
+  elsif redhat_target? || suse_target?
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/installer-rpm"
   end
 end
 

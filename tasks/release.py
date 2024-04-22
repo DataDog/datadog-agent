@@ -11,11 +11,12 @@ from collections import OrderedDict
 from datetime import date
 from time import sleep
 
+from gitlab import GitlabError
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import (
@@ -243,6 +244,7 @@ def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
         v6_tag = _find_v6_tag(ctx, new_version)
         if v6_tag:
             ctx.run(f"sed {sed_i_arg} -E 's#^{new_version}#{new_version} / {v6_tag}#' /tmp/new_changelog.rst")
+            ctx.run(f"sed {sed_i_arg} -E 's#^======$#================#' /tmp/new_changelog.rst")
     # remove the old header from the existing changelog
     ctx.run(f"sed {sed_i_arg} -e '1,4d' {changelog_file}")
 
@@ -373,7 +375,7 @@ def list_major_change(_, milestone):
 
 
 def _load_release_json():
-    with open("release.json", "r") as release_json_stream:
+    with open("release.json") as release_json_stream:
         return json.load(release_json_stream, object_pairs_hook=OrderedDict)
 
 
@@ -867,7 +869,6 @@ def __get_force_option(force: bool) -> str:
 def __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel):
     """Tag a given module."""
     for tag in module.tag(agent_version):
-
         if devel:
             tag += "-devel"
 
@@ -1127,7 +1128,7 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
-def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
+def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin", slack_webhook=None):
     """
     Updates the release entries in release.json to prepare the next RC build.
     If the previous version of the Agent (determined as the latest tag on the
@@ -1154,6 +1155,8 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     Updates internal module dependencies with the new RC.
 
     Commits the above changes, and then creates a PR on the upstream repository with the change.
+
+    If slack_webhook is provided, it tries to send the PR URL to the provided webhook. This is meant to be used mainly in automation.
 
     Notes:
     This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
@@ -1247,12 +1250,19 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
             code=1,
         )
 
-    create_pr(
+    pr_url = create_pr(
         f"[release] Update release.json and Go modules for {versions_string}",
         current_branch,
         update_branch,
         new_final_version,
     )
+
+    # Step 4 - If slack workflow webhook is provided, send a slack message
+    if slack_webhook:
+        print(color_message("Sending slack notification", "bold"))
+        ctx.run(
+            f"curl -X POST -H 'Content-Type: application/json' --data '{{\"pr_url\":\"{pr_url}\"}}' {slack_webhook}"
+        )
 
 
 def create_pr(title, base_branch, target_branch, version, changelog_pr=False):
@@ -1316,6 +1326,8 @@ Make sure that milestone is open before trying again.""",
     print(color_message(f"Set labels and milestone for PR #{updated_pr.number}", "bold"))
     print(color_message(f"Done preparing release PR. The PR is available here: {updated_pr.html_url}", "bold"))
 
+    return updated_pr.html_url
+
 
 @task
 def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=False):
@@ -1331,7 +1343,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     if sys.version_info[0] < 3:
         return Exit(message="Must use Python 3 for this task", code=1)
 
-    gitlab = Gitlab(project_name=GITHUB_REPO_NAME, api_token=get_gitlab_token())
+    datadog_agent = get_gitlab_repo()
     list_major_versions = parse_major_versions(major_versions)
 
     # Get the version of the highest major: needed for tag_version and to know
@@ -1380,7 +1392,11 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
     gitlab_tag = None
     while not gitlab_tag:
-        gitlab_tag = gitlab.find_tag(str(new_version)).get("name", None)
+        try:
+            gitlab_tag = datadog_agent.tags.get(str(new_version))
+        except GitlabError:
+            continue
+
         sleep(5)
 
     print(color_message("Creating RC pipeline", "bold"))
@@ -1461,7 +1477,7 @@ def create_and_update_release_branch(ctx, repo, release_branch, base_directory="
             _save_release_json(rj)
 
             # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml jobs
-            with open(".gitlab-ci.yml", "r") as gl:
+            with open(".gitlab-ci.yml") as gl:
                 file_content = gl.readlines()
 
             with open(".gitlab-ci.yml", "w") as gl:

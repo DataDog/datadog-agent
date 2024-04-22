@@ -12,3 +12,5 @@ include:
   - .gitlab/source_test/slack.yml
   - .gitlab/source_test/golang_deps_diff.yml
   - .gitlab/source_test/notify.yml
+  - .gitlab/source_test/technical_linters.yml
+  - .gitlab/source_test/tooling_unit_tests.yml

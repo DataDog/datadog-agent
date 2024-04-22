@@ -10,24 +10,33 @@ package ecs
 
 import (
 	"context"
-	"strings"
+	"time"
 
+	"github.com/patrickmn/go-cache"
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	v3or4 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"go.uber.org/fx"
 )
 
 const (
 	collectorID   = "ecs"
 	componentName = "workloadmeta-ecs"
 )
+
+type dependencies struct {
+	fx.In
+
+	Config config.Component
+}
 
 type collector struct {
 	id                  string
@@ -40,6 +49,15 @@ type collector struct {
 	collectResourceTags bool
 	resourceTags        map[string]resourceTags
 	seen                map[workloadmeta.EntityID]struct{}
+	config              config.Component
+	// taskCollectionEnabled is a flag to enable detailed task collection
+	// if the flag is enabled, the collector will query the latest metadata endpoint, currently v4, for each task
+	// that is returned from the v1/tasks endpoint
+	taskCollectionEnabled bool
+	taskCollectionParser  util.TaskParser
+	taskCache             *cache.Cache
+	taskRateRPS           int
+	taskRateBurst         int
 }
 
 type resourceTags struct {
@@ -48,13 +66,18 @@ type resourceTags struct {
 }
 
 // NewCollector returns a new ecs collector provider and an error
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:           collectorID,
-			resourceTags: make(map[string]resourceTags),
-			seen:         make(map[workloadmeta.EntityID]struct{}),
-			catalog:      workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			id:                    collectorID,
+			resourceTags:          make(map[string]resourceTags),
+			seen:                  make(map[workloadmeta.EntityID]struct{}),
+			catalog:               workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			config:                deps.Config,
+			taskCollectionEnabled: util.IsTaskCollectionEnabled(deps.Config),
+			taskCache:             cache.New(deps.Config.GetDuration("ecs_task_cache_ttl"), 30*time.Second),
+			taskRateRPS:           deps.Config.GetInt("ecs_task_collection_rate"),
+			taskRateBurst:         deps.Config.GetInt("ecs_task_collection_burst"),
 		},
 	}, nil
 }
@@ -65,7 +88,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.ECSEC2) {
+	if !pkgConfig.IsFeaturePresent(pkgConfig.ECSEC2) {
 		return errors.NewDisabled(componentName, "Agent is not running on ECS EC2")
 	}
 
@@ -83,7 +106,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 
 	c.hasResourceTags = ecsutil.HasEC2ResourceTags()
-	c.collectResourceTags = config.Datadog.GetBool("ecs_collect_resource_tags_ec2")
+	c.collectResourceTags = c.config.GetBool("ecs_collect_resource_tags_ec2")
 
 	instance, err := c.metaV1.GetInstance(ctx)
 	if err == nil {
@@ -92,21 +115,30 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		log.Warnf("cannot determine ECS cluster name: %s", err)
 	}
 
+	c.setTaskCollectionParser()
+
 	return nil
 }
 
-func (c *collector) Pull(ctx context.Context) error {
-	tasks, err := c.metaV1.GetTasks(ctx)
-	if err != nil {
-		return err
+func (c *collector) setTaskCollectionParser() {
+	_, err := ecsmeta.V4FromCurrentTask()
+	if c.taskCollectionEnabled && err == nil {
+		c.taskCollectionParser = c.parseTasksFromV4Endpoint
+		return
 	}
+	c.taskCollectionParser = c.parseTasksFromV1Endpoint
+}
 
+func (c *collector) Pull(ctx context.Context) error {
 	// we always parse all the tasks coming from the API, as they are not
 	// immutable: the list of containers in the task changes as containers
 	// don't get added until they actually start running, and killed
 	// containers will get re-created.
-	c.store.Notify(c.parseTasks(ctx, tasks))
-
+	events, err := c.taskCollectionParser(ctx)
+	if err != nil {
+		return err
+	}
+	c.store.Notify(events)
 	return nil
 }
 
@@ -118,54 +150,7 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadmeta.CollectorEvent {
-	events := []workloadmeta.CollectorEvent{}
-	seen := make(map[workloadmeta.EntityID]struct{})
-
-	for _, task := range tasks {
-		// We only want to collect tasks without a STOPPED status.
-		if task.KnownStatus == "STOPPED" {
-			continue
-		}
-
-		entityID := workloadmeta.EntityID{
-			Kind: workloadmeta.KindECSTask,
-			ID:   task.Arn,
-		}
-
-		seen[entityID] = struct{}{}
-
-		arnParts := strings.Split(task.Arn, "/")
-		taskID := arnParts[len(arnParts)-1]
-		taskContainers, containerEvents := c.parseTaskContainers(task, seen)
-
-		entity := &workloadmeta.ECSTask{
-			EntityID: entityID,
-			EntityMeta: workloadmeta.EntityMeta{
-				Name: taskID,
-			},
-			ClusterName: c.clusterName,
-			Family:      task.Family,
-			Version:     task.Version,
-			LaunchType:  workloadmeta.ECSLaunchTypeEC2,
-			Containers:  taskContainers,
-		}
-
-		// Only fetch tags if they're both available and used
-		if c.hasResourceTags && c.collectResourceTags {
-			rt := c.getResourceTags(ctx, entity)
-			entity.ContainerInstanceTags = rt.containerInstanceTags
-			entity.Tags = rt.tags
-		}
-
-		events = append(events, containerEvents...)
-		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceNodeOrchestrator,
-			Type:   workloadmeta.EventTypeSet,
-			Entity: entity,
-		})
-	}
-
+func (c *collector) setLastSeenEntitiesAndUnsetEvents(events []workloadmeta.CollectorEvent, seen map[workloadmeta.EntityID]struct{}) []workloadmeta.CollectorEvent {
 	for seenID := range c.seen {
 		if _, ok := seen[seenID]; ok {
 			continue
@@ -194,103 +179,5 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 	}
 
 	c.seen = seen
-
 	return events
-}
-
-func (c *collector) parseTaskContainers(
-	task v1.Task,
-	seen map[workloadmeta.EntityID]struct{},
-) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
-	taskContainers := make([]workloadmeta.OrchestratorContainer, 0, len(task.Containers))
-	events := make([]workloadmeta.CollectorEvent, 0, len(task.Containers))
-
-	for _, container := range task.Containers {
-		containerID := container.DockerID
-		taskContainers = append(taskContainers, workloadmeta.OrchestratorContainer{
-			ID:   containerID,
-			Name: container.Name,
-		})
-		entityID := workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   containerID,
-		}
-
-		seen[entityID] = struct{}{}
-
-		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceNodeOrchestrator,
-			Type:   workloadmeta.EventTypeSet,
-			Entity: &workloadmeta.Container{
-				EntityID: entityID,
-				EntityMeta: workloadmeta.EntityMeta{
-					Name: container.DockerName,
-				},
-			},
-		})
-	}
-
-	return taskContainers, events
-}
-
-// getResourceTags fetches task and container instance tags from the ECS API,
-// and caches them for the lifetime of the task, to avoid hitting throttling
-// limits from tasks being updated on every pull. Tags won't change in the
-// store even if they're changed in the resources themselves, but at least that
-// matches the old behavior present in the tagger.
-func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.ECSTask) resourceTags {
-	rt, ok := c.resourceTags[entity.ID]
-	if ok {
-		return rt
-	}
-
-	if len(entity.Containers) == 0 {
-		log.Warnf("skip getting resource tags from task %q with zero container", entity.ID)
-		return rt
-	}
-
-	var metaURI string
-	var metaVersion string
-	for _, taskContainer := range entity.Containers {
-		container, err := c.store.GetContainer(taskContainer.ID)
-		if err != nil {
-			log.Tracef("cannot find container %q found in task %q: %s", taskContainer, entity.ID, err)
-			continue
-		}
-
-		uri, ok := container.EnvVars[v3or4.DefaultMetadataURIv4EnvVariable]
-		if ok && uri != "" {
-			metaURI = uri
-			metaVersion = "v4"
-			break
-		}
-
-		uri, ok = container.EnvVars[v3or4.DefaultMetadataURIv3EnvVariable]
-		if ok && uri != "" {
-			metaURI = uri
-			metaVersion = "v3"
-			break
-		}
-	}
-
-	if metaURI == "" {
-		log.Errorf("failed to get client for metadata v3 or v4 API from task %q and the following containers: %v", entity.ID, entity.Containers)
-		return rt
-	}
-
-	metaV3orV4 := c.metaV3or4(metaURI, metaVersion)
-	taskWithTags, err := metaV3orV4.GetTaskWithTags(ctx)
-	if err != nil {
-		log.Errorf("failed to get task with tags from metadata %s API: %s", metaVersion, err)
-		return rt
-	}
-
-	rt = resourceTags{
-		tags:                  taskWithTags.TaskTags,
-		containerInstanceTags: taskWithTags.ContainerInstanceTags,
-	}
-
-	c.resourceTags[entity.ID] = rt
-
-	return rt
 }

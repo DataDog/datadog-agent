@@ -34,13 +34,14 @@ import (
 )
 
 const (
-	kubeNamespaceDogstatsWorkload           = "workload-dogstatsd"
-	kubeNamespaceDogstatsStandaloneWorkload = "workload-dogstatsd-standalone"
-	kubeNamespaceTracegenWorkload           = "workload-tracegen"
-	kubeDeploymentDogstatsdUDPOrigin        = "dogstatsd-udp-origin-detection"
-	kubeDeploymentDogstatsdUDS              = "dogstatsd-uds"
-	kubeDeploymentTracegenTCPWorkload       = "tracegen-tcp"
-	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
+	kubeNamespaceDogstatsWorkload                    = "workload-dogstatsd"
+	kubeNamespaceDogstatsStandaloneWorkload          = "workload-dogstatsd-standalone"
+	kubeNamespaceTracegenWorkload                    = "workload-tracegen"
+	kubeDeploymentDogstatsdUDPOrigin                 = "dogstatsd-udp-origin-detection"
+	kubeDeploymentDogstatsdUDS                       = "dogstatsd-uds"
+	kubeDeploymentDogstatsdUDPOriginContNameInjected = "dogstatsd-udp-contname-injected"
+	kubeDeploymentTracegenTCPWorkload                = "tracegen-tcp"
+	kubeDeploymentTracegenUDSWorkload                = "tracegen-uds"
 )
 
 var GitCommit string
@@ -599,6 +600,8 @@ func (suite *k8sSuite) TestDogstatsdInAgent() {
 	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
 	// Test with UDP + Origin detection
 	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
+	// Test with UDP + DD_ENTITY_ID with container name injected
+	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOriginContNameInjected)
 	// Test with UDP + DD_ENTITY_ID
 	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
 }
@@ -609,6 +612,8 @@ func (suite *k8sSuite) TestDogstatsdStandalone() {
 	// Dogstatsd standalone does not support origin detection
 	// Test with UDP + DD_ENTITY_ID
 	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
+	// Test with UDP + DD_ENTITY_ID with container name injected
+	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOriginContNameInjected)
 }
 
 func (suite *k8sSuite) testDogstatsdPodUID(kubeNamespace string) {
@@ -638,10 +643,6 @@ func (suite *k8sSuite) testDogstatsdPodUID(kubeNamespace string) {
 }
 
 func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment string) {
-	if kubeDeployment == kubeDeploymentDogstatsdUDPOrigin {
-		// CONTINT-3934: This test is flaky, skip it for now
-		suite.T().Skipf("Skipping test for %s/%s as it is currently flaky", kubeNamespace, kubeDeployment)
-	}
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",

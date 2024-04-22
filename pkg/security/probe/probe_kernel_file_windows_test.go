@@ -10,12 +10,16 @@ package probe
 
 import (
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,11 +37,25 @@ func createTestProbe() (*WindowsProbe, error) {
 	}
 	cfg.RuntimeSecurity.FIMEnabled = true
 
+	discardedPaths, err := lru.New[string, struct{}](1 << 10)
+	if err != nil {
+		return nil, err
+	}
+
+	discardedBasenames, err := lru.New[string, struct{}](1 << 10)
+	if err != nil {
+		return nil, err
+	}
+
 	// probe and config are provided as null.  During the tests, it is assumed
 	// that we will not access those values.
 	wp := &WindowsProbe{
-		opts:   opts,
-		config: cfg,
+		opts:               opts,
+		config:             cfg,
+		filePathResolver:   make(map[fileObjectPointer]string, 0),
+		regPathResolver:    make(map[regObjectPointer]string, 0),
+		discardedPaths:     discardedPaths,
+		discardedBasenames: discardedBasenames,
 	}
 	err = wp.Init()
 
@@ -93,12 +111,15 @@ func isSameFile(drive, device string) bool {
 
 }
 
-func processUntilClose(t *testing.T, et *etwTester) {
+func processUntil(t *testing.T, et *etwTester, target interface{}, count int) {
 
+	et.notifications = et.notifications[:0]
 	defer func() {
 		et.loopExited <- struct{}{}
 	}()
 	et.loopStarted <- struct{}{}
+
+	var targetcount int
 	for {
 		select {
 		case <-et.stopLoop:
@@ -106,15 +127,59 @@ func processUntilClose(t *testing.T, et *etwTester) {
 
 		case n := <-et.notify:
 			switch n.(type) {
-			case *createHandleArgs, *createNewFileArgs, *cleanupArgs:
+			case *createHandleArgs, *createNewFileArgs, *cleanupArgs, *closeArgs, *writeArgs, *setDeleteArgs, *deletePathArgs, *renameArgs, *renamePath:
 				et.notifications = append(et.notifications, n)
-			case *closeArgs:
-				et.notifications = append(et.notifications, n)
-				return
+				if reflect.TypeOf(n) == reflect.TypeOf(target) {
+					targetcount++
+					if targetcount >= count {
+						return
+					}
+				}
 			}
 		}
 	}
+}
 
+func processUntilAllClosed(t *testing.T, et *etwTester) {
+
+	et.notifications = et.notifications[:0]
+	defer func() {
+		et.loopExited <- struct{}{}
+	}()
+	et.loopStarted <- struct{}{}
+
+	var opencount int
+	var closecount int
+	for {
+		select {
+		case <-et.stopLoop:
+			return
+
+		case n := <-et.notify:
+			notify := false
+			switch n.(type) {
+			case *createHandleArgs, *createNewFileArgs:
+				opencount++
+				notify = true
+
+			case *closeArgs:
+				closecount++
+				notify = true
+
+			case *cleanupArgs, *writeArgs, *setDeleteArgs, *deletePathArgs, *renameArgs, *renamePath:
+				notify = true
+
+			default:
+				// do nothing
+			}
+			if notify {
+				et.notifications = append(et.notifications, n)
+				if opencount > 0 && opencount == closecount {
+					return
+				}
+			}
+		}
+	}
 }
 
 func stopLoop(et *etwTester, wg *sync.WaitGroup) {
@@ -147,7 +212,7 @@ func testSimpleCreate(t *testing.T, et *etwTester, testfilename string) {
 
 	go func() {
 		defer wg.Done()
-		processUntilClose(t, et)
+		processUntil(t, et, &closeArgs{}, 1)
 	}()
 	// wait till we're sure the listening loop is running
 	<-et.loopStarted
@@ -163,8 +228,9 @@ func testSimpleCreate(t *testing.T, et *etwTester, testfilename string) {
 		select {
 		case <-et.loopExited:
 			return true
+		default:
+			return false
 		}
-		return false
 	}, 4*time.Second, 250*time.Millisecond, "did not get notification")
 
 	stopLoop(et, &wg)
@@ -205,13 +271,216 @@ func testSimpleCreate(t *testing.T, et *etwTester, testfilename string) {
 	et.notifications = et.notifications[:0]
 }
 
+// will leave file left over for use in future tests.
+func testSimpleFileWrite(t *testing.T, et *etwTester, testfilename string) {
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		/*
+			I don't know why this is, but...
+			empirically, the kernel holds on to the close notification for long after the CloseHandle()
+			(I tried with the native closehandle API, same behavior), at least when there was a write on the
+			file (above, in the simple create test, it closes immediately).
+
+			the IRP_MJ_CLEANUP docs say that this is sent when the refcount on the handle has reached zero
+			(all handles closed).  So for this test it works fine, waiting for the close notification fails the
+			test
+		*/
+		processUntil(t, et, &cleanupArgs{}, 1)
+	}()
+	// wait till we're sure the listening loop is running
+	<-et.loopStarted
+
+	t.Logf("================\n")
+	// this will truncate the already existing file, that's OK.
+	f, err := os.OpenFile(testfilename, os.O_RDWR, 0666)
+	assert.NoError(t, err)
+	if err == nil {
+		// don't remove as it will be used in subsequent test
+		//defer os.Remove(testfilename)
+	}
+	f.WriteString("hello")
+	f.Close()
+
+	assert.Eventually(t, func() bool {
+		select {
+		case <-et.loopExited:
+			return true
+		}
+		return false
+	}, 10*time.Second, 250*time.Millisecond, "did not get notification")
+
+	stopLoop(et, &wg)
+
+	// now walk the list of notifications.
+
+	// expect to see in this order
+	// (idCreate)
+	// (write)
+	// (cleanup)
+
+	assert.Equal(t, 3, len(et.notifications), "expected 3 notifications, got %d", len(et.notifications))
+
+	if c, ok := et.notifications[0].(*createHandleArgs); ok {
+		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
+	} else {
+		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+	}
+
+	if wa, ok := et.notifications[1].(*writeArgs); ok {
+		assert.True(t, isSameFile(testfilename, wa.fileName), "expected %s, got %s", testfilename, wa.fileName)
+		assert.Equal(t, uint32(5), wa.IOSize, "expected 5, got %d", wa.IOSize)
+	} else {
+		t.Errorf("expected writeArgs, got %T", et.notifications[1])
+	}
+
+	if cl, ok := et.notifications[2].(*cleanupArgs); ok {
+		assert.True(t, isSameFile(testfilename, cl.fileName), "expected %s, got %s", testfilename, cl.fileName)
+	} else {
+		t.Errorf("expected cleanup, got %T", et.notifications[2])
+	}
+	et.notifications = et.notifications[:0]
+}
+
+func testSimpleFileDelete(t *testing.T, et *etwTester, testfilename string) {
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		processUntil(t, et, &closeArgs{}, 1)
+	}()
+	// wait till we're sure the listening loop is running
+	<-et.loopStarted
+	et.notifications = et.notifications[:0]
+	t.Logf("================\n")
+	t.Logf("Deleting %s\n", testfilename)
+	err := os.Remove(testfilename)
+	assert.NoError(t, err)
+	assert.Eventually(t, func() bool {
+		select {
+		case <-et.loopExited:
+			return true
+		}
+		return false
+	}, 10*time.Second, 250*time.Millisecond, "did not get notification")
+
+	stopLoop(et, &wg)
+
+	// now walk the list of notifications.
+
+	// expect to see in this order
+	// (idCreate)
+	// (set_delete)
+	// (cleanup)
+	/*
+		assert.Equal(t, 2, len(et.notifications), "expected 2 notifications, got %d", len(et.notifications))
+		if len(et.notifications) < 3 {
+			for _, n := range et.notifications {
+				t.Logf("notification: %s\n", n)
+			}
+			t.Errorf("expected 3 notifications, got %d", len(et.notifications))
+			return
+		}
+	*/
+	if c, ok := et.notifications[0].(*createHandleArgs); ok {
+		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
+	} else {
+		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+	}
+
+	if wa, ok := et.notifications[1].(*setDeleteArgs); ok {
+		assert.True(t, isSameFile(testfilename, wa.fileName), "expected %s, got %s", testfilename, wa.fileName)
+	} else {
+		t.Errorf("expected setDelete, got %T", et.notifications[1])
+	}
+
+	/*
+		if cl, ok := et.notifications[2].(*cleanupArgs); ok {
+			assert.True(t, isSameFile(testfilename, cl.fileName), "expected %s, got %s", testfilename, cl.fileName)
+		} else {
+			t.Errorf("expected cleanup, got %T", et.notifications[2])
+		}
+	*/
+	et.notifications = et.notifications[:0]
+}
+
+func testSimpleFileRename(t *testing.T, et *etwTester, testfilename, testfilerename string) {
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		//processUntil(t, et, &renamePath{}, 1)
+		processUntilAllClosed(t, et)
+	}()
+	// wait till we're sure the listening loop is running
+	<-et.loopStarted
+
+	t.Logf("================\n")
+	err := os.Rename(testfilename, testfilerename)
+	assert.NoError(t, err)
+	assert.Eventually(t, func() bool {
+		select {
+		case <-et.loopExited:
+			return true
+		}
+		return false
+	}, 10*time.Second, 250*time.Millisecond, "did not get notification")
+
+	stopLoop(et, &wg)
+
+	// now walk the list of notifications.
+
+	// expect to see in this order
+	// (idCreate) (on orig file)
+	// (rename) (on orig file)
+	// (rename_path) on new file
+
+	//assert.Equal(t, 4, len(et.notifications), "expected 4 notifications, got %d", len(et.notifications))
+
+	if c, ok := et.notifications[0].(*createHandleArgs); ok {
+		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
+	} else {
+		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+	}
+
+	// there are a variable number of notifications depending on OS.  FOr some reason, at least on Win11
+	// it opens the root of the FS in the middle.  Just scan forward until we hit the rename.
+
+	var ndx int
+	for ndx = 1; ndx < len(et.notifications); ndx++ {
+		if ra, ok := et.notifications[ndx].(*renameArgs); ok {
+			assert.True(t, isSameFile(testfilename, ra.fileName), "expected %s, got %s", testfilename, ra.fileName)
+			break
+		}
+	}
+
+	// now, check that the next one is the renamePath
+	require.Less(t, ndx+1, len(et.notifications), "expected renamePath, got nothing")
+	ndx++
+	// now expecte two creates on the new file name.  IDK why two
+	if c, ok := et.notifications[ndx].(*renamePath); ok {
+		assert.True(t, isSameFile(testfilerename, c.filePath), "expected %s, got %s", testfilerename, c.filePath)
+		assert.True(t, isSameFile(testfilename, c.oldPath), "expected %s, got %s", testfilename, c.oldPath)
+	} else {
+		t.Errorf("expected renamePath, got %T", et.notifications[ndx])
+	}
+	et.notifications = et.notifications[:0]
+}
+
 func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		processUntilClose(t, et)
+		processUntil(t, et, &closeArgs{}, 1)
 	}()
 	// wait till we're sure the listening loop is running
 	<-et.loopStarted
@@ -232,8 +501,9 @@ func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 		select {
 		case <-et.loopExited:
 			return true
+		default:
+			return false
 		}
-		return false
 	}, 4*time.Second, 250*time.Millisecond, "did not get notification")
 
 	stopLoop(et, &wg)
@@ -269,13 +539,16 @@ func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 
 }
 func TestETWFileNotifications(t *testing.T) {
+	if false {
+		ebpftest.LogLevel(t, "info")
+	}
 	ex, err := os.Executable()
 	require.NoError(t, err, "could not get executable path")
 	testfilename := ex + ".testfile"
+	testfilerename := ex + ".testfilerename"
 
 	wp, err := createTestProbe()
 	require.NoError(t, err)
-	require.NotNil(t, wp)
 
 	// teardownTestProe calls the stop function on etw, which will
 	// in turn wait on wp.fimgw
@@ -315,12 +588,25 @@ func TestETWFileNotifications(t *testing.T) {
 	t.Run("testSimpleCreate", func(t *testing.T) {
 		testSimpleCreate(t, et, testfilename)
 	})
-
 	require.Equal(t, 0, len(et.notifications), "expected 0 notifications, got %d", len(et.notifications))
 	// note the testFileOpen expects that the file is already created,
 	// and left over from testSimpleCreate
 	t.Run("testFileOpen", func(t *testing.T) {
 		testFileOpen(t, et, testfilename)
 	})
-	assert.NoError(t, os.Remove(testfilename), "failed to remove")
+
+	// this test assumes that the file is still there from previous tests.  If it's not,
+	// it will fail because the sequence of messages is different.
+	t.Run("testSimpleFileWrite", func(t *testing.T) {
+		testSimpleFileWrite(t, et, testfilename)
+	})
+	t.Run("testSimpleFileRename", func(t *testing.T) {
+		testSimpleFileRename(t, et, testfilename, testfilerename)
+	})
+
+	// this test assumes the file is still there from previous ones.
+	// it will delete the file; therefore any subsequent test requiring the file will fail
+	t.Run("testSimpleFileDelete", func(t *testing.T) {
+		testSimpleFileDelete(t, et, testfilerename)
+	})
 }

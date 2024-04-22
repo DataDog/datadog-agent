@@ -7,6 +7,7 @@ package telemetry
 
 import (
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 )
 
 // SimpleHistogram tracks how many times something is happening.
@@ -21,5 +22,5 @@ func NewSimpleHistogram(subsystem, name, help string, buckets []float64) SimpleH
 
 // NewSimpleHistogramWithOpts creates a new SimpleHistogram.
 func NewSimpleHistogramWithOpts(subsystem, name, help string, buckets []float64, opts Options) SimpleHistogram {
-	return telemetryComponent.GetCompatComponent().NewSimpleHistogramWithOpts(subsystem, name, help, buckets, telemetryComponent.Options(opts))
+	return telemetryimpl.GetCompatComponent().NewSimpleHistogramWithOpts(subsystem, name, help, buckets, telemetryComponent.Options(opts))
 }
