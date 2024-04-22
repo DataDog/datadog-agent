@@ -1,6 +1,6 @@
 module github.com/datadog-agent/DataDog/comp/otelcol/collector-contrib/def
 
-go 1.21.9
+go 1.21.0
 
 require go.opentelemetry.io/collector/otelcol v0.98.0
 
