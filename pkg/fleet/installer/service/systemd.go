@@ -24,20 +24,19 @@ var (
 )
 
 const (
-	startCommand             unitCommand = "start"
-	stopCommand              unitCommand = "stop"
-	enableCommand            unitCommand = "enable"
-	disableCommand           unitCommand = "disable"
-	loadCommand              unitCommand = "load-unit"
-	removeCommand            unitCommand = "remove-unit"
-	addInstallerToAgentGroup unitCommand = "add-installer-to-agent-group"
-	backupCommand            unitCommand = `backup-file`
-	restoreCommand           unitCommand = `restore-file`
-	replaceDockerCommand                 = `{"command":"replace-docker"}`
-	restartDockerCommand                 = `{"command":"restart-docker"}`
-	createDockerDirCommand               = `{"command":"create-docker-dir"}`
-	replaceLDPreloadCommand              = `{"command":"replace-ld-preload"}`
-	systemdReloadCommand                 = `{"command":"systemd-reload"}`
+	startCommand            unitCommand = "start"
+	stopCommand             unitCommand = "stop"
+	enableCommand           unitCommand = "enable"
+	disableCommand          unitCommand = "disable"
+	loadCommand             unitCommand = "load-unit"
+	removeCommand           unitCommand = "remove-unit"
+	backupCommand           unitCommand = `backup-file`
+	restoreCommand          unitCommand = `restore-file`
+	replaceDockerCommand                = `{"command":"replace-docker"}`
+	restartDockerCommand                = `{"command":"restart-docker"}`
+	createDockerDirCommand              = `{"command":"create-docker-dir"}`
+	replaceLDPreloadCommand             = `{"command":"replace-ld-preload"}`
+	systemdReloadCommand                = `{"command":"systemd-reload"}`
 )
 
 type privilegeCommand struct {
