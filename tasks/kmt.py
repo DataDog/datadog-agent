@@ -636,7 +636,7 @@ def prepare(
     if ci:
         llc_path = LLC_PATH_CI
         clang_path = CLANG_PATH_CI
-        gotestsum_path = f"{os.getenv('GOPATH'}/bin/gotestsum"
+        gotestsum_path = f"{os.getenv('GOPATH')}/bin/gotestsum"
 
     copy_executables = {
         gotestsum_path: f"{paths.dependencies}/go/bin/gotestsum",
