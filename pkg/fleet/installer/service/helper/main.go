@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package main is a package that allows dd-installer
+// Package main is a package that allows dd-agent
 // to execute a subset of priviledged commands
 package main
 
@@ -27,7 +27,6 @@ var (
 	pkgDir         = "/opt/datadog-packages/"
 	agentDir       = "/etc/datadog-agent"
 	testSkipUID    = ""
-	installerUser  = "dd-installer"
 )
 
 // findSystemdPath todo: this is a hacky way to detect on which os family we are currently
@@ -90,8 +89,6 @@ func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("systemctl", "restart", "docker"), nil
 	case "replace-ld-preload":
 		return exec.Command("mv", filepath.Join(installPath, "run", "ld.so.preload.tmp"), "/etc/ld.so.preload"), nil
-	case "add-installer-to-agent-group":
-		return exec.Command("usermod", "-aG", "dd-agent", "dd-installer"), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}

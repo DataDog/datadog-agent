@@ -53,7 +53,7 @@ func TestAssertWorkingCommands(t *testing.T) {
 	testSetup(t)
 
 	// missing permissions on test setup, e2e tests verify the successful commands
-	successErr := "error: failed to lookup dd-installer user: user: unknown user dd-installer\n"
+	successErr := "error: failed to lookup dd-agent user: user: unknown user dd-agent\n"
 	successSystemd := "error: systemd unit path error: stat /lib/systemd/system: no such file or directory\n"
 
 	require.Equal(t, successErr, startUnit(testCtx, "datadog-agent").Error())

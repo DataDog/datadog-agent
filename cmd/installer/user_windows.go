@@ -6,4 +6,4 @@
 // Package main implements 'installer'.
 package main
 
-func rootToDDInstaller() {}
+func rootToDDAgent() {}
