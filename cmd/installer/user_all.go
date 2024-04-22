@@ -27,15 +27,7 @@ func moveToDDAgent() error {
 	if err := syscall.Setgid(gid); err != nil {
 		return err
 	}
-	agentGrp, err := user.LookupGroup("dd-agent")
-	if err != nil {
-		return err
-	}
-	agentGid, err := strconv.Atoi(agentGrp.Gid)
-	if err != nil {
-		return err
-	}
-	if err := syscall.Setgroups([]int{agentGid, gid}); err != nil {
+	if err := syscall.Setgroups([]int{gid}); err != nil {
 		return err
 	}
 	usr, err := user.Lookup("dd-agent")
