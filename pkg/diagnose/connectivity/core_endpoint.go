@@ -199,12 +199,12 @@ func verifyEndpointResponse(diagCfg diagnosis.Config, statusCode int, responseBo
 	var verifyReport string
 	var newErr error
 
-	fiveHundred := 500
+	limitSize := 500
 
 	scrubbedResponseBody := scrubber.ScrubLine(string(responseBody))
-	if !diagCfg.Verbose && len(scrubbedResponseBody) > fiveHundred {
-		scrubbedResponseBody = scrubbedResponseBody[:fiveHundred] + "..."
-		scrubbedResponseBody += fmt.Sprintf("\nResponse body is %v bytes long, truncated at %v", len(responseBody), fiveHundred)
+	if !diagCfg.Verbose && len(scrubbedResponseBody) > limitSize {
+		scrubbedResponseBody = scrubbedResponseBody[:limitSize] + "..."
+		scrubbedResponseBody += fmt.Sprintf("\nResponse body is %v bytes long, truncated at %v", len(responseBody), limitSize)
 		scrubbedResponseBody += "\nTo display the whole body, please add \"--verbose\" or \"-v\" flag to the command."
 	}
 
