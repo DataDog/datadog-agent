@@ -100,6 +100,8 @@ func (l *ProfilingRuntimeSetting) Set(config config.Component, v interface{}, so
 			MutexProfileFraction: config.GetInt(l.ConfigPrefix + "internal_profiling.mutex_profile_fraction"),
 			BlockProfileRate:     config.GetInt(l.ConfigPrefix + "internal_profiling.block_profile_rate"),
 			WithGoroutineProfile: config.GetBool(l.ConfigPrefix + "internal_profiling.enable_goroutine_stacktraces"),
+			WithBlockProfile:     config.GetBool(l.ConfigPrefix + "internal_profiling.enable_block_profiling"),
+			WithMutexProfile:     config.GetBool(l.ConfigPrefix + "internal_profiling.enable_mutex_profiling"),
 			WithDeltaProfiles:    config.GetBool(l.ConfigPrefix + "internal_profiling.delta_profiles"),
 			Tags:                 tags,
 			CustomAttributes:     config.GetStringSlice(l.ConfigPrefix + "internal_profiling.custom_attributes"),
