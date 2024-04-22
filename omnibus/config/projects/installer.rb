@@ -149,6 +149,7 @@ if linux_target?
   if !generate_distro_package
     extra_package_file "#{Omnibus::Config.project_root}/package-scripts/installer-deb"
     extra_package_file "#{Omnibus::Config.project_root}/package-scripts/installer-rpm"
+    extra_package_file "#{Omnibus::Config.project_root}/config/templates/installer/README.md.erb"
   end
   if debian_target?
       package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/installer-deb"
