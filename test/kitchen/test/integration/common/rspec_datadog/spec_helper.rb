@@ -370,14 +370,6 @@ def dogstatsd_processes_running?
   false
 end
 
-def expect_windows_cws?
-  if os == :windows && get_agent_flavor == 'datadog-agent'
-    true
-  end
-  return false
-  
-end
-
 def deploy_cws?
   os != :windows &&
   get_agent_flavor == 'datadog-agent' &&
