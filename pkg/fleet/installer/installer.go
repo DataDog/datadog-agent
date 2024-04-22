@@ -150,7 +150,7 @@ func (i *installerImpl) Install(ctx context.Context, url string) error {
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	return i.setupUnits(ctx, pkg.Name)
+	return i.setupPackage(ctx, pkg.Name)
 }
 
 // InstallExperiment installs an experiment on top of an existing package.
@@ -215,7 +215,12 @@ func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	err := i.repositories.Delete(ctx, pkg)
+	err := i.removePackage(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not remove package: %w", err)
+	}
+
+	err = i.repositories.Delete(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not remove package: %w", err)
 	}
@@ -252,12 +257,23 @@ func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
 	}
 }
 
-func (i *installerImpl) setupUnits(ctx context.Context, pkg string) error {
+func (i *installerImpl) setupPackage(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
-		return service.SetupAgentUnits(ctx)
+		return service.SetupAgent(ctx)
 	case packageAPMInjector:
 		return service.SetupAPMInjector(ctx)
+	default:
+		return nil
+	}
+}
+
+func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
+	switch pkg {
+	case packageDatadogAgent:
+		return service.RemoveAgent(ctx)
+	case packageAPMInjector:
+		return service.RemoveAPMInjector(ctx)
 	default:
 		return nil
 	}

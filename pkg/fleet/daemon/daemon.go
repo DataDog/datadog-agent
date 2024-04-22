@@ -196,7 +196,7 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 	return nil
 }
 
-// Bootstrap is the generic bootstrap of the installer
+// Bootstrap is the method used for the installer to install itself
 func (d *daemonImpl) Bootstrap(ctx context.Context) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap")
 	defer func() { span.Finish(tracer.WithError(err)) }()
@@ -205,10 +205,13 @@ func (d *daemonImpl) Bootstrap(ctx context.Context) (err error) {
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
-	if err = d.setupInstallerUnits(ctx); err != nil {
-		return err
+	// We don't need to setup anything for the installer if we are not doing remote updates
+	if d.remoteUpdates {
+		err = service.SetupInstaller(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to setup datadog-installer systemd units: %w", err)
+		}
 	}
-
 	return nil
 }
 
@@ -300,30 +303,10 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 	return nil
 }
 
-func (d *daemonImpl) setupInstallerUnits(ctx context.Context) (err error) {
-	systemdRunning, err := service.IsSystemdRunning()
-	if err != nil {
-		return fmt.Errorf("error checking if systemd is running: %w", err)
-	}
-	if !systemdRunning {
-		log.Infof("Daemon: Systemd is not running, skipping unit setup")
-		return nil
-	}
-	err = service.SetupInstallerUnits(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to setup datadog-installer systemd units: %w", err)
-	}
-	if !d.remoteUpdates {
-		service.RemoveInstallerUnits(ctx)
-		return
-	}
-	return service.StartInstallerStable(ctx)
-}
-
 func (d *daemonImpl) handleCatalogUpdate(c catalog) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	log.Infof("Daemon: Received catalog update")
+	log.Infof("Installer: Received catalog update")
 	d.catalog = c
 	return nil
 }
