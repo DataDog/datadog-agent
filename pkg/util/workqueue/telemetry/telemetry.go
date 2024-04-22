@@ -56,28 +56,30 @@ func (l histgramWrapper) Observe(value float64) {
 	l.Histogram.Observe(value)
 }
 
-// QueueMetricsProvider is a workqueue.MetricsProvider that provides metrics for the SBOM queue
+// QueueMetricsProvider is a workqueue.MetricsProvider that provides metrics for workqueues
 type QueueMetricsProvider struct {
-	mutex   *sync.Mutex
+	mutex   sync.Mutex
 	metrics map[string]interface{}
 }
 
 // NewQueueMetricsProvider returns a new Queue Metrics Provider
-func NewQueueMetricsProvider() QueueMetricsProvider {
-	return QueueMetricsProvider{
-		mutex:   &sync.Mutex{},
+// It is recommended to use this function to create a provider as a global variable
+// and use it in your package and tests. This allows avoiding duplicate metrics registration.
+func NewQueueMetricsProvider() *QueueMetricsProvider {
+	return &QueueMetricsProvider{
+		mutex:   sync.Mutex{},
 		metrics: map[string]interface{}{},
 	}
 }
 
 // Ensure QueueMetricsProvider implements the workqueue.MetricsProvider interface
-var _ workqueue.MetricsProvider = QueueMetricsProvider{}
+var _ workqueue.MetricsProvider = &QueueMetricsProvider{}
 
 type initializer[T any] func(subsystem, name, description string) T
 
-func register[T any](q QueueMetricsProvider, metricName, subsystem, description string, init initializer[T]) T {
-	if q.mutex == nil {
-		panic("Queue Metrics Provider mutex lock should not be nil")
+func register[T any](q *QueueMetricsProvider, metricName, subsystem, description string, init initializer[T]) T {
+	if q == nil {
+		panic("Queue Metrics Provider should not be nil")
 	}
 
 	q.mutex.Lock()
@@ -93,7 +95,7 @@ func register[T any](q QueueMetricsProvider, metricName, subsystem, description 
 }
 
 // NewDepthMetric creates a new depth metric
-func (q QueueMetricsProvider) NewDepthMetric(subsystem string) workqueue.GaugeMetric {
+func (q *QueueMetricsProvider) NewDepthMetric(subsystem string) workqueue.GaugeMetric {
 	return register(
 		q,
 		"queue_depth",
@@ -113,7 +115,7 @@ func (q QueueMetricsProvider) NewDepthMetric(subsystem string) workqueue.GaugeMe
 }
 
 // NewAddsMetric creates a new adds metric
-func (q QueueMetricsProvider) NewAddsMetric(subsystem string) workqueue.CounterMetric {
+func (q *QueueMetricsProvider) NewAddsMetric(subsystem string) workqueue.CounterMetric {
 	return register(
 		q,
 		"queue_adds",
@@ -132,7 +134,7 @@ func (q QueueMetricsProvider) NewAddsMetric(subsystem string) workqueue.CounterM
 }
 
 // NewLatencyMetric creates a new latency metric
-func (q QueueMetricsProvider) NewLatencyMetric(subsystem string) workqueue.HistogramMetric {
+func (q *QueueMetricsProvider) NewLatencyMetric(subsystem string) workqueue.HistogramMetric {
 	return register(
 		q,
 		"queue_latency",
@@ -152,7 +154,7 @@ func (q QueueMetricsProvider) NewLatencyMetric(subsystem string) workqueue.Histo
 }
 
 // NewWorkDurationMetric creates a new work duration metric
-func (q QueueMetricsProvider) NewWorkDurationMetric(subsystem string) workqueue.HistogramMetric {
+func (q *QueueMetricsProvider) NewWorkDurationMetric(subsystem string) workqueue.HistogramMetric {
 	return register(
 		q,
 		"queue_work_duration",
@@ -172,7 +174,7 @@ func (q QueueMetricsProvider) NewWorkDurationMetric(subsystem string) workqueue.
 }
 
 // NewUnfinishedWorkSecondsMetric creates a new unfinished work seconds metric
-func (q QueueMetricsProvider) NewUnfinishedWorkSecondsMetric(subsystem string) workqueue.SettableGaugeMetric {
+func (q *QueueMetricsProvider) NewUnfinishedWorkSecondsMetric(subsystem string) workqueue.SettableGaugeMetric {
 	return register(
 		q,
 		"queue_unfinished_work",
@@ -191,7 +193,7 @@ func (q QueueMetricsProvider) NewUnfinishedWorkSecondsMetric(subsystem string) w
 }
 
 // NewLongestRunningProcessorSecondsMetric creates a new longest running processor seconds metric
-func (q QueueMetricsProvider) NewLongestRunningProcessorSecondsMetric(subsystem string) workqueue.SettableGaugeMetric {
+func (q *QueueMetricsProvider) NewLongestRunningProcessorSecondsMetric(subsystem string) workqueue.SettableGaugeMetric {
 	return register(
 		q,
 		"queue_longest_running_processor",
@@ -210,7 +212,7 @@ func (q QueueMetricsProvider) NewLongestRunningProcessorSecondsMetric(subsystem 
 }
 
 // NewRetriesMetric creates a new retries metric
-func (q QueueMetricsProvider) NewRetriesMetric(subsystem string) workqueue.CounterMetric {
+func (q *QueueMetricsProvider) NewRetriesMetric(subsystem string) workqueue.CounterMetric {
 	return register(
 		q,
 		"queue_retries",
