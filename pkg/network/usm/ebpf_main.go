@@ -165,6 +165,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 	return program, nil
 }
 
+// Init initializes the ebpf program.
 func (e *ebpfProgram) Init() error {
 	var err error
 	defer func() {
@@ -206,6 +207,7 @@ func (e *ebpfProgram) Init() error {
 	return err
 }
 
+// Start starts the ebpf program and the enabled protocols.
 func (e *ebpfProgram) Start() error {
 	// Mainly for tests, but possible for other cases as well, we might have a nil (not shared) connection protocol map
 	// between NPM and USM. In such a case we just create our own instance, but we don't modify the
@@ -260,6 +262,7 @@ func (e *ebpfProgram) Start() error {
 	return nil
 }
 
+// Close stops the ebpf program and cleans up all resources.
 func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
 	stopProtocolWrapper := func(protocol protocols.Protocol, m *manager.Manager) error {
