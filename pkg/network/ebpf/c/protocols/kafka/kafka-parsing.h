@@ -179,7 +179,7 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
 
 // this function is called by the socket-filter program to decide whether or not we should inspect
 // the contents of a certain packet, in order to avoid the cost of processing packets that are not
-// of interest such as empty ACKs, or encrypted traffic.
+// of interest such as empty ACKs.
 static __always_inline bool kafka_allow_packet(skb_info_t *skb_info) {
     // if payload data is empty, we only process it if the packet represents a TCP termination
     if (is_payload_empty(skb_info)) {

@@ -218,7 +218,7 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
 
 // this function is called by the socket-filter program to decide whether or not we should inspect
 // the contents of a certain packet, in order to avoid the cost of processing packets that are not
-// of interest such as empty ACKs,g or encrypted traffic.
+// of interest such as empty ACKs, or encrypted traffic.
 static __always_inline bool http_allow_packet(conn_tuple_t *tuple, skb_info_t *skb_info) {
     bool empty_payload = is_payload_empty(skb_info);
     if (empty_payload || tuple->sport == HTTPS_PORT || tuple->dport == HTTPS_PORT) {
