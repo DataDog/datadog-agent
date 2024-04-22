@@ -105,6 +105,7 @@ def _get_environment_for_cache() -> dict:
             "HOME",
             "HOSTNAME",
             "HOST_IP",
+            "INFOPATH",
             "INSTALL_SCRIPT_API_KEY_SSM_NAME",
             "INTEGRATION_WHEELS_CACHE_BUCKET",
             "IRBRC",
