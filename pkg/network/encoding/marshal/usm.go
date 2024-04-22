@@ -107,10 +107,6 @@ func (bc *USMConnectionIndex[K, V]) Find(c network.ConnectionStats) *USMConnecti
 		result.claimed = true
 	}
 
-	if log.ShouldLog(seelog.TraceLvl) {
-		log.Tracef("could not find connection %+v in usm data", c)
-	}
-
 	return result
 }
 
