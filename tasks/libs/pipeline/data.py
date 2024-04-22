@@ -1,6 +1,9 @@
 import re
+from collections import defaultdict
 
-from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
+from gitlab.v4.objects import ProjectJob
+
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
 
@@ -8,47 +11,47 @@ def get_failed_jobs(project_name: str, pipeline_id: str) -> FailedJobs:
     """
     Retrieves the list of failed jobs for a given pipeline id in a given project.
     """
+    repo = get_gitlab_repo(project_name)
+    pipeline = repo.pipelines.get(pipeline_id)
+    jobs = pipeline.jobs.list(per_page=100, all=True)
 
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
-
-    # gitlab.all_jobs yields a generator, it needs to be converted to a list to be able to
-    # go through it twice
-    jobs = list(gitlab.all_jobs(pipeline_id))
-
-    # Get instances of failed jobs
-    failed_jobs = {job["name"]: [] for job in jobs if job["status"] == "failed"}
-
-    # Group jobs per name
+    # Get instances of failed jobs grouped by name
+    failed_jobs = defaultdict(list)
     for job in jobs:
-        if job["name"] in failed_jobs:
-            failed_jobs[job["name"]].append(job)
+        if job.status == "failed":
+            failed_jobs[job.name].append(job)
 
     # There, we now have the following map:
     # job name -> list of jobs with that name, including at least one failed job
     processed_failed_jobs = FailedJobs()
     for job_name, jobs in failed_jobs.items():
         # We sort each list per creation date
-        jobs.sort(key=lambda x: x["created_at"])
+        jobs.sort(key=lambda x: x.created_at)
         # We truncate the job name to increase readability
         job_name = truncate_job_name(job_name)
+        job = jobs[-1]
         # Check the final job in the list: it contains the current status of the job
         # This excludes jobs that were retried and succeeded
-        failure_type, failure_reason = get_job_failure_context(gitlab.job_log(jobs[-1]["id"]))
-        final_status = {
-            "name": job_name,
-            "id": jobs[-1]["id"],
-            "stage": jobs[-1]["stage"],
-            "status": jobs[-1]["status"],
-            "tag_list": jobs[-1]["tag_list"],
-            "allow_failure": jobs[-1]["allow_failure"],
-            "url": jobs[-1]["web_url"],
-            "retry_summary": [job["status"] for job in jobs],
-            "failure_type": failure_type,
-            "failure_reason": failure_reason,
-        }
+        trace = str(repo.jobs.get(job.id, lazy=True).trace(), 'utf-8')
+        failure_type, failure_reason = get_job_failure_context(trace)
+        final_status = ProjectJob(
+            repo.manager,
+            attrs={
+                "name": job_name,
+                "id": job.id,
+                "stage": job.stage,
+                "status": job.status,
+                "tag_list": job.tag_list,
+                "allow_failure": job.allow_failure,
+                "web_url": job.web_url,
+                "retry_summary": [ijob.status for ijob in jobs],
+                "failure_type": failure_type,
+                "failure_reason": failure_reason,
+            },
+        )
 
         # Also exclude jobs allowed to fail
-        if final_status["status"] == "failed" and should_report_job(job_name, final_status["allow_failure"]):
+        if final_status.status == "failed" and should_report_job(job_name, final_status.allow_failure):
             processed_failed_jobs.add_failed_job(final_status)
 
     return processed_failed_jobs
