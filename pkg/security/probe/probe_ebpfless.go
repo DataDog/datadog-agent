@@ -107,15 +107,16 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 
 func copyFileAttributes(src *ebpfless.FileSyscallMsg, dst *model.FileEvent) {
 	if strings.HasPrefix(src.Filename, "memfd:") {
-		dst.PathnameStr = ""
-		dst.BasenameStr = src.Filename
+		dst.SetPathnameStr("")
+		dst.SetBasenameStr(src.Filename)
 	} else {
-		dst.PathnameStr = src.Filename
-		dst.BasenameStr = filepath.Base(src.Filename)
+		dst.SetPathnameStr(src.Filename)
+		dst.SetBasenameStr(filepath.Base(src.Filename))
 	}
 	dst.CTime = src.CTime
 	dst.MTime = src.MTime
 	dst.Mode = uint16(src.Mode)
+	dst.Inode = src.Inode
 	if src.Credentials != nil {
 		dst.UID = src.Credentials.UID
 		dst.User = src.Credentials.User
