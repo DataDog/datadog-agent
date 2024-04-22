@@ -12,10 +12,6 @@ set -e
 
 case "$1" in
     purge)
-        echo "Deleting dd-installer user"
-        deluser dd-installer --quiet
-        echo "Deleting dd-installer group"
-        (getent group dd-installer >/dev/null && delgroup dd-installer --quiet) || true
         echo "Force-deleting $INSTALL_DIR, $PACKAGES_DIR, $PACKAGES_LOCK_DIR"
         rm -rf $INSTALL_DIR
         rm -rf $PACKAGES_DIR
