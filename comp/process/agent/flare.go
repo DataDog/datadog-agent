@@ -32,6 +32,10 @@ func (fh *FlareHelper) FillFlare(fb flaretypes.FlareBuilder) error {
 	defer fh.m.Unlock()
 
 	for _, check := range fh.Checks {
+		if check.Realtime() {
+			continue
+		}
+
 		checkName := check.Name()
 		filename := fmt.Sprintf("%s_check_output.json", checkName)
 		fb.AddFileFromFunc(filename, func() ([]byte, error) {
