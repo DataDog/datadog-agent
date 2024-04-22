@@ -288,7 +288,7 @@ new-e2e-installer:
     - deploy_deb_testing-i7_amd64
     - deploy_rpm_testing-i7_arm64
     - deploy_rpm_testing-i7_x64
-    - deploy_installer_oci
+    - qa_installer_oci
   variables:
     TARGETS: ./tests/installer
     TEAM: fleet
