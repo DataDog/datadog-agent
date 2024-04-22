@@ -7,7 +7,6 @@
 package powershellmoduletest
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	runneros "os"
@@ -157,10 +156,9 @@ func (v *vmSuite) testAgentUpgradeWithDotnetTracer(t *testing.T) {
 	v.Assert().NotEqual(newAPIKey, configuredAPIKey)
 
 	// Validate that the correct agent version is running
-	projectLocation, err := windowsAgent.GetInstallPathFromRegistry(vm)
-	v.Require().NoError(err)
-	installedVersion, err := v.getAgentVersion(projectLocation)
-	v.Require().NoError(err)
+	testClient := common.NewWindowsTestClient(t, vm)
+	installedVersion, err := testClient.GetAgentVersion()
+	v.Assert().NoError(err)
 	windowsAgent.TestAgentVersion(t, agentVersion, installedVersion)
 
 	// Validate the .NET Tracer install succeeded
@@ -196,21 +194,4 @@ func (v *vmSuite) setupTestHost() {
 func (v *vmSuite) getConfiguredValue(applicationDataDirectory, keyName string) (string, error) {
 	vm := v.Env().RemoteHost
 	return vm.Execute(fmt.Sprintf("$(Get-Content -path '%s\\datadog.yaml' | ConvertFrom-Yaml).%s", applicationDataDirectory, keyName))
-}
-
-func (v *vmSuite) getAgentVersion(projectLocation string) (string, error) {
-	vm := v.Env().RemoteHost
-
-	statusString, err := vm.Execute(fmt.Sprintf("& '%s\\bin\\agent.exe' status -j", projectLocation))
-	if err != nil {
-		return "", err
-	}
-
-	statusJSON := map[string]any{}
-	err = json.Unmarshal([]byte(statusString), &statusJSON)
-	if err != nil {
-		return "", err
-	}
-
-	return statusJSON["version"].(string), nil
 }
