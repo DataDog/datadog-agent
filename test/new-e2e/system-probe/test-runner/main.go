@@ -78,6 +78,7 @@ func getTimeout(pkg string) time.Duration {
 
 func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, error) {
 	var matches []string
+
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -233,6 +234,19 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	return nil
 }
 
+func getRealPath(dir string) (string, error) {
+	target := dir
+
+	if fi, err := os.Lstat(target); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		target, err = os.Readlink(target)
+		if err != nil {
+			return "", fmt.Errorf("unable to resolve symlink for %s: %w", target, err)
+		}
+	}
+
+	return target, nil
+}
+
 func buildTestConfiguration() (*testConfig, error) {
 	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
 	packageRunConfigPtr := flag.String("packages-run-config", "", "Configuration for controlling which tests run in a package")
@@ -259,13 +273,24 @@ func buildTestConfiguration() (*testConfig, error) {
 		}
 	}
 
+	// get real path because the `WalkDir` helper does not support following symlinks
+	root, err := getRealPath(*testRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	tools, err := getRealPath(*testTools)
+	if err != nil {
+		return nil, err
+	}
+
 	return &testConfig{
 		runCount:          *runCount,
 		verbose:           *verbose,
 		retryCount:        *retryPtr,
 		packagesRunConfig: breakdown,
-		testDirRoot:       *testRoot,
-		testingTools:      *testTools,
+		testDirRoot:       root,
+		testingTools:      tools,
 		extraParams:       *extraParams,
 	}, nil
 }
