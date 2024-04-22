@@ -13,6 +13,8 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/servicegraphconnector v0.98.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.98.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/fileexporter v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/signalfxexporter v0.98.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/splunkhecexporter v0.98.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/ackextension v0.98.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/asapauthextension v0.98.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/awsproxy v0.98.0
@@ -71,7 +73,6 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/cloudfoundryreceiver v0.98.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/collectdreceiver v0.98.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/couchdbreceiver v0.98.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/datadogreceiver v0.98.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsreceiver v0.98.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/elasticsearchreceiver v0.98.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/expvarreceiver v0.98.0
@@ -141,6 +142,7 @@ require (
 	go.opentelemetry.io/collector/exporter v0.98.0
 	go.opentelemetry.io/collector/exporter/debugexporter v0.98.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.98.0
+	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.95.0
 	go.opentelemetry.io/collector/extension v0.98.0
 	go.opentelemetry.io/collector/extension/ballastextension v0.98.0
 	go.opentelemetry.io/collector/extension/zpagesextension v0.98.0
@@ -193,7 +195,6 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.51.1-0.20240301173728-334e775e420a // indirect
 	github.com/DataDog/zstd v1.5.0 // indirect
 	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.22.0 // indirect
@@ -412,6 +413,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/splunk v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sqlquery v0.98.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchperresourceattr v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/experimentalmetricmetadata v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.98.0 // indirect
