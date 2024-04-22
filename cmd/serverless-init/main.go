@@ -13,9 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -27,9 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
-	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 
+	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
@@ -75,9 +72,10 @@ func main() {
 	}
 }
 
+// removing these unused dependencies will cause silent crash due to fx framework
 func run(secretsManager secrets.Component, ac autodiscovery.Component) {
-	loggerName, modeRunner := mode.DetectMode()
-	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(loggerName, secretsManager, ac)
+	_, modeRunner := mode.DetectMode()
+	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup()
 
 	modeRunner(logConfig)
 
@@ -85,7 +83,7 @@ func run(secretsManager secrets.Component, ac autodiscovery.Component) {
 	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
 }
 
-func setup(loggerName string, secretsManager secrets.Component, ac autodiscovery.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup() (cloudservice.CloudService, *serverlessInitLog.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
@@ -103,11 +101,7 @@ func setup(loggerName string, secretsManager secrets.Component, ac autodiscovery
 	origin := cloudService.GetOrigin()
 	prefix := cloudService.GetPrefix()
 
-	logConfig := serverlessInitLog.CreateConfig(origin)
-
-	// Disable remote configuration for now as it just spams the debug logs
-	// and provides no value.
-	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
+	agentLogConfig := serverlessInitLog.CreateConfig(origin)
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
@@ -115,11 +109,7 @@ func setup(loggerName string, secretsManager secrets.Component, ac autodiscovery
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
-	common.LoadComponents(secretsManager, workloadmeta.GetGlobalStore(), ac, config.Datadog.GetString("confd_path"))
-	ac.LoadAndRun(context.Background())
-	logsAgent := serverlessInitLog.SetupLogAgent(logConfig, tags)
-
-	logsAgent.AddScheduler(adScheduler.New(ac))
+	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags)
 
 	setupHealthCheck()
 
@@ -132,7 +122,7 @@ func setup(loggerName string, secretsManager secrets.Component, ac autodiscovery
 	setupOtlpAgent(metricAgent)
 
 	go flushMetricsAgent(metricAgent)
-	return cloudService, logConfig, traceAgent, metricAgent, logsAgent
+	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
 }
 
 func setupHealthCheck() {
