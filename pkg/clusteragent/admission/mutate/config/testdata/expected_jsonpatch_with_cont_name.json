@@ -1,0 +1,58 @@
+[
+    {
+        "value": "DD_INTERNAL_POD_UID",
+        "op": "replace",
+        "path": "/spec/containers/0/env/0/name"
+    },
+    {
+        "op": "remove",
+        "path": "/spec/containers/0/env/0/value"
+    },
+    {
+        "value": {
+            "fieldRef": {
+                "fieldPath": "metadata.uid"
+            }
+        },
+        "op": "add",
+        "path": "/spec/containers/0/env/0/valueFrom"
+    },
+    {
+        "value": "DD_ENTITY_ID",
+        "op": "replace",
+        "path": "/spec/containers/0/env/1/name"
+    },
+    {
+        "value": "en-$(DD_INTERNAL_POD_UID)/container",
+        "op": "replace",
+        "path": "/spec/containers/0/env/1/value"
+    },
+    {
+        "value": {
+            "name": "DD_AGENT_HOST",
+            "valueFrom": {
+                "fieldRef": {
+                    "fieldPath": "status.hostIP"
+                }
+            }
+        },
+        "op": "add",
+        "path": "/spec/containers/0/env/-"
+    },
+    {
+        "value": {
+            "name": "container-env-foo",
+            "value": "container-env-foo-env-value"
+        },
+        "op": "add",
+        "path": "/spec/containers/0/env/-"
+    },
+    {
+        "value": {
+            "name": "container-env-bar",
+            "value": "container-env-bar-env-value"
+        },
+        "op": "add",
+        "path": "/spec/containers/0/env/-"
+    }
+]

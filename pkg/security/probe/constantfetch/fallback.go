@@ -51,6 +51,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getTTYNameOffset(f.kernelVersion)
 	case OffsetNameCredStructUID:
 		value = getCredsUIDOffset(f.kernelVersion)
+	case OffsetNameCredStructCapInheritable:
+		value = getCredCapInheritableOffset(f.kernelVersion)
 	case OffsetNameBPFMapStructID:
 		value = getBpfMapIDOffset(f.kernelVersion)
 	case OffsetNameBPFMapStructName:
@@ -322,6 +324,10 @@ func getCredsUIDOffset(kv *kernel.Version) uint64 {
 	default:
 		return 4
 	}
+}
+
+func getCredCapInheritableOffset(kv *kernel.Version) uint64 {
+	return getCredsUIDOffset(kv) + 36
 }
 
 func getBpfMapIDOffset(kv *kernel.Version) uint64 {
