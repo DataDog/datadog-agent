@@ -56,11 +56,22 @@ type SourceLine struct {
 	Line     string `json:"line"`
 }
 
+// RegisterState holds the state for a given register
+type RegisterState struct {
+	Register int    `json:"register"`
+	Live     string `json:"live"`
+	Type     string `json:"type"`
+	Value    string `json:"value"`
+	Precise  bool   `json:"precise"`
+}
+
 // InstructionInfo holds information about an eBPF instruction extracted from the verifier
 type InstructionInfo struct {
-	TimesProcessed int         `json:"times_processed"`
-	Source         *SourceLine `json:"source"`
-	Code           string      `json:"code"`
+	TimesProcessed   int                    `json:"times_processed"`
+	Source           *SourceLine            `json:"source"`
+	Code             string                 `json:"code"`
+	RegisterState    map[int]*RegisterState `json:"register_state"`
+	RegisterStateRaw string                 `json:"register_state_raw"`
 }
 
 // SourceLineStats holds the aggregate verifier statistics for a given C source line
@@ -427,10 +438,21 @@ func unmarshalComplexity(output string, progSourceMap map[int]*SourceLine) (*Com
 	}
 
 	insnRegex := regexp.MustCompile(`^([0-9]+): \([0-9a-f]+\) (.*)`)
+	regStateRegex := regexp.MustCompile(`^([0-9]+): (R[0-9]+.*)`)
+	singleRegStateRegex := regexp.MustCompile(`R([0-9]+)(_[^=]+)?=([^ ]+)`)
+	regInfoRegex := regexp.MustCompile(`^([a-z_]+)(P)?(-?[0-9]+|\((.*)\))`)
+
+	var regStateMatch []string // Matched groups from the last regStateRegex match
 
 	// Read all the verifier log, parse the assembly instructions and count how many times we've seen them
 	for _, line := range strings.Split(output, "\n") {
-		match := insnRegex.FindStringSubmatch(line)
+		match := regStateRegex.FindStringSubmatch(line)
+		if len(match) > 0 {
+			regStateMatch = match // Save the last match with register state, we will use it when we get to an instruction
+			continue
+		}
+
+		match = insnRegex.FindStringSubmatch(line)
 		if len(match) == 0 {
 			continue // Only interested in lines that contain assembly instructions
 		}
@@ -445,6 +467,95 @@ func unmarshalComplexity(output string, progSourceMap map[int]*SourceLine) (*Com
 		complexity.InsnMap[insIdx].Code = match[2]
 		if progSourceMap != nil {
 			complexity.InsnMap[insIdx].Source = progSourceMap[insIdx]
+		}
+
+		// Now parse the register state if we have it and the instruction number matches
+		if len(regStateMatch) >= 3 && regStateMatch[1] == match[1] {
+			regData := regStateMatch[2]
+
+			// For ease of parsing, replace certain patterns that introduce spaces and make parsing harder
+			regData = strings.ReplaceAll(regData, "; ", ";")
+
+			regMatches := singleRegStateRegex.FindAllStringSubmatch(regData, -1)
+			regState := make(map[int]*RegisterState)
+
+			for _, regMatch := range regMatches {
+				regNum, err := strconv.Atoi(regMatch[1])
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse register number (line is '%s', register is '%s'): %w", line, regData, err)
+				}
+
+				livenessCode := regMatch[2]
+				var liveness string
+
+				switch livenessCode {
+				case "_w":
+					liveness = "written"
+				case "_r":
+					liveness = "read"
+				case "_D":
+					liveness = "done"
+				default:
+					liveness = ""
+				}
+
+				regValue := regMatch[3]
+				infoMatches := regInfoRegex.FindStringSubmatch(regValue)
+				if len(infoMatches) == 0 {
+					return nil, fmt.Errorf("failed to parse register info (line is '%s', register is '%s')", line, regData)
+				}
+
+				regType := infoMatches[1]
+				if regType == "inv" {
+					regType = "scalar" // for some reason the verifier logs scalars as "inv", which is confusing
+				}
+
+				if regType == "scalar" {
+					// Parse scalar values a bit better
+					if infoMatches[4] == "" {
+						regValue = infoMatches[3] // Parsed the direct scalar value
+					} else {
+						// Parse the interval
+						minValue := int64(-9223372036854775808)
+						maxValue := int64(9223372036854775807)
+						hasRange := false
+
+						for _, kv := range strings.Split(infoMatches[4], ",") {
+							kvParts := strings.Split(kv, "=")
+							if strings.Contains(kvParts[0], "min") {
+								// Ignore errors here, mostly due to sizes (can't parse UINT_MAX in INT64) and for now we don't care
+								// about
+								v, _ := strconv.ParseInt(kvParts[1], 10, 64)
+								minValue = max(v, minValue)
+								hasRange = true
+							} else if strings.Contains(kvParts[0], "max") {
+								v, _ := strconv.ParseInt(kvParts[1], 10, 64)
+								maxValue = min(v, maxValue)
+								hasRange = true
+							}
+						}
+
+						if hasRange {
+							regValue = fmt.Sprintf("[%s, %s]", tryPowerOfTwoRepresentation(minValue), tryPowerOfTwoRepresentation(maxValue))
+						} else {
+							regValue = "?"
+						}
+					}
+				}
+
+				regState[regNum] = &RegisterState{
+					Register: regNum,
+					Live:     liveness,
+					Type:     regType,
+					Value:    regValue,
+					Precise:  infoMatches[2] == "P",
+				}
+			}
+			complexity.InsnMap[insIdx].RegisterState = regState
+			complexity.InsnMap[insIdx].RegisterStateRaw = regStateMatch[0]
+
+		} else {
+			log.Printf("WARN: No register state found for instruction %d\n", insIdx)
 		}
 	}
 
@@ -471,4 +582,29 @@ func unmarshalComplexity(output string, progSourceMap map[int]*SourceLine) (*Com
 	}
 
 	return complexity, nil
+}
+
+func tryPowerOfTwoRepresentation(value int64) string {
+	if value == 0 {
+		return "0"
+	} else if value == math.MaxInt64 {
+		// Compute here to avoid overflow
+		return "2^63 - 1"
+	} else if value == math.MinInt64 {
+		return "-2^63"
+	}
+
+	sign := ""
+	if value < 0 {
+		sign = "-"
+		value = -value
+	}
+
+	if (value & (value - 1)) == 0 { // Exact power of two, return a nice representation
+		return fmt.Sprintf("%s2^%d", sign, int(math.Log2(float64(value))))
+	} else if ((value + 1) & value) == 0 { // Value is a power of two minus one
+		return fmt.Sprintf("%s2^%d - 1", sign, int(math.Log2(float64(value+1))))
+	} else {
+		return fmt.Sprintf("%s%d (%s0x%X)", sign, value, sign, value)
+	}
 }
