@@ -164,7 +164,7 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 	// Add tracing and send the request
 	req = req.WithContext(ctx)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("DD-API-KEY", apiKey)
+	req.Header.Set("DD-API-KEY", apiKey+"cc")
 
 	resp, err := client.Do(req)
 
@@ -199,10 +199,12 @@ func verifyEndpointResponse(diagCfg diagnosis.Config, statusCode int, responseBo
 	var verifyReport string
 	var newErr error
 
+	fiveHundred := 500
+
 	scrubbedResponseBody := scrubber.ScrubLine(string(responseBody))
-	if !diagCfg.Verbose && len(scrubbedResponseBody) > 500 {
-		scrubbedResponseBody = scrubbedResponseBody[:500] + "..."
-		scrubbedResponseBody += fmt.Sprintf("\nResponse body is %v bytes long, truncated at 500", len(responseBody))
+	if !diagCfg.Verbose && len(scrubbedResponseBody) > fiveHundred {
+		scrubbedResponseBody = scrubbedResponseBody[:fiveHundred] + "..."
+		scrubbedResponseBody += fmt.Sprintf("\nResponse body is %v bytes long, truncated at %v", len(responseBody), fiveHundred)
 		scrubbedResponseBody += "\nTo display the whole body, please add \"--verbose\" or \"-v\" flag to the command."
 	}
 
