@@ -145,7 +145,7 @@ require (
 	github.com/alecthomas/participle v0.7.1 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
 	github.com/aquasecurity/trivy-db v0.0.0-20231005141211-4fc651f7ac8d
-	github.com/avast/retry-go/v4 v4.5.0
+	github.com/avast/retry-go/v4 v4.6.0
 	github.com/aws/aws-lambda-go v1.37.0
 	github.com/aws/aws-sdk-go v1.49.21 // indirect
 	github.com/beevik/ntp v0.3.0
