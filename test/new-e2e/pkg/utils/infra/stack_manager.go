@@ -344,10 +344,10 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 	for {
 		upCount++
 		upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
-		upResult, err = stack.Up(upCtx, progressStreamsUpOption, optup.DebugLogging(loggingOptions))
+		upResult, stackUpErr := stack.Up(upCtx, progressStreamsUpOption, optup.DebugLogging(loggingOptions))
 		cancel()
 
-		if err == nil {
+		if stackUpErr == nil {
 			err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", name), "", []string{"operation:up", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)}, logger)
 			if err != nil {
 				fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
@@ -356,7 +356,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		}
 
 		retryStrategy := sm.getRetryStrategyFrom(err, upCount)
-		err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), err.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)}, logger)
+		err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), stackUpErr.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)}, logger)
 		if err != nil {
 			fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
 		}
@@ -366,14 +366,14 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		case reCreate:
 			fmt.Fprint(logger, "Got error during stack up, recreating stack")
 			destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
-			_, err := stack.Destroy(destroyCtx, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
+			_, stackDestroyErr := stack.Destroy(destroyCtx, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 			cancel()
-			if err != nil {
-				return stack, auto.UpResult{}, err
+			if stackDestroyErr != nil {
+				return stack, auto.UpResult{}, stackDestroyErr
 			}
 		case noRetry:
 			fmt.Fprint(logger, "Got error during stack up, giving up")
-			return stack, upResult, err
+			return stack, upResult, stackUpErr
 		}
 	}
 
