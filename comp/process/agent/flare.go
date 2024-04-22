@@ -41,7 +41,7 @@ func (fh *FlareHelper) FillFlare(fb flaretypes.FlareBuilder) error {
 		fb.AddFileFromFunc(filename, func() ([]byte, error) {
 			checkOutput, ok := checks.GetCheckOutput(checkName)
 			if !ok {
-				return []byte(checkName+" check is not running or has not been scheduled yet\n"), nil
+				return []byte(checkName + " check is not running or has not been scheduled yet\n"), nil
 			}
 			checkJSON, err := json.MarshalIndent(checkOutput, "", "  ")
 			if err != nil {
