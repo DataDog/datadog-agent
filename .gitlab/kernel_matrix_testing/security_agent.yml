@@ -47,28 +47,6 @@ kmt_setup_env_secagent_x64:
     TEST_COMPONENT: security-agent
     TEST_SETS: all_tests
 
-.prepare_common_dependency_upload:
-  # Build dependencies directory
-  - mkdir -p $DEPENDENCIES
-  - pushd $DEPENDENCIES
-  # copy clang and llc bins
-  - mkdir -p $EMBEDDED_BIN
-  - cp $CLANG_BPF $EMBEDDED_BIN
-  - cp $LLC_BPF $EMBEDDED_BIN
-  # copy gotestsum and test2json
-  - mkdir -p $GO_BIN
-  - cp $GOTESTSUM $GO_BIN
-  - cp $TEST2JSON $GO_BIN
-  - popd
-  - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner && go build -o $DEPENDENCIES/test-runner && popd
-  - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review && go build -o $DEPENDENCIES/test-json-review && popd
-  - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner/files/*.json $DEPENDENCIES/
-  # package all the dependencies
-  - ls -la $DEPENDENCIES
-  - pushd $DD_AGENT_TESTING_DIR/$ARCH
-  - tar czvf ../$ARCHIVE_NAME dependencies
-  - popd
-
 .upload_secagent_tests:
   stage: kernel_matrix_testing_prepare
   allow_failure: true
@@ -78,22 +56,15 @@ kmt_setup_env_secagent_x64:
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
   script:
-    - !reference [.prepare_common_dependency_upload]
     # copy agent tests
-    - mkdir -p $SECURITY_AGENT_TESTS
-    - cp -R $KITCHEN_TESTS $SECURITY_AGENT_TESTS
-    - mkdir -p $SECURITY_AGENT_EBPF_BYTECODE
-    - cp -rv $EBPF_OBJECT_FILES/* $SECURITY_AGENT_EBPF_BYTECODE
-    - pushd $DD_AGENT_TESTING_DIR/$ARCH
-    - tar czvf ../$TEST_ARCHIVE_NAME tests
+    - pushd $CI_PROJECT_DIR/kmt-deps/ci/$ARCH
+    - tar czvf $TEST_ARCHIVE_NAME opt
     - popd
     # upload tests
     - !reference [.wait_for_instance]
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
-    - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
-    - scp $DD_AGENT_TESTING_DIR/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
-    - ssh metal_instance "tar xzf /opt/kernel-version-testing/${TEST_ARCHIVE_NAME} -C /opt/kernel-version-testing"
+    - scp $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
     # build connector
     - pushd $CI_PROJECT_DIR/test/new-e2e
     - go build -o $CI_PROJECT_DIR/connector-${ARCH} $CI_PROJECT_DIR/test/new-e2e/system-probe/connector/main.go
@@ -101,21 +72,8 @@ kmt_setup_env_secagent_x64:
     # upload connector to metal instance
     - scp $CI_PROJECT_DIR/connector-${ARCH} metal_instance:/home/ubuntu/connector
   variables:
-    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/dependencies
-    EMBEDDED_BIN: opt/datadog-agent/embedded/bin
-    EMBEDDED_INC: opt/datadog-agent/embedded/include
-    CLANG_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/clang-bpf
-    LLC_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/llc-bpf
-    GO_BIN: go/bin
-    GOTESTSUM: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/gotestsum
-    TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/test2json
-    SECURITY_AGENT_TESTS: $DD_AGENT_TESTING_DIR/$ARCH/tests/system-probe-tests/pkg/security
-    KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/tests
-    EBPF_OBJECT_FILES: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode
-    SECURITY_AGENT_EBPF_BYTECODE: $DD_AGENT_TESTING_DIR/$ARCH/tests/system-probe-tests/pkg/ebpf/bytecode/build
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     TEST_COMPONENT: security-agent
-    ARCHIVE_NAME: dependencies-$ARCH.tar.gz
     TEST_ARCHIVE_NAME: tests-$ARCH.tar.gz
   artifacts:
     when: always
