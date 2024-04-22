@@ -222,7 +222,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 		agentCollectors["trace"] = serviceProfileCollector("apm_config.debug.port", traceCpusec)
 	}
 
-	if debugPort := pkgconfig.Datadog.GetInt("system_probe_config.debug_port"); debugPort > 0 {
+	if pkgconfig.Datadog.GetBool("system_probe_config.enabled") {
 		agentCollectors["system-probe"] = serviceProfileCollector("system_probe_config.debug_port", seconds)
 	}
 

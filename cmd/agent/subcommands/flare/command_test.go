@@ -54,6 +54,7 @@ func TestReadProfileData(t *testing.T) {
 	mockConfig.SetWithoutSource("apm_config.receiver_timeout", "10")
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
+	mockConfig.SetWithoutSource("system_probe_config.enabled", true)
 	mockConfig.SetWithoutSource("system_probe_config.debug_port", port)
 
 	data, err := readProfileData(10)
@@ -108,6 +109,7 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 	mockConfig.SetWithoutSource("apm_config.receiver_timeout", "10")
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
+	mockConfig.SetWithoutSource("system_probe_config.enabled", true)
 	mockConfig.SetWithoutSource("system_probe_config.debug_port", port)
 
 	data, err := readProfileData(10)
