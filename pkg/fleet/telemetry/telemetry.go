@@ -3,22 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package daemon
+// Package telemetry provides the telemetry for fleet components.
+package telemetry
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -27,14 +28,16 @@ import (
 )
 
 const (
-	telemetryEndpoint = "/v0.4/traces"
+	telemetrySubdomain = "instrumentation-telemetry-intake"
+	telemetryEndpoint  = "/v0.4/traces"
 )
 
-// Telemetry handles the installer telemetry
+// Telemetry handles the telemetry for fleet components.
 type Telemetry struct {
 	telemetryClient internaltelemetry.Client
 
-	site string
+	site    string
+	service string
 
 	listener *telemetryListener
 	server   *http.Server
@@ -42,16 +45,16 @@ type Telemetry struct {
 }
 
 // NewTelemetry creates a new telemetry instance
-func NewTelemetry(config config.Reader) (*Telemetry, error) {
+func NewTelemetry(apiKey string, site string, service string) (*Telemetry, error) {
 	endpoint := &traceconfig.Endpoint{
-		Host:   utils.GetMainEndpoint(config, traceconfig.TelemetryEndpointPrefix, "updater.telemetry.dd_url"),
-		APIKey: utils.SanitizeAPIKey(config.GetString("api_key")),
+		Host:   fmt.Sprintf("https://%s.%s", telemetrySubdomain, strings.TrimSpace(site)),
+		APIKey: apiKey,
 	}
-	site := config.GetString("site")
 	listener := newTelemetryListener()
 	t := &Telemetry{
-		telemetryClient: internaltelemetry.NewClient(http.DefaultClient, []*traceconfig.Endpoint{endpoint}, "datadog-installer", site == "datad0g.com"),
+		telemetryClient: internaltelemetry.NewClient(http.DefaultClient, []*traceconfig.Endpoint{endpoint}, service, site == "datad0g.com"),
 		site:            site,
+		service:         service,
 		listener:        listener,
 		server:          &http.Server{},
 		client: &http.Client{
@@ -77,7 +80,7 @@ func (t *Telemetry) Start(_ context.Context) error {
 		env = "staging"
 	}
 	tracer.Start(
-		tracer.WithServiceName("datadog-installer"),
+		tracer.WithServiceName(t.service),
 		tracer.WithServiceVersion(version.AgentVersion),
 		tracer.WithEnv(env),
 		tracer.WithGlobalTag("site", t.site),
