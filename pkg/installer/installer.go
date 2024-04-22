@@ -228,6 +228,7 @@ func (i *installerImpl) install(ctx context.Context, url string) (err error) {
 		return fmt.Errorf("could not install: %w", err)
 	}
 	log.Infof("Installer: Successfully installed package from %s", url)
+	return nil
 }
 
 // StartExperiment starts an experiment with the given package.
