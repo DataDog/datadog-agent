@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Create missing default configuration files during upgrade, change, and repair actions of the Windows Installer.
+    Create missing default configuration files during the upgrade, change, and repair actions of the Windows Installer.
