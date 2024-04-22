@@ -56,7 +56,7 @@ tests_ebpf_arm64:
     - inv -e install-tools
     - !reference [.retrieve_sysprobe_deps]
   script:
-    - inv -e kmt.prepare --ci
+    - inv -e kmt.prepare --ci --component="system-probe"
 
 prepare_sysprobe_ebpf_functional_tests_arm64:
   extends: .prepare_sysprobe_ebpf_functional_tests
