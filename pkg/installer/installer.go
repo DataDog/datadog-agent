@@ -193,7 +193,6 @@ func (i *installerImpl) Stop(_ context.Context) error {
 	i.rc.Close()
 	close(i.stopChan)
 	i.requestsWG.Wait()
-	close(i.requests)
 	return nil
 }
 
