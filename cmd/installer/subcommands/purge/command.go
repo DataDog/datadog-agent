@@ -8,6 +8,7 @@ package purge
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -66,13 +67,12 @@ func purgeFxWrapper(ctx context.Context, params *cliParams) error {
 }
 
 func purge(ctx context.Context, params *cliParams, _ log.Component, _ telemetry.Component) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "cmd/purge")
+	span, ctx := tracer.StartSpanFromContext(ctx, "cmd_purge")
 	defer func() { span.Finish(tracer.WithError(err)) }()
-
 	span.SetTag("params.pkg", params.pkg)
 
-	if params.pkg != "" {
-		return installer.PurgePackage(ctx, params.pkg)
+	if params.pkg == "" {
+		return fmt.Errorf("missing package name")
 	}
-	return installer.Purge(ctx)
+	return installer.Remove(ctx, params.pkg)
 }
