@@ -524,10 +524,8 @@ def ninja_copy_ebpf_files(nw, component, kmt_paths, filter_fn = lambda _: True):
     ebpf_files = [
         os.path.abspath(i) for i in glob("pkg/ebpf/bytecode/build/**/*", recursive=True) if os.path.isfile(i) and Path(i).suffix in ['.c', '.o'] and filter_fn(i)
     ]
-    if component == "security-agent":
-        output = kmt_paths.secagent_tests
-    else:
-        output = kmt_paths.sysprobe_tests
+
+    output = kmt_paths.secagent_tests if component == "security-agent" else kmt_paths.sysprobe_tests
 
     for file in ebpf_files:
         out = f"{output}/{os.path.relpath(file)}"
@@ -589,8 +587,7 @@ def prepare(
 ):
     if not ci:
         stack = check_and_get_stack(stack)
-        if not stacks.stack_exists(stack):
-            raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+        assert stacks.stack_exists(stack), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
     else:
         stack = "ci"
 
@@ -692,12 +689,7 @@ def build_target_packages(filter_packages):
     if filter_packages == []:
         return all_packages
 
-    filtered = list()
-    for pkg in all_packages:
-        if os.path.relpath(pkg) in filter_packages:
-            filtered.append(pkg)
-
-    return filtered
+    return [pkg for pkg in all_packages if os.path.relpath(pkg) in filter_packages]
 
 
 def build_object_files(ctx, fp):
@@ -718,11 +710,9 @@ def kmt_sysprobe_prepare(
     if ci:
         stack = "ci"
 
-    if stack is None:
-        raise Exit("A stack name must be provided")
+    assert stack is not None, "A stack name must be provided"
 
-    if arch is None or arch == "local":
-        raise Exit("No architecture provided")
+    assert arch is not None and arch != "local", "No architecture provided"
 
     check_for_ninja(ctx)
 
@@ -851,8 +841,7 @@ def test(
     test_extra_arguments=None,
 ):
     stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+    assert stacks.stack_exists(stack), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
 
     if vms is None:
         vms = ",".join(stacks.get_all_vms_in_stack(stack))
@@ -862,8 +851,7 @@ def test(
     domains = filter_target_domains(vms, infra)
     used_archs = get_archs_in_domains(domains)
 
-    if len(domains) == 0:
-        raise Exit(f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack")
+    assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
     info("[+] Detected architectures in target VMs: " + ", ".join(used_archs))
 
@@ -945,14 +933,12 @@ def build(
     layout: str | None = "tasks/kernel_matrix_testing/build-layout.json",
 ):
     stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+    assert stacks.stack_exists(stack), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
 
     if arch is None:
         arch = "local"
 
-    if not os.path.exists(layout):
-        raise Exit(f"File {layout} does not exist")
+    assert os.path.exists(layout), f"File {layout} does not exist"
 
     arch = full_arch(arch)
     paths = KMTPaths(stack, arch)
@@ -963,8 +949,7 @@ def build(
     domains = filter_target_domains(vms, infra, arch)
     cc = get_compiler(ctx, arch)
 
-    if len(domains) == 0:
-        raise Exit(f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack")
+    assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
     cc.exec(
         f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e system-probe.build --no-bundle",
@@ -982,8 +967,7 @@ def build(
 @task
 def clean(ctx: Context, stack: str | None = None, container=False, image=False):
     stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+    assert stacks.stack_exists(stack), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
 
     cc = get_compiler(ctx, full_arch("local"))
     cc.exec("inv -e system-probe.clean", run_dir=CONTAINER_AGENT_PATH)
