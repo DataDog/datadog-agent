@@ -9,28 +9,23 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
-	"sync"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 )
 
-// FlareHelper
+// FlareHelper is a helper struct to fill the flare with check output.
 type FlareHelper struct {
-	m      sync.Mutex
 	Checks []checks.Check
 }
 
-// NewNewFlareHelper
+// NewNewFlareHelper creates a new FlareHelper to be provided by the process agent component.
 func NewFlareHelper(checks []checks.Check) *FlareHelper {
 	return &FlareHelper{Checks: checks}
 }
 
 // FillFlare is the callback function for the flare.
 func (fh *FlareHelper) FillFlare(fb flaretypes.FlareBuilder) error {
-	fh.m.Lock()
-	defer fh.m.Unlock()
-
 	for _, check := range fh.Checks {
 		if check.Realtime() {
 			continue
