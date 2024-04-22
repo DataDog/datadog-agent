@@ -6,7 +6,7 @@
 // for now the installer is not supported on windows
 //go:build !windows
 
-package installer
+package daemon
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/installer/packages/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
@@ -119,7 +119,7 @@ func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
 }
 
 type testInstaller struct {
-	*installerImpl
+	*daemonImpl
 	rcc *testRemoteConfigClient
 	pm  *testPackageManager
 }
@@ -130,16 +130,16 @@ func newTestInstaller() *testInstaller {
 	rcc := newTestRemoteConfigClient()
 	rc := &remoteConfig{client: rcc}
 	i := &testInstaller{
-		installerImpl: newInstaller(rc, pm, true),
-		rcc:           rcc,
-		pm:            pm,
+		daemonImpl: newDaemon(rc, pm, true),
+		rcc:        rcc,
+		pm:         pm,
 	}
 	i.Start(context.Background())
 	return i
 }
 
 func (i *testInstaller) Stop() {
-	i.installerImpl.Stop(context.Background())
+	i.daemonImpl.Stop(context.Background())
 }
 
 func TestInstall(t *testing.T) {
@@ -217,11 +217,11 @@ func TestUpdateCatalog(t *testing.T) {
 		Packages: []Package{testPackage},
 	}
 	i.rcc.SubmitCatalog(c)
-	pkg, err := i.installerImpl.GetPackage("test-package", "1.0.0")
+	pkg, err := i.daemonImpl.GetPackage("test-package", "1.0.0")
 
 	assert.NoError(t, err)
 	assert.Equal(t, testPackage, pkg)
-	assert.Equal(t, c, i.installerImpl.catalog)
+	assert.Equal(t, c, i.daemonImpl.catalog)
 	i.pm.AssertExpectations(t)
 }
 

@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/pkg/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -74,5 +74,5 @@ func purge(ctx context.Context, params *cliParams, _ log.Component, _ telemetry.
 	if params.pkg == "" {
 		return fmt.Errorf("missing package name")
 	}
-	return installer.Remove(ctx, params.pkg)
+	return daemon.Remove(ctx, params.pkg)
 }

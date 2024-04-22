@@ -6,7 +6,7 @@
 // for now the installer is not supported on windows
 //go:build !windows
 
-package packages
+package installer
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/installer/packages/fixtures"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	oci "github.com/google/go-containerregistry/pkg/v1"
 )
 
