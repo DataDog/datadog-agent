@@ -285,7 +285,6 @@ func (s *Scanner) GetStandardRulesNames() []string {
 	return rv
 }
 
-
 // Scan scans the given `event` using the internal SDS scanner.
 // Returns an error if the internal SDS scanner is not ready. If you need to
 // validate that the internal SDS scanner can be used, use `IsReady()`.

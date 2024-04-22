@@ -31,27 +31,27 @@ func TestFillFlare(t *testing.T) {
 	f.AssertNoFileExists("sds.log")
 	f.AssertFileContent(file.Name()+" "+fi.Mode().String(), "logs_file_permissions.log")
 
-    // one enabled rule, the file should exist
+	// one enabled rule, the file should exist
 	fc = NewFlareController()
 	f = helpers.NewFlareBuilderMock(t, false)
 	fc.SetSDSInfo(nil, []string{"rule1"}, time.Now())
 	fc.FillFlare(f.Fb)
 	f.AssertFileExists("sds.log")
 
-    // empty list even if the list exists, should not create the file
+	// empty list even if the list exists, should not create the file
 	fc = NewFlareController()
 	f = helpers.NewFlareBuilderMock(t, false)
 	fc.SetSDSInfo(nil, nil, time.Now())
 	fc.FillFlare(f.Fb)
 	f.AssertNoFileExists("sds.log")
 
-    // one standard rule, the file should exist
+	// one standard rule, the file should exist
 	fc = NewFlareController()
 	f = helpers.NewFlareBuilderMock(t, false)
 	fc.SetSDSInfo([]string{"rule1"}, nil, time.Now())
 	fc.FillFlare(f.Fb)
 	f.AssertFileExists("sds.log")
-    // one standard rule and one enabled rule, the file should exist
+	// one standard rule and one enabled rule, the file should exist
 	fc.SetSDSInfo([]string{"rule1"}, []string{"user_rule1"}, time.Now())
 	fc.FillFlare(f.Fb)
 	f.AssertFileExists("sds.log")
