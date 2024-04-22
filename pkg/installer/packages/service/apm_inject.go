@@ -43,11 +43,6 @@ func SetupAPMInjector(ctx context.Context) error {
 	var err error
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_injector")
 	defer span.Finish(tracer.WithError(err))
-	// Enforce dd-installer is in the dd-agent group
-	if err = setInstallerAgentGroup(ctx); err != nil {
-		return err
-	}
-
 	installer := &apmInjectorInstaller{
 		installPath: "/opt/datadog-packages/datadog-apm-inject/stable",
 	}

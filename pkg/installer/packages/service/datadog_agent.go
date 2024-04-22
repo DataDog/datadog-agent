@@ -10,8 +10,6 @@ package service
 
 import (
 	"context"
-	"os/exec"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -57,10 +55,6 @@ func SetupAgentUnits(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-
-	if err = setInstallerAgentGroup(ctx); err != nil {
-		return
-	}
 
 	for _, unit := range stableUnits {
 		if err = loadUnit(ctx, unit); err != nil {
@@ -138,17 +132,4 @@ func StartAgentExperiment(ctx context.Context) error {
 // StopAgentExperiment stops the agent experiment
 func StopAgentExperiment(ctx context.Context) error {
 	return startUnit(ctx, agentUnit)
-}
-
-// setInstallerAgentGroup adds the dd-installer to the dd-agent group if it's not already in it
-func setInstallerAgentGroup(ctx context.Context) error {
-	// Get groups of dd-installer
-	out, err := exec.Command("id", "-Gn", "dd-installer").Output()
-	if err != nil {
-		return err
-	}
-	if strings.Contains(string(out), "dd-agent") {
-		return nil
-	}
-	return executeHelperCommand(ctx, string(addInstallerToAgentGroup))
 }
