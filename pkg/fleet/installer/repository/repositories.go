@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/installer/packages/service"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 )
 
 // Repositories manages multiple repositories.

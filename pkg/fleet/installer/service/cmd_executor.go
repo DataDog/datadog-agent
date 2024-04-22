@@ -80,7 +80,7 @@ func BuildHelperForTests(pkgDir, binPath string, skipUIDCheck bool) error {
 	targetDir := "datadog-agent/pkg"
 	index := strings.Index(localPath, targetDir)
 	pkgPath := localPath[:index+len(targetDir)]
-	helperPath := filepath.Join(pkgPath, "installer", "packages", "service", "helper", "main.go")
+	helperPath := filepath.Join(pkgPath, "fleet", "installer", "service", "helper", "main.go")
 	cmd := exec.Command("go", "build", fmt.Sprintf(`-ldflags=-X main.pkgDir=%s -X main.testSkipUID=%v`, pkgDir, skipUIDCheck), "-o", updaterHelper, helperPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
