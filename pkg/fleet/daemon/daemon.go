@@ -156,6 +156,8 @@ func (d *daemonImpl) GetPackage(pkg string, version string) (Package, error) {
 
 // Start starts remote config and the garbage collector.
 func (d *daemonImpl) Start(_ context.Context) error {
+	d.m.Lock()
+	defer d.m.Unlock()
 	go func() {
 		for {
 			select {
@@ -186,10 +188,11 @@ func (d *daemonImpl) Start(_ context.Context) error {
 
 // Stop stops the garbage collector.
 func (d *daemonImpl) Stop(_ context.Context) error {
+	d.m.Lock()
+	defer d.m.Unlock()
 	d.rc.Close()
 	close(d.stopChan)
 	d.requestsWG.Wait()
-	close(d.requests)
 	return nil
 }
 
@@ -210,11 +213,15 @@ func (d *daemonImpl) Bootstrap(ctx context.Context) (err error) {
 }
 
 // Install installs the package from the given URL.
-func (d *daemonImpl) Install(ctx context.Context, url string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "start_experiment")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+func (d *daemonImpl) Install(ctx context.Context, url string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
+	return d.install(ctx, url)
+}
+
+func (d *daemonImpl) install(ctx context.Context, url string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "start_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -228,11 +235,15 @@ func (d *daemonImpl) Install(ctx context.Context, url string) (err error) {
 }
 
 // StartExperiment starts an experiment with the given package.
-func (d *daemonImpl) StartExperiment(ctx context.Context, url string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "start_experiment")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+func (d *daemonImpl) StartExperiment(ctx context.Context, url string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
+	return d.startExperiment(ctx, url)
+}
+
+func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "start_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -246,11 +257,15 @@ func (d *daemonImpl) StartExperiment(ctx context.Context, url string) (err error
 }
 
 // PromoteExperiment promotes the experiment to stable.
-func (d *daemonImpl) PromoteExperiment(ctx context.Context, pkg string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "promote_experiment")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+func (d *daemonImpl) PromoteExperiment(ctx context.Context, pkg string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
+	return d.promoteExperiment(ctx, pkg)
+}
+
+func (d *daemonImpl) promoteExperiment(ctx context.Context, pkg string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "promote_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -264,11 +279,15 @@ func (d *daemonImpl) PromoteExperiment(ctx context.Context, pkg string) (err err
 }
 
 // StopExperiment stops the experiment.
-func (d *daemonImpl) StopExperiment(ctx context.Context, pkg string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "stop_experiment")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+func (d *daemonImpl) StopExperiment(ctx context.Context, pkg string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
+	return d.stopExperiment(ctx, pkg)
+}
+
+func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "stop_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -335,35 +354,28 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	}
 	defer func() { setRequestDone(ctx, err) }()
 
-	d.m.Unlock()
 	switch request.Method {
 	case methodStartExperiment:
-		log.Infof("Daemon: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
-		err = d.remoteAPIStartExperiment(ctx, request)
+		var params taskWithVersionParams
+		err = json.Unmarshal(request.Params, &params)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
+		}
+		experimentPackage, ok := d.catalog.getPackage(request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
+		if !ok {
+			return fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
+		}
+		log.Infof("Installer: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
+		return d.startExperiment(ctx, experimentPackage.URL)
 	case methodStopExperiment:
-		log.Infof("Daemon: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
-		err = d.StopExperiment(ctx, request.Package)
+		log.Infof("Installer: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
+		return d.stopExperiment(ctx, request.Package)
 	case methodPromoteExperiment:
-		log.Infof("Daemon: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
-		err = d.PromoteExperiment(ctx, request.Package)
+		log.Infof("Installer: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
+		return d.promoteExperiment(ctx, request.Package)
 	default:
-		err = fmt.Errorf("unknown method: %s", request.Method)
+		return fmt.Errorf("unknown method: %s", request.Method)
 	}
-	d.m.Lock()
-	return err
-}
-
-func (d *daemonImpl) remoteAPIStartExperiment(ctx context.Context, request remoteAPIRequest) error {
-	var params taskWithVersionParams
-	err := json.Unmarshal(request.Params, &params)
-	if err != nil {
-		return fmt.Errorf("could not unmarshal start experiment params: %w", err)
-	}
-	experimentPackage, ok := d.catalog.getPackage(request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
-	if !ok {
-		return fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
-	}
-	return d.StartExperiment(ctx, experimentPackage.URL)
 }
 
 type requestKey int
