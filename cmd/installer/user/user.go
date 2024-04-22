@@ -61,7 +61,7 @@ func DatadogAgentToRoot() error {
 	if err != nil {
 		return fmt.Errorf("failed to seteuid: %s", err)
 	}
-	err = syscall.Setgid(0)
+	err = syscall.Setegid(0)
 	if err != nil {
 		return fmt.Errorf("failed to setgid: %s", err)
 	}
