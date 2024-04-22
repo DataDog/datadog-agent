@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package experiment implements 'installer {start, stop, promote}-experiment' subcommands.
-package experiment
+// Package daemon provides the installer daemon commands.
+package daemon
 
 import (
 	"fmt"
@@ -23,8 +23,7 @@ type cliParams struct {
 	version string
 }
 
-// Commands returns the experiment commands
-func Commands(global *command.GlobalParams) []*cobra.Command {
+func apiCommands(global *command.GlobalParams) []*cobra.Command {
 	startExperimentCmd := &cobra.Command{
 		Use:     "start-experiment package version",
 		Aliases: []string{"start"},

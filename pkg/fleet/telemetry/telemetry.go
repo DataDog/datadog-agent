@@ -13,9 +13,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/gorilla/mux"
@@ -25,6 +27,13 @@ import (
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+)
+
+const (
+	// EnvTraceID is the environment variable key for the trace ID
+	EnvTraceID = "DATADOG_TRACE_ID"
+	// EnvParentID is the environment variable key for the parent ID
+	EnvParentID = "DATADOG_PARENT_ID"
 )
 
 const (
@@ -178,4 +187,39 @@ func (addr) Network() string {
 
 func (addr) String() string {
 	return "local"
+}
+
+// SpanContextFromEnv injects the traceID and parentID from the environment into the context if available.
+func SpanContextFromEnv() (ddtrace.SpanContext, bool) {
+	traceID := os.Getenv(EnvTraceID)
+	parentID := os.Getenv(EnvParentID)
+	ctxCarrier := tracer.TextMapCarrier{
+		tracer.DefaultTraceIDHeader:  traceID,
+		tracer.DefaultParentIDHeader: parentID,
+		tracer.DefaultPriorityHeader: "2",
+	}
+	spanCtx, err := tracer.Extract(ctxCarrier)
+	if err != nil {
+		log.Debugf("failed to extract span context from install script params: %v", err)
+		return nil, false
+	}
+	return spanCtx, true
+}
+
+// EnvFromSpanContext returns the environment variables for the span context.
+func EnvFromSpanContext(spanCtx ddtrace.SpanContext) []string {
+	env := []string{
+		fmt.Sprintf("%s=%d", EnvTraceID, spanCtx.TraceID()),
+		fmt.Sprintf("%s=%d", EnvParentID, spanCtx.SpanID()),
+	}
+	return env
+}
+
+// SpanContextFromContext extracts the span context from the context if available.
+func SpanContextFromContext(ctx context.Context) (ddtrace.SpanContext, bool) {
+	span, ok := tracer.SpanFromContext(ctx)
+	if !ok {
+		return nil, false
+	}
+	return span.Context(), true
 }

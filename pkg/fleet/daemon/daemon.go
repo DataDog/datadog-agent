@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -91,23 +92,12 @@ func Bootstrap(ctx context.Context, config config.Reader) error {
 	return i.Bootstrap(ctx)
 }
 
-// Remove removes an individual package
-func Remove(ctx context.Context, pkg string) error {
-	packageManager := installer.NewInstaller()
-	return packageManager.Remove(ctx, pkg)
-}
-
 func newPackageManager(config config.Reader) installer.Installer {
 	registry := config.GetString("updater.registry")
 	registryAuth := config.GetString("updater.registry_auth")
-	var opts []installer.Options
-	if registry != "" {
-		opts = append(opts, installer.WithRegistry(registry))
-	}
-	if registryAuth != "" {
-		opts = append(opts, installer.WithRegistryAuth(installer.RegistryAuth(registryAuth)))
-	}
-	return installer.NewInstaller(opts...)
+	apiKey := utils.SanitizeAPIKey(config.GetString("api_key"))
+	site := config.GetString("site")
+	return newInstallerExec(registry, registryAuth, apiKey, site)
 }
 
 // NewDaemon returns a new daemon.
