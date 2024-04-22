@@ -79,6 +79,14 @@ func TestDebianX86(t *testing.T) {
 	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault, true)
 }
 
+func TestSuseX86(t *testing.T) {
+	runTest(t, "rpm", os.AMD64Arch, os.SuseDefault, false)
+}
+
+func TestSuseARM(t *testing.T) {
+	runTest(t, "rpm", os.ARM64Arch, os.SuseDefault, false)
+}
+
 func (v *vmUpdaterSuite) TestUserGroupsCreation() {
 	// users exist and is a system user
 	require.Equal(v.T(), "/usr/sbin/nologin\n", v.Env().RemoteHost.MustExecute(`getent passwd dd-agent | cut -d: -f7`), "unexpected: user does not exist or is not a system user")
@@ -243,6 +251,9 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	}
 	if v.distro == os.DebianDefault {
 		v.T().Skip("Skipping Debian as it fails")
+	}
+	if v.distro == os.SuseDefault {
+		v.T().Skip("Skipping SUSE as it fails")
 	}
 
 	host := v.Env().RemoteHost

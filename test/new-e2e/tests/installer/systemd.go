@@ -19,7 +19,7 @@ import (
 )
 
 func getMonotonicTimestamp(t *testing.T, host *components.RemoteHost) int64 {
-	res := strings.TrimSpace(host.MustExecute("journalctl -n 1 --output=json"))
+	res := strings.TrimSpace(host.MustExecute("sudo journalctl -n 1 --output=json"))
 	var log JournaldLog
 	err := json.Unmarshal([]byte(res), &log)
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func getJournalDOnCondition(t *testing.T, host *components.RemoteHost, minTimest
 }
 
 func getOrderedJournaldLogs(t *testing.T, host *components.RemoteHost, minTimestamp int64) []JournaldLog {
-	host.MustExecute(`journalctl --output=json _COMM=systemd -u datadog* > /tmp/journald_logs`)
+	host.MustExecute(`sudo journalctl --output=json _COMM=systemd -u datadog* > /tmp/journald_logs`)
 	file, err := host.ReadFile("/tmp/journald_logs")
 	require.NoError(t, err)
 	lines := strings.Split(string(file), "\n")

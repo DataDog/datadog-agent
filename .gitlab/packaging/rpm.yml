@@ -18,7 +18,7 @@
     - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY_SSM_NAME)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME)
-    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=installer
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=installer ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
   stage: packaging
   artifacts:
@@ -33,7 +33,6 @@ installer_rpm-amd64:
   needs: ["installer-amd64"]
   variables:
     PACKAGE_ARCH: x86_64
-    DESTINATION_RPM: "datadog-installer_7_amd64.rpm"
 
 installer_rpm-arm64:
   extends: .installer_package_rpm_common
@@ -42,6 +41,24 @@ installer_rpm-arm64:
   needs: ["installer-arm64"]
   variables:
     PACKAGE_ARCH: aarch64
-    DESTINATION_RPM: "datadog-installer_7_arm64.rpm"
 
+.installer_package_suse_rpm_common:
+  extends: .installer_package_rpm_common
+  variables:
+    OMNIBUS_EXTRA_ARGS: "--host-distribution=suse"
 
+installer_suse_rpm-amd64:
+  extends: .installer_package_suse_rpm_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["installer-amd64"]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+installer_suse_rpm-arm64:
+  extends: .installer_package_suse_rpm_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["installer-arm64"]
+  variables:
+    PACKAGE_ARCH: aarch64

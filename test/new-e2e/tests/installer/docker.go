@@ -61,8 +61,38 @@ sudo systemctl start docker
 export previous_dir=$(pwd)
 cd /usr/local
 sudo curl https://dl.google.com/go/go1.22.1.linux-%s.tar.gz --output go.tar.gz
-sudo tar -C /usr/local -xzf go.tar.gz 
+sudo tar -C /usr/local -xzf go.tar.gz
 export PATH="$PATH:/usr/local/go/bin:$(go env GOPATH)/bin"
+cd $previous_dir
+
+go install github.com/awslabs/amazon-ecr-credential-helper/ecr-login/cli/docker-credential-ecr-login@latest
+
+sudo mkdir -p /root/.docker
+echo '{"credsStore": "ecr-login"}' | sudo tee /root/.docker/config.json
+		`, string(arch),
+				),
+			),
+		)
+		require.Nil(t, err)
+		host.MustExecute(`sudo chmod +x /tmp/install-docker.sh`)
+		host.MustExecute(`sudo /tmp/install-docker.sh`)
+		err = host.Remove("/tmp/install-docker.sh")
+		require.Nil(t, err)
+	case os.SuseDefault:
+		_, err := host.WriteFile(
+			"/tmp/install-docker.sh",
+			[]byte(
+				fmt.Sprintf(`
+sudo zypper addrepo https://download.docker.com/linux/sles/docker-ce.repo
+sudo zypper install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl start docker
+
+export previous_dir=$(pwd)
+cd /usr/local
+sudo curl https://dl.google.com/go/go1.22.1.linux-%s.tar.gz --output go.tar.gz
+sudo tar -C /usr/local -xzf go.tar.gz
+export PATH="$PATH:/usr/local/go/bin"
+export PATH="$PATH:$(go env GOPATH)/bin"
 cd $previous_dir
 
 go install github.com/awslabs/amazon-ecr-credential-helper/ecr-login/cli/docker-credential-ecr-login@latest
