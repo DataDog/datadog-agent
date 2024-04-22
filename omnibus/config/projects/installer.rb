@@ -152,7 +152,7 @@ if linux_target?
   end
   if debian_target?
       package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/installer-deb"
-  elsif redhat_target?
+  elsif redhat_target? || suse_target?
       package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/installer-rpm"
   end
 end
