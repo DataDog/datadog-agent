@@ -11,12 +11,15 @@ package languagedetection
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 
+	"k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/util/retry"
 
@@ -207,11 +210,10 @@ func (lp *languagePatcher) handleDeploymentEvent(event workloadmeta.Event) {
 		if len(deployment.InjectableLanguages) > 0 {
 			// If some annotations still exist, remove them
 			annotationsPatch := lp.generateAnnotationsPatch(deployment.InjectableLanguages, langUtil.ContainersLanguages{})
-			lp.patchOwner(&owner, annotationsPatch)
-			return
+			err = lp.patchOwner(&owner, annotationsPatch)
+		} else {
+			Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusSkip)
 		}
-
-		Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusSkip)
 	} else if event.Type == workloadmeta.EventTypeSet {
 		detectedLanguages := deployment.DetectedLanguages
 		injectableLanguages := deployment.InjectableLanguages
@@ -219,21 +221,40 @@ func (lp *languagePatcher) handleDeploymentEvent(event workloadmeta.Event) {
 		// Calculate annotations patch
 		annotationsPatch := lp.generateAnnotationsPatch(injectableLanguages, detectedLanguages)
 		if len(annotationsPatch) > 0 {
-			lp.patchOwner(&owner, annotationsPatch)
+			err = lp.patchOwner(&owner, annotationsPatch)
 		} else {
 			Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusSkip)
 		}
 
 	}
+
+	if err != nil {
+		lp.logger.Errorf("failed to handle deployment event: %v", err)
+	}
+
 }
 
 // patches the owner with the corresponding language annotations
-func (lp *languagePatcher) patchOwner(namespacedOwnerRef *langUtil.NamespacedOwnerReference, annotationsPatch map[string]interface{}) {
+func (lp *languagePatcher) patchOwner(namespacedOwnerRef *langUtil.NamespacedOwnerReference, annotationsPatch map[string]interface{}) error {
+
+	setAnnotations := map[string]string{}
+	for k, v := range annotationsPatch {
+		if v != nil {
+			setAnnotations[k] = fmt.Sprintf("%v", v)
+		}
+	}
+
+	errs := validation.ValidateAnnotations(setAnnotations, field.NewPath("annotations"))
+
+	if len(errs) > 0 {
+		Patches.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.Namespace, statusError)
+		return errors.New(errs.ToAggregate().Error())
+	}
+
 	ownerGVR, err := langUtil.GetGVR(namespacedOwnerRef)
 	if err != nil {
-		lp.logger.Errorf("failed to update owner: %v", err)
 		Patches.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.Namespace, statusError)
-		return
+		return err
 	}
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -257,9 +278,9 @@ func (lp *languagePatcher) patchOwner(namespacedOwnerRef *langUtil.NamespacedOwn
 
 	if retryErr != nil {
 		Patches.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.Namespace, statusError)
-		lp.logger.Errorf("failed to update owner: %v", retryErr)
-		return
+		return retryErr
 	}
 
 	Patches.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.Namespace, statusSuccess)
+	return nil
 }

@@ -11,6 +11,7 @@ sending commands and receiving infos.
 package api
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -33,7 +34,9 @@ import (
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
@@ -41,7 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -54,19 +57,19 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], statusComponent status.Component, secretResolver secrets.Component) error {
+func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], statusComponent status.Component, secretResolver secrets.Component, settings settings.Component, cfg config.Component) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(router, w, ac, senderManager, collector, statusComponent, secretResolver)
+	agent.SetupHandlers(router, w, ac, senderManager, collector, statusComponent, secretResolver, settings)
 
 	// API V1 Metadata APIs
 	v1.InstallMetadataEndpoints(apiRouter, w)
 
 	// API V1 Language Detection APIs
-	languagedetection.InstallLanguageDetectionEndpoints(apiRouter, w)
+	languagedetection.InstallLanguageDetectionEndpoints(ctx, apiRouter, w, cfg)
 
 	// Validate token for every request
 	router.Use(validateToken)
@@ -80,10 +83,10 @@ func StartServer(w workloadmeta.Component, taggerComp tagger.Component, ac autod
 		return fmt.Errorf("unable to create the api server: %v", err)
 	}
 	// Internal token
-	util.CreateAndSetAuthToken(config.Datadog) //nolint:errcheck
+	util.CreateAndSetAuthToken(pkgconfig.Datadog) //nolint:errcheck
 
 	// DCA client token
-	util.InitDCAAuthToken(config.Datadog) //nolint:errcheck
+	util.InitDCAAuthToken(pkgconfig.Datadog) //nolint:errcheck
 
 	// create cert
 	hosts := []string{"127.0.0.1", "localhost"}
@@ -108,12 +111,12 @@ func StartServer(w workloadmeta.Component, taggerComp tagger.Component, ac autod
 		MinVersion:   tls.VersionTLS13,
 	}
 
-	if config.Datadog.GetBool("cluster_agent.allow_legacy_tls") {
+	if pkgconfig.Datadog.GetBool("cluster_agent.allow_legacy_tls") {
 		tlsConfig.MinVersion = tls.VersionTLS10
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := config.NewTLSHandshakeErrorWriter(4, seelog.WarnLvl)
+	logWriter, _ := pkgconfig.NewTLSHandshakeErrorWriter(4, seelog.WarnLvl)
 
 	authInterceptor := grpcutil.AuthInterceptor(func(token string) (interface{}, error) {
 		if token != util.GetDCAAuthToken() {
@@ -133,7 +136,7 @@ func StartServer(w workloadmeta.Component, taggerComp tagger.Component, ac autod
 		taggerServer: taggerserver.NewServer(taggerComp),
 	})
 
-	timeout := config.Datadog.GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
+	timeout := pkgconfig.Datadog.GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
 	srv := grpcutil.NewMuxedGRPCServer(
 		listener.Addr().String(),
 		tlsConfig,

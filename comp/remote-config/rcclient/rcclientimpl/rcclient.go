@@ -17,6 +17,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -24,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -53,7 +53,8 @@ type rcClient struct {
 
 	listeners []types.RCListener
 	// Tasks are separated from the other products, because they must be executed once
-	taskListeners []types.RCAgentTaskListener
+	taskListeners     []types.RCAgentTaskListener
+	settingsComponent settings.Component
 }
 
 type dependencies struct {
@@ -62,9 +63,10 @@ type dependencies struct {
 	Log log.Component
 	Lc  fx.Lifecycle
 
-	Params        rcclient.Params             `optional:"true"`
-	Listeners     []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
-	TaskListeners []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
+	Params            rcclient.Params             `optional:"true"`
+	Listeners         []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
+	TaskListeners     []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
+	SettingsComponent settings.Component
 }
 
 // newRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by
@@ -112,11 +114,12 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	}
 
 	rc := rcClient{
-		listeners:     fxutil.GetAndFilterGroup(deps.Listeners),
-		taskListeners: fxutil.GetAndFilterGroup(deps.TaskListeners),
-		m:             &sync.Mutex{},
-		client:        c,
-		clientHA:      clientHA,
+		listeners:         fxutil.GetAndFilterGroup(deps.Listeners),
+		taskListeners:     fxutil.GetAndFilterGroup(deps.TaskListeners),
+		m:                 &sync.Mutex{},
+		client:            c,
+		clientHA:          clientHA,
+		settingsComponent: deps.SettingsComponent,
 	}
 
 	if config.IsRemoteConfigEnabled(config.Datadog) {
@@ -173,7 +176,7 @@ func (rc rcClient) haUpdateCallback(updates map[string]state.RawConfig, applySta
 			}
 			failover = haUpdate.Failover
 			pkglog.Infof("Setting `ha.failover: %t` through remote config", *failover)
-			err = settings.SetRuntimeSetting("ha.failover", *failover, model.SourceRC)
+			err = rc.settingsComponent.SetRuntimeSetting("ha.failover", *failover, model.SourceRC)
 			if err != nil {
 				pkglog.Errorf("HA failover update failed: %s", err)
 				applyStateCallback(cfgPath, state.ApplyStatus{
@@ -235,7 +238,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		} else {
 			newLevel := mergedConfig.LogLevel
 			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
-			err = settings.SetRuntimeSetting("log_level", newLevel, model.SourceRC)
+			err = rc.settingsComponent.SetRuntimeSetting("log_level", newLevel, model.SourceRC)
 		}
 
 	case model.SourceCLI:
@@ -252,7 +255,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 
 		// Need to update the log level even if the level stays the same because we need to update the source
 		// Might be possible to add a check in deeper functions to avoid unnecessary work
-		err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC)
+		err = rc.settingsComponent.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC)
 	}
 
 	// Apply the new status to all configs

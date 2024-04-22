@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -30,6 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -40,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -84,11 +89,10 @@ func (s *service) Run(svcctx context.Context) error {
 	params := &cliParams{}
 	err := fxutil.OneShot(
 		func(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component,
-			telemetry telemetry.Component, _ workloadmeta.Component, params *cliParams, statusComponent status.Component) error {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer start.StopAgent(cancel, log)
+			telemetry telemetry.Component, _ workloadmeta.Component, params *cliParams, statusComponent status.Component, _ autoexit.Component, settings settings.Component) error {
+			defer start.StopAgent(log)
 
-			err := start.RunAgent(ctx, log, config, telemetry, statusComponent)
+			err := start.RunAgent(log, config, telemetry, statusComponent, settings)
 			if err != nil {
 				return err
 			}
@@ -167,6 +171,16 @@ func (s *service) Run(svcctx context.Context) error {
 		configsyncimpl.OptionalModule(),
 		// Force the instantiation of the component
 		fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
+		autoexitimpl.Module(),
+		fx.Provide(func(c config.Component) settings.Params {
+			return settings.Params{
+				Settings: map[string]settings.RuntimeSetting{
+					"log_level": commonsettings.NewLogLevelRuntimeSetting(),
+				},
+				Config: c,
+			}
+		}),
+		settingsimpl.Module(),
 	)
 
 	return err

@@ -129,7 +129,7 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap
 
 		if c.status.Saddr == expected.saddr {
 			// the reply tuple comes always after the origin tuple
-			c.status.Offset_reply = c.status.Offset_origin + sizeofNfConntrackTuple
+			c.status.Offset_reply = c.status.Offset_origin + sizeofNfConntrackTupleHash
 			c.logAndAdvance(c.status.Offset_origin, GuessCtTupleReply)
 			break
 		}
@@ -145,14 +145,14 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap
 			break
 		}
 
-		if c.status.Saddr == expected.daddr {
-			c.logAndAdvance(c.status.Offset_reply, GuessCtNet)
-			break
+		if c.status.Saddr != expected.daddr {
+			log.Warnf("expecting address %d, but got %d during offset guessing for conntrack reply tuple", expected.daddr, c.status.Saddr)
 		}
-		log.Tracef("%v %d does not match expected %d, incrementing offset %d",
-			whatString[GuessWhat(c.status.What)], c.status.Saddr, expected.daddr, c.status.Offset_reply)
-		c.status.Offset_reply++
-		c.status.Offset_reply, _ = skipOverlaps(c.status.Offset_reply, c.nfConnRanges())
+		// we do not continue to offset guess the reply tuple
+		// since we expect it to be at origin offset + sizeofNfConntrackTupleHash;
+		// we assume sizeofNfConntrackTupleHash is stable in the kernel, as has
+		// been observed up to now
+		c.logAndAdvance(c.status.Offset_reply, GuessCtNet)
 	case GuessCtNet:
 		c.status.Offset_netns, overlapped = skipOverlaps(c.status.Offset_netns, c.nfConnRanges())
 		if overlapped {
@@ -166,9 +166,9 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap
 			log.Debugf("Successfully guessed %v with offset of %d bytes", "ino", c.status.Offset_ino)
 			return c.setReadyState(mp)
 		}
+		log.Tracef("%v %d does not match expected %d, incrementing offset netns: %d, ino: %d",
+			whatString[GuessWhat(c.status.What)], c.status.Netns, expected.netns, c.status.Offset_netns, c.status.Offset_ino)
 		c.status.Offset_ino++
-		log.Tracef("%v %d does not match expected %d, incrementing offset %d",
-			whatString[GuessWhat(c.status.What)], c.status.Netns, expected.netns, c.status.Offset_netns)
 		if c.status.Err != 0 || c.status.Offset_ino >= threshold {
 			c.status.Offset_ino = 0
 			c.status.Offset_netns++

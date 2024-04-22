@@ -734,7 +734,23 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 		rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
 	}
 
+	var mdiscsToCheck []*multiDiscarderCheck
+
 	for _, field := range bucket.fields {
+		if check := rs.getValidMultiDiscarder(field); check != nil {
+			value, err := event.GetFieldValue(field)
+			if err != nil {
+				rs.logger.Debugf("Failed to get field value for %s: %s", field, err)
+				continue
+			}
+
+			// currently only support string values
+			if valueStr, ok := value.(string); ok {
+				check.value = valueStr
+				mdiscsToCheck = append(mdiscsToCheck, check)
+			}
+		}
+
 		if rs.opts.SupportedDiscarders != nil {
 			if _, exists := rs.opts.SupportedDiscarders[field]; !exists {
 				continue
@@ -745,6 +761,59 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 			rs.NotifyDiscarderFound(event, field, eventType)
 		}
 	}
+
+	for _, check := range mdiscsToCheck {
+		isMultiDiscarder := true
+		for _, entry := range check.mdisc.Entries {
+			bucket := rs.eventRuleBuckets[entry.EventType]
+			if bucket == nil {
+				continue
+			}
+
+			dctx, err := buildDiscarderCtx(entry.Field, check.value)
+			if err != nil {
+				rs.logger.Errorf("failed to build discarder context: %v", err)
+				isMultiDiscarder = false
+				break
+			}
+
+			if isDiscarder, _ := IsDiscarder(dctx, entry.Field, bucket.rules); !isDiscarder {
+				isMultiDiscarder = false
+				break
+			}
+		}
+
+		if isMultiDiscarder {
+			rs.NotifyDiscarderFound(event, check.mdisc.FinalField, check.mdisc.FinalEventType)
+		}
+	}
+}
+
+func (rs *RuleSet) getValidMultiDiscarder(field string) *multiDiscarderCheck {
+	for _, mdisc := range rs.opts.SupportedMultiDiscarders {
+		for _, entry := range mdisc.Entries {
+			if entry.Field == field {
+				return &multiDiscarderCheck{
+					mdisc: mdisc,
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+type multiDiscarderCheck struct {
+	mdisc *MultiDiscarder
+	value string
+}
+
+func buildDiscarderCtx(field string, value interface{}) (*eval.Context, error) {
+	ev := model.NewFakeEvent()
+	if err := ev.SetFieldValue(field, value); err != nil {
+		return nil, err
+	}
+	return eval.NewContext(ev), nil
 }
 
 // GetEventTypes returns all the event types handled by the ruleset

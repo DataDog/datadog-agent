@@ -18,7 +18,7 @@
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-$CLANG_LLVM_VER.${PACKAGE_ARCH} /tmp/system-probe/llc-bpf
     - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
     - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -146,7 +146,7 @@ agent_rpm-arm64-a7:
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME)
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --flavor iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
+    - inv -e omnibus.build --flavor iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -216,7 +216,7 @@ dogstatsd_rpm-x64:
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME)
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="dogstatsd"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   artifacts:
@@ -224,66 +224,3 @@ dogstatsd_rpm-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-agentless_scanner_rpm-x64:
-  stage: package_build
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
-  needs: ["go_mod_tidy_check", "build_agentless_scanner-binary_x64", "go_deps"]
-  variables:
-  before_script:
-    - source /root/.bashrc
-    - !reference [.retrieve_linux_go_deps]
-  script:
-    # remove artifacts from previous pipelines that may come from the cache
-    - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    - !reference [.setup_ruby_mirror_linux]
-    # Artifacts and cache must live within project directory but we run omnibus
-    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
-    # pointing to a gitlab-friendly location.
-    - set +x
-    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $RPM_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
-    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $RPM_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
-    # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agentless-scanner.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
-    - ls -la $OMNIBUS_PACKAGE_DIR
-    - !reference [.upload_sbom_artifacts]
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $OMNIBUS_PACKAGE_DIR
-
-agentless_scanner_rpm-arm64:
-  stage: package_build
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
-  needs: ["go_mod_tidy_check", "build_agentless_scanner-binary_arm64", "go_deps"]
-  variables:
-  before_script:
-    - source /root/.bashrc
-    - !reference [.retrieve_linux_go_deps]
-  script:
-    # remove artifacts from previous pipelines that may come from the cache
-    - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    - !reference [.setup_ruby_mirror_linux]
-    # Artifacts and cache must live within project directory but we run omnibus
-    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
-    # pointing to a gitlab-friendly location.
-    - set +x
-    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $RPM_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
-    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $RPM_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
-    # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agentless-scanner.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
-    - ls -la $OMNIBUS_PACKAGE_DIR
-    - !reference [.upload_sbom_artifacts]
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $OMNIBUS_PACKAGE_DIR
