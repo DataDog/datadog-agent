@@ -90,9 +90,10 @@ prepare_sysprobe_ebpf_functional_tests_x64:
     - !reference [.retrieve_sysprobe_deps]
   script:
     - inv -e kmt.prepare --ci --component="security-agent"
+    - mkdir -p /opt/datadog-agent/embedded/bin
+    - cp /tmp/clang-bpf /opt/datadog-agent/embedded/bin/clang-bpf
+    - cp /tmp/llc-bpf /opt/datadog-agent/embedded/bin/llc-bpf
     - invoke -e security-agent.kitchen-prepare --skip-linters
-    - cp /tmp/clang-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/clang-bpf
-    - cp /tmp/llc-bpf $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/llc-bpf
 
 prepare_secagent_ebpf_functional_tests_arm64:
   extends: .prepare_secagent_ebpf_functional_tests
