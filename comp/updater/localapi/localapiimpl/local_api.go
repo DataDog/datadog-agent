@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
 	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater"
-	"github.com/DataDog/datadog-agent/pkg/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -34,7 +34,7 @@ type dependencies struct {
 }
 
 func newLocalAPIComponent(lc fx.Lifecycle, dependencies dependencies) (localapi.Component, error) {
-	localAPI, err := installer.NewLocalAPI(dependencies.Updater)
+	localAPI, err := daemon.NewLocalAPI(dependencies.Updater)
 	if err != nil {
 		return nil, fmt.Errorf("could not create local API: %w", err)
 	}
