@@ -2,16 +2,13 @@ receivers:
   otlp:
     protocols:
       grpc:
+        endpoint: localhost:43177
       http:
+        endpoint: localhost:43188
 exporters:
   debug:
     verbosity: detailed
-  otlp:
-    endpoint: localhost:4317
-    tls:
-      insecure: true
   datadog:
-    hostname: my-test-host
     api:
       key: $DD_API_KEY
 processors:

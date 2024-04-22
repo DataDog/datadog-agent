@@ -50,6 +50,9 @@ func NewCollector(deps dependencies) (def.Component, error) {
 			}
 			if v, ok := deps.LogsAgent.Get(); ok {
 				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.Serializer, v, deps.HostName)
+			} else {
+				fmt.Printf("##### LogsAgent not found\n")
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.Serializer, nil, deps.HostName)
 			}
 			fmt.Printf("##### Factories: %#v\n", factories)
 			return factories, nil

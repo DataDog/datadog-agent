@@ -167,7 +167,14 @@ func (f *factory) createMetricsExporter(
 ) (exporter.Metrics, error) {
 	cfg := checkAndCastConfig(c, set.Logger)
 	sf := serializerexporter.NewFactory(f.s, &tagEnricher{}, f.h.Get)
-	return sf.CreateMetricsExporter(ctx, set, cfg.Metrics)
+	ex := &serializerexporter.ExporterConfig{
+		Metrics: cfg.Metrics,
+		TimeoutSettings: exporterhelper.TimeoutSettings{
+			Timeout: cfg.Timeout,
+		},
+		QueueSettings: cfg.QueueSettings,
+	}
+	return sf.CreateMetricsExporter(ctx, set, ex)
 }
 
 // createLogsExporter creates a logs exporter based on the config.
@@ -181,5 +188,9 @@ func (f *factory) createLogsExporter(
 		logch = provider.NextPipelineChan()
 	}
 	lf := logsagentexporter.NewFactory(logch)
-	return lf.CreateLogsExporter(ctx, set, c)
+	lc := &logsagentexporter.Config{
+		OtelSource:    "otel_agent",
+		LogSourceName: "otelcol",
+	}
+	return lf.CreateLogsExporter(ctx, set, lc)
 }
