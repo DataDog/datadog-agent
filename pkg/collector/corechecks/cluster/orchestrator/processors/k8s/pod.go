@@ -13,7 +13,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	kubetypes "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
@@ -58,7 +58,7 @@ func (h *PodHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource
 	}
 
 	// insert tagger tags
-	taggerTags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(r.UID)), collectors.HighCardinality)
+	taggerTags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(r.UID)), taggerTypes.HighCardinality)
 	if err != nil {
 		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
 		skip = true

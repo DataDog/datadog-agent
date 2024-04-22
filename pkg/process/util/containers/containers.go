@@ -13,7 +13,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -119,7 +119,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 		}
 
 		entityID := containers.BuildTaggerEntityName(container.ID)
-		tags, err := tagger.Tag(entityID, collectors.HighCardinality)
+		tags, err := tagger.Tag(entityID, types.HighCardinality)
 		if err != nil {
 			log.Debugf("Could not collect tags for container %q, err: %v", container.ID[:12], err)
 		}

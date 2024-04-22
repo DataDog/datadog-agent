@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
@@ -166,7 +167,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() eventplatformreceiver.Component { return nil }),
 			fx.Provide(func() optional.Option[collector.Component] { return optional.NewNoneOption[collector.Component]() }),
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
-			tagger.Module(),
+			taggerimpl.Module(),
 			autodiscoveryimpl.Module(),
 			fx.Supply(optional.NewNoneOption[gui.Component]()),
 			agent.Bundle(),

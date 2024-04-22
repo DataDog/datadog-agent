@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -248,7 +248,7 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 		}
 
 		// Send container size metrics
-		containerTags, err := tagger.Tag(taggerEntityID, collectors.HighCardinality)
+		containerTags, err := tagger.Tag(taggerEntityID, types.HighCardinality)
 		if err != nil {
 			log.Warnf("Unable to fetch tags for container: %s, err: %v", rawContainer.ID, err)
 		}

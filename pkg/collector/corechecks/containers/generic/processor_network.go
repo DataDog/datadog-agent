@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -87,7 +87,7 @@ func (pn *ProcessorNetwork) processGroupedContainerNetwork() {
 			pn.generateNetworkMetrics(containerNetworks[0].tags, containerNetworks[0].stats)
 		} else {
 			// If we have multiple containers, we cannot tag with HighCardinality, so re-tagging with Orchestrator card.
-			orchTags, err := tagger.Tag(containers.BuildTaggerEntityName(containerNetworks[0].containerID), collectors.OrchestratorCardinality)
+			orchTags, err := tagger.Tag(containers.BuildTaggerEntityName(containerNetworks[0].containerID), types.OrchestratorCardinality)
 			if err != nil {
 				log.Debugf("Unable to get orchestrator tags for container: %s", containerNetworks[0].containerID)
 				continue

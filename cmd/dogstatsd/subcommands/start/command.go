@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
@@ -152,7 +153,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		eventplatformreceiverimpl.Module(),
 		hostnameimpl.Module(),
 		fx.Supply(eventplatformimpl.NewDisabledParams()),
-		tagger.OptionalModule(),
+		taggerimpl.OptionalModule(),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {

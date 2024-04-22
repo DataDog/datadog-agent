@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
@@ -171,7 +172,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				authtokenimpl.Module(),
 				fx.Supply(context.Background()),
 				fx.Provide(tagger.NewTaggerParamsForCoreAgent),
-				tagger.Module(),
+				taggerimpl.Module(),
 				autodiscoveryimpl.Module(),
 				forwarder.Bundle(),
 				inventorychecksimpl.Module(),

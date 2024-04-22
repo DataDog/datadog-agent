@@ -20,7 +20,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
@@ -85,7 +85,7 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 		workloadmeta.MockModule(),
 	))
 
-	fakeTagger := tagger.SetupFakeTagger(t)
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
 
 	// Finally, container provider

@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -139,7 +140,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		workloadmeta.Module(),
 
 		// Provide tagger module
-		tagger.Module(),
+		taggerimpl.Module(),
 
 		// Provide status modules
 		statusimpl.Module(),

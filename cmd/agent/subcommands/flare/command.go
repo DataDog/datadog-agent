@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
@@ -114,7 +115,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				workloadmeta.Module(),
-				tagger.OptionalModule(),
+				taggerimpl.OptionalModule(),
 				autodiscoveryimpl.OptionalModule(), // if forceLocal is true, we will start autodiscovery (loadComponents) later
 				flare.Module(),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),

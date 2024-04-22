@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -330,7 +330,7 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
-			fakeTagger := tagger.SetupFakeTagger(t)
+			fakeTagger := taggerimpl.SetupFakeTagger(t)
 			defer fakeTagger.ResetTagger()
 			for entity, tags := range entityTags {
 				fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)

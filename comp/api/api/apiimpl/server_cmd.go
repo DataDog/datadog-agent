@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
+	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"

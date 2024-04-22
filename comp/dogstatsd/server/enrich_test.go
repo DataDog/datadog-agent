@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -1206,7 +1206,7 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=high present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.HighCardinalityString},
+				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.HighCardinalityString},
 				originFromUDS: "originID",
 				conf: enrichConfig{
 					defaultHostname:           "foo",
@@ -1221,7 +1221,7 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=orchestrator present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.OrchestratorCardinalityString},
+				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.OrchestratorCardinalityString},
 				originFromUDS: "originID",
 				conf: enrichConfig{
 					defaultHostname:           "foo",
@@ -1236,7 +1236,7 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=low present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.LowCardinalityString},
+				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.LowCardinalityString},
 				originFromUDS: "originID",
 				conf: enrichConfig{
 					defaultHostname:           "foo",
@@ -1251,7 +1251,7 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=unknown present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
 			args: args{
-				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.UnknownCardinalityString},
+				tags:          []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + types.UnknownCardinalityString},
 				originFromUDS: "originID",
 				conf: enrichConfig{
 					defaultHostname:           "foo",

@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -55,7 +55,7 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 
 		tags, err := tagger.Tag(
 			containers.BuildTaggerEntityName(ev.ContainerID),
-			collectors.HighCardinality,
+			types.HighCardinality,
 		)
 		if err != nil {
 			log.Debugf("no tags for container %q: %s", ev.ContainerID, err)

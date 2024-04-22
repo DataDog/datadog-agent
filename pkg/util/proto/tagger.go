@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
@@ -74,14 +73,14 @@ func Pb2TaggerEntityID(entityID *pb.EntityId) (string, error) {
 }
 
 // Pb2TaggerCardinality helper to convert protobuf cardinality to native tag cardinality.
-func Pb2TaggerCardinality(pbCardinality pb.TagCardinality) (collectors.TagCardinality, error) {
+func Pb2TaggerCardinality(pbCardinality pb.TagCardinality) (types.TagCardinality, error) {
 	switch pbCardinality {
 	case pb.TagCardinality_LOW:
-		return collectors.LowCardinality, nil
+		return types.LowCardinality, nil
 	case pb.TagCardinality_ORCHESTRATOR:
-		return collectors.OrchestratorCardinality, nil
+		return types.OrchestratorCardinality, nil
 	case pb.TagCardinality_HIGH:
-		return collectors.HighCardinality, nil
+		return types.HighCardinality, nil
 	}
 
 	return 0, status.Errorf(codes.InvalidArgument, "invalid cardinality %q", pbCardinality)

@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -203,7 +203,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request, ac autodiscovery.Com
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func getTaggerList(w http.ResponseWriter, r *http.Request) {
-	response := tagger.List(collectors.HighCardinality)
+	response := tagger.List(types.HighCardinality)
 
 	jsonTags, err := json.Marshal(response)
 	if err != nil {

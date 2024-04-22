@@ -42,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -98,7 +99,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				workloadmeta.Module(),
 				fx.Provide(tagger.NewTaggerParams),
-				tagger.Module(),
+				taggerimpl.Module(),
 				collectorimpl.Module(),
 				fx.Provide(func() optional.Option[serializer.MetricSerializer] {
 					return optional.NewNoneOption[serializer.MetricSerializer]()

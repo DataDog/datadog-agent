@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -105,7 +105,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 
-	fakeTagger := tagger.SetupFakeTagger(suite.T())
+	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
 	defer fakeTagger.ResetTagger()
 	for entity, tags := range commontesting.CommonTags {
 		fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)

@@ -38,7 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -421,7 +421,7 @@ func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Com
 
 func getTaggerList(w http.ResponseWriter, _ *http.Request) {
 	// query at the highest cardinality between checks and dogstatsd cardinalities
-	cardinality := collectors.TagCardinality(max(int(tagger.ChecksCardinality), int(tagger.DogstatsdCardinality)))
+	cardinality := types.TagCardinality(max(int(tagger.ChecksCardinality), int(tagger.DogstatsdCardinality)))
 	response := tagger.List(cardinality)
 
 	jsonTags, err := json.Marshal(response)
