@@ -16,7 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/installer/service"
+	"github.com/DataDog/datadog-agent/pkg/installer/packages/service"
 )
 
 func createTestRepository(t *testing.T, dir string, stablePackageName string) *Repository {

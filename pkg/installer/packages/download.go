@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package installer
+package packages
 
 import (
 	"context"
@@ -21,16 +21,22 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	ociLayoutArchiveName          = "oci-layout.tar"
-	ociLayoutName                 = "oci-layout"
-	ociLayoutArchiveMaxSize int64 = 1 << 30 // 1GiB
-	ociLayoutMaxSize        int64 = 1 << 30 // 1GiB
+// RegistryAuth is the type of the registry authentication method.
+type RegistryAuth string
 
+const (
+	// RegistryAuthDefault is the default registry authentication method. Under the hood, it uses the Docker configuration.
+	RegistryAuthDefault RegistryAuth = "docker"
+	// RegistryAuthGCR is the Google Container Registry authentication method.
+	RegistryAuthGCR RegistryAuth = "gcr"
+	// RegistryAuthECR is the Amazon Elastic Container Registry authentication method.
+	RegistryAuthECR RegistryAuth = "ecr"
+)
+
+const (
 	annotationPackage = "com.datadoghq.package.name"
 	annotationVersion = "com.datadoghq.package.version"
 )
@@ -49,12 +55,12 @@ type downloader struct {
 }
 
 // newDownloader returns a new Downloader.
-func newDownloader(config config.Reader, client *http.Client, remoteBaseURL string) *downloader {
+func newDownloader(client *http.Client, registryAuth RegistryAuth, remoteBaseURL string) *downloader {
 	var keychain authn.Keychain
-	switch config.GetString("updater.registry_auth") {
-	case "gcr":
+	switch registryAuth {
+	case RegistryAuthGCR:
 		keychain = google.Keychain
-	case "ecr":
+	case RegistryAuthECR:
 		keychain = authn.NewKeychainFromHelper(ecr.NewECRHelper())
 	default:
 		keychain = authn.DefaultKeychain

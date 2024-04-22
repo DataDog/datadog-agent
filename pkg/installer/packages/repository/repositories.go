@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/installer/packages/service"
 )
 
 // Repositories manages multiple repositories.
@@ -60,6 +62,17 @@ func (r *Repositories) Create(ctx context.Context, pkg string, version string, s
 	err := repository.Create(ctx, version, stableSourcePath)
 	if err != nil {
 		return fmt.Errorf("could not create repository for package %s: %w", pkg, err)
+	}
+	return nil
+}
+
+// Delete deletes the repository for the given package name.
+func (r *Repositories) Delete(ctx context.Context, pkg string) error {
+	repository := r.newRepository(pkg)
+	// TODO: locked packages will still be deleted
+	err := service.RemoveAll(ctx, repository.rootPath)
+	if err != nil {
+		return fmt.Errorf("could not delete repository for package %s: %w", pkg, err)
 	}
 	return nil
 }
