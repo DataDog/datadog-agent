@@ -6,6 +6,7 @@ import collections
 import contextlib
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import List
@@ -232,7 +233,9 @@ def print_complexity_legend():
 
 
 @task
-def annotate_complexity(_: Context, program: str, function: str, debug=False, show_assembly=False):
+def annotate_complexity(
+    _: Context, program: str, function: str, debug=False, show_assembly=False, show_register_state=False
+):
     if debug:
         program += "_debug"
 
@@ -248,6 +251,9 @@ def annotate_complexity(_: Context, program: str, function: str, debug=False, sh
 
     if colored is None:
         raise Exit("termcolor is required to print colored output")
+
+    if show_register_state and not show_assembly:
+        raise Exit("Register state can only be shown when assembly is also shown")
 
     print_complexity_legend()
 
@@ -294,11 +300,40 @@ def annotate_complexity(_: Context, program: str, function: str, debug=False, sh
 
                     if show_assembly:
                         # Print the assembly code for this line
-                        assembly = [i.split(':') for i in linecomp["assembly_insns"]]
-                        assembly = sorted([(int(i), a.strip()) for i, a in assembly])
-                        for asm_idx, asm_line in assembly:
+                        asm_insn_indexes = sorted(linecomp["assembly_insns"])
+
+                        for asm_idx in asm_insn_indexes:
+                            asm_line = complexity_data["insn_map"][str(asm_idx)]
+                            asm_code = asm_line["code"]
+
+                            registers = re.findall(r"r\d+", asm_code)
+
                             asm_line_no = f'ASM {asm_idx:4d}'
-                            print(colored(f"{' ' * 4}   {asm_line_no:>{compinfo_len}} | {asm_line}", attrs=["dark"]))
+                            print(colored(f"{' ' * 4}   {asm_line_no:>{compinfo_len}} | {asm_code}", attrs=["dark"]))
+
+                            if show_register_state:
+                                # The register state after this instruction is found in the next instruction
+
+                                next_insn = str(asm_idx + 1)  # JSON map indices are strings
+                                if next_insn in complexity_data["insn_map"]:
+                                    reg_state = complexity_data["insn_map"][next_insn]["register_state"]
+
+                                    for reg in registers:
+                                        reg_idx = reg[1:]  # Remove the 'r' prefix
+                                        if reg_idx in reg_state:
+                                            reg_data = reg_state[reg_idx]
+                                            reg_liveness = f" [{reg_data['live']}]" if reg_data['live'] != "" else ""
+                                            reg_info = (
+                                                f"R{reg_idx} ({reg_data['type']}){reg_liveness}: {reg_data['value']}"
+                                            )
+                                            print(
+                                                colored(
+                                                    f"{' ' * 4}   {' ' * compinfo_len} |    {reg_info}",
+                                                    "blue",
+                                                    attrs=["dark"],
+                                                )
+                                            )
+
                 elif len(buffer) == 9:
                     # Print the last lines if we have no line information
                     for l in buffer:

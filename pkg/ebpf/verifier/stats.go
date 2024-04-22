@@ -67,6 +67,7 @@ type RegisterState struct {
 
 // InstructionInfo holds information about an eBPF instruction extracted from the verifier
 type InstructionInfo struct {
+	Index            int                    `json:"index"`
 	TimesProcessed   int                    `json:"times_processed"`
 	Source           *SourceLine            `json:"source"`
 	Code             string                 `json:"code"`
@@ -76,11 +77,11 @@ type InstructionInfo struct {
 
 // SourceLineStats holds the aggregate verifier statistics for a given C source line
 type SourceLineStats struct {
-	NumInstructions            int      `json:"num_instructions"`
-	MaxPasses                  int      `json:"max_passes"`
-	MinPasses                  int      `json:"min_passes"`
-	TotalInstructionsProcessed int      `json:"total_instructions_processed"`
-	AssemblyInsns              []string `json:"assembly_insns"`
+	NumInstructions            int   `json:"num_instructions"`
+	MaxPasses                  int   `json:"max_passes"`
+	MinPasses                  int   `json:"min_passes"`
+	TotalInstructionsProcessed int   `json:"total_instructions_processed"`
+	AssemblyInsns              []int `json:"assembly_insns"`
 }
 
 // ComplexityInfo holds the complexity information for a given eBPF program, with assembly
@@ -461,7 +462,7 @@ func unmarshalComplexity(output string, progSourceMap map[int]*SourceLine) (*Com
 			return nil, fmt.Errorf("failed to parse instruction index (line is '%s'): %w", line, err)
 		}
 		if _, ok := complexity.InsnMap[insIdx]; !ok {
-			complexity.InsnMap[insIdx] = &InstructionInfo{}
+			complexity.InsnMap[insIdx] = &InstructionInfo{Index: insIdx}
 		}
 		complexity.InsnMap[insIdx].TimesProcessed++
 		complexity.InsnMap[insIdx].Code = match[2]
@@ -560,7 +561,7 @@ func unmarshalComplexity(output string, progSourceMap map[int]*SourceLine) (*Com
 	}
 
 	// Now build the source map for the source lines
-	for idx, insn := range complexity.InsnMap {
+	for _, insn := range complexity.InsnMap {
 		if insn.Source == nil {
 			continue
 		}
@@ -570,7 +571,7 @@ func unmarshalComplexity(output string, progSourceMap map[int]*SourceLine) (*Com
 				MaxPasses:                  0,
 				TotalInstructionsProcessed: 0,
 				MinPasses:                  math.MaxInt32,
-				AssemblyInsns:              []string{},
+				AssemblyInsns:              []int{},
 			}
 		}
 		stats := complexity.SourceMap[insn.Source.LineInfo]
@@ -578,7 +579,7 @@ func unmarshalComplexity(output string, progSourceMap map[int]*SourceLine) (*Com
 		stats.MaxPasses = max(stats.MaxPasses, insn.TimesProcessed)
 		stats.MinPasses = min(stats.MinPasses, insn.TimesProcessed)
 		stats.TotalInstructionsProcessed += insn.TimesProcessed
-		stats.AssemblyInsns = append(stats.AssemblyInsns, fmt.Sprintf("%d: %s", idx, insn.Code))
+		stats.AssemblyInsns = append(stats.AssemblyInsns, insn.Index)
 	}
 
 	return complexity, nil
