@@ -195,7 +195,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 //
 // This is exported because it also used from the deprecated `agent start` command.
 func run(log log.Component,
-	_ config.Component,
+	cfg config.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
 	sysprobeconfig sysprobeconfig.Component,
@@ -294,6 +294,7 @@ func run(log log.Component,
 		invChecks,
 		statusComponent,
 		collector,
+		cfg,
 		cloudfoundrycontainer,
 		jmxlogger,
 		settings,
@@ -473,6 +474,7 @@ func startAgent(
 	invChecks inventorychecks.Component,
 	_ status.Component,
 	collector collector.Component,
+	cfg config.Component,
 	_ cloudfoundrycontainer.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
@@ -571,7 +573,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta)
+	commonchecks.RegisterChecks(wmeta, cfg)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
