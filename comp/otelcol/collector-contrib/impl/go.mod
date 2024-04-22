@@ -1,6 +1,6 @@
 module github.com/datadog-agent/DataDog/comp/otelcol/collector-contrib/impl
 
-go 1.21.9
+go 1.21.0
 
 replace github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../def
 
