@@ -10,7 +10,9 @@ package service
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -45,13 +47,16 @@ var (
 	}
 )
 
-// SetupAgentUnits installs and starts the agent units
-func SetupAgentUnits(ctx context.Context) (err error) {
+// SetupAgent installs and starts the agent
+func SetupAgent(ctx context.Context) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
 		if err != nil {
-			log.Errorf("Failed to setup agent units: %s, reverting", err)
-			RemoveAgentUnits(ctx)
+			log.Errorf("Failed to setup agent: %s, reverting", err)
+			err = RemoveAgent(ctx)
+			if err != nil {
+				log.Warnf("Failed to revert agent setup: %s", err)
+			}
 		}
 		span.Finish(tracer.WithError(err))
 	}()
@@ -81,47 +86,58 @@ func SetupAgentUnits(ctx context.Context) (err error) {
 			return
 		}
 	}
-	err = createAgentSymlink(ctx)
+	if err = createAgentSymlink(ctx); err != nil {
+		return
+	}
+
+	// write installinfo before start, or the agent could write it
+	// TODO: add installer version properly
+	if err = installinfo.WriteInstallInfo("installer_package", "manual_update"); err != nil {
+		return
+	}
+
 	return
 }
 
-// RemoveAgentUnits stops and removes the agent units
-func RemoveAgentUnits(ctx context.Context) {
+// RemoveAgent stops and removes the agent
+func RemoveAgent(ctx context.Context) error {
 	span, ctx := tracer.StartSpanFromContext(ctx, "remove_agent_units")
 	defer span.Finish()
 	// stop experiments, they can restart stable agent
 	for _, unit := range experimentalUnits {
 		if err := stopUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to stop %s: %s", unit, err)
+			return fmt.Errorf("Failed to stop %s: %s", unit, err)
 		}
 	}
 	// stop stable agents
 	for _, unit := range stableUnits {
 		if err := stopUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to stop %s: %s", unit, err)
+			return fmt.Errorf("Failed to stop %s: %s", unit, err)
 		}
 	}
 	// purge experimental units
 	for _, unit := range experimentalUnits {
 		if err := disableUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to disable %s: %s", unit, err)
+			return fmt.Errorf("Failed to disable %s: %s", unit, err)
 		}
 		if err := removeUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to remove %s: %s", unit, err)
+			return fmt.Errorf("Failed to remove %s: %s", unit, err)
 		}
 	}
 	// purge stable units
 	for _, unit := range stableUnits {
 		if err := disableUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to disable %s: %s", unit, err)
+			return fmt.Errorf("Failed to disable %s: %s", unit, err)
 		}
 		if err := removeUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to remove %s: %s", unit, err)
+			return fmt.Errorf("Failed to remove %s: %s", unit, err)
 		}
 	}
 	if err := rmAgentSymlink(ctx); err != nil {
-		log.Warnf("Failed to remove agent symlink: %s", err)
+		return fmt.Errorf("Failed to remove agent symlink: %s", err)
 	}
+	installinfo.RmInstallInfo()
+	return nil
 }
 
 // StartAgentExperiment starts the agent experiment
