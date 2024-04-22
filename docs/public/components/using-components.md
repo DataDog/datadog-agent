@@ -14,8 +14,8 @@ The `cmd` folder use the following hierarchy:
 ```
 cmd /
     <binary name> /
-        main.go                   <-- The entry points from you binary
-        subcommands /             <-- All subcommand for you binary CLI
+        main.go                   <-- The entry points from your binary
+        subcommands /             <-- All subcommand for your binary CLI
             <subcommand name> /   <-- The code specific to a single subcommand
                 command.go
                 command_test.go
@@ -120,7 +120,7 @@ func myTestCallback(conf config.Component) {
 ```
 
 It's very important to understand that since `myTestCallback` only uses the `config.Component` not all components from
-the `core` bundle was instantiated ! The `core.Bundle` instruct `Fx` how to create components but only the ones required
+the `core` bundle were instantiated ! The `core.Bundle` instructs `Fx` how to create components but only the ones required
 are created.
 
 In our example, the `config.Component` might have dozens of dependencies instantiated from the core bundle. `Fx` handles

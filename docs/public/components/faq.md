@@ -6,7 +6,7 @@ TODO: Should we migrate the FAQ from confluence here ?
 
 You might need to express the fact that some of your dependencies are optional. This often happens for
 components that interact with many other components **if available** (ie: were included at compile time). This allow
-your component to interact with other without forcing their inclusion in the current binary.
+your component to interact with each other without forcing their inclusion in the current binary.
 
 The [optional.Option](https://github.com/DataDog/datadog-agent/tree/main/pkg/util/optional) type answer such need.
 
@@ -23,7 +23,7 @@ type Requires struct {
 }
 
 func NewMetadata(deps Requires) (metadata.Component) {
-    if sysprobeConf, available := deps.SysprobeConf.Get(); available {
+    if sysprobeConf, found := deps.SysprobeConf.Get(); found {
         // interact with sysprobeconfig
     }
 }

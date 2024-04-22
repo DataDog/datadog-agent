@@ -3,8 +3,8 @@
 The general idea is to register a callback within your component to be called each time a flare is created. This uses
 [Fx](../fx.md) groups under the hood, but helpers are there to abstract all the complexity.
 
-Then, migrate the code related to your component's domain from `pkg/flare` to your component and delete it from
-`pkg/flare` once done.
+Once the callback is created you will have to migrate the code related to your component from `pkg/flare` to your
+component.
 
 ## Creating a callback
 
@@ -53,7 +53,7 @@ While it's possible to register multiple callbacks from the same component, try 
 ## Register your callback
 
 Now you need to register your callback to be called each time a flare is created. To do so your component constructor
-need to provide a new [Provider](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare/types#Provider).
+needs to provide a new [Provider](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare/types#Provider).
 Use [NewProvider](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare/types#NewProvider) function for this.
 
 Example:
