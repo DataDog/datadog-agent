@@ -1004,6 +1004,13 @@ workflow:
   - <<: *if_disable_unit_tests
     when: never
 
+.on_macos_gui_change:
+  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+  - changes:
+      paths:
+        - comp/core/gui/guiimpl/systray/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
 .on_packaging_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
