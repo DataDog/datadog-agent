@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    expvars from the Process Agent component are added to the flare when used in the core Agent.
+    expvars from the Process Agent component are added to the flare when used in the core agent.
