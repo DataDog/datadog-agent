@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -30,7 +30,7 @@ func Module() fxutil.Module {
 }
 
 func newTelemetry(deps dependencies) (telemetry.Component, error) {
-	telemetry, err := installer.NewTelemetry(deps.Config)
+	telemetry, err := daemon.NewTelemetry(deps.Config)
 	if err != nil {
 		return nil, err
 	}

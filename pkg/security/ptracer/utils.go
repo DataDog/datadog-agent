@@ -305,6 +305,7 @@ func fillFileMetadata(tracer *Tracer, filepath string, fileMsg *ebpfless.FileSys
 	stat := fileInfo.Sys().(*syscall.Stat_t)
 	fileMsg.MTime = uint64(stat.Mtim.Nano())
 	fileMsg.CTime = uint64(stat.Ctim.Nano())
+	fileMsg.Inode = stat.Ino
 	fileMsg.Credentials = &ebpfless.Credentials{
 		UID:   stat.Uid,
 		User:  getUserFromUID(tracer, int32(stat.Uid)),

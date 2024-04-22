@@ -124,6 +124,8 @@ func (p *processor) processContainer(container *workloadmeta.Container, sources 
 			switch c.Owner.Kind {
 			case workloadmeta.KindKubernetesPod:
 				event.withOwnerType(types.ObjectKindPod)
+			case workloadmeta.KindECSTask:
+				event.withOwnerType(types.ObjectKindTask)
 			default:
 				log.Tracef("Cannot handle owner for container %q with type %q", container.ID, c.Owner.Kind)
 			}
