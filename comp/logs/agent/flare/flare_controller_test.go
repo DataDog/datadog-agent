@@ -8,6 +8,7 @@ package flare
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -33,25 +34,25 @@ func TestFillFlare(t *testing.T) {
     // one enabled rule, the file should exist
 	fc = NewFlareController()
 	f = helpers.NewFlareBuilderMock(t, false)
-	fc.SetEnabledSDSRules([]string{"rule1"});
+	fc.SetSDSInfo(nil, []string{"rule1"}, time.Now())
 	fc.FillFlare(f.Fb)
 	f.AssertFileExists("sds.log")
 
     // empty list even if the list exists, should not create the file
 	fc = NewFlareController()
 	f = helpers.NewFlareBuilderMock(t, false)
-	fc.SetEnabledSDSRules([]string{});
+	fc.SetSDSInfo(nil, nil, time.Now())
 	fc.FillFlare(f.Fb)
 	f.AssertNoFileExists("sds.log")
 
     // one standard rule, the file should exist
 	fc = NewFlareController()
 	f = helpers.NewFlareBuilderMock(t, false)
-	fc.SetStandardSDSRules([]string{"rule1"});
+	fc.SetSDSInfo([]string{"rule1"}, nil, time.Now())
 	fc.FillFlare(f.Fb)
 	f.AssertFileExists("sds.log")
     // one standard rule and one enabled rule, the file should exist
-	fc.SetEnabledSDSRules([]string{"rule1"});
+	fc.SetSDSInfo([]string{"rule1"}, []string{"user_rule1"}, time.Now())
 	fc.FillFlare(f.Fb)
 	f.AssertFileExists("sds.log")
 }
