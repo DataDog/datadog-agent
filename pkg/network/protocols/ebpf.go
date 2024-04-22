@@ -45,6 +45,8 @@ const (
 	ProgramHTTP2EOSParser ProgramType = C.PROG_HTTP2_EOS_PARSER
 	// ProgramKafka is the Golang representation of the C.PROG_KAFKA enum
 	ProgramKafka ProgramType = C.PROG_KAFKA
+	// ProgramKafkaResponseParser is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARSER enum
+	ProgramKafkaResponseParser ProgramType = C.PROG_KAFKA_RESPONSE_PARSER
 )
 
 // Application layer of the protocol stack.

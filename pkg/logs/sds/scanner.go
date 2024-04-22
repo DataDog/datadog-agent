@@ -73,6 +73,9 @@ const (
 
 	RCPartialRedactFirstCharacters = "first"
 	RCPartialRedactLastCharacters  = "last"
+
+	RCSecondaryValidationChineseIdChecksum = "chinese_id_checksum"
+	RCSecondaryValidationLuhnChecksum      = "luhn_checksum"
 )
 
 // Reconfigure uses the given `ReconfigureOrder` to reconfigure in-memory
@@ -250,8 +253,25 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 // `userRule`     contains the configuration done by the user: match action, etc.
 func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.Rule, error) {
 	var extraConfig sds.ExtraConfig
+
+	// proximity keywords support
 	if len(userRule.IncludedKeywords.Keywords) > 0 {
 		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(userRule.IncludedKeywords.CharacterCount, userRule.IncludedKeywords.Keywords, nil)
+	}
+
+	// the RC schema supports multiple of them,
+	// for now though, the lib only supports one, so we'll just use the first one.
+	if len(standardRule.SecondaryValidators) > 0 {
+		received := standardRule.SecondaryValidators[0]
+		switch received.Type {
+		case RCSecondaryValidationChineseIdChecksum:
+			extraConfig.SecondaryValidator = sds.ChineseIdChecksum
+		case RCSecondaryValidationLuhnChecksum:
+			extraConfig.SecondaryValidator = sds.LuhnChecksum
+		default:
+			log.Warnf("Unknown secondary validator: ", string(received.Type))
+			// TODO(remy): telemetry
+		}
 	}
 
 	// create the rules for the scanner
