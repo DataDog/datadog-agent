@@ -126,7 +126,7 @@ func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) st
 	return BuildURLWithPrefix(prefix, pkgconfigsetup.DefaultSite)
 }
 
-// GetHAEndpoint returns the MRF DD URL defined in the config, based on `multi_region_failover.site` and the prefix, or ddMRFURLKey
+// GetMRFEndpoint returns the MRF DD URL defined in the config, based on `multi_region_failover.site` and the prefix, or ddMRFURLKey
 func GetMRFEndpoint(c pkgconfigmodel.Reader, prefix, ddMRFURLKey string) (string, error) {
 	// value under ddURLKey takes precedence over 'multi_region_failover.site'
 	if c.IsSet(ddMRFURLKey) && c.GetString(ddMRFURLKey) != "" {
