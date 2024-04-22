@@ -128,6 +128,8 @@ func getExpectedConfigFiles() []string {
 	return []string{
 		`datadog.yaml`,
 		`system-probe.yaml`,
+		`security-agent.yaml`,
+		`runtime-security.d\default.policy`,
 	}
 }
 
@@ -141,11 +143,15 @@ func getExpectedBinFilesForAgentMajorVersion(majorVersion string) []string {
 		`bin\agent\ddtray.exe`,
 		`bin\agent\trace-agent.exe`,
 		`bin\agent\process-agent.exe`,
+		`bin\agent\security-agent.exe`,
 		`bin\agent\system-probe.exe`,
 		// drivers
 		`bin\agent\driver\ddnpm.sys`,
 		`bin\agent\driver\ddnpm.inf`,
 		`bin\agent\driver\ddnpm.cat`,
+		`bin\agent\driver\ddprocmon.sys`,
+		`bin\agent\driver\ddprocmon.inf`,
+		`bin\agent\driver\ddprocmon.cat`,
 		// python3
 		`bin\libdatadog-agent-three.dll`,
 		`embedded3\python.exe`,
