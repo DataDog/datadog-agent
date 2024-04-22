@@ -256,10 +256,17 @@ type UnloadModuleSyscallMsg struct {
 	Name string
 }
 
+// SpanContext stores a span context (if any)
+type SpanContext struct {
+	SpanID  uint64
+	TraceID uint64
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	Type         SyscallType
 	PID          uint32
+	SpanContext  *SpanContext `json:",omitempty"`
 	Timestamp    uint64
 	Retval       int64
 	ContainerID  string
