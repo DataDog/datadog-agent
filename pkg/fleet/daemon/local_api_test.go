@@ -21,71 +21,71 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testInstallerMock struct {
+type testDaemon struct {
 	mock.Mock
 }
 
-func (m *testInstallerMock) Start(ctx context.Context) error {
+func (m *testDaemon) Start(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
 }
 
-func (m *testInstallerMock) Stop(ctx context.Context) error {
+func (m *testDaemon) Stop(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
 }
 
-func (m *testInstallerMock) Install(ctx context.Context, url string) error {
+func (m *testDaemon) Install(ctx context.Context, url string) error {
 	args := m.Called(ctx, url)
 	return args.Error(0)
 }
 
-func (m *testInstallerMock) StartExperiment(ctx context.Context, url string) error {
+func (m *testDaemon) StartExperiment(ctx context.Context, url string) error {
 	args := m.Called(ctx, url)
 	return args.Error(0)
 }
 
-func (m *testInstallerMock) StopExperiment(ctx context.Context, pkg string) error {
+func (m *testDaemon) StopExperiment(ctx context.Context, pkg string) error {
 	args := m.Called(ctx, pkg)
 	return args.Error(0)
 }
 
-func (m *testInstallerMock) PromoteExperiment(ctx context.Context, pkg string) error {
+func (m *testDaemon) PromoteExperiment(ctx context.Context, pkg string) error {
 	args := m.Called(ctx, pkg)
 	return args.Error(0)
 }
 
-func (m *testInstallerMock) GetPackage(pkg string, version string) (Package, error) {
+func (m *testDaemon) GetPackage(pkg string, version string) (Package, error) {
 	args := m.Called(pkg, version)
 	return args.Get(0).(Package), args.Error(1)
 }
 
-func (m *testInstallerMock) GetState() (map[string]repository.State, error) {
+func (m *testDaemon) GetState() (map[string]repository.State, error) {
 	args := m.Called()
 	return args.Get(0).(map[string]repository.State), args.Error(1)
 }
 
 type testLocalAPI struct {
-	i *testInstallerMock
+	i *testDaemon
 	s *localAPIImpl
 	c *localAPIClientImpl
 }
 
 func newTestLocalAPI(t *testing.T) *testLocalAPI {
-	installer := &testInstallerMock{}
+	daemon := &testDaemon{}
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	apiServer := &localAPIImpl{
-		server:    &http.Server{},
-		listener:  l,
-		installer: installer,
+		server:   &http.Server{},
+		listener: l,
+		daemon:   daemon,
 	}
 	apiServer.Start(context.Background())
 	apiClient := &localAPIClientImpl{
 		client: &http.Client{},
 		addr:   l.Addr().String(),
 	}
-	return &testLocalAPI{installer, apiServer, apiClient}
+	return &testLocalAPI{daemon, apiServer, apiClient}
 }
 
 func (api *testLocalAPI) Stop() {

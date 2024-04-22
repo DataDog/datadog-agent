@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	defaultSocketPath = installer.PackagesPath + "/installer.sock"
+	defaultSocketPath = installer.PackagesPath + "/daemon.sock"
 )
 
 // StatusResponse is the response to the status endpoint.
@@ -43,21 +43,21 @@ type APIError struct {
 	Message string `json:"message"`
 }
 
-// LocalAPI is the interface for the locally exposed API to interact with the installer.
+// LocalAPI is the interface for the locally exposed API to interact with the daemon.
 type LocalAPI interface {
 	Start(context.Context) error
 	Stop(context.Context) error
 }
 
-// localAPIImpl is a locally exposed API to interact with the installer.
+// localAPIImpl is a locally exposed API to interact with the daemon.
 type localAPIImpl struct {
-	installer Installer
-	listener  net.Listener
-	server    *http.Server
+	daemon   Daemon
+	listener net.Listener
+	server   *http.Server
 }
 
 // NewLocalAPI returns a new LocalAPI.
-func NewLocalAPI(installer Installer) (LocalAPI, error) {
+func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
 	socketPath := defaultSocketPath
 	err := os.RemoveAll(socketPath)
 	if err != nil {
@@ -71,9 +71,9 @@ func NewLocalAPI(installer Installer) (LocalAPI, error) {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
 	return &localAPIImpl{
-		server:    &http.Server{},
-		listener:  listener,
-		installer: installer,
+		server:   &http.Server{},
+		listener: listener,
+		daemon:   daemon,
 	}, nil
 }
 
@@ -110,7 +110,7 @@ func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
-	pacakges, err := l.installer.GetState()
+	pacakges, err := l.daemon.GetState()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -138,13 +138,13 @@ func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Infof("Received local request to start experiment for package %s version %s", pkg, request.Version)
-	catalogPkg, err := l.installer.GetPackage(pkg, request.Version)
+	catalogPkg, err := l.daemon.GetPackage(pkg, request.Version)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
 		return
 	}
-	err = l.installer.StartExperiment(r.Context(), catalogPkg.URL)
+	err = l.daemon.StartExperiment(r.Context(), catalogPkg.URL)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -161,7 +161,7 @@ func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
 	log.Infof("Received local request to stop experiment for package %s", pkg)
-	err := l.installer.StopExperiment(r.Context(), pkg)
+	err := l.daemon.StopExperiment(r.Context(), pkg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -178,7 +178,7 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 		_ = json.NewEncoder(w).Encode(response)
 	}()
 	log.Infof("Received local request to promote experiment for package %s", pkg)
-	err := l.installer.PromoteExperiment(r.Context(), pkg)
+	err := l.daemon.PromoteExperiment(r.Context(), pkg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -205,7 +205,7 @@ func (l *localAPIImpl) install(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	catalogPkg, err := l.installer.GetPackage(pkg, request.Version)
+	catalogPkg, err := l.daemon.GetPackage(pkg, request.Version)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -213,7 +213,7 @@ func (l *localAPIImpl) install(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("Received local request to install package %s version %s", pkg, request.Version)
-	err = l.installer.Install(r.Context(), catalogPkg.URL)
+	err = l.daemon.Install(r.Context(), catalogPkg.URL)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -221,7 +221,7 @@ func (l *localAPIImpl) install(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// LocalAPIClient is a client to interact with the locally exposed installer API.
+// LocalAPIClient is a client to interact with the locally exposed daemon API.
 type LocalAPIClient interface {
 	Status() (StatusResponse, error)
 
@@ -231,7 +231,7 @@ type LocalAPIClient interface {
 	PromoteExperiment(pkg string) error
 }
 
-// LocalAPIClient is a client to interact with the locally exposed installer API.
+// LocalAPIClient is a client to interact with the locally exposed daemon API.
 type localAPIClientImpl struct {
 	client *http.Client
 	addr   string
@@ -240,7 +240,7 @@ type localAPIClientImpl struct {
 // NewLocalAPIClient returns a new LocalAPIClient.
 func NewLocalAPIClient() LocalAPIClient {
 	return &localAPIClientImpl{
-		addr: "installer", // this has no meaning when using a unix socket
+		addr: "daemon", // this has no meaning when using a unix socket
 		client: &http.Client{
 			Transport: &http.Transport{
 				Dial: func(_, _ string) (net.Conn, error) {
@@ -251,7 +251,7 @@ func NewLocalAPIClient() LocalAPIClient {
 	}
 }
 
-// Status returns the status of the installer.
+// Status returns the status of the daemon.
 func (c *localAPIClientImpl) Status() (StatusResponse, error) {
 	var response StatusResponse
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s/status", c.addr), nil)

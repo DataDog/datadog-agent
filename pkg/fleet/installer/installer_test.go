@@ -77,13 +77,13 @@ func fsContainsAll(a fs.FS, b fs.FS) error {
 }
 
 type testPackageManager struct {
-	managerImpl
+	installerImpl
 }
 
 func newTestPackageManager(t *testing.T, s *testDownloadServer, rootPath string, locksPath string) *testPackageManager {
 	repositories := repository.NewRepositories(rootPath, locksPath)
 	return &testPackageManager{
-		managerImpl{
+		installerImpl{
 			downloader:   s.Downloader(),
 			repositories: repositories,
 			configsDir:   t.TempDir(),

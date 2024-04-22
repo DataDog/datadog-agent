@@ -46,7 +46,7 @@ func newUpdaterComponent(lc fx.Lifecycle, dependencies dependencies) (updatercom
 	if !ok {
 		return nil, errRemoteConfigRequired
 	}
-	daemon, err := daemon.NewInstaller(remoteConfig, dependencies.Config)
+	daemon, err := daemon.NewDaemon(remoteConfig, dependencies.Config)
 	if err != nil {
 		return nil, fmt.Errorf("could not create updater: %w", err)
 	}

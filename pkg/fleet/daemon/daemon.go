@@ -31,8 +31,8 @@ const (
 	gcInterval = 1 * time.Hour
 )
 
-// Installer is the datadog packages installer.
-type Installer interface {
+// Daemon is the fleet daemon in charge of remote install, updates and configuration.
+type Daemon interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 
@@ -45,11 +45,11 @@ type Installer interface {
 	GetState() (map[string]repository.State, error)
 }
 
-type installerImpl struct {
+type daemonImpl struct {
 	m        sync.Mutex
 	stopChan chan struct{}
 
-	packageManager installer.Manager
+	packageManager installer.Installer
 	remoteUpdates  bool
 	rc             *remoteConfig
 	catalog        catalog
@@ -60,15 +60,15 @@ type installerImpl struct {
 // BootstrapURL installs the given package from an URL.
 func BootstrapURL(ctx context.Context, url string, config config.Reader) error {
 	rc := newNoopRemoteConfig()
-	i := newInstaller(rc, newPackageManager(config), false)
+	i := newDaemon(rc, newPackageManager(config), false)
 	err := i.Start(ctx)
 	if err != nil {
-		return fmt.Errorf("could not start installer: %w", err)
+		return fmt.Errorf("could not start daemon: %w", err)
 	}
 	defer func() {
 		err := i.Stop(ctx)
 		if err != nil {
-			log.Errorf("could not stop installer: %v", err)
+			log.Errorf("could not stop daemon: %v", err)
 		}
 	}()
 	return i.Install(ctx, url)
@@ -77,15 +77,15 @@ func BootstrapURL(ctx context.Context, url string, config config.Reader) error {
 // Bootstrap is the generic installer bootstrap.
 func Bootstrap(ctx context.Context, config config.Reader) error {
 	rc := newNoopRemoteConfig()
-	i := newInstaller(rc, newPackageManager(config), false)
+	i := newDaemon(rc, newPackageManager(config), false)
 	err := i.Start(ctx)
 	if err != nil {
-		return fmt.Errorf("could not start installer: %w", err)
+		return fmt.Errorf("could not start daemon: %w", err)
 	}
 	defer func() {
 		err := i.Stop(ctx)
 		if err != nil {
-			log.Errorf("could not stop installer: %v", err)
+			log.Errorf("could not stop daemon: %v", err)
 		}
 	}()
 	return i.Bootstrap(ctx)
@@ -93,11 +93,11 @@ func Bootstrap(ctx context.Context, config config.Reader) error {
 
 // Remove removes an individual package
 func Remove(ctx context.Context, pkg string) error {
-	packageManager := installer.NewManager()
+	packageManager := installer.NewInstaller()
 	return packageManager.Remove(ctx, pkg)
 }
 
-func newPackageManager(config config.Reader) installer.Manager {
+func newPackageManager(config config.Reader) installer.Installer {
 	registry := config.GetString("updater.registry")
 	registryAuth := config.GetString("updater.registry_auth")
 	var opts []installer.Options
@@ -107,22 +107,22 @@ func newPackageManager(config config.Reader) installer.Manager {
 	if registryAuth != "" {
 		opts = append(opts, installer.WithRegistryAuth(installer.RegistryAuth(registryAuth)))
 	}
-	return installer.NewManager(opts...)
+	return installer.NewInstaller(opts...)
 }
 
-// NewInstaller returns a new Installer.
-func NewInstaller(rcFetcher client.ConfigFetcher, config config.Reader) (Installer, error) {
+// NewDaemon returns a new daemon.
+func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, error) {
 	rc, err := newRemoteConfig(rcFetcher)
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
 	packagesManager := newPackageManager(config)
 	remoteUpdates := config.GetBool("updater.remote_updates")
-	return newInstaller(rc, packagesManager, remoteUpdates), nil
+	return newDaemon(rc, packagesManager, remoteUpdates), nil
 }
 
-func newInstaller(rc *remoteConfig, packageManager installer.Manager, remoteUpdates bool) *installerImpl {
-	i := &installerImpl{
+func newDaemon(rc *remoteConfig, packageManager installer.Installer, remoteUpdates bool) *daemonImpl {
+	i := &daemonImpl{
 		remoteUpdates:  remoteUpdates,
 		rc:             rc,
 		packageManager: packageManager,
@@ -135,7 +135,7 @@ func newInstaller(rc *remoteConfig, packageManager installer.Manager, remoteUpda
 }
 
 // GetState returns the state.
-func (i *installerImpl) GetState() (map[string]repository.State, error) {
+func (i *daemonImpl) GetState() (map[string]repository.State, error) {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -143,7 +143,7 @@ func (i *installerImpl) GetState() (map[string]repository.State, error) {
 }
 
 // GetPackage returns the package with the given name and version.
-func (i *installerImpl) GetPackage(pkg string, version string) (Package, error) {
+func (i *daemonImpl) GetPackage(pkg string, version string) (Package, error) {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -155,7 +155,7 @@ func (i *installerImpl) GetPackage(pkg string, version string) (Package, error) 
 }
 
 // Start starts remote config and the garbage collector.
-func (i *installerImpl) Start(_ context.Context) error {
+func (i *daemonImpl) Start(_ context.Context) error {
 	go func() {
 		for {
 			select {
@@ -164,20 +164,20 @@ func (i *installerImpl) Start(_ context.Context) error {
 				err := i.packageManager.GarbageCollect(context.Background())
 				i.m.Unlock()
 				if err != nil {
-					log.Errorf("installer: could not run GC: %v", err)
+					log.Errorf("Daemon: could not run GC: %v", err)
 				}
 			case <-i.stopChan:
 				return
 			case request := <-i.requests:
 				err := i.handleRemoteAPIRequest(request)
 				if err != nil {
-					log.Errorf("installer: could not handle remote request: %v", err)
+					log.Errorf("Daemon: could not handle remote request: %v", err)
 				}
 			}
 		}
 	}()
 	if !i.remoteUpdates {
-		log.Infof("installer: Remote updates are disabled")
+		log.Infof("Daemon: Remote updates are disabled")
 		return nil
 	}
 	i.rc.Start(i.handleCatalogUpdate, i.scheduleRemoteAPIRequest)
@@ -185,7 +185,7 @@ func (i *installerImpl) Start(_ context.Context) error {
 }
 
 // Stop stops the garbage collector.
-func (i *installerImpl) Stop(_ context.Context) error {
+func (i *daemonImpl) Stop(_ context.Context) error {
 	i.rc.Close()
 	close(i.stopChan)
 	i.requestsWG.Wait()
@@ -194,7 +194,7 @@ func (i *installerImpl) Stop(_ context.Context) error {
 }
 
 // Bootstrap is the generic bootstrap of the installer
-func (i *installerImpl) Bootstrap(ctx context.Context) (err error) {
+func (i *daemonImpl) Bootstrap(ctx context.Context) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	i.m.Lock()
@@ -210,7 +210,7 @@ func (i *installerImpl) Bootstrap(ctx context.Context) (err error) {
 }
 
 // Install installs the package from the given URL.
-func (i *installerImpl) Install(ctx context.Context, url string) (err error) {
+func (i *daemonImpl) Install(ctx context.Context, url string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "start_experiment")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	i.m.Lock()
@@ -218,17 +218,17 @@ func (i *installerImpl) Install(ctx context.Context, url string) (err error) {
 	i.refreshState(ctx)
 	defer i.refreshState(ctx)
 
-	log.Infof("Installer: Bootstrapping package from %s", url)
+	log.Infof("Daemon: Bootstrapping package from %s", url)
 	err = i.packageManager.Install(ctx, url)
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}
-	log.Infof("Installer: Successfully installed package from %s", url)
+	log.Infof("Daemon: Successfully installed package from %s", url)
 	return nil
 }
 
 // StartExperiment starts an experiment with the given package.
-func (i *installerImpl) StartExperiment(ctx context.Context, url string) (err error) {
+func (i *daemonImpl) StartExperiment(ctx context.Context, url string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "start_experiment")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	i.m.Lock()
@@ -236,17 +236,17 @@ func (i *installerImpl) StartExperiment(ctx context.Context, url string) (err er
 	i.refreshState(ctx)
 	defer i.refreshState(ctx)
 
-	log.Infof("Installer: Starting experiment for package from %s", url)
+	log.Infof("Daemon: Starting experiment for package from %s", url)
 	err = i.packageManager.InstallExperiment(ctx, url)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
-	log.Infof("Installer: Successfully started experiment for package from %s", url)
+	log.Infof("Daemon: Successfully started experiment for package from %s", url)
 	return nil
 }
 
 // PromoteExperiment promotes the experiment to stable.
-func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) (err error) {
+func (i *daemonImpl) PromoteExperiment(ctx context.Context, pkg string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "promote_experiment")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	i.m.Lock()
@@ -254,17 +254,17 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) (err 
 	i.refreshState(ctx)
 	defer i.refreshState(ctx)
 
-	log.Infof("Installer: Promoting experiment for package %s", pkg)
+	log.Infof("Daemon: Promoting experiment for package %s", pkg)
 	err = i.packageManager.PromoteExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
-	log.Infof("Installer: Successfully promoted experiment for package %s", pkg)
+	log.Infof("Daemon: Successfully promoted experiment for package %s", pkg)
 	return nil
 }
 
 // StopExperiment stops the experiment.
-func (i *installerImpl) StopExperiment(ctx context.Context, pkg string) (err error) {
+func (i *daemonImpl) StopExperiment(ctx context.Context, pkg string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "stop_experiment")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	i.m.Lock()
@@ -272,22 +272,22 @@ func (i *installerImpl) StopExperiment(ctx context.Context, pkg string) (err err
 	i.refreshState(ctx)
 	defer i.refreshState(ctx)
 
-	log.Infof("Installer: Stopping experiment for package %s", pkg)
+	log.Infof("Daemon: Stopping experiment for package %s", pkg)
 	err = i.packageManager.RemoveExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
-	log.Infof("Installer: Successfully stopped experiment for package %s", pkg)
+	log.Infof("Daemon: Successfully stopped experiment for package %s", pkg)
 	return nil
 }
 
-func (i *installerImpl) setupInstallerUnits(ctx context.Context) (err error) {
+func (i *daemonImpl) setupInstallerUnits(ctx context.Context) (err error) {
 	systemdRunning, err := service.IsSystemdRunning()
 	if err != nil {
 		return fmt.Errorf("error checking if systemd is running: %w", err)
 	}
 	if !systemdRunning {
-		log.Infof("Installer: Systemd is not running, skipping unit setup")
+		log.Infof("Daemon: Systemd is not running, skipping unit setup")
 		return nil
 	}
 	err = service.SetupInstallerUnits(ctx)
@@ -301,21 +301,21 @@ func (i *installerImpl) setupInstallerUnits(ctx context.Context) (err error) {
 	return service.StartInstallerStable(ctx)
 }
 
-func (i *installerImpl) handleCatalogUpdate(c catalog) error {
+func (i *daemonImpl) handleCatalogUpdate(c catalog) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	log.Infof("Installer: Received catalog update")
+	log.Infof("Daemon: Received catalog update")
 	i.catalog = c
 	return nil
 }
 
-func (i *installerImpl) scheduleRemoteAPIRequest(request remoteAPIRequest) error {
+func (i *daemonImpl) scheduleRemoteAPIRequest(request remoteAPIRequest) error {
 	i.requestsWG.Add(1)
 	i.requests <- request
 	return nil
 }
 
-func (i *installerImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error) {
+func (i *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error) {
 	i.m.Lock()
 	defer i.m.Unlock()
 	defer i.requestsWG.Done()
@@ -338,13 +338,13 @@ func (i *installerImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err er
 	i.m.Unlock()
 	switch request.Method {
 	case methodStartExperiment:
-		log.Infof("Installer: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
+		log.Infof("Daemon: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
 		err = i.remoteAPIStartExperiment(ctx, request)
 	case methodStopExperiment:
-		log.Infof("Installer: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
+		log.Infof("Daemon: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
 		err = i.StopExperiment(ctx, request.Package)
 	case methodPromoteExperiment:
-		log.Infof("Installer: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
+		log.Infof("Daemon: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
 		err = i.PromoteExperiment(ctx, request.Package)
 	default:
 		err = fmt.Errorf("unknown method: %s", request.Method)
@@ -353,7 +353,7 @@ func (i *installerImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err er
 	return err
 }
 
-func (i *installerImpl) remoteAPIStartExperiment(ctx context.Context, request remoteAPIRequest) error {
+func (i *daemonImpl) remoteAPIStartExperiment(ctx context.Context, request remoteAPIRequest) error {
 	var params taskWithVersionParams
 	err := json.Unmarshal(request.Params, &params)
 	if err != nil {
@@ -400,7 +400,7 @@ func setRequestDone(ctx context.Context, err error) {
 	}
 }
 
-func (i *installerImpl) refreshState(ctx context.Context) {
+func (i *daemonImpl) refreshState(ctx context.Context) {
 	state, err := i.packageManager.States()
 	if err != nil {
 		// TODO: we should report this error through RC in some way

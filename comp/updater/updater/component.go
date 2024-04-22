@@ -14,5 +14,5 @@ import (
 
 // Component is the interface for the updater component.
 type Component interface {
-	daemon.Installer
+	daemon.Daemon
 }
