@@ -236,7 +236,12 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 
 		// The RC schema supports multiple of them,
 		// for now though, the lib only supports one, so we'll just use the first one.
-		if len(stdRuleDef.SecondaryValidators) > 0 {
+		secValidatorsCount := len(stdRuleDef.SecondaryValidators)
+		if secValidatorsCount > 0 {
+			if secValidatorsCount > 1 {
+				// TODO(remy): telemetry
+				log.Warnf("Standard rule '%v' with multiple validators: %d. Only the first one will be used", standardRule.Name, secValidatorsCount)
+			}
 			received := stdRuleDef.SecondaryValidators[0]
 			switch received.Type {
 			case RCSecondaryValidationChineseIdChecksum:
