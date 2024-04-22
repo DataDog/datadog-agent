@@ -28,8 +28,6 @@ func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
 	h.daemon.LambdaLibraryStateLock.Lock()
 	defer h.daemon.LambdaLibraryStateLock.Unlock()
-	h.daemon.LambdaLibraryStateLock.Lock()
-	defer h.daemon.LambdaLibraryStateLock.Unlock()
 	h.daemon.LambdaLibraryDetected = true
 }
 
