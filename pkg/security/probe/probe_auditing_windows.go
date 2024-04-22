@@ -52,15 +52,18 @@ type objectPermsChange struct {
 	subjectUserSid    string
 	subjectUserName   string
 	subjectDomainName string
-	subjectLogonId    string
-	objectServer      string
-	objectType        string
-	objectName        string
-	handleId          fileObjectPointer
-	oldSd             string
-	newSd             string
-	processId         fileObjectPointer
-	processName       string
+	//revive:disable:var-naming
+	subjectLogonId string
+	objectServer   string
+	objectType     string
+	objectName     string
+	//revive:disable:var-naming
+	handleId fileObjectPointer
+	oldSd    string
+	newSd    string
+	//revive:disable:var-naming
+	processId   fileObjectPointer
+	processName string
 }
 
 func (wp *WindowsProbe) parseObjectPermsChange(e *etw.DDEventRecord) (*objectPermsChange, error) {
@@ -119,8 +122,8 @@ func (sp *stringparser) GetSIDString(data etw.UserData) string {
 	l := data.Length()
 	b := data.Bytes(sp.nextRead, l-sp.nextRead)
 	sid := (*windows.SID)(unsafe.Pointer(&b[0]))
-	len := windows.GetLengthSid(sid)
-	sp.nextRead += int(len)
+	sidlen := windows.GetLengthSid(sid)
+	sp.nextRead += int(sidlen)
 
 	var winstring *uint16
 	err := windows.ConvertSidToStringSid(sid, &winstring)
