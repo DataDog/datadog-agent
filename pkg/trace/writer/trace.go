@@ -8,6 +8,7 @@ package writer
 import (
 	"compress/gzip"
 	"errors"
+	"io"
 	"runtime"
 	"strings"
 	"sync"
@@ -19,9 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
-	"github.com/DataDog/zstd"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/DataDog/zstd"
 )
 
 // pathTraces is the target host API path for delivering traces.
@@ -286,6 +287,7 @@ func (w *TraceWriter) serializer() {
 
 			w.stats.BytesUncompressed.Add(int64(len(b)))
 			var p *payload
+			var writer io.WriteCloser
 
 			if w.useZstd {
 				p = newPayload(map[string]string{
@@ -293,15 +295,10 @@ func (w *TraceWriter) serializer() {
 					"Content-Encoding": "zstd",
 					headerLanguages:    strings.Join(info.Languages(), "|"),
 				})
-				p.body.Grow(len(b) / 2)
 
-				zstdw := zstd.NewWriterLevel(p.body, zstd.BestSpeed)
-				if _, err := zstdw.Write(b); err != nil {
-					log.Errorf("Error zstd compressing trace payload: %v", err)
-				}
-				if err := zstdw.Close(); err != nil {
-					log.Errorf("Error closing zstd stream when writing trace payload: %v", err)
-				}
+				p.body.Grow(len(b) / 2)
+				writer = zstd.NewWriterLevel(p.body, zstd.BestSpeed)
+
 			} else {
 				p = newPayload(map[string]string{
 					"Content-Type":     "application/x-protobuf",
@@ -310,19 +307,20 @@ func (w *TraceWriter) serializer() {
 				})
 				p.body.Grow(len(b) / 2)
 
-				gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
+				writer, err = gzip.NewWriterLevel(p.body, gzip.BestSpeed)
 				if err != nil {
 					// it will never happen, unless an invalid compression is chosen;
 					// we know gzip.BestSpeed is valid.
-					log.Errorf("gzip.NewWriterLevel: %d", err)
+					log.Errorf("Failed to compress trace paylod: %s", err)
 					return
 				}
-				if _, err := gzipw.Write(b); err != nil {
-					log.Errorf("Error gzipping trace payload: %v", err)
-				}
-				if err := gzipw.Close(); err != nil {
-					log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
-				}
+			}
+
+			if _, err := writer.Write(b); err != nil {
+				log.Errorf("Error compressing trace payload: %v", err)
+			}
+			if err := writer.Close(); err != nil {
+				log.Errorf("Error closing compressed stream when writing trace payload: %v", err)
 			}
 
 			sendPayloads(w.senders, p, w.syncMode)

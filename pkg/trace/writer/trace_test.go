@@ -7,6 +7,7 @@ package writer
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io"
 	"runtime"
 	"sync"
@@ -60,7 +61,7 @@ func TestTraceWriter(t *testing.T) {
 			cfg.Features = map[string]struct{}{"zstd-encoding": {}}
 		}
 
-		t.Run("ok", func(t *testing.T) {
+		t.Run(fmt.Sprintf("zstd_%t", tc), func(t *testing.T) {
 			testSpans := []*SampledChunks{
 				randomSampledSpans(20, 8),
 				randomSampledSpans(10, 0),
@@ -160,15 +161,17 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledC
 		assert := assert.New(t)
 		var slurp []byte
 		var err error
+		var reader io.ReadCloser
+
 		if shouldUseZstd {
-			zstdReader := zstd.NewReader(p.body)
-			assert.NotNil(zstdReader)
-			slurp, err = io.ReadAll(zstdReader)
+			reader = zstd.NewReader(p.body)
+			assert.NotNil(reader)
 		} else {
-			gzipReader, err := gzip.NewReader(p.body)
+			reader, err = gzip.NewReader(p.body)
 			assert.NoError(err)
-			slurp, err = io.ReadAll(gzipReader)
 		}
+
+		slurp, err = io.ReadAll(reader)
 
 		assert.NoError(err)
 		var payload pb.AgentPayload
