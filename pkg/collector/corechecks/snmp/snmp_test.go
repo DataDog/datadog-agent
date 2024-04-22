@@ -863,6 +863,8 @@ profiles:
       "tags": [
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
+		"device_id:default:1.2.3.4",
+		"device_ip:1.2.3.4",
         "device_namespace:default",
         "device_vendor:f5",
         "mytag:val1",
@@ -1516,6 +1518,8 @@ tags:
       "tags": [
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
+		"device_id:default:1.2.3.4",
+		"device_ip:1.2.3.4",
         "device_namespace:default",
         "mytag:val1",
         "snmp_device:1.2.3.4"
@@ -1659,6 +1663,8 @@ tags:
       "tags": [
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
+		"device_id:default:1.2.3.5",
+		"device_ip:1.2.3.5",
         "device_namespace:default",
         "mytag:val1",
         "snmp_device:1.2.3.5"
@@ -1970,6 +1976,8 @@ metric_tags:
       "tags": [
         "agent_version:%s",
         "autodiscovery_subnet:10.10.0.0/30",
+		"device_id:%s",
+		"device_ip:%s",
         "device_namespace:default",
         "snmp_device:%s",
         "snmp_host:foo_sys_name"
@@ -2026,7 +2034,7 @@ metric_tags:
   ],
   "collect_timestamp":946684800
 }
-`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
+`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.deviceID, deviceData.ipAddress, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
 		compactEvent := new(bytes.Buffer)
 		err = json.Compact(compactEvent, event)
 		assert.NoError(t, err)
