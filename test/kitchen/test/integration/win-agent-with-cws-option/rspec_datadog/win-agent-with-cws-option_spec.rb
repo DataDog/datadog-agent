@@ -15,38 +15,21 @@ shared_examples_for 'a Windows Agent with CWS driver installed' do
         expect(is_windows_service_installed("datadog-system-probe")).to be_truthy
     end
 
-    if expect_windows_cws?
-        it 'has required services installed' do
-            expect(is_windows_service_installed("datadog-security-agent")).to be_truthy
-            expect(is_windows_service_installed("ddprocmon")).to be_truthy
-        end
-        it 'has driver files' do
-            program_files = safe_program_files
-            expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddprocmon.cat")
-            expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddprocmon.sys")
-            expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddprocmon.inf")
-        end
-
-        it 'does not have the driver running on install' do
-            ## verify that the driver is not started yet
-            expect(is_service_running?("ddprocmon")).to be_falsey
-        end
-    else
-        ## if windows CWS is not expected, do the reverse check (that services aren't installed, files
-        ## not present, etc.)  Once CWS is released, remove this part of the test.
-        it 'does not have cws services installed' do
-            expect(is_windows_service_installed("datadog-security-agent")).to be_falsey
-            expect(is_windows_service_installed("ddprocmon")).to be_falsey
-        end
-        it 'does not have driver files' do
-            program_files = safe_program_files
-            expect(File).not_to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddprocmon.cat")
-            expect(File).not_to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddprocmon.sys")
-            expect(File).not_to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddprocmon.inf")
-        end
+    it 'has required services installed' do
+        expect(is_windows_service_installed("datadog-security-agent")).to be_truthy
+        expect(is_windows_service_installed("ddprocmon")).to be_truthy
     end
-    
-    
+    it 'has driver files' do
+        program_files = safe_program_files
+        expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddprocmon.cat")
+        expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddprocmon.sys")
+        expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddprocmon.inf")
+    end
+
+    it 'does not have the driver running on install' do
+        ## verify that the driver is not started yet
+        expect(is_service_running?("ddprocmon")).to be_falsey
+    end    
 
 end
   
