@@ -46,6 +46,9 @@ jobs:
           cache-dependency-path: '**/requirements*.txt'
       - name: Install dependencies
         run: pip install -r requirements.txt -r tasks/requirements.txt
+      - name: Remove unsupported git config
+        # Triggers dulwich.repo.UnsupportedExtension: b'worktreeConfig' 
+        run: git config --unset-all extensions.worktreeconfig
       - name: Check release note
         env:
           BRANCH_NAME: ${{ github.head_ref }}
