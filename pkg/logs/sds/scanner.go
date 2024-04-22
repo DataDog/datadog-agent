@@ -236,13 +236,13 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 
 		// The RC schema supports multiple of them,
 		// for now though, the lib only supports one, so we'll just use the first one.
-		secValidatorsCount := len(stdRuleDef.SecondaryValidators)
-		if secValidatorsCount > 0 {
-			if secValidatorsCount > 1 {
+		reqCapabilitiesCount := len(stdRuleDef.RequiredCapabilities)
+		if reqCapabilitiesCount > 0 {
+			if reqCapabilitiesCount > 1 {
 				// TODO(remy): telemetry
-				log.Warnf("Standard rule '%v' with multiple validators: %d. Only the first one will be used", standardRule.Name, secValidatorsCount)
+				log.Warnf("Standard rule '%v' with multiple required capabilities: %d. Only the first one will be used", standardRule.Name, reqCapabilitiesCount)
 			}
-			received := stdRuleDef.SecondaryValidators[0]
+			received := stdRuleDef.RequiredCapabilities[0]
 			switch received.Type {
 			case RCSecondaryValidationChineseIdChecksum:
 				extraConfig.SecondaryValidator = sds.ChineseIdChecksum
@@ -251,8 +251,8 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 				extraConfig.SecondaryValidator = sds.LuhnChecksum
 				defToUse = stdRuleDef
 			default:
-				// we don't know this secondary validator, test another version
-				log.Warnf("unknown secondary validator: ", string(received.Type))
+				// we don't know this required capability, test another version
+				log.Warnf("unknown required capability: ", string(received.Type))
 				continue
 			}
 		} else {

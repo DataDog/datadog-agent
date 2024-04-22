@@ -38,11 +38,11 @@ type StandardRuleDefinition struct {
 	Pattern                 string               `json:"pattern"`
 	Tags                    []string             `json:"tags"`
 	DefaultIncludedKeywords []string             `json:"default_included_keywords"`
-	SecondaryValidators     []SecondaryValidator `json:"secondary_validation"`
+	RequiredCapabilities    []RequiredCapability `json:"required_capabilities"`
 }
 
-// SecondaryValidatorn definition.
-type SecondaryValidator struct {
+// RequiredCapability definition.
+type RequiredCapability struct {
 	Type string `json:"type"`
 }
 

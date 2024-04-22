@@ -488,13 +488,13 @@ func TestInterpretRC(t *testing.T) {
 
 	require.Equal(rule.Id, "Zero")
 	require.Equal(rule.Pattern, "rule pattern 1")
-	require.Equal(rule.SecondaryValidator, sds.SecondaryValidator(""))
+	require.Equal(rule.RequiredCapability, sds.SecondaryValidator(""))
 
-	// add a version with a secondary validator
+	// add a version with a required capability
 	stdRc.Definitions = append(stdRc.Definitions, StandardRuleDefinition{
-		Version:             2,
-		Pattern:             "second pattern",
-		SecondaryValidators: []SecondaryValidator{{Type: RCSecondaryValidationLuhnChecksum}},
+		Version:              2,
+		Pattern:              "second pattern",
+		RequiredCapabilities: []RequiredCapability{{Type: RCSecondaryValidationLuhnChecksum}},
 	})
 
 	rule, err = interpretRCRule(rc, stdRc)
@@ -502,26 +502,26 @@ func TestInterpretRC(t *testing.T) {
 
 	require.Equal(rule.Id, "Zero")
 	require.Equal(rule.Pattern, "second pattern")
-	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
+	require.Equal(rule.RequiredCapability, sds.LuhnChecksum)
 
-	// add a third version with an unknown secondary validator
+	// add a third version with an unknown required capability
 	// it should fallback on using the version 2
 	// also, make sure the version ain't ordered properly
 	stdRc.Definitions = []StandardRuleDefinition{
 		{
-			Version:             2,
-			Pattern:             "second pattern",
-			SecondaryValidators: []SecondaryValidator{{Type: RCSecondaryValidationLuhnChecksum}},
+			Version:              2,
+			Pattern:              "second pattern",
+			RequiredCapabilities: []RequiredCapability{{Type: RCSecondaryValidationLuhnChecksum}},
 		},
 		{
-			Version:             1,
-			Pattern:             "first pattern",
-			SecondaryValidators: nil,
+			Version:              1,
+			Pattern:              "first pattern",
+			RequiredCapabilities: nil,
 		},
 		{
-			Version:             3,
-			Pattern:             "third pattern",
-			SecondaryValidators: []SecondaryValidator{{Type: "unsupported"}},
+			Version:              3,
+			Pattern:              "third pattern",
+			RequiredCapabilities: []RequiredCapability{{Type: "unsupported"}},
 		},
 	}
 
@@ -530,6 +530,6 @@ func TestInterpretRC(t *testing.T) {
 
 	require.Equal(rule.Id, "Zero")
 	require.Equal(rule.Pattern, "second pattern")
-	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
+	require.Equal(rule.RequiredCapability, sds.LuhnChecksum)
 
 }
