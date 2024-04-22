@@ -77,6 +77,11 @@ ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
 DEFAULT_VCPU = "4"
 DEFAULT_MEMORY = "8192"
 
+CLANG_PATH_CI = "/tmp/clang-bpf"
+LLC_PATH_CI = "/tmp/llc-bpf"
+
+CLANG_PATH_LOCAL = "/opt/datadog-agent/embedded/bin/clang-bpf"
+LLC_PATH_LOCAL = "/opt/datadog-agent/embedded/bin/llc-bpf"
 
 @task
 def create_stack(ctx, stack=None):
@@ -621,15 +626,22 @@ def prepare(
     if not ci:
         download_gotestsum(ctx, arch, f"{go_root}/bin/gotestsum")
 
-
     info(f"[+] Compiling test binaries for {arch}")
 
-
     paths = KMTPaths(stack, arch)
+
+    llc_path = LLC_PATH_LOCAL
+    clang_path = CLANG_PATH_LOCAL
+    gotestsum_path = f"{go_root}/bin/gotestsum"
+    if ci:
+        llc_path = LLC_PATH_CI
+        clang_path = CLANG_PATH_CI
+        gotestsum_path = f"{os.getenv('GOPATH'}/bin/gotestsum"
+
     copy_executables = {
-        f"{go_root}/bin/gotestsum": f"{paths.dependencies}/go/bin/gotestsum",
-        "/opt/datadog-agent/embedded/bin/clang-bpf": f"{paths.arch_dir}/opt/datadog-agent/embedded/bin/clang-bpf",
-        "/opt/datadog-agent/embedded/bin/llc-bpf": f"{paths.arch_dir}/opt/datadog-agent/embedded/bin/llc-bpf",
+        gotestsum_path: f"{paths.dependencies}/go/bin/gotestsum",
+        clang_path: f"{paths.arch_dir}/opt/datadog-agent/embedded/bin/clang-bpf",
+        llc_path: f"{paths.arch_dir}/opt/datadog-agent/embedded/bin/llc-bpf",
     }
 
     for sf, df in copy_executables.items():
