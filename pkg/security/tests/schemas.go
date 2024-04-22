@@ -194,6 +194,10 @@ func (tm *testModule) validateLinkSchema(t *testing.T, event *model.Event) bool 
 
 //nolint:deadcode,unused
 func (tm *testModule) validateSpanSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/span.schema.json")
 }

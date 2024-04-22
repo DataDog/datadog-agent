@@ -51,6 +51,7 @@ def _get_environment_for_cache() -> dict:
             'EMISSARY_',
             'EXECUTOR_',
             'FF_',
+            'GITHUB_',
             'GITLAB_',
             'GIT_',
             'JIRA_',
@@ -62,14 +63,19 @@ def _get_environment_for_cache() -> dict:
             'OMNIBUS_',
             'POD_',
             'PROCESSOR_',
+            'RC_',
+            'RELEASE_VERSION',
             'RPM_',
             'RUN_',
+            'RUNNER_',
             'S3_',
+            'STATS_',
             'SMP_',
             'SSH_',
             'TEST_INFRA_',
             'USE_',
             'VAULT_',
+            'XPC_',
             'WINDOWS_',
         ]
         excluded_suffixes = [
@@ -80,6 +86,7 @@ def _get_environment_for_cache() -> dict:
             "ARTIFACT_DOWNLOAD_ATTEMPTS",
             "AVAILABILITY_ZONE",
             "BENCHMARKS_CI_IMAGE",
+            "BUNDLE_MIRROR__RUBYGEMS__ORG",
             "BUCKET_BRANCH",
             "CHANGELOG_COMMIT_SHA_SSM_NAME",
             "CLANG_LLVM_VER",
@@ -112,25 +119,32 @@ def _get_environment_for_cache() -> dict:
             "MESSAGE",
             "OLDPWD",
             "PCP_DIR",
+            "PACKAGE_ARCH",
+            "PIP_INDEX_URL",
             "PROCESS_S3_BUCKET",
             "PWD",
             "PROMPT",
             "PYTHON_RUNTIMES",
             "RESTORE_CACHE_ATTEMPTS",
-            "RUNNER_TEMP_PROJECT_DIR",
             "RUSTC_SHA256",
+            "SIGN",
+            "SHELL",
             "SHLVL",
             "STATIC_BINARIES_DIR",
             "STATSD_URL",
             "SYSTEM_PROBE_BINARIES_DIR",
+            "TMPDIR",
             "TRACE_AGENT_URL",
             "USE_CACHING_PROXY_PYTHON",
             "USE_CACHING_PROXY_RUBY",
             "USE_S3_CACHING",
+            "USER",
             "USERDOMAIN",
             "USERNAME",
             "USERPROFILE",
             "VCPKG_BLOB_SAS_URL_SSM_NAME",
+            "VERSION",
+            "VM_ASSETS",
             "WIN_S3_BUCKET",
             "WINGET_PAT_SSM_NAME",
             "_",
@@ -158,7 +172,7 @@ def _last_omnibus_changes(ctx):
     # In order to work around this, we hash the commit diff so that the result
     # can be reproduced on different branches with different sha1
     omnibus_last_changes = ctx.run(
-        f'git diff {omnibus_last_commit}~ {omnibus_last_commit} {" ".join(omnibus_invalidating_files)}'
+        f'git diff {omnibus_last_commit}~ {omnibus_last_commit} {" ".join(omnibus_invalidating_files)}', hide='stdout'
     ).stdout
     hash = hashlib.sha1()
     hash.update(str.encode(omnibus_last_changes))

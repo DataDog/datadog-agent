@@ -31,6 +31,7 @@ from tasks import (
     new_e2e_tests,
     notify,
     omnibus,
+    otel_agent,
     owners,
     package,
     pipeline,
@@ -145,6 +146,7 @@ ns.add_collection(github_tasks, "github")
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(notify)
+ns.add_collection(otel_agent)
 ns.add_collection(sds)
 ns.add_collection(selinux)
 ns.add_collection(systray)

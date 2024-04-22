@@ -27,6 +27,7 @@ import (
 
 const (
 	defaultScanTimeout = 30 * time.Second
+	sendTimeout        = 5 * time.Second
 )
 
 var (
@@ -131,17 +132,26 @@ func (s *Scanner) enoughDiskSpace(opts sbom.ScanOptions) error {
 	return nil
 }
 
-// sendResult sends a ScanResult to the channel associated with the scan request.
-// This function should not be blocking
-func sendResult(requestID string, result *sbom.ScanResult, collector collectors.Collector) {
+// sendResult sends a ScanResult to the channel associated with the collector.
+// It adds an error in the scan result if the operation fails.
+func sendResult(ctx context.Context, requestID string, result *sbom.ScanResult, collector collectors.Collector) {
 	if result == nil {
 		log.Errorf("nil result for '%s'", requestID)
 		return
 	}
+	channel := collector.Channel()
+	if channel == nil {
+		result.Error = fmt.Errorf("nil channel for '%s'", requestID)
+		log.Errorf("%s", result.Error)
+		return
+	}
 	select {
-	case collector.Channel() <- *result:
-	default:
-		_ = log.Errorf("Failed to push scanner result for '%s' into channel", requestID)
+	case channel <- *result:
+	case <-ctx.Done():
+		result.Error = fmt.Errorf("context cancelled while sending scan result for '%s'", requestID)
+	case <-time.After(sendTimeout):
+		result.Error = fmt.Errorf("timeout while sending scan result for '%s'", requestID)
+		log.Errorf("%s", result.Error)
 	}
 }
 
@@ -254,8 +264,8 @@ func (s *Scanner) processScan(ctx context.Context, request sbom.ScanRequest, img
 		result = s.performScan(scanContext, request, collector)
 		errorType = "scan"
 	}
-	sendResult(request.ID(), result, collector)
-	s.handleScanResult(result, request, collector, errorType)
+	sendResult(ctx, request.ID(), result, collector)
+	s.handleScanResult(result, request, errorType)
 	waitAfterScanIfNecessary(ctx, collector)
 }
 
@@ -288,7 +298,7 @@ func (s *Scanner) performScan(ctx context.Context, request sbom.ScanRequest, col
 	return &scanResult
 }
 
-func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, request sbom.ScanRequest, collector collectors.Collector, errorType string) {
+func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, request sbom.ScanRequest, errorType string) {
 	if scanResult == nil {
 		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "nil_scan_result")
 		log.Errorf("nil scan result for '%s'", request.ID())
@@ -296,9 +306,7 @@ func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, request sbom.Sca
 	}
 	if scanResult.Error != nil {
 		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), errorType)
-		if collector.Type() == collectors.ContainerImageScanType {
-			s.scanQueue.AddRateLimited(request)
-		}
+		s.scanQueue.AddRateLimited(request)
 		return
 	}
 

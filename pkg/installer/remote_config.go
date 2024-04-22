@@ -97,16 +97,6 @@ func (c *catalog) getPackage(pkg string, version string, arch string, platform s
 	return Package{}, false
 }
 
-func (c *catalog) getDefaultPackage(defaults bootstrapVersions, pkg string, arch string, platform string) (Package, bool) {
-	version, ok := defaults[pkg]
-	if !ok {
-		return Package{}, false
-	}
-	return c.getPackage(pkg, version, arch, platform)
-}
-
-type bootstrapVersions map[string]string
-
 type handleCatalogUpdate func(catalog catalog) error
 
 func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate) client.Handler {
@@ -174,7 +164,6 @@ const (
 	methodStartExperiment   = "start_experiment"
 	methodStopExperiment    = "stop_experiment"
 	methodPromoteExperiment = "promote_experiment"
-	methodBootstrap         = "bootstrap"
 )
 
 type remoteAPIRequest struct {
