@@ -301,3 +301,4 @@ qa_cws_instrumentation:
   extends: .qa_cws_instrumentation
   rules:
     !reference [.on_cws_or_e2e_changes_or_manual]
+
