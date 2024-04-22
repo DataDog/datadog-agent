@@ -42,9 +42,6 @@ var coreConfigTmpl string
 //go:embed fixtures/security-agent.yaml
 var securityAgentConfig string
 
-//go:embed fixtures/secret-resolver.py
-var secretResolverScript []byte
-
 var (
 	apiKey1 = strings.Repeat("1", 32)
 	apiKey2 = strings.Repeat("2", 32)
