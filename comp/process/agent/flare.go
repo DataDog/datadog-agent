@@ -13,7 +13,6 @@ import (
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/fatih/color"
 )
 
 // FlareHelper
