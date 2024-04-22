@@ -86,7 +86,7 @@ func (v *configRefreshSuite) TestConfigRefresh() {
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
-			agentparams.WithFileWithPermissions(secretResolverPath, string(secretResolverScript), true, secrets.WithUnixSecretPermissions(true)),
+			secrets.WithUnixSecretSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(coreconfig),
 			agentparams.WithSecurityAgentConfig(securityAgentConfig),
 			agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
