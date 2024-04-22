@@ -335,35 +335,34 @@ func (i *installerImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err er
 	}
 	defer func() { setRequestDone(ctx, err) }()
 
-	i.m.Unlock()
 	switch request.Method {
 	case methodStartExperiment:
+		var params taskWithVersionParams
+		err = json.Unmarshal(request.Params, &params)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
+		}
+		experimentPackage, ok := i.catalog.getPackage(request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
+		if !ok {
+			return fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
+		}
 		log.Infof("Installer: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
-		err = i.remoteAPIStartExperiment(ctx, request)
+		i.m.Unlock()
+		defer i.m.Lock()
+		return i.StartExperiment(ctx, experimentPackage.URL)
 	case methodStopExperiment:
 		log.Infof("Installer: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
-		err = i.StopExperiment(ctx, request.Package)
+		i.m.Unlock()
+		defer i.m.Lock()
+		return i.StopExperiment(ctx, request.Package)
 	case methodPromoteExperiment:
 		log.Infof("Installer: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
-		err = i.PromoteExperiment(ctx, request.Package)
+		i.m.Unlock()
+		defer i.m.Lock()
+		return i.PromoteExperiment(ctx, request.Package)
 	default:
-		err = fmt.Errorf("unknown method: %s", request.Method)
+		return fmt.Errorf("unknown method: %s", request.Method)
 	}
-	i.m.Lock()
-	return err
-}
-
-func (i *installerImpl) remoteAPIStartExperiment(ctx context.Context, request remoteAPIRequest) error {
-	var params taskWithVersionParams
-	err := json.Unmarshal(request.Params, &params)
-	if err != nil {
-		return fmt.Errorf("could not unmarshal start experiment params: %w", err)
-	}
-	experimentPackage, ok := i.catalog.getPackage(request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
-	if !ok {
-		return fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
-	}
-	return i.StartExperiment(ctx, experimentPackage.URL)
 }
 
 type requestKey int
