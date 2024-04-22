@@ -444,16 +444,16 @@ func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) retryType {
 }
 
 // sendEventToDatadog sends an event to Datadog, it will use the API Key from environment variable DD_API_KEY if present, otherwise it will use the one from SSM Parameter Store
-func sendEventToDatadog(title string, message string, tags []string, logger io.Writer) error {
+func sendEventToDatadog(title string, message string, tags []string, logger io.Writer) {
 	apiKey, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.APIKey, "")
 	if err != nil {
 		fmt.Fprintf(logger, "error when getting API key from parameter store: %v", err)
-		return err
+		return
 	}
 
 	if apiKey == "" {
 		fmt.Fprintf(logger, "Skipping sending event because API key is empty")
-		return nil
+		return
 	}
 
 	ctx := context.WithValue(context.Background(), datadog.ContextAPIKeys, map[string]datadog.APIKey{
@@ -474,9 +474,8 @@ func sendEventToDatadog(title string, message string, tags []string, logger io.W
 	if err != nil {
 		fmt.Fprintf(logger, "error when calling `EventsApi.CreateEvent`: %v", err)
 		fmt.Fprintf(logger, "Full HTTP response: %v\n", r)
-		return err
+		return
 	}
-	return nil
 }
 
 // GetPulumiStackName returns the Pulumi stack name
