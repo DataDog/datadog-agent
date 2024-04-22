@@ -256,6 +256,13 @@ func (is *agentMSISuite) TestUpgrade() {
 	// install previous version
 	_ = is.installLastStable(vm)
 
+	// simulate upgrading from a version that didn't have the runtime-security.d directory
+	// to ensure upgrade places new config files.
+	configRoot, err := windowsAgent.GetConfigRootFromRegistry(vm)
+	is.Require().NoError(err)
+	err = vm.RemoveAll(filepath.Join(configRoot, "runtime-security.d"))
+	is.Require().NoError(err)
+
 	// upgrade to the new version
 	if !is.Run(fmt.Sprintf("upgrade to %s", is.AgentPackage.AgentVersion()), func() {
 		_, err := is.InstallAgent(vm,
@@ -327,6 +334,11 @@ func (is *agentMSISuite) TestRepair() {
 	err = t.host.Remove(filepath.Join(installPath, "bin", "agent.exe"))
 	is.Require().NoError(err)
 	err = t.host.RemoveAll(filepath.Join(installPath, "embedded3"))
+	is.Require().NoError(err)
+	// delete config files to ensure repair restores them
+	configRoot, err := windowsAgent.GetConfigRootFromRegistry(t.host)
+	is.Require().NoError(err)
+	err = t.host.RemoveAll(filepath.Join(configRoot, "runtime-security.d"))
 	is.Require().NoError(err)
 
 	// Run Repair through the MSI
