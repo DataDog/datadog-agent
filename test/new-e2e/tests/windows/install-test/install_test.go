@@ -189,10 +189,37 @@ func (is *agentMSISuite) TestInstall() {
 	for i, path := range paths {
 		paths[i] = root + path
 	}
-	if remoteMSIPath != "" {
-		paths = append(paths, remoteMSIPath)
+	ddSigned := []string{}
+	otherSigned := []string{}
+	// As of 7.5?, the embedded Python3 should be signed by Python, not Datadog
+	// We still build our own Python2, so we need to check that still
+	for _, path := range paths {
+		if strings.Contains(path, "embedded3") {
+			otherSigned = append(otherSigned, path)
+		} else {
+			ddSigned = append(ddSigned, path)
+		}
 	}
-	windowsAgent.TestValidDatadogCodeSignatures(is.T(), t.host, paths)
+	// MSI is signed by Datadog
+	if remoteMSIPath != "" {
+		ddSigned = append(ddSigned, remoteMSIPath)
+	}
+	windowsAgent.TestValidDatadogCodeSignatures(is.T(), t.host, ddSigned)
+	// Check other signed files
+	for _, path := range otherSigned {
+		subject := ""
+		if strings.Contains(path, "embedded3") {
+			subject = "CN=Python Software Foundation, O=Python Software Foundation, L=Beaverton, S=Oregon, C=US"
+		} else {
+			is.Assert().Failf("unexpected signed executable", "unexpected signed executable %s", path)
+		}
+		sig, err := windowsCommon.GetAuthenticodeSignature(t.host, path)
+		if !is.Assert().NoError(err, "should get authenticode signature for %s", path) {
+			continue
+		}
+		is.Assert().Truef(sig.Valid(), "signature should be valid for %s", path)
+		is.Assert().Equalf(sig.SignerCertificate.Subject, subject, "subject should match for %s", path)
+	}
 
 	is.uninstallAgentAndRunUninstallTests(t)
 }

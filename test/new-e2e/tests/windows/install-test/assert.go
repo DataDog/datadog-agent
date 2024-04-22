@@ -134,10 +134,10 @@ func getExpectedConfigFiles() []string {
 // getExpectedBinFilesForAgentMajorVersion returns the list of files that should be present in the agent install directory,
 // as relative paths from the agent install directory.
 func getExpectedBinFilesForAgentMajorVersion(majorVersion string) []string {
+	py3 := shortPythonVersion(common.ExpectedPythonVersion3)
 	paths := []string{
 		// user binaries
 		`bin\agent.exe`,
-		`bin\libdatadog-agent-three.dll`,
 		`bin\agent\ddtray.exe`,
 		`bin\agent\trace-agent.exe`,
 		`bin\agent\process-agent.exe`,
@@ -146,6 +146,11 @@ func getExpectedBinFilesForAgentMajorVersion(majorVersion string) []string {
 		`bin\agent\driver\ddnpm.sys`,
 		`bin\agent\driver\ddnpm.inf`,
 		`bin\agent\driver\ddnpm.cat`,
+		// python3
+		`bin\libdatadog-agent-three.dll`,
+		`embedded3\python.exe`,
+		`embedded3\pythonw.exe`,
+		fmt.Sprintf(`embedded3\python%s.dll`, py3),
 	}
 	if ExpectPython2Installed(majorVersion) {
 		py2 := shortPythonVersion(common.ExpectedPythonVersion2)
