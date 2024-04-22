@@ -313,7 +313,7 @@ if __name__ == '__main__':
         args = parse_args()
 
         if args.logs.startswith('file:'):
-            with open(args.logs[5:], 'r') as f:
+            with open(args.logs[5:]) as f:
                 args.logs = f.read()
 
         print(normalize(args.logs, args.type, args.stage, args.accountid))

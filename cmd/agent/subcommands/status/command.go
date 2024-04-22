@@ -71,10 +71,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			)
 		},
 	}
-	cmd.Flags().BoolVarP(&cliParams.jsonStatus, "json", "j", false, "print out raw json")
-	cmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
-	cmd.Flags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")
-	cmd.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print out verbose status")
+	cmd.PersistentFlags().BoolVarP(&cliParams.jsonStatus, "json", "j", false, "print out raw json")
+	cmd.PersistentFlags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
+	cmd.PersistentFlags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")
+	cmd.PersistentFlags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print out verbose status")
 
 	componentCmd := &cobra.Command{
 		Use:   "component",
@@ -96,8 +96,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			)
 		},
 	}
-	componentCmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
-	componentCmd.Flags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")
 	cmd.AddCommand(componentCmd)
 
 	return []*cobra.Command{cmd}
@@ -132,13 +130,7 @@ func statusCmd(_ log.Component, config config.Component, _ sysprobeconfig.Compon
 	return redactError(requestStatus(config, cliParams))
 }
 
-func requestStatus(config config.Component, cliParams *cliParams) error {
-	var s string
-
-	if !cliParams.prettyPrintJSON && !cliParams.jsonStatus {
-		fmt.Printf("Getting the status from the agent.\n\n")
-	}
-
+func setIpcURL(cliParams *cliParams) url.Values {
 	v := url.Values{}
 	if cliParams.verbose {
 		v.Set("verbose", "true")
@@ -150,15 +142,11 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 		v.Set("format", "text")
 	}
 
-	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status")
-	if err != nil {
-		return err
-	}
+	return v
+}
 
-	res, err := endpoint.DoGet(apiutil.WithValues(v))
-	if err != nil {
-		return err
-	}
+func renderResponse(res []byte, cliParams *cliParams) error {
+	var s string
 
 	// The rendering is done in the client so that the agent has less work to do
 	if cliParams.prettyPrintJSON {
@@ -172,9 +160,34 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	}
 
 	if cliParams.statusFilePath != "" {
-		os.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
-	} else {
-		fmt.Println(s)
+		return os.WriteFile(cliParams.statusFilePath, []byte(s), 0644)
+	}
+	fmt.Println(s)
+	return nil
+}
+
+func requestStatus(config config.Component, cliParams *cliParams) error {
+
+	if !cliParams.prettyPrintJSON && !cliParams.jsonStatus {
+		fmt.Printf("Getting the status from the agent.\n\n")
+	}
+
+	v := setIpcURL(cliParams)
+
+	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status")
+	if err != nil {
+		return err
+	}
+
+	res, err := endpoint.DoGet(apiutil.WithValues(v))
+	if err != nil {
+		return err
+	}
+
+	// The rendering is done in the client so that the agent has less work to do
+	err = renderResponse(res, cliParams)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -189,30 +202,22 @@ func componentStatusCmd(_ log.Component, config config.Component, cliParams *cli
 }
 
 func componentStatus(config config.Component, cliParams *cliParams, component string) error {
-	var s string
+
+	v := setIpcURL(cliParams)
 
 	endpoint, err := apiutil.NewIPCEndpoint(config, fmt.Sprintf("/agent/%s/status", component))
 	if err != nil {
 		return err
 	}
-	res, err := endpoint.DoGet()
+	res, err := endpoint.DoGet(apiutil.WithValues(v))
 	if err != nil {
 		return err
 	}
 
 	// The rendering is done in the client so that the agent has less work to do
-	if cliParams.prettyPrintJSON {
-		var prettyJSON bytes.Buffer
-		json.Indent(&prettyJSON, res, "", "  ") //nolint:errcheck
-		s = prettyJSON.String()
-	} else {
-		s = scrubMessage(string(res))
-	}
-
-	if cliParams.statusFilePath != "" {
-		os.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
-	} else {
-		fmt.Println(s)
+	err = renderResponse(res, cliParams)
+	if err != nil {
+		return err
 	}
 
 	return nil

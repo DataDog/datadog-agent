@@ -138,7 +138,6 @@ end
 # ------------------------------------
 
 if linux_target?
-  extra_package_file '/etc/datadog-agent/'
   extra_package_file '/var/log/datadog/'
   extra_package_file '/var/run/datadog-packages/'
   extra_package_file '/opt/datadog-packages/'
@@ -148,13 +147,13 @@ end
 # for the package being created
 if linux_target?
   if !generate_distro_package
-    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/updater-deb"
-    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/updater-rpm"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/installer-deb"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/installer-rpm"
   end
   if debian_target?
-      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/updater-deb"
-  elsif redhat_target?
-      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/updater-rpm"
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/installer-deb"
+  elsif redhat_target? || suse_target?
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/installer-rpm"
   end
 end
 

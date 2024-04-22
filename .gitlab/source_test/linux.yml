@@ -41,10 +41,7 @@
       junit: "**/junit-out-*.xml"
 
 .upload_junit_source:
-  - source /root/.bashrc && conda activate $CONDA_ENV
-  # Upload generated junit files
-  - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
-  - for f in junit-*.tgz; do inv -e junit-upload --tgz-path $f; done
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
 
 .linux_tests_with_upload:
   extends: .linux_tests

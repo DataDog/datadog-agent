@@ -14,19 +14,65 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/installer/packages/repository"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
+type testInstallerMock struct {
+	mock.Mock
+}
+
+func (m *testInstallerMock) Start(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *testInstallerMock) Stop(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *testInstallerMock) Install(ctx context.Context, url string) error {
+	args := m.Called(ctx, url)
+	return args.Error(0)
+}
+
+func (m *testInstallerMock) StartExperiment(ctx context.Context, url string) error {
+	args := m.Called(ctx, url)
+	return args.Error(0)
+}
+
+func (m *testInstallerMock) StopExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
+func (m *testInstallerMock) PromoteExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
+func (m *testInstallerMock) GetPackage(pkg string, version string) (Package, error) {
+	args := m.Called(pkg, version)
+	return args.Get(0).(Package), args.Error(1)
+}
+
+func (m *testInstallerMock) GetState() (map[string]repository.State, error) {
+	args := m.Called()
+	return args.Get(0).(map[string]repository.State), args.Error(1)
+}
+
 type testLocalAPI struct {
+	i *testInstallerMock
 	s *localAPIImpl
 	c *localAPIClientImpl
 }
 
-func newTestLocalAPI(t *testing.T, s *testFixturesServer) *testLocalAPI {
-	rc := newTestRemoteConfigClient()
-	installer := newTestInstaller(t, s, rc, fixtureSimpleV1)
-	rc.SubmitCatalog(s.Catalog())
+func newTestLocalAPI(t *testing.T) *testLocalAPI {
+	installer := &testInstallerMock{}
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	apiServer := &localAPIImpl{
@@ -39,66 +85,87 @@ func newTestLocalAPI(t *testing.T, s *testFixturesServer) *testLocalAPI {
 		client: &http.Client{},
 		addr:   l.Addr().String(),
 	}
-	return &testLocalAPI{apiServer, apiClient}
+	return &testLocalAPI{installer, apiServer, apiClient}
 }
 
 func (api *testLocalAPI) Stop() {
 	api.s.Stop(context.Background())
 }
 
-func TestLocalAPI(t *testing.T) {
-	s := newTestFixturesServer(t)
-	defer s.Close()
-	api := newTestLocalAPI(t, s)
+func TestAPIStatus(t *testing.T) {
+	api := newTestLocalAPI(t)
 	defer api.Stop()
 
-	// test bootstrap
-	err := api.c.BootstrapVersion(fixtureSimpleV1.pkg, fixtureSimpleV1.version)
-	assert.NoError(t, err)
+	installerState := map[string]repository.State{
+		"pkg1": {
+			Stable:     "1.0.0",
+			Experiment: "2.0.0",
+		},
+	}
+	api.i.On("GetState").Return(installerState, nil)
 
-	state, err := api.c.Status()
-	assert.NoError(t, err)
-	assert.Len(t, state.Packages, 1)
-	assert.Contains(t, state.Packages, fixtureSimpleV1.pkg)
-	pkg := state.Packages[fixtureSimpleV1.pkg]
-	assert.Equal(t, fixtureSimpleV1.version, pkg.Stable)
-	assert.Empty(t, pkg.Experiment)
+	resp, err := api.c.Status()
 
-	// test start experiment
-	err = api.c.StartExperiment(fixtureSimpleV2.pkg, fixtureSimpleV2.version)
 	assert.NoError(t, err)
+	assert.Nil(t, resp.Error)
+	assert.Equal(t, version.AgentVersion, resp.Version)
+	assert.Equal(t, installerState, resp.Packages)
+}
 
-	state, err = api.c.Status()
-	assert.NoError(t, err)
-	assert.Len(t, state.Packages, 1)
-	assert.Contains(t, state.Packages, fixtureSimpleV2.pkg)
-	pkg = state.Packages[fixtureSimpleV2.pkg]
-	assert.Equal(t, fixtureSimpleV1.version, pkg.Stable)
-	assert.Equal(t, fixtureSimpleV2.version, pkg.Experiment)
+func TestAPIInstall(t *testing.T) {
+	api := newTestLocalAPI(t)
+	defer api.Stop()
 
-	// test stop experiment
-	err = api.c.StopExperiment(fixtureSimpleV2.pkg)
-	assert.NoError(t, err)
+	testPackage := Package{
+		Name:    "test-package",
+		Version: "1.0.0",
+		URL:     "oci://example.com/test-package@5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+	}
+	api.i.On("GetPackage", testPackage.Name, testPackage.Version).Return(testPackage, nil)
+	api.i.On("Install", mock.Anything, testPackage.URL).Return(nil)
 
-	state, err = api.c.Status()
-	assert.NoError(t, err)
-	assert.Len(t, state.Packages, 1)
-	assert.Contains(t, state.Packages, fixtureSimpleV2.pkg)
-	pkg = state.Packages[fixtureSimpleV2.pkg]
-	assert.Equal(t, fixtureSimpleV1.version, pkg.Stable)
-	assert.Empty(t, pkg.Experiment)
+	err := api.c.Install(testPackage.Name, testPackage.Version)
 
-	// test promote experiment
-	err = api.c.StartExperiment(fixtureSimpleV2.pkg, fixtureSimpleV2.version)
 	assert.NoError(t, err)
-	err = api.c.PromoteExperiment(fixtureSimpleV2.pkg)
-	assert.NoError(t, err)
+}
 
-	state, err = api.c.Status()
+func TestAPIStartExperiment(t *testing.T) {
+	api := newTestLocalAPI(t)
+	defer api.Stop()
+
+	testPackage := Package{
+		Name:    "test-package",
+		Version: "1.0.0",
+		URL:     "oci://example.com/test-package@5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+	}
+	api.i.On("GetPackage", testPackage.Name, testPackage.Version).Return(testPackage, nil)
+	api.i.On("StartExperiment", mock.Anything, testPackage.URL).Return(nil)
+
+	err := api.c.StartExperiment(testPackage.Name, testPackage.Version)
+
 	assert.NoError(t, err)
-	assert.Len(t, state.Packages, 1)
-	assert.Contains(t, state.Packages, fixtureSimpleV2.pkg)
-	pkg = state.Packages[fixtureSimpleV2.pkg]
-	assert.Equal(t, fixtureSimpleV2.version, pkg.Stable)
-	assert.Empty(t, pkg.Experiment)
+}
+
+func TestAPIStopExperiment(t *testing.T) {
+	api := newTestLocalAPI(t)
+	defer api.Stop()
+
+	testPackage := "test-package"
+	api.i.On("StopExperiment", mock.Anything, testPackage).Return(nil)
+
+	err := api.c.StopExperiment(testPackage)
+
+	assert.NoError(t, err)
+}
+
+func TestAPIPromoteExperiment(t *testing.T) {
+	api := newTestLocalAPI(t)
+	defer api.Stop()
+
+	testPackage := "test-package"
+	api.i.On("PromoteExperiment", mock.Anything, testPackage).Return(nil)
+
+	err := api.c.PromoteExperiment(testPackage)
+
+	assert.NoError(t, err)
 }
