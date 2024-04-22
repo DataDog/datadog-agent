@@ -38,6 +38,8 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"go.opentelemetry.io/collector/component/componenttest"
 )
 
 // team: agent-apm
@@ -337,9 +339,21 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		grpcPort = core.GetInt(coreconfig.OTLPTracePort)
 	}
 
-	err := setOtlpReceiver(c, core, grpcPort)
+	// We use a noop set of telemetry settings. This silences all warnings and metrics from the attributes translator.
+	// The Datadog exporter overrides this with its own attributes translator using its own telemetry settings.
+	attributesTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
 	if err != nil {
 		return err
+	}
+
+	c.OTLPReceiver = &config.OTLP{
+		BindHost:               c.ReceiverHost,
+		GRPCPort:               grpcPort,
+		MaxRequestBytes:        c.MaxRequestBytes,
+		SpanNameRemappings:     coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName: core.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		ProbabilisticSampling:  core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		AttributesTranslator:   attributesTranslator,
 	}
 
 	if core.IsSet("apm_config.install_id") {
