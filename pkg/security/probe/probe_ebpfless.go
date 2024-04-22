@@ -107,13 +107,12 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 
 func copyFileAttributes(src *ebpfless.FileSyscallMsg, dst *model.FileEvent) {
 	if strings.HasPrefix(src.Filename, "memfd:") {
-		dst.PathnameStr = ""
-		dst.BasenameStr = src.Filename
+		dst.SetPathnameStr("")
+		dst.SetBasenameStr(src.Filename)
 	} else {
-		dst.PathnameStr = src.Filename
-		dst.BasenameStr = filepath.Base(src.Filename)
+		dst.SetPathnameStr(src.Filename)
+		dst.SetBasenameStr(filepath.Base(src.Filename))
 	}
-	dst.IsPathnameStrResolved = true
 	dst.CTime = src.CTime
 	dst.MTime = src.MTime
 	dst.Mode = uint16(src.Mode)
@@ -304,7 +303,6 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		p.processKiller.HandleProcessExited(event)
 	}
 
-	event.ResolveFields()
 	p.DispatchEvent(event)
 
 	// flush pending kill actions
