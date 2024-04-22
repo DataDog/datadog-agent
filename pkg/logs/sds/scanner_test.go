@@ -488,7 +488,7 @@ func TestInterpretRC(t *testing.T) {
 
 	require.Equal(rule.Id, "Zero")
 	require.Equal(rule.Pattern, "rule pattern 1")
-	require.Equal(rule.RequiredCapability, sds.SecondaryValidator(""))
+	require.Equal(rule.SecondaryValidator, sds.SecondaryValidator(""))
 
 	// add a version with a required capability
 	stdRc.Definitions = append(stdRc.Definitions, StandardRuleDefinition{
@@ -502,7 +502,7 @@ func TestInterpretRC(t *testing.T) {
 
 	require.Equal(rule.Id, "Zero")
 	require.Equal(rule.Pattern, "second pattern")
-	require.Equal(rule.RequiredCapability, sds.LuhnChecksum)
+	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
 
 	// add a third version with an unknown required capability
 	// it should fallback on using the version 2
@@ -530,6 +530,5 @@ func TestInterpretRC(t *testing.T) {
 
 	require.Equal(rule.Id, "Zero")
 	require.Equal(rule.Pattern, "second pattern")
-	require.Equal(rule.RequiredCapability, sds.LuhnChecksum)
-
+	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
 }
