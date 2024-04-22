@@ -382,7 +382,8 @@ def build_functional_tests(
             kernel_release=kernel_release,
             debug=debug,
         )
-        build_embed_syscall_tester(ctx)
+
+    build_embed_syscall_tester(ctx)
 
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
 
