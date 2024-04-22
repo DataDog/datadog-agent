@@ -9,6 +9,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -20,13 +21,27 @@ const (
 
 var installerUnits = []string{installerUnit, installerUnitExp}
 
-// SetupInstallerUnits installs and starts the installer systemd units
-func SetupInstallerUnits(ctx context.Context) (err error) {
+// SetupInstaller installs and starts the installer systemd units
+func SetupInstaller(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
-			log.Errorf("Failed to setup installer units: %s, reverting", err)
+			log.Errorf("Failed to setup installer: %s, reverting", err)
+			err = RemoveInstaller(ctx)
+			if err != nil {
+				log.Warnf("Failed to revert installer setup: %s", err)
+			}
 		}
 	}()
+
+	// Check if systemd is running, if not return early
+	systemdRunning, err := isSystemdRunning()
+	if err != nil {
+		return fmt.Errorf("error checking if systemd is running: %w", err)
+	}
+	if !systemdRunning {
+		log.Infof("Installer: systemd is not running, skipping unit setup")
+		return nil
+	}
 
 	for _, unit := range installerUnits {
 		if err = loadUnit(ctx, unit); err != nil {
@@ -41,28 +56,30 @@ func SetupInstallerUnits(ctx context.Context) (err error) {
 	if err = enableUnit(ctx, installerUnit); err != nil {
 		return err
 	}
-	return nil
+
+	return startInstallerStable(ctx)
 }
 
-// StartInstallerStable starts the stable systemd units for the installer
-func StartInstallerStable(ctx context.Context) (err error) {
+// startInstallerStable starts the stable systemd units for the installer
+func startInstallerStable(ctx context.Context) (err error) {
 	return startUnit(ctx, installerUnit)
 }
 
-// RemoveInstallerUnits removes the installer systemd units
-func RemoveInstallerUnits(ctx context.Context) {
+// RemoveInstaller removes the installer systemd units
+func RemoveInstaller(ctx context.Context) error {
 	var err error
 	for _, unit := range installerUnits {
 		if err = stopUnit(ctx, unit); err != nil {
-			log.Warnf("Failed stop unit %s: %s", unit, err)
+			return fmt.Errorf("Failed stop unit %s: %s", unit, err)
 		}
 		if err = disableUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to disable %s: %s", unit, err)
+			return fmt.Errorf("Failed to disable %s: %s", unit, err)
 		}
 		if err = removeUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to stop %s: %s", unit, err)
+			return fmt.Errorf("Failed to stop %s: %s", unit, err)
 		}
 	}
+	return nil
 }
 
 // StartInstallerExperiment installs the experimental systemd units for the installer

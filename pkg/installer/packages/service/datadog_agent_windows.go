@@ -10,8 +10,8 @@ package service
 
 import "context"
 
-// SetupAgentUnits noop
-func SetupAgentUnits(_ context.Context) error {
+// SetupAgent noop
+func SetupAgent(_ context.Context) error {
 	return nil
 }
 
@@ -25,5 +25,7 @@ func StopAgentExperiment(_ context.Context) error {
 	return nil
 }
 
-// RemoveAgentUnits noop
-func RemoveAgentUnits(_ context.Context) {}
+// RemoveAgent noop
+func RemoveAgent(_ context.Context) error {
+	return nil
+}
