@@ -1,5 +1,5 @@
 optimization_goal: memory
-erratic: false
+erratic: true
 
 target:
   name: datadog-agent
