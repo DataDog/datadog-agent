@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
-// MultiRegionFailoverRuntimeSetting wraps operations to change the High Availability settings at runtime.
+// MultiRegionFailoverRuntimeSetting wraps operations to change the Multi-Region Failover settings at runtime.
 type MultiRegionFailoverRuntimeSetting struct {
 	value string
 	desc  string

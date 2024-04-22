@@ -15,7 +15,7 @@ type multiRegionFailoverConfig struct {
 	Failover *bool `json:"failover"`
 }
 
-// parseHighAvailabilityConfig parses an agent task config
+// parseMultiRegionFailoverConfig parses an agent task config
 func parseMultiRegionFailoverConfig(data []byte) (*multiRegionFailoverConfig, error) {
 	var d multiRegionFailoverConfig
 

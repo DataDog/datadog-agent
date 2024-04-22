@@ -183,7 +183,7 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 				if !applyError {
 					err = rc.settingsComponent.SetRuntimeSetting(setting, *failover, model.SourceRC)
 					if err != nil {
-						pkglog.Errorf("HA failover update failed: %s", err)
+						pkglog.Errorf("MRF failover update failed: %s", err)
 						applyError = true
 						applyStateCallback(cfgPath, state.ApplyStatus{
 							State: state.ApplyStateError,
