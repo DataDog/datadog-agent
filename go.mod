@@ -113,7 +113,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.8.0
-	github.com/DataDog/appsec-internal-go v1.4.2
+	github.com/DataDog/appsec-internal-go v1.5.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.53.0-rc.2
@@ -287,7 +287,7 @@ require (
 	google.golang.org/grpc v1.62.1
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.33.0
-	gopkg.in/DataDog/dd-trace-go.v1 v1.61.0
+	gopkg.in/DataDog/dd-trace-go.v1 v1.63.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
@@ -668,7 +668,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2
-	github.com/DataDog/go-libddwaf/v2 v2.3.1
+	github.com/DataDog/go-libddwaf/v2 v2.4.2
 	github.com/Datadog/dublin-traceroute v0.0.1
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
 	github.com/aws/aws-sdk-go-v2/service/kms v1.27.7
