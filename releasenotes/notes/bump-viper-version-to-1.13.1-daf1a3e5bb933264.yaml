@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Bumping viper version from ``1.13.0`` to ``1.13.1`` fixes a bug in where using secrets in
+    ``network_devices.snmp_traps.community_strings`` would discard defaults values in ``network_devices.snmp_traps``.

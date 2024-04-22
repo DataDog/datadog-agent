@@ -133,7 +133,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.14.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.14.0
 	github.com/DataDog/sketches-go v1.4.4
-	github.com/DataDog/viper v1.13.0
+	github.com/DataDog/viper v1.13.1
 	github.com/DataDog/watermarkpodautoscaler v0.6.1
 	github.com/DataDog/zstd v1.5.5
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
