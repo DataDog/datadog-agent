@@ -33,7 +33,7 @@ require (
 	github.com/tinylib/msgp v1.1.8
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	go.opentelemetry.io/collector/component v0.97.0
-	go.opentelemetry.io/collector/pdata v1.4.0
+	go.opentelemetry.io/collector/pdata v1.5.0
 	go.opentelemetry.io/collector/semconv v0.97.0
 	go.opentelemetry.io/otel v1.24.0
 	go.opentelemetry.io/otel/metric v1.24.0
