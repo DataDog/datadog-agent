@@ -273,7 +273,7 @@ func TestColdStartSpanCreatorColdStartExists(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
 	}
