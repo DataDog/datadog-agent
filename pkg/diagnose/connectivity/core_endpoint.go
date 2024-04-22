@@ -203,8 +203,8 @@ func verifyEndpointResponse(diagCfg diagnosis.Config, statusCode int, responseBo
 
 	scrubbedResponseBody := scrubber.ScrubLine(string(responseBody))
 	if !diagCfg.Verbose && len(scrubbedResponseBody) > limitSize {
-		scrubbedResponseBody = scrubbedResponseBody[:limitSize] + "..."
-		scrubbedResponseBody += fmt.Sprintf("\nResponse body is %v bytes long, truncated at %v\n", len(responseBody), limitSize)
+		scrubbedResponseBody = scrubbedResponseBody[:limitSize] + "...\n"
+		scrubbedResponseBody += fmt.Sprintf("Response body is %v bytes long, truncated at %v\n", len(responseBody), limitSize)
 		scrubbedResponseBody += "To display the whole body use the \"--verbose\" flag."
 	}
 
