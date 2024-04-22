@@ -56,7 +56,7 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
     for tag in platforms[arch]:
         platinfo = platforms[arch][tag]
         if "image" not in platinfo:
-            continue
+            raise Exit("image is not defined in platform info")
         path = os.path.basename(platinfo["image"])
         if path.endswith(".xz"):
             path = path[: -len(".xz")]
