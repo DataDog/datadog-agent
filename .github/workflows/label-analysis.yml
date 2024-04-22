@@ -47,7 +47,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -r tasks/requirements.txt
       - name: Remove unsupported git config
-        # Triggers dulwich.repo.UnsupportedExtension: b'worktreeConfig' 
+        # Triggers dulwich.repo.UnsupportedExtension: b'worktreeConfig' see https://github.com/GitTools/actions/issues/1115 
         run: git config --unset-all extensions.worktreeconfig
       - name: Check release note
         env:
