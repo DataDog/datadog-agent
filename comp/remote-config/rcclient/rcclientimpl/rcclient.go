@@ -101,7 +101,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	}
 
 	var clientHA *client.Client
-	if config.Datadog.GetBool("multi_region_failover.enabled") {
+	if config.Datadog.GetBool("ha.enabled") {
 		clientHA, err = client.NewUnverifiedHAGRPCClient(
 			ipcAddress,
 			config.GetIPCPort(),
