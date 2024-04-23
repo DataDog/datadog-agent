@@ -148,9 +148,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
-	// no options to disable it, but the feature is not enabled
-
-	pkgconfig.Datadog.SetWithoutSource("orchestrator_explorer.enabled", false)
+	pkgconfig.Datadog.SetWithoutSource("orchestrator_explorer.enabled", true)
 
 	opts = demuxTestOptions()
 	deps = createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
