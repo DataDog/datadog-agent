@@ -307,9 +307,9 @@ def annotate_complexity(
                             asm_code = asm_line["code"]
 
                             registers = re.findall(r"r\d+", asm_code)
+                            processed = asm_line["times_processed"]
 
-                            asm_line_no = f'ASM {asm_idx:4d}'
-                            print(colored(f"{' ' * 4}   {asm_line_no:>{compinfo_len}} | {asm_code}", attrs=["dark"]))
+                            print(colored(f"{asm_idx:4d} | [   |{processed:2d}p|   ] | {asm_code}", attrs=["dark"]))
 
                             if show_register_state:
                                 # The register state after this instruction is found in the next instruction
