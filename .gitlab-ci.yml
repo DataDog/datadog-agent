@@ -819,6 +819,7 @@ workflow:
         - comp/core/workloadmeta/**/*
         - comp/core/autodiscovery/listeners/**/*
         - comp/core/autodiscovery/providers/**/*
+        - comp/languagedetection/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
