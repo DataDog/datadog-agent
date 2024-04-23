@@ -7,6 +7,8 @@
 package subcommands
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/cmd/installer/subcommands/bootstrap"
 	"github.com/DataDog/datadog-agent/cmd/installer/subcommands/daemon"
@@ -30,6 +32,9 @@ func withRoot(factory command.SubcommandFactory) command.SubcommandFactory {
 		if !user.IsRoot() && global.AllowNoRoot {
 			return nil
 		}
+		if !user.IsRoot() {
+			return fmt.Errorf("this command requires root privileges")
+		}
 		return user.DatadogAgentToRoot()
 	})
 }
@@ -38,6 +43,9 @@ func withDatadogAgent(factory command.SubcommandFactory) command.SubcommandFacto
 	return withPersistentPreRunE(factory, func(global *command.GlobalParams) error {
 		if !user.IsRoot() && global.AllowNoRoot {
 			return nil
+		}
+		if !user.IsRoot() {
+			return fmt.Errorf("this command requires root privileges")
 		}
 		return user.RootToDatadogAgent()
 	})
