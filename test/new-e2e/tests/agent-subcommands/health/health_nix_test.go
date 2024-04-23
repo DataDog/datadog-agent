@@ -42,10 +42,6 @@ func (v *linuxHealthSuite) TestDefaultInstallUnhealthy() {
 	// agent should be unhealthy because the key is invalid
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		_, err := v.Env().Agent.Client.Health()
-		if err == nil {
-			assert.Fail(t, "agent expected to be unhealthy, but no error found!")
-			return
-		}
-		assert.Contains(t, err.Error(), "Agent health: FAIL")
+		assert.ErrorContains(t, err, "Agent health: FAIL")
 	}, 1*time.Minute, 10*time.Second)
 }
