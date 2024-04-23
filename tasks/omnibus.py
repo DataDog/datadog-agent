@@ -267,7 +267,9 @@ def build(
                     cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
                 else:
                     print(f'Failed to restore cache from key {cache_key}')
-                    send_cache_miss_event(ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name)
+                    send_cache_miss_event(
+                        ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
+                    )
 
     with timed(quiet=True) as omnibus_elapsed:
         omnibus_run_task(

@@ -329,7 +329,7 @@ def send_build_metrics(ctx, overall_duration):
         print(r.text)
 
 
-def send_cache_miss_event(ctx, pipeline_id, job_name):
+def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
     if sys.platform == 'win32':
         aws_cmd = "aws.cmd"
     else:
@@ -344,7 +344,7 @@ def send_cache_miss_event(ctx, pipeline_id, job_name):
         'text': f"Couldn't fetch cache associated with cache key for job {job_name} in pipeline #{pipeline_id}",
         'source_type_name': 'omnibus',
         'date_happened': int(datetime.now().timestamp()),
-        'tags': [f'pipeline:{pipeline_id}', f'job:{job_name}', 'source:omnibus-cache'],
+        'tags': [f'pipeline:{pipeline_id}', f'job:{job_name}', 'source:omnibus-cache', f'job-id:{job_id}'],
     }
     r = requests.post("https://api.datadoghq.com/api/v1/events", json=payload, headers=headers)
     if not r.ok:
