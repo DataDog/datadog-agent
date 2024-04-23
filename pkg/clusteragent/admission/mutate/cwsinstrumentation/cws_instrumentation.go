@@ -237,6 +237,8 @@ type CWSInstrumentation struct {
 	mode InstrumentationMode
 	// mountVolumeForRemoteCopy
 	mountVolumeForRemoteCopy bool
+	// clusterAgentServiceAccount holds the service account name of the cluster agent
+	clusterAgentServiceAccount string
 
 	webhookForPods     *WebhookForPods
 	webhookForCommands *WebhookForCommands
@@ -284,6 +286,16 @@ func NewCWSInstrumentation(wmeta workloadmeta.Component) (*CWSInstrumentation, e
 		return nil, fmt.Errorf("can't initiatilize CWS Instrumentation: %v", err)
 	}
 	ci.mountVolumeForRemoteCopy = config.Datadog.GetBool("admission_controller.cws_instrumentation.remote_copy.mount_volume")
+
+	if ci.mode == RemoteCopy {
+		// build the cluster agent service account
+		serviceAccountName := config.Datadog.GetString("cluster_agent.service_account_name")
+		if len(serviceAccountName) == 0 {
+			return nil, fmt.Errorf("can't initialize CWS Instrumentation in %s mode without providing a service account name in config (cluster_agent.service_account_name)", RemoteCopy)
+		}
+		ns := config.Datadog.GetString("kube_resources_namespace")
+		ci.clusterAgentServiceAccount = fmt.Sprintf("system:serviceaccount:%s:%s", ns, serviceAccountName)
+	}
 
 	// Parse init container resources
 	ci.resources, err = parseCWSInitContainerResources()
@@ -374,8 +386,17 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	}
 
 	// ignore the copy command from this admission controller
-	if ci.mode == RemoteCopy && len(exec.Command) > 6 && slices.Equal(exec.Command[0:6], []string{"tar", "-x", "-m", "-f", "-", "-C"}) {
-		return false, nil
+	if ci.mode == RemoteCopy {
+		if userInfo.Username == ci.clusterAgentServiceAccount {
+			log.Debugf("Ignoring exec request to %s from the cluster agent", name)
+			return false, nil
+		}
+
+		// fall back in case the service account filter somehow didn't work
+		if len(exec.Command) > 6 && slices.Equal(exec.Command[0:6], []string{"tar", "-x", "-m", "-f", "-", "-C"}) {
+			log.Debugf("Ignoring kubectl cp requests to %s from the cluster agent", name)
+			return false, nil
+		}
 	}
 
 	// is the namespace / container targeted by the instrumentation ?
@@ -476,7 +497,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		"--",
 	}, exec.Command...)
 
-	log.Debugf("Pod exec request to %s is now instrumented for CWS", common.PodString(pod))
+	log.Debugf("Pod exec request to %s by %s is now instrumented for CWS", common.PodString(pod), userInfo.Username)
 	injected = true
 
 	return injected, nil
