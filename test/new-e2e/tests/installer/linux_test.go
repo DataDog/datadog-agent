@@ -56,13 +56,11 @@ func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.De
 }
 
 func TestCentOSARM(t *testing.T) {
-	t.Skip("FIXME")
 	t.Parallel()
 	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault, false)
 }
 
 func TestRedHatARM(t *testing.T) {
-	t.Skip("Support for SELinux has not been added yet")
 	t.Parallel()
 	runTest(t, "rpm", os.ARM64Arch, os.RedHatDefault, false)
 }
