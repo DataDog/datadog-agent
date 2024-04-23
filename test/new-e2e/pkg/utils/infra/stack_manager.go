@@ -353,7 +353,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 			break
 		}
 
-		retryStrategy := sm.getRetryStrategyFrom(err, upCount)
+		retryStrategy := sm.getRetryStrategyFrom(upError, upCount)
 		sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), upError.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)}, logger)
 
 		switch retryStrategy {
