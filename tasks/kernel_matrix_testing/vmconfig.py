@@ -175,14 +175,13 @@ def get_image_list(distro: bool, custom: bool) -> list[list[str]]:
     # Sort by name
     distro_kernels.sort(key=lambda x: x[0])
 
-    if (not (distro or custom)) or (distro and custom):
-        return [headers] + distro_kernels + custom_kernels
-    elif distro:
-        return [headers] + distro_kernels
-    elif custom:
-        return [headers] + custom_kernels
-    else:
-        return []
+    table = [headers]
+    if distro:
+        table += distro_kernels
+    if custom:
+        table += custom_kernels
+
+    return table
 
 
 def check_memory_and_vcpus(memory: list[Any], vcpus: list[Any]):

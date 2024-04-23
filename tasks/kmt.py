@@ -219,7 +219,7 @@ def resume_stack(_, stack: str | None = None):
 
 
 @task
-def ls(_, distro=False, custom=False):
+def ls(_, distro=True, custom=False):
     if tabulate is None:
         raise Exit("tabulate module is not installed, please install it to continue")
 
