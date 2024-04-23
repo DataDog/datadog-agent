@@ -24,6 +24,19 @@ type cliParams struct {
 }
 
 func apiCommands(global *command.GlobalParams) []*cobra.Command {
+	installCmd := &cobra.Command{
+		Use:     "install package version",
+		Aliases: []string{"install"},
+		Short:   "Installs a package to the expected version",
+		Args:    cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return experimentFxWrapper(install, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+				version:      args[1],
+			})
+		},
+	}
 	startExperimentCmd := &cobra.Command{
 		Use:     "start-experiment package version",
 		Aliases: []string{"start"},
@@ -58,19 +71,6 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			return experimentFxWrapper(promote, &cliParams{
 				GlobalParams: *global,
 				pkg:          args[0],
-			})
-		},
-	}
-	installCmd := &cobra.Command{
-		Use:     "install package version",
-		Aliases: []string{"install"},
-		Short:   "Installs a package to the expected version",
-		Args:    cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return experimentFxWrapper(install, &cliParams{
-				GlobalParams: *global,
-				pkg:          args[0],
-				version:      args[1],
 			})
 		},
 	}

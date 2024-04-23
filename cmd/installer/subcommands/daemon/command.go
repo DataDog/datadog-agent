@@ -15,7 +15,7 @@ import (
 // Commands returns the run command
 func Commands(global *command.GlobalParams) []*cobra.Command {
 	ctlCmd := &cobra.Command{
-		Use:     "ctl [command]",
+		Use:     "daemon [command]",
 		Short:   "Interact with the installer daemon",
 		GroupID: "daemon",
 	}

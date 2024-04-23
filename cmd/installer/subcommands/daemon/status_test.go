@@ -10,11 +10,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/spf13/cobra"
 )
 
-func TestCommand(t *testing.T) {
+func TestStatusCommand(t *testing.T) {
+	cmd := statusCommand(&command.GlobalParams{})
+	cmd.GroupID = ""
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		[]*cobra.Command{cmd},
 		[]string{"status"},
 		status,
 		func() {})
