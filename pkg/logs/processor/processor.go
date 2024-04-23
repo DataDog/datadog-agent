@@ -182,11 +182,11 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 
 	// Global SDS scanner, applied on all log sources
 	if p.sds.IsReady() {
-		matched, processed, err := p.sds.Scan(content, msg)
+		mutated, evtProcessed, err := p.sds.Scan(content, msg)
 		if err != nil {
 			log.Error("while using SDS to scan the log:", err)
-		} else if matched {
-			content = processed
+		} else if mutated {
+			content = evtProcessed
 		}
 	}
 

@@ -107,15 +107,16 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 
 func copyFileAttributes(src *ebpfless.FileSyscallMsg, dst *model.FileEvent) {
 	if strings.HasPrefix(src.Filename, "memfd:") {
-		dst.PathnameStr = ""
-		dst.BasenameStr = src.Filename
+		dst.SetPathnameStr("")
+		dst.SetBasenameStr(src.Filename)
 	} else {
-		dst.PathnameStr = src.Filename
-		dst.BasenameStr = filepath.Base(src.Filename)
+		dst.SetPathnameStr(src.Filename)
+		dst.SetBasenameStr(filepath.Base(src.Filename))
 	}
 	dst.CTime = src.CTime
 	dst.MTime = src.MTime
 	dst.Mode = uint16(src.Mode)
+	dst.Inode = src.Inode
 	if src.Credentials != nil {
 		dst.UID = src.Credentials.UID
 		dst.User = src.Credentials.User
@@ -131,10 +132,20 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	switch syscallMsg.Type {
 	case ebpfless.SyscallTypeExec:
 		event.Type = uint32(model.ExecEventType)
-		entry := p.Resolvers.ProcessResolver.AddExecEntry(
-			process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.PPID, syscallMsg.Exec.File.Filename,
-			syscallMsg.Exec.Args, syscallMsg.Exec.ArgsTruncated, syscallMsg.Exec.Envs, syscallMsg.Exec.EnvsTruncated,
-			syscallMsg.ContainerID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
+
+		var entry *model.ProcessCacheEntry
+		if syscallMsg.Exec.FromProcFS {
+			entry = p.Resolvers.ProcessResolver.AddProcFSEntry(
+				process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.PPID, syscallMsg.Exec.File.Filename,
+				syscallMsg.Exec.Args, syscallMsg.Exec.ArgsTruncated, syscallMsg.Exec.Envs, syscallMsg.Exec.EnvsTruncated,
+				syscallMsg.ContainerID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
+		} else {
+			entry = p.Resolvers.ProcessResolver.AddExecEntry(
+				process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.PPID, syscallMsg.Exec.File.Filename,
+				syscallMsg.Exec.Args, syscallMsg.Exec.ArgsTruncated, syscallMsg.Exec.Envs, syscallMsg.Exec.EnvsTruncated,
+				syscallMsg.ContainerID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
+		}
+
 		if syscallMsg.Exec.Credentials != nil {
 			entry.Credentials.UID = syscallMsg.Exec.Credentials.UID
 			entry.Credentials.EUID = syscallMsg.Exec.Credentials.EUID
@@ -265,6 +276,12 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 			"image_name:" + containerContext.ImageShortName,
 			"image_tag:" + containerContext.ImageTag,
 		}
+	}
+
+	// copy span context if any
+	if syscallMsg.SpanContext != nil {
+		event.SpanContext.SpanID = syscallMsg.SpanContext.SpanID
+		event.SpanContext.TraceID = syscallMsg.SpanContext.TraceID
 	}
 
 	// use ProcessCacheEntry process context as process context

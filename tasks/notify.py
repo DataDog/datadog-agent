@@ -5,7 +5,7 @@ import re
 import tempfile
 import traceback
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict
 
 from invoke import task
@@ -97,6 +97,8 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
     base = base_message(header, state)
 
     # Send messages
+    metrics = []
+    timestamp = int(datetime.now(timezone.utc).timestamp())
     for owner, message in messages_to_send.items():
         channel = GITHUB_SLACK_MAP.get(owner.lower(), None)
         message.base_message = base
@@ -114,12 +116,28 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
             if post_channel:
                 recipient = channel
                 send_slack_message(recipient, str(message))
+                metrics.append(
+                    create_count(
+                        metric_name="datadog.ci.failed_job_notifications",
+                        timestamp=timestamp,
+                        tags=[
+                            f"team:{owner}",
+                            "repository:datadog-agent",
+                            f"git_ref:{git_ref}",
+                        ],
+                        unit='notification',
+                        value=1,
+                    )
+                )
 
             # DM author
             if send_dm:
                 author_email = get_git_author(email=True)
                 recipient = email_to_slackid(ctx, author_email)
                 send_slack_message(recipient, str(message))
+
+    if metrics:
+        send_metrics(metrics)
 
 
 def _should_send_message_to_channel(git_ref: str, default_branch: str) -> bool:
@@ -192,10 +210,7 @@ def send_stats(_, print_to_stdout=False):
     )
 
     if not print_to_stdout:
-        response = send_metrics(series)
-        if response["errors"]:
-            print(f"Error(s) while sending pipeline metrics to the Datadog backend: {response['errors']}")
-            raise Exit(code=1)
+        send_metrics(series)
         print(f"Sent pipeline metrics: {series}")
     else:
         print(f"Would send: {series}")
@@ -291,7 +306,7 @@ def update_statistics(job_executions):
     # Update statistics and collect consecutive failed jobs
     alert_jobs = {"consecutive": [], "cumulative": []}
     failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
-    failed_set = {job["name"] for job in failed_jobs.all_failures()}
+    failed_set = {job.name for job in failed_jobs.all_failures()}
     current_set = set(job_executions["jobs"].keys())
     # Insert data for newly failing jobs
     new_failed_jobs = failed_set - current_set

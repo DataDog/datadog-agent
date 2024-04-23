@@ -30,10 +30,6 @@ Package expvarserver contains the component type for the expVar server.
 
 Package jmxlogger implements the logger for JMX.
 
-### [comp/agent/metadatascheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/metadatascheduler)
-
-Package metadatascheduler provides the metadata scheduler component.
-
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 
 *Datadog Team*: agent-metrics-logs
@@ -106,6 +102,12 @@ Package collector defines the collector component.
 
 Package core implements the "core" bundle, providing services common to all
 agent flavors and binaries.
+
+### [comp/core/agenttelemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/agenttelemetry)
+
+*Datadog Team*: agent-metrics-logs
+
+Package agenttelemetry implements a component to generate Agent telemetry
 
 ### [comp/core/autodiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/autodiscovery)
 
@@ -526,6 +528,10 @@ Package localapi is the updater local api component.
 ### [comp/updater/localapiclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapiclient)
 
 Package localapiclient provides the local API client component.
+
+### [comp/updater/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/telemetry)
+
+Package telemetry provides the installer telemetry component.
 
 ### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
 
