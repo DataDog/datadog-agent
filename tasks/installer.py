@@ -46,13 +46,13 @@ def build(
     go_build_tags = " ".join(build_tags)
     updater_bin = os.path.join(BIN_PATH, bin_name("installer"))
     cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
-    cmd += f"-o {updater_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/installer"
+    cmd += f"-o {updater_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags} -w -s\" {REPO_PATH}/cmd/installer"
 
     ctx.run(cmd, env=env)
 
     helper_bin = os.path.join(BIN_PATH, bin_name("helper"))
     helper_ldflags = f"-X main.installPath={install_path} -w -s"
-    helper_path = os.path.join("pkg", "installer", "service", "helper")
+    helper_path = os.path.join("pkg", "fleet", "installer", "service", "helper")
     cmd = f"CGO_ENABLED=0 go build {build_type} -tags \"{go_build_tags}\" "
     cmd += f"-o {helper_bin} -gcflags=\"{gcflags}\" -ldflags=\"{helper_ldflags}\" {helper_path}/main.go"
 

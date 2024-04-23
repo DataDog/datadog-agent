@@ -202,7 +202,7 @@ func (g *GlobStringMatcher) Contains(value string) bool {
 
 // PatternStringMatcher defines a pattern matcher
 type PatternStringMatcher struct {
-	pattern         string
+	pattern         patternElement
 	caseInsensitive bool
 }
 
@@ -213,14 +213,14 @@ func (p *PatternStringMatcher) Compile(pattern string, caseInsensitive bool) err
 		return fmt.Errorf("`**` is not allowed in patterns")
 	}
 
-	p.pattern = pattern
+	p.pattern = newPatternElement(pattern)
 	p.caseInsensitive = caseInsensitive
 	return nil
 }
 
 // Matches returns whether the value matches
 func (p *PatternStringMatcher) Matches(value string) bool {
-	return PatternMatches(p.pattern, value, p.caseInsensitive)
+	return PatternMatchesWithSegments(p.pattern, value, p.caseInsensitive)
 }
 
 // ScalarStringMatcher defines a scalar matcher

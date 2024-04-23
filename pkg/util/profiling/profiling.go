@@ -41,6 +41,12 @@ func Start(settings Settings) error {
 	if settings.WithGoroutineProfile {
 		types = append(types, profiler.GoroutineProfile)
 	}
+	if settings.WithBlockProfile {
+		types = append(types, profiler.BlockProfile)
+	}
+	if settings.WithMutexProfile {
+		types = append(types, profiler.MutexProfile)
+	}
 
 	options := []profiler.Option{
 		profiler.WithURL(settings.ProfilingURL),
