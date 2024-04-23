@@ -11,14 +11,15 @@ import (
 	"hash/fnv"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/atomic"
 )
 
 const (
@@ -37,8 +38,8 @@ type ProbabilisticSampler struct {
 	scaledSamplingPercentage uint32
 
 	statsd     statsd.ClientInterface
-	tracesSeen atomic.Int64
-	tracesKept atomic.Int64
+	tracesSeen *atomic.Int64
+	tracesKept *atomic.Int64
 	tags       []string
 
 	// start/stop synchronization
@@ -57,6 +58,8 @@ func NewProbabilisticSampler(conf *config.AgentConfig, statsd statsd.ClientInter
 		hashSeed:                 hashSeedBytes,
 		scaledSamplingPercentage: uint32(conf.ProbabilisticSamplerSamplingPercentage * percentageScaleFactor),
 		statsd:                   statsd,
+		tracesSeen:               atomic.NewInt64(0),
+		tracesKept:               atomic.NewInt64(0),
 		tags:                     []string{"sampler:probabilistic"},
 		stop:                     make(chan struct{}),
 		stopped:                  make(chan struct{}),
