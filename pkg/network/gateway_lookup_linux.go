@@ -46,9 +46,9 @@ var gatewayLookupTelemetry = struct {
 	telemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_lookup_errors", []string{"reason"}, "Counter measuring the number of subnet lookup errors"),
 }
 
-// LinuxGatewayLookup implements a gateway lookup
+// gatewayLookup implements a gateway lookup
 // functionality for linux
-type LinuxGatewayLookup struct {
+type gatewayLookup struct {
 	rootNetNs           netns.NsHandle
 	routeCache          RouteCache
 	subnetCache         *simplelru.LRU[int, interface{}] // interface index to subnet cache
@@ -75,9 +75,8 @@ func gwLookupEnabled() bool {
 func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32) GatewayLookup {
 	if !gwLookupEnabled() {
 		return nil
-	} else {
-		log.Warnf("Gateway lookup is enabled!!! isAWS %t, cloud provider: %s", cloud.IsAWS(), ec2.CloudProviderName)
 	}
+	log.Tracef("gateway lookup is enabled, isAWS %t, cloud provider: %s", cloud.IsAWS(), ec2.CloudProviderName)
 
 	rootNetNs, err := rootNsLookup()
 	if err != nil {
@@ -85,7 +84,7 @@ func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32) Gatew
 		return nil
 	}
 
-	gl := &LinuxGatewayLookup{
+	gl := &gatewayLookup{
 		rootNetNs:           rootNetNs,
 		subnetForHwAddrFunc: ec2SubnetForHardwareAddr,
 	}
@@ -109,7 +108,7 @@ func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32) Gatew
 }
 
 // Lookup performs a gateway lookup for connection stats
-func (g *LinuxGatewayLookup) Lookup(cs *ConnectionStats) *Via {
+func (g *gatewayLookup) Lookup(cs *ConnectionStats) *Via {
 	dest := cs.Dest
 	if cs.IPTranslation != nil {
 		dest = cs.IPTranslation.ReplSrcIP
@@ -120,7 +119,7 @@ func (g *LinuxGatewayLookup) Lookup(cs *ConnectionStats) *Via {
 
 // LookupWithIPs performs a gateway lookup given the
 // source, destination, and namespace
-func (g *LinuxGatewayLookup) LookupWithIPs(source util.Address, dest util.Address, netns uint32) *Via {
+func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, netns uint32) *Via {
 	r, ok := g.routeCache.Get(source, dest, netns)
 	if !ok {
 		return nil
@@ -206,13 +205,13 @@ func (g *LinuxGatewayLookup) LookupWithIPs(source util.Address, dest util.Addres
 
 // Close cleans up resources allocated
 // by this struct
-func (g *LinuxGatewayLookup) Close() {
+func (g *gatewayLookup) Close() {
 	g.rootNetNs.Close()
 	g.routeCache.Close()
 	g.purge()
 }
 
-func (g *LinuxGatewayLookup) purge() {
+func (g *gatewayLookup) purge() {
 	g.subnetCache.Purge()
 	gatewayLookupTelemetry.subnetCacheSize.Set(0)
 }

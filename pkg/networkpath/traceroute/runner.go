@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -52,17 +53,31 @@ var tracerouteRunnerTelemetry = struct {
 	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "failed_runs", []string{}, "Counter measuring the number of traceroute run failures"),
 }
 
+// Runner executes traceroutes
+type Runner struct {
+	gatewayLookup network.GatewayLookup
+	nsIno         uint32
+	networkID     string
+}
+
 // NewRunner initializes a new traceroute runner
 func NewRunner() (*Runner, error) {
-	// TODO: we should probably cache this info
-	// double check the underlying call doesn't
-	// already do this and only check if we're
-	// running on AWS
-	networkID, err := ec2.GetNetworkID(context.Background())
-	if err != nil {
-		log.Errorf("failed to get network ID: %s", err.Error())
+	var err error
+	var networkID string
+	if ec2.IsRunningOn(context.TODO()) {
+		networkID, err = cloudproviders.GetNetworkID(context.Background())
+		if err != nil {
+			log.Errorf("failed to get network ID: %s", err.Error())
+		}
 	}
-	gatewayLookup, nsIno := createGatewayLookup()
+
+	gatewayLookup, nsIno, err := createGatewayLookup()
+	if err != nil {
+		log.Errorf("failed to create gateway lookup: %s", err.Error())
+	}
+	if gatewayLookup == nil {
+		log.Warnf("gateway lookup is not enabled")
+	}
 
 	return &Runner{
 		gatewayLookup: gatewayLookup,
@@ -123,7 +138,6 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (NetworkPath, er
 		tracerouteRunnerTelemetry.failedRuns.Inc()
 		return NetworkPath{}, fmt.Errorf("traceroute run failed: %s", err.Error())
 	}
-	//log.Debugf("Raw results: %+v", results)
 
 	hname, err := hostname.Get(ctx)
 	if err != nil {
@@ -304,25 +318,20 @@ func getHostname(ipAddr string) string {
 	return currHost
 }
 
-func createGatewayLookup() (network.GatewayLookup, uint32) {
+func createGatewayLookup() (network.GatewayLookup, uint32, error) {
 	rootNs, err := rootNsLookup()
 	if err != nil {
-		log.Errorf("failed to create gateway lookup")
+		return nil, 0, fmt.Errorf("failed to look up root network namespace: %w", err)
 	}
 	defer rootNs.Close()
 
 	nsIno, err := kernel.GetInoForNs(rootNs)
 	if err != nil {
-		log.Errorf("failed to create gateway lookup")
-		return nil, 0
+		return nil, 0, fmt.Errorf("failed to get inode number: %w", err)
 	}
 
 	gatewayLookup := network.NewGatewayLookup(rootNsLookup, math.MaxUint32)
-	if gatewayLookup == nil {
-		log.Warnf("gateway lookup is not enabled")
-	}
-
-	return gatewayLookup, nsIno
+	return gatewayLookup, nsIno, nil
 }
 
 func rootNsLookup() (netns.NsHandle, error) {

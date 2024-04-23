@@ -27,13 +27,6 @@ type (
 		TimeoutMs uint
 	}
 
-	// Runner executes traceroutes
-	Runner struct {
-		gatewayLookup network.GatewayLookup
-		nsIno         uint32
-		networkID     string
-	}
-
 	// Traceroute defines an interface for running
 	// traceroutes for the Network Path integration
 	Traceroute interface {
