@@ -129,7 +129,10 @@ func (s *Scanner) reconfigureStandardRules(rawConfig []byte) error {
 	s.standardRules = standardRules
 	s.standardDefaults = unmarshaled.Defaults
 
-	log.Info("Reconfigured SDS standard rules.")
+	log.Info("Reconfigured", len(s.standardRules), "SDS standard rules.")
+	for _, rule := range s.standardRules {
+	    log.Debug("Std rule:", rule.Name)
+	}
 	return nil
 }
 
@@ -211,7 +214,10 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	s.rawConfig = rawConfig
 	s.configuredRules = config.Rules
 
-	log.Infof("Created an SDS scanner with %d enabled rules.", len(scanner.Rules))
+	log.Info("Created an SDS scanner with", len(scanner.Rules), "enabled rules")
+	for _, rule := range s.configuredRules {
+	    log.Debug("Configured rule:", rule.Name)
+	}
 	s.Scanner = scanner
 
 	return nil
