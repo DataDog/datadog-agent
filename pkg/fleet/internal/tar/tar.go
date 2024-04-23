@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package utils provides utility functions for the installer.
-package utils
+// Package tar provides utilities to extract tar archives
+package tar
 
 import (
 	"archive/tar"
@@ -18,13 +18,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ExtractTarArchive extracts a tar archive to the given destination path
+// Extract extracts a tar archive to the given destination path
 //
 // Note on security: This function does not currently attempt to fully mitigate zip-slip attacks.
 // This is purposeful as the archive is extracted only after its SHA256 hash has been validated
 // against its reference in the package catalog. This catalog is itself sent over Remote Config
 // which guarantees its integrity.
-func ExtractTarArchive(reader io.Reader, destinationPath string, maxSize int64) error {
+func Extract(reader io.Reader, destinationPath string, maxSize int64) error {
 	log.Debugf("Extracting archive to %s", destinationPath)
 	tr := tar.NewReader(io.LimitReader(reader, maxSize))
 	for {
@@ -54,7 +54,7 @@ func ExtractTarArchive(reader io.Reader, destinationPath string, maxSize int64) 
 				return fmt.Errorf("could not create directory: %w", err)
 			}
 		case tar.TypeReg:
-			err = extractTarFile(target, tr, os.FileMode(header.Mode))
+			err = extractFile(target, tr, os.FileMode(header.Mode))
 			if err != nil {
 				return err // already wrapped
 			}
@@ -74,9 +74,9 @@ func ExtractTarArchive(reader io.Reader, destinationPath string, maxSize int64) 
 	return nil
 }
 
-// extractTarFile extracts a file from a tar archive.
+// extractFile extracts a file from a tar archive.
 // It is separated from extractTarGz to ensure `defer f.Close()` is called right after the file is written.
-func extractTarFile(targetPath string, reader io.Reader, mode fs.FileMode) error {
+func extractFile(targetPath string, reader io.Reader, mode fs.FileMode) error {
 	err := os.MkdirAll(filepath.Dir(targetPath), 0755)
 	if err != nil {
 		return fmt.Errorf("could not create directory: %w", err)

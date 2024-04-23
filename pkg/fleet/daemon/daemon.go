@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -18,11 +19,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -30,6 +32,11 @@ import (
 const (
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
+)
+
+var (
+	// FIXME: use runtime.Executable() everywhere instead of hardcoding the path
+	installerBin = filepath.Join(setup.InstallPath, "bin", "installer", "installer")
 )
 
 // Daemon is the fleet daemon in charge of remote install, updates and configuration.
@@ -58,38 +65,12 @@ type daemonImpl struct {
 	requestsWG     sync.WaitGroup
 }
 
-// BootstrapURL installs the given package from an URL.
-func BootstrapURL(ctx context.Context, url string, config config.Reader) error {
-	rc := newNoopRemoteConfig()
-	i := newDaemon(rc, newPackageManager(config), false)
-	err := i.Start(ctx)
-	if err != nil {
-		return fmt.Errorf("could not start daemon: %w", err)
-	}
-	defer func() {
-		err := i.Stop(ctx)
-		if err != nil {
-			log.Errorf("could not stop daemon: %v", err)
-		}
-	}()
-	return i.Install(ctx, url)
-}
-
-// Bootstrap is the generic installer bootstrap.
-func Bootstrap(ctx context.Context, config config.Reader) error {
-	err := service.SetupInstaller(ctx, config.GetBool("updater.remote_updates"))
-	if err != nil {
-		return fmt.Errorf("failed to setup datadog-installer systemd units: %w", err)
-	}
-	return nil
-}
-
 func newPackageManager(config config.Reader) installer.Installer {
 	registry := config.GetString("updater.registry")
 	registryAuth := config.GetString("updater.registry_auth")
 	apiKey := utils.SanitizeAPIKey(config.GetString("api_key"))
 	site := config.GetString("site")
-	return newInstallerExec(registry, registryAuth, apiKey, site)
+	return exec.NewInstallerExec(installerBin, registry, registryAuth, apiKey, site)
 }
 
 // NewDaemon returns a new daemon.

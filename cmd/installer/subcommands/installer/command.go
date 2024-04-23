@@ -10,8 +10,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
+	"github.com/DataDog/datadog-agent/pkg/fleet/bootstraper"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/spf13/cobra"
@@ -19,51 +21,103 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
+const (
+	envRegistry     = "DD_INSTALLER_REGISTRY"
+	envRegistryAuth = "DD_INSTALLER_REGISTRY_AUTH"
+	envAPIKey       = "DD_API_KEY"
+	envSite         = "DD_SITE"
+)
+
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	return []*cobra.Command{installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand()}
+	return []*cobra.Command{bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand()}
 }
 
-type installerCmd struct {
-	installer.Installer
-	t    *telemetry.Telemetry
-	ctx  context.Context
-	span ddtrace.Span
+type cmd struct {
+	t            *telemetry.Telemetry
+	ctx          context.Context
+	span         ddtrace.Span
+	registry     string
+	registryAuth string
+	apiKey       string
+	site         string
 }
 
-func (i *installerCmd) Stop(err error) {
-	i.span.Finish(tracer.WithError(err))
-	if i.t != nil {
-		err := i.t.Stop(context.Background())
+func newCmd(operation string) *cmd {
+	span, ctx := newSpan(operation)
+	registry := os.Getenv(envRegistry)
+	registryAuth := os.Getenv(envRegistryAuth)
+	apiKey := os.Getenv(envAPIKey)
+	site := os.Getenv(envSite)
+	return &cmd{
+		t:            newTelemetry(),
+		ctx:          ctx,
+		span:         span,
+		registry:     registry,
+		registryAuth: registryAuth,
+		apiKey:       apiKey,
+		site:         site,
+	}
+}
+
+func (c *cmd) Stop(err error) {
+	c.span.Finish(tracer.WithError(err))
+	if c.t != nil {
+		err := c.t.Stop(context.Background())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to stop telemetry: %v\n", err)
 		}
 	}
 }
 
+type installerCmd struct {
+	*cmd
+	installer.Installer
+}
+
 func newInstallerCmd(operation string) *installerCmd {
-	span, ctx := newSpan(operation)
-	registry := os.Getenv("DD_INSTALLER_REGISTRY")
-	registryAuth := os.Getenv("DD_INSTALLER_REGISTRY_AUTH")
-	var installerOpts []installer.Options
-	if registry != "" {
-		installerOpts = append(installerOpts, installer.WithRegistry(registry))
+	cmd := newCmd(operation)
+	var opts []installer.Option
+	if cmd.registry != "" {
+		opts = append(opts, installer.WithRegistry(cmd.registry))
 	}
-	if registryAuth != "" {
-		installerOpts = append(installerOpts, installer.WithRegistryAuth(installer.RegistryAuth(registryAuth)))
+	if cmd.registryAuth != "" {
+		opts = append(opts, installer.WithRegistryAuth(cmd.registryAuth))
 	}
-	i := installer.NewInstaller(installerOpts...)
+	i := installer.NewInstaller(opts...)
 	return &installerCmd{
 		Installer: i,
-		t:         newTelemetry(),
-		ctx:       ctx,
-		span:      span,
+		cmd:       cmd,
+	}
+}
+
+type bootstraperCmd struct {
+	*cmd
+	opts []bootstraper.Option
+}
+
+func newBootstraperCmd(operation string) *bootstraperCmd {
+	cmd := newCmd(operation)
+	var opts []bootstraper.Option
+	if cmd.registry != "" {
+		opts = append(opts, bootstraper.WithRegistry(cmd.registry))
+	}
+	if cmd.registryAuth != "" {
+		opts = append(opts, bootstraper.WithRegistryAuth(cmd.registryAuth))
+	}
+	if cmd.apiKey != "" {
+		opts = append(opts, bootstraper.WithAPIKey(cmd.apiKey))
+	}
+
+	return &bootstraperCmd{
+		opts: opts,
+		cmd:  cmd,
 	}
 }
 
 func newTelemetry() *telemetry.Telemetry {
-	apiKey := os.Getenv("DD_API_KEY")
-	site := os.Getenv("DD_SITE")
+	apiKey := os.Getenv(envAPIKey)
+	site := os.Getenv(envSite)
 	if apiKey == "" || site == "" {
 		fmt.Printf("telemetry disabled: missing DD_API_KEY or DD_SITE\n")
 		return nil
@@ -83,6 +137,24 @@ func newSpan(operationName string) (ddtrace.Span, context.Context) {
 		spanOptions = append(spanOptions, tracer.ChildOf(spanContext))
 	}
 	return tracer.StartSpanFromContext(context.Background(), operationName, spanOptions...)
+}
+
+func bootstrapCommand() *cobra.Command {
+	var timeout time.Duration
+	cmd := &cobra.Command{
+		Use:     "bootstrap",
+		Short:   "Bootstraps the package with the first version.",
+		GroupID: "bootstrap",
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
+			b := newBootstraperCmd("bootstrap")
+			defer func() { b.Stop(err) }()
+			ctx, cancel := context.WithTimeout(b.ctx, timeout)
+			defer cancel()
+			return bootstraper.Bootstrap(ctx, b.opts...)
+		},
+	}
+	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
+	return cmd
 }
 
 func installCommand() *cobra.Command {

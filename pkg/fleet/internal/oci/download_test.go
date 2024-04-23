@@ -6,7 +6,7 @@
 // for now the installer is not supported on windows
 //go:build !windows
 
-package installer
+package oci
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/fixtures"
 	oci "github.com/google/go-containerregistry/pkg/v1"
 )
 
@@ -30,12 +30,12 @@ func newTestDownloadServer(t *testing.T) *testDownloadServer {
 	}
 }
 
-func (s *testDownloadServer) Downloader() *downloader {
-	return newDownloader(s.Client(), RegistryAuthDefault, "")
+func (s *testDownloadServer) Downloader() *Downloader {
+	return NewDownloader(s.Client(), "", RegistryAuthDefault)
 }
 
-func (s *testDownloadServer) DownloaderRegistryOverride() *downloader {
-	return newDownloader(s.Client(), RegistryAuthDefault, "my.super/registry")
+func (s *testDownloadServer) DownloaderRegistryOverride() *Downloader {
+	return NewDownloader(s.Client(), "my.super/registry", RegistryAuthDefault)
 }
 
 func (s *testDownloadServer) Image(f fixtures.Fixture) oci.Image {
@@ -56,9 +56,24 @@ func TestDownload(t *testing.T) {
 	assert.Equal(t, fixtures.FixtureSimpleV1.Package, downloadedPackage.Name)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	tmpDir := t.TempDir()
-	err = extractPackageLayers(downloadedPackage.Image, t.TempDir(), tmpDir)
+	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
-	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
+	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
+}
+
+func TestDownloadLayout(t *testing.T) {
+	s := newTestDownloadServer(t)
+	defer s.Close()
+	d := s.Downloader()
+
+	downloadedPackage, err := d.Download(context.Background(), s.PackageLayoutURL(fixtures.FixtureSimpleV1))
+	assert.NoError(t, err)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Package, downloadedPackage.Name)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
+	tmpDir := t.TempDir()
+	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
+	assert.NoError(t, err)
+	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
 }
 
 func TestDownloadInvalidHash(t *testing.T) {
@@ -104,4 +119,27 @@ func TestGetRegistryURL(t *testing.T) {
 	d = s.DownloaderRegistryOverride()
 	url = d.getRegistryURL(testURL)
 	assert.Equal(t, "my.super/registry/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d", url)
+}
+
+func TestPackageURL(t *testing.T) {
+	type test struct {
+		site     string
+		pkg      string
+		version  string
+		expected string
+	}
+
+	tests := []test{
+		{site: "datad0g.com", pkg: "datadog-agent", version: "latest", expected: "oci://docker.io/datadog/agent-package-dev:latest"},
+		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://public.ecr.aws/datadog/agent-package:1.2.3"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.site, func(t *testing.T) {
+			actual := PackageURL(tt.site, tt.pkg, tt.version)
+			if actual != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, actual)
+			}
+		})
+	}
 }
