@@ -10,7 +10,11 @@ from tasks.kernel_matrix_testing.tool import Exit
 from tasks.pipeline import GitlabYamlLoader
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch, Component, PlatformInfo, Platforms  # noqa: F401
+    from tasks.kernel_matrix_testing.types import (
+        Arch,
+        Component,
+        Platforms,
+    )
 
 
 platforms_file = "test/new-e2e/system-probe/config/platforms.json"
@@ -18,7 +22,7 @@ platforms_file = "test/new-e2e/system-probe/config/platforms.json"
 
 def get_platforms():
     with open(platforms_file) as f:
-        return cast('Platforms', json.load(f))
+        return cast("Platforms", json.load(f))
 
 
 def filter_by_ci_component(platforms: Platforms, component: Component) -> Platforms:
@@ -33,7 +37,7 @@ def filter_by_ci_component(platforms: Platforms, component: Component) -> Platfo
     new_platforms = platforms.copy()
 
     target_file = (
-        Path(__file__).parent.parent.parent / '.gitlab' / "kernel_matrix_testing" / f"{component.replace('-', '_')}.yml"
+        Path(__file__).parent.parent.parent / ".gitlab" / "kernel_matrix_testing" / f"{component.replace('-', '_')}.yml"
     )
     with open(target_file) as f:
         ci_config = yaml.load(f, Loader=GitlabYamlLoader())
@@ -50,5 +54,9 @@ def filter_by_ci_component(platforms: Platforms, component: Component) -> Platfo
             raise Exit(f"Cannot find list of kernels (parallel.matrix[0].TAG) in {job_name} job in {target_file}")
 
         new_platforms[arch] = {k: v for k, v in new_platforms[arch].items() if k in kernels}
+
+        missing_kernels = kernels - set(new_platforms[arch].keys())
+        if missing_kernels:
+            raise Exit(f"Kernels {missing_kernels} not found in {platforms_file} for {arch}")
 
     return new_platforms
