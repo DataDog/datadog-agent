@@ -237,9 +237,6 @@ func run(log log.Component,
 		stopAgent(agentAPI)
 	}()
 
-	// prepare go runtime
-	ddruntime.SetMaxProcs()
-
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
@@ -307,6 +304,15 @@ func run(log log.Component,
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
+		fx.Invoke(func(lc fx.Lifecycle) {
+			lc.Append(fx.Hook{
+				OnStart: func(_ context.Context) error {
+					// prepare go runtime
+					ddruntime.SetMaxProcs()
+					return nil
+				},
+			})
+		}),
 		fx.Supply(flare.NewParams(
 			path.GetDistPath(),
 			path.PyChecksPath,
