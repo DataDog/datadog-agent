@@ -11,18 +11,18 @@ import (
 	"errors"
 )
 
-func linkRead(_ string) (string, error) {
+func linkRead2(_ string) (string, error) {
 	return "", errors.New("not supported on windows")
 }
 
-func linkExists(_ string) (bool, error) {
+func linkExists2(_ string) (bool, error) {
 	return false, errors.New("not supported on windows")
 }
 
-func linkSet(_ string, _ string) error {
+func linkSet2(_ string, _ string) error {
 	return errors.New("not supported on windows")
 }
 
-func linkDelete(_ string) error {
+func linkDelete2(_ string) error {
 	return errors.New("not supported on windows")
 }
