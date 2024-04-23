@@ -109,12 +109,8 @@ func getComponentDependencies(t *testing.T) testdeps {
 		packagesigningimpl.MockModule(),
 		statusimpl.MockModule(),
 		eventplatformreceiverimpl.MockModule(),
-		fx.Provide(func() optional.Option[rcservice.Component] {
-			return optional.NewNoneOption[rcservice.Component]()
-		}),
-		fx.Provide(func() optional.Option[rcservicemrf.Component] {
-			return optional.NewNoneOption[rcservicemrf.Component]()
-		}),
+		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
+		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 		fetchonlyimpl.MockModule(),
 		fx.Supply(context.Background()),
 		tagger.MockModule(),

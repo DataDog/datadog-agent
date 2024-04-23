@@ -225,10 +225,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() inventoryagent.Component { return nil }),
 				fx.Provide(func() inventoryhost.Component { return nil }),
 				fx.Provide(func() packagesigning.Component { return nil }),
-				fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewNoneOption[rcservice.Component]() }),
-				fx.Provide(func() optional.Option[rcservicemrf.Component] {
-					return optional.NewNoneOption[rcservicemrf.Component]()
-				}),
+				fx.Supply(optional.NewNoneOption[rcservice.Component]()),
+				fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 				fx.Provide(func() optional.Option[gui.Component] { return optional.NewNoneOption[gui.Component]() }),
 				getPlatformModules(),
 				jmxloggerimpl.Module(),
