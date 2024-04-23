@@ -2,7 +2,6 @@
 Miscellaneous functions, no tasks here
 """
 
-
 import json
 import os
 import re
@@ -395,14 +394,14 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
     cmd = "git describe --tags --candidates=50"
-    if prefix and type(prefix) == str:
+    if prefix and isinstance(prefix, str):
         cmd += f" --match \"{prefix}-*\""
     else:
         if major_version_hint:
-            cmd += r' --match "{}\.*"'.format(major_version_hint)  # noqa: FS002
+            cmd += rf' --match "{major_version_hint}\.*"'  # noqa: FS002
         else:
             cmd += " --match \"[0-9]*\""
-    if git_sha_length and type(git_sha_length) == int:
+    if git_sha_length and isinstance(git_sha_length, int):
         cmd += f" --abbrev={git_sha_length}"
     described_version = ctx.run(cmd, hide=True).stdout.strip()
 
@@ -413,8 +412,8 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
         commit_number = int(commit_number_match.group('commit_number'))
 
     version_re = r"v?(?P<version>\d+\.\d+\.\d+)(?:(?:-|\.)(?P<pre>[0-9A-Za-z.-]+))?"
-    if prefix and type(prefix) == str:
-        version_re = r"^(?:{}-)?".format(prefix) + version_re  # noqa: FS002
+    if prefix and isinstance(prefix, str):
+        version_re = rf"^(?:{prefix}-)?" + version_re  # noqa: FS002
     else:
         version_re = r"^" + version_re
     if commit_number == 0:
@@ -491,7 +490,7 @@ def get_version(
                 agent_version_cache_file_exist = True
 
         if agent_version_cache_file_exist:
-            with open(AGENT_VERSION_CACHE_NAME, "r") as file:
+            with open(AGENT_VERSION_CACHE_NAME) as file:
                 cache_data = json.load(file)
 
             version, pre, commits_since_version, git_sha, pipeline_id = cache_data[major_version]
@@ -500,7 +499,7 @@ def get_version(
 
             if pre and include_pre:
                 version = f"{version}-{pre}"
-    except (IOError, json.JSONDecodeError, IndexError) as e:
+    except (OSError, json.JSONDecodeError, IndexError) as e:
         # If a cache file is found but corrupted we ignore it.
         print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}", file=sys.stderr)
         version = ""
@@ -551,11 +550,11 @@ def get_version_numeric_only(ctx, major_version='7'):
                     hide="stdout",
                 )
 
-            with open(AGENT_VERSION_CACHE_NAME, "r") as file:
+            with open(AGENT_VERSION_CACHE_NAME) as file:
                 cache_data = json.load(file)
 
             version, *_ = cache_data[major_version]
-        except (IOError, json.JSONDecodeError, IndexError) as e:
+        except (OSError, json.JSONDecodeError, IndexError) as e:
             # If a cache file is found but corrupted we ignore it.
             print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}")
             version = ""
@@ -565,7 +564,7 @@ def get_version_numeric_only(ctx, major_version='7'):
 
 
 def load_release_versions(_, target_version):
-    with open("release.json", "r") as f:
+    with open("release.json") as f:
         versions = json.load(f)
         if target_version in versions:
             # windows runners don't accepts anything else than strings in the
@@ -691,3 +690,13 @@ def environ(env):
             os.environ[var] = original_environ[var]
         else:
             os.environ.pop(var)
+
+
+def is_pr_context(branch, pr_id, test_name):
+    if branch == DEFAULT_BRANCH:
+        print(f"Running on {DEFAULT_BRANCH}, skipping check for {test_name}.")
+        return False
+    if not pr_id:
+        print(f"PR not found, skipping check for {test_name}.")
+        return False
+    return True

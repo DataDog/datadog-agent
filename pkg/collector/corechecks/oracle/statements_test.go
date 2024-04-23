@@ -35,6 +35,7 @@ query_metrics:
   - contains_text:
     - dual`
 	c, _ := newDefaultCheck(t, config, "")
+	defer c.Teardown()
 
 	require.Equalf(t, len(c.config.QueryMetrics.Trackers), 2, "query metrics trackers")
 
@@ -49,7 +50,8 @@ query_metrics:
 		assert.NoError(t, err, "failed to execute the test statement")
 
 		for j := 1; j <= 10; j++ {
-			err = getWrapper(&c, &n, fmt.Sprintf("select %d from dual", j))
+			// `rownum=1` is used to avoid mixing up with the query for testing connection
+			err = getWrapper(&c, &n, fmt.Sprintf("select %d from dual where rownum = 1", j))
 			assert.NoError(t, err, "failed to execute the test query")
 		}
 		runStatementMetrics(&c, t)
@@ -60,7 +62,7 @@ query_metrics:
 	for _, r := range c.lastOracleRows {
 		if r.SQLText == testStatement {
 			statementExecutions = r.Executions
-		} else if r.SQLText == "select ? from dual" {
+		} else if r.SQLText == "select ? from dual where rownum = ?" {
 			queryExecutions = r.Executions
 		}
 	}
@@ -70,6 +72,7 @@ query_metrics:
 
 func TestUInt64Binding(t *testing.T) {
 	c, _ := newDefaultCheck(t, "", "")
+	defer c.Teardown()
 
 	c.dbmEnabled = true
 	c.config.QueryMetrics.Enabled = true

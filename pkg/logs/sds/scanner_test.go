@@ -346,7 +346,7 @@ func TestScan(t *testing.T) {
 		},
 		"and so we go": {
 			matched:    false,
-			event:      "",
+			event:      "and so we go",
 			matchCount: 0,
 		},
 	}
@@ -430,21 +430,23 @@ func TestCloseCycleScan(t *testing.T) {
 			},
 			"and so we go": {
 				matched:    false,
-				event:      "",
+				event:      "and so we go",
 				matchCount: 0,
 			},
 		}
+
+        // this test is about being over-cautious, making sure the Scan method
+        // will never cause a race when calling the Delete method at the same time.
+        // It can't happen with the current implementation / concurrency pattern
+        // used in processor.go, but I'm being over-cautious because if it happens
+        // in the future because of someone changing the processor implementation,
+        // it could lead to a panic and a hard crash of the Agent.
 
 		go func() {
 			for {
 				for k, _ := range tests {
 					msg := message.Message{}
-					if s.IsReady() {
-						_, _, err := s.Scan([]byte(k), &msg)
-						require.NoError(err)
-					} else {
-						return
-					}
+					s.Scan([]byte(k), &msg)
 				}
 			}
 		}()

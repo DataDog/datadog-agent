@@ -178,17 +178,12 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
         .fd = ssl_sock->fd,
     };
 
-    struct sock **sock = bpf_map_lookup_elem(&sock_by_pid_fd, &pid_fd);
-    if (sock == NULL)  {
+    conn_tuple_t *t = bpf_map_lookup_elem(&tuple_by_pid_fd, &pid_fd);
+    if (t == NULL)  {
         return NULL;
     }
 
-    conn_tuple_t t;
-    if (!read_conn_tuple(&t, *sock, pid_tgid, CONN_TYPE_TCP)) {
-        return NULL;
-    }
-
-    bpf_memcpy(&ssl_sock->tup, &t, sizeof(conn_tuple_t));
+    bpf_memcpy(&ssl_sock->tup, t, sizeof(conn_tuple_t));
     return &ssl_sock->tup;
 }
 
@@ -248,7 +243,7 @@ static __always_inline tls_offsets_data_t* get_offsets_data() {
     key.device_id_major = MAJOR(dev_id);
     key.device_id_minor = MINOR(dev_id);
 
-    log_debug("get_offsets_data: task binary inode number: %ld; device ID %x:%x", key.ino, key.device_id_major, key.device_id_minor);
+    log_debug("get_offsets_data: task binary inode number: %llu; device ID %x:%x", key.ino, key.device_id_major, key.device_id_minor);
 
     return bpf_map_lookup_elem(&offsets_data, &key);
 }

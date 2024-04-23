@@ -3,6 +3,7 @@ vscode namespaced tags
 
 Helpers for getting vscode set up nicely
 """
+
 import json
 import os
 from collections import OrderedDict
@@ -10,10 +11,10 @@ from pathlib import Path
 
 from invoke import task
 from invoke.exceptions import Exit
-from libs.common.color import color_message
 
 from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import color_message
 
 DEVCONTAINER_DIR = ".devcontainer"
 DEVCONTAINER_FILE = "devcontainer.json"
@@ -53,7 +54,7 @@ def setup(
     devcontainer = {}
     fullpath = os.path.join(DEVCONTAINER_DIR, DEVCONTAINER_FILE)
     if os.path.exists(fullpath):
-        with open(fullpath, "r") as sf:
+        with open(fullpath) as sf:
             devcontainer = json.load(sf, object_pairs_hook=OrderedDict)
 
     local_build_tags = ",".join(use_tags)
@@ -104,9 +105,9 @@ def setup(
             "extensions": ["golang.Go"],
         }
     }
-    devcontainer[
-        "postStartCommand"
-    ] = "git config --global --add safe.directory /workspaces/datadog-agent && invoke install-tools && invoke deps"
+    devcontainer["postStartCommand"] = (
+        "git config --global --add safe.directory /workspaces/datadog-agent && invoke install-tools && invoke deps"
+    )
 
     with open(fullpath, "w") as sf:
         json.dump(devcontainer, sf, indent=4, sort_keys=False, separators=(',', ': '))

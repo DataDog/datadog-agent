@@ -22,10 +22,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 )
 
-// otelSource specifies a source to be added to all logs sent from the Datadog Agent.
-// The tag has key `otel_source` and the value specified on this constant.
-const otelSource = "datadog_agent"
-
 type exporter struct {
 	set              component.TelemetrySettings
 	logsAgentChannel chan *message.Message
@@ -35,11 +31,12 @@ type exporter struct {
 
 func newExporter(
 	set component.TelemetrySettings,
+	cfg *Config,
 	logSource *sources.LogSource,
 	logsAgentChannel chan *message.Message,
 	attributesTranslator *attributes.Translator,
 ) (*exporter, error) {
-	translator, err := logsmapping.NewTranslator(set, attributesTranslator, otelSource)
+	translator, err := logsmapping.NewTranslator(set, attributesTranslator, cfg.OtelSource)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +77,7 @@ func (e *exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 		origin := message.NewOrigin(e.logSource)
 		origin.SetTags(tags)
 		origin.SetService(service)
-		origin.SetSource(logSourceName)
+		origin.SetSource(e.logSource.Name)
 
 		content, err := ddLog.MarshalJSON()
 		if err != nil {

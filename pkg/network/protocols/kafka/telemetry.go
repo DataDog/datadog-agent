@@ -33,7 +33,7 @@ func NewTelemetry() *Telemetry {
 }
 
 // Count increments the total hits counter
-func (t *Telemetry) Count(tx *EbpfTx) {
+func (t *Telemetry) Count(tx *KafkaTransaction) {
 	switch tx.Request_api_key {
 	case 0:
 		t.produceHits.Add(tx)
