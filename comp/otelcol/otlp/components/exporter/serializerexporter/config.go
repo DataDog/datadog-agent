@@ -57,6 +57,7 @@ type MetricsConfig struct {
 	Tags string `mapstructure:"tags"`
 }
 
+// HistogramMode is the export mode for OTLP Histogram metrics.
 type HistogramMode string
 
 const (
@@ -71,6 +72,7 @@ const (
 
 var _ encoding.TextUnmarshaler = (*HistogramMode)(nil)
 
+// UnmarshalText unmarshals bytes to HistogramMode
 func (hm *HistogramMode) UnmarshalText(in []byte) error {
 	switch mode := HistogramMode(in); mode {
 	case HistogramModeCounters, HistogramModeDistributions, HistogramModeNoBuckets:
