@@ -448,7 +448,7 @@ class KMTPaths:
 def is_root():
     return os.getuid() == 0
 
-def ninja_define_rules(nw):
+def ninja_define_rules(nw: NinjaWriter):
     # go build does not seem to be designed to run concurrently on the same
     # source files. To make go build work with ninja we create a pool to force
     # only a single instance of go to be running.
@@ -466,12 +466,12 @@ def ninja_define_rules(nw):
     nw.rule(name="copyfiles", command="install -D $in $out $mode")
 
 
-def ninja_build_dependencies(nw, kmt_paths, go_path):
+def ninja_build_dependencies(nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str):
     test_runner_files = glob("test/new-e2e/system-probe/test-runner/*.go")
     nw.build(
         rule="gobin",
         pool="gobuild",
-        outputs=[os.path.join(kmt_paths.dependencies, "test-runner")],
+        outputs=[kmt_paths.dependencies / "test-runner"],
         implicit=test_runner_files,
         variables={
             "go": go_path,
@@ -490,7 +490,7 @@ def ninja_build_dependencies(nw, kmt_paths, go_path):
     nw.build(
         rule="gobin",
         pool="gobuild",
-        outputs=[os.path.join(kmt_paths.dependencies, "test-json-review")],
+        outputs=[kmt_paths.dependencies / "test-json-review"],
         implicit=test_json_files,
         variables={
             "go": go_path,
@@ -1033,10 +1033,21 @@ def ssh_config(
                 if instance.ssh_key_path is not None:
                     print(f"    IdentityFile {instance.ssh_key_path}")
                     print("    IdentitiesOnly yes")
+                for key, value in SSH_OPTIONS.items():
+                    print(f"    {key} {value}")
                 print("")
 
+            multiple_instances_with_same_tag = len({i.tag for i in instance.microvms}) != len(instance.microvms)
+
             for domain in instance.microvms:
-                print(f"Host kmt-{stack_name}-{instance.arch}-{domain.tag}")
+                domain_name = domain.tag
+                if multiple_instances_with_same_tag:
+                    id_parts = domain.name.split('-')
+                    mem = id_parts[-1]
+                    cpu = id_parts[-2]
+                    domain_name += f"-mem{mem}-cpu{cpu}"
+
+                print(f"Host kmt-{stack_name}-{instance.arch}-{domain_name}")
                 print(f"    HostName {domain.ip}")
                 if instance.arch != "local":
                     print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
@@ -1325,3 +1336,45 @@ def explain_ci_failure(_, pipeline: str):
                 headers=["Distro", "Login prompt found", "setup-ddvm ok", "Assigned IP", "Downloaded boot log"],
             )
         )
+
+
+@task()
+def tmux(ctx: Context, stack: str | None = None):
+    """Create a tmux session with panes for each VM in the stack.
+
+    Note that this task requires the tmux command to be available on the system, and the SSH
+    config to have been generated with the kmt.ssh-config task.
+    """
+    stack = check_and_get_stack(stack)
+    stack_name = stack.replace('-ddvm', '')
+
+    ctx.run(f"tmux kill-session -t kmt-{stack_name} || true")
+    ctx.run(f"tmux new-session -d -s kmt-{stack_name}")
+
+    for i, (_, instance) in enumerate(build_infrastructure(stack, try_get_ssh_key(ctx, None)).items()):
+        window_name = instance.arch
+        if i == 0:
+            ctx.run(f"tmux rename-window -t kmt-{stack_name} {window_name}")
+        else:
+            ctx.run(f"tmux new-window -t kmt-{stack_name} -n {window_name}")
+
+        multiple_instances_with_same_tag = len({i.tag for i in instance.microvms}) != len(instance.microvms)
+
+        needs_split = False
+        for domain in instance.microvms:
+            domain_name = domain.tag
+            if multiple_instances_with_same_tag:
+                id_parts = domain.name.split('-')
+                mem = id_parts[-1]
+                cpu = id_parts[-2]
+                domain_name += f"-mem{mem}-cpu{cpu}"
+            ssh_name = f"kmt-{stack_name}-{instance.arch}-{domain_name}"
+
+            if needs_split:
+                ctx.run(f"tmux split-window -h -t kmt-{stack_name}:{i}")
+            needs_split = True
+
+            ctx.run(f"tmux send-keys -t kmt-{stack_name}:{i} 'ssh {ssh_name}' Enter")
+            ctx.run(f"tmux select-layout -t kmt-{stack_name}:{i} tiled")
+
+    info(f"[+] Tmux session kmt-{stack_name} created. Attach with 'tmux attach -t kmt-{stack_name}'")
