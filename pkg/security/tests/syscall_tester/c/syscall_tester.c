@@ -80,6 +80,18 @@ void register_span(struct span_tls_t *tls, unsigned trace_id, unsigned span_id) 
     base[offset + 1] = trace_id;
 }
 
+static void *thread_span_exec(void *data) {
+    struct thread_opts *opts = (struct thread_opts *)data;
+
+    unsigned trace_id = atoi(opts->argv[1]);
+    unsigned span_id = atoi(opts->argv[2]);
+
+    register_span(opts->tls, trace_id, span_id);
+
+    execv(opts->argv[3], opts->argv + 3);
+    return NULL;
+}
+
 int span_exec(int argc, char **argv) {
     if (argc < 4) {
         fprintf(stderr, "Please pass a span Id and a trace Id to exec_span and a command\n");
@@ -92,12 +104,16 @@ int span_exec(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    unsigned trace_id = atoi(argv[1]);
-    unsigned span_id = atoi(argv[2]);
+    struct thread_opts opts = {
+        .argv = argv,
+        .tls = tls,
+    };
 
-    register_span(tls, trace_id, span_id);
-
-    execv(argv[3], argv + 3);
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_span_exec, &opts) < 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_join(thread, NULL);
 
     return EXIT_SUCCESS;
 }

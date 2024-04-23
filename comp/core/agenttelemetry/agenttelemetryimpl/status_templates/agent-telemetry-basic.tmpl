@@ -1,0 +1,19 @@
+{
+  {{- with .runnerStats }}
+  "checks": {
+    "running_checks": {{.RunningChecks}},
+    "runs": {{.Runs}}
+  },
+  {{- end }}
+  {{- with .dogstatsdStats -}}
+  "dogstatsd": {
+    "EventParseErrors": {{.EventParseErrors}},
+    "MetricParseErrors": {{.MetricParseErrors}},
+    "ServiceCheckParseErrors": {{.ServiceCheckParseErrors}},
+    "UdpPacketReadingErrors":  {{.UdpPacketReadingErrors}},
+    "UdsOriginDetectionErrors": {{.UdsOriginDetectionErrors}},
+    "UdsPacketReadingErrors": {{.UdsPacketReadingErrors}},
+    "UnterminatedMetricErrors": {{.UnterminatedMetricErrors}}
+  }
+  {{- end }}
+}  

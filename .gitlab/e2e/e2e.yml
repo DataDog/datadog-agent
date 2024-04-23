@@ -4,7 +4,7 @@
 
 .k8s_e2e_template:
   stage: e2e
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   dependencies: []
   variables:
@@ -120,9 +120,7 @@ k8s-e2e-otlp-main:
   script:
     - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
   after_script:
-    # Upload generated junit files
-    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
-    - inv -e junit-upload --tgz-path junit-${CI_JOB_ID}.tgz
+    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -295,6 +293,8 @@ new-e2e-installer:
     - deploy_deb_testing-i7_amd64
     - deploy_rpm_testing-i7_arm64
     - deploy_rpm_testing-i7_x64
+    - deploy_suse_rpm_testing-i7_arm64
+    - deploy_suse_rpm_testing-i7_x64
   variables:
     TARGETS: ./tests/installer
     TEAM: fleet
