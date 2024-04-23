@@ -280,9 +280,14 @@ func (i *installerImpl) setupPackage(ctx context.Context, pkg string) error {
 func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
-		return service.RemoveAgent(ctx)
+		service.RemoveAgent(ctx)
+		return nil
 	case packageAPMInjector:
-		return service.RemoveAPMInjector(ctx)
+		service.RemoveAPMInjector(ctx)
+		return nil
+	case packageDatadogInstaller:
+		service.RemoveInstaller(ctx)
+		return nil
 	default:
 		return nil
 	}

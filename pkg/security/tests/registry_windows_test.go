@@ -30,11 +30,11 @@ import (
 func TestBasicRegistryTestPowershell(t *testing.T) {
 	openDef := &rules.RuleDefinition{
 		ID:         "test_open_rule",
-		Expression: `open.registry.key_path == "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`,
+		Expression: `open.registry.key_path == "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"`,
 	}
 	createDef := &rules.RuleDefinition{
 		ID:         "test_create_rule",
-		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`,
+		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"`,
 	}
 
 	opts := testOpts{
@@ -77,11 +77,11 @@ func TestBasicRegistryTestPowershell(t *testing.T) {
 func TestBasicRegistryTestRegExe(t *testing.T) {
 	openDef := &rules.RuleDefinition{
 		ID:         "test_open_rule",
-		Expression: `open.registry.key_path == "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`,
+		Expression: `open.registry.key_path == "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"`,
 	}
 	createDef := &rules.RuleDefinition{
 		ID:         "test_create_rule",
-		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`,
+		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"`,
 	}
 
 	opts := testOpts{
@@ -125,11 +125,11 @@ func TestBasicRegistryTestRegExe(t *testing.T) {
 func TestBasicRegistryTestAPI(t *testing.T) {
 	openDef := &rules.RuleDefinition{
 		ID:         "test_open_rule",
-		Expression: `open.registry.key_path == "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`,
+		Expression: `open.registry.key_path == "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"`,
 	}
 	createDef := &rules.RuleDefinition{
 		ID:         "test_create_rule",
-		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`,
+		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"`,
 	}
 
 	opts := testOpts{

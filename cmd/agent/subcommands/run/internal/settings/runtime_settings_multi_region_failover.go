@@ -13,42 +13,42 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
-// HighAvailabilityRuntimeSetting wraps operations to change the High Availability settings at runtime.
-type HighAvailabilityRuntimeSetting struct {
+// MultiRegionFailoverRuntimeSetting wraps operations to change the Multi-Region Failover settings at runtime.
+type MultiRegionFailoverRuntimeSetting struct {
 	value string
 	desc  string
 }
 
-// NewHighAvailabilityRuntimeSetting creates a new instance of HighAvailabilityRuntimeSetting
-func NewHighAvailabilityRuntimeSetting(name, desc string) *HighAvailabilityRuntimeSetting {
-	return &HighAvailabilityRuntimeSetting{
+// NewMultiRegionFailoverRuntimeSetting creates a new instance of MultiRegionFailoverRuntimeSetting
+func NewMultiRegionFailoverRuntimeSetting(name, desc string) *MultiRegionFailoverRuntimeSetting {
+	return &MultiRegionFailoverRuntimeSetting{
 		value: name,
 		desc:  desc,
 	}
 }
 
 // Description returns the runtime setting's description
-func (h *HighAvailabilityRuntimeSetting) Description() string {
+func (h *MultiRegionFailoverRuntimeSetting) Description() string {
 	return h.desc + " Possible values: true, false"
 }
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings
-func (h *HighAvailabilityRuntimeSetting) Hidden() bool {
+func (h *MultiRegionFailoverRuntimeSetting) Hidden() bool {
 	return true
 }
 
 // Name returns the name of the runtime setting
-func (h *HighAvailabilityRuntimeSetting) Name() string {
+func (h *MultiRegionFailoverRuntimeSetting) Name() string {
 	return h.value
 }
 
 // Get returns the current value of the runtime setting
-func (h *HighAvailabilityRuntimeSetting) Get(config config.Component) (interface{}, error) {
+func (h *MultiRegionFailoverRuntimeSetting) Get(config config.Component) (interface{}, error) {
 	return config.GetBool(h.value), nil
 }
 
 // Set changes the value of the runtime setting; expected to be boolean
-func (h *HighAvailabilityRuntimeSetting) Set(config config.Component, v interface{}, source model.Source) error {
+func (h *MultiRegionFailoverRuntimeSetting) Set(config config.Component, v interface{}, source model.Source) error {
 	var newValue bool
 	var err error
 
