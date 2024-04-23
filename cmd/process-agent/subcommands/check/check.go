@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -40,17 +41,17 @@ import (
 
 const defaultWaitInterval = time.Second
 
-type cliParams struct {
+type CliParams struct {
 	*command.GlobalParams
 	checkName       string
 	checkOutputJSON bool
 	waitInterval    time.Duration
 }
 
-type dependencies struct {
+type Dependencies struct {
 	fx.In
 
-	CliParams *cliParams
+	CliParams *CliParams
 
 	Config   config.Component
 	Syscfg   sysprobeconfig.Component
@@ -74,24 +75,24 @@ func nextGroupID() func() int32 {
 
 // Commands returns a slice of subcommands for the `check` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	desc := "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery, process_events"
-	return []*cobra.Command{MakeCommand(globalParams, "check", desc)}
+	checkAllowlist := []string{"process", "rtprocess", "container", "rtcontainer", "connections", "process_discovery", "process_events"}
+	return []*cobra.Command{MakeCommand(globalParams, "check", checkAllowlist)}
 }
 
-func MakeCommand(globalParams *command.GlobalParams, name string, short string) *cobra.Command {
-	cliParams := &cliParams{
+func MakeCommand(globalParams *command.GlobalParams, name string, allowlist []string) *cobra.Command {
+	cliParams := &CliParams{
 		GlobalParams: globalParams,
 	}
 
 	checkCmd := &cobra.Command{
 		Use:   name,
-		Short: short,
+		Short: "Run a specific check and print the results. Choose from: " + strings.Join(allowlist, ", "),
 
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.checkName = args[0]
 
-			if !strings.Contains(short, cliParams.checkName) {
+			if !slices.Contains(allowlist, cliParams.checkName) {
 				return fmt.Errorf("invalid check '%s'", cliParams.checkName)
 			}
 
@@ -142,7 +143,7 @@ func MakeCommand(globalParams *command.GlobalParams, name string, short string) 
 	return checkCmd
 }
 
-func RunCheckCmd(deps dependencies) error {
+func RunCheckCmd(deps Dependencies) error {
 	command.SetHostMountEnv(deps.Log)
 
 	// Now that the logger is configured log host info
@@ -194,7 +195,7 @@ func matchingCheck(checkName string, ch checks.Check) bool {
 	return ch.Name() == checkName
 }
 
-func runCheck(log log.Component, cliParams *cliParams, ch checks.Check) error {
+func runCheck(log log.Component, cliParams *CliParams, ch checks.Check) error {
 	nextGroupID := nextGroupID()
 
 	options := &checks.RunOptions{
