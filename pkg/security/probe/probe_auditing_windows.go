@@ -47,23 +47,22 @@ const (
 */
 
 // we're going to try for a slightly more useful name
+//
+//revive:disable:var-naming
 type objectPermsChange struct {
 	etw.DDEventHeader
 	subjectUserSid    string
 	subjectUserName   string
 	subjectDomainName string
-	//revive:disable:var-naming
-	subjectLogonId string
-	objectServer   string
-	objectType     string
-	objectName     string
-	//revive:disable:var-naming
-	handleId fileObjectPointer
-	oldSd    string
-	newSd    string
-	//revive:disable:var-naming
-	processId   fileObjectPointer
-	processName string
+	subjectLogonId    string
+	objectServer      string
+	objectType        string
+	objectName        string
+	handleId          fileObjectPointer
+	oldSd             string
+	newSd             string
+	processId         fileObjectPointer
+	processName       string
 }
 
 func (wp *WindowsProbe) parseObjectPermsChange(e *etw.DDEventRecord) (*objectPermsChange, error) {
