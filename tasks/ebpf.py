@@ -303,3 +303,14 @@ def annotate_complexity(_: Context, program: str, function: str, debug=False, sh
                         print(l)
 
     print_complexity_legend()
+
+    # Print the verification stats for this program now
+    with open(VERIFIER_STATS) as f:
+        verifier_stats = json.load(f)
+
+    if func_name not in verifier_stats:
+        raise Exit(f"Verification stats for {func_name} not found in {VERIFIER_STATS}")
+
+    print(colored("\n\n=== Verification stats ===", attrs=["bold"]))
+    for key, value in verifier_stats[func_name].items():
+        print(f"· {key}: {value}")
