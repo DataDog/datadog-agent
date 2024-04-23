@@ -106,6 +106,9 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 				// Check if there is a response and if it's valid
 				report, reportErr := verifyEndpointResponse(statusCode, responseBody, err)
 				diagnosisName := "Connectivity to " + logURL
+				if diagCfg.JSON {
+					diagnosisName += "we are in json mode"
+				}
 				d := createDiagnosis(diagnosisName, logURL, report, reportErr)
 
 				// Prepend http trace on error or if in verbose mode

@@ -44,6 +44,7 @@ type Suite struct {
 
 // Config contains the Diagnose configuration
 type Config struct {
+	JSON				  bool
 	Verbose               bool
 	RunLocal              bool
 	RunningInAgentProcess bool
