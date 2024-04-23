@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,7 +40,18 @@ type ControllerV1 struct {
 }
 
 // NewControllerV1 returns a new Webhook Controller using admissionregistration/v1.
-func NewControllerV1(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, webhookInformer admissioninformers.MutatingWebhookConfigurationInformer, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config, wmeta workloadmeta.Component) *ControllerV1 {
+func NewControllerV1(
+	client kubernetes.Interface,
+	secretInformer coreinformers.SecretInformer,
+	webhookInformer admissioninformers.MutatingWebhookConfigurationInformer,
+	isLeaderFunc func() bool,
+	isLeaderNotif <-chan struct{},
+	config Config,
+	wmeta workloadmeta.Component,
+	rcClient *rcclient.Client,
+	stopCh <-chan struct{},
+	clusterName string,
+) *ControllerV1 {
 	controller := &ControllerV1{}
 	controller.clientSet = client
 	controller.config = config
@@ -50,7 +62,7 @@ func NewControllerV1(client kubernetes.Interface, secretInformer coreinformers.S
 	controller.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "webhooks")
 	controller.isLeaderFunc = isLeaderFunc
 	controller.isLeaderNotif = isLeaderNotif
-	controller.mutatingWebhooks = mutatingWebhooks(wmeta)
+	controller.mutatingWebhooks = mutatingWebhooks(wmeta, rcClient, isLeaderNotif, stopCh, clusterName)
 	controller.generateTemplates()
 
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{

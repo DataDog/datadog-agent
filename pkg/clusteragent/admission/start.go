@@ -22,6 +22,8 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 )
 
 // ControllerContext holds necessary context for the admission controllers
@@ -32,6 +34,8 @@ type ControllerContext struct {
 	WebhookInformers    informers.SharedInformerFactory
 	Client              kubernetes.Interface
 	StopCh              chan struct{}
+	RcClient            *rcclient.Client
+	ClusterName         string
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -76,6 +80,9 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component) ([]we
 		ctx.LeaderSubscribeFunc(),
 		webhookConfig,
 		wmeta,
+		ctx.RcClient,
+		ctx.StopCh,
+		ctx.ClusterName,
 	)
 
 	go secretController.Run(ctx.StopCh)

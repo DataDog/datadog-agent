@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -170,7 +171,13 @@ func NewWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
 }
 
 // GetWebhook returns the Webhook instance, creating it if it doesn't exist
-func GetWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
+func GetWebhook(
+	wmeta workloadmeta.Component,
+	rcClient *rcclient.Client,
+	isLeaderNotif <-chan struct{},
+	stopCh <-chan struct{},
+	clusterName string,
+) (*Webhook, error) {
 	initOnce.Do(func() {
 		if apmInstrumentationWebhook == nil {
 			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook(wmeta)
@@ -582,7 +589,7 @@ func ShouldInject(pod *corev1.Pod, wmeta workloadmeta.Component) bool {
 		}
 	}
 
-	apmWebhook, err := GetWebhook(wmeta)
+	apmWebhook, err := GetWebhook(wmeta, nil, nil, nil, "")
 	if err != nil {
 		return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 	}
