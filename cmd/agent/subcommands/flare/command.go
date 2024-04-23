@@ -8,8 +8,11 @@ package flare
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"path"
 
@@ -45,7 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
@@ -155,6 +157,13 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 
 	pdata := flare.ProfileData{}
 	c := util.GetClient(false)
+	sysProbeClient := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", pkgconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+			},
+		},
+	}
 
 	type pprofGetter func(path string) ([]byte, error)
 
@@ -166,13 +175,8 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	}
 
 	sysProbeGet := func() pprofGetter {
-		probeUtil, err := net.GetRemoteSystemProbeUtil(pkgconfig.Datadog.GetString("system_probe_config.sysprobe_socket"))
 		return func(path string) ([]byte, error) {
-			if err != nil {
-				return nil, err
-			}
-
-			return probeUtil.GetPprof(path)
+			return util.DoGet(sysProbeClient, "http://unix/debug/pprof"+path, util.LeaveConnectionOpen)
 		}
 	}
 
@@ -241,7 +245,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 		agentCollectors["trace"] = serviceProfileCollector(tcpGet("apm_config.debug.port"), traceCpusec)
 	}
 
-	if pkgconfig.Datadog.GetBool("system_probe_config.enabled") {
+	if pkgconfig.SystemProbe.GetBool("system_probe_config.enabled") {
 		agentCollectors["system-probe"] = serviceProfileCollector(sysProbeGet(), seconds)
 	}
 

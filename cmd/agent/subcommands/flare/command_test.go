@@ -36,8 +36,6 @@ func getPprofTestServer(t *testing.T) (tcpServer *httptest.Server, unixServer *h
 			w.Write([]byte("mutex"))
 		case "/debug/pprof/block":
 			w.Write([]byte("block"))
-		case "/debug/stats": // for system-probe only
-			w.WriteHeader(200)
 		default:
 			w.WriteHeader(500)
 		}
@@ -71,8 +69,10 @@ func TestReadProfileData(t *testing.T) {
 	mockConfig.SetWithoutSource("apm_config.receiver_timeout", "10")
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
-	mockConfig.SetWithoutSource("system_probe_config.enabled", true)
-	mockConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
+
+	mockSysProbeConfig := config.MockSystemProbe(t)
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
 
 	data, err := readProfileData(10)
 	require.NoError(t, err)
@@ -129,8 +129,10 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 	mockConfig.SetWithoutSource("apm_config.receiver_timeout", "10")
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
-	mockConfig.SetWithoutSource("system_probe_config.enabled", true)
-	mockConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
+
+	mockSysProbeConfig := config.MockSystemProbe(t)
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
 
 	data, err := readProfileData(10)
 	require.Error(t, err)

@@ -338,24 +338,6 @@ func (r *RemoteSysProbeUtil) DetectLanguage(pids []int32) ([]languagemodels.Lang
 	return langs, nil
 }
 
-// GetPprof queries the pprof endpoint for system-probe
-func (r *RemoteSysProbeUtil) GetPprof(path string) ([]byte, error) {
-	var buf bytes.Buffer
-	req, err := http.NewRequest(http.MethodGet, pprofURL+path, &buf)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := r.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	defer res.Body.Close()
-
-	return io.ReadAll(res.Body)
-}
-
 func (r *RemoteSysProbeUtil) init() error {
 	resp, err := r.httpClient.Get(statsURL)
 	if err != nil {
