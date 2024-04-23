@@ -221,7 +221,7 @@ func (suite *ecsSuite) TestNginxECS() {
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "apps-nginx-server",
-			Tags:    []string{"ecs_launch_type:ec2"},
+			Tags:    []string{"^ecs_launch_type:ec2$"},
 		},
 		Expect: testLogExpectArgs{
 			Tags: &[]string{
@@ -281,7 +281,7 @@ func (suite *ecsSuite) TestRedisECS() {
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "redis",
-			Tags:    []string{"ecs_launch_type:ec2"},
+			Tags:    []string{"^ecs_launch_type:ec2$"},
 		},
 		Expect: testLogExpectArgs{
 			Tags: &[]string{

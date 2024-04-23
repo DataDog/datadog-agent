@@ -1026,9 +1026,9 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				"kubernetes_state.deployment.replicas_available",
-				fakeintake.WithTags[*aggregator.MetricSeries]([]string{
-					"kube_namespace:" + namespace,
-					"kube_deployment:" + deployment,
+				fakeintake.WithMatchingTags[*aggregator.MetricSeries]([]*regexp.Regexp{
+					regexp.MustCompile("^kube_namespace:" + regexp.QuoteMeta(namespace) + "$"),
+					regexp.MustCompile("^kube_deployment:" + regexp.QuoteMeta(deployment) + "$"),
 				}),
 			)
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged

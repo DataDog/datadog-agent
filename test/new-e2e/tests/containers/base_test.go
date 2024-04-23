@@ -156,13 +156,13 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 				}
 			}()
 
-			filterTags := lo.Map(args.Filter.Tags, func(tag string, _ int) *regexp.Regexp {
+			regexTags := lo.Map(args.Filter.Tags, func(tag string, _ int) *regexp.Regexp {
 				return regexp.MustCompile(tag)
 			})
 
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				args.Filter.Name,
-				fakeintake.WithMatchingTags[*aggregator.MetricSeries](filterTags),
+				fakeintake.WithMatchingTags[*aggregator.MetricSeries](regexTags),
 			)
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
@@ -285,9 +285,13 @@ func (suite *baseSuite) testLog(args *testLogArgs) {
 				}
 			}()
 
+			regexTags := lo.Map(args.Filter.Tags, func(tag string, _ int) *regexp.Regexp {
+				return regexp.MustCompile(tag)
+			})
+
 			logs, err := suite.Fakeintake.FilterLogs(
 				args.Filter.Service,
-				fakeintake.WithTags[*aggregator.Log](args.Filter.Tags),
+				fakeintake.WithMatchingTags[*aggregator.Log](regexTags),
 			)
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
