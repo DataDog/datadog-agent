@@ -72,7 +72,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.53.0-rc.2
 	github.com/stretchr/testify v1.9.0
-	go.uber.org/fx v1.21.0
+	go.uber.org/fx v1.18.2
 	go.uber.org/zap v1.27.0
 )
 
@@ -149,7 +149,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.20.0 // indirect
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/dig v1.17.1 // indirect
+	go.uber.org/dig v1.17.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
 	golang.org/x/mod v0.17.0 // indirect
