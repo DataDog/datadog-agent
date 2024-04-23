@@ -48,9 +48,8 @@ func TestInvalidCommands(t *testing.T) {
 func TestAssertWorkingCommands(t *testing.T) {
 	if runtime.GOOS != "darwin" {
 		t.Skip("Skipping test on non-darwin OS")
-	} else {
-		t.Skip("TOFIX")
 	}
+	t.Skip("FIXME")
 	testSetup(t)
 
 	// missing permissions on test setup, e2e tests verify the successful commands
@@ -71,7 +70,7 @@ func TestAssertWorkingCommands(t *testing.T) {
 	a := &apmInjectorInstaller{
 		installPath: "/tmp/stable",
 	}
-	assert.Equal(t, successErr, a.setLDPreloadConfig(testCtx).Error())
+	assert.Equal(t, successErr, replaceLDPreload(testCtx).Error())
 	assert.Equal(t, successErr, a.setAgentConfig(testCtx).Error())
 	assert.Equal(t, successErr, a.setDockerConfig(testCtx).Error())
 }

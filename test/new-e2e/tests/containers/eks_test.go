@@ -25,7 +25,6 @@ type eksSuite struct {
 }
 
 func TestEKSSuite(t *testing.T) {
-	t.Skip("incident-26767: skip as test is failing on dockerhub rate limit")
 	suite.Run(t, &eksSuite{})
 }
 
