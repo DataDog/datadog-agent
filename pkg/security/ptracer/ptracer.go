@@ -299,10 +299,12 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 
 			switch waitStatus.TrapCause() {
 			case syscall.PTRACE_EVENT_CLONE, syscall.PTRACE_EVENT_FORK, syscall.PTRACE_EVENT_VFORK:
+				// called at the exit of the syscall
 				if npid, err := syscall.PtraceGetEventMsg(pid); err == nil {
 					cb(CallbackPostType, nr, int(npid), pid, regs, nil)
 				}
 			case syscall.PTRACE_EVENT_EXEC:
+				// called at the exit of the syscall
 				cb(CallbackPostType, ExecveNr, pid, 0, regs, nil)
 
 				if state := tracker.PeekState(pid); state != nil {
@@ -311,13 +313,14 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			default:
 				switch nr {
 				case ForkNr, VforkNr, CloneNr, Clone3Nr:
-					// already handled
+					// already handled by the PTRACE_EVENT_CLONE, etc.
 				default:
 					state := tracker.NextStop(pid)
 
 					if tracker.IsSyscallEntry(pid) {
 						cb(CallbackPreType, nr, pid, 0, regs, nil)
 					} else {
+						// we already captured the exit of the exec syscall with PTRACE_EVENT_EXEC if success
 						if !state.Exec {
 							cb(CallbackPostType, nr, pid, 0, regs, nil)
 						}
@@ -387,15 +390,17 @@ func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, 
 
 			switch waitStatus.TrapCause() {
 			case syscall.PTRACE_EVENT_CLONE, syscall.PTRACE_EVENT_FORK, syscall.PTRACE_EVENT_VFORK:
+				// called at the exit of the syscall
 				if npid, err := syscall.PtraceGetEventMsg(pid); err == nil {
 					cb(CallbackPostType, nr, int(npid), pid, regs, nil)
 				}
 			case syscall.PTRACE_EVENT_EXEC:
+				// called at the exit of the syscall
 				cb(CallbackPostType, ExecveNr, pid, 0, regs, nil)
 			case unix.PTRACE_EVENT_SECCOMP:
 				switch nr {
 				case ForkNr, VforkNr, CloneNr, Clone3Nr:
-					// already handled
+					// already handled by the PTRACE_EVENT_CLONE, etc.
 				default:
 					cb(CallbackPreType, nr, pid, 0, regs, nil)
 
@@ -408,7 +413,7 @@ func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, 
 			default:
 				switch nr {
 				case ForkNr, VforkNr, CloneNr, Clone3Nr:
-					// already handled
+					// already handled by the PTRACE_EVENT_CLONE, etc.
 				case ExecveNr, ExecveatNr:
 					// triggered in case of error
 					cb(CallbackPostType, nr, pid, 0, regs, nil)
