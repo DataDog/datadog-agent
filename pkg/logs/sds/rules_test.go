@@ -18,27 +18,27 @@ func testdataStandardRules() map[string]StandardRuleConfig {
 			ID:          "0",
 			Name:        "Zero",
 			Description: "Zero desc",
+			Tags:        []string{"tag:zero"},
 			Definitions: []StandardRuleDefinition{{
 				Pattern: "zero",
-				Tags:    []string{"tag:zero"},
 			}},
 		},
 		"1": {
 			ID:          "1",
 			Name:        "One",
 			Description: "One desc",
+			Tags:        []string{"tag:one"},
 			Definitions: []StandardRuleDefinition{{
 				Pattern: "one",
-				Tags:    []string{"tag:one"},
 			}},
 		},
 		"2": {
 			ID:          "2",
 			Name:        "Two",
 			Description: "Two desc",
+			Tags:        []string{"tag:two"},
 			Definitions: []StandardRuleDefinition{{
 				Pattern: "two",
-				Tags:    []string{"tag:two"},
 			}},
 		},
 	}

@@ -28,27 +28,29 @@ type MatchAction struct {
 type StandardRuleConfig struct {
 	ID          string                   `json:"id"`
 	Name        string                   `json:"name"`
+	Tags        []string                 `json:"tags"`
 	Description string                   `json:"description"`
 	Definitions []StandardRuleDefinition `json:"definitions"`
 }
 
 // StandardRuleDefinition contains a versioned standard rule definition.
 type StandardRuleDefinition struct {
-	Version                 int                  `json:"version"`
-	Pattern                 string               `json:"pattern"`
-	Tags                    []string             `json:"tags"`
-	DefaultIncludedKeywords []string             `json:"default_included_keywords"`
-	RequiredCapabilities    []RequiredCapability `json:"required_capabilities"`
-}
-
-// RequiredCapability definition.
-type RequiredCapability struct {
-	Type string `json:"type"`
+	Version                 int      `json:"version"`
+	Pattern                 string   `json:"pattern"`
+	DefaultIncludedKeywords []string `json:"default_included_keywords"`
+	RequiredCapabilities    []string `json:"required_capabilities"`
 }
 
 // StandardRulesConfig contains standard rules.
 type StandardRulesConfig struct {
-	Rules []StandardRuleConfig `json:"rules"`
+	Rules    []StandardRuleConfig  `json:"rules"`
+	Defaults StandardRulesDefaults `json:"defaults"`
+}
+
+// StandardRulesDefaults contains consts defaults information for
+// standard rules.
+type StandardRulesDefaults struct {
+	IncludedKeywordsCharCount uint32 `json:"included_keywords_char_count"`
 }
 
 // RuleConfig of rule as sent by the Remote Configuration.

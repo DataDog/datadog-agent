@@ -483,7 +483,7 @@ func TestInterpretRC(t *testing.T) {
 		},
 	}
 
-	rule, err := interpretRCRule(rc, stdRc)
+	rule, err := interpretRCRule(rc, stdRc, StandardRulesDefaults{})
 	require.NoError(err)
 
 	require.Equal(rule.Id, "Zero")
@@ -494,10 +494,10 @@ func TestInterpretRC(t *testing.T) {
 	stdRc.Definitions = append(stdRc.Definitions, StandardRuleDefinition{
 		Version:              2,
 		Pattern:              "second pattern",
-		RequiredCapabilities: []RequiredCapability{{Type: RCSecondaryValidationLuhnChecksum}},
+		RequiredCapabilities: []string{RCSecondaryValidationLuhnChecksum},
 	})
 
-	rule, err = interpretRCRule(rc, stdRc)
+	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{})
 	require.NoError(err)
 
 	require.Equal(rule.Id, "Zero")
@@ -511,7 +511,7 @@ func TestInterpretRC(t *testing.T) {
 		{
 			Version:              2,
 			Pattern:              "second pattern",
-			RequiredCapabilities: []RequiredCapability{{Type: RCSecondaryValidationLuhnChecksum}},
+			RequiredCapabilities: []string{RCSecondaryValidationLuhnChecksum},
 		},
 		{
 			Version:              1,
@@ -521,14 +521,57 @@ func TestInterpretRC(t *testing.T) {
 		{
 			Version:              3,
 			Pattern:              "third pattern",
-			RequiredCapabilities: []RequiredCapability{{Type: "unsupported"}},
+			RequiredCapabilities: []string{"unsupported"},
 		},
 	}
 
-	rule, err = interpretRCRule(rc, stdRc)
+	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{})
 	require.NoError(err)
 
 	require.Equal(rule.Id, "Zero")
 	require.Equal(rule.Pattern, "second pattern")
 	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
+
+	// make sure we use the keywords proximity feature if any's configured
+	// in the std rule definition 	stdRc.Definitions = []StandardRuleDefinition{
+	stdRc.Definitions = []StandardRuleDefinition{
+		{
+			Version:                 2,
+			Pattern:                 "second pattern",
+			RequiredCapabilities:    []string{RCSecondaryValidationLuhnChecksum},
+			DefaultIncludedKeywords: []string{"hello"},
+		},
+		{
+			Version:              1,
+			Pattern:              "first pattern",
+			RequiredCapabilities: nil,
+		},
+	}
+
+	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{IncludedKeywordsCharCount: 10})
+	require.NoError(err)
+
+	require.Equal(rule.Id, "Zero")
+	require.Equal(rule.Pattern, "second pattern")
+	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
+	require.NotNil(rule.ProximityKeywords)
+	require.Equal(rule.ProximityKeywords.LookAheadCharacterCount, uint32(10))
+	require.Equal(rule.ProximityKeywords.IncludedKeywords, []string{"hello"})
+
+	// make sure we use the user provided information first
+	// even if there is some in the std rule
+	rc.IncludedKeywords = ProximityKeywords{
+		Keywords:       []string{"custom"},
+		CharacterCount: 42,
+	}
+
+	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{IncludedKeywordsCharCount: 10})
+	require.NoError(err)
+
+	require.Equal(rule.Id, "Zero")
+	require.Equal(rule.Pattern, "second pattern")
+	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
+	require.NotNil(rule.ProximityKeywords)
+	require.Equal(rule.ProximityKeywords.LookAheadCharacterCount, uint32(42))
+	require.Equal(rule.ProximityKeywords.IncludedKeywords, []string{"custom"})
 }

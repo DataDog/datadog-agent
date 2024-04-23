@@ -35,6 +35,8 @@ type Scanner struct {
 	// standard rules as received through the remote configuration, indexed
 	// by the standard rule ID for O(1) access when receiving user configurations.
 	standardRules map[string]StandardRuleConfig
+	// standardDefaults contains some consts for using the standard rules definition.
+	standardDefaults StandardRulesDefaults
 	// rawConfig is the raw config previously received through RC.
 	rawConfig []byte
 	// configuredRules are stored on configuration to retrieve rules
@@ -123,7 +125,9 @@ func (s *Scanner) reconfigureStandardRules(rawConfig []byte) error {
 	for _, rule := range unmarshaled.Rules {
 		standardRules[rule.ID] = rule
 	}
+
 	s.standardRules = standardRules
+	s.standardDefaults = unmarshaled.Defaults
 
 	log.Info("Reconfigured SDS standard rules.")
 	return nil
@@ -180,7 +184,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 			continue
 		}
 
-		if rule, err := interpretRCRule(userRule, standardRule); err != nil {
+		if rule, err := interpretRCRule(userRule, standardRule, s.standardDefaults); err != nil {
 			// we warn that we can't interpret this rule, but we continue in order
 			// to properly continue processing with the rest of the rules.
 			log.Warnf("%v", err.Error())
@@ -217,13 +221,8 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 // an sds.Rule usable with the shared library.
 // `standardRule` contains the definition, with the name, pattern, etc.
 // `userRule`     contains the configuration done by the user: match action, etc.
-func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.Rule, error) {
+func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defaults StandardRulesDefaults) (sds.Rule, error) {
 	var extraConfig sds.ExtraConfig
-
-	// proximity keywords support
-	if len(userRule.IncludedKeywords.Keywords) > 0 {
-		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(userRule.IncludedKeywords.CharacterCount, userRule.IncludedKeywords.Keywords, nil)
-	}
 
 	var defToUse = StandardRuleDefinition{Version: -1}
 
@@ -243,7 +242,7 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 				log.Warnf("Standard rule '%v' with multiple required capabilities: %d. Only the first one will be used", standardRule.Name, reqCapabilitiesCount)
 			}
 			received := stdRuleDef.RequiredCapabilities[0]
-			switch received.Type {
+			switch received {
 			case RCSecondaryValidationChineseIdChecksum:
 				extraConfig.SecondaryValidator = sds.ChineseIdChecksum
 				defToUse = stdRuleDef
@@ -252,7 +251,7 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 				defToUse = stdRuleDef
 			default:
 				// we don't know this required capability, test another version
-				log.Warnf("unknown required capability: ", string(received.Type))
+				log.Warnf("unknown required capability: ", string(received))
 				continue
 			}
 		} else {
@@ -264,6 +263,18 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 	if defToUse.Version == -1 {
 		// TODO(remy): telemetry
 		return sds.Rule{}, fmt.Errorf("unsupported rule with no compatible definition")
+	}
+
+	// we use the filled `CharacterCount` value to decide if we want
+	// to use the user provided configuration for proximity keywords
+	// or if we have to use the information provided in the std rules instead.
+	if userRule.IncludedKeywords.CharacterCount > 0 {
+		// proximity keywords configuration provided by the user
+		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(userRule.IncludedKeywords.CharacterCount, userRule.IncludedKeywords.Keywords, nil)
+	} else if len(defToUse.DefaultIncludedKeywords) > 0 && defaults.IncludedKeywordsCharCount > 0 {
+		// the user has not specified proximity keywords
+		// use the proximity keywords provided by the standard rule if any
+		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(defaults.IncludedKeywordsCharCount, defToUse.DefaultIncludedKeywords, nil)
 	}
 
 	// we've compiled all necessary information merging the standard rule and the user config
