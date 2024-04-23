@@ -9,6 +9,7 @@ from tasks.libs.common.omnibus import (
     install_dir_for_project,
     omnibus_compute_cache_key,
     send_build_metrics,
+    send_cache_miss_event,
     should_retry_bundle_install,
 )
 from tasks.libs.common.utils import get_version, load_release_versions, timed
@@ -266,6 +267,7 @@ def build(
                     cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
                 else:
                     print(f'Failed to restore cache from key {cache_key}')
+                    send_cache_miss_event(ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name)
 
     with timed(quiet=True) as omnibus_elapsed:
         omnibus_run_task(
