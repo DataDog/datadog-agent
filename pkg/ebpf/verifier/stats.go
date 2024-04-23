@@ -65,10 +65,11 @@ type InstructionInfo struct {
 
 // SourceLineStats holds the aggregate verifier statistics for a given C source line
 type SourceLineStats struct {
-	NumInstructions int      `json:"num_instructions"`
-	MaxPasses       int      `json:"max_passes"`
-	MinPasses       int      `json:"min_passes"`
-	AssemblyInsns   []string `json:"assembly_insns"`
+	NumInstructions            int      `json:"num_instructions"`
+	MaxPasses                  int      `json:"max_passes"`
+	MinPasses                  int      `json:"min_passes"`
+	TotalInstructionsProcessed int      `json:"total_instructions_processed"`
+	AssemblyInsns              []string `json:"assembly_insns"`
 }
 
 // ComplexityInfo holds the complexity information for a given eBPF program, with assembly
@@ -454,16 +455,18 @@ func unmarshalComplexity(output string, progSourceMap map[int]*SourceLine) (*Com
 		}
 		if _, ok := complexity.SourceMap[insn.Source.LineInfo]; !ok {
 			complexity.SourceMap[insn.Source.LineInfo] = &SourceLineStats{
-				NumInstructions: 0,
-				MaxPasses:       0,
-				MinPasses:       math.MaxInt32,
-				AssemblyInsns:   []string{},
+				NumInstructions:            0,
+				MaxPasses:                  0,
+				TotalInstructionsProcessed: 0,
+				MinPasses:                  math.MaxInt32,
+				AssemblyInsns:              []string{},
 			}
 		}
 		stats := complexity.SourceMap[insn.Source.LineInfo]
 		stats.NumInstructions++
 		stats.MaxPasses = max(stats.MaxPasses, insn.TimesProcessed)
 		stats.MinPasses = min(stats.MinPasses, insn.TimesProcessed)
+		stats.TotalInstructionsProcessed += insn.TimesProcessed
 		stats.AssemblyInsns = append(stats.AssemblyInsns, fmt.Sprintf("%d: %s", idx, insn.Code))
 	}
 
