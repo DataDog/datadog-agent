@@ -348,8 +348,6 @@ Package collector implements the OpenTelemetry Collector component.
 
 ### [comp/otelcol/collector-contrib](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib)
 
-*Datadog Team*: opentelemetry
-
 Package collectorcontrib defines the OTel collector-contrib component
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
