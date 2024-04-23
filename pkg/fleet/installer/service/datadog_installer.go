@@ -11,6 +11,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"os/user"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,11 +37,54 @@ func SetupInstaller(ctx context.Context, enableDaemon bool) (err error) {
 		}
 	}()
 
+	cmd := exec.CommandContext(ctx, "adduser", "--system", "dd-agent", "--disabled-login", "--shell", "/usr/sbin/nologin", "--home", "/opt/datadog-packages", "--no-create-home", "--group", "--quiet")
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("error creating dd-agent user: %w", err)
+	}
+	cmd = exec.CommandContext(ctx, "addgroup", "--system", "dd-agent", "--quiet")
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("error creating dd-agent group: %w", err)
+	}
+	cmd = exec.CommandContext(ctx, "usermod", "-g", "dd-agent", "dd-agent")
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("error adding dd-agent user to dd-agent group: %w", err)
+	}
+
+	ddAgentUser, err := user.Lookup("dd-agent")
+	if err != nil {
+		return fmt.Errorf("dd-agent user not found: %w", err)
+	}
+	ddAgentGroup, err := user.LookupGroup("dd-agent")
+	if err != nil {
+		return fmt.Errorf("dd-agent group not found: %w", err)
+	}
+	ddAgentUID, err := strconv.Atoi(ddAgentUser.Uid)
+	if err != nil {
+		return fmt.Errorf("error converting dd-agent UID to int: %w", err)
+	}
+	ddAgentGID, err := strconv.Atoi(ddAgentGroup.Gid)
+	if err != nil {
+		return fmt.Errorf("error converting dd-agent GID to int: %w", err)
+	}
 	err = os.MkdirAll("/opt/datadog-packages", 0755)
 	if err != nil {
 		return fmt.Errorf("error creating /opt/datadog-packages: %w", err)
 	}
-
+	err = os.MkdirAll("/var/log/datadog", 0755)
+	if err != nil {
+		return fmt.Errorf("error creating /var/log/datadog: %w", err)
+	}
+	err = os.MkdirAll("/var/run/datadog-packages", 0755)
+	if err != nil {
+		return fmt.Errorf("error creating /var/run/datadog-packages: %w", err)
+	}
+	err = os.Chown("/var/log/datadog", ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("error changing owner of /var/log/datadog: %w", err)
+	}
 	if !enableDaemon {
 		return nil
 	}
