@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 try:
     from termcolor import colored
 except ImportError:
@@ -9,11 +11,11 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import List
 
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
+from typing_extensions import TypedDict
 
 try:
     from tabulate import tabulate
@@ -78,7 +80,7 @@ def stdout_or_file(filename=None):
     def stdout():
         yield sys.stdout
 
-    return open(filename, 'w') if filename else stdout()
+    return open(filename, "w") if filename else stdout()
 
 
 def write_verifier_stats(verifier_stats, f, jsonfmt):
@@ -109,14 +111,14 @@ def cleanup_verifier_stats(verifier_stats):
         "line_complexity": "Generate per-line complexity data",
         "save_verifier_logs": "Save verifier logs to disk for debugging purposes",
     },
-    iterable=['filter_file', 'grep'],
+    iterable=["filter_file", "grep"],
 )
 def collect_verification_stats(
     ctx,
     skip_object_files=False,
     debug_build=False,
-    filter_file: List[str] = None,  # type: ignore
-    grep: List[str] = None,  # type: ignore
+    filter_file: list[str] = None,  # type: ignore
+    grep: list[str] = None,  # type: ignore
     line_complexity=False,
     save_verifier_logs=False,
 ):
@@ -151,7 +153,11 @@ def collect_verification_stats(
 
     if line_complexity:
         COMPLEXITY_DATA_DIR.mkdir(exist_ok=True, parents=True)
-        args += ["-line-complexity", "-complexity-data-dir", os.fspath(COMPLEXITY_DATA_DIR)]
+        args += [
+            "-line-complexity",
+            "-complexity-data-dir",
+            os.fspath(COMPLEXITY_DATA_DIR),
+        ]
 
     ctx.run(f"{sudo} ./main {' '.join(args)}", env=env)
 
@@ -159,7 +165,7 @@ def collect_verification_stats(
         verifier_stats = json.load(f)
 
     cleaned_up = cleanup_verifier_stats(verifier_stats)
-    with open(VERIFIER_STATS, 'w') as f:
+    with open(VERIFIER_STATS, "w") as f:
         json.dump(cleaned_up, f, indent=4)
 
 
@@ -232,9 +238,81 @@ def print_complexity_legend():
     print("\n\n")
 
 
+class ComplexitySourceLine(TypedDict):
+    num_instructions: int  # noqa: F841
+    max_passes: int  # noqa: F841
+    total_instructions_processed: int  # noqa: F841
+    assembly_insns: list[int]  # noqa: F841
+
+
+class ComplexityRegisterState(TypedDict):
+    live: str  # noqa: F841
+    type: str  # noqa: F841
+    value: str  # noqa: F841
+    register: int  # noqa: F841
+
+
+class ComplexityAssemblyInsn(TypedDict):
+    code: str  # noqa: F841
+    index: int  # noqa: F841
+    times_processed: int  # noqa: F841
+    register_state: dict[str, ComplexityRegisterState]  # noqa: F841
+
+
+class ComplexityData(TypedDict):
+    source_map: dict[str, ComplexitySourceLine]  # noqa: F841
+    insn_map: dict[str, ComplexityAssemblyInsn]  # noqa: F841
+
+
+def source_line_to_str(lineno: int, line: str, compl: ComplexitySourceLine | None):
+    color = None
+    line = line.rstrip("\n")
+
+    compinfo_len = 13
+    if compl is not None:
+        insn = compl["num_instructions"]
+        passes = compl["max_passes"]
+        total = compl["total_instructions_processed"]
+        compinfo = f"[{insn:2d}i|{passes:2d}p|{total:2d}t]"
+
+        if total <= 5:
+            color = "green"
+        elif total <= 20:
+            color = "yellow"
+        elif total <= 50:
+            color = "red"
+        else:
+            color = "magenta"
+    else:
+        compinfo = " " * compinfo_len
+
+    if colored is None:
+        return f"{lineno:4d} | {compinfo} | {line}"
+    else:
+        return f"{lineno:4d} | {compinfo} | {colored(line, color)}"
+
+
+def assembly_line_to_str(asm_line: ComplexityAssemblyInsn):
+    asm_code = asm_line["code"]
+    processed = asm_line["times_processed"]
+    asm_idx = asm_line["index"]
+
+    return f"{asm_idx:4d} | [   |{processed:2d}p|   ] | {asm_code}"
+
+
+def register_state_to_str(reg: ComplexityRegisterState):
+    reg_liveness = f" [{reg['live']}]" if reg["live"] != "" else ""
+    return f"R{reg['register']} ({reg['type']}){reg_liveness}: {reg['value']}"
+
+
 @task
 def annotate_complexity(
-    _: Context, program: str, function: str, debug=False, show_assembly=False, show_register_state=False
+    _: Context,
+    program: str,
+    function: str,
+    debug=False,
+    show_assembly=False,
+    show_register_state=False,
 ):
     if debug:
         program += "_debug"
@@ -246,8 +324,8 @@ def annotate_complexity(
         raise Exit(f"Complexity data for {func_name} not found at {complexity_data_file}")
 
     with open(complexity_data_file) as f:
-        complexity_data = json.load(f)
-    all_files = {x.split(':')[0] for x in complexity_data["source_map"].keys()}
+        complexity_data: ComplexityData = json.load(f)
+    all_files = {x.split(":")[0] for x in complexity_data["source_map"].keys()}
 
     if colored is None:
         raise Exit("termcolor is required to print colored output")
@@ -268,53 +346,37 @@ def annotate_complexity(
             for lineno, line in enumerate(src):
                 lineno += 1
                 lineid = f"{f}:{lineno}"
-                linecomp = complexity_data["source_map"].get(lineid)
-                color = None
-                line = line.rstrip('\n')
-
-                compinfo_len = 13
-                if linecomp is not None:
-                    ins = linecomp["num_instructions"]
-                    passes = linecomp["max_passes"]
-                    total = linecomp["total_instructions_processed"]
-                    if total <= 5:
-                        color = "green"
-                    elif total <= 20:
-                        color = "yellow"
-                    elif total <= 50:
-                        color = "red"
-                    else:
-                        color = "magenta"
-
-                    compinfo = f"[{ins:2d}i|{passes:2d}p|{total:2d}t]"
-                else:
-                    compinfo = " " * compinfo_len
-
-                statusline = f"{lineno:4d} | {compinfo} | {colored(line, color)}"
+                compl = complexity_data["source_map"].get(lineid)
+                statusline = source_line_to_str(lineno, line, compl)
                 buffer.append(statusline)
 
-                if compinfo.strip() != "":
+                if compl is not None:
+                    # We have complexity information for this line, print everything that we had in buffer
                     for l in buffer:
                         print(l)
                     buffer.clear()
 
                     if show_assembly:
                         # Print the assembly code for this line
-                        asm_insn_indexes = sorted(linecomp["assembly_insns"])
+                        asm_insn_indexes = sorted(compl["assembly_insns"])
 
                         for asm_idx in asm_insn_indexes:
                             asm_line = complexity_data["insn_map"][str(asm_idx)]
                             asm_code = asm_line["code"]
-
-                            registers = re.findall(r"r\d+", asm_code)
-                            processed = asm_line["times_processed"]
-
-                            print(colored(f"{asm_idx:4d} | [   |{processed:2d}p|   ] | {asm_code}", attrs=["dark"]))
+                            print(
+                                colored(
+                                    assembly_line_to_str(asm_line),
+                                    attrs=["dark"],
+                                )
+                            )
 
                             if show_register_state:
-                                # The register state after this instruction is found in the next instruction
+                                # Get all the registers that were used in this instruction
+                                registers = re.findall(r"r\d+", asm_code)
 
-                                next_insn = str(asm_idx + 1)  # JSON map indices are strings
+                                # The register state after this instruction is found in the next instruction
+                                # Also, JSON map indices are strings so we need to convert the asm_idx to a string
+                                next_insn = str(asm_idx + 1)
                                 if next_insn in complexity_data["insn_map"]:
                                     reg_state = complexity_data["insn_map"][next_insn]["register_state"]
 
@@ -322,13 +384,10 @@ def annotate_complexity(
                                         reg_idx = reg[1:]  # Remove the 'r' prefix
                                         if reg_idx in reg_state:
                                             reg_data = reg_state[reg_idx]
-                                            reg_liveness = f" [{reg_data['live']}]" if reg_data['live'] != "" else ""
-                                            reg_info = (
-                                                f"R{reg_idx} ({reg_data['type']}){reg_liveness}: {reg_data['value']}"
-                                            )
+                                            reg_info = register_state_to_str(reg_data)
                                             print(
                                                 colored(
-                                                    f"{' ' * 4}   {' ' * compinfo_len} |    {reg_info}",
+                                                    reg_info,
                                                     "blue",
                                                     attrs=["dark"],
                                                 )
