@@ -24,6 +24,11 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.53.0-rc.2
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.19.0
+	// Are you bumping github.com/DataDog/test-infra-definitions ?
+	// You should bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` in `.gitlab/common/test_infra_version.yml`
+	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
+	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
+	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
 	github.com/DataDog/test-infra-definitions v0.0.0-20240422155639-b41cc1f944e4
 	github.com/aws/aws-sdk-go-v2 v1.26.1
 	github.com/aws/aws-sdk-go-v2/config v1.27.11
