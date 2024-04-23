@@ -62,10 +62,11 @@ pull_test_dockers_arm64:
     # download and copy btf files
     - mkdir -p $BTF_DIR
     - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz $BTF_DIR/minimized-btfs.tar.xz
+    - popd
     # package all the dependencies
     - ls -la $DEPENDENCIES
-    - pushd $DD_AGENT_TESTING_DIR/$ARCH
-    - tar czvf ../$ARCHIVE_NAME btfs
+    - pushd $CI_PROJECT_DIR/kmt-deps/ci/$ARCH
+    - tar czvf $ARCHIVE_NAME btfs
     - popd
     # upload tests
     # Switch to new profile after the btfs have been downloaded. Switching before
@@ -75,10 +76,10 @@ pull_test_dockers_arm64:
     - !reference [.wait_for_instance]
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
-    - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
+    - scp $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
   variables:
-    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/btfs
-    BTF_DIR: /opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
+    DEPENDENCIES: $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/btfs
+    BTF_DIR: opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
 
 upload_minimized_btfs_sysprobe_x64:
