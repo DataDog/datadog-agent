@@ -168,17 +168,15 @@ func castValue(value interface{}, targetType reflect.Type) reflect.Value {
 			return reflect.ValueOf(cast.ToIntSlice(value))
 		} else if elemType.Kind() == reflect.Bool {
 			return reflect.ValueOf(cast.ToBoolSlice(value))
-		} else {
-			return reflect.MakeSlice(targetType, 0, 0)
 		}
+		return reflect.MakeSlice(targetType, 0, 0)
 	case reflect.Map:
 		keyType := targetType.Key()
 		elemType := targetType.Elem()
 		if keyType.Kind() == reflect.String && elemType.Kind() == reflect.String {
 			return reflect.ValueOf(cast.ToStringMapString(value))
-		} else {
-			return reflect.MakeMap(targetType)
 		}
+		return reflect.MakeMap(targetType)
 	case reflect.Struct:
 		if targetType == reflect.TypeOf(time.Time{}) {
 			return reflect.ValueOf(cast.ToTime(value))
