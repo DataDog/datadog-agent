@@ -122,7 +122,7 @@ func getWriteBufferLocation(result *bininspect.Result) (gotls.SliceLocation, err
 }
 
 func getReturnBytes(result *bininspect.Result, funcName string) (gotls.Location, error) {
-	// Manually re-consturct the location of the first return parameter (bytes read).
+	// Manually re-construct the location of the first return parameter (bytes read).
 	// Unpack the first return parameter (bytes read).
 	// The error return value isn't useful in eBPF
 	// unless we can determine whether it is equal to io.EOF,
@@ -136,7 +136,7 @@ func getReturnBytes(result *bininspect.Result, funcName string) (gotls.Location,
 	switch result.ABI {
 	case bininspect.GoABIRegister:
 		// Manually assign the registers.
-		// This is fairly finnicky, but is simple
+		// This is fairly finicky, but is simple
 		// since the return arguments are short and are word-aligned
 		switch result.Arch {
 		case bininspect.GoArchX86_64:

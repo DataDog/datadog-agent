@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/pkg/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
@@ -69,8 +69,9 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 	var pkg string
 	var version string
 	bootstrapCmd := &cobra.Command{
-		Use:   "bootstrap",
-		Short: "Bootstraps the package with the first version.",
+		Use:     "bootstrap",
+		Short:   "Bootstraps the package with the first version.",
+		GroupID: "bootstrap",
 		Long: `Installs the first version of the package managed by the installer.
 		This first version is sent remotely to the agent and can be configured from the UI.
 		This command will exit after the first version is installed.`,
@@ -137,7 +138,7 @@ func bootstrap(ctx context.Context, params *cliParams, installScriptParams *inst
 	span.SetTag("script_params.features.apm_instrumentation", installScriptParams.Features.APMInstrumentation)
 
 	if params.pkg == "" && params.url == "" {
-		return installer.Bootstrap(ctx, config)
+		return daemon.Bootstrap(ctx, config)
 	}
 
 	url := packageURL(config.GetString("site"), params.pkg, params.version)
@@ -145,7 +146,7 @@ func bootstrap(ctx context.Context, params *cliParams, installScriptParams *inst
 		url = params.url
 	}
 	span.SetTag("params.url", params.url)
-	return installer.BootstrapURL(ctx, url, config)
+	return daemon.BootstrapURL(ctx, url, config)
 }
 
 func packageURL(site string, pkg string, version string) string {

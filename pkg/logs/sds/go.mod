@@ -44,7 +44,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
-	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240418080137-a7c7a570540d
+	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240419161837-f1b2f553edfe
 	github.com/stretchr/testify v1.9.0
 )
 
