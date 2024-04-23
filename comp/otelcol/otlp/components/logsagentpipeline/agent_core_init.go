@@ -23,6 +23,8 @@ import (
 func (a *Agent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
 ) {
+	health := health.RegisterLiveness("logs-agent")
+
 	// setup the auditor
 	// We pass the health handle to the auditor because it's the end of the pipeline and the most
 	// critical part. Arguably it could also be plugged to the destination.
