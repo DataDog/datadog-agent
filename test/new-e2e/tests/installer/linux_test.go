@@ -137,7 +137,6 @@ func (v *vmUpdaterSuite) TestInstallerUnitLoaded() {
 	}
 	_, err = host.Execute(`systemctl is-enabled datadog-installer.service`)
 	require.ErrorContains(t, err, "Failed to get unit file state for datadog-installer.service: No such file or directory")
-
 }
 
 func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
@@ -259,7 +258,6 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	if v.distro == os.SuseDefault {
 		v.T().Skip("Skipping SUSE as it fails")
 	}
-	v.T().Skip("FIXME")
 
 	host := v.Env().RemoteHost
 

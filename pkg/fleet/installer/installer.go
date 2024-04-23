@@ -276,6 +276,9 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 	case packageAPMInjector:
 		service.RemoveAPMInjector(ctx)
 		return nil
+	case packageDatadogInstaller:
+		service.RemoveInstaller(ctx)
+		return nil
 	default:
 		return nil
 	}
