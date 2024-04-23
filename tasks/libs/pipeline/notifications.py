@@ -6,10 +6,12 @@ import subprocess
 from collections import defaultdict
 from typing import Dict
 
+import gitlab
 import yaml
+from gitlab.v4.objects import ProjectJob
 from invoke.context import Context
 
-from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.types import FailedJobReason, FailedJobs, Test
 
@@ -20,7 +22,7 @@ def load_and_validate(file_name: str, default_placeholder: str, default_value: s
     result: Dict[str, str] = {}
     with p.open(encoding='utf-8') as file_stream:
         for key, value in yaml.safe_load(file_stream).items():
-            if not (type(key) is str and type(value) is str):
+            if not (isinstance(key, str) and isinstance(value, str)):
                 raise ValueError(f"File {file_name} contains a non-string key or value. Key: {key}, Value: {value}")
             result[key] = default_value if value == default_placeholder else value
     return result
@@ -51,13 +53,16 @@ def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_fil
     return error
 
 
-def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+def get_failed_tests(project_name, job: ProjectJob, owners_file=".github/CODEOWNERS"):
+    repo = get_gitlab_repo(project_name)
     owners = read_owners(owners_file)
-    test_output = gitlab.artifact(job["id"], "test_output.json", ignore_not_found=True)
+    try:
+        test_output = str(repo.jobs.get(job.id, lazy=True).artifact('test_output.json'), 'utf-8')
+    except gitlab.exceptions.GitlabGetError:
+        test_output = ''
     failed_tests = {}  # type: dict[tuple[str, str], Test]
     if test_output:
-        for line in test_output.iter_lines():
+        for line in test_output.splitlines():
             json_test = json.loads(line)
             if 'Test' in json_test:
                 name = json_test['Test']
@@ -85,11 +90,11 @@ def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNE
     owners_to_notify = defaultdict(FailedJobs)
     # For e2e test infrastructure errors, notify the agent-e2e-testing team
     for job in failed_jobs.mandatory_infra_job_failures:
-        if job["failure_reason"] == FailedJobReason.E2E_INFRA_FAILURE:
+        if job.failure_reason == FailedJobReason.E2E_INFRA_FAILURE:
             owners_to_notify["@DataDog/agent-e2e-testing"].add_failed_job(job)
 
     for job in failed_jobs.all_non_infra_failures():
-        job_owners = owners.of(job["name"])
+        job_owners = owners.of(job.name)
         # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
         # eg. [('TEAM', '@DataDog/agent-ci-experience')]
 

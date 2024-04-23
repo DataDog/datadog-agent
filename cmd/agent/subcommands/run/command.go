@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
+	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry"
+	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry/agenttelemetryimpl"
 
 	// checks implemented as components
 
@@ -60,7 +62,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/agent"
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
-	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -142,9 +143,6 @@ import (
 
 	// runtime init routines
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
-
-	// register metadata providers
-	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
 )
 
 type cliParams struct {
@@ -197,7 +195,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 //
 // This is exported because it also used from the deprecated `agent start` command.
 func run(log log.Component,
-	_ config.Component,
+	cfg config.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
 	sysprobeconfig sysprobeconfig.Component,
@@ -229,11 +227,11 @@ func run(log log.Component,
 	cloudfoundrycontainer cloudfoundrycontainer.Component,
 	_ expvarserver.Component,
 	_ pid.Component,
-	metadatascheduler metadatascheduler.Component,
 	jmxlogger jmxlogger.Component,
 	_ healthprobe.Component,
 	_ autoexit.Component,
 	settings settings.Component,
+	_ agenttelemetry.Component,
 ) error {
 	defer func() {
 		stopAgent(agentAPI)
@@ -296,8 +294,8 @@ func run(log log.Component,
 		invChecks,
 		statusComponent,
 		collector,
+		cfg,
 		cloudfoundrycontainer,
-		metadatascheduler,
 		jmxlogger,
 		settings,
 	); err != nil {
@@ -414,6 +412,9 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
 		}),
+		fx.Provide(func(ms serializer.MetricSerializer) optional.Option[serializer.MetricSerializer] {
+			return optional.NewOption[serializer.MetricSerializer](ms)
+		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
 		snmptraps.Bundle(),
@@ -448,6 +449,7 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		settingsimpl.Module(),
+		agenttelemetryimpl.Module(),
 	)
 }
 
@@ -472,12 +474,11 @@ func startAgent(
 	invChecks inventorychecks.Component,
 	_ status.Component,
 	collector collector.Component,
+	cfg config.Component,
 	_ cloudfoundrycontainer.Component,
-	_ metadatascheduler.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
 ) error {
-
 	var err error
 
 	if flavor.GetFlavor() == flavor.IotAgent {
@@ -572,7 +573,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta)
+	commonchecks.RegisterChecks(wmeta, cfg)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)

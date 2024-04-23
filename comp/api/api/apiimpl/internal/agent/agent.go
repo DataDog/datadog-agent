@@ -92,10 +92,12 @@ func SetupHandlers(
 	providers []api.EndpointProvider,
 ) *mux.Router {
 
-	// TODO: move these to a component that is registerable
+	// Register the handlers from the component providers
 	for _, p := range providers {
-		r.Handle(p.Route, p.Handler).Methods(p.Methods...)
+		r.HandleFunc(p.Route, p.HandlerFunc).Methods(p.Methods...)
 	}
+
+	// TODO: move these to a component that is registerable
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
@@ -228,7 +230,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 
 	var err error
 	if len(section) > 0 {
-		s, err = statusComponent.GetStatusBySection(section, format, verbose)
+		s, err = statusComponent.GetStatusBySections([]string{section}, format, verbose)
 	} else {
 		s, err = statusComponent.GetStatus(format, verbose)
 	}

@@ -5,7 +5,7 @@ import sys
 from datetime import datetime
 
 import requests
-from release import _get_release_json_value
+from tasks.release import _get_release_json_value
 
 
 def _get_build_images(ctx):
@@ -43,6 +43,7 @@ def _get_environment_for_cache() -> dict:
             'CLUSTER_AGENT_',
             'DATADOG_AGENT_',
             'DD_',
+            'DDR_',
             'DEB_',
             'DESTINATION_',
             'DOCKER_',
@@ -50,6 +51,7 @@ def _get_environment_for_cache() -> dict:
             'EMISSARY_',
             'EXECUTOR_',
             'FF_',
+            'GITHUB_',
             'GITLAB_',
             'GIT_',
             'JIRA_',
@@ -60,15 +62,20 @@ def _get_environment_for_cache() -> dict:
             'MACOS_GITHUB_',
             'OMNIBUS_',
             'POD_',
+            'PROCESSOR_',
+            'RC_',
             'RELEASE_VERSION',
             'RPM_',
             'RUN_',
+            'RUNNER_',
             'S3_',
+            'STATS_',
             'SMP_',
             'SSH_',
             'TEST_INFRA_',
             'USE_',
             'VAULT_',
+            'XPC_',
             'WINDOWS_',
         ]
         excluded_suffixes = [
@@ -76,15 +83,19 @@ def _get_environment_for_cache() -> dict:
             '_VERSION',
         ]
         excluded_values = [
+            "ARTIFACT_DOWNLOAD_ATTEMPTS",
             "AVAILABILITY_ZONE",
             "BENCHMARKS_CI_IMAGE",
+            "BUNDLE_MIRROR__RUBYGEMS__ORG",
             "BUCKET_BRANCH",
-            "BUNDLER_VERSION",
             "CHANGELOG_COMMIT_SHA_SSM_NAME",
             "CLANG_LLVM_VER",
             "CHANNEL",
             "CI",
-            "COMPUTERNAME" "CONSUL_HTTP_ADDR",
+            "COMPUTERNAME",
+            "CONDA_PROMPT_MODIFIER",
+            "CONSUL_HTTP_ADDR",
+            "DEPLOY_AGENT",
             "DOGSTATSD_BINARIES_DIR",
             "EXPERIMENTS_EVALUATION_ADDRESS",
             "GCE_METADATA_HOST",
@@ -94,36 +105,47 @@ def _get_environment_for_cache() -> dict:
             "HOME",
             "HOSTNAME",
             "HOST_IP",
+            "INFOPATH",
             "INSTALL_SCRIPT_API_KEY_SSM_NAME",
             "INTEGRATION_WHEELS_CACHE_BUCKET",
             "IRBRC",
             "KITCHEN_INFRASTRUCTURE_FLAKES_RETRY",
+            "LANG",
             "LESSCLOSE",
             "LESSOPEN",
             "LC_CTYPE",
             "LS_COLORS",
             "MACOS_S3_BUCKET",
+            "MANPATH",
             "MESSAGE",
             "OLDPWD",
+            "PCP_DIR",
+            "PACKAGE_ARCH",
+            "PIP_INDEX_URL",
             "PROCESS_S3_BUCKET",
             "PWD",
+            "PROMPT",
             "PYTHON_RUNTIMES",
             "RESTORE_CACHE_ATTEMPTS",
-            "RUNNER_TEMP_PROJECT_DIR",
             "RUSTC_SHA256",
-            "RUST_VERSION",
+            "SIGN",
+            "SHELL",
             "SHLVL",
             "STATIC_BINARIES_DIR",
             "STATSD_URL",
             "SYSTEM_PROBE_BINARIES_DIR",
+            "TMPDIR",
             "TRACE_AGENT_URL",
             "USE_CACHING_PROXY_PYTHON",
             "USE_CACHING_PROXY_RUBY",
             "USE_S3_CACHING",
+            "USER",
             "USERDOMAIN",
             "USERNAME",
             "USERPROFILE",
             "VCPKG_BLOB_SAS_URL_SSM_NAME",
+            "VERSION",
+            "VM_ASSETS",
             "WIN_S3_BUCKET",
             "WINGET_PAT_SSM_NAME",
             "_",
@@ -142,12 +164,29 @@ def _get_environment_for_cache() -> dict:
     return dict(filter(env_filter, sorted(os.environ.items())))
 
 
+def _last_omnibus_changes(ctx):
+    omnibus_invalidating_files = ['omnibus/config/', 'omnibus/lib/', 'omnibus/omnibus.rb']
+    omnibus_last_commit = ctx.run(
+        f'git log -n 1 --pretty=format:%H {" ".join(omnibus_invalidating_files)}', hide='stdout'
+    ).stdout
+    # The commit sha1 is likely to change between a PR and its merge to main
+    # In order to work around this, we hash the commit diff so that the result
+    # can be reproduced on different branches with different sha1
+    omnibus_last_changes = ctx.run(
+        f'git diff {omnibus_last_commit}~ {omnibus_last_commit} {" ".join(omnibus_invalidating_files)}', hide='stdout'
+    ).stdout
+    hash = hashlib.sha1()
+    hash.update(str.encode(omnibus_last_changes))
+    result = hash.hexdigest()
+    print(f'Hash for last omnibus changes is {result}')
+    return result
+
+
 def omnibus_compute_cache_key(ctx):
     print('Computing cache key')
     h = hashlib.sha1()
-    omnibus_last_commit = ctx.run('git log -n 1 --pretty=format:%H omnibus/', hide='stdout').stdout
-    h.update(str.encode(omnibus_last_commit))
-    print(f'\tLast omnibus commit is {omnibus_last_commit}')
+    omnibus_last_changes = _last_omnibus_changes(ctx)
+    h.update(str.encode(omnibus_last_changes))
     buildimages_hash = _get_build_images(ctx)
     for img_hash in buildimages_hash:
         h.update(str.encode(img_hash))
@@ -161,6 +200,7 @@ def omnibus_compute_cache_key(ctx):
     for k, v in environment.items():
         print(f'\tUsing environment variable {k} to compute cache key')
         h.update(str.encode(f'{k}={v}'))
+        print(f'Current hash value: {h.hexdigest()}')
     cache_key = h.hexdigest()
     print(f'Cache key: {cache_key}')
     return cache_key

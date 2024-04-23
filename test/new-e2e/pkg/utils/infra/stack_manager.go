@@ -38,7 +38,7 @@ const (
 	stackUpTimeout      = 60 * time.Minute
 	stackDestroyTimeout = 60 * time.Minute
 	stackDeleteTimeout  = 20 * time.Minute
-	stackUpRetry        = 2
+	stackUpMaxRetry     = 2
 )
 
 var (
@@ -229,6 +229,31 @@ func (sm *StackManager) getLoggingOptions() (debug.LoggingOptions, error) {
 	}, nil
 }
 
+func (sm *StackManager) getProgressStreamsOnUp(logger io.Writer) optup.Option {
+	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
+	if err != nil {
+		return optup.ErrorProgressStreams(logger)
+	}
+
+	if progressStreams {
+		return optup.ProgressStreams(logger)
+	}
+
+	return optup.ErrorProgressStreams(logger)
+}
+
+func (sm *StackManager) getProgressStreamsOnDestroy(logger io.Writer) optdestroy.Option {
+	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
+	if err != nil {
+		return optdestroy.ErrorProgressStreams(logger)
+	}
+
+	if progressStreams {
+		return optdestroy.ProgressStreams(logger)
+	}
+	return optdestroy.ErrorProgressStreams(logger)
+}
+
 func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *auto.Stack, logWriter io.Writer) error {
 	if stack == nil {
 		return fmt.Errorf("unable to find stack, skipping deletion of: %s", stackID)
@@ -247,7 +272,9 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	} else {
 		logger = logWriter
 	}
-	_, err = stack.Destroy(destroyContext, optdestroy.ProgressStreams(logger), optdestroy.DebugLogging(loggingOptions))
+	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
+
+	_, err = stack.Destroy(destroyContext, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 	cancel()
 	if err != nil {
 		return err
@@ -308,19 +335,28 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		logger = logWriter
 	}
 
-	var upResult auto.UpResult
+	progressStreamsUpOption := sm.getProgressStreamsOnUp(logger)
+	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
 
-	for retry := 0; retry < stackUpRetry; retry++ {
+	var upResult auto.UpResult
+	upCount := 0
+
+	for {
+		upCount++
 		upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
-		upResult, err = stack.Up(upCtx, optup.ProgressStreams(logger), optup.DebugLogging(loggingOptions))
+		upResult, err = stack.Up(upCtx, progressStreamsUpOption, optup.DebugLogging(loggingOptions))
 		cancel()
 
 		if err == nil {
+			err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", name), "", []string{"operation:up", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)}, logger)
+			if err != nil {
+				fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
+			}
 			break
 		}
 
-		retryStrategy := sm.getRetryStrategyFrom(err)
-		err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), err.Error(), []string{"operation:up", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name())}, logger)
+		retryStrategy := sm.getRetryStrategyFrom(err, upCount)
+		err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), err.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)}, logger)
 		if err != nil {
 			fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
 		}
@@ -330,7 +366,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		case reCreate:
 			fmt.Fprint(logger, "Got error during stack up, recreating stack")
 			destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
-			_, err := stack.Destroy(destroyCtx, optdestroy.ProgressStreams(logger), optdestroy.DebugLogging(loggingOptions))
+			_, err := stack.Destroy(destroyCtx, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 			cancel()
 			if err != nil {
 				return stack, auto.UpResult{}, err
@@ -392,12 +428,18 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 	}
 }
 
-func (sm *StackManager) getRetryStrategyFrom(err error) retryType {
+func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) retryType {
+	// if first attempt + retries count are higher than max retry, give up
+	if upCount > stackUpMaxRetry {
+		return noRetry
+	}
+
 	for _, knownError := range sm.knownErrors {
 		if strings.Contains(err.Error(), knownError.errorMessage) {
 			return knownError.retryType
 		}
 	}
+
 	return reUp
 }
 

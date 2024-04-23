@@ -10,10 +10,9 @@ from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.ciproviders.gitlab import (
-    Gitlab,
+from tasks.libs.ciproviders.gitlab_api import (
     generate_gitlab_full_configuration,
-    get_gitlab_token,
+    get_gitlab_repo,
     get_preset_contexts,
     load_context,
 )
@@ -22,6 +21,7 @@ from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME, color_mess
 from tasks.libs.types.copyright import CopyrightLinter
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
+from tasks.update_go import _update_go_mods, _update_references
 
 
 @task
@@ -37,9 +37,7 @@ def python(ctx):
     https://github.com/DataDog/datadog-agent/blob/{DEFAULT_BRANCH}/docs/dev/agent_dev_env.md#pre-commit-hooks"""
     )
 
-    ctx.run("flake8 .")
-    ctx.run("black --check --diff .")
-    ctx.run("isort --check-only --diff .")
+    ctx.run("ruff check --fix .")
     ctx.run("vulture --ignore-decorators @task --ignore-names 'test_*,Test*' tasks")
 
 
@@ -383,17 +381,17 @@ def gitlab_ci(_, test="all", custom_context=None):
     else:
         all_contexts = get_preset_contexts(test)
     print(f"We will tests {len(all_contexts)} contexts.")
+    agent = get_gitlab_repo()
     for context in all_contexts:
         print("Test gitlab configuration with context: ", context)
         config = generate_gitlab_full_configuration(".gitlab-ci.yml", dict(context))
-        gitlab = Gitlab(api_token=get_gitlab_token())
-        res = gitlab.lint(config)
-        status = color_message("valid", "green") if res["valid"] else color_message("invalid", "red")
+        res = agent.ci_lint.create({"content": config})
+        status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
         print(f"Config is {status}")
-        if len(res["warnings"]) > 0:
-            print(color_message(f"Warnings: {res['warnings']}", "orange"), file=sys.stderr)
-        if not res["valid"]:
-            print(color_message(f"Errors: {res['errors']}", "red"), file=sys.stderr)
+        if len(res.warnings) > 0:
+            print(color_message(f"Warnings: {res.warnings}", "orange"), file=sys.stderr)
+        if not res.valid:
+            print(color_message(f"Errors: {res.errors}", "red"), file=sys.stderr)
             raise Exit(code=1)
 
 
@@ -420,3 +418,9 @@ def releasenote(ctx):
             ctx.run("reno lint")
         else:
             print("'changelog/no-changelog' label found on the PR: skipping linting")
+
+
+@task
+def update_go(_):
+    _update_references(warn=False, version="1.2.3", dry_run=True)
+    _update_go_mods(warn=False, version="1.2.3", include_otel_modules=True, dry_run=True)
