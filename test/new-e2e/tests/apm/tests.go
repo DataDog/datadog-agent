@@ -84,9 +84,9 @@ func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.
 		for _, tp := range tr.TracerPayloads {
 			t.Log("Tracer Payload Tags:", tp.Tags["_dd.tags.container"])
 			ctags, ok := getContainerTags(t, tp)
-			assert.True(t, ok)
+			assert.True(t, ok, "expected to find container tags at _dd.tags.container")
 			imageTag, ok := ctags["image_tag"]
-			assert.True(t, ok)
+			assert.True(t, ok, "expected to find image_tag in container tags")
 			t.Logf("Got image Tag: %v", imageTag)
 			assert.Equal(t, "main", imageTag)
 		}
