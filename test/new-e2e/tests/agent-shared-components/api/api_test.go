@@ -76,8 +76,8 @@ func (endpointInfo *agentEndpointInfo) fetchCommand(authtoken string) string {
 func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 	testcases := []struct {
 		agentEndpointInfo
-		name string
-		want string
+		name   string
+		assert func(*assert.CollectT, agentEndpointInfo, string)
 	}{
 		{
 			name: "version",
@@ -89,7 +89,10 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				data:     "",
 			},
 			// TODO: json parse this to a better comparison
-			want: `"Major":7,"Minor":5`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `"Major":7,"Minor":5`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 		{
 			name: "hostname",
@@ -100,8 +103,10 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			// ec2 instance id's start with i-
-			want: `i-`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := v.Env().Agent.Client.Hostname()
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 		{
 			name: "health",
@@ -113,20 +118,11 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				data:     "",
 			},
 			// TODO: json parse this to a better comparison
-			want: `{"Healthy":[`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `{"Healthy":[`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
-		// TODO: we could possibly do a regexp comparison
-		// {
-		// 	name: "csrf-token",
-		// 	agentEndpointInfo: agentEndpointInfo{
-		// 		scheme:   "https",
-		// 		port:     agentCmdPort,
-		// 		endpoint: "/agent/gui/csrf-token",
-		// 		method:   "GET",
-		// 		data:     "",
-		// 	},
-		// 	want: ``,
-		// },
 		{
 			name: "config",
 			agentEndpointInfo: agentEndpointInfo{
@@ -137,7 +133,10 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				data:     "",
 			},
 			// TODO: find a better setting to compare output to
-			want: `api_key: '*******`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `api_key: '*******`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 		{
 			name: "config list-runtime",
@@ -149,7 +148,10 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				data:     "",
 			},
 			// TODO: find a better setting to compare output to
-			want: `dogstatsd_capture_duration`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `dogstatsd_capture_duration`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 		{
 			name: "jmx configs",
@@ -161,7 +163,10 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				data:     "",
 			},
 			// TODO: can we set up a jmx environment
-			want: `{"configs":{}`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `{"configs":{}`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 		{
 			name: "config check",
@@ -173,7 +178,10 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				data:     "",
 			},
 			// TODO: json parse this to a better comparison
-			want: `{"configs":[{"check_name":`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `{"configs":[{"check_name":`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 		{
 			name: "flare",
@@ -184,7 +192,10 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "POST",
 				data:     "{}",
 			},
-			want: `/tmp/datadog-agent-`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `/tmp/datadog-agent-`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 		{
 			name: "secrets",
@@ -195,7 +206,10 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			want: `secrets feature is not enabled`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `secrets feature is not enabled`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 		{
 			name: "tagger",
@@ -207,7 +221,10 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				data:     "",
 			},
 			// TODO: there isn't a configuration to enable this, it needs a dedicated environment setup
-			want: `{"entities":{}}`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `{"entities":{}}`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 		{
 			name: "workloadmeta",
@@ -218,7 +235,10 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			want: `{"entities":{}}`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `{"entities":{}}`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 		{
 			name: "metadata gohai",
@@ -230,9 +250,12 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				data:     "{}",
 			},
 			// TODO: json parse this output for a better comparison
-			want: `{
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `{
   "gohai": {
-    "cpu": {`,
+    "cpu": {`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 		{
 			name: "metadata v5",
@@ -244,7 +267,10 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				data:     "{}",
 			},
 			// TODO: json parse this output for a better comparison
-			want: `"agentVersion": "7.5`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `"agentVersion": "7.5`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 		{
 			name: "metadata inventory-check",
@@ -256,7 +282,10 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				data:     "{}",
 			},
 			// TODO: json parse this output for a better comparison
-			want: `"check_metadata": {`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `"check_metadata": {`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 		{
 			name: "metadata inventory-agent",
@@ -268,7 +297,10 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				data:     "{}",
 			},
 			// TODO: json parse this output for a better comparison
-			want: `"agent_metadata": {`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `"agent_metadata": {`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 		{
 			name: "metadata inventory-host",
@@ -280,7 +312,10 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				data:     "{}",
 			},
 			// TODO: json parse this output for a better comparison
-			want: `"host_metadata": {`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `"host_metadata": {`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 		// TODO: figure out how to make this work
 		// {
@@ -292,7 +327,7 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 		// 		method:   "POST",
 		// 		data:     "{}",
 		// 	},
-		// 	want: `dogstatsd_contexts.json.zstd`,
+		// 	assert: `dogstatsd_contexts.json.zstd`,
 		// },
 		{
 			name: "diagnose",
@@ -303,7 +338,10 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "POST",
 				data:     "{}",
 			},
-			want: `{"SuiteName":"connectivity-datadog-autodiscovery","SuiteDiagnoses":[{`,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				want := `{"SuiteName":"connectivity-datadog-autodiscovery","SuiteDiagnoses":[{`
+				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			},
 		},
 	}
 
@@ -311,14 +349,15 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
 	authtoken := strings.TrimSpace(authtokenContent)
 
-	for _, tc := range testcases {
-		cmd := tc.fetchCommand(authtoken)
+	for _, testcase := range testcases {
+		cmd := testcase.fetchCommand(authtoken)
 		host := v.Env().RemoteHost
-		v.T().Run(fmt.Sprintf("API - %s test", tc.name), func(t *testing.T) {
+		v.T().Run(fmt.Sprintf("API - %s test", testcase.name), func(t *testing.T) {
 			require.EventuallyWithT(t, func(ct *assert.CollectT) {
 				resp, err := host.Execute(cmd)
-				require.NoError(ct, err)
-				assert.Contains(ct, resp, tc.want, "%s %s returned: %s, wanted match: %s", tc.method, tc.endpoint, resp, tc.want)
+				if assert.NoError(ct, err) {
+					testcase.assert(ct, testcase.agentEndpointInfo, resp)
+				}
 			}, 2*time.Minute, 10*time.Second)
 		})
 	}
@@ -367,8 +406,9 @@ hostname: ENC[hostname]`
 
 	require.EventuallyWithT(v.T(), func(ct *assert.CollectT) {
 		resp, err := v.Env().RemoteHost.Execute(cmd)
-		require.NoError(ct, err)
-		assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+		if assert.NoError(ct, err) {
+			assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+		}
 	}, 2*time.Minute, 10*time.Second)
 }
 
@@ -409,7 +449,8 @@ log_level: debug
 
 	require.EventuallyWithT(v.T(), func(ct *assert.CollectT) {
 		resp, err := host.Execute(cmd)
-		require.NoError(ct, err)
-		assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+		if assert.NoError(ct, err) {
+			assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+		}
 	}, 2*time.Minute, 10*time.Second)
 }
