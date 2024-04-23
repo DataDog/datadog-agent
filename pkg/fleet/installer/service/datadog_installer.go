@@ -65,6 +65,11 @@ func SetupInstaller(ctx context.Context, enableDaemon bool) (err error) {
 	if err != nil {
 		return fmt.Errorf("error creating /var/run/datadog-packages: %w", err)
 	}
+	// Locks directory can already be created by a package install
+	err = os.Chmod("/var/run/datadog-packages", 0777)
+	if err != nil {
+		fmt.Errorf("error changing permissions of /var/run/datadog-packages: %w", err)
+	}
 	err = os.Chown("/var/log/datadog", ddAgentUID, ddAgentGID)
 	if err != nil {
 		return fmt.Errorf("error changing owner of /var/log/datadog: %w", err)
