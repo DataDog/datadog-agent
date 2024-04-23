@@ -51,4 +51,4 @@ Normally a successful diagnosis is printed as a single dot character. If verbose
 Normally internal diagnose functions will run in the context of agent and other services. It can be overridden via –run-as-user options and if specified diagnose functions will be executed in context of the agent diagnose CLI process if possible.
 
 ## ```json``` option
-Normally diagnose is displayed on stdout. If JSON option is specified, the output will be formated as JSON
+Normally, diagnose is displayed on stdout. If the JSON option is specified, the output is formatted as JSON
