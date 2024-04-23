@@ -4,7 +4,7 @@
 
 .k8s_e2e_template:
   stage: e2e
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   dependencies: []
   variables:
@@ -20,6 +20,8 @@
   - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_API_KEY_SSM_NAME)
   - export DATADOG_AGENT_APP_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_APP_KEY_SSM_NAME)
   - export DATADOG_AGENT_RC_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_RC_KEY_SSM_NAME)
+  # workaround until CWS is able to support 6.8 kernel correctly
+  - export AMI=ami-04003e644492ae5e8
 
 .k8s_e2e_template_needs_dev:
   extends: .k8s_e2e_template
@@ -288,6 +290,9 @@ new-e2e-installer:
     - deploy_deb_testing-i7_amd64
     - deploy_rpm_testing-i7_arm64
     - deploy_rpm_testing-i7_x64
+    - deploy_suse_rpm_testing-i7_arm64
+    - deploy_suse_rpm_testing-i7_x64
+    - qa_installer_oci
   variables:
     TARGETS: ./tests/installer
     TEAM: fleet

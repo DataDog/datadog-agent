@@ -9,6 +9,7 @@ from tasks.libs.common.omnibus import (
     install_dir_for_project,
     omnibus_compute_cache_key,
     send_build_metrics,
+    send_cache_miss_event,
     should_retry_bundle_install,
 )
 from tasks.libs.common.utils import get_version, load_release_versions, timed
@@ -231,7 +232,7 @@ def build(
         bundle_install_omnibus(ctx, gem_path, env)
 
     omnibus_cache_dir = os.environ.get('OMNIBUS_GIT_CACHE_DIR')
-    use_omnibus_git_cache = omnibus_cache_dir is not None
+    use_omnibus_git_cache = omnibus_cache_dir is not None and target_project == "agent"
     if use_omnibus_git_cache:
         # The cache will be written in the provided cache dir (see omnibus.rb) but
         # the git repository itself will be located in a subfolder that replicates
@@ -266,6 +267,9 @@ def build(
                     cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
                 else:
                     print(f'Failed to restore cache from key {cache_key}')
+                    send_cache_miss_event(
+                        ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
+                    )
 
     with timed(quiet=True) as omnibus_elapsed:
         omnibus_run_task(

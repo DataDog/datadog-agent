@@ -81,7 +81,11 @@ implementation_definitions = [
 ]
 
 
-def check_component_contents_and_file_hiearchy(file, content, directory):
+def check_component_contents_and_file_hiearchy(entry_point):
+    content = entry_point.content
+    file = entry_point.file
+    directory = entry_point.dir
+
     if not any(l.startswith('type Component interface') or l.startswith('type Component = ') for l in content):
         return f"** {file} does not define a Component interface; skipping"
 
@@ -120,45 +124,45 @@ def get_components_and_bundles():
 
         component_directory = pathlib.Path(component_file)
         for component_entry in component_directory.iterdir():
+
             # If we encounter a file at the first level it could be a bundle
-            if component_entry.is_file():
-                if component_entry.name == "bundle.go":
-                    content = list(component_entry.open())
-                    if has_type_component(content):
-                        print(f"** {component_entry} defines a Component interface (bundles should not do so)")
-                        ok = False
-                        pass
+            if component_entry.is_file() and component_entry.name == "bundle.go":
+                content = list(component_entry.open())
+                if has_type_component(content):
+                    print(f"** {component_entry} defines a Component interface (bundles should not do so)")
+                    ok = False
+                    pass
 
-                    path = str(component_entry)[: -len('/bundle.go')]
-                    team = find_team(content)
-                    doc = find_doc(content)
+                path = str(component_entry)[: -len('/bundle.go')]
+                team = find_team(content)
+                doc = find_doc(content)
 
-                    if team is None:
-                        print(f"** {component_entry} does not specify a team owner")
-                        ok = False
+                if team is None:
+                    print(f"** {component_entry} does not specify a team owner")
+                    ok = False
 
-                    bundles.append(Bundle(path, doc, team, []))
-            else:
-                for component_file in component_entry.iterdir():
-                    if component_file.name == "component.go":
-                        # We are a component
-                        # Let's check the file content and hierarchy
-                        content = list(component_file.open())
-                        error = check_component_contents_and_file_hiearchy(component_file, content, component_entry)
-                        if error != "":
-                            print(error)
-                            ok = False
-                            pass
+                bundles.append(Bundle(path, doc, team, []))
+                continue
 
-                        path = str(component_file)[: -len('/component.go')]
-                        team = find_team(content)
-                        doc = find_doc(content)
+            component_root = locate_root(component_entry)
+            if component_root is not None:
+                # Found a component's root
+                # Let's check the file content and hierarchy
+                error = check_component_contents_and_file_hiearchy(component_root)
+                if error != "":
+                    print(error)
+                    ok = False
+                    pass
 
-                        if team is None:
-                            print(f"** {path} does not specify a team owner")
-                            ok = False
+                path = str(component_root.dir)
+                team = find_team(component_root.content)
+                doc = find_doc(component_root.content)
 
-                        components.append(Component(path, doc, team))
+                if team is None:
+                    print(f"** {path} does not specify a team owner")
+                    ok = False
+
+                components.append(Component(path, doc, team))
 
     # assign components to bundles
     sorted_bundles = []
@@ -177,6 +181,29 @@ def get_components_and_bundles():
             components_without_bundle.append(c)
 
     return sorted(sorted_bundles), sorted(components_without_bundle), ok
+
+
+class ComponentRoot(object):
+    def __init__(self, file, dir, version):
+        self.file = file
+        self.dir = dir
+        self.version = version
+        self.content = list(self.file.open())
+
+
+def locate_root(dir):
+    """
+    Locate the root of the component, if this directory contains a component
+    """
+    # v2 component: this folder is a component root if it contains 'def/component.go'
+    component_file = dir / 'def/component.go'
+    if component_file.is_file():
+        return ComponentRoot(component_file, dir, 2)
+    # v1 component: this folder is a component root if it contains '/component.go' but the path is not '/def/component.go'
+    #    in particular, the directory named 'def' should not be treated as a component root
+    component_file = dir / 'component.go'
+    if component_file.is_file() and '/def/component.go' not in str(component_file):
+        return ComponentRoot(component_file, dir, 1)
 
 
 def make_components_md(bundles, components_without_bundle):
