@@ -329,6 +329,29 @@ def send_build_metrics(ctx, overall_duration):
         print(r.text)
 
 
+def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
+    if sys.platform == 'win32':
+        aws_cmd = "aws.cmd"
+    else:
+        aws_cmd = "aws"
+    dd_api_key = ctx.run(
+        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2_SSM_NAME"]} --with-decryption --query "Parameter.Value" --out text',
+        hide=True,
+    ).stdout.strip()
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
+    payload = {
+        'title': 'omnibus cache miss',
+        'text': f"Couldn't fetch cache associated with cache key for job {job_name} in pipeline #{pipeline_id}",
+        'source_type_name': 'omnibus',
+        'date_happened': int(datetime.now().timestamp()),
+        'tags': [f'pipeline:{pipeline_id}', f'job:{job_name}', 'source:omnibus-cache', f'job-id:{job_id}'],
+    }
+    r = requests.post("https://api.datadoghq.com/api/v1/events", json=payload, headers=headers)
+    if not r.ok:
+        print('Failed to send cache miss event')
+        print(r.text)
+
+
 def install_dir_for_project(project):
     if project == "agent" or project == "iot-agent":
         folder = 'datadog-agent'
