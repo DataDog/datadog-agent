@@ -1,4 +1,6 @@
 ---
+include:
+  - .gitlab/common/container_publish_job_templates.yml
 
 .deploy_packages_oci:
   resource_group: oci_bucket
@@ -6,7 +8,8 @@
   tags: ["arch:amd64"]
   stage: deploy_packages
   rules:
-    !reference [.on_deploy]
+    - !reference [.on_installer_or_e2e_changes_or_manual]
+    - !reference [.on_deploy]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
@@ -21,6 +24,8 @@
     - cd /tmp/datadog-packages/cmd/datadog-package
     - go build .
     - ./datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:${VERSION} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${MAJOR_VERSION}.*.oci.tar
+    # This is used for E2E tests. Doesn't cost more than an additional tag to the registry.
+    - ./datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${MAJOR_VERSION}.*.oci.tar
   variables:
     MAJOR_VERSION: 7
 
@@ -35,3 +40,29 @@ deploy_installer_oci:
   needs: [ "installer_oci" ]
   variables:
     OCI_PRODUCT: "datadog-installer"
+
+qa_agent_oci:
+  extends: .docker_publish_job_definition
+  stage: deploy_packages
+  needs: [ deploy_agent_oci ]
+  rules:
+    - !reference [.on_installer_or_e2e_changes_or_manual]
+  needs:
+    - deploy_agent_oci
+  variables:
+    IMG_REGISTRIES: agent-qa
+    IMG_SOURCES: registry.ddbuild.io/ci/remote-updates/datadog-agent:pipeline-${CI_PIPELINE_ID}
+    IMG_DESTINATIONS: agent-package:pipeline-${CI_PIPELINE_ID}
+
+qa_installer_oci:
+  extends: .docker_publish_job_definition
+  stage: deploy_packages
+  needs: [ deploy_agent_oci ]
+  rules:
+    - !reference [.on_installer_or_e2e_changes_or_manual]
+  needs:
+    - deploy_installer_oci
+  variables:
+    IMG_REGISTRIES: agent-qa
+    IMG_SOURCES: registry.ddbuild.io/ci/remote-updates/datadog-installer:pipeline-${CI_PIPELINE_ID}
+    IMG_DESTINATIONS: installer-package:pipeline-${CI_PIPELINE_ID}
