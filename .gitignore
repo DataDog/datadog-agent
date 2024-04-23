@@ -49,6 +49,7 @@ pkg/status/template.go
 
 # gotestsum-generated files
 module_test_output.json
+junit-out-base.xml
 
 # jetbrains IDE directory
 /.idea/
