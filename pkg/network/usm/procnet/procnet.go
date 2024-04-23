@@ -89,7 +89,7 @@ func populateIndex(connByInode map[int]TCPConnection, file string) {
 
 // matchFDWithSocket checks every file descriptor of a given PID and try to
 // match it against socket data using the inode number.
-// In case there is a match, we augument TCPConnection data with PID and FD
+// In case there is a match, we augment TCPConnection data with PID and FD
 // information and add that to the `conns` slice.
 // Note that the resulting `conns` slice can actually be bigger than the
 // original `connsByInode` map size because one TCP socket can potentially "map"
