@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 //nolint:revive // TODO(PROC) Fix revive linter
-package app
+package check
 
 import (
 	"encoding/json"
@@ -96,7 +96,7 @@ func MakeCommand(globalParams *command.GlobalParams, name string) *cobra.Command
 				bundleParams.LogParams = logimpl.ForOneShot(string(command.LoggerName), "off", true)
 			}
 
-			return fxutil.OneShot(runCheckCmd,
+			return fxutil.OneShot(RunCheckCmd,
 				fx.Supply(cliParams, bundleParams),
 				core.Bundle(),
 				// Provide workloadmeta module
@@ -136,7 +136,7 @@ func MakeCommand(globalParams *command.GlobalParams, name string) *cobra.Command
 	return checkCmd
 }
 
-func runCheckCmd(deps dependencies) error {
+func RunCheckCmd(deps dependencies) error {
 	command.SetHostMountEnv(deps.Log)
 
 	// Now that the logger is configured log host info

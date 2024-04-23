@@ -11,12 +11,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	processCommand "github.com/DataDog/datadog-agent/cmd/process-agent/command"
-	app "github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/check"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/check"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	cmd := app.MakeCommand(
+	processCommand.OneShotLogParams = logimpl.ForOneShot(string(command.LoggerName), "info", true)
+	cmd := check.MakeCommand(
 		&processCommand.GlobalParams{
 			ConfFilePath:         globalParams.ConfFilePath,
 			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
