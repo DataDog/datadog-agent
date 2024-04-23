@@ -298,40 +298,19 @@ func start(log log.Component,
 		return err
 	}
 
-	// Create event recorder
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(pkglog.Infof)
-	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
-	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
-
-	ctx := controllers.ControllerContext{
-		InformerFactory:        apiCl.InformerFactory,
-		DynamicClient:          apiCl.DynamicInformerCl,
-		DynamicInformerFactory: apiCl.DynamicInformerFactory,
-		Client:                 apiCl.InformerCl,
-		IsLeaderFunc:           le.IsLeader,
-		EventRecorder:          eventRecorder,
-		WorkloadMeta:           wmeta,
-		StopCh:                 stopCh,
-	}
-
-	if aggErr := controllers.StartControllers(ctx); aggErr != nil {
-		for _, err := range aggErr.Errors() {
-			pkglog.Warnf("Error while starting controller: %v", err)
-		}
-	}
-
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
 	// Generate and persist a cluster ID
 	// this must be a UUID, and ideally be stable for the lifetime of a cluster,
 	// so we store it in a configmap that we try and read before generating a new one.
-	clusterID, err := apicommon.GetOrCreateClusterID(apiCl.Cl.CoreV1())
+	coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
+	clusterID, err := apicommon.GetOrCreateClusterID(coreClient)
 	if err != nil {
-		pkglog.Errorf("Failed to generate or retrieve the cluster ID, err: %v", err)
+		pkglog.Errorf("Failed to generate or retrieve the cluster ID")
 	}
 	if clusterName == "" {
 		pkglog.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
 	}
+
 	pkglog.Infof("Cluster ID: %s, Cluster Name: %s", clusterID, clusterName)
 
 	// Initialize and start remote configuration client
@@ -354,6 +333,29 @@ func start(log log.Component,
 			defer func() {
 				rcClient.Close()
 			}()
+		}
+	}
+
+	// Create event recorder
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(pkglog.Infof)
+	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
+	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
+
+	ctx := controllers.ControllerContext{
+		InformerFactory:        apiCl.InformerFactory,
+		DynamicClient:          apiCl.DynamicInformerCl,
+		DynamicInformerFactory: apiCl.DynamicInformerFactory,
+		Client:                 apiCl.InformerCl,
+		IsLeaderFunc:           le.IsLeader,
+		EventRecorder:          eventRecorder,
+		WorkloadMeta:           wmeta,
+		StopCh:                 stopCh,
+	}
+
+	if aggErr := controllers.StartControllers(ctx); aggErr != nil {
+		for _, err := range aggErr.Errors() {
+			pkglog.Warnf("Error while starting controller: %v", err)
 		}
 	}
 

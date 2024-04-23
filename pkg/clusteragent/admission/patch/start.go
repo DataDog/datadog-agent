@@ -37,7 +37,7 @@ func StartControllers(ctx ControllerContext) error {
 	if err != nil {
 		return err
 	}
-	patcher := newPatcher(ctx.K8sClient, ctx.IsLeaderFunc, telemetryCollector, provider)
+	patcher := newPatcher(ctx.K8sClient, ctx.IsLeaderFunc, telemetryCollector, provider, ctx.ClusterName)
 	go provider.start(ctx.StopCh)
 	go patcher.start(ctx.StopCh)
 	return nil

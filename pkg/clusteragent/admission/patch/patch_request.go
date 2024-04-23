@@ -21,6 +21,7 @@ type TargetObjKind string
 const (
 	// KindDeployment refers to k8s deployment objects
 	KindDeployment TargetObjKind = "deployment"
+	KindCluster    TargetObjKind = "cluster"
 )
 
 // Action is the action requested in the patch
@@ -35,6 +36,16 @@ const (
 	DisableConfig Action = "disable"
 )
 
+type K8sClusterTarget struct {
+	ClusterName       string    `json:"cluster_name"`
+	Enabled           *bool     `json:"enabled,omitempty"`
+	EnabledNamespaces *[]string `json:"enabled_namespaces,omitempty"`
+}
+
+type K8sTargetV2 struct {
+	ClusterTargets []K8sClusterTarget `json:"cluster_targets"`
+}
+
 // Request holds the required data to target a k8s object and apply library configuration
 type Request struct {
 	ID            string `json:"id"`
@@ -48,6 +59,8 @@ type Request struct {
 
 	// Target k8s object
 	K8sTarget K8sTarget `json:"k8s_target"`
+
+	K8sTargetV2 *K8sTargetV2 `json:"k8s_target_v2,omitempty"`
 }
 
 // Validate returns whether a patch request is applicable
