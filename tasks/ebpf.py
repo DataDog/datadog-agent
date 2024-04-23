@@ -305,15 +305,7 @@ def register_state_to_str(reg: ComplexityRegisterState):
     return f"R{reg['register']} ({reg['type']}){reg_liveness}: {reg['value']}"
 
 
-@task
-def annotate_complexity(
-    _: Context,
-    program: str,
-    function: str,
-    debug=False,
-    show_assembly=False,
-    show_register_state=False,
-):
+def get_complexity_for_function(program: str, function: str, debug=False) -> ComplexityData:
     if debug:
         program += "_debug"
 
@@ -324,7 +316,19 @@ def annotate_complexity(
         raise Exit(f"Complexity data for {func_name} not found at {complexity_data_file}")
 
     with open(complexity_data_file) as f:
-        complexity_data: ComplexityData = json.load(f)
+        return json.load(f)
+
+
+@task
+def annotate_complexity(
+    _: Context,
+    program: str,
+    function: str,
+    debug=False,
+    show_assembly=False,
+    show_register_state=False,
+):
+    complexity_data = get_complexity_for_function(program, function, debug)
     all_files = {x.split(":")[0] for x in complexity_data["source_map"].keys()}
 
     if colored is None:
@@ -404,9 +408,37 @@ def annotate_complexity(
     with open(VERIFIER_STATS) as f:
         verifier_stats = json.load(f)
 
+    func_name = f"{program}/{function.replace('/', '__')}"
     if func_name not in verifier_stats:
         raise Exit(f"Verification stats for {func_name} not found in {VERIFIER_STATS}")
 
     print(colored("\n\n=== Verification stats ===", attrs=["bold"]))
     for key, value in verifier_stats[func_name].items():
         print(f"· {key}: {value}")
+
+
+@task
+def show_top_complexity_lines(
+    _: Context,
+    program: str,
+    function: str,
+    n=10,
+    debug=False,
+):
+    complexity_data = get_complexity_for_function(program, function, debug)
+    top_complexity_lines = sorted(
+        complexity_data["source_map"].items(),
+        key=lambda x: x[1]["total_instructions_processed"],
+        reverse=True,
+    )[:n]
+
+    print_complexity_legend()
+
+    for lineid, compl in top_complexity_lines:
+        f, lineno = lineid.split(":")
+        with open(f) as src:
+            line = next(l for i, l in enumerate(src) if i + 1 == int(lineno))
+
+            print(lineid)
+            print(source_line_to_str(int(lineno), line, compl))
+            print()
