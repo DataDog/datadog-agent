@@ -3,19 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package run
+package daemon
 
 import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/spf13/cobra"
 )
 
-func TestRunCheckCmdCommand(t *testing.T) {
+func TestStatusCommand(t *testing.T) {
+	cmd := statusCommand(&command.GlobalParams{})
+	cmd.GroupID = ""
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
-		[]string{"run"},
-		run,
+		[]*cobra.Command{cmd},
+		[]string{"status"},
+		status,
 		func() {})
 }

@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package run implements 'installer run'.
-package run
+package daemon
 
 import (
 	"context"
@@ -38,33 +37,27 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
-type cliParams struct {
-	command.GlobalParams
-}
-
-// Commands returns the run command
-func Commands(global *command.GlobalParams) []*cobra.Command {
+func runCommand(global *command.GlobalParams) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:   "run",
-		Short: "Runs the installer",
-		Long:  ``,
+		Use:     "run",
+		Short:   "Runs the installer",
+		GroupID: "daemon",
+		Long:    ``,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runFxWrapper(&cliParams{
-				GlobalParams: *global,
-			})
+			return runFxWrapper(global)
 		},
 	}
-	return []*cobra.Command{runCmd}
+	return runCmd
 }
 
-func runFxWrapper(params *cliParams) error {
+func runFxWrapper(global *command.GlobalParams) error {
 	ctx := context.Background()
 
 	return fxutil.OneShot(
 		run,
 		fx.Provide(func() context.Context { return ctx }),
 		fx.Supply(core.BundleParams{
-			ConfigParams:         config.NewAgentParams(params.GlobalParams.ConfFilePath),
+			ConfigParams:         config.NewAgentParams(global.ConfFilePath),
 			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 			LogParams:            logimpl.ForDaemon("INSTALLER", "installer.log_file", pkgconfig.DefaultUpdaterLogFile),
@@ -80,7 +73,7 @@ func runFxWrapper(params *cliParams) error {
 		updaterimpl.Module(),
 		localapiimpl.Module(),
 		telemetryimpl.Module(),
-		fx.Supply(pidimpl.NewParams(params.PIDFilePath)),
+		fx.Supply(pidimpl.NewParams(global.PIDFilePath)),
 	)
 }
 

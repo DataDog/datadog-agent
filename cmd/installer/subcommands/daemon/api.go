@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package experiment implements 'installer {start, stop, promote}-experiment' subcommands.
-package experiment
+// Package daemon provides the installer daemon commands.
+package daemon
 
 import (
 	"fmt"
@@ -23,8 +23,20 @@ type cliParams struct {
 	version string
 }
 
-// Commands returns the experiment commands
-func Commands(global *command.GlobalParams) []*cobra.Command {
+func apiCommands(global *command.GlobalParams) []*cobra.Command {
+	installCmd := &cobra.Command{
+		Use:     "install package version",
+		Aliases: []string{"install"},
+		Short:   "Installs a package to the expected version",
+		Args:    cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return experimentFxWrapper(install, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+				version:      args[1],
+			})
+		},
+	}
 	startExperimentCmd := &cobra.Command{
 		Use:     "start-experiment package version",
 		Aliases: []string{"start"},
@@ -59,19 +71,6 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 			return experimentFxWrapper(promote, &cliParams{
 				GlobalParams: *global,
 				pkg:          args[0],
-			})
-		},
-	}
-	installCmd := &cobra.Command{
-		Use:     "install package version",
-		Aliases: []string{"install"},
-		Short:   "Installs a package to the expected version",
-		Args:    cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return experimentFxWrapper(install, &cliParams{
-				GlobalParams: *global,
-				pkg:          args[0],
-				version:      args[1],
 			})
 		},
 	}
