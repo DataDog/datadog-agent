@@ -384,6 +384,8 @@ func runDiagnose(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) ([]diag
 	return diagnoses, nil
 }
 
+// RunJSON enumerate registered Diagnose suites and get their diagnoses
+// for human consumption in json format output
 func RunJSON(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
 	/* Define JSON output structure in the shape of:
 	{
