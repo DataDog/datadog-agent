@@ -358,17 +358,18 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 
 		switch retryStrategy {
 		case reUp:
-			fmt.Fprint(logger, "Got error during stack up, retrying")
+			fmt.Fprint(logger, "Retrying stack on error during stack up: %w", upError)
 		case reCreate:
-			fmt.Fprint(logger, "Got error during stack up, recreating stack")
+			fmt.Fprint(logger, "Recreating stack on error during stack up: %w", upError)
 			destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
 			_, err = stack.Destroy(destroyCtx, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 			cancel()
 			if err != nil {
+				fmt.Fprint(logger, "Error during stack destroy at recrate stack attempt: %w", err)
 				return stack, auto.UpResult{}, err
 			}
 		case noRetry:
-			fmt.Fprint(logger, "Got error during stack up, giving up")
+			fmt.Fprint(logger, "Giving up on error during stack up: %w", upError)
 			return stack, upResult, upError
 		}
 	}
