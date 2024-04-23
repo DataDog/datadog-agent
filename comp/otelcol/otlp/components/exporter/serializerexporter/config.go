@@ -57,6 +57,30 @@ type MetricsConfig struct {
 	Tags string `mapstructure:"tags"`
 }
 
+type HistogramMode string
+
+const (
+	// HistogramModeNoBuckets reports no bucket histogram metrics. .sum and .count metrics will still be sent
+	// if `send_count_sum_metrics` is enabled.
+	HistogramModeNoBuckets HistogramMode = "nobuckets"
+	// HistogramModeCounters reports histograms as Datadog counts, one metric per bucket.
+	HistogramModeCounters HistogramMode = "counters"
+	// HistogramModeDistributions reports histograms as Datadog distributions (recommended).
+	HistogramModeDistributions HistogramMode = "distributions"
+)
+
+var _ encoding.TextUnmarshaler = (*HistogramMode)(nil)
+
+func (hm *HistogramMode) UnmarshalText(in []byte) error {
+	switch mode := HistogramMode(in); mode {
+	case HistogramModeCounters, HistogramModeDistributions, HistogramModeNoBuckets:
+		*hm = mode
+		return nil
+	default:
+		return fmt.Errorf("invalid histogram mode %q", mode)
+	}
+}
+
 // HistogramConfig customizes export of OTLP Histograms.
 type HistogramConfig struct {
 	// Mode for exporting histograms. Valid values are 'distributions', 'counters' or 'nobuckets'.
@@ -66,7 +90,7 @@ type HistogramConfig struct {
 	//    if `send_count_sum_metrics` is enabled.
 	//
 	// The current default is 'distributions'.
-	Mode string `mapstructure:"mode"`
+	Mode HistogramMode `mapstructure:"mode"`
 
 	// SendCountSum states if the export should send .sum, .count, .min and .max metrics for histograms.
 	// The default is false.
@@ -76,6 +100,14 @@ type HistogramConfig struct {
 	// SendAggregations states if the export should send .sum, .count, .min and .max metrics for histograms.
 	// The default is false.
 	SendAggregations bool `mapstructure:"send_aggregation_metrics"`
+}
+
+// Validate HistogramConfig
+func (c *HistogramConfig) Validate() error {
+	if c.Mode == HistogramModeNoBuckets && !c.SendAggregations {
+		return fmt.Errorf("'nobuckets' mode and `send_aggregation_metrics` set to false will send no histogram metrics")
+	}
+	return nil
 }
 
 // CumulativeMonotonicSumMode is the export mode for OTLP Sum metrics.
