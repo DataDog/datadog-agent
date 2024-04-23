@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package user provides helpers to change the user of the process.
 package user
 
 // IsRoot always returns true on windows.
