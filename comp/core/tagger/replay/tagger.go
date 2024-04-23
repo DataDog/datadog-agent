@@ -99,9 +99,7 @@ func (t *Tagger) Standard(entityID string) ([]string, error) {
 }
 
 // List returns all the entities currently stored by the tagger.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (t *Tagger) List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
+func (t *Tagger) List() tagger_api.TaggerListResponse {
 	return t.store.List()
 }
 

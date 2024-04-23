@@ -38,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -420,9 +419,7 @@ func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Com
 }
 
 func getTaggerList(w http.ResponseWriter, _ *http.Request) {
-	// query at the highest cardinality between checks and dogstatsd cardinalities
-	cardinality := collectors.TagCardinality(max(int(tagger.ChecksCardinality), int(tagger.DogstatsdCardinality)))
-	response := tagger.List(cardinality)
+	response := tagger.List()
 
 	jsonTags, err := json.Marshal(response)
 	if err != nil {
@@ -573,14 +570,6 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	if err != nil {
 		setJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
 	}
-}
-
-// max returns the maximum value between a and b.
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // GetConnection returns the connection for the request
