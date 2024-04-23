@@ -12,6 +12,7 @@ import (
 	htemplate "html/template"
 	"io"
 	"path"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,7 +39,7 @@ var (
 // HTMLFmap return a map of utility functions for HTML templating
 func HTMLFmap() htemplate.FuncMap {
 	htmlFuncOnce.Do(func() {
-		htmlFuncMap = htemplate.FuncMap{
+		htmlFuncMap = untypeFuncMap(htemplate.FuncMap{
 			"doNotEscape":        doNotEscape,
 			"lastError":          lastError,
 			"configError":        configError,
@@ -60,7 +61,7 @@ func HTMLFmap() htemplate.FuncMap {
 			"lastErrorMessage":   lastErrorMessageHTML,
 			"pythonLoaderError":  pythonLoaderErrorHTML,
 			"status":             statusHTML,
-		}
+		})
 	})
 	return htmlFuncMap
 }
@@ -68,7 +69,7 @@ func HTMLFmap() htemplate.FuncMap {
 // TextFmap map of utility functions for text templating
 func TextFmap() ttemplate.FuncMap {
 	textFuncOnce.Do(func() {
-		textFuncMap = ttemplate.FuncMap{
+		textFuncMap = untypeFuncMap(ttemplate.FuncMap{
 			"lastErrorTraceback": lastErrorTraceback,
 			"lastErrorMessage":   lastErrorMessage,
 			"printDashes":        PrintDashes,
@@ -86,13 +87,122 @@ func TextFmap() ttemplate.FuncMap {
 			"version":            getVersion,
 			"percent":            func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
 			"complianceResult":   complianceResult,
-		}
+		})
 	})
 
 	return textFuncMap
 }
 
 const timeFormat = "2006-01-02 15:04:05.999 MST"
+
+func untypeFuncMap(funcMap map[string]any) map[string]any {
+	newFuncMap := make(map[string]any)
+
+	for name, function := range funcMap {
+		funcType := reflect.TypeOf(function)
+		originalFunc := reflect.ValueOf(function)
+
+		// Create a slice of input types, all set to interface{}
+		in := make([]reflect.Type, funcType.NumIn())
+		for i := range in {
+			in[i] = reflect.TypeOf(new(interface{})).Elem()
+		}
+
+		// Create a slice of output types, copied from the original function
+		out := make([]reflect.Type, funcType.NumOut())
+		for i := 0; i < funcType.NumOut(); i++ {
+			out[i] = funcType.Out(i)
+		}
+
+		// Create a new function type with the modified input types and original output types
+		newFuncType := reflect.FuncOf(in, out, funcType.IsVariadic())
+
+		newFunc := reflect.MakeFunc(newFuncType, func(args []reflect.Value) (results []reflect.Value) {
+			// Convert input parameters
+			inValues := make([]reflect.Value, len(args))
+			for i, v := range args {
+				inValues[i] = castValue(v.Interface(), funcType.In(i))
+			}
+
+			// Call the original function
+			return originalFunc.Call(inValues)
+		}).Interface()
+
+		newFuncMap[name] = newFunc
+	}
+
+	return newFuncMap
+}
+
+func castValue(value interface{}, targetType reflect.Type) reflect.Value {
+	if reflect.TypeOf(value) == targetType {
+		return reflect.ValueOf(value)
+	}
+
+	switch targetType.Kind() {
+	case reflect.String:
+		return reflect.ValueOf(cast.ToString(value))
+	case reflect.Int:
+		if targetType.Size() == 1 {
+			return reflect.ValueOf(cast.ToInt8(value))
+		} else if targetType.Size() == 2 {
+			return reflect.ValueOf(cast.ToInt16(value))
+		} else if targetType.Size() == 4 {
+			return reflect.ValueOf(cast.ToInt32(value))
+		} else {
+			return reflect.ValueOf(cast.ToInt(value))
+		}
+	case reflect.Int64:
+		return reflect.ValueOf(cast.ToInt64(value))
+	case reflect.Float32:
+		return reflect.ValueOf(cast.ToFloat32(value))
+	case reflect.Float64:
+		return reflect.ValueOf(cast.ToFloat64(value))
+	case reflect.Bool:
+		return reflect.ValueOf(cast.ToBool(value))
+	case reflect.Slice:
+		elemType := targetType.Elem()
+		if elemType.Kind() == reflect.String {
+			return reflect.ValueOf(cast.ToStringSlice(value))
+		} else if elemType.Kind() == reflect.Int {
+			return reflect.ValueOf(cast.ToIntSlice(value))
+		} else if elemType.Kind() == reflect.Bool {
+			return reflect.ValueOf(cast.ToBoolSlice(value))
+		} else {
+			return reflect.MakeSlice(targetType, 0, 0)
+		}
+	case reflect.Map:
+		keyType := targetType.Key()
+		elemType := targetType.Elem()
+		if keyType.Kind() == reflect.String && elemType.Kind() == reflect.String {
+			return reflect.ValueOf(cast.ToStringMapString(value))
+		} else {
+			return reflect.MakeMap(targetType)
+		}
+	case reflect.Struct:
+		if targetType == reflect.TypeOf(time.Time{}) {
+			return reflect.ValueOf(cast.ToTime(value))
+		} else if targetType == reflect.TypeOf(time.Nanosecond) {
+			return reflect.ValueOf(cast.ToDuration(value))
+		}
+	case reflect.Uint:
+		if targetType.Size() == 1 {
+			return reflect.ValueOf(cast.ToUint8(value))
+		} else if targetType.Size() == 2 {
+			return reflect.ValueOf(cast.ToUint16(value))
+		} else if targetType.Size() == 4 {
+			return reflect.ValueOf(cast.ToUint32(value))
+		} else {
+			return reflect.ValueOf(cast.ToUint(value))
+		}
+	case reflect.Uint64:
+		return reflect.ValueOf(cast.ToUint64(value))
+	}
+
+	// If no matching type is found, return the original value
+	return reflect.ValueOf(value)
+	// return reflect.Zero(targetType)
+}
 
 // RenderHTML reads, parse and execute template from embed.FS
 func RenderHTML(templateFS embed.FS, template string, buffer io.Writer, data any) error {
@@ -195,13 +305,12 @@ func toUnsortedList(s map[string]interface{}) string {
 }
 
 // mkHuman adds commas to large numbers to assist readability in status outputs
-func mkHuman(f interface{}) string {
-	return humanize.Commaf(cast.ToFloat64(f))
+func mkHuman(f float64) string {
+	return humanize.Commaf(f)
 }
 
 // mkHumanDuration makes time values more readable
-func mkHumanDuration(i interface{}, unit string) string {
-	f := cast.ToFloat64(i)
+func mkHumanDuration(f float64, unit string) string {
 	var duration time.Duration
 	if unit != "" {
 		duration, _ = time.ParseDuration(fmt.Sprintf("%f%s", f, unit))
