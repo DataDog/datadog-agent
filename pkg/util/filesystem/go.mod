@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/filesystem
 
-go 1.21.8
+go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../log/
@@ -13,7 +13,7 @@ require (
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/shirou/gopsutil/v3 v3.23.9
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/sys v0.12.0
+	golang.org/x/sys v0.19.0
 )
 
 require (

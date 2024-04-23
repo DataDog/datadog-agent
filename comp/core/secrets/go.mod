@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/secrets
 
-go 1.21.8
+go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../flare/types
@@ -24,7 +24,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
 	golang.org/x/exp v0.0.0-20231214170342-aacd6d4b4611
-	golang.org/x/sys v0.14.0
+	golang.org/x/sys v0.19.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 

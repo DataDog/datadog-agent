@@ -1358,19 +1358,16 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 
 	// Resolve mount point
 	if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
-		seclog.Debugf("failed to set mount point: %v", err)
-		return err
+		return fmt.Errorf("failed to set mount point: %w", err)
 	}
 	// Resolve root
 	if err := p.Resolvers.PathResolver.SetMountRoot(ev, m); err != nil {
-		seclog.Debugf("failed to set mount root: %v", err)
-		return err
+		return fmt.Errorf("failed to set mount root: %w", err)
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
 	if err := p.Resolvers.MountResolver.Insert(*m, 0); err != nil {
-		seclog.Errorf("failed to insert mount event: %v", err)
-		return err
+		return fmt.Errorf("failed to insert mount event: %w", err)
 	}
 
 	return nil
@@ -1854,6 +1851,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty", "linux/sched/signal.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name", "linux/tty.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameCredStructUID, "struct cred", "uid", "linux/cred.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameCredStructCapInheritable, "struct cred", "cap_inheritable", "linux/cred.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc", "linux/binfmts.h")
@@ -1905,6 +1903,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	// network related constants
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetDeviceStructIfIndex, "struct net_device", "ifindex", "linux/netdevice.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDeviceStructNdNet, "struct net_device", "nd_net", "linux/netdevice.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSKCNet, "struct sock_common", "skc_net", "net/sock.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSKCFamily, "struct sock_common", "skc_family", "net/sock.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI4StructSADDR, "struct flowi4", "saddr", "net/flow.h")

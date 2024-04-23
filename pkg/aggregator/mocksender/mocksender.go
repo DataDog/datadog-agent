@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	//nolint:revive // TODO(AML) Fix revive linter
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -42,7 +43,7 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService()))
-	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, "")
+	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, compressionimpl.NewMockCompressor(), "")
 
 }
 
@@ -126,7 +127,7 @@ func (m *MockSender) SetupAcceptAll() {
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()
 	m.On("SetCheckService", mock.AnythingOfType("string")).Return()
 	m.On("FinalizeCheckServiceTag").Return()
-	m.On("SetNoIndex").Return()
+	m.On("SetNoIndex", mock.AnythingOfType("bool")).Return()
 	m.On("Commit").Return()
 	m.On("OrchestratorMetadata",
 		mock.AnythingOfType("[]process.MessageBody"),

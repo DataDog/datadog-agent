@@ -666,7 +666,6 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal(t, 0.5, cfg.MaxCPU)
 	assert.EqualValues(t, 123.4, cfg.MaxMemory)
 	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
-	assert.True(t, cfg.LogThrottling)
 	assert.True(t, cfg.OTLPReceiver.SpanNameAsResourceName)
 	assert.Equal(t, map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, cfg.OTLPReceiver.SpanNameRemappings)
 
@@ -2397,37 +2396,6 @@ func TestSetMaxMemCPU(t *testing.T) {
 		config.SetMaxMemCPU(true)
 		assert.Equal(t, 0.3, cfg.MaxCPU)
 		assert.Equal(t, 300.0, cfg.MaxMemory)
-	})
-}
-
-func TestPeerServiceAggregation(t *testing.T) {
-	t.Run("disabled", func(t *testing.T) {
-		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule(),
-			MockModule(),
-		))
-		// underlying config
-		cfg := config.Object()
-
-		require.NotNil(t, cfg)
-		assert.False(t, cfg.PeerServiceAggregation)
-	})
-
-	t.Run("enabled", func(t *testing.T) {
-		overrides := map[string]interface{}{
-			"apm_config.peer_service_aggregation": true,
-		}
-
-		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule(),
-			fx.Replace(corecomp.MockParams{Overrides: overrides}),
-			MockModule(),
-		))
-		// underlying config
-		cfg := config.Object()
-
-		require.NotNil(t, cfg)
-		assert.True(t, cfg.PeerServiceAggregation)
 	})
 }
 

@@ -6,11 +6,11 @@
 // Package localapiclient provides the local API client component.
 package localapiclient
 
-import "github.com/DataDog/datadog-agent/pkg/updater"
+import "github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 
 // team: fleet
 
 // Component is the component type.
 type Component interface {
-	updater.LocalAPIClient
+	daemon.LocalAPIClient
 }

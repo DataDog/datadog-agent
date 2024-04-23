@@ -1,0 +1,15 @@
+lint_python:
+  stage: source_test
+  image: gcr.io/datadoghq/agent-circleci-runner:v31988376-bfbb3afb
+  tags: ["arch:amd64"]
+  needs: []
+  script:
+    - inv -e linter.python
+
+lint_update_go:
+  stage: source_test
+  image: gcr.io/datadoghq/agent-circleci-runner:v31988376-bfbb3afb
+  tags: ["arch:amd64"]
+  needs: []
+  script:
+    - inv -e linter.update-go

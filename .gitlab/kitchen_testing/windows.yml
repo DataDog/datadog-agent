@@ -3,7 +3,7 @@
 # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
-#   - /.gitlab/kitchen_testing/testing.yml
+#   - .gitlab/kitchen_testing/testing.yml
 
 # Kitchen: OSes
 # -------------
@@ -148,14 +148,6 @@ kitchen_windows_installer_npm_install_scenarios-a7:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_windows_installer_npm
 
-kitchen_windows_installer_npm_driver-a7:
-  # Run NPM driver installer test on branches, on a reduced number of platforms
-  rules:
-    !reference [.on_default_kitchen_tests_a7]
-  extends:
-    - .kitchen_scenario_windows_a7
-    - .kitchen_test_windows_installer_driver
-
 kitchen_windows_installer_agent-a6:
   extends:
     - .kitchen_scenario_windows_a6
@@ -181,18 +173,10 @@ kitchen_windows_upgrade6_agent-a7:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_upgrade6_agent
 
-kitchen_windows_process_agent-a7:
-  variables:
-    KITCHEN_OSVERS: "win2022"
-    DEFAULT_KITCHEN_OSVERS: "win2022"
-  extends:
-    - .kitchen_scenario_windows_a7
-    - .kitchen_test_process_agent
-
 kitchen_windows_installer_cws-a7:
   # Run NPM driver installer test on branches, on a reduced number of platforms
   rules:
-    !reference [.on_default_kitchen_tests_a7]
+    !reference [.on_default_kitchen_tests]
   extends:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_windows_cws
