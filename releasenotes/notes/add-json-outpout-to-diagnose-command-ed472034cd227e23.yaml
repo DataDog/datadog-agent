@@ -1,0 +1,4 @@
+features:
+  - |
+    Added JSON output to the `agent diagnose` command.
+    The `--json` option can be used to get the output in JSON format.
