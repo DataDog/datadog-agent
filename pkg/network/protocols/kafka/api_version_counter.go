@@ -38,7 +38,7 @@ func newAPIVersionCounter(metricGroup *libtelemetry.MetricGroup, metricName stri
 }
 
 // Add increments the API version counter based on the specified request api version
-func (c *apiVersionCounter) Add(tx *EbpfTx) {
+func (c *apiVersionCounter) Add(tx *KafkaTransaction) {
 	if tx.Request_api_version < minSupportedAPIVersion || tx.Request_api_version > maxSupportedAPIVersion {
 		c.hitsUnsupportedVersion.Add(1)
 		return

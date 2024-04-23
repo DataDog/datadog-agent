@@ -31,7 +31,7 @@ type checkImpl struct {
 }
 
 func (c *checkImpl) Run() error {
-	mfs, err := telemetryimpl.GetCompatComponent().GatherDefault()
+	mfs, err := telemetryimpl.GetCompatComponent().Gather(true)
 	if err != nil {
 		return err
 	}

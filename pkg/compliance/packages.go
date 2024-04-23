@@ -135,6 +135,7 @@ func findRpmPackage(path string, names []string) *packageInfo {
 	if err != nil {
 		return nil
 	}
+	defer db.Close()
 	pkgs, err := db.ListPackages()
 	if err != nil {
 		return nil

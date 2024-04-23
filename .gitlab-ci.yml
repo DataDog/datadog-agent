@@ -163,16 +163,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v32368242-2e3b6ef4
+  DATADOG_AGENT_BUILDIMAGES: v32377621-ce42cb8e
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v32368242-2e3b6ef4
+  DATADOG_AGENT_WINBUILDIMAGES: v32377621-ce42cb8e
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v32368242-2e3b6ef4
+  DATADOG_AGENT_ARMBUILDIMAGES: v32377621-ce42cb8e
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v32368242-2e3b6ef4
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v32377621-ce42cb8e
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v32368242-2e3b6ef4
-  DATADOG_AGENT_BUILDERS: v28719426-b6a4fd9
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v32377621-ce42cb8e
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -595,11 +594,17 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
-.on_main_or_release_branch_or_all_builds:
+.on_main_or_release_branch_or_all_builds_or_pkg_installer_changes:
   - <<: *if_main_branch
   - <<: *if_release_branch
   - <<: *if_run_all_builds
   - <<: *if_run_all_unit_tests
+  - changes:
+      paths:
+        - pkg/installer/**/*
+      compare_to: main
+    variables:
+      FAST_TESTS: "true"
 
 .except_main_or_release_branch:
   - <<: *if_main_branch
@@ -998,6 +1003,13 @@ workflow:
 .except_disable_unit_tests:
   - <<: *if_disable_unit_tests
     when: never
+
+.on_macos_gui_change:
+  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+  - changes:
+      paths:
+        - comp/core/gui/guiimpl/systray/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_packaging_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
