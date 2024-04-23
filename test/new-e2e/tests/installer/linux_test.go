@@ -73,7 +73,6 @@ func TestUbuntuARM(t *testing.T) {
 }
 
 func TestDebianX86(t *testing.T) {
-	t.Skip("FIXME")
 	t.Parallel()
 	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault, true)
 }
@@ -176,12 +175,7 @@ func (v *vmUpdaterSuite) TestExperimentCrash() {
 }
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
-	// disable Debian due to flaky failures
 	host := v.Env().RemoteHost
-	if v.distro == os.DebianDefault {
-		v.T().Skip("Skipping Debian as it fails")
-	}
-
 	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer bootstrap", bootInstallerDir))
 	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer remove datadog-agent", bootInstallerDir))
 	stableUnits := []string{
@@ -238,7 +232,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%U" `+agentDir))
 	require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%G" `+agentDir))
 	require.Equal(v.T(), "drwxr-xr-x\n", host.MustExecute(`stat -c "%A" `+agentDir))
-	require.Equal(v.T(), "1\n", host.MustExecute(`sudo ls -l /opt/datadog-packages/datadog-agent | awk '$9 != "stable" && $3 == "dd-agent" && $4 == "dd-agent"' | wc -l`))
+	require.Equal(v.T(), "1\n", host.MustExecute(`ls -l /opt/datadog-packages/datadog-agent | awk '$9 != "stable" && $3 == "dd-agent" && $4 == "dd-agent"' | wc -l`))
 
 	// assert units
 	for _, unit := range stableUnits {
@@ -248,12 +242,8 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	// Temporarily disable CentOS & Redhat, as there is a bug in the APM injector
-	// disable Debian as well as it fails
 	if v.distro == os.CentOSDefault {
 		v.T().Skip("APM injector not available for CentOS yet")
-	}
-	if v.distro == os.DebianDefault {
-		v.T().Skip("Skipping Debian as it fails")
 	}
 	if v.distro == os.SuseDefault {
 		v.T().Skip("Skipping SUSE as it fails")
@@ -348,10 +338,10 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 
 	// assert file ownerships
 	injectorDir := "/opt/datadog-packages/datadog-apm-inject"
-	require.Equal(v.T(), "dd-agent\n", host.MustExecute(`stat -c "%U" `+injectorDir))
-	require.Equal(v.T(), "dd-agent\n", host.MustExecute(`stat -c "%G" `+injectorDir))
+	require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%U" `+injectorDir))
+	require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%G" `+injectorDir))
 	require.Equal(v.T(), "drwxr-xr-x\n", host.MustExecute(`stat -c "%A" `+injectorDir))
-	require.Equal(v.T(), "1\n", host.MustExecute(`sudo ls -l /opt/datadog-packages/datadog-apm-inject | awk '$9 != "stable" && $3 == "dd-agent" && $4 == "dd-agent"' | wc -l`))
+	require.Equal(v.T(), "1\n", host.MustExecute(`ls -l /opt/datadog-packages/datadog-apm-inject | awk '$9 != "stable" && $3 == "root" && $4 == "root"' | wc -l`))
 
 	/////////////////////////////////////
 	// Check injection with a real app //
