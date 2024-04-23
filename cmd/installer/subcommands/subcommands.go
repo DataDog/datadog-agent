@@ -47,7 +47,7 @@ func withPersistentPreRunE(factory command.SubcommandFactory, f func(*command.Gl
 	return func(global *command.GlobalParams) []*cobra.Command {
 		commands := factory(global)
 		for _, cmd := range commands {
-			cmd.PersistentPostRunE = func(cmd *cobra.Command, args []string) error {
+			cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 				return f(global)
 			}
 		}
