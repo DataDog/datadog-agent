@@ -12,7 +12,6 @@ import (
 )
 
 const (
-	envVarMode        = "DD_SERVERLESS_MODE"
 	loggerNameInit    = "SERVERLESS_INIT"
 	loggerNameSidecar = "SERVERLESS_SIDECAR"
 )
@@ -30,11 +29,14 @@ func DetectMode() (string, func(logConfig *serverlessLog.Config)) {
 	defaultModeRunner := RunInit
 	defaultLoggerName := loggerNameInit
 
-	if os.Getenv(envVarMode) == "sidecar" {
+	if len(os.Args) == 1 {
+		log.Infof("No arguments provided, launching in Sidecar mode")
 		defaultModeRunner = RunSidecar
 		defaultLoggerName = loggerNameSidecar
 		envToSet["DD_APM_NON_LOCAL_TRAFFIC"] = "true"
 		envToSet["DD_DOGSTATSD_NON_LOCAL_TRAFFIC"] = "true"
+	} else {
+		log.Infof("Arguments provided, launching in Init mode")
 	}
 
 	setupEnv(envToSet)
