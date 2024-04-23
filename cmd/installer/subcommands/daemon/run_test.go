@@ -3,19 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package purge
+package daemon
 
 import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/spf13/cobra"
 )
 
-func TestCommand(t *testing.T) {
+func TestRunCommand(t *testing.T) {
+	cmd := runCommand(&command.GlobalParams{})
+	cmd.GroupID = ""
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
-		[]string{"purge"},
-		purge,
+		[]*cobra.Command{cmd},
+		[]string{"run"},
+		run,
 		func() {})
 }
