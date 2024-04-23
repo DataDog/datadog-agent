@@ -679,7 +679,7 @@ require (
 	github.com/containerd/cgroups/v3 v3.0.2
 	github.com/containerd/typeurl/v2 v2.1.1
 	github.com/elastic/go-seccomp-bpf v1.4.0
-	github.com/glaslos/ssdeep v0.3.3
+	github.com/glaslos/ssdeep v0.4.0
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
