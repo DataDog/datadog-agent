@@ -55,7 +55,7 @@ installer_rpm-arm64:
 
 installer_suse_rpm-amd64:
   extends: .installer_package_suse_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$CI_IMAGE_RPM_X64_SUFFIX:$CI_IMAGE_RPM_X64_VERSION
   tags: ["arch:amd64"]
   needs: ["installer-amd64"]
   variables:
@@ -64,7 +64,7 @@ installer_suse_rpm-amd64:
 
 installer_suse_rpm-arm64:
   extends: .installer_package_suse_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$CI_IMAGE_RPM_ARM64_SUFFIX:$CI_IMAGE_RPM_ARM64_VERSION
   tags: ["arch:arm64"]
   needs: ["installer-arm64"]
   variables:

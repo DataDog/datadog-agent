@@ -133,9 +133,9 @@ class TestModifyContent(unittest.TestCase):
 
     def test_all_images(self):
         modified, images = modify_content(self.gitlab_ci, "1mageV3rsi0n", test_version=True)
-        self.assertEqual(13, len(images))
-        self.assertEqual(13, sum(1 for v in modified if "CI_IMAGE" in v and "_test_only" in v))
-        self.assertEqual(13, sum(1 for v in modified if "1mageV3rsi0n" in v))
+        self.assertEqual(14, len(images))
+        self.assertEqual(14, sum(1 for v in modified if "CI_IMAGE" in v and "_test_only" in v))
+        self.assertEqual(14, sum(1 for v in modified if "1mageV3rsi0n" in v))
 
     def test_one_image(self):
         modified, images = modify_content(self.gitlab_ci, "1mageV3rsi0n", ["deb_x64"])
@@ -157,9 +157,9 @@ class TestModifyContent(unittest.TestCase):
 
     def test_update_no_test(self):
         modified, images = modify_content(self.gitlab_ci, "1mageV3rsi0n", test_version=False)
-        self.assertEqual(13, len(images))
+        self.assertEqual(14, len(images))
         self.assertEqual(0, sum(1 for v in modified if "CI_IMAGE" in v and "_test_only" in v))
-        self.assertEqual(13, sum(1 for v in modified if "1mageV3rsi0n" in v))
+        self.assertEqual(14, sum(1 for v in modified if "1mageV3rsi0n" in v))
 
     def test_raise(self):
         lines = ["---\n", "variables: \n", "  CI_IMAGE_FAKE_SUFFIX: ''\n", "  CI_IMAGE_FAKE_VERSION: 42\""]
