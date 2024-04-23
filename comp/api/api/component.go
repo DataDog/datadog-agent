@@ -33,7 +33,7 @@ type Component interface {
 
 // EndpointProvider is an interface to register api endpoints
 type EndpointProvider struct {
-	Handler http.Handler
+	HandlerFunc http.HandlerFunc
 
 	Methods []string
 	Route   string
@@ -47,12 +47,12 @@ type AgentEndpointProvider struct {
 }
 
 // NewAgentEndpointProvider returns a AgentEndpointProvider to register the endpoint provided to the internal agent api server
-func NewAgentEndpointProvider(handler http.Handler, route string, methods ...string) AgentEndpointProvider {
+func NewAgentEndpointProvider(handlerFunc http.HandlerFunc, route string, methods ...string) AgentEndpointProvider {
 	return AgentEndpointProvider{
 		Provider: EndpointProvider{
-			Handler: handler,
-			Route:   route,
-			Methods: methods,
+			HandlerFunc: handlerFunc,
+			Route:       route,
+			Methods:     methods,
 		},
 	}
 }

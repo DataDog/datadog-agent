@@ -10,7 +10,7 @@ import tempfile
 from collections import defaultdict
 from glob import glob
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, Tuple, cast
+from typing import TYPE_CHECKING, Any, Iterable, cast
 
 from invoke.context import Context
 from invoke.tasks import task
@@ -56,7 +56,7 @@ try:
     from termcolor import colored
 except ImportError:
 
-    def colored(text: str, color: Optional[str]) -> str:  # noqa: U100
+    def colored(text: str, color: str | None) -> str:  # noqa: U100
         return text
 
 
@@ -87,17 +87,17 @@ def create_stack(ctx, stack=None):
 )
 def gen_config(
     ctx: Context,
-    stack: Optional[str] = None,
+    stack: str | None = None,
     vms: str = "",
     sets: str = "",
     init_stack=False,
-    vcpu: Optional[str] = None,
-    memory: Optional[str] = None,
+    vcpu: str | None = None,
+    memory: str | None = None,
     new=False,
     ci=False,
     arch: str = "",
     output_file: str = "vmconfig.json",
-    from_ci_pipeline: Optional[str] = None,
+    from_ci_pipeline: str | None = None,
     use_local_if_possible=False,
     vmconfig_template: Component = "system-probe",
 ):
@@ -129,11 +129,11 @@ def gen_config(
 
 def gen_config_from_ci_pipeline(
     ctx: Context,
-    stack: Optional[str] = None,
-    pipeline: Optional[str] = None,
+    stack: str | None = None,
+    pipeline: str | None = None,
     init_stack=False,
-    vcpu: Optional[str] = None,
-    memory: Optional[str] = None,
+    vcpu: str | None = None,
+    memory: str | None = None,
     new=False,
     ci=False,
     use_local_if_possible=False,
@@ -167,7 +167,7 @@ def gen_config_from_ci_pipeline(
                     vcpu = str(vcpu_list[0])
                     info(f"[+] setting vcpu to {vcpu}")
 
-    failed_packages: Set[str] = set()
+    failed_packages: set[str] = set()
     for job in test_jobs:
         if job.status == "failed" and job.component == vmconfig_template:
             vm_arch = job.arch
@@ -191,8 +191,8 @@ def gen_config_from_ci_pipeline(
 @task
 def launch_stack(
     ctx: Context,
-    stack: Optional[str] = None,
-    ssh_key: Optional[str] = None,
+    stack: str | None = None,
+    ssh_key: str | None = None,
     x86_ami: str = X86_AMI_ID_SANDBOX,
     arm_ami: str = ARM_AMI_ID_SANDBOX,
     provision_microvms: bool = True,
@@ -201,18 +201,18 @@ def launch_stack(
 
 
 @task
-def destroy_stack(ctx: Context, stack: Optional[str] = None, pulumi=False, ssh_key: Optional[str] = None):
+def destroy_stack(ctx: Context, stack: str | None = None, pulumi=False, ssh_key: str | None = None):
     clean(ctx, stack)
     stacks.destroy_stack(ctx, stack, pulumi, ssh_key)
 
 
 @task
-def pause_stack(_, stack: Optional[str] = None):
+def pause_stack(_, stack: str | None = None):
     stacks.pause_stack(stack)
 
 
 @task
-def resume_stack(_, stack: Optional[str] = None):
+def resume_stack(_, stack: str | None = None):
     stacks.resume_stack(stack)
 
 
@@ -268,7 +268,7 @@ def config_ssh_key(ctx: Context):
         ssh_key = {'path': ssh_key_path, 'name': name, 'aws_key_name': aws_config_name}
     else:
         info("[+] Finding SSH keys to use...")
-        ssh_keys: List[SSHKey]
+        ssh_keys: list[SSHKey]
         if method == "1password":
             agent_keys = get_ssh_agent_key_names(ctx)
             ssh_keys = [{'path': None, 'name': key, 'aws_key_name': key} for key in agent_keys]
@@ -337,9 +337,9 @@ def start_compiler(ctx: Context):
         cc.start()
 
 
-def filter_target_domains(vms: str, infra: Dict[ArchOrLocal, HostInstance], arch: Optional[ArchOrLocal] = None):
+def filter_target_domains(vms: str, infra: dict[ArchOrLocal, HostInstance], arch: ArchOrLocal | None = None):
     vmsets = vmconfig.build_vmsets(vmconfig.build_normalized_vm_def_set(vms), [])
-    domains: List[LibvirtDomain] = list()
+    domains: list[LibvirtDomain] = list()
     for vmset in vmsets:
         if arch is not None and full_arch(vmset.arch) != full_arch(arch):
             warn(f"Ignoring VM {vmset} as it is not of the expected architecture {arch}")
@@ -352,8 +352,8 @@ def filter_target_domains(vms: str, infra: Dict[ArchOrLocal, HostInstance], arch
     return domains
 
 
-def get_archs_in_domains(domains: Iterable[LibvirtDomain]) -> Set[Arch]:
-    archs: Set[Arch] = set()
+def get_archs_in_domains(domains: Iterable[LibvirtDomain]) -> set[Arch]:
+    archs: set[Arch] = set()
     for d in domains:
         archs.add(full_arch(d.instance.arch))
     return archs
@@ -390,7 +390,7 @@ def full_arch(arch: ArchOrLocal) -> Arch:
 
 
 class KMTPaths:
-    def __init__(self, stack: Optional[str], arch: Arch):
+    def __init__(self, stack: str | None, arch: Arch):
         self.stack = stack
         self.arch = arch
 
@@ -456,7 +456,7 @@ def build_dependencies(
     layout_file: PathOrStr,
     source_dir: PathOrStr,
     ci=False,
-    stack: Optional[str] = None,
+    stack: str | None = None,
     verbose=True,
 ) -> None:
     if stack is None:
@@ -503,7 +503,7 @@ def is_root():
     return os.getuid() == 0
 
 
-def vms_have_correct_deps(ctx: Context, domains: List[LibvirtDomain], depsfile: PathOrStr):
+def vms_have_correct_deps(ctx: Context, domains: list[LibvirtDomain], depsfile: PathOrStr):
     deps_dir = os.path.dirname(depsfile)
     sha256sum = ctx.run(f"cd {deps_dir} && sha256sum {os.path.basename(depsfile)}", warn=True)
     if sha256sum is None or not sha256sum.ok:
@@ -518,7 +518,7 @@ def vms_have_correct_deps(ctx: Context, domains: List[LibvirtDomain], depsfile: 
     return True
 
 
-def needs_build_from_scratch(ctx: Context, paths: KMTPaths, domains: "list[LibvirtDomain]", full_rebuild: bool):
+def needs_build_from_scratch(ctx: Context, paths: KMTPaths, domains: list[LibvirtDomain], full_rebuild: bool):
     return (
         full_rebuild
         or (not paths.dependencies.exists())
@@ -530,9 +530,9 @@ def needs_build_from_scratch(ctx: Context, paths: KMTPaths, domains: "list[Libvi
 def prepare(
     ctx: Context,
     vms: str,
-    stack: Optional[str] = None,
-    arch: Optional[Arch] = None,
-    ssh_key: Optional[str] = None,
+    stack: str | None = None,
+    arch: Arch | None = None,
+    ssh_key: str | None = None,
     full_rebuild=False,
     packages="",
     verbose=True,
@@ -562,6 +562,7 @@ def prepare(
         info("[+] Dependencies already present in VMs")
         packages_with_ebpf = packages.split(",")
         packages_with_ebpf.append("./pkg/ebpf/bytecode")
+        packages_with_ebpf.append("./pkg/ebpf/bytecode/runtime")
         constrain_pkgs = f"--packages={','.join(set(packages_with_ebpf))}"
     else:
         warn("[!] Dependencies need to be rebuilt")
@@ -572,7 +573,7 @@ def prepare(
         run_dir=CONTAINER_AGENT_PATH,
     )
 
-    target_instances: List[HostInstance] = list()
+    target_instances: list[HostInstance] = list()
     for d in domains:
         target_instances.append(d.instance)
 
@@ -599,8 +600,8 @@ def prepare(
         info(f"[+] Tests packages setup in target VM {d}")
 
 
-def build_run_config(run: Optional[str], packages: List[str]):
-    c: Dict[str, Any] = dict()
+def build_run_config(run: str | None, packages: list[str]):
+    c: dict[str, Any] = dict()
 
     if len(packages) == 0:
         return {"*": {"exclude": False}}
@@ -634,15 +635,15 @@ def build_run_config(run: Optional[str], packages: List[str]):
 )
 def test(
     ctx: Context,
-    vms: Optional[str] = None,
-    stack: Optional[str] = None,
+    vms: str | None = None,
+    stack: str | None = None,
     packages="",
-    run: Optional[str] = None,
+    run: str | None = None,
     quick=False,
     retry=2,
     run_count=1,
     full_rebuild=False,
-    ssh_key: Optional[str] = None,
+    ssh_key: str | None = None,
     verbose=True,
     test_logs=False,
     test_extra_arguments=None,
@@ -704,13 +705,13 @@ def test(
 )
 def build(
     ctx: Context,
-    vms: Optional[str] = None,
-    stack: Optional[str] = None,
-    ssh_key: Optional[str] = None,
+    vms: str | None,
+    stack: str | None = None,
+    ssh_key: str | None = None,
     full_rebuild=False,
     verbose=True,
-    arch: Optional[ArchOrLocal] = None,
-    system_probe_yaml: Optional[str] = DEFAULT_CONFIG_PATH,
+    arch: ArchOrLocal | None = None,
+    system_probe_yaml: str | None = DEFAULT_CONFIG_PATH,
 ):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
@@ -739,7 +740,7 @@ def build(
             ctx, arch, "test/new-e2e/system-probe/test-runner/files/system-probe-dependencies.json", "./", stack=stack
         )
 
-        target_instances: List[HostInstance] = list()
+        target_instances: list[HostInstance] = list()
         for d in domains:
             target_instances.append(d.instance)
 
@@ -770,7 +771,7 @@ def build(
 
 
 @task
-def clean(ctx: Context, stack: Optional[str] = None, container=False, image=False):
+def clean(ctx: Context, stack: str | None = None, container=False, image=False):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -795,7 +796,7 @@ def clean(ctx: Context, stack: Optional[str] = None, container=False, image=Fals
 )
 def ssh_config(
     ctx: Context,
-    stacks: Optional[str] = None,
+    stacks: str | None = None,
     ddvm_rsa="tasks/kernel_matrix_testing/ddvm_rsa",
 ):
     """
@@ -871,8 +872,8 @@ def ssh_config(
         "all": "Show status of all stacks. --stack parameter will be ignored",
     }
 )
-def status(ctx: Context, stack: Optional[str] = None, all=False, ssh_key: Optional[str] = None):
-    stacks: List[str]
+def status(ctx: Context, stack: str | None = None, all=False, ssh_key: str | None = None):
+    stacks: list[str]
 
     if all:
         stacks = [stack.name for stack in Path(get_kmt_os().stacks_dir).iterdir() if stack.is_dir()]
@@ -880,8 +881,8 @@ def status(ctx: Context, stack: Optional[str] = None, all=False, ssh_key: Option
         stacks = [check_and_get_stack(stack)]
 
     # Dict of status lines for each stack
-    status: Dict[str, List[str]] = defaultdict(list)
-    stack_status: Dict[str, Tuple[int, int, int, int]] = {}
+    status: dict[str, list[str]] = defaultdict(list)
+    stack_status: dict[str, tuple[int, int, int, int]] = {}
     info("[+] Getting status...")
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
 
@@ -964,7 +965,7 @@ def explain_ci_failure(_, pipeline: str):
 
     failed_setup_jobs = [j for j in setup_jobs if j.status == "failed"]
     failed_jobs = [j for j in test_jobs if j.status == "failed"]
-    failreasons: Dict[str, str] = {}
+    failreasons: dict[str, str] = {}
     ok = "✅"
     testfail = "❌"
     infrafail = "⚙️"
@@ -984,7 +985,7 @@ def explain_ci_failure(_, pipeline: str):
             failreason = testfail  # By default, we assume it's a test failure
 
             # Now check the artifacts, we'll guess why the job failed based on the size
-            for artifact in job.job_data.get("artifacts", []):
+            for artifact in job.job.artifacts:
                 if artifact.get("filename") == "artifacts.zip":
                     fsize = artifact.get("size", 0)
                     if fsize < 1500:
@@ -1007,15 +1008,15 @@ def explain_ci_failure(_, pipeline: str):
 
     print(f"Legend: OK {ok} | Test failure {testfail} | Infra failure {infrafail} | Skip ' ' (empty cell)")
 
-    def groupby_comp_vmset(job: KMTTestRunJob) -> Tuple[str, str]:
+    def groupby_comp_vmset(job: KMTTestRunJob) -> tuple[str, str]:
         return (job.component, job.vmset)
 
     # Show first a matrix of failed distros and archs for each tuple of component and vmset
     jobs_by_comp_and_vmset = itertools.groupby(sorted(failed_jobs, key=groupby_comp_vmset), groupby_comp_vmset)
     for (component, vmset), group_jobs in jobs_by_comp_and_vmset:
         group_jobs = list(group_jobs)  # Consume the iterator, make a copy
-        distros: Dict[str, Dict[Arch, str]] = defaultdict(lambda: {"x86_64": " ", "arm64": " "})
-        distro_arch_with_test_failures: List[Tuple[str, Arch]] = []
+        distros: dict[str, dict[Arch, str]] = defaultdict(lambda: {"x86_64": " ", "arm64": " "})
+        distro_arch_with_test_failures: list[tuple[str, Arch]] = []
 
         # Build the distro table with all jobs for this component and vmset, to correctly
         # differentiate between skipped and ok jobs
@@ -1040,7 +1041,7 @@ def explain_ci_failure(_, pipeline: str):
         test_results_by_distro_arch = {(j.distro, j.arch): j.get_test_results() for j in jobs_with_failed_tests}
         # Get the names of all tests
         all_tests = set(itertools.chain.from_iterable(d.keys() for d in test_results_by_distro_arch.values()))
-        test_failure_table: List[List[str]] = []
+        test_failure_table: list[list[str]] = []
 
         for testname in sorted(all_tests):
             test_row = [testname]
@@ -1064,7 +1065,7 @@ def explain_ci_failure(_, pipeline: str):
                 )
             )
 
-    def groupby_arch_comp(job: KMTTestRunJob) -> Tuple[str, str]:
+    def groupby_arch_comp(job: KMTTestRunJob) -> tuple[str, str]:
         return (job.arch, job.component)
 
     # Now get the exact infra failure for each VM
@@ -1079,7 +1080,7 @@ def explain_ci_failure(_, pipeline: str):
             error("[x] No corresponding setup job found")
             continue
 
-        infra_fail_table: List[List[str]] = []
+        infra_fail_table: list[list[str]] = []
         for failed_job in group_jobs:
             try:
                 boot_log = setup_job.get_vm_boot_log(failed_job.distro, failed_job.vmset)
@@ -1145,7 +1146,7 @@ def explain_ci_failure(_, pipeline: str):
 
 
 @task()
-def tmux(ctx: Context, stack: Optional[str] = None):
+def tmux(ctx: Context, stack: str | None = None):
     """Create a tmux session with panes for each VM in the stack.
 
     Note that this task requires the tmux command to be available on the system, and the SSH

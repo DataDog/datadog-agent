@@ -15,6 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -68,4 +71,41 @@ func TestRemoveQualifierFromArnWithoutAlias(t *testing.T) {
 	invokedFunctionArn := "arn:aws:lambda:eu-south-1:425362996713:function:inferred-spans-function-urls-dev-harv-function-urls"
 	functionArn := removeQualifierFromArn(invokedFunctionArn)
 	assert.Equal(t, functionArn, invokedFunctionArn)
+}
+
+type mockLifecycleProcessor struct {
+	isError         bool
+	isTimeout       bool
+	isColdStart     bool
+	isProactiveInit bool
+}
+
+func (m *mockLifecycleProcessor) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
+	return &invocationlifecycle.ExecutionStartInfo{}
+}
+func (m *mockLifecycleProcessor) OnInvokeStart(*invocationlifecycle.InvocationStartDetails) {}
+func (m *mockLifecycleProcessor) OnInvokeEnd(endDetails *invocationlifecycle.InvocationEndDetails) {
+	m.isError = endDetails.IsError
+	m.isTimeout = endDetails.IsTimeout
+	m.isColdStart = endDetails.ColdStart
+	m.isProactiveInit = endDetails.ProactiveInit
+}
+
+func TestFinishTimeoutExecutionSpan(t *testing.T) {
+	port := testutil.FreeTCPPort(t)
+	d := daemon.StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	d.TraceAgent = &trace.ServerlessTraceAgent{}
+	mock := &mockLifecycleProcessor{}
+	d.InvocationProcessor = mock
+	defer d.Stop()
+
+	assert.False(t, d.IsExecutionSpanIncomplete())
+	d.SetExecutionSpanIncomplete(true)
+	assert.True(t, d.IsExecutionSpanIncomplete())
+	finishTimeoutExecutionSpan(d, true, true)
+	assert.False(t, d.IsExecutionSpanIncomplete())
+	assert.True(t, mock.isError)
+	assert.True(t, mock.isTimeout)
+	assert.True(t, mock.isColdStart)
+	assert.True(t, mock.isProactiveInit)
 }

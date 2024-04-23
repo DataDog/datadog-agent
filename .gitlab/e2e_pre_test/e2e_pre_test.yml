@@ -2,15 +2,16 @@
 # Contains jobs which runs e2e tests to validate the new-e2e framework.
 e2e_pre_test:
   rules:
-    - !reference [.on_e2e_changes_or_manual]
+    - !reference [.on_e2e_or_fakeintake_changes_or_manual]
   stage: e2e_pre_test
   extends: .new_e2e_template
-  needs: []
+  needs:
+    - job: publish_fakeintake
+      optional: true
   script:
     - inv -e new-e2e-tests.run --targets ./test-infra-definition --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
   after_script:
-    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
-    - inv -e junit-upload --tgz-path junit-${CI_JOB_ID}.tgz
+    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
   variables:
     TEAM: "agent-developer-tools"
     # override to use latest stable agent

@@ -5,9 +5,7 @@
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     - mkdir -p $OMNIBUS_PACKAGE_DIR
-    - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_KEY_SSM_NAME)
-    - export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_APP_ID_SSM_NAME)
-    - export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_INSTALLATION_ID_SSM_NAME)
+    - !reference [.setup_macos_github_app]
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     - export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
     - !reference [.setup_python_mirror_linux]
@@ -23,6 +21,7 @@
 agent_dmg-x64-a7:
   extends: .agent_build_common_dmg
   rules:
+    - !reference [.on_macos_gui_change]
     - !reference [.on_packaging_change]
     - !reference [.on_main_or_release_branch]
     - !reference [.on_all_builds]

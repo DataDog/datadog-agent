@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -26,7 +26,7 @@ func TestBundleDependencies(t *testing.T) {
 		// automatically.
 		config.Module(),
 		fx.Supply(config.Params{}),
-		telemetry.Module(),
+		telemetryimpl.Module(),
 		logimpl.Module(),
 		fx.Provide(func() optional.Option[secrets.Component] {
 			return optional.NewOption[secrets.Component](secretsimpl.NewMock().Comp)

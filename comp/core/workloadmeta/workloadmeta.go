@@ -47,7 +47,7 @@ type workloadmeta struct {
 
 // InitHelper this should be provided as a helper to allow passing the component into
 // the inithook for additional start-time configutation.
-type InitHelper func(context.Context, Component) error
+type InitHelper func(context.Context, Component, config.Component) error
 
 type dependencies struct {
 	fx.In
@@ -106,7 +106,7 @@ func newWorkloadMeta(deps dependencies) provider {
 		mainCtx, _ := common.GetMainCtxCancel()
 
 		if deps.Params.InitHelper != nil {
-			err = deps.Params.InitHelper(mainCtx, wm)
+			err = deps.Params.InitHelper(mainCtx, wm, deps.Config)
 			if err != nil {
 				return err
 			}
