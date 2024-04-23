@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package status implements 'updater status'.
-package status
+package daemon
 
 import (
 	_ "embed"
@@ -18,31 +17,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 )
 
-type cliParams struct {
-	command.GlobalParams
-}
-
-// Commands returns the status command
-func Commands(global *command.GlobalParams) []*cobra.Command {
+func statusCommand(_ *command.GlobalParams) *cobra.Command {
 	statusCmd := &cobra.Command{
-		Use:   "status",
-		Short: "Print the installer status",
-		Long:  ``,
+		Use:     "status",
+		Short:   "Print the installer status",
+		GroupID: "daemon",
+		Long:    ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return statusFxWrapper(&cliParams{
-				GlobalParams: *global,
-			})
+			return statusFxWrapper()
 		},
 	}
-	return []*cobra.Command{statusCmd}
+	return statusCmd
 }
 
-func statusFxWrapper(params *cliParams) error {
+func statusFxWrapper() error {
 	return fxutil.OneShot(status,
-		fx.Supply(params),
 		localapiclientimpl.Module(),
 	)
 }

@@ -306,7 +306,7 @@ def update_statistics(job_executions):
     # Update statistics and collect consecutive failed jobs
     alert_jobs = {"consecutive": [], "cumulative": []}
     failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
-    failed_set = {job.name for job in failed_jobs.all_failures()}
+    failed_set = {job["name"] for job in failed_jobs.all_failures()}
     current_set = set(job_executions["jobs"].keys())
     # Insert data for newly failing jobs
     new_failed_jobs = failed_set - current_set
