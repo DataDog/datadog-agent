@@ -309,7 +309,7 @@ func run(
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 	pkgcollector.InitPython(common.GetPythonPaths()...)
-	commonchecks.RegisterChecks(wmeta)
+	commonchecks.RegisterChecks(wmeta, config)
 
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
@@ -480,7 +480,7 @@ func run(
 	var checkFileOutput bytes.Buffer
 	var instancesData []interface{}
 	printer := aggregator.AgentDemultiplexerPrinter{DemultiplexerWithAggregator: demultiplexer}
-	data, err := statusComponent.GetStatusBySection(status.CollectorSection, "json", false)
+	data, err := statusComponent.GetStatusBySections([]string{status.CollectorSection}, "json", false)
 
 	if err != nil {
 		return err

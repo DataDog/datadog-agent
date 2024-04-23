@@ -173,6 +173,8 @@ runtime_security_config:
   {{end}}
   ebpfless:
     enabled: {{.EBPFLessEnabled}}
+  hash_resolver:
+    enabled: false
 `
 
 const testPolicy = `---
