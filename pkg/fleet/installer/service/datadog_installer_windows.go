@@ -10,7 +10,7 @@ package service
 import "context"
 
 // SetupInstaller noop
-func SetupInstaller(_ context.Context) error {
+func SetupInstaller(_ context.Context, enableDaemon bool) error {
 	return nil
 }
 

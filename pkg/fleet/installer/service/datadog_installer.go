@@ -23,7 +23,7 @@ const (
 var installerUnits = []string{installerUnit, installerUnitExp}
 
 // SetupInstaller installs and starts the installer systemd units
-func SetupInstaller(ctx context.Context) (err error) {
+func SetupInstaller(ctx context.Context, enableDaemon bool) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup installer: %s, reverting", err)
@@ -38,6 +38,11 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error creating /opt/datadog-packages: %w", err)
 	}
+
+	if !enableDaemon {
+		return nil
+	}
+
 	// Check if systemd is running, if not return early
 	systemdRunning, err := isSystemdRunning()
 	if err != nil {

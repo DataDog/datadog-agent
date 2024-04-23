@@ -77,19 +77,11 @@ func BootstrapURL(ctx context.Context, url string, config config.Reader) error {
 
 // Bootstrap is the generic installer bootstrap.
 func Bootstrap(ctx context.Context, config config.Reader) error {
-	rc := newNoopRemoteConfig()
-	i := newDaemon(rc, newPackageManager(config), false)
-	err := i.Start(ctx)
+	err := service.SetupInstaller(ctx, config.GetBool("updater.remote_updates"))
 	if err != nil {
-		return fmt.Errorf("could not start daemon: %w", err)
+		return fmt.Errorf("failed to setup datadog-installer systemd units: %w", err)
 	}
-	defer func() {
-		err := i.Stop(ctx)
-		if err != nil {
-			log.Errorf("could not stop daemon: %v", err)
-		}
-	}()
-	return i.Bootstrap(ctx)
+	return nil
 }
 
 func newPackageManager(config config.Reader) installer.Installer {
@@ -186,25 +178,6 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 	return nil
 }
 
-// Bootstrap is the method used for the installer to install itself
-func (d *daemonImpl) Bootstrap(ctx context.Context) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap")
-	defer func() { span.Finish(tracer.WithError(err)) }()
-	d.m.Lock()
-	defer d.m.Unlock()
-	d.refreshState(ctx)
-	defer d.refreshState(ctx)
-
-	// We don't need to setup anything for the installer if we are not doing remote updates
-	if d.remoteUpdates {
-		err = service.SetupInstaller(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to setup datadog-installer systemd units: %w", err)
-		}
-	}
-	return nil
-}
-
 // Install installs the package from the given URL.
 func (d *daemonImpl) Install(ctx context.Context, url string) error {
 	d.m.Lock()
@@ -218,7 +191,7 @@ func (d *daemonImpl) install(ctx context.Context, url string) (err error) {
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
-	log.Infof("Daemon: Bootstrapping package from %s", url)
+	log.Infof("Daemon: Installing package from %s", url)
 	err = d.packageManager.Install(ctx, url)
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
