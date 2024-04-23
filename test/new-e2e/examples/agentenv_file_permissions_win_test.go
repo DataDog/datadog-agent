@@ -72,8 +72,8 @@ func (v *filePermissionsWindowsTestSuite) TestRemoveDefaultPermissions() {
 	cmd := `/grant "ddagentuser:(RX,W)"`
 
 	files := []agentparams.Option{
-		agentparams.WithFileWithPermissions(`C:/TestFolder/remove`, "", true, perms.NewWindowsPermissions(perms.WithRemoveDefaultPermissions())),
-		agentparams.WithFileWithPermissions(`C:/TestFolder2/remove_and_grant`, "", true, perms.NewWindowsPermissions(perms.WithIcaclsCommand(cmd), perms.WithRemoveDefaultPermissions())),
+		agentparams.WithFileWithPermissions(`C:/TestFolder/remove`, "", true, perms.NewWindowsPermissions(perms.WithDisableInheritance())),
+		agentparams.WithFileWithPermissions(`C:/TestFolder2/remove_and_grant`, "", true, perms.NewWindowsPermissions(perms.WithIcaclsCommand(cmd), perms.WithDisableInheritance())),
 	}
 
 	v.updateEnvWithWindows(awshost.WithAgentOptions(files...))
@@ -92,7 +92,7 @@ func (v *filePermissionsWindowsTestSuite) TestSecretsPermissions() {
 	cmd := `/grant "ddagentuser:(RX)" "Administrators:(RX)"`
 
 	files := []agentparams.Option{
-		agentparams.WithFileWithPermissions(`C:/TestFolder2/secrets`, "", true, perms.NewWindowsPermissions(perms.WithIcaclsCommand(cmd), perms.WithRemoveDefaultPermissions())),
+		agentparams.WithFileWithPermissions(`C:/TestFolder2/secrets`, "", true, perms.NewWindowsPermissions(perms.WithIcaclsCommand(cmd), perms.WithDisableInheritance())),
 	}
 
 	v.updateEnvWithWindows(awshost.WithAgentOptions(files...))
