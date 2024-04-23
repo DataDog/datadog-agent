@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	// root user is changed to dd-installer to avoid permission issues
-	rootToDDInstaller()
+	// root user is changed to dd-agent to avoid permission issues
+	rootToDDAgent()
 	os.Exit(runcmd.Run(command.MakeCommand(subcommands.InstallerSubcommands())))
 }
