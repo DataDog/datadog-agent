@@ -1,0 +1,4 @@
+# Pkg Name: Test list
+# For example:
+# "pkg/gohai":
+#   - "TestGetPayload"
