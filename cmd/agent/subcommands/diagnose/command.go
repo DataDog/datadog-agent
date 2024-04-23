@@ -261,6 +261,9 @@ func cmdDiagnose(cliParams *cliParams,
 		return nil
 	}
 
+	if cliParams.json {
+		return diagnose.RunJSON(color.Output, diagCfg, diagnoseDeps)
+	}
 	// Run command
 	return diagnose.RunStdOut(color.Output, diagCfg, diagnoseDeps)
 }

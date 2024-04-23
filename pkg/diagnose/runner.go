@@ -361,10 +361,8 @@ func runDiagnose(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) ([]diag
 		color.NoColor = true
 	}
 
-	fmt.Fprintf(w, "=== Starting diagnose ===\n")
-
-	if diagCfg.JSON {
-		fmt.Fprintf(w, "JSON flag is set, output will be in JSON format\n")
+	if !diagCfg.JSON {
+		fmt.Fprintf(w, "=== Starting diagnose ===\n")
 	}
 
 	diagnoses, err := Run(diagCfg, deps)
@@ -386,7 +384,7 @@ func runDiagnose(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) ([]diag
 	return diagnoses, nil
 }
 
-func RunJSON(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) (io.Writer, error) {
+func RunJSON(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
 	/* Define JSON output structure in the shape of:
 	{
 		"<category name>" : {
@@ -411,16 +409,19 @@ func RunJSON(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) (io.Writer,
 
 	diagnose, err := runDiagnose(w, diagCfg, deps)
 	if err != nil {
-		return w, err
+		return err
 	}
 
 	jsonOutput := make(JSONOutput)
 	for _, ds := range diagnose {
 		category := make(categoryName)
 		for _, d := range ds.SuiteDiagnoses {
-			category[d.Name] = diagnosis{
+			if d.EndpointName == "" {
+				d.EndpointName = d.URL
+			}
+			category[d.EndpointName] = diagnosis{
 				Diagnosis:  d.Diagnosis,
-				StatusCode: int(d.Result), //issue here
+				StatusCode: d.StatusCode,
 				IsOk:       d.Result == 0,
 			}
 		}
@@ -430,11 +431,11 @@ func RunJSON(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) (io.Writer,
 	// Print json on stdout with w
 	jsonBytes, err := json.MarshalIndent(jsonOutput, "", "  ")
 	if err != nil {
-		return w, fmt.Errorf("error while encoding diagnose results to JSON: %w", err)
+		return fmt.Errorf("error while encoding diagnose results to JSON: %w", err)
 	}
 	fmt.Fprintln(w, string(jsonBytes))
 
-	return w, nil
+	return nil
 }
 
 // Enumerate registered Diagnose suites and get their diagnoses
@@ -448,8 +449,6 @@ func RunStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
 	}
 
 	var c counters
-
-	w, err = RunJSON(w, diagCfg, deps)
 
 	lastDot := false
 	for _, ds := range diagnoses {

@@ -45,6 +45,7 @@ func DiagnoseMetadataAutodiscoveryConnectivity() []diagnosis.Diagnosis {
 			Result:    diagnosis.DiagnosisSuccess,
 			Name:      name,
 			Diagnosis: diagnosisString,
+			URL:       name,
 		})
 	}
 

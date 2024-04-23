@@ -44,7 +44,7 @@ type Suite struct {
 
 // Config contains the Diagnose configuration
 type Config struct {
-	JSON				  bool
+	JSON                  bool
 	Verbose               bool
 	RunLocal              bool
 	RunningInAgentProcess bool
@@ -94,6 +94,12 @@ type Diagnosis struct {
 	Remediation string
 	// run-time
 	RawError string
+	// Status code
+	StatusCode int
+	// endpoint URL
+	URL string
+	// Name of the endpoint
+	EndpointName string
 }
 
 // Diagnoses is a collection of Diagnosis

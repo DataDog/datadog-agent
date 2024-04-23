@@ -238,11 +238,12 @@ func Diagnose() []diagnosis.Diagnosis {
 		endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfig.Datadog, configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 		if err != nil {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
-				Result:      diagnosis.DiagnosisFail,
-				Name:        "Endpoints configuration",
-				Diagnosis:   "Misconfiguration of agent endpoints",
-				Remediation: "Please validate Agent configuration",
-				RawError:    err.Error(),
+				Result:       diagnosis.DiagnosisFail,
+				Name:         "Endpoints configuration",
+				Diagnosis:    "Misconfiguration of agent endpoints",
+				Remediation:  "Please validate Agent configuration",
+				RawError:     err.Error(),
+				EndpointName: string(desc.intakeTrackType),
 			})
 			continue
 		}
@@ -251,19 +252,25 @@ func Diagnose() []diagnosis.Diagnosis {
 		name := fmt.Sprintf("Connectivity to %s", url)
 		if err == nil {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
-				Result:    diagnosis.DiagnosisSuccess,
-				Category:  desc.category,
-				Name:      name,
-				Diagnosis: fmt.Sprintf("Connectivity to `%s` is Ok", url),
+				Result:       diagnosis.DiagnosisSuccess,
+				Category:     desc.category,
+				Name:         name,
+				Diagnosis:    fmt.Sprintf("Connectivity to `%s` is Ok", url),
+				StatusCode:   200, // Hardcoded 200 status code since error is nil
+				URL:          url,
+				EndpointName: string(desc.intakeTrackType),
 			})
 		} else {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
-				Result:      diagnosis.DiagnosisFail,
-				Category:    desc.category,
-				Name:        name,
-				Diagnosis:   fmt.Sprintf("Connection to `%s` failed", url),
-				Remediation: "Please validate Agent configuration and firewall to access " + url,
-				RawError:    err.Error(),
+				Result:       diagnosis.DiagnosisFail,
+				Category:     desc.category,
+				Name:         name,
+				Diagnosis:    fmt.Sprintf("Connection to `%s` failed", url),
+				Remediation:  "Please validate Agent configuration and firewall to access " + url,
+				RawError:     err.Error(),
+				StatusCode:   400, // Hardcoded 400 status code since error is not nil
+				URL:          url,
+				EndpointName: string(desc.intakeTrackType),
 			})
 		}
 	}
