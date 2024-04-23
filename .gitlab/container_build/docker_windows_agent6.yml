@@ -5,7 +5,7 @@ docker_build_agent6_windows1809_core:
     - .docker_build_agent6_windows_servercore_common
   tags: ["runner:windows-docker", "windowsversion:1809"]
   variables:
-    VARIANT: 1809
+    VARIANT: 2019
     TAG_SUFFIX: -6
     WITH_JMX: "false"
 
@@ -14,6 +14,6 @@ docker_build_agent6_windows2022_core:
     - .docker_build_agent6_windows_servercore_common
   tags: ["runner:windows-docker", "windowsversion:2022"]
   variables:
-    VARIANT: ltsc2022
+    VARIANT: 2022
     TAG_SUFFIX: -6
     WITH_JMX: "false"
