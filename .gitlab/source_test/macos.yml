@@ -16,7 +16,7 @@ tests_macos:
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" = "true" ]]; then FAST_TESTS_FLAG="--fast-tests true"; fi
-    - inv -e github.trigger-macos --workflow-type "test" --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES" --version-cache "$VERSION_CACHE_CONTENT" $FAST_TESTS_FLAG
+    - inv -e github.trigger-macos --workflow-type "test" --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES" --version-cache "$VERSION_CACHE_CONTENT" $FAST_TESTS_FLAG --test-washer
   timeout: 6h
   after_script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-*-repacked.tgz"
