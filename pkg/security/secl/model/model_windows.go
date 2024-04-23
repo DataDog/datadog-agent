@@ -34,6 +34,7 @@ type Event struct {
 
 	// FIM
 	CreateNewFile CreateNewFileEvent `field:"create" event:"create"` // [7.52] [File] A file was created
+	RenameFile    RenameFileEvent    `field:"rename" event:"rename"` // [7.54] [File] A file was renamed
 
 	// Registries
 	CreateRegistryKey   CreateRegistryKeyEvent   `field:"create_key;create" event:"create_key" `   // [7.52] [Registry] A registry key was created
@@ -110,6 +111,12 @@ type ExtraFieldHandlers interface {
 // CreateNewFileEvent defines file creation
 type CreateNewFileEvent struct {
 	File FileEvent `field:"file"` // SECLDoc[file] Definition:`File Event`
+}
+
+// RenameFileEvent defines file renaming
+type RenameFileEvent struct {
+	Old FileEvent `field:"file"`             // SECLDoc[file] Definition:`File Event`
+	New FileEvent `field:"file.destination"` // SECLDoc[file] Definition:`File Event`
 }
 
 // Registries

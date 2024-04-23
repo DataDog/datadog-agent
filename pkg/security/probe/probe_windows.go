@@ -536,6 +536,8 @@ func (p *WindowsProbe) handleProcessStop(ev *model.Event, stop *procmon.ProcessS
 	return true
 }
 
+var renameOldArgs string
+
 func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotification) bool {
 	// handle incoming events here
 	// each event will come in as a different type
@@ -548,6 +550,22 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 				FileObject:  uint64(arg.fileObject),
 				PathnameStr: arg.fileName,
 				BasenameStr: filepath.Base(arg.fileName),
+			},
+		}
+	case *renameArgs:
+		renameOldArgs = arg.fileName
+	case *renamePath:
+		ev.Type = uint32(model.FileRenameEventType)
+		ev.RenameFile = model.RenameFileEvent{
+			Old: model.FileEvent{
+				FileObject:  uint64(arg.fileObject),
+				PathnameStr: renameOldArgs,
+				BasenameStr: filepath.Base(renameOldArgs),
+			},
+			New: model.FileEvent{
+				FileObject:  uint64(arg.fileObject),
+				PathnameStr: arg.filePath,
+				BasenameStr: filepath.Base(arg.filePath),
 			},
 		}
 
@@ -585,6 +603,7 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 			ValueName: arg.valueName,
 		}
 	}
+
 	if ev.Type != uint32(model.UnknownEventType) {
 		errRes := p.setProcessContext(notif.pid, ev)
 		if errRes != nil {
