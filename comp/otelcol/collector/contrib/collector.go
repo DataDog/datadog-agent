@@ -9,6 +9,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	logsagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -24,6 +25,8 @@ type dependencies struct {
 	// and shutdown hooks.
 	Lc fx.Lifecycle
 
+	// Log specifies the logging component.
+	Log              corelog.Component
 	Provider         otelcol.ConfigProvider
 	CollectorContrib collectorcontrib.Component
 	Serializer       serializer.MetricSerializer
@@ -76,8 +79,13 @@ func NewCollector(deps dependencies) (def.Component, error) {
 	return c, nil
 }
 
-func (c *collector) Start(ctx context.Context) error {
-	return c.col.Run(ctx)
+func (c *collector) Start(context.Context) error {
+	go func() {
+		if err := c.col.Run(context.Background()); err != nil {
+			c.deps.Log.Errorf("Error running the OTLP ingest pipeline: %v", err)
+		}
+	}()
+	return nil
 }
 
 func (c *collector) Stop(ctx context.Context) error {

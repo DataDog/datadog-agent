@@ -2,9 +2,9 @@ receivers:
   otlp:
     protocols:
       grpc:
-        endpoint: localhost:43177
+        endpoint: localhost:4317
       http:
-        endpoint: localhost:43188
+        endpoint: localhost:4318
 exporters:
   debug:
     verbosity: detailed
@@ -23,5 +23,9 @@ service:
   pipelines:
     metrics:
       receivers: [otlp]
-      processors: [batch, resourcedetection]
+      processors: [batch]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
       exporters: [datadog]

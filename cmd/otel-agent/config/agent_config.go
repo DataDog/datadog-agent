@@ -79,8 +79,8 @@ func NewConfigComponent(uris []string) (config.Component, error) {
 	pkgconfigsetup.InitConfig(pkgconfig)
 	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceFile)
 	pkgconfig.Set("site", site, pkgconfigmodel.SourceFile)
-	//	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceFile)
-	//	pkgconfig.Set("logs_config.use_compression", true, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("logs_config.use_compression", true, pkgconfigmodel.SourceFile)
 	// TODO: set the correct value
 	pkgconfig.Set("log_level", "info", pkgconfigmodel.SourceFile)
 	pkgconfig.Set("forwarder_timeout", 10, pkgconfigmodel.SourceDefault)
