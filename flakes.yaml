@@ -2,3 +2,5 @@
 # For example:
 # "pkg/gohai":
 #   - "TestGetPayload"
+"pkg/gohai":
+  - "TestGetPayload"
