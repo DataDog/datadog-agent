@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/pkg/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
@@ -69,8 +69,9 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 	var pkg string
 	var version string
 	bootstrapCmd := &cobra.Command{
-		Use:   "bootstrap",
-		Short: "Bootstraps the package with the first version.",
+		Use:     "bootstrap",
+		Short:   "Bootstraps the package with the first version.",
+		GroupID: "bootstrap",
 		Long: `Installs the first version of the package managed by the installer.
 		This first version is sent remotely to the agent and can be configured from the UI.
 		This command will exit after the first version is installed.`,
@@ -112,31 +113,40 @@ func bootstrapFxWrapper(ctx context.Context, params *cliParams, installScriptPar
 	)
 }
 
-func bootstrap(ctx context.Context, params *cliParams, installScriptParams *installScriptParams, config config.Component, log log.Component, _ telemetry.Component) error {
-	url := packageURL(config.GetString("site"), params.pkg, params.version)
-	if params.url != "" {
-		url = params.url
+func bootstrap(ctx context.Context, params *cliParams, installScriptParams *installScriptParams, config config.Component, log log.Component, _ telemetry.Component) (err error) {
+	var spanOptions []tracer.StartSpanOption
+	if installScriptParams.Telemetry.TraceID != 0 && installScriptParams.Telemetry.ParentID != 0 {
+		ctxCarrier := tracer.TextMapCarrier{
+			tracer.DefaultTraceIDHeader:  fmt.Sprint(installScriptParams.Telemetry.TraceID),
+			tracer.DefaultParentIDHeader: fmt.Sprint(installScriptParams.Telemetry.ParentID),
+			tracer.DefaultPriorityHeader: fmt.Sprint(installScriptParams.Telemetry.Priority),
+		}
+		spanCtx, err := tracer.Extract(ctxCarrier)
+		if err != nil {
+			log.Errorf("failed to extract span context from install script params: %v", err)
+		}
+		spanOptions = append(spanOptions, tracer.ChildOf(spanCtx))
 	}
-	ctxCarrier := tracer.TextMapCarrier{
-		tracer.DefaultTraceIDHeader:  fmt.Sprint(installScriptParams.Telemetry.TraceID),
-		tracer.DefaultParentIDHeader: fmt.Sprint(installScriptParams.Telemetry.ParentID),
-		tracer.DefaultPriorityHeader: fmt.Sprint(installScriptParams.Telemetry.Priority),
-	}
-	spanCtx, err := tracer.Extract(ctxCarrier)
-	if err != nil {
-		log.Errorf("failed to extract span context from install script params: %v", err)
-	}
-	span, ctx := tracer.StartSpanFromContext(ctx, "cmd/bootstrap", tracer.ChildOf(spanCtx))
-	defer span.Finish()
+
+	span, ctx := tracer.StartSpanFromContext(ctx, "cmd_bootstrap", spanOptions...)
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag(ext.ManualKeep, true)
-	span.SetTag("params.url", params.url)
 	span.SetTag("params.pkg", params.pkg)
 	span.SetTag("params.version", params.version)
 	span.SetTag("script_params.telemetry.trace_id", installScriptParams.Telemetry.TraceID)
 	span.SetTag("script_params.telemetry.span_id", installScriptParams.Telemetry.ParentID)
 	span.SetTag("script_params.features.apm_instrumentation", installScriptParams.Features.APMInstrumentation)
 
-	return installer.BootstrapURL(ctx, url, config)
+	if params.pkg == "" && params.url == "" {
+		return daemon.Bootstrap(ctx, config)
+	}
+
+	url := packageURL(config.GetString("site"), params.pkg, params.version)
+	if params.url != "" {
+		url = params.url
+	}
+	span.SetTag("params.url", params.url)
+	return daemon.BootstrapURL(ctx, url, config)
 }
 
 func packageURL(site string, pkg string, version string) string {
@@ -151,7 +161,7 @@ func stagingPackageURL(pkg string, version string) string {
 }
 
 func prodPackageURL(pkg string, version string) string {
-	return fmt.Sprintf("oci://public.ecr.aws/datadoghq/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+	return fmt.Sprintf("oci://public.ecr.aws/datadog/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 }
 
 func readInstallScriptParams() (*installScriptParams, error) {

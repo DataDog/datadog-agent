@@ -14,7 +14,7 @@
 #endif
 
 #ifdef COMPILE_PREBUILT
-
+#include <net/sock.h>
 static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
     void* skc_net = NULL;
     __u32 net_ns_inum = 0;

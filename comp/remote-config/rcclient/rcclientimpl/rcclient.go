@@ -47,7 +47,7 @@ const (
 
 type rcClient struct {
 	client        *client.Client
-	clientHA      *client.Client
+	clientMRF     *client.Client
 	m             *sync.Mutex
 	taskProcessed map[string]bool
 
@@ -100,9 +100,9 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		return nil, err
 	}
 
-	var clientHA *client.Client
-	if config.Datadog.GetBool("ha.enabled") {
-		clientHA, err = client.NewUnverifiedHAGRPCClient(
+	var clientMRF *client.Client
+	if config.Datadog.GetBool("multi_region_failover.enabled") {
+		clientMRF, err = client.NewUnverifiedMRFGRPCClient(
 			ipcAddress,
 			config.GetIPCPort(),
 			func() (string, error) { return security.FetchAuthToken(config.Datadog) },
@@ -118,7 +118,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		taskListeners:     fxutil.GetAndFilterGroup(deps.TaskListeners),
 		m:                 &sync.Mutex{},
 		client:            c,
-		clientHA:          clientHA,
+		clientMRF:         clientMRF,
 		settingsComponent: deps.SettingsComponent,
 	}
 
@@ -154,9 +154,9 @@ func (rc rcClient) start() {
 
 	rc.client.Start()
 
-	if rc.clientHA != nil {
-		rc.clientHA.Subscribe(state.ProductAgentFailover, rc.mrfUpdateCallback)
-		rc.clientHA.Start()
+	if rc.clientMRF != nil {
+		rc.clientMRF.Subscribe(state.ProductAgentFailover, rc.mrfUpdateCallback)
+		rc.clientMRF.Start()
 	}
 }
 

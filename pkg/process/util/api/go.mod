@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/process/util/api
 
-go 1.21.9
+go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../comp/core/telemetry/

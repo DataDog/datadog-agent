@@ -178,7 +178,7 @@ namespace WixSetup.Datadog
                     Return.check,
                     When.Before,
                     Step.InstallServices,
-                    Conditions.FirstInstall
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
             {
                 Execute = Execute.deferred,
