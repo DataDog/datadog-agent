@@ -25,7 +25,7 @@ func TestBasicFileTest(t *testing.T) {
 	//ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_create_file",
-		Expression: `create.file.name =~ "test.bad" && create.file.path =~ "\\Device\\*\\Temp\\**"`,
+		Expression: `create.file.name =~ "test.bad" && create.file.path =~ "\Device\*\Temp\**"`,
 	}
 	opts := testOpts{
 		enableFIM: true,
