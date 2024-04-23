@@ -19,11 +19,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
-var updaterHelper = filepath.Join(setup.InstallPath, "bin", "installer", "helper")
+var updaterHelperOverride = ""
 
 const execTimeout = 30 * time.Second
 
@@ -53,7 +52,20 @@ func executeHelperCommand(ctx context.Context, command string) error {
 	defer span.Finish(tracer.WithError(err))
 	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
 	defer cancelfunc()
-	cmd := exec.CommandContext(cancelctx, updaterHelper, command)
+	installerBin, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	installerBin, err = filepath.EvalSymlinks(installerBin)
+	if err != nil {
+		return err
+	}
+	helperBin := filepath.Join(filepath.Dir(installerBin), "helper")
+	if updaterHelperOverride != "" {
+		helperBin = updaterHelperOverride
+	}
+
+	cmd := exec.CommandContext(cancelctx, helperBin, command)
 	cmd.Stdout = os.Stdout
 	stderr, err = cmd.StderrPipe()
 	if err != nil {
@@ -75,13 +87,13 @@ func executeHelperCommand(ctx context.Context, command string) error {
 
 // BuildHelperForTests builds the helper binary for test
 func BuildHelperForTests(pkgDir, binPath string, skipUIDCheck bool) error {
-	updaterHelper = filepath.Join(binPath, "/helper")
+	updaterHelperOverride = filepath.Join(binPath, "/helper")
 	localPath, _ := filepath.Abs(".")
 	targetDir := "datadog-agent/pkg"
 	index := strings.Index(localPath, targetDir)
 	pkgPath := localPath[:index+len(targetDir)]
 	helperPath := filepath.Join(pkgPath, "fleet", "installer", "service", "helper", "main.go")
-	cmd := exec.Command("go", "build", fmt.Sprintf(`-ldflags=-X main.pkgDir=%s -X main.testSkipUID=%v`, pkgDir, skipUIDCheck), "-o", updaterHelper, helperPath)
+	cmd := exec.Command("go", "build", fmt.Sprintf(`-ldflags=-X main.pkgDir=%s -X main.testSkipUID=%v`, pkgDir, skipUIDCheck), "-o", updaterHelperOverride, helperPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
