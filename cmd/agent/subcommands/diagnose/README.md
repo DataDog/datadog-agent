@@ -48,7 +48,7 @@ List names of all registered diagnose suites. Output also will be filtered if in
 Normally a successful diagnosis is printed as a single dot character. If verbose option is specified successful diagnosis is printed fully. With verbose option diagnosis description is also printed.
 
 ### ```local``` option
-Normally internal diagnose functions will run in the context of agent and other services. It can be overridden via –run-as-user options and if specified diagnose functions will be executed in context of the agent diagnose CLI process if possible.
+Normally, internal diagnose functions run in the context of the Agent and other services. It can be overridden with –run-as-user options, and if specified, diagnose functions are executed in the context of the Agent diagnose CLI process if possible.
 
 ## ```json``` option
 Normally, diagnose is displayed on stdout. If the JSON option is specified, the output is formatted as JSON
