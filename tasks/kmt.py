@@ -471,7 +471,7 @@ def ninja_build_dependencies(nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str)
     nw.build(
         rule="gobin",
         pool="gobuild",
-        outputs=[kmt_paths.dependencies / "test-runner"],
+        outputs=[os.path.join(kmt_paths.dependencies, "test-runner")],
         implicit=test_runner_files,
         variables={
             "go": go_path,
@@ -490,7 +490,7 @@ def ninja_build_dependencies(nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str)
     nw.build(
         rule="gobin",
         pool="gobuild",
-        outputs=[kmt_paths.dependencies / "test-json-review"],
+        outputs=[os.path.join(kmt_paths.dependencies, "test-json-review")],
         implicit=test_json_files,
         variables={
             "go": go_path,
