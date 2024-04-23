@@ -30,7 +30,7 @@
       -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME}.tgz"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       -e TEST_OUTPUT_FILE=${TEST_OUTPUT_FILE}
-      -e EXTRA_OPTS="$FAST_TESTS_FLAG"
+      -e EXTRA_OPTS="$FAST_TESTS_FLAG --test-washer"
       -e GO_TEST_SKIP_FLAKE="${GO_TEST_SKIP_FLAKE}"
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\unittests.bat
