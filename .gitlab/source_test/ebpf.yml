@@ -43,6 +43,7 @@ tests_ebpf_arm64:
   stage: source_test
   rules:
     - !reference [.except_mergequeue]
+    - when: on_success
   needs: ["go_deps", "go_tools_deps"]
   artifacts:
     when: always
@@ -75,6 +76,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
   stage: source_test
   rules:
     - !reference [.except_mergequeue]
+    - when: on_success
   needs: ["go_deps", "go_tools_deps"]
   artifacts:
     when: always
