@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -73,21 +74,26 @@ func nextGroupID() func() int32 {
 
 // Commands returns a slice of subcommands for the `check` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	return []*cobra.Command{MakeCommand(globalParams, "check")}
+	desc := "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery, process_events"
+	return []*cobra.Command{MakeCommand(globalParams, "check", desc)}
 }
 
-func MakeCommand(globalParams *command.GlobalParams, name string) *cobra.Command {
+func MakeCommand(globalParams *command.GlobalParams, name string, short string) *cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
 
 	checkCmd := &cobra.Command{
 		Use:   name,
-		Short: "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery, process_events",
+		Short: short,
 
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.checkName = args[0]
+
+			if !strings.Contains(short, cliParams.checkName) {
+				return fmt.Errorf("invalid check '%s'", cliParams.checkName)
+			}
 
 			bundleParams := command.GetCoreBundleParamsForOneShot(globalParams)
 

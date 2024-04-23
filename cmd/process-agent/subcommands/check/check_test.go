@@ -16,6 +16,6 @@ func TestRunCheckCmdCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"check", "process"},
-		runCheckCmd,
+		RunCheckCmd,
 		func() {})
 }

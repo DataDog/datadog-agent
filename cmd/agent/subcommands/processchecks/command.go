@@ -18,12 +18,14 @@ import (
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	processCommand.OneShotLogParams = logimpl.ForOneShot(string(command.LoggerName), "info", true)
+	short := "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, process_discovery"
 	cmd := check.MakeCommand(
 		&processCommand.GlobalParams{
 			ConfFilePath:         globalParams.ConfFilePath,
 			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
 		},
 		"processchecks",
+		short,
 	)
 	return []*cobra.Command{cmd}
 }
