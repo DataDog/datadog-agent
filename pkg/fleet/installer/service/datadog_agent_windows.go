@@ -26,6 +26,4 @@ func StopAgentExperiment(_ context.Context) error {
 }
 
 // RemoveAgent noop
-func RemoveAgent(_ context.Context) error {
-	return nil
-}
+func RemoveAgent(_ context.Context) {}

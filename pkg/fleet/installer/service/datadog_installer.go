@@ -30,10 +30,7 @@ func SetupInstaller(ctx context.Context, enableDaemon bool) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup installer: %s, reverting", err)
-			err = RemoveInstaller(ctx)
-			if err != nil {
-				log.Warnf("Failed to revert installer setup: %s", err)
-			}
+			RemoveInstaller(ctx)
 		}
 	}()
 
@@ -122,20 +119,18 @@ func startInstallerStable(ctx context.Context) (err error) {
 }
 
 // RemoveInstaller removes the installer systemd units
-func RemoveInstaller(ctx context.Context) error {
-	var err error
+func RemoveInstaller(ctx context.Context) {
 	for _, unit := range installerUnits {
-		if err = stopUnit(ctx, unit); err != nil {
-			return fmt.Errorf("Failed stop unit %s: %s", unit, err)
+		if err := stopUnit(ctx, unit); err != nil {
+			log.Warnf("Failed stop unit %s: %s", unit, err)
 		}
-		if err = disableUnit(ctx, unit); err != nil {
-			return fmt.Errorf("Failed to disable %s: %s", unit, err)
+		if err := disableUnit(ctx, unit); err != nil {
+			log.Warnf("Failed to disable %s: %s", unit, err)
 		}
-		if err = removeUnit(ctx, unit); err != nil {
-			return fmt.Errorf("Failed to stop %s: %s", unit, err)
+		if err := removeUnit(ctx, unit); err != nil {
+			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
 	}
-	return nil
 }
 
 // StartInstallerExperiment installs the experimental systemd units for the installer
