@@ -10,6 +10,8 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -66,6 +68,17 @@ func SetupAgent(ctx context.Context) (err error) {
 		if err = loadUnit(ctx, unit); err != nil {
 			return
 		}
+	}
+	if err = os.MkdirAll("/etc/datadog-agent", 0755); err != nil {
+		return
+	}
+	ddAgentUID, ddAgentGID, err := getAgentIDs()
+	if err != nil {
+		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
+	}
+
+	if err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID); err != nil {
+		return
 	}
 
 	if err = systemdReload(ctx); err != nil {

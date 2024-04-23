@@ -132,7 +132,7 @@ func (v *vmUpdaterSuite) TestInstallerUnitLoaded() {
 		host.MustExecute(fmt.Sprintf(`DD_UPDATER_REMOTE_UPDATES=true sudo -E %v/bin/installer/installer bootstrap`, bootInstallerDir))
 		host.MustExecute(fmt.Sprintf(`DD_UPDATER_REMOTE_UPDATES=true sudo -E %v/bin/installer/installer install "oci://public.ecr.aws/datadog/installer-package:latest"`, bootInstallerDir))
 		require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(`systemctl is-enabled datadog-installer.service`))
-		host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer remove datadog-installer", bootInstallerDir))
+		host.MustExecute(fmt.Sprintf("DD_UPDATER_REMOTE_UPDATES=true sudo -E %v/bin/installer/installer remove datadog-installer", bootInstallerDir))
 		host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://public.ecr.aws/datadog/installer-package:latest"`, bootInstallerDir))
 	}
 	_, err = host.Execute(`systemctl is-enabled datadog-installer.service`)
