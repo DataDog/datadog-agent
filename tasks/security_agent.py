@@ -13,7 +13,7 @@ from invoke.exceptions import Exit
 
 from tasks.agent import build as agent_build
 from tasks.agent import generate_config
-from tasks.build_tags import get_default_build_tags
+from tasks.build_tags import get_build_tags
 from tasks.go import run_golangci_lint
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import (
@@ -103,7 +103,9 @@ def build(
         )
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags += get_default_build_tags(build="security-agent")
+    build_tags += get_build_tags(
+        build="security-agent"
+    )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
 
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)

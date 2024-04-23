@@ -10,6 +10,7 @@ from __future__ import annotations
 import sys
 
 from invoke import task
+from invoke.exceptions import Exit
 
 from tasks.flavor import AgentFlavor
 
@@ -105,6 +106,9 @@ AGENTLESS_SCANNER_TAGS = {""}
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
 CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2", "gce"}
 
+# CLUSTER_AGENT_INTEGRATION_TESTS_TAGS lists the tags that have to be added to run cluster-agent integration tests
+CLUSTER_AGENT_INTEGRATION_TESTS_TAGS = CLUSTER_AGENT_TAGS.union({"docker", "test"})
+
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks"}
 
@@ -186,7 +190,9 @@ build_tags = {
         # Build setups
         "agent": AGENT_TAGS,
         "cluster-agent": CLUSTER_AGENT_TAGS,
+        "cluster-agent-integration-tests": CLUSTER_AGENT_INTEGRATION_TESTS_TAGS,
         "cluster-agent-cloudfoundry": CLUSTER_AGENT_CLOUDFOUNDRY_TAGS,
+        "cws-instrumentation": set(),  # FIXME(CWS): Is this intended?
         "dogstatsd": DOGSTATSD_TAGS,
         "process-agent": PROCESS_AGENT_TAGS,
         "security-agent": SECURITY_AGENT_TAGS,
@@ -228,41 +234,51 @@ build_tags = {
 }
 
 
-def compute_build_tags_for_flavor(
-    build: str,
-    arch: str,
-    build_include: list[str],
-    build_exclude: list[str],
+def get_build_tags(
+    build: str = "agent",
+    arch: str = "x64",
     flavor: AgentFlavor = AgentFlavor.base,
+    build_include: str = None,
+    build_exclude: str = None,
+    platform: str = sys.platform,
     include_sds: bool = False,
-):
+) -> list[str]:
     """
-    Given a flavor, an architecture, a list of tags to include and exclude, get the final list
-    of tags that should be applied.
-    If the list of build tags to include is empty, take the default list of build tags for
-    the flavor or arch. Otherwise, use the list of build tags to include, minus incompatible tags
-    for the given architecture.
+    Compute the list of go build tags to use, based on the build type, flavor,
+    and explicit include / exclude tags passed to the function.
+    """
 
-    Then, remove from these the provided list of tags to exclude.
-    """
+    # Check that the flavor x build combination is supported
+    if build not in build_tags[flavor]:
+        print(f"{build} is not a valid target for flavor {flavor.name}. Valid targets are: \n")
+        print(f'{", ".join(build_tags[flavor].keys())} \n')
+        raise Exit(code=1)
+
     build_include = (
-        get_default_build_tags(build=build, arch=arch, flavor=flavor)
+        _default_build_tags(build=build, arch=arch, flavor=flavor, platform=platform)
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+        else _filter_incompatible_tags(build_include.split(","), arch=arch, platform=platform)
     )
 
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
-
-    list = get_build_tags(build_include, build_exclude)
+    res = _compute_build_tags(build_include, build_exclude)
 
     if include_sds:
-        list.append("sds")
+        res.append("sds")
 
-    return list
+    return res
 
 
 @task
-def print_default_build_tags(_, build="agent", arch="x64", flavor=AgentFlavor.base.name):
+def print_build_tags(
+    _,
+    build: str = "agent",
+    arch: str = "x64",
+    flavor: str = AgentFlavor.base.name,
+    build_include: str = None,
+    build_exclude: str = None,
+    platform: str = sys.platform,
+):
     """
     Build the default list of tags based on the build type and current platform.
     Prints as comma separated list suitable for go tooling (eg, gopls, govulncheck)
@@ -275,13 +291,24 @@ def print_default_build_tags(_, build="agent", arch="x64", flavor=AgentFlavor.ba
         flavor = AgentFlavor[flavor]
     except KeyError:
         flavorOptions = [flavor.name for flavor in AgentFlavor]
-        print(f"'{flavor}' does not correspond to an agent flavor. Options: {flavorOptions}")
-        exit(1)
+        print(f"'{flavor}' does not correspond to an agent flavor. Options:\n")
+        print(f'{", ".join(flavorOptions)} \n')
+        raise Exit(code=1)
 
-    print(",".join(sorted(get_default_build_tags(build, arch, flavor))))
+    print(
+        ",".join(
+            sorted(
+                get_build_tags(
+                    build, arch, flavor, platform=platform, build_include=build_include, build_exclude=build_exclude
+                )
+            )
+        )
+    )
 
 
-def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base, platform=sys.platform):
+def _default_build_tags(
+    build: str = "agent", arch: str = "x64", flavor: AgentFlavor = AgentFlavor.base, platform: str = sys.platform
+) -> list[str]:
     """
     Build the default list of tags based on the build type and current platform.
 
@@ -289,17 +316,15 @@ def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base, p
     the Windows and Darwin builds.
     """
     include = build_tags.get(flavor).get(build)
-    if include is None:
-        print("Warning: unrecognized build type, no build tags included.", file=sys.stderr)
-        include = set()
 
-    return sorted(filter_incompatible_tags(include, arch=arch, platform=platform))
+    return _filter_incompatible_tags(include, arch=arch, platform=platform)
 
 
-def filter_incompatible_tags(include, arch="x64", platform=sys.platform):
+def _filter_incompatible_tags(
+    include: list[str] | set[str], arch: str = "x64", platform: str = sys.platform
+) -> list[str]:
     """
     Filter out tags incompatible with the platform.
-    include can be a list or a set.
     """
 
     exclude = set()
@@ -315,12 +340,12 @@ def filter_incompatible_tags(include, arch="x64", platform=sys.platform):
     if platform == "win32" and arch == "x86":
         exclude = exclude.union(WINDOWS_32BIT_EXCLUDE_TAGS)
 
-    return get_build_tags(include, exclude)
+    return _compute_build_tags(include, exclude)
 
 
-def get_build_tags(include, exclude):
+def _compute_build_tags(include: list[str] | set[str], exclude: list[str] | set[str]) -> list[str]:
     """
-    Build the list of tags based on inclusions and exclusions passed through
+    Build the sorted list of tags based on inclusions and exclusions passed through
     the command line
     include and exclude can be lists or sets.
     """
@@ -339,7 +364,7 @@ def get_build_tags(include, exclude):
     for tag in unknown_exclude:
         print(f"Warning: unknown build tag '{tag}' was filtered out from excluded tags list.", file=sys.stderr)
 
-    return list(known_include - known_exclude)
+    return sorted(known_include - known_exclude)
 
 
 @task

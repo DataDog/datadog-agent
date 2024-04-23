@@ -4,7 +4,7 @@ import sys
 from invoke import Exit, task
 
 from tasks.agent import build as agent_build
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import get_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
@@ -68,17 +68,9 @@ def build(
             out="cmd/trace-agent/rsrc.syso",
         )
 
-    build_include = (
-        get_default_build_tags(
-            build="trace-agent",
-            flavor=flavor,
-        )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
-        if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+    build_tags = get_build_tags(
+        build="trace-agent", arch=arch, flavor=flavor, build_include=build_include, build_exclude=build_exclude
     )
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-
-    build_tags = get_build_tags(build_include, build_exclude)
 
     race_opt = "-race" if race else ""
     build_type = "-a" if rebuild else ""
@@ -105,7 +97,7 @@ def integration_tests(ctx, install_deps=False, race=False, go_mod="mod"):
     if install_deps:
         deps(ctx)
 
-    go_build_tags = " ".join(get_default_build_tags(build="test"))
+    go_build_tags = " ".join(get_build_tags(build="test"))
     race_opt = "-race" if race else ""
 
     go_cmd = f'go test -mod={go_mod} {race_opt} -v -tags "{go_build_tags}"'

@@ -18,7 +18,7 @@ from invoke.exceptions import Exit
 
 from tasks.agent import BUNDLED_AGENTS
 from tasks.agent import build as agent_build
-from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
+from tasks.build_tags import UNIT_TEST_TAGS, get_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
@@ -607,7 +607,7 @@ def build_sysprobe_binary(
         python_runtimes=python_runtimes,
     )
 
-    build_tags = get_default_build_tags(build="system-probe", arch=arch)
+    build_tags = get_build_tags(build="system-probe", arch=arch)
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
     if strip_binary:

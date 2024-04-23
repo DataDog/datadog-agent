@@ -6,7 +6,7 @@ from typing import List
 
 from invoke import Exit, task
 
-from tasks.build_tags import compute_build_tags_for_flavor
+from tasks.build_tags import get_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
@@ -222,7 +222,7 @@ def run_lint_go(
 
     linter_tags = {
         f: build_tags
-        or compute_build_tags_for_flavor(
+        or get_build_tags(
             flavor=f,
             build=build,
             arch=arch,

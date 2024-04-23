@@ -12,7 +12,7 @@ from pathlib import Path
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import get_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 
@@ -35,18 +35,10 @@ def setup(
     Generate or Modify devcontainer settings file for this project.
     """
     flavor = AgentFlavor[flavor]
-    if target not in build_tags[flavor]:
-        print("Must choose a valid target.  Valid targets are: \n")
-        print(f'{", ".join(build_tags[flavor].keys())} \n')
-        return
 
-    build_include = (
-        get_default_build_tags(build=target, arch=arch, flavor=flavor)
-        if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+    use_tags = get_build_tags(
+        build=target, arch=arch, flavor=flavor, build_include=build_include, build_exclude=build_exclude
     )
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    use_tags = get_build_tags(build_include, build_exclude)
 
     if not os.path.exists(DEVCONTAINER_DIR):
         os.makedirs(DEVCONTAINER_DIR)

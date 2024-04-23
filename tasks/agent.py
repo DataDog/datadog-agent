@@ -14,7 +14,7 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import get_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
 from tasks.libs.common.utils import (
@@ -175,7 +175,7 @@ def build(
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(build="agent", arch=arch, flavor=flavor)
+        build_tags = get_build_tags(build="agent", arch=arch, flavor=flavor)
     else:
         all_tags = set()
         if bundle_ebpf and "system-probe" in bundled_agents:
@@ -183,14 +183,9 @@ def build(
 
         for build in bundled_agents:
             all_tags.add("bundle_" + build.replace("-", "_"))
-            include_tags = (
-                get_default_build_tags(build=build, arch=arch, flavor=flavor)
-                if build_include is None
-                else filter_incompatible_tags(build_include.split(","), arch=arch)
+            build_tags = get_build_tags(
+                build=build, arch=arch, flavor=flavor, build_include=build_include, build_exclude=build_exclude
             )
-
-            exclude_tags = [] if build_exclude is None else build_exclude.split(",")
-            build_tags = get_build_tags(include_tags, exclude_tags)
 
             all_tags |= set(build_tags)
         build_tags = list(all_tags)
@@ -559,7 +554,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
 def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "go_build_tags": " ".join(get_build_tags(build="test", arch=arch)),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }
@@ -595,7 +590,7 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
 def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", arch="x64"):
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "go_build_tags": " ".join(get_build_tags(build="test", arch=arch)),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }

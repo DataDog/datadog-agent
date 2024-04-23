@@ -9,7 +9,7 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import get_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_root
@@ -37,13 +37,14 @@ def build(
     """
     Build Dogstatsd
     """
-    build_include = (
-        get_default_build_tags(build="dogstatsd", arch=arch, flavor=AgentFlavor.dogstatsd)
-        if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+    build_tags = get_build_tags(
+        build="dogstatsd",
+        arch=arch,
+        flavor=AgentFlavor.dogstatsd,
+        build_include=build_include,
+        build_exclude=build_exclude,
     )
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    build_tags = get_build_tags(build_include, build_exclude)
+
     ldflags, gcflags, env = get_build_flags(ctx, static=static, major_version=major_version)
     bin_path = DOGSTATSD_BIN_PATH
 
@@ -148,7 +149,7 @@ def system_tests(ctx, skip_build=False, go_mod="mod", arch="x64"):
     cmd = "go test -mod={go_mod} -tags '{build_tags}' -v {REPO_PATH}/test/system/dogstatsd/"
     args = {
         "go_mod": go_mod,
-        "build_tags": " ".join(get_default_build_tags(build="system-tests", arch=arch, flavor=AgentFlavor.dogstatsd)),
+        "build_tags": " ".join(get_build_tags(build="system-tests", arch=arch, flavor=AgentFlavor.dogstatsd)),
         "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args), env=env)
@@ -186,7 +187,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     if install_deps:
         deps(ctx)
 
-    go_build_tags = " ".join(get_default_build_tags(build="test", arch=arch))
+    go_build_tags = " ".join(get_build_tags(build="test", arch=arch))
     race_opt = "-race" if race else ""
     exec_opts = ""
 

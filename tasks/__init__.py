@@ -47,7 +47,8 @@ from tasks import (
     trace_agent,
     vscode,
 )
-from tasks.build_tags import audit_tag_impact, print_default_build_tags
+
+from tasks.build_tags import audit_tag_impact, print_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.fuzz import fuzz
 from tasks.go import (
@@ -104,7 +105,7 @@ ns.add_task(show_linters_issues)
 ns.add_task(go_version)
 ns.add_task(update_go)
 ns.add_task(audit_tag_impact)
-ns.add_task(print_default_build_tags)
+ns.add_task(print_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
 ns.add_task(install_devcontainer_cli)

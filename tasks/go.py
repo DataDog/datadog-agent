@@ -11,7 +11,7 @@ from pathlib import Path
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
+from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_build_tags
 from tasks.libs.common.utils import get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import DEFAULT_MODULES, generate_dummy_package
@@ -47,7 +47,7 @@ def run_golangci_lint(
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    tags = build_tags or get_default_build_tags(build=build, arch=arch)
+    tags = build_tags or get_build_tags(build=build, arch=arch)
     if not isinstance(tags, list):
         tags = [tags]
 

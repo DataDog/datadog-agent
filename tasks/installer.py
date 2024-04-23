@@ -6,7 +6,7 @@ import os
 
 from invoke import task
 
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import get_build_tags
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 
 BIN_PATH = os.path.join(".", "bin", "installer")
@@ -30,16 +30,7 @@ def build(
 
     ldflags, gcflags, env = get_build_flags(ctx, major_version=MAJOR_VERSION, install_path=install_path)
 
-    build_include = (
-        get_default_build_tags(
-            build="updater",
-        )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
-        if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
-    )
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-
-    build_tags = get_build_tags(build_include, build_exclude)
+    build_tags = get_build_tags(build="updater", arch=arch, build_include=build_include, build_exclude=build_exclude)
 
     race_opt = "-race" if race else ""
     build_type = "-a" if rebuild else ""
