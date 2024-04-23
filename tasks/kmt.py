@@ -967,7 +967,8 @@ def update_platform_info(ctx: Context, version: str | None = None, update_only_m
     found in the KMT S3 bucket.
     """
     res = ctx.run(
-        "aws-vault exec sso-staging-engineering -- aws s3 ls --recursive s3://dd-agent-omnibus/kernel-version-testing/rootfs"
+        "aws-vault exec sso-staging-engineering -- aws s3 ls --recursive s3://dd-agent-omnibus/kernel-version-testing/rootfs",
+        warn=True,
     )
     if res is None or not res.ok:
         raise Exit("Cannot list bucket contents")
@@ -1007,8 +1008,7 @@ def update_platform_info(ctx: Context, version: str | None = None, update_only_m
                 image_name = keyvals['IMAGE_NAME']
                 image_filename = keyvals['IMAGE_FILENAME']
             except KeyError:
-                warn(f"[!] Invalid manifest {manifest}, skipping")
-                continue
+                raise Exit(f"[!] Invalid manifest {manifest}")
 
             if arch not in platforms:
                 warn(f"[!] Unsupported architecture {arch}, skipping")
