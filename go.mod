@@ -39,6 +39,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ./comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ./comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ./comp/otelcol/otlp/components/exporter/serializerexporter
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/logsagentpipeline => ./comp/otelcol/otlp/components/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ./comp/serializer/compression
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey/
@@ -269,8 +270,8 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.49.0 // indirect
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.3
-	go.uber.org/dig v1.17.0
-	go.uber.org/fx v1.18.2
+	go.uber.org/dig v1.17.1
+	go.uber.org/fx v1.21.0
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
@@ -614,6 +615,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/logsagentpipeline v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.53.0-rc.2
