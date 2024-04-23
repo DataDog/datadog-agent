@@ -2192,6 +2192,7 @@ core,google.golang.org/grpc/internal/status,Apache-2.0,Copyright 2014 gRPC autho
 core,google.golang.org/grpc/internal/syscall,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/transport,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/transport/networktype,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/xds,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/keepalive,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/metadata,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/peer,Apache-2.0,Copyright 2014 gRPC authors.
