@@ -145,7 +145,7 @@ require (
 	github.com/alecthomas/participle v0.7.1 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
 	github.com/aquasecurity/trivy-db v0.0.0-20231005141211-4fc651f7ac8d
-	github.com/avast/retry-go/v4 v4.5.0
+	github.com/avast/retry-go/v4 v4.6.0
 	github.com/aws/aws-lambda-go v1.37.0
 	github.com/aws/aws-sdk-go v1.49.21 // indirect
 	github.com/beevik/ntp v0.3.0
@@ -153,9 +153,9 @@ require (
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/cenkalti/backoff/v4 v4.2.1
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.14.0
+	github.com/cilium/ebpf v0.15.0
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/containerd v1.7.13
 	github.com/containernetworking/cni v1.1.2
@@ -679,7 +679,7 @@ require (
 	github.com/containerd/cgroups/v3 v3.0.2
 	github.com/containerd/typeurl/v2 v2.1.1
 	github.com/elastic/go-seccomp-bpf v1.4.0
-	github.com/glaslos/ssdeep v0.3.3
+	github.com/glaslos/ssdeep v0.4.0
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
@@ -710,7 +710,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
-	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240418080137-a7c7a570540d // indirect
+	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240419161837-f1b2f553edfe // indirect
 	github.com/DataDog/go-sqllexer v0.0.9 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.14.0 // indirect
 	github.com/Intevation/gval v1.3.0 // indirect

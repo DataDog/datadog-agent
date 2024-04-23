@@ -47,7 +47,6 @@ type ecsFargateSuite struct {
 }
 
 func TestECSFargate(t *testing.T) {
-	t.Skip("skip failing test incident-26860")
 	ruleDefs := []*testRuleDefinition{
 		{
 			ID:         execRuleID,
