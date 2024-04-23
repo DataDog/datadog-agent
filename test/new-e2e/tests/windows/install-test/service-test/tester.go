@@ -99,29 +99,37 @@ func (t *Tester) ExpectedServiceConfig() (windowsCommon.ServiceConfigMap, error)
 	m["datadogagent"].ServiceType = windowsCommon.SERVICE_WIN32_OWN_PROCESS
 	m["datadog-trace-agent"].ServiceType = windowsCommon.SERVICE_WIN32_OWN_PROCESS
 	m["datadog-process-agent"].ServiceType = windowsCommon.SERVICE_WIN32_OWN_PROCESS
+	m["datadog-security-agent"].ServiceType = windowsCommon.SERVICE_WIN32_OWN_PROCESS
 	m["datadog-system-probe"].ServiceType = windowsCommon.SERVICE_WIN32_OWN_PROCESS
 	m["ddnpm"].ServiceType = windowsCommon.SERVICE_KERNEL_DRIVER
+	m["ddprocmon"].ServiceType = windowsCommon.SERVICE_KERNEL_DRIVER
 
 	// start type
 	m["datadogagent"].StartType = windowsCommon.SERVICE_AUTO_START
 	m["datadog-trace-agent"].StartType = windowsCommon.SERVICE_DEMAND_START
 	m["datadog-process-agent"].StartType = windowsCommon.SERVICE_DEMAND_START
+	m["datadog-security-agent"].StartType = windowsCommon.SERVICE_DEMAND_START
 	m["datadog-system-probe"].StartType = windowsCommon.SERVICE_DEMAND_START
 	m["ddnpm"].StartType = windowsCommon.SERVICE_DISABLED
+	m["ddprocmon"].StartType = windowsCommon.SERVICE_DISABLED
 
 	// dependencies
 	m["datadogagent"].ServicesDependedOn = []string{}
 	m["datadog-trace-agent"].ServicesDependedOn = []string{"datadogagent"}
 	m["datadog-process-agent"].ServicesDependedOn = []string{"datadogagent"}
+	m["datadog-security-agent"].ServicesDependedOn = []string{"datadogagent"}
 	m["datadog-system-probe"].ServicesDependedOn = []string{"datadogagent"}
 	m["ddnpm"].ServicesDependedOn = []string{}
+	m["ddprocmon"].ServicesDependedOn = []string{}
 
 	// DisplayName
 	m["datadogagent"].DisplayName = "Datadog Agent"
 	m["datadog-trace-agent"].DisplayName = "Datadog Trace Agent"
 	m["datadog-process-agent"].DisplayName = "Datadog Process Agent"
+	m["datadog-security-agent"].DisplayName = "Datadog Security Service"
 	m["datadog-system-probe"].DisplayName = "Datadog System Probe"
 	m["ddnpm"].DisplayName = "Datadog Network Performance Monitor"
+	m["ddprocmon"].DisplayName = "Datadog Process Monitor"
 
 	// ImagePath
 	exePath := quotePathIfContainsSpaces(fmt.Sprintf(`%s\bin\agent.exe`, t.expectedInstallPath))
@@ -132,15 +140,19 @@ func (t *Tester) ExpectedServiceConfig() (windowsCommon.ServiceConfigMap, error)
 	// TODO: double slash is intentional, must fix the path in the installer
 	exePath = quotePathIfContainsSpaces(fmt.Sprintf(`%s\bin\agent\process-agent.exe`, t.expectedInstallPath))
 	m["datadog-process-agent"].ImagePath = fmt.Sprintf(`%s --cfgpath="%s\\datadog.yaml"`, exePath, t.expectedConfigRoot)
+	exePath = quotePathIfContainsSpaces(fmt.Sprintf(`%s\bin\agent\security-agent.exe`, t.expectedInstallPath))
+	m["datadog-security-agent"].ImagePath = exePath
 	exePath = quotePathIfContainsSpaces(fmt.Sprintf(`%s\bin\agent\system-probe.exe`, t.expectedInstallPath))
 	m["datadog-system-probe"].ImagePath = exePath
 	// drivers use the kernel path syntax and aren't quoted since they are file paths rather than command lines
 	m["ddnpm"].ImagePath = fmt.Sprintf(`\??\%s\bin\agent\driver\ddnpm.sys`, t.expectedInstallPath)
+	m["ddprocmon"].ImagePath = fmt.Sprintf(`\??\%s\bin\agent\driver\ddprocmon.sys`, t.expectedInstallPath)
 
 	// User and SID
 	expectedServiceUser := windowsCommon.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName)
 	m["datadogagent"].UserName = expectedServiceUser
 	m["datadog-trace-agent"].UserName = expectedServiceUser
+	m["datadog-security-agent"].UserName = expectedServiceUser
 	m["datadog-process-agent"].UserName = "LocalSystem"
 	m["datadog-system-probe"].UserName = "LocalSystem"
 	for _, s := range m {
@@ -162,8 +174,10 @@ func ExpectedInstalledServices() []string {
 		"datadogagent",
 		"datadog-trace-agent",
 		"datadog-process-agent",
+		"datadog-security-agent",
 		"datadog-system-probe",
 		"ddnpm",
+		"ddprocmon",
 	}
 }
 

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
@@ -180,21 +181,59 @@ func (is *agentMSISuite) TestInstall() {
 	if !t.TestInstallExpectations(is.T()) {
 		is.T().FailNow()
 	}
+	is.testCodeSignatures(t, remoteMSIPath)
 
-	// Test the code signatures of the installed files.
-	// The same MSI is used in all tests so only check it once here.
+	is.uninstallAgentAndRunUninstallTests(t)
+}
+
+// testCodeSignatures checks the code signatures of the installed files.
+// The same MSI is used in all tests so this test is only done once, in TestInstall.
+func (is *agentMSISuite) testCodeSignatures(t *Tester, remoteMSIPath string) {
+	// Get a list of files, and sort them into DD signed and other signed
 	root, err := windowsAgent.GetInstallPathFromRegistry(t.host)
 	is.Require().NoError(err)
 	paths := getExpectedSignedFilesForAgentMajorVersion(t.expectedAgentMajorVersion)
 	for i, path := range paths {
 		paths[i] = root + path
 	}
-	if remoteMSIPath != "" {
-		paths = append(paths, remoteMSIPath)
+	ddSigned := []string{}
+	otherSigned := []string{}
+	for _, path := range paths {
+		if strings.Contains(path, "embedded3") {
+			// As of 7.5?, the embedded Python3 should be signed by Python, not Datadog
+			// We still build our own Python2, so we need to check that still
+			otherSigned = append(otherSigned, path)
+		} else {
+			ddSigned = append(ddSigned, path)
+		}
 	}
-	windowsAgent.TestValidDatadogCodeSignatures(is.T(), t.host, paths)
+	// MSI is signed by Datadog
+	if remoteMSIPath != "" {
+		ddSigned = append(ddSigned, remoteMSIPath)
+	}
+	windowsAgent.TestValidDatadogCodeSignatures(is.T(), t.host, ddSigned)
 
-	is.uninstallAgentAndRunUninstallTests(t)
+	// Check other signed files
+	is.Run("check other signed files", func() {
+		verify, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.VerifyCodeSignature, true)
+		if !verify {
+			is.T().Skip("skipping code signature verification")
+		}
+		for _, path := range otherSigned {
+			subject := ""
+			if strings.Contains(path, "embedded3") {
+				subject = "CN=Python Software Foundation, O=Python Software Foundation, L=Beaverton, S=Oregon, C=US"
+			} else {
+				is.Assert().Failf("unexpected signed executable", "unexpected signed executable %s", path)
+			}
+			sig, err := windowsCommon.GetAuthenticodeSignature(t.host, path)
+			if !is.Assert().NoError(err, "should get authenticode signature for %s", path) {
+				continue
+			}
+			is.Assert().Truef(sig.Valid(), "signature should be valid for %s", path)
+			is.Assert().Equalf(sig.SignerCertificate.Subject, subject, "subject should match for %s", path)
+		}
+	})
 }
 
 func (is *agentMSISuite) TestInstallAltDir() {
@@ -228,6 +267,13 @@ func (is *agentMSISuite) TestUpgrade() {
 
 	// install previous version
 	_ = is.installLastStable(vm)
+
+	// simulate upgrading from a version that didn't have the runtime-security.d directory
+	// to ensure upgrade places new config files.
+	configRoot, err := windowsAgent.GetConfigRootFromRegistry(vm)
+	is.Require().NoError(err)
+	err = vm.RemoveAll(filepath.Join(configRoot, "runtime-security.d"))
+	is.Require().NoError(err)
 
 	// upgrade to the new version
 	if !is.Run(fmt.Sprintf("upgrade to %s", is.AgentPackage.AgentVersion()), func() {
@@ -300,6 +346,11 @@ func (is *agentMSISuite) TestRepair() {
 	err = t.host.Remove(filepath.Join(installPath, "bin", "agent.exe"))
 	is.Require().NoError(err)
 	err = t.host.RemoveAll(filepath.Join(installPath, "embedded3"))
+	is.Require().NoError(err)
+	// delete config files to ensure repair restores them
+	configRoot, err := windowsAgent.GetConfigRootFromRegistry(t.host)
+	is.Require().NoError(err)
+	err = t.host.RemoveAll(filepath.Join(configRoot, "runtime-security.d"))
 	is.Require().NoError(err)
 
 	// Run Repair through the MSI
