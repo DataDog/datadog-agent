@@ -34,6 +34,7 @@ from tasks.linter import _lint_go
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.trace_agent import integration_tests as trace_integration_tests
+from tasks.testwasher import TestWasher
 
 PROFILE_COV = "coverage.out"
 TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
@@ -328,6 +329,7 @@ def test(
     include_sds=False,
     skip_flakes=False,
     build_stdlib=False,
+    test_washer=False,
 ):
     """
     Run go tests on the given module and targets.
@@ -462,6 +464,12 @@ def test(
 
     success = process_module_results(flavor=flavor, module_results=test_results)
 
+    if test_washer:
+        tw = TestWasher()
+        should_succeed = tw.process_module_results(test_results)
+        if should_succeed:
+            print(color_message("All failing tests are known to be flaky, marking the build as successful", "orange"))
+            return
     if success:
         print(color_message("All tests passed", "green"))
     else:
