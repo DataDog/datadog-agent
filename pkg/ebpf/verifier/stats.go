@@ -542,6 +542,9 @@ func unmarshalComplexity(output string, progSourceMap map[int]*SourceLine) (*Com
 							regValue = "?"
 						}
 					}
+				} else {
+					regValue = strings.Replace(regValue, regType, "", 1) // Remove the type from the value
+					regValue = strings.Trim(regValue, "()")              // Remove the parentheses
 				}
 
 				regState[regNum] = &RegisterState{
