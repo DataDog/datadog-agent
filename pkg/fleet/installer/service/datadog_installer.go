@@ -10,6 +10,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,6 +34,10 @@ func SetupInstaller(ctx context.Context) (err error) {
 		}
 	}()
 
+	err = os.MkdirAll("/opt/datadog-packages", 0755)
+	if err != nil {
+		return fmt.Errorf("error creating /opt/datadog-packages: %w", err)
+	}
 	// Check if systemd is running, if not return early
 	systemdRunning, err := isSystemdRunning()
 	if err != nil {
