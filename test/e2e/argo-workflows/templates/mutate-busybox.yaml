@@ -480,7 +480,7 @@ spec:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
                 - name: envValue
-                  value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log"
+                  value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log"
                 - name: envKey
                   value: JAVA_TOOL_OPTIONS
                 - name: target
