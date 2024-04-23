@@ -129,8 +129,6 @@ namespace WixSetup.Datadog
                 }
             );
 
-            project.AddProperty(new Property("INSTALL_CWS", "1"));
-
             // Always generate a new GUID otherwise WixSharp will generate one based on
             // the version
             project.ProductId = Guid.NewGuid();
