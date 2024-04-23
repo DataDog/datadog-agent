@@ -77,7 +77,7 @@ func SetupInstaller(ctx context.Context, enableDaemon bool) (err error) {
 	if err != nil {
 		return fmt.Errorf("error creating /var/log/datadog: %w", err)
 	}
-	err = os.MkdirAll("/var/run/datadog-packages", 0755)
+	err = os.MkdirAll("/var/run/datadog-packages", 0777)
 	if err != nil {
 		return fmt.Errorf("error creating /var/run/datadog-packages: %w", err)
 	}
