@@ -9,7 +9,7 @@ from tasks.rtloader import get_dev_path
 is_windows = sys.platform == "win32"
 is_darwin = sys.platform == "darwin"
 
-sds_version = "v0.1.1"
+sds_version = "v0.1.2"
 
 
 @task

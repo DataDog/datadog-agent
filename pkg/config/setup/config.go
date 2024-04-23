@@ -771,6 +771,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	})
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.enabled", true)
+	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.base_backoff", "5m")
+	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.max_backoff", "1h")
 	// sets the expiration deadline (TTL) for reported languages
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.language_ttl", "30m")
 	// language annotation cleanup period

@@ -13,8 +13,10 @@ import (
 )
 
 func TestCommand(t *testing.T) {
+	cmd := Commands(&command.GlobalParams{})
+	cmd[0].GroupID = ""
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		cmd,
 		[]string{"bootstrap"},
 		bootstrap,
 		func() {})
