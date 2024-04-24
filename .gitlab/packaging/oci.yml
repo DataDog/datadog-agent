@@ -21,7 +21,7 @@
     - export GH_TOKEN=$(inv -e github.get-token-from-app --app-id-env=GITHUB_APP_ID --pkey-env=GITHUB_KEY_B64)
     - git config --global credential.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; };f'
     - cd /tmp/
-    - for i in $(seq 1 5); do git clone --depth=1 https://github.com/DataDog/datadog-packages && break; done
+    - ${CI_PROJECT_DIR}/tools/ci/clone_with_retries.sh --depth=1 https://github.com/DataDog/datadog-packages
     - cd datadog-packages/cmd/datadog-package
     - go build .
     - OUTPUT_DIR="/tmp/oci_output"

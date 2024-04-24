@@ -20,7 +20,7 @@ include:
     - export GH_TOKEN=$(inv -e github.get-token-from-app --app-id-env=GITHUB_APP_ID --pkey-env=GITHUB_KEY_B64)
     - export VERSION=$(inv agent.version --url-safe)-1
     - git config --global credential.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; };f'
-    - git clone https://github.com/DataDog/datadog-packages /tmp/datadog-packages
+    - ${CI_PROJECT_DIR}/tools/ci/clone_with_retries.sh https://github.com/DataDog/datadog-packages /tmp/datadog-packages
     - cd /tmp/datadog-packages/cmd/datadog-package
     - go build .
     - ./datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:${VERSION} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${MAJOR_VERSION}.*.oci.tar
