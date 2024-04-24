@@ -102,7 +102,7 @@ func (v *vmUpdaterSuite) TestSharedAgentDirs() {
 
 func (v *vmUpdaterSuite) TestInstallerDirs() {
 	host := v.Env().RemoteHost
-	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer bootstrap", bootInstallerDir))
+	host.MustExecute("sudo datadog-bootstrap bootstrap")
 	for _, dir := range []string{packagesDir, bootInstallerDir} {
 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%U" `+dir))
 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%G" `+dir))
@@ -114,7 +114,7 @@ func (v *vmUpdaterSuite) TestInstallerDirs() {
 func (v *vmUpdaterSuite) TestInstallerUnitLoaded() {
 	t := v.T()
 	host := v.Env().RemoteHost
-	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer bootstrap", bootInstallerDir))
+	host.MustExecute("sudo datadog-bootstrap")
 
 	// temporary hack, remote update enabled by hand and disabled to assert the behavior and pass tests
 	// until agent param passing to the test install script is implemnted
@@ -123,7 +123,7 @@ func (v *vmUpdaterSuite) TestInstallerUnitLoaded() {
 
 	if v.remoteUpdatesEnabled {
 		host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer remove datadog-installer", bootInstallerDir))
-		host.MustExecute(fmt.Sprintf(`DD_UPDATER_REMOTE_UPDATES=true sudo -E %v/bin/installer/installer bootstrap`, bootInstallerDir))
+		host.MustExecute("DD_UPDATER_REMOTE_UPDATES=true sudo -E datadog-bootstrap bootstrap")
 		host.MustExecute(fmt.Sprintf(`DD_UPDATER_REMOTE_UPDATES=true sudo -E %v/bin/installer/installer install "oci://public.ecr.aws/datadog/installer-package:latest"`, bootInstallerDir))
 		require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(`systemctl is-enabled datadog-installer.service`))
 		host.MustExecute(fmt.Sprintf("DD_UPDATER_REMOTE_UPDATES=true sudo -E %v/bin/installer/installer remove datadog-installer", bootInstallerDir))
@@ -143,7 +143,7 @@ func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
 		"datadog-agent-security.service",
 	}
 	host := v.Env().RemoteHost
-	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer bootstrap", bootInstallerDir))
+	host.MustExecute("sudo datadog-bootstrap bootstrap")
 	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://public.ecr.aws/datadog/agent-package@sha256:c942936609b7ae0f457ba4c3516b340f5e0bb3459af730892abe8f2f2f84d552"`, bootInstallerDir))
 	for _, unit := range stableUnits {
 		require.Equal(t, "enabled\n", host.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, unit)))
@@ -153,7 +153,7 @@ func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
 func (v *vmUpdaterSuite) TestExperimentCrash() {
 	t := v.T()
 	host := v.Env().RemoteHost
-	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer bootstrap", bootInstallerDir))
+	host.MustExecute("sudo datadog-bootstrap bootstrap")
 	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://public.ecr.aws/datadog/agent-package@sha256:c942936609b7ae0f457ba4c3516b340f5e0bb3459af730892abe8f2f2f84d552"`, bootInstallerDir))
 	startTime := getMonotonicTimestamp(t, host)
 	v.Env().RemoteHost.MustExecute(`sudo systemctl start datadog-agent-exp --no-block`)
@@ -171,7 +171,7 @@ func (v *vmUpdaterSuite) TestExperimentCrash() {
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	host := v.Env().RemoteHost
-	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer bootstrap", bootInstallerDir))
+	host.MustExecute("sudo datadog-bootstrap bootstrap")
 	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer remove datadog-agent", bootInstallerDir))
 	stableUnits := []string{
 		"datadog-agent.service",
