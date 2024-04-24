@@ -95,18 +95,18 @@ func (s *npSchedulerImpl) Schedule(hostname string, port uint16) {
 	}
 }
 
-func (s *npSchedulerImpl) runTraceroute(job pathtest) {
-	s.logger.Debugf("Run Traceroute for job: %+v", job)
+func (s *npSchedulerImpl) runTraceroute(ptest *pathtest) {
+	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 	// TODO: RUN 3x? Configurable?
 	for i := 0; i < 3; i++ {
-		s.pathForConn(job.hostname, job.port)
+		s.pathForConn(ptest)
 	}
 }
 
-func (s *npSchedulerImpl) pathForConn(hostname string, port uint16) {
+func (s *npSchedulerImpl) pathForConn(ptest *pathtest) {
 	cfg := traceroute.Config{
-		DestHostname: hostname,
-		DestPort:     uint16(port),
+		DestHostname: ptest.hostname,
+		DestPort:     uint16(ptest.port),
 		MaxTTL:       24,
 		TimeoutMs:    1000,
 	}
@@ -175,5 +175,6 @@ func (s *npSchedulerImpl) flush() {
 
 	for _, ptConf := range flowsToFlush {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.hostname, ptConf.port)
+		s.runTraceroute(ptConf)
 	}
 }
