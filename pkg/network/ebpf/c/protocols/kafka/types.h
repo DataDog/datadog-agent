@@ -20,14 +20,14 @@ typedef struct {
 
 typedef struct kafka_transaction_t {
     __u64 request_started;
+    __u32 records_count;
     // Request API key and version are 16-bit in the protocol but we store
     // them as u8 to reduce memory usage of the map since the APIs and
     // versions we support don't need more than 8 bits.
     __u8 request_api_key;
     __u8 request_api_version;
+    __u8 topic_name_size;
     char topic_name[TOPIC_NAME_MAX_STRING_SIZE];
-    __u16 topic_name_size;
-    __u32 records_count;
 } kafka_transaction_t;
 
 typedef struct kafka_event_t {

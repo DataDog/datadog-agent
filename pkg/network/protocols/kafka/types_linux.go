@@ -27,11 +27,12 @@ type KafkaTransactionKey struct {
 }
 type KafkaTransaction struct {
 	Request_started     uint64
+	Records_count       uint32
 	Request_api_key     uint8
 	Request_api_version uint8
+	Topic_name_size     uint8
 	Topic_name          [80]byte
-	Topic_name_size     uint16
-	Records_count       uint32
+	Pad_cgo_0           [1]byte
 }
 
 type KafkaResponseContext struct {
