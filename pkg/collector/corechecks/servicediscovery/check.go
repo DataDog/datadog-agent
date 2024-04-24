@@ -7,6 +7,8 @@ package servicediscovery
 
 import (
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -15,20 +17,38 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	agentconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+
+	"github.com/prometheus/procfs"
 )
 
 const (
 	// CheckName is the name of the check.
 	CheckName              = "service_discovery"
-	defaultRefreshInterval = 60
+	defaultRefreshInterval = 10
+	heartbeatTime          = 15 * time.Minute
 )
 
 // Config holds the check configuration.
 type config struct {
-	RefreshIntervalSeconds int `yaml:"refresh_interval_seconds"`
+	RefreshIntervalSeconds int    `yaml:"refresh_interval_seconds"`
+	IgnoreProcesses        string `yaml:"ignore_processes"`
+}
+
+type processInfo struct {
+	PID       int
+	Name      string
+	ShortName string
+	CmdLine   []string
+	Env       []string
+	Cwd       string
+
+	// TODO: change this to not use the procfs struct
+	Stat             *procfs.ProcStat
+	Ports            []int
+	DetectedTime     time.Time
+	LastHeatBeatTime time.Time
 }
 
 // Parse parses the configuration
@@ -42,54 +62,167 @@ func (c *config) Parse(data []byte) error {
 	return nil
 }
 
-// Check ...
+type aliveServices struct {
+	m  map[int]*processInfo
+	mu sync.RWMutex
+}
+
+func (a *aliveServices) get(pid int) (*processInfo, bool) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	v, ok := a.m[pid]
+	return v, ok
+}
+
+func (a *aliveServices) set(pid int, info *processInfo) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.m[pid] = info
+}
+
+func (a *aliveServices) delete(pid int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	delete(a.m, pid)
+}
+
+type ignoreProcesses struct {
+	m  map[int]string
+	mu sync.RWMutex
+}
+
+func (i *ignoreProcesses) get(pid int) (string, bool) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	v, ok := i.m[pid]
+	return v, ok
+}
+
+func (i *ignoreProcesses) set(pid int, name string) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.m[pid] = name
+}
+
+func (i *ignoreProcesses) delete(pid int) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	delete(i.m, pid)
+}
+
 type Check struct {
 	corechecks.CheckBase
 	stopCh chan struct{}
 	cfg    *config
+
+	sender sender.Sender
+
+	// set of process names that should always be ignored
+	alwaysIgnore map[string]struct{}
+
+	// potential services to scan
+	potentialServicesChan chan int
+
+	// PID -> process name
+	// pids will be added here because the name was ignored in the config, or because
+	// it was already scanned and had no open ports.
+	ignore   *ignoreProcesses
+	services *aliveServices
 }
 
-// Factory returns a new check factory
+// Factory creates a new check factory
 func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
-		return corechecks.NewLongRunningCheckWrapper(&Check{
-			CheckBase: corechecks.NewCheckBase(CheckName),
-			stopCh:    make(chan struct{}),
-		})
-	})
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
+	return &Check{
+		CheckBase:             corechecks.NewCheckBase(CheckName),
+		stopCh:                make(chan struct{}),
+		cfg:                   &config{},
+		alwaysIgnore:          make(map[string]struct{}),
+		potentialServicesChan: make(chan int),
+		ignore: &ignoreProcesses{
+			m: make(map[int]string),
+		},
+		services: &aliveServices{
+			m: make(map[int]*processInfo),
+		},
+	}
 }
 
 // Configure parses the check configuration and initializes the check
-func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, cfgRaw, initConfig integration.Data, source string) error {
-	if !agentconfig.Datadog.GetBool("service_discovery.enabled") {
-		// TODO: ignore for now
-		// return errors.New("service discovery is disabled")
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	if err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source); err != nil {
+		return err
 	}
-	if err := c.cfg.Parse(cfgRaw); err != nil {
+
+	//if !agentconfig.Datadog.GetBool("service_discovery.enabled") {
+	//	// return errors.New("service discovery is disabled")
+	//}
+
+	if err := c.cfg.Parse(data); err != nil {
 		return fmt.Errorf("failed to parse config: %w", err)
+	}
+	for _, pName := range strings.Split(c.cfg.IgnoreProcesses, ",") {
+		c.alwaysIgnore[pName] = struct{}{}
 	}
 	return nil
 }
 
-// Run starts the container_image check
 func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
-	ticker := time.NewTicker(time.Duration(c.cfg.RefreshIntervalSeconds) * time.Second)
-	defer ticker.Stop()
-
-	for {
-		c.discoverServices()
-
-		select {
-		case <-c.stopCh:
-			return nil
-
-		case <-ticker.C:
-			continue
-		}
+	s, err := c.GetSender()
+	if err != nil {
+		return err
 	}
+	c.sender = s
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		ticker := time.NewTicker(time.Duration(c.cfg.RefreshIntervalSeconds) * time.Second)
+		defer ticker.Stop()
+		defer wg.Done()
+
+		for {
+			if err := c.discoverServices(); err != nil {
+				log.Errorf("failed to discover services: %v", err)
+			}
+
+			select {
+			case <-c.stopCh:
+				return
+
+			case <-ticker.C:
+				continue
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		for {
+			select {
+			case <-c.stopCh:
+				return
+
+			case pid := <-c.potentialServicesChan:
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					c.scanProcess(pid)
+				}()
+			}
+		}
+	}()
+
+	wg.Wait()
+	return nil
 }
 
 // Stop stops the check.

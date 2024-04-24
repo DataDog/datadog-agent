@@ -7,4 +7,10 @@
 
 package servicediscovery
 
-func (c *Check) discoverServices() {}
+func (c *Check) discoverServices() error {
+	return nil
+}
+
+func (c *Check) scanProcess() error {
+	return nil
+}
