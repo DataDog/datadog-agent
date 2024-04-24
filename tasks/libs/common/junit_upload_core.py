@@ -214,7 +214,7 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, addi
         if additional_tags:
             args.extend(additional_tags)
         args.append(junit_file_path)
-        processes.append(Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env, stderr=PIPE))
+        processes.append(Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env, stdout=PIPE, stderr=PIPE))
     for process in processes:
         _, stderr = process.communicate()
         if stderr:
