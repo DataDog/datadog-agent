@@ -93,14 +93,13 @@ func ProvideComponentConstructor(compCtorFunc interface{}) fx.Option {
 	return fx.Provide(fxAwareProviderFunc.Interface())
 }
 
-// get the input or output argument from a function type
-func getArg(typ reflect.Type, index int, isOut bool) reflect.Type {
-	if isOut && index < typ.NumOut() {
-		return typ.Out(index)
-	} else if !isOut && index < typ.NumIn() {
-		return typ.In(index)
+// get the element at the index if the index is within the limit
+func getWithinLimit[T any](index int, get func(int) T, limit func() int) T {
+	if index < limit() {
+		return get(index)
 	}
-	return nil
+	var zero T
+	return zero
 }
 
 // create a struct that represents the (possibly nil) input type
@@ -148,9 +147,9 @@ func hasEmbedField(typ, embed reflect.Type) bool {
 
 // construct fx-aware types for the input and output of the given constructor function
 func constructFxInAndOut(ctorFuncType reflect.Type) (reflect.Type, reflect.Type, bool, error) {
-	ctorInType, err1 := asStruct(getArg(ctorFuncType, 0, false))
+	ctorInType, err1 := asStruct(getWithinLimit(0, ctorFuncType.In, ctorFuncType.NumIn))
 	ctorOutType, err2 := asStruct(ctorFuncType.Out(0))
-	hasErrRet, err3 := ensureErrorOrNil(getArg(ctorFuncType, 1, true))
+	hasErrRet, err3 := ensureErrorOrNil(getWithinLimit(1, ctorFuncType.Out, ctorFuncType.NumOut))
 	if err := errors.Join(err1, err2, err3); err != nil {
 		return nil, nil, false, err
 	}
