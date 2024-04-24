@@ -47,7 +47,7 @@
       "kernel": "6.1.77-99.164.amzn2023",
       "os_version": "2023",
       "image": "amzn2023-kvm-2.0-amd64-al2023.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "20240423_7cfb8eda"
     },
     "centos_7.9": {
       "os_name": "CentOS Linux",
@@ -366,7 +366,7 @@
       "kernel": "6.1.77-99.164.amzn2023",
       "os_version": "2023",
       "image": "amzn2023-kvm-2.0-arm64-al2023.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "20240423_7cfb8eda"
     }
   }
 }
