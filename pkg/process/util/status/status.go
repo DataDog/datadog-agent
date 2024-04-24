@@ -63,7 +63,8 @@ type MemInfo struct {
 	Alloc uint64 `json:"alloc"`
 }
 
-type ExpvarsMap struct {
+// ProcessExpvars holds values fetched from the exp var server
+type ProcessExpvars struct {
 	Pid                             int                 `json:"pid"`
 	Uptime                          int                 `json:"uptime"`
 	UptimeNano                      float64             `json:"uptime_nano"`
@@ -94,11 +95,6 @@ type ExpvarsMap struct {
 	WlmExtractorCacheSize           int                 `json:"workloadmeta_extractor_cache_size"`
 	WlmExtractorStaleDiffs          int                 `json:"workloadmeta_extractor_stale_diffs"`
 	WlmExtractorDiffsDropped        int                 `json:"workloadmeta_extractor_diffs_dropped"`
-}
-
-// ProcessExpvars holds values fetched from the exp var server
-type ProcessExpvars struct {
-	ExpvarsMap ExpvarsMap `json:"process_agent"`
 }
 
 // Status holds runtime information from process-agent
