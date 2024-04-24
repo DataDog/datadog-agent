@@ -44,7 +44,6 @@ deploy_installer_oci:
 qa_agent_oci:
   extends: .docker_publish_job_definition
   stage: deploy_packages
-  needs: [ deploy_agent_oci ]
   rules:
     - !reference [.on_installer_or_e2e_changes_or_manual]
   needs:
@@ -57,7 +56,6 @@ qa_agent_oci:
 qa_installer_oci:
   extends: .docker_publish_job_definition
   stage: deploy_packages
-  needs: [ deploy_agent_oci ]
   rules:
     - !reference [.on_installer_or_e2e_changes_or_manual]
   needs:
