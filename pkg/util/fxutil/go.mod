@@ -9,6 +9,8 @@ require (
 	go.uber.org/fx v1.18.2
 )
 
+replace github.com/DataDog/datadog-agent/comp/def => ../../../comp/def/
+
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

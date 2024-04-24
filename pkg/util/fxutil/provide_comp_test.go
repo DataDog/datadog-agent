@@ -3,10 +3,11 @@ package fxutil
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 
-	compDef "github.com/DataDog/datadog-agent/comp/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 )
@@ -16,10 +17,6 @@ func TestValidArgumentAndReturnValue(t *testing.T) {
 	opt := ProvideComponentConstructor(func() FirstComp { return &firstImpl{} })
 	assertNoCtorError(t, opt)
 
-	// constructor of 1 interface argument and 1 interface return value is okay
-	opt = ProvideComponentConstructor(func(reqs FirstComp) SecondComp { return &secondImpl{} })
-	assertNoCtorError(t, opt)
-
 	// constructor of 0 arguments and 1 composite struct return value is okay
 	opt = ProvideComponentConstructor(func() provides1 { return provides1{} })
 	assertNoCtorError(t, opt)
@@ -27,23 +24,27 @@ func TestValidArgumentAndReturnValue(t *testing.T) {
 	// constructor of 1 composite argument and 1 composite struct return value is okay
 	opt = ProvideComponentConstructor(func(reqs requires1) provides1 { return provides1{} })
 	assertNoCtorError(t, opt)
+
+	// constructor of 1 composite argument and 2 return values (2nd is error) is okay
+	opt = ProvideComponentConstructor(func(reqs requires1) (provides1, error) { return provides1{}, nil })
+	assertNoCtorError(t, opt)
 }
 
 func TestInvalidArgumentOrReturnValue(t *testing.T) {
 	errOpt := ProvideComponentConstructor(1)
-	assertIsSingleError(t, errOpt, "argument to ProvideComponentConstructor must be a function with at most 1 argument and exactly 1 return value")
+	assertIsSingleError(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
 
 	errOpt = ProvideComponentConstructor(func() {})
-	assertIsSingleError(t, errOpt, "argument to ProvideComponentConstructor must be a function with at most 1 argument and exactly 1 return value")
+	assertIsSingleError(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
 
-	errOpt = ProvideComponentConstructor(func(reqs FirstComp) {})
-	assertIsSingleError(t, errOpt, "argument to ProvideComponentConstructor must be a function with at most 1 argument and exactly 1 return value")
+	errOpt = ProvideComponentConstructor(func(comp FirstComp) SecondComp { return &secondImpl{} })
+	assertIsSingleError(t, errOpt, "constructor must either take 0 arguments, or 1 argument as a requires struct")
 
 	errOpt = ProvideComponentConstructor(func() (FirstComp, SecondComp) { return &firstImpl{}, &secondImpl{} })
-	assertIsSingleError(t, errOpt, "argument to ProvideComponentConstructor must be a function with at most 1 argument and exactly 1 return value")
+	assertIsSingleError(t, errOpt, "second return value must be error, got fxutil.SecondComp")
 
 	errOpt = ProvideComponentConstructor(func(reqs requires1, reqs2 requires2) FirstComp { return &firstImpl{} })
-	assertIsSingleError(t, errOpt, "argument to ProvideComponentConstructor must be a function with at most 1 argument and exactly 1 return value")
+	assertIsSingleError(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
 }
 
 func TestConstructFxInAndOut(t *testing.T) {
@@ -74,11 +75,11 @@ func TestConstructFxInAndOut(t *testing.T) {
 	expect = `struct { In dig.In }`
 	require.Equal(t, expect, inType.String())
 
-	expect = `struct { Out dig.Out; Apple fxutil.Apple; B fxutil.Banana; Egg fxutil.Egg }`
+	expect = `struct { Out dig.Out; A fxutil.Apple; B fxutil.Banana; C struct { Out dig.Out; E fxutil.Egg } }`
 	require.Equal(t, expect, outType.String())
 }
 
-func TestMakePlainReqs(t *testing.T) {
+func TestMakeConstructorArgs(t *testing.T) {
 	fxReqs := fxAwareReqs{
 		In: fx.In{},
 		A:  Apple{},
@@ -87,7 +88,7 @@ func TestMakePlainReqs(t *testing.T) {
 	require.Equal(t, expectFields, getFieldNames(fxReqs))
 
 	// make a struct that doesn't have the fx.In field
-	plainReqs := makePlainReqs(reflect.ValueOf(fxReqs), nil).Interface()
+	plainReqs := makeConstructorArgs(reflect.ValueOf(fxReqs), false)[0].Interface()
 	expectFields = []string{"A"}
 	require.Equal(t, expectFields, getFieldNames(plainReqs))
 }
@@ -100,7 +101,7 @@ func TestMakeFxAwareProvides(t *testing.T) {
 	require.Equal(t, expectFields, getFieldNames(provides))
 
 	// make a struct that adds the fx.Out field
-	fxAwareProv := makeFxAwareProvides(reflect.ValueOf(provides), reflect.TypeOf(fxProvides1{}), nil).Interface()
+	fxAwareProv := makeFxAwareProvides(reflect.ValueOf(provides), reflect.TypeOf(fxProvides1{})).Interface()
 	expectFields = []string{"Out", "First"}
 	require.Equal(t, expectFields, getFieldNames(fxAwareProv))
 }
@@ -121,52 +122,52 @@ func TestMakeFxAwareProvidesForCompoundResult(t *testing.T) {
 			},
 		},
 	}
-	fxOutType, outEmbeds, err := constructFxOutType(reflect.TypeOf(provides))
+	fxOutType, err := constructFxOutType(reflect.TypeOf(provides))
 	require.NoError(t, err)
-	expectFields := []string{"Out", "Apple", "B", "Egg"}
+	expectFields := []string{"Out", "A", "B", "C"}
 	require.Equal(t, expectFields, getFieldNames(fxOutType))
 
-	fxAwareProv := makeFxAwareProvides(reflect.ValueOf(provides), fxOutType, outEmbeds).Interface()
+	fxAwareProv := makeFxAwareProvides(reflect.ValueOf(provides), fxOutType).Interface()
 	data, err := json.Marshal(fxAwareProv)
 	require.NoError(t, err)
-	expectData := `{"Apple":{"D":{"X":5}},"B":{"Color":"yellow"},"Egg":{"Y":6}}`
+	expectData := `{"A":{"D":{"X":5}},"B":{"Color":"yellow"},"C":{"E":{"Y":6}}}`
 	require.Equal(t, expectData, string(data))
 }
 
 func TestConstructFxAwareStruct(t *testing.T) {
-	typ, _, err := constructFxAwareStruct(reflect.TypeOf(requires1{}), false)
+	typ, err := constructFxAwareStruct(reflect.TypeOf(requires1{}), false)
 	require.NoError(t, err)
 	expectFields := []string{"In", "First"}
 	require.Equal(t, expectFields, getFieldNames(typ))
 
-	typ, _, err = constructFxAwareStruct(reflect.TypeOf(provides1{}), true)
+	typ, err = constructFxAwareStruct(reflect.TypeOf(provides1{}), true)
 	require.NoError(t, err)
 	expectFields = []string{"Out", "First"}
 	require.Equal(t, expectFields, getFieldNames(typ))
 }
 
 func TestConstructFxAwareStructCompoundResult(t *testing.T) {
-	typ, _, err := constructFxAwareStruct(reflect.TypeOf(provides3{}), true)
+	typ, err := constructFxAwareStruct(reflect.TypeOf(provides3{}), true)
 	require.NoError(t, err)
-	expectFields := []string{"Out", "Apple", "B", "Egg"}
+	expectFields := []string{"Out", "A", "B", "C"}
 	require.Equal(t, expectFields, getFieldNames(typ))
 }
 
 func TestConstructFxAwareStructWithScalarField(t *testing.T) {
-	typ, _, err := constructFxAwareStruct(reflect.TypeOf(provides4{}), true)
+	typ, err := constructFxAwareStruct(reflect.TypeOf(provides4{}), true)
 	require.NoError(t, err)
-	expectFields := []string{"Out", "Egg", "Z"}
+	expectFields := []string{"Out", "C", "F"}
 	require.Equal(t, expectFields, getFieldNames(typ))
 }
 
 func TestConstructFxAwareStructWithLifecycle(t *testing.T) {
-	typ, _, err := constructFxAwareStruct(reflect.TypeOf(requiresLc{}), false)
+	typ, err := constructFxAwareStruct(reflect.TypeOf(requiresLc{}), false)
 	require.NoError(t, err)
 	expectFields := []string{"In", "Lc"}
 	require.Equal(t, expectFields, getFieldNames(typ))
 	// ensure the fx-aware struct uses fx types
 	require.Equal(t, typ.Field(0).Type, reflect.TypeOf(fx.In{}))
-	require.Equal(t, typ.Field(1).Type, reflect.TypeOf((*fx.Lifecycle)(nil)).Elem())
+	require.Equal(t, typ.Field(1).Type, reflect.TypeOf((*compdef.Lifecycle)(nil)).Elem())
 }
 
 // test that fx App is able to use constructor with no reqs
@@ -187,8 +188,8 @@ func TestFxNoRequirements(t *testing.T) {
 // test that fx App is able to use constructor with one dependency
 func TestFxOneDependency(t *testing.T) {
 	// plain component constructor, no fx
-	NewAgentComponent := func(first FirstComp) SecondComp {
-		return &secondImpl{First: first}
+	NewAgentComponent := func(reqs requires1) SecondComp {
+		return &secondImpl{First: reqs.First}
 	}
 	// define an entry point that uses the component
 	start := func(second SecondComp) {
@@ -230,7 +231,7 @@ func TestFxProvideEmbed(t *testing.T) {
 			},
 		}
 	}
-	// both Egg and int are available because their containing struct uses compDef.Out
+	// both Egg and int are available because their containing struct uses compdef.Out
 	start := func(one Egg, two int) {
 		require.Equal(t, 4, one.Y)
 		require.Equal(t, 5, two)
@@ -243,7 +244,7 @@ func TestFxProvideEmbed(t *testing.T) {
 func TestFxLifecycle(t *testing.T) {
 	counter := 0
 	NewAgentComponent := func(reqs requiresLc) providesService {
-		reqs.Lc.Append(compDef.Hook{
+		reqs.Lc.Append(compdef.Hook{
 			OnStart: func(context.Context) error {
 				counter++
 				return nil
@@ -261,7 +262,41 @@ func TestFxLifecycle(t *testing.T) {
 	require.Equal(t, 3, counter)
 }
 
+func TestFxReturnNoError(t *testing.T) {
+	// plain component constructor, no fx
+	NewAgentComponent := func(reqs requires1) (provides2, error) {
+		return provides2{
+			Second: &secondImpl{First: reqs.First},
+		}, nil
+	}
+	// define an entry point that uses the component
+	start := func(second SecondComp) {
+		require.Equal(t, "2nd", second.Second())
+	}
+	// ProvideComponentConstructor adds fx to plain constructor
+	module := Component(ProvideComponentConstructor(NewAgentComponent))
+	Test[SecondComp](t, fx.Invoke(start), module, fx.Provide(func() FirstComp { return &firstImpl{} }))
+}
+
+func TestFxReturnAnError(t *testing.T) {
+	// plain component constructor, no fx
+	NewAgentComponent := func(reqs requires1) (provides2, error) {
+		return provides2{
+			Second: &secondImpl{First: reqs.First},
+		}, fmt.Errorf("fail construction")
+	}
+	// define an entry point that uses the component
+	start := func(second SecondComp) {
+		require.Fail(t, "should not reach this point because constructor failed")
+	}
+	// ProvideComponentConstructor adds fx to plain constructor
+	module := Component(ProvideComponentConstructor(NewAgentComponent))
+	app := fx.New(fx.Invoke(start), module, fx.Provide(func() FirstComp { return &firstImpl{} }))
+	require.Error(t, app.Err())
+}
+
 func assertNoCtorError(t *testing.T, arg fx.Option) {
+	t.Helper()
 	app := fx.New(arg)
 	err := app.Err()
 	if err != nil {
@@ -270,6 +305,7 @@ func assertNoCtorError(t *testing.T, arg fx.Option) {
 }
 
 func assertIsSingleError(t *testing.T, arg fx.Option, errMsg string) {
+	t.Helper()
 	app := fx.New(arg)
 	err := app.Err()
 	if err == nil {
@@ -360,7 +396,7 @@ type bananaImpl struct {
 }
 
 type CherryProvider struct {
-	compDef.Out
+	compdef.Out
 	E Egg
 }
 
@@ -380,7 +416,7 @@ type provides4 struct {
 }
 
 type FruitProvider struct {
-	compDef.Out
+	compdef.Out
 	Z int
 }
 
@@ -399,7 +435,7 @@ type requires2 struct {
 // requiresLc uses Lifecycles
 
 type requiresLc struct {
-	Lc compDef.Lifecycle
+	Lc compdef.Lifecycle
 }
 
 type providesService struct {
