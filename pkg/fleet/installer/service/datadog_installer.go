@@ -29,9 +29,6 @@ func addDDAgentUser(ctx context.Context) error {
 	if _, err := user.Lookup("dd-agent"); err == nil {
 		return nil
 	}
-	if _, err := exec.LookPath("adduser"); err != nil {
-		return exec.CommandContext(ctx, "adduser", "--system", "dd-agent", "--disabled-login", "--shell", "/usr/sbin/nologin", "--home", "/opt/datadog-packages", "--no-create-home", "--group", "--quiet").Run()
-	}
 	return exec.CommandContext(ctx, "useradd", "--system", "--shell", "/usr/sbin/nologin", "--home", "/opt/datadog-packages", "--no-create-home", "--no-user-group", "-g", "dd-agent", "dd-agent").Run()
 }
 
