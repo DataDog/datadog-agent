@@ -6,8 +6,9 @@ if [ "$#" -lt 1 ]; then
     exit 1
 fi
 
-for _ in $(seq 1 5); do
+for i in $(seq 1 5); do
     git clone "$@" && exit 0;
+    sleep $((i ** 2))
 done
 
 exit 1
