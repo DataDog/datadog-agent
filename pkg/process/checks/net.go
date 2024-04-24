@@ -527,6 +527,7 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
 			log.Debugf("Skip loopback IP: %s", remoteAddr.Ip)
 			continue
 		}
-		c.npScheduler.Schedule(remoteAddr.Ip, uint16(conn.Raddr.Port))
+		c.npScheduler.
+			Schedule(remoteAddr.Ip, uint16(conn.Raddr.Port))
 	}
 }

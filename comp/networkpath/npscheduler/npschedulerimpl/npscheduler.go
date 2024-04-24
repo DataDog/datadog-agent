@@ -9,6 +9,7 @@ package npschedulerimpl
 import (
 	"encoding/json"
 	"net"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
@@ -49,9 +50,18 @@ func newNpScheduler(deps dependencies) provides {
 
 type npSchedulerImpl struct {
 	epForwarder eventplatform.Component
+
+	initOnce sync.Once
 }
 
-func (s npSchedulerImpl) Schedule(hostname string, port uint16) {
+func (s *npSchedulerImpl) Init() {
+	s.initOnce.Do(func() {
+		// This will be executed
+		// only once in the entire lifetime of the program
+	})
+}
+
+func (s *npSchedulerImpl) Schedule(hostname string, port uint16) {
 	log.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
 	statsd.Client.Incr("datadog.network_path.scheduler.count", []string{}, 1) //nolint:errcheck
 
@@ -67,7 +77,7 @@ func (s npSchedulerImpl) Schedule(hostname string, port uint16) {
 	}
 }
 
-func (s npSchedulerImpl) pathForConn(hostname string, port uint16) {
+func (s *npSchedulerImpl) pathForConn(hostname string, port uint16) {
 	cfg := traceroute.Config{
 		DestHostname: hostname,
 		DestPort:     uint16(port),
@@ -100,8 +110,8 @@ func (s npSchedulerImpl) pathForConn(hostname string, port uint16) {
 	}
 }
 
-func newNpSchedulerImpl(epForwarder eventplatform.Component) npSchedulerImpl {
-	return npSchedulerImpl{
+func newNpSchedulerImpl(epForwarder eventplatform.Component) *npSchedulerImpl {
+	return &npSchedulerImpl{
 		epForwarder: epForwarder,
 	}
 }
