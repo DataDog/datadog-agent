@@ -22,10 +22,11 @@ import (
 )
 
 const (
-	envRegistry     = "DD_INSTALLER_REGISTRY"
-	envRegistryAuth = "DD_INSTALLER_REGISTRY_AUTH"
-	envAPIKey       = "DD_API_KEY"
-	envSite         = "DD_SITE"
+	envBootstrapInstallerVersion = "DD_INSTALLER_BOOTSTRAP_VERSION"
+	envRegistry                  = "DD_INSTALLER_REGISTRY"
+	envRegistryAuth              = "DD_INSTALLER_REGISTRY_AUTH"
+	envAPIKey                    = "DD_API_KEY"
+	envSite                      = "DD_SITE"
 )
 
 // Commands returns the installer subcommands.
@@ -108,7 +109,9 @@ func newBootstraperCmd(operation string) *bootstraperCmd {
 	if cmd.apiKey != "" {
 		opts = append(opts, bootstraper.WithAPIKey(cmd.apiKey))
 	}
-
+	if os.Getenv(envBootstrapInstallerVersion) != "" {
+		opts = append(opts, bootstraper.WithInstallerVersion(os.Getenv(envBootstrapInstallerVersion)))
+	}
 	return &bootstraperCmd{
 		opts: opts,
 		cmd:  cmd,

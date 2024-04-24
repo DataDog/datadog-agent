@@ -18,27 +18,35 @@ import (
 )
 
 const (
-	installerPackage        = "datadog-installer"
-	installerPackageVersion = "latest"
-	installerBinPath        = "bin/installer/installer"
+	installerPackage = "datadog-installer"
+	installerBinPath = "bin/installer/installer"
 )
 
 // Option are the options for the bootstraper.
 type Option func(*options)
 
 type options struct {
-	registryAuth string
-	registry     string
-	apiKey       string
-	site         string
+	installerVersion string
+	registryAuth     string
+	registry         string
+	apiKey           string
+	site             string
 }
 
 func newOptions() *options {
 	return &options{
-		registryAuth: oci.RegistryAuthDefault,
-		registry:     "",
-		apiKey:       "",
-		site:         "datadoghq.com",
+		installerVersion: "latest",
+		registryAuth:     oci.RegistryAuthDefault,
+		registry:         "",
+		apiKey:           "",
+		site:             "datadoghq.com",
+	}
+}
+
+// WithInstallerVersion sets the installer version.
+func WithInstallerVersion(installerVersion string) Option {
+	return func(o *options) {
+		o.installerVersion = installerVersion
 	}
 }
 
@@ -78,7 +86,7 @@ func Bootstrap(ctx context.Context, opts ...Option) error {
 
 	// 1. Download the installer package from the registry.
 	downloader := oci.NewDownloader(http.DefaultClient, o.registry, o.registryAuth)
-	installerURL := oci.PackageURL(o.site, installerPackage, installerPackageVersion)
+	installerURL := oci.PackageURL(o.site, installerPackage, o.installerVersion)
 	downloadedPackage, err := downloader.Download(ctx, installerURL)
 	if err != nil {
 		return fmt.Errorf("failed to download installer package: %w", err)

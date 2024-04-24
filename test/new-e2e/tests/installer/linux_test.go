@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	stdos "os"
+
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"gopkg.in/yaml.v2"
@@ -36,7 +38,7 @@ const (
 	bootInstallerDir = "/opt/datadog-installer"
 )
 
-type vmUpdaterSuite struct {
+type installerSuite struct {
 	e2e.BaseSuite[environments.Host]
 	packageManager       string
 	distro               os.Descriptor
@@ -47,7 +49,7 @@ type vmUpdaterSuite struct {
 func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.Descriptor, remoteUpdatesEnabled bool) {
 	reg := regexp.MustCompile(`[^a-zA-Z0-9_\-.]`)
 	testName := reg.ReplaceAllString(distro.String()+"-"+string(arch)+"-remote_updates_"+strconv.FormatBool(remoteUpdatesEnabled), "_")
-	e2e.Run(t, &vmUpdaterSuite{packageManager: pkgManager, distro: distro, arch: arch, remoteUpdatesEnabled: remoteUpdatesEnabled}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
+	e2e.Run(t, &installerSuite{packageManager: pkgManager, distro: distro, arch: arch, remoteUpdatesEnabled: remoteUpdatesEnabled}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 		awshost.WithUpdater(),
 		awshost.WithEC2InstanceOptions(ec2.WithOSArch(distro, arch)),
 	)),
@@ -87,14 +89,25 @@ func TestSuseARM(t *testing.T) {
 	runTest(t, "rpm", os.ARM64Arch, os.SuseDefault, false)
 }
 
-func (v *vmUpdaterSuite) TestUserGroupsCreation() {
+func (v *installerSuite) bootstrap() {
+	v.Env().RemoteHost.MustExecute(
+		fmt.Sprintf("sudo %v/bin/installer/installer bootstrap", bootInstallerDir),
+		components.WithEnvVariables(components.EnvVar{
+			"DD_INSTALLER_REGISTRY":          "669783387624.dkr.ecr.us-east-1.amazonaws.com",
+			"DD_INSTALLER_REGISTRY_AUTH":     "ecr",
+			"DD_INSTALLER_BOOTSTRAP_VERSION": fmt.Sprintf("pipeline-%v", stdos.Getenv("E2E_PIPELINE_ID")),
+		}),
+	)
+}
+
+func (v *installerSuite) TestUserGroupsCreation() {
 	// users exist and is a system user
 	require.Equal(v.T(), "/usr/sbin/nologin\n", v.Env().RemoteHost.MustExecute(`getent passwd dd-agent | cut -d: -f7`), "unexpected: user does not exist or is not a system user")
 	require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(`getent group dd-agent | cut -d":" -f1`), "unexpected: group does not exist")
 	require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute("id -Gn dd-agent"), "dd-agent not in correct groups")
 }
 
-func (v *vmUpdaterSuite) TestSharedAgentDirs() {
+func (v *installerSuite) TestSharedAgentDirs() {
 	for _, dir := range []string{logDir} {
 		require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(`stat -c "%U" `+dir))
 		require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(`stat -c "%G" `+dir))
@@ -102,9 +115,9 @@ func (v *vmUpdaterSuite) TestSharedAgentDirs() {
 	}
 }
 
-func (v *vmUpdaterSuite) TestInstallerDirs() {
+func (v *installerSuite) TestInstallerDirs() {
 	host := v.Env().RemoteHost
-	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer bootstrap", bootInstallerDir))
+	v.bootstrap()
 	for _, dir := range []string{packagesDir, bootInstallerDir} {
 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%U" `+dir))
 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%G" `+dir))
@@ -113,10 +126,10 @@ func (v *vmUpdaterSuite) TestInstallerDirs() {
 	require.Equal(v.T(), "drwxr-xr-x\n", host.MustExecute(`stat -c "%A" `+packagesDir))
 }
 
-func (v *vmUpdaterSuite) TestInstallerUnitLoaded() {
+func (v *installerSuite) TestInstallerUnitLoaded() {
 	t := v.T()
 	host := v.Env().RemoteHost
-	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer bootstrap", bootInstallerDir))
+	v.bootstrap()
 	if v.packageManager == "rpm" {
 		t.Skip("FIXME(Paul): installer unit files disappear after bootstrap")
 	}
@@ -138,7 +151,7 @@ func (v *vmUpdaterSuite) TestInstallerUnitLoaded() {
 	require.ErrorContains(t, err, "Failed to get unit file state for datadog-installer.service: No such file or directory")
 }
 
-func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
+func (v *installerSuite) TestAgentUnitsLoaded() {
 	t := v.T()
 	stableUnits := []string{
 		"datadog-agent.service",
@@ -148,17 +161,17 @@ func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
 		"datadog-agent-security.service",
 	}
 	host := v.Env().RemoteHost
-	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer bootstrap", bootInstallerDir))
+	v.bootstrap()
 	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://public.ecr.aws/datadog/agent-package@sha256:c942936609b7ae0f457ba4c3516b340f5e0bb3459af730892abe8f2f2f84d552"`, bootInstallerDir))
 	for _, unit := range stableUnits {
 		require.Equal(t, "enabled\n", host.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, unit)))
 	}
 }
 
-func (v *vmUpdaterSuite) TestExperimentCrash() {
+func (v *installerSuite) TestExperimentCrash() {
 	t := v.T()
 	host := v.Env().RemoteHost
-	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer bootstrap", bootInstallerDir))
+	v.bootstrap()
 	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://public.ecr.aws/datadog/agent-package@sha256:c942936609b7ae0f457ba4c3516b340f5e0bb3459af730892abe8f2f2f84d552"`, bootInstallerDir))
 	startTime := getMonotonicTimestamp(t, host)
 	v.Env().RemoteHost.MustExecute(`sudo systemctl start datadog-agent-exp --no-block`)
@@ -174,9 +187,9 @@ func (v *vmUpdaterSuite) TestExperimentCrash() {
 	}), fmt.Sprintf("unexpected logs: %v", res))
 }
 
-func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
+func (v *installerSuite) TestPurgeAndInstallAgent() {
 	host := v.Env().RemoteHost
-	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer bootstrap", bootInstallerDir))
+	v.bootstrap()
 	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer remove datadog-agent", bootInstallerDir))
 	stableUnits := []string{
 		"datadog-agent.service",
@@ -240,7 +253,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	}
 }
 
-func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
+func (v *installerSuite) TestPurgeAndInstallAPMInjector() {
 	// Temporarily disable CentOS & Redhat, as there is a bug in the APM injector
 	if v.distro == os.CentOSDefault {
 		v.T().Skip("APM injector not available for CentOS yet")
@@ -379,7 +392,7 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
 	require.NotNil(v.T(), err, "expected no LD PRELOAD CONFIG in agent config, got:\n%s", res)
 }
 
-func assertInstallMethod(v *vmUpdaterSuite, t *testing.T, host *components.RemoteHost) {
+func assertInstallMethod(v *installerSuite, t *testing.T, host *components.RemoteHost) {
 	rawYaml, err := host.ReadFile(filepath.Join(confDir, "install_info"))
 	assert.Nil(t, err)
 	var config Config
