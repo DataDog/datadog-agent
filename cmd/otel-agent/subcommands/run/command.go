@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/logsagentpipeline"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/logsagentpipeline/logsagentpipelineimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -93,7 +94,7 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 			// TODO configure the log level from collector config
 			return corelogimpl.ForOneShot(params.LoggerName, "debug", true)
 		}),
-		logsagentpipeline.Module(),
+		logsagentpipelineimpl.Module(),
 		// We create strategy.ZlibStrategy directly to avoid build tags
 		fx.Provide(strategy.NewZlibStrategy),
 		fx.Provide(func(s *strategy.ZlibStrategy) compression.Component {
