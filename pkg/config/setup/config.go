@@ -1368,7 +1368,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	setupAPM(config)
 	OTLP(config)
 	setupProcesses(config)
-	setupHighAvailability(config)
+	setupMultiRegionFailover(config)
 
 	// Updater configuration
 	config.BindEnvAndSetDefault("updater.remote_updates", false)
