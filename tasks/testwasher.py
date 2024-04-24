@@ -36,7 +36,15 @@ class TestWasher:
 
         non_flaky_failing_tests = defaultdict(set)
         for package, tests in failing_tests.items():
-            non_flaky_failing_tests_in_package = tests - self.known_flaky_tests[package] - flaky_marked_tests[package]
+            non_flaky_failing_tests_in_package = set()
+            for failing_test in tests:
+                if all(
+                    not failing_test.startswith(flaky_marked_test) for flaky_marked_test in flaky_marked_tests[package]
+                ) and all(
+                    not failing_test.startswith(flaky_marked_test)
+                    for flaky_marked_test in self.known_flaky_tests[package]
+                ):
+                    non_flaky_failing_tests_in_package.add(failing_test)
             if non_flaky_failing_tests_in_package:
                 non_flaky_failing_tests[package] = non_flaky_failing_tests_in_package
         return non_flaky_failing_tests
