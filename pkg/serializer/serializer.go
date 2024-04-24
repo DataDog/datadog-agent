@@ -34,8 +34,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	"github.com/benbjohnson/clock"
 )
 
 const (
@@ -105,7 +103,6 @@ type MetricSerializer interface {
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
 type Serializer struct {
-	clock                 clock.Clock
 	Forwarder             forwarder.Forwarder
 	orchestratorForwarder orchestratorForwarder.Component
 	config                config.Component
@@ -141,7 +138,6 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestr
 	streamAvailable := compressor.NewStreamCompressor(&bytes.Buffer{}) != nil
 
 	s := &Serializer{
-		clock:                               clock.New(),
 		Forwarder:                           forwarder,
 		orchestratorForwarder:               orchestratorForwarder,
 		config:                              config,

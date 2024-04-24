@@ -17,16 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-
-	componentos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"gopkg.in/yaml.v3"
 
@@ -37,14 +35,12 @@ import (
 )
 
 type agentMSISuite struct {
-	windows.BaseAgentInstallerSuite[environments.Host]
+	windows.BaseAgentInstallerSuite[environments.WindowsHost]
 	beforeInstall *windowsCommon.FileSystemSnapshot
 }
 
 func TestMSI(t *testing.T) {
-	opts := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(componentos.WindowsDefault)),
-	))}
+	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake())}
 
 	agentPackage, err := windowsAgent.GetPackageFromEnv()
 	if err != nil {
@@ -74,19 +70,6 @@ func TestMSI(t *testing.T) {
 	t.Run(fmt.Sprintf("Agent v%s", majorVersion), func(t *testing.T) {
 		e2e.Run(t, s, opts...)
 	})
-}
-
-func (is *agentMSISuite) prepareHost() {
-	vm := is.Env().RemoteHost
-
-	if !is.Run("prepare VM", func() {
-		is.Run("disable defender", func() {
-			err := windowsCommon.DisableDefender(vm)
-			is.Require().NoError(err, "should disable defender")
-		})
-	}) {
-		is.T().Fatal("failed to prepare VM")
-	}
 }
 
 // TODO: this isn't called before tabular tests (e.g. TestAgentUser/...)
@@ -187,7 +170,6 @@ func (is *agentMSISuite) cleanupOnSuccessInDevMode() {
 
 func (is *agentMSISuite) TestInstall() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	// initialize test helper
 	t := is.newTester(vm)
@@ -199,26 +181,63 @@ func (is *agentMSISuite) TestInstall() {
 	if !t.TestInstallExpectations(is.T()) {
 		is.T().FailNow()
 	}
+	is.testCodeSignatures(t, remoteMSIPath)
 
-	// Test the code signatures of the installed files.
-	// The same MSI is used in all tests so only check it once here.
+	is.uninstallAgentAndRunUninstallTests(t)
+}
+
+// testCodeSignatures checks the code signatures of the installed files.
+// The same MSI is used in all tests so this test is only done once, in TestInstall.
+func (is *agentMSISuite) testCodeSignatures(t *Tester, remoteMSIPath string) {
+	// Get a list of files, and sort them into DD signed and other signed
 	root, err := windowsAgent.GetInstallPathFromRegistry(t.host)
 	is.Require().NoError(err)
 	paths := getExpectedSignedFilesForAgentMajorVersion(t.expectedAgentMajorVersion)
 	for i, path := range paths {
 		paths[i] = root + path
 	}
-	if remoteMSIPath != "" {
-		paths = append(paths, remoteMSIPath)
+	ddSigned := []string{}
+	otherSigned := []string{}
+	for _, path := range paths {
+		if strings.Contains(path, "embedded3") {
+			// As of 7.5?, the embedded Python3 should be signed by Python, not Datadog
+			// We still build our own Python2, so we need to check that still
+			otherSigned = append(otherSigned, path)
+		} else {
+			ddSigned = append(ddSigned, path)
+		}
 	}
-	windowsAgent.TestValidDatadogCodeSignatures(is.T(), t.host, paths)
+	// MSI is signed by Datadog
+	if remoteMSIPath != "" {
+		ddSigned = append(ddSigned, remoteMSIPath)
+	}
+	windowsAgent.TestValidDatadogCodeSignatures(is.T(), t.host, ddSigned)
 
-	is.uninstallAgentAndRunUninstallTests(t)
+	// Check other signed files
+	is.Run("check other signed files", func() {
+		verify, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.VerifyCodeSignature, true)
+		if !verify {
+			is.T().Skip("skipping code signature verification")
+		}
+		for _, path := range otherSigned {
+			subject := ""
+			if strings.Contains(path, "embedded3") {
+				subject = "CN=Python Software Foundation, O=Python Software Foundation, L=Beaverton, S=Oregon, C=US"
+			} else {
+				is.Assert().Failf("unexpected signed executable", "unexpected signed executable %s", path)
+			}
+			sig, err := windowsCommon.GetAuthenticodeSignature(t.host, path)
+			if !is.Assert().NoError(err, "should get authenticode signature for %s", path) {
+				continue
+			}
+			is.Assert().Truef(sig.Valid(), "signature should be valid for %s", path)
+			is.Assert().Equalf(sig.SignerCertificate.Subject, subject, "subject should match for %s", path)
+		}
+	})
 }
 
 func (is *agentMSISuite) TestInstallAltDir() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	installPath := `C:\altdir`
 	configRoot := `C:\altconfroot`
@@ -245,10 +264,16 @@ func (is *agentMSISuite) TestInstallAltDir() {
 
 func (is *agentMSISuite) TestUpgrade() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	// install previous version
 	_ = is.installLastStable(vm)
+
+	// simulate upgrading from a version that didn't have the runtime-security.d directory
+	// to ensure upgrade places new config files.
+	configRoot, err := windowsAgent.GetConfigRootFromRegistry(vm)
+	is.Require().NoError(err)
+	err = vm.RemoveAll(filepath.Join(configRoot, "runtime-security.d"))
+	is.Require().NoError(err)
 
 	// upgrade to the new version
 	if !is.Run(fmt.Sprintf("upgrade to %s", is.AgentPackage.AgentVersion()), func() {
@@ -273,7 +298,6 @@ func (is *agentMSISuite) TestUpgrade() {
 // TC-INS-002
 func (is *agentMSISuite) TestUpgradeRollback() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	// install previous version
 	previousTester := is.installLastStable(vm)
@@ -306,7 +330,6 @@ func (is *agentMSISuite) TestUpgradeRollback() {
 // TC-INS-001
 func (is *agentMSISuite) TestRepair() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	// initialize test helper
 	t := is.newTester(vm)
@@ -323,6 +346,11 @@ func (is *agentMSISuite) TestRepair() {
 	err = t.host.Remove(filepath.Join(installPath, "bin", "agent.exe"))
 	is.Require().NoError(err)
 	err = t.host.RemoveAll(filepath.Join(installPath, "embedded3"))
+	is.Require().NoError(err)
+	// delete config files to ensure repair restores them
+	configRoot, err := windowsAgent.GetConfigRootFromRegistry(t.host)
+	is.Require().NoError(err)
+	err = t.host.RemoveAll(filepath.Join(configRoot, "runtime-security.d"))
 	is.Require().NoError(err)
 
 	// Run Repair through the MSI
@@ -344,7 +372,6 @@ func (is *agentMSISuite) TestRepair() {
 // TC-INS-006
 func (is *agentMSISuite) TestAgentUser() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	hostinfo, err := windowsCommon.GetHostInfo(vm)
 	is.Require().NoError(err)
@@ -400,7 +427,6 @@ func (is *agentMSISuite) TestAgentUser() {
 // TODO: It would be better for the cmd_port binding test to be done by a regular Agent E2E test.
 func (is *agentMSISuite) TestInstallOpts() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	cmdPort := 4999
 
@@ -495,7 +521,6 @@ func (is *agentMSISuite) TestInstallOpts() {
 // should be moved to regular Agent E2E tests for each subservice.
 func (is *agentMSISuite) TestSubServicesOpts() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	tcs := []struct {
 		testname string
@@ -583,7 +608,6 @@ func (is *agentMSISuite) TestSubServicesOpts() {
 // Runs the installer with WIXFAILWHENDEFERRED=1 to trigger a failure at the very end of the installer.
 func (is *agentMSISuite) TestInstallFail() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	// run installer with failure flag
 	if !is.Run(fmt.Sprintf("install %s", is.AgentPackage.AgentVersion()), func() {

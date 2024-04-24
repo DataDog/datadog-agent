@@ -347,6 +347,8 @@ profiles:
       ],
       "tags": [
         "agent_version:%s",
+		"device_id:profile-metadata:1.2.3.4",
+		"device_ip:1.2.3.4",
         "device_namespace:profile-metadata",
         "device_vendor:f5",
         "snmp_device:1.2.3.4",

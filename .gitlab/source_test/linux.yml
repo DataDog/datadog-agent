@@ -19,7 +19,7 @@
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
   variables:
-    FLAVORS: '--flavors base'
+    FLAVORS: '--flavor base'
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: 16Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
@@ -27,14 +27,10 @@
   script:
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
-    - python3 -m pip install -r tasks/libs/requirements-github.txt
-    - inv -e invoke-unit-tests
-    - pushd test/kitchen
-    - inv -e kitchen.invoke-unit-tests
-    - popd
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
-    - inv -e test $FLAVORS --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG
+    - inv -e sds.build-library
+    - inv -e test $FLAVORS --include-sds --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -45,10 +41,7 @@
       junit: "**/junit-out-*.xml"
 
 .upload_junit_source:
-  - source /root/.bashrc && conda activate $CONDA_ENV
-  # Upload generated junit files
-  - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
-  - for f in junit-*.tgz; do inv -e junit-upload --tgz-path $f; done
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
 
 .linux_tests_with_upload:
   extends: .linux_tests
@@ -59,7 +52,7 @@
   stage: source_test
   needs: ["go_deps", "go_tools_deps"]
   variables:
-    FLAVORS: '--flavors base'
+    FLAVORS: '--flavor base'
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: 16Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
@@ -109,14 +102,14 @@ tests_flavor_iot_deb-x64:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-    FLAVORS: '--flavors iot'
+    FLAVORS: '--flavor iot'
 
 lint_flavor_iot_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
   variables:
-    FLAVORS: '--flavors iot'
+    FLAVORS: '--flavor iot'
 
 tests_flavor_dogstatsd_deb-x64:
   extends:
@@ -126,14 +119,14 @@ tests_flavor_dogstatsd_deb-x64:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-    FLAVORS: '--flavors dogstatsd'
+    FLAVORS: '--flavor dogstatsd'
 
 lint_flavor_dogstatsd_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
   variables:
-    FLAVORS: '--flavors dogstatsd'
+    FLAVORS: '--flavor dogstatsd'
 
 tests_flavor_heroku_deb-x64:
   extends:
@@ -143,14 +136,14 @@ tests_flavor_heroku_deb-x64:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-    FLAVORS: '--flavors heroku'
+    FLAVORS: '--flavor heroku'
 
 lint_flavor_heroku_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
   variables:
-    FLAVORS: '--flavors heroku'
+    FLAVORS: '--flavor heroku'
 
 # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
 # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
@@ -161,7 +154,7 @@ tests_rpm-x64-py2:
     - !reference [.except_disable_unit_tests]
     - !reference [.except_mergequeue]
     - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64_testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     PYTHON_RUNTIMES: '2'
@@ -172,7 +165,7 @@ tests_rpm-x64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests_with_upload
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64_testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     PYTHON_RUNTIMES: '3'

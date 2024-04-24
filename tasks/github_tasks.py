@@ -15,7 +15,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
-from tasks.libs.common.datadog_api import create_count, send_metrics
+from tasks.libs.common.datadog_api import create_gauge, send_metrics
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
 from tasks.libs.common.utils import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH, get_git_pretty_ref
 from tasks.libs.owners.parsing import read_owners
@@ -175,17 +175,21 @@ def get_milestone_id(_, milestone):
 
 
 @task
-def send_rate_limit_info_datadog(_, pipeline_id):
+def send_rate_limit_info_datadog(_, pipeline_id, app_instance):
     from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI()
     rate_limit_info = gh.get_rate_limit_info()
-    print(f"Remaining rate limit: {rate_limit_info[0]}/{rate_limit_info[1]}")
-    metric = create_count(
+    print(f"Remaining rate limit for app instance {app_instance}: {rate_limit_info[0]}/{rate_limit_info[1]}")
+    metric = create_gauge(
         metric_name='github.rate_limit.remaining',
         timestamp=int(time.time()),
         value=rate_limit_info[0],
-        tags=['source:github', 'repository:datadog-agent', f'pipeline_id:{pipeline_id}'],
+        tags=[
+            'source:github',
+            'repository:datadog-agent',
+            f'app_instance:{app_instance}',
+        ],
     )
     send_metrics([metric])
 
@@ -218,7 +222,7 @@ def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> List[str]:
 def _get_team_labels():
     import toml
 
-    with open('.ddqa/config.toml', 'r') as f:
+    with open('.ddqa/config.toml') as f:
         data = toml.loads(f.read())
 
     labels = []
