@@ -68,6 +68,7 @@ password: 'test-password'
 use_http: true
 namespace: test
 min_collection_interval: 180
+collect_bfd_session_status: true
 `)
 
 	// Use ID to ensure the mock sender gets registered
