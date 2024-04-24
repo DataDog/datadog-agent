@@ -108,17 +108,14 @@ func streamLogs(log log.Component, config config.Component, cliParams *cliParams
 			return fmt.Errorf("error opening file %s for writing: %v", cliParams.FilePath, err)
 		}
 		defer f.Close()
-
-		if bufWriter != nil {
-			defer bufWriter.Flush()
-		}
+		defer bufWriter.Flush()
 	}
 
 	return streamRequest(urlstr, body, func(chunk []byte) {
 		fmt.Print(string(chunk))
 
 		if bufWriter != nil {
-			if err = writeToBuffer(bufWriter, string(chunk)); err != nil {
+			if _, err = bufWriter.Write(chunk); err != nil {
 				fmt.Printf("Error writing stream-logs to file %s: %v", cliParams.FilePath, err)
 			}
 		}
@@ -153,12 +150,4 @@ func openFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
 	}
 	bufWriter := bufio.NewWriter(f)
 	return f, bufWriter, nil
-}
-
-func writeToBuffer(bufWriter *bufio.Writer, message string) error {
-	_, err := bufWriter.WriteString(message)
-	if err != nil {
-		return fmt.Errorf("error writing log messages to buffer: %v", err)
-	}
-	return nil
 }
