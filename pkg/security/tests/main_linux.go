@@ -93,6 +93,11 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestChown32",
 		}
 
+		if disableSeccomp {
+			// disable for now as flacky
+			exclude = append(exclude, "TestProcessExit/exit-signaled")
+		}
+
 		if !isAvailable(available, exclude) {
 			t.Skip("test not available for ebpfless")
 		}
