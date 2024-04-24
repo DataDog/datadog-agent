@@ -520,6 +520,7 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
 	if !c.networkPathEnabled {
 		return
 	}
+	// TODO: TESTME
 	for _, conn := range conns {
 		remoteAddr := conn.Raddr
 		if stdnet.ParseIP(remoteAddr.Ip).IsLoopback() {
