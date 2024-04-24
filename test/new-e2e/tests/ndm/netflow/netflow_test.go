@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
@@ -75,7 +76,12 @@ func netflowDockerProvisioner() e2e.Provisioner {
 			return err
 		}
 
-		dockerManager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, host)
+		installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
+		if err != nil {
+			return err
+		}
+
+		dockerManager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 		if err != nil {
 			return err
 		}
