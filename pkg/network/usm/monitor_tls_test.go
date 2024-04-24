@@ -561,6 +561,71 @@ func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 	})
 }
 
+func TestOldConnectionRegression(t *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+		if !gotlstestutil.GoTLSSupported(t, config.New()) {
+			t.Skip("GoTLS not supported for this setup")
+		}
+
+		// Spin up HTTP server
+		const serverAddr = "127.0.0.1:8081"
+		const httpPath = "/200/foobar"
+		closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
+			EnableTLS:       true,
+			EnableKeepAlive: true,
+		})
+		t.Cleanup(closeServer)
+
+		// Create a TLS connection *before* starting the USM monitor
+		// This is the main purpose of this test: verifying that GoTLS
+		// monitoring works for connections initiated prior to USM monitor.
+		tlsConfig := &tls.Config{InsecureSkipVerify: true}
+		conn, err := tls.Dial("tcp", serverAddr, tlsConfig)
+		require.NoError(t, err)
+
+		// Start USM monitor
+		cfg := config.New()
+		cfg.EnableHTTPMonitoring = true
+		cfg.EnableGoTLSSupport = true
+		cfg.GoTLSExcludeSelf = false
+		cfg.BPFDebug = true
+		usmMonitor := setupUSMTLSMonitor(t, cfg)
+
+		// Ensure this test program is being traced
+		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid())
+
+		// Issue HTTP request
+		requestBody := fmt.Sprintf("GET %s HTTP/1.1\nHost: %s\n\n", httpPath, serverAddr)
+		conn.Write([]byte(requestBody))
+		io.Copy(io.Discard, conn)
+
+		// Issue another HTTP request
+		// NOTE: This is a temporary hack to avoid test flakiness because
+		// currently the TLS.Close() codepath may fail due to a race condition
+		// in which the `protocol_stack` object is deleted before the
+		// termination code runs. By issuing a second request on the same socket
+		// we force the first one to be flushed.
+		conn.Write([]byte(requestBody))
+		io.Copy(io.Discard, conn)
+		conn.Close()
+
+		// Ensure we have captured a request
+		stats, ok := usmMonitor.GetProtocolStats()[protocols.HTTP]
+		require.True(t, ok)
+		httpStats, ok := stats.(map[http.Key]*http.RequestStats)
+		require.True(t, ok)
+		assert.Condition(t, func() bool {
+			for key := range httpStats {
+				if key.Path.Content.Get() == httpPath {
+					return true
+				}
+			}
+			return false
+		})
+	})
+}
+
 // Test that we can capture HTTPS traffic from Go processes started after the
 // tracer.
 func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config, isHTTP2 bool) {
