@@ -102,10 +102,15 @@ func streamLogs(log log.Component, config config.Component, cliParams *cliParams
 		fmt.Print(string(chunk))
 
 		if cliParams.FilePath != "" {
-			err := writeToFile(cliParams.FilePath, string(chunk))
+			f, bufWriter, err := writeToFile(cliParams.FilePath, string(chunk))
 			if err != nil {
 				fmt.Printf("Error writing stream-logs to file %s: %v", cliParams.FilePath, err)
 			}
+			defer f.Close()
+			if err = bufWriter.Flush(); err != nil {
+				fmt.Printf("Error flushing stream-log buffered data: %v ", err)
+			}
+
 		}
 
 	})
@@ -132,26 +137,20 @@ func streamRequest(url string, body []byte, onChunk func([]byte)) error {
 	return e
 }
 
-func writeToFile(filePath, message string) error {
+func writeToFile(filePath, message string) (*os.File, *bufio.Writer, error) {
 	// Open the file for writing, create it if it does not exist.
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	defer f.Close()
 
 	// Use a buffered writer to minimize direct writes to disk.
 	bufWriter := bufio.NewWriter(f)
 
 	_, err = bufWriter.WriteString(message + "\n")
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	// Flush before closing the file
-	if err = bufWriter.Flush(); err != nil {
-		return err
-	}
-
-	return nil
+	return f, bufWriter, nil
 }
