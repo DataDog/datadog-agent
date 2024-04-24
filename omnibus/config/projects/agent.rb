@@ -45,7 +45,7 @@ if windows_target?
   PYTHON_2_EMBEDDED_DIR = format('%s/embedded2', INSTALL_DIR)
   PYTHON_3_EMBEDDED_DIR = format('%s/embedded3', INSTALL_DIR)
 else
-  INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
+  INSTALL_DIR = Omnibus::Config.install_dir || '/opt/datadog-installer'
 end
 
 install_dir INSTALL_DIR
