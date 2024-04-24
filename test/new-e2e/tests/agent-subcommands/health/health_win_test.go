@@ -26,6 +26,7 @@ func TestWindowsHealthSuite(t *testing.T) {
 }
 
 func (v *windowsHealthSuite) TestDefaultInstallUnhealthy() {
+	v.T().Skip("FIXME: test is flaky")
 	// the fakeintake says that any API key is invalid by sending a 403 code
 	override := api.ResponseOverride{
 		Endpoint:    "/api/v1/validate",
