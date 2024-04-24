@@ -285,7 +285,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_connection_rollup"), false)
 
 	// network_config network path config
-	cfg.BindEnvAndSetDefault(join(netNS, "enable_network_path"), false)
+	cfg.BindEnvAndSetDefault(join(netNS, "network_path", "enabled"), false)
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
