@@ -103,6 +103,7 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
@@ -369,6 +370,12 @@ func getSharedFxOption() fx.Option {
 		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		dogstatsd.Bundle(),
+		fx.Provide(func(logsagent optional.Option[logsAgent.Component]) optional.Option[logsagentpipeline.Component] {
+			if la, ok := logsagent.Get(); ok {
+				return optional.NewOption[logsagentpipeline.Component](la)
+			}
+			return optional.NewNoneOption[logsagentpipeline.Component]()
+		}),
 		otelcol.Bundle(),
 		rctelemetryreporterimpl.Module(),
 		rcserviceimpl.Module(),

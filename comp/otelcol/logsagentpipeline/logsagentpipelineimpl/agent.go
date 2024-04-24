@@ -60,8 +60,16 @@ type Agent struct {
 	health           *health.Handle
 }
 
-// NewLogsAgent returns a new instance of Agent with the given dependencies
-func NewLogsAgent(deps Dependencies) optional.Option[logsagentpipeline.Component] {
+// NewLogsAgentPipeline returns a new instance of Agent with the given dependencies
+func NewLogsAgentPipeline(deps Dependencies) optional.Option[logsagentpipeline.Component] {
+	logsAgent := NewLogsAgent(deps)
+	if logsAgent == nil {
+		return optional.NewNoneOption[logsagentpipeline.Component]()
+	}
+	return optional.NewOption[logsagentpipeline.Component](logsAgent)
+}
+
+func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
@@ -79,11 +87,11 @@ func NewLogsAgent(deps Dependencies) optional.Option[logsagentpipeline.Component
 			})
 		}
 
-		return optional.NewOption[logsagentpipeline.Component](logsAgent)
+		return logsAgent
 	}
 
 	deps.Log.Debug("logs-agent disabled")
-	return optional.NewNoneOption[logsagentpipeline.Component]()
+	return nil
 }
 
 // Start sets up the logs agent and starts its pipelines

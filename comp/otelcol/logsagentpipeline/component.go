@@ -18,6 +18,11 @@ import (
 type Component interface {
 	// GetPipelineProvider gets the pipeline provider
 	GetPipelineProvider() pipeline.Provider
+}
+
+// LogsAgent is a compat version of component for non fx usage
+type LogsAgent interface {
+	Component
 
 	// Start sets up the logs agent and starts its pipelines
 	Start(context.Context) error
