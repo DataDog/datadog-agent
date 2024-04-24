@@ -60,7 +60,9 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceLoad,
 		metrics.MetricSourceDisk,
 		metrics.MetricSourceNetwork,
-		metrics.MetricSourceSnmp:
+		metrics.MetricSourceSnmp,
+		// Python TLS Check
+		metrics.MetricSourceTLS:
 		return 11 // integration_metrics
 	default:
 		return 0
@@ -108,6 +110,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 147
 	case metrics.MetricSourceSonarqube:
 		return 148
+	case metrics.MetricSourceTLS:
+		return 161
 	case metrics.MetricSourceTomcat:
 		return 163
 	case metrics.MetricSourceWeblogic:
