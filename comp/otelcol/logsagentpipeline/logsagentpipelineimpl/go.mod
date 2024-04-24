@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/logsagentpipelineimpl
+module github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 
 go 1.21.0
 
@@ -11,7 +11,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../core/telemetry
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../logs/agent/config
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/logsagentpipeline => ../../logsagentpipeline
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../logsagentpipeline
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/logs => ../../../../pkg/config/logs
@@ -57,7 +57,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/log v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/logsagentpipeline v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.53.0-rc.2

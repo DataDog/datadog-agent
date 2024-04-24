@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/logsagentpipeline
+module github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline
 
 go 1.21.0
 
