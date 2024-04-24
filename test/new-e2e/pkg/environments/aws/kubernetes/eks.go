@@ -8,6 +8,7 @@ package awskubernetes
 
 import (
 	"github.com/DataDog/test-infra-definitions/common/config"
+	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
@@ -27,6 +28,7 @@ import (
 	awsIam "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
 	"github.com/pulumi/pulumi-eks/sdk/v2/go/eks"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -157,18 +159,86 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			return err
 		}
 
+		// Building Kubernetes provider
+		eksKubeProvider, err := kubernetes.NewProvider(awsEnv.Ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
+			Kubeconfig:            cluster.KubeconfigJson,
+			EnableServerSideApply: pulumi.BoolPtr(true),
+			DeleteUnreachable:     pulumi.BoolPtr(true),
+		}, awsEnv.WithProviders(config.ProviderAWS))
+		if err != nil {
+			return err
+		}
+
 		// Filling Kubernetes component from EKS cluster
 		comp.ClusterName = cluster.EksCluster.Name()
 		comp.KubeConfig = cluster.KubeconfigJson
+		comp.KubeProvider = eksKubeProvider
 
-		nodeGroups := make([]pulumi.Resource, 0)
+		// Create configuration for POD subnets if any
+		workloadDeps := make([]pulumi.Resource, 0)
+		if podSubnets := awsEnv.EKSPODSubnets(); len(podSubnets) > 0 {
+			eniConfigs, err := localEks.NewENIConfigs(awsEnv, comp.KubeProvider, podSubnets, awsEnv.DefaultSecurityGroups())
+			if err != nil {
+				return err
+			}
+
+			// Setting AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG is mandatory for EKS CNI to work with ENIConfig CRD
+			dsPatch, err := appsv1.NewDaemonSetPatch(awsEnv.Ctx, awsEnv.Namer.ResourceName("eks-custom-network"), &appsv1.DaemonSetPatchArgs{
+				Metadata: metav1.ObjectMetaPatchArgs{
+					Namespace: pulumi.String("kube-system"),
+					Name:      pulumi.String("aws-node"),
+					Annotations: pulumi.StringMap{
+						"pulumi.com/patchForce": pulumi.String("true"),
+					},
+				},
+				Spec: appsv1.DaemonSetSpecPatchArgs{
+					Template: corev1.PodTemplateSpecPatchArgs{
+						Spec: corev1.PodSpecPatchArgs{
+							Containers: corev1.ContainerPatchArray{
+								corev1.ContainerPatchArgs{
+									Name: pulumi.StringPtr("aws-node"),
+									Env: corev1.EnvVarPatchArray{
+										corev1.EnvVarPatchArgs{
+											Name:  pulumi.String("AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG"),
+											Value: pulumi.String("true"),
+										},
+										corev1.EnvVarPatchArgs{
+											Name:  pulumi.String("ENI_CONFIG_LABEL_DEF"),
+											Value: pulumi.String("topology.kubernetes.io/zone"),
+										},
+										corev1.EnvVarPatchArgs{
+											Name:  pulumi.String("ENABLE_PREFIX_DELEGATION"),
+											Value: pulumi.String("true"),
+										},
+										corev1.EnvVarPatchArgs{
+											Name:  pulumi.String("WARM_IP_TARGET"),
+											Value: pulumi.String("1"),
+										},
+										corev1.EnvVarPatchArgs{
+											Name:  pulumi.String("MINIMUM_IP_TARGET"),
+											Value: pulumi.String("1"),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, pulumi.Provider(eksKubeProvider), utils.PulumiDependsOn(eniConfigs))
+			if err != nil {
+				return err
+			}
+
+			workloadDeps = append(workloadDeps, eniConfigs, dsPatch)
+		}
+
 		// Create managed node groups
 		if params.eksLinuxNodeGroup {
 			ng, err := localEks.NewLinuxNodeGroup(awsEnv, cluster, linuxNodeRole)
 			if err != nil {
 				return err
 			}
-			nodeGroups = append(nodeGroups, ng)
+			workloadDeps = append(workloadDeps, ng)
 		}
 
 		if params.eksLinuxARMNodeGroup {
@@ -176,7 +246,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			if err != nil {
 				return err
 			}
-			nodeGroups = append(nodeGroups, ng)
+			workloadDeps = append(workloadDeps, ng)
 		}
 
 		if params.eksBottlerocketNodeGroup {
@@ -184,7 +254,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			if err != nil {
 				return err
 			}
-			nodeGroups = append(nodeGroups, ng)
+			workloadDeps = append(workloadDeps, ng)
 		}
 
 		// Create unmanaged node groups
@@ -195,16 +265,8 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			}
 		}
 
-		// Building Kubernetes provider
-		eksKubeProvider, err := kubernetes.NewProvider(awsEnv.Ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
-			EnableServerSideApply: pulumi.BoolPtr(true),
-			Kubeconfig:            cluster.KubeconfigJson,
-		}, awsEnv.WithProviders(config.ProviderAWS), pulumi.DependsOn(nodeGroups))
-		if err != nil {
-			return err
-		}
-
 		// Applying necessary Windows configuration if Windows nodes
+		// Custom networking is not available for Windows nodes, using normal subnets IPs
 		if params.eksWindowsNodeGroup {
 			_, err := corev1.NewConfigMapPatch(awsEnv.Ctx, awsEnv.Namer.ResourceName("eks-cni-cm"), &corev1.ConfigMapPatchArgs{
 				Metadata: metav1.ObjectMetaPatchArgs{
@@ -242,6 +304,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		}
 
 		// Deploy the agent
+		dependsOnSetup := utils.PulumiDependsOn(workloadDeps...)
 		if params.agentOptions != nil {
 			paramsAgent, err := kubernetesagentparams.NewParams(*awsEnv.CommonEnvironment, params.agentOptions...)
 			if err != nil {
@@ -256,7 +319,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 				},
 				Fakeintake:    fakeIntake,
 				DeployWindows: params.eksWindowsNodeGroup,
-			}, nil)
+			}, dependsOnSetup)
 			if err != nil {
 				return err
 			}
