@@ -10,8 +10,8 @@
 package k8scp
 
 import (
-	"archive/tar"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -20,11 +20,18 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
-	"k8s.io/client-go/kubernetes"
-	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/kubectl/pkg/cmd/util/podcmd"
 	"k8s.io/kubectl/pkg/scheme"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	// CWSRemoteCopyCommand is the command used to copy cws-instrumentation, arguments are split on purpose
+	// to try to differentiate this kubectl cp from others
+	CWSRemoteCopyCommand = []string{"tar", "-x", "-m", "-f", "-"}
 )
 
 // Copy perform remote copy operations
@@ -32,33 +39,32 @@ type Copy struct {
 	Container string
 	Namespace string
 
-	config    *restclient.Config
-	clientSet kubernetes.Interface
-
-	streams genericiooptions.IOStreams
-	in      *bytes.Buffer
-	out     *bytes.Buffer
-	errOut  *bytes.Buffer
+	apiClient *apiserver.APIClient
+	streams   genericiooptions.IOStreams
+	in        *bytes.Buffer
+	out       *bytes.Buffer
+	errOut    *bytes.Buffer
 }
 
 // NewCopy creates a Command instance
-func NewCopy(config *restclient.Config, clientSet kubernetes.Interface) *Copy {
-	config.APIPath = "/api"
-	config.GroupVersion = &schema.GroupVersion{Version: "v1"}
-	config.NegotiatedSerializer = serializer.WithoutConversionCodecFactory{CodecFactory: scheme.Codecs}
+func NewCopy(apiClient *apiserver.APIClient) *Copy {
 	ioStreams, in, out, errOut := genericiooptions.NewTestIOStreams()
 	return &Copy{
 		streams:   ioStreams,
 		in:        in,
 		out:       out,
 		errOut:    errOut,
-		config:    config,
-		clientSet: clientSet,
+		apiClient: apiClient,
 	}
 }
 
 // CopyToPod copies the provided local file to the provided container
 func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, container string) error {
+	if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+		return fmt.Errorf("cannot exec into a container in a completed pod; current phase is %s", pod.Status.Phase)
+	}
+	o.Container = container
+
 	// sanity check
 	if _, err := os.Stat(localFile); err != nil {
 		return fmt.Errorf("%s doesn't exist in local filesystem", localFile)
@@ -75,110 +81,90 @@ func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, c
 		}
 	}(srcFile, destFile, writer)
 
-	// arguments are split on purpose to differentiate this kubectl cp from others
-	cmdArr := []string{"tar", "-x", "-m", "-f", "-"}
+	// arguments are split on purpose to try to differentiate this kubectl cp from others
+	cmdArr := make([]string, len(CWSRemoteCopyCommand))
+	copy(cmdArr, CWSRemoteCopyCommand)
 	destFileDir := destFile.Dir().String()
 	if len(destFileDir) > 0 {
 		cmdArr = append(cmdArr, "-C", destFileDir)
 	}
 
-	options := &ExecOptions{}
-	options.StreamOptions = StreamOptions{
+	streamOptions := StreamOptions{
 		IOStreams: genericiooptions.IOStreams{
 			In:     reader,
 			Out:    o.out,
 			ErrOut: o.errOut,
 		},
-		Stdin:         true,
-		Namespace:     pod.GetNamespace(),
-		PodName:       pod.GetName(),
-		ContainerName: container,
+		Stdin: true,
 	}
-	options.Command = cmdArr
-	options.Config = o.config
-	options.Executor = &DefaultRemoteExecutor{}
-
-	return options.Run(pod)
+	return o.execute(pod, cmdArr, streamOptions)
 }
 
-func makeTar(src localPath, dest remotePath, writer io.Writer) error {
-	tarWriter := tar.NewWriter(writer)
-	defer tarWriter.Close()
-
-	srcPath := src.Clean()
-	destPath := dest.Clean()
-	return recursiveTar(srcPath.Dir(), srcPath.Base(), destPath.Dir(), destPath.Base(), tarWriter)
-}
-
-func recursiveTar(srcDir, srcFile localPath, destDir, destFile remotePath, tw *tar.Writer) error {
-	matchedPaths, err := srcDir.Join(srcFile).Glob()
-	if err != nil {
-		return err
+func (o *Copy) execute(pod *corev1.Pod, command []string, streamOptions StreamOptions) error {
+	if len(o.Container) == 0 {
+		container, err := podcmd.FindOrDefaultContainerByName(pod, o.Container, false, streamOptions.ErrOut)
+		if err != nil {
+			return err
+		}
+		o.Container = container.Name
 	}
-	for _, fpath := range matchedPaths {
-		stat, err := os.Lstat(fpath)
+
+	// ensure we can recover the terminal while attached
+	t := streamOptions.SetupTTY()
+
+	var sizeQueue remotecommand.TerminalSizeQueue
+	if t.Raw {
+		// this call spawns a goroutine to monitor/update the terminal size
+		sizeQueue = t.MonitorSize(t.GetSize())
+
+		// unset p.Err if it was previously set because both stdout and stderr go over p.Out when tty is
+		// true
+		streamOptions.ErrOut = nil
+	}
+
+	fn := func() error {
+		restClient, err := o.apiClient.RESTClient(
+			"/api",
+			&schema.GroupVersion{Version: "v1"},
+			serializer.WithoutConversionCodecFactory{CodecFactory: scheme.Codecs},
+		)
 		if err != nil {
 			return err
 		}
 
-		if stat.IsDir() {
-			files, err := os.ReadDir(fpath)
-			if err != nil {
-				return err
-			}
-			if len(files) == 0 {
-				// case empty directory
-				hdr, _ := tar.FileInfoHeader(stat, fpath)
-				hdr.Name = destFile.String()
-				if err := tw.WriteHeader(hdr); err != nil {
-					return err
-				}
-			}
-			for _, f := range files {
-				if err := recursiveTar(srcDir, srcFile.Join(newLocalPath(f.Name())),
-					destDir, destFile.Join(newRemotePath(f.Name())), tw); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
+		req := restClient.Post().
+			Resource("pods").
+			Name(pod.Name).
+			Namespace(pod.Namespace).
+			SubResource("exec")
+		req.VersionedParams(&corev1.PodExecOptions{
+			Container: o.Container,
+			Command:   command,
+			Stdin:     streamOptions.Stdin,
+			Stdout:    streamOptions.Out != nil,
+			Stderr:    streamOptions.ErrOut != nil,
+			TTY:       t.Raw,
+		}, scheme.ParameterCodec)
 
-		if stat.Mode()&os.ModeSymlink == 0 {
-			// case regular file or other file type like pipe
-			hdr, err := tar.FileInfoHeader(stat, fpath)
-			if err != nil {
-				return err
-			}
-			hdr.Name = destFile.String()
-
-			if err := tw.WriteHeader(hdr); err != nil {
-				return err
-			}
-
-			f, err := os.Open(fpath)
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-
-			if _, err := io.Copy(tw, f); err != nil {
-				return err
-			}
-			return f.Close()
-		}
-
-		// case soft link
-		hdr, _ := tar.FileInfoHeader(stat, fpath)
-		target, err := os.Readlink(fpath)
+		exec, err := o.apiClient.NewSPDYExecutor(
+			"/api",
+			&schema.GroupVersion{Version: "v1"},
+			serializer.WithoutConversionCodecFactory{CodecFactory: scheme.Codecs},
+			"POST",
+			req.URL(),
+		)
 		if err != nil {
 			return err
 		}
 
-		hdr.Linkname = target
-		hdr.Name = destFile.String()
-		if err := tw.WriteHeader(hdr); err != nil {
-			return err
-		}
+		return exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+			Stdin:             streamOptions.In,
+			Stdout:            streamOptions.Out,
+			Stderr:            streamOptions.ErrOut,
+			Tty:               t.Raw,
+			TerminalSizeQueue: sizeQueue,
+		})
 	}
-	return nil
+
+	return t.Safe(fn)
 }

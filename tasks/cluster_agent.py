@@ -174,7 +174,7 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     shutil.copytree("Dockerfiles/agent/nosys-seccomp", f"{build_context}/nosys-seccomp", dirs_exist_ok=True)
     ctx.run(f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path}")
     ctx.run(f"rm {exec_path}")
-    # ctx.run(f"rm {cws_instrumentation_exec_path}")
+    ctx.run(f"rm -rf {cws_instrumentation_base}")
 
     if push:
         ctx.run(f"docker push {tag}")

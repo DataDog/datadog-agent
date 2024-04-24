@@ -14,13 +14,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"k8s.io/utils/strings/slices"
 	"path/filepath"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8scp"
-	apiserver2 "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/wI2L/jsondiff"
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -31,11 +28,14 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8scp"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	apiserverUtils "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -208,11 +208,14 @@ func isPodCWSInstrumentationReady(annotations map[string]string) bool {
 	return annotations[cwsInstrumentationPodAnotationStatus] == cwsInstrumentationPodAnotationReady
 }
 
+// InstrumentationMode defines how the CWS Instrumentation admission controller endpoint should behave
 type InstrumentationMode string
 
 const (
+	// InitContainer configures the CWS Instrumentation admission controller endpoint to use an init container
 	InitContainer InstrumentationMode = "init_container"
-	RemoteCopy    InstrumentationMode = "remote_copy"
+	// RemoteCopy configures the CWS Instrumentation admission controller endpoint to use the `kubectl cp` method
+	RemoteCopy InstrumentationMode = "remote_copy"
 )
 
 // ParseInstrumentationMode returns the instrumentation mode from an input string
@@ -393,7 +396,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		}
 
 		// fall back in case the service account filter somehow didn't work
-		if len(exec.Command) > 6 && slices.Equal(exec.Command[0:6], []string{"tar", "-x", "-m", "-f", "-", "-C"}) {
+		if len(exec.Command) > len(k8scp.CWSRemoteCopyCommand) && slices.Equal(exec.Command[0:len(k8scp.CWSRemoteCopyCommand)], k8scp.CWSRemoteCopyCommand) {
 			log.Debugf("Ignoring kubectl cp requests to %s from the cluster agent", name)
 			return false, nil
 		}
@@ -407,7 +410,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	// check if the pod has been instrumented
 	pod, err := apiClient.CoreV1().Pods(ns).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil || pod == nil {
-		fmt.Errorf("couldn't describe pod %s in namespace %s from the API server: %v", name, ns, err)
+		log.Errorf("couldn't describe pod %s in namespace %s from the API server: %v", name, ns, err)
 		return false, errors.New(metrics.InternalError)
 	}
 
@@ -504,12 +507,12 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 }
 
 func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *corev1.Pod, exec *corev1.PodExecOptions, cwsInstrumentationLocalPath, cwsInstrumentationRemotePath string) error {
-	apiserver, err := apiserver2.WaitForAPIClient(context.Background())
+	apiclient, err := apiserverUtils.WaitForAPIClient(context.Background())
 	if err != nil {
 		return fmt.Errorf("couldn't initialize API client")
 	}
 
-	cp := k8scp.NewCopy(apiserver.GetRestConfig(), apiserver.Cl)
+	cp := k8scp.NewCopy(apiclient)
 	return cp.CopyToPod(cwsInstrumentationLocalPath, cwsInstrumentationRemotePath, pod, exec.Container)
 }
 
