@@ -25,6 +25,20 @@ const (
 
 var installerUnits = []string{installerUnit, installerUnitExp}
 
+func addDDAgentUser(ctx context.Context) error {
+	if _, err := user.Lookup("dd-agent"); err == nil {
+		return nil
+	}
+	return exec.CommandContext(ctx, "useradd", "--system", "--shell", "/usr/sbin/nologin", "--home", "/opt/datadog-packages", "--no-create-home", "--no-user-group", "-g", "dd-agent", "dd-agent").Run()
+}
+
+func addDDAgentGroup(ctx context.Context) error {
+	if _, err := user.LookupGroup("dd-agent"); err == nil {
+		return nil
+	}
+	return exec.CommandContext(ctx, "groupadd", "--system", "dd-agent").Run()
+}
+
 // SetupInstaller installs and starts the installer systemd units
 func SetupInstaller(ctx context.Context, enableDaemon bool) (err error) {
 	defer func() {
@@ -34,18 +48,13 @@ func SetupInstaller(ctx context.Context, enableDaemon bool) (err error) {
 		}
 	}()
 
-	cmd := exec.CommandContext(ctx, "adduser", "--system", "dd-agent", "--disabled-login", "--shell", "/usr/sbin/nologin", "--home", "/opt/datadog-packages", "--no-create-home", "--group", "--quiet")
-	err = cmd.Run()
-	if err != nil {
-		return fmt.Errorf("error creating dd-agent user: %w", err)
-	}
-	cmd = exec.CommandContext(ctx, "addgroup", "--system", "dd-agent", "--quiet")
-	err = cmd.Run()
-	if err != nil {
+	if err = addDDAgentGroup(ctx); err != nil {
 		return fmt.Errorf("error creating dd-agent group: %w", err)
 	}
-	cmd = exec.CommandContext(ctx, "usermod", "-g", "dd-agent", "dd-agent")
-	err = cmd.Run()
+	if addDDAgentUser(ctx) != nil {
+		return fmt.Errorf("error creating dd-agent user: %w", err)
+	}
+	err = exec.CommandContext(ctx, "usermod", "-g", "dd-agent", "dd-agent").Run()
 	if err != nil {
 		return fmt.Errorf("error adding dd-agent user to dd-agent group: %w", err)
 	}
