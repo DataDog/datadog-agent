@@ -21,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 	"k8s.io/client-go/tools/remotecommand"
-	"k8s.io/kubectl/pkg/cmd/util/podcmd"
 	"k8s.io/kubectl/pkg/scheme"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -60,9 +59,6 @@ func NewCopy(apiClient *apiserver.APIClient) *Copy {
 
 // CopyToPod copies the provided local file to the provided container
 func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, container string) error {
-	if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
-		return fmt.Errorf("cannot exec into a container in a completed pod; current phase is %s", pod.Status.Phase)
-	}
 	o.Container = container
 
 	// sanity check
@@ -101,14 +97,6 @@ func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, c
 }
 
 func (o *Copy) execute(pod *corev1.Pod, command []string, streamOptions StreamOptions) error {
-	if len(o.Container) == 0 {
-		container, err := podcmd.FindOrDefaultContainerByName(pod, o.Container, false, streamOptions.ErrOut)
-		if err != nil {
-			return err
-		}
-		o.Container = container.Name
-	}
-
 	// ensure we can recover the terminal while attached
 	t := streamOptions.SetupTTY()
 

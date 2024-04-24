@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"k8s.io/kubectl/pkg/cmd/util/podcmd"
 	"k8s.io/utils/strings/slices"
 	"path/filepath"
 	"strconv"
@@ -444,27 +445,40 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 			// check if the target pod has a read only filesystem
 			if readOnly := ci.hasReadonlyRootfs(pod, exec.Container); readOnly {
 				// readonly rootfs containers can't be instrumented
-				log.Debugf("Ignoring exec request into %s, container %s has read only rootfs. Try enabling admission_controller.cws_instrumentation.remote_copy.mount_volume", common.PodString(pod), exec.Container)
-				return false, nil
+				log.Errorf("Ignoring exec request into %s, container %s has read only rootfs. Try enabling admission_controller.cws_instrumentation.remote_copy.mount_volume", common.PodString(pod), exec.Container)
+				return false, errors.New(metrics.InvalidInput)
 			}
 			cwsInstrumentationRemotePath = "/cws-instrumentation"
 		}
 
 		arch, err := ci.resolveNodeArch(pod.Spec.NodeName, apiClient)
 		if err != nil {
-			log.Debugf("Ignoring exec request into %s: %v", common.PodString(pod), err)
-			return false, nil
+			log.Errorf("Ignoring exec request into %s: %v", common.PodString(pod), err)
+			return false, errors.New(metrics.InternalError)
 		}
 		cwsInstrumentationLocalPath := filepath.Join(cwsInstrumentationEmbeddedPath, "cws-instrumentation."+arch)
 
+		// check if the pod is ready to be exec-ed into
+		if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+			log.Errorf("Ignoring exec request into %s: cannot exec into a container in a completed pod; current phase is %s", common.PodString(pod), pod.Status.Phase)
+			return false, errors.New(metrics.InvalidInput)
+		}
+
+		// check if the input container exists, or select the default one to which the user will be redirected
+		container, err := podcmd.FindOrDefaultContainerByName(pod, exec.Container, true, nil)
+		if err != nil {
+			log.Errorf("Ignoring exec request into %s, invalid container: %v", common.PodString(pod), err)
+			return false, errors.New(metrics.InvalidInput)
+		}
+
 		// copy CWS instrumentation directly to the target container
-		if err := ci.injectCWSCommandInstrumentationRemoteCopy(pod, exec, cwsInstrumentationLocalPath, cwsInstrumentationRemotePath); err != nil {
-			log.Debugf("Ignoring exec request into %s, remote copy failed: %v", common.PodString(pod), err)
-			return false, nil
+		if err := ci.injectCWSCommandInstrumentationRemoteCopy(pod, container.Name, cwsInstrumentationLocalPath, cwsInstrumentationRemotePath); err != nil {
+			log.Errorf("Ignoring exec request into %s, remote copy failed: %v", common.PodString(pod), err)
+			return false, errors.New(metrics.InternalError)
 		}
 	default:
-		log.Debugf("Ignoring exec request into %s, unknown CWS Instrumentation mode %v", common.PodString(pod), ci.mode)
-		return false, nil
+		log.Errorf("Ignoring exec request into %s, unknown CWS Instrumentation mode %v", common.PodString(pod), ci.mode)
+		return false, errors.New(metrics.InvalidInput)
 	}
 
 	// prepare the user session context
@@ -507,14 +521,14 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	return injected, nil
 }
 
-func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *corev1.Pod, exec *corev1.PodExecOptions, cwsInstrumentationLocalPath, cwsInstrumentationRemotePath string) error {
+func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *corev1.Pod, container string, cwsInstrumentationLocalPath, cwsInstrumentationRemotePath string) error {
 	apiclient, err := apiserverUtils.WaitForAPIClient(context.Background())
 	if err != nil {
 		return fmt.Errorf("couldn't initialize API client")
 	}
 
 	cp := k8scp.NewCopy(apiclient)
-	return cp.CopyToPod(cwsInstrumentationLocalPath, cwsInstrumentationRemotePath, pod, exec.Container)
+	return cp.CopyToPod(cwsInstrumentationLocalPath, cwsInstrumentationRemotePath, pod, container)
 }
 
 func (ci *CWSInstrumentation) injectForPod(request *admission.MutateRequest) ([]byte, error) {
@@ -523,6 +537,7 @@ func (ci *CWSInstrumentation) injectForPod(request *admission.MutateRequest) ([]
 
 func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
 	if pod == nil {
+		log.Errorf("cannot inject CWS instrumentation into nil pod")
 		return false, errors.New(metrics.InvalidInput)
 	}
 
@@ -546,8 +561,8 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 	case RemoteCopy:
 		instrumented = ci.injectCWSPodInstrumentationRemoteCopy(pod)
 	default:
-		log.Debugf("Ignoring Pod %s admission request: unknown CWS Instrumentation mode %v", common.PodString(pod), ci.mode)
-		return false, nil
+		log.Errorf("Ignoring Pod %s admission request: unknown CWS Instrumentation mode %v", common.PodString(pod), ci.mode)
+		return false, errors.New(metrics.InvalidInput)
 	}
 
 	if instrumented {
