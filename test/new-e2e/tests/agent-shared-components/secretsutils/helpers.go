@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package secrets contains utilities to manage secrets for e2e tests.
-package secrets
+// Package secretsutils contains utilities to manage secrets for e2e tests.
+package secretsutils
 
 import (
 	_ "embed"
