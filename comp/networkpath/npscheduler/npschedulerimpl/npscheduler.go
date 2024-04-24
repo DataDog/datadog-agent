@@ -52,16 +52,23 @@ type npSchedulerImpl struct {
 	epForwarder eventplatform.Component
 
 	initOnce sync.Once
+
+	workers int
+
+	stop     chan bool
+	jobsChan chan tracerouteJob
 }
 
 func (s *npSchedulerImpl) Init() {
 	s.initOnce.Do(func() {
-		// This will be executed
-		// only once in the entire lifetime of the program
+		for w := 0; w < s.workers; w++ {
+			go worker(s, s.jobsChan)
+		}
 	})
 }
 
 func (s *npSchedulerImpl) Schedule(hostname string, port uint16) {
+	// TODO: Use logger component?
 	log.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
 	statsd.Client.Incr("datadog.network_path.scheduler.count", []string{}, 1) //nolint:errcheck
 
@@ -70,10 +77,17 @@ func (s *npSchedulerImpl) Schedule(hostname string, port uint16) {
 		log.Debugf("Only IPv4 is currently supported. Address not supported: %s", hostname)
 		return
 	}
+	s.jobsChan <- tracerouteJob{
+		destination: hostname,
+		port:        port,
+	}
+}
 
+func (s *npSchedulerImpl) runTraceroute(job tracerouteJob) {
+	log.Debugf("Run Traceroute for job: %+v", job)
 	// TODO: RUN 3x? Configurable?
 	for i := 0; i < 3; i++ {
-		s.pathForConn(hostname, port)
+		s.pathForConn(job.destination, job.port)
 	}
 }
 
@@ -113,5 +127,8 @@ func (s *npSchedulerImpl) pathForConn(hostname string, port uint16) {
 func newNpSchedulerImpl(epForwarder eventplatform.Component) *npSchedulerImpl {
 	return &npSchedulerImpl{
 		epForwarder: epForwarder,
+
+		jobsChan: make(chan tracerouteJob),
+		workers:  3, // TODO: Make it a configurable
 	}
 }

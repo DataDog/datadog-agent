@@ -10,5 +10,6 @@ package npscheduler
 
 // Component is the component type.
 type Component interface {
+	Init()
 	Schedule(hostname string, port uint16)
 }

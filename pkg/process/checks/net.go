@@ -124,6 +124,9 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.serviceExtractor)
 
 	c.networkPathEnabled = c.sysprobeYamlConfig.GetBool("network_config.network_path.enabled")
+	if c.networkPathEnabled {
+		c.npScheduler.Init()
+	}
 
 	// LocalResolver is a singleton LocalResolver
 	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(c.wmeta), clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
@@ -527,7 +530,6 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
 			log.Debugf("Skip loopback IP: %s", remoteAddr.Ip)
 			continue
 		}
-		c.npScheduler.
-			Schedule(remoteAddr.Ip, uint16(conn.Raddr.Port))
+		c.npScheduler.Schedule(remoteAddr.Ip, uint16(conn.Raddr.Port))
 	}
 }
