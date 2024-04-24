@@ -19,7 +19,7 @@
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
   variables:
-    FLAVORS: '--flavors base'
+    FLAVORS: '--flavor base'
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: 16Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
@@ -52,7 +52,7 @@
   stage: source_test
   needs: ["go_deps", "go_tools_deps"]
   variables:
-    FLAVORS: '--flavors base'
+    FLAVORS: '--flavor base'
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: 16Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
@@ -102,14 +102,14 @@ tests_flavor_iot_deb-x64:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-    FLAVORS: '--flavors iot'
+    FLAVORS: '--flavor iot'
 
 lint_flavor_iot_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
   variables:
-    FLAVORS: '--flavors iot'
+    FLAVORS: '--flavor iot'
 
 tests_flavor_dogstatsd_deb-x64:
   extends:
@@ -119,14 +119,14 @@ tests_flavor_dogstatsd_deb-x64:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-    FLAVORS: '--flavors dogstatsd'
+    FLAVORS: '--flavor dogstatsd'
 
 lint_flavor_dogstatsd_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
   variables:
-    FLAVORS: '--flavors dogstatsd'
+    FLAVORS: '--flavor dogstatsd'
 
 tests_flavor_heroku_deb-x64:
   extends:
@@ -136,14 +136,14 @@ tests_flavor_heroku_deb-x64:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-    FLAVORS: '--flavors heroku'
+    FLAVORS: '--flavor heroku'
 
 lint_flavor_heroku_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
   variables:
-    FLAVORS: '--flavors heroku'
+    FLAVORS: '--flavor heroku'
 
 # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
 # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46

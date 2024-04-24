@@ -10,6 +10,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -56,9 +57,10 @@ type dependencies struct {
 }
 
 type processAgent struct {
-	enabled bool
-	Checks  []checks.Check
-	Log     logComponent.Component
+	enabled     bool
+	Checks      []checks.Check
+	Log         logComponent.Component
+	flarehelper *agent.FlareHelper
 }
 
 type provides struct {
@@ -66,6 +68,7 @@ type provides struct {
 
 	Comp           agent.Component
 	StatusProvider statusComponent.InformationProvider
+	FlareProvider  flaretypes.Provider
 }
 
 func newProcessAgent(deps dependencies) provides {
@@ -96,9 +99,10 @@ func newProcessAgent(deps dependencies) provides {
 	}
 
 	processAgentComponent := processAgent{
-		enabled: true,
-		Checks:  enabledChecks,
-		Log:     deps.Log,
+		enabled:     true,
+		Checks:      enabledChecks,
+		Log:         deps.Log,
+		flarehelper: agent.NewFlareHelper(enabledChecks),
 	}
 
 	if flavor.GetFlavor() != flavor.ProcessAgent {
@@ -111,6 +115,7 @@ func newProcessAgent(deps dependencies) provides {
 		return provides{
 			Comp:           processAgentComponent,
 			StatusProvider: statusComponent.NewInformationProvider(agent.NewStatusProvider(deps.Config)),
+			FlareProvider:  flaretypes.NewProvider(processAgentComponent.flarehelper.FillFlare),
 		}
 	}
 
