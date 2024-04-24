@@ -8,7 +8,6 @@ package checks
 import (
 	"context"
 	"errors"
-	stdnet "net"
 	"runtime"
 	"sort"
 	"time"
@@ -520,12 +519,5 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
 	if c.enableConnectionRollup {
 		return
 	}
-	for _, conn := range conns {
-		remoteAddr := conn.Raddr
-		if stdnet.ParseIP(remoteAddr.Ip).IsLoopback() {
-			log.Debugf("Skip loopback IP: %s", remoteAddr.Ip)
-			continue
-		}
-		c.npScheduler.Schedule(remoteAddr.Ip, uint16(conn.Raddr.Port))
-	}
+	// TODO: IMPLEMENTATION IN SEPARATE PR (to make PRs easier to review)
 }
