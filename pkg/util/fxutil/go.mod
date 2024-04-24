@@ -9,7 +9,7 @@ require (
 	go.uber.org/fx v1.18.2
 )
 
-replace github.com/DataDog/datadog-agent/comp/def => ../../../comp/def/
+replace github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
