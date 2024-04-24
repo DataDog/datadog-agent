@@ -9,7 +9,7 @@ set -e
 
 case "$1" in
     remove | purge)
-        $INSTALL_DIR/bin/installer/installer purge --package=datadog-installer
+        $INSTALL_DIR/bin/installer/installer remove datadog-installer
     ;;
     *)
     ;;

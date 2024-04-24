@@ -10,18 +10,19 @@ import (
 	"fmt"
 )
 
-// multiRegionFailoverConfig is a deserialized multi-region failover configuration file
+// multiRegionFailoverConfig is a deserialized Multi-Region Failover configuration file
 type multiRegionFailoverConfig struct {
-	Failover *bool `json:"failover"`
+	FailoverMetrics *bool `json:"failover_metrics"`
+	FailoverLogs    *bool `json:"failover_logs"`
 }
 
-// parseMultiRegionFailoverConfig parses an agent task config
+// parseMultiRegionFailoverConfig parses an AGENT_FAILOVER Multi-Region Failover configuration file
 func parseMultiRegionFailoverConfig(data []byte) (*multiRegionFailoverConfig, error) {
 	var d multiRegionFailoverConfig
 
 	err := json.Unmarshal(data, &d)
 	if err != nil {
-		return nil, fmt.Errorf("unexpected failover configs received through remote-config: %s", err)
+		return nil, fmt.Errorf("unexpected Multi-Region Failover configs received through remote-config: %s", err)
 	}
 
 	return &d, nil

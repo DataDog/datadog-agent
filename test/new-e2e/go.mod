@@ -239,6 +239,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.52.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.25.0
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.5.0
@@ -248,7 +249,6 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.52.1 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/google/pprof v0.0.0-20221118152302-e6195bd50e26 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.1 // indirect
