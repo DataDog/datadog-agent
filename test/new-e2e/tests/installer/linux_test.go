@@ -91,7 +91,7 @@ func TestSuseARM(t *testing.T) {
 
 func (v *installerSuite) bootstrap() {
 	v.Env().RemoteHost.MustExecute(
-		fmt.Sprintf("sudo %v/bin/installer/installer bootstrap", bootInstallerDir),
+		fmt.Sprintf("sudo -E %v/bin/installer/installer bootstrap", bootInstallerDir),
 		components.WithEnvVariables(components.EnvVar{
 			"DD_INSTALLER_REGISTRY":          "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 			"DD_INSTALLER_REGISTRY_AUTH":     "ecr",

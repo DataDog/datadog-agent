@@ -57,12 +57,13 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 	span.SetTag("config.registryAuth", i.registryAuth)
 	span.SetTag("config.site", i.site)
 	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
-	env := []string{
+	env := os.Environ()
+	env = append(env, []string{
 		fmt.Sprintf("DD_INSTALLER_REGISTRY=%s", i.registry),
 		fmt.Sprintf("DD_INSTALLER_REGISTRY_AUTH=%s", i.registryAuth),
 		fmt.Sprintf("DD_API_KEY=%s", i.apiKey),
 		fmt.Sprintf("DD_SITE=%s", i.site),
-	}
+	}...)
 	cmd.Cancel = func() error {
 		return cmd.Process.Signal(os.Interrupt)
 	}
