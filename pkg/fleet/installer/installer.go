@@ -64,8 +64,8 @@ type installerImpl struct {
 	downloader   *oci.Downloader
 	repositories *repository.Repositories
 	configsDir   string
+	packagesDir  string
 	tmpDirPath   string
-	packagesPath string
 }
 
 // Option are the options for the package manager.
@@ -108,7 +108,7 @@ func NewInstaller(opts ...Option) Installer {
 		repositories: repository.NewRepositories(PackagesPath, LocksPack),
 		configsDir:   defaultConfigsDir,
 		tmpDirPath:   TmpDirPath,
-		packagesPath: PackagesPath,
+		packagesDir:  PackagesPath,
 	}
 }
 
@@ -126,7 +126,7 @@ func (i *installerImpl) States() (map[string]repository.State, error) {
 func (i *installerImpl) Install(ctx context.Context, url string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	err := checkAvailableDiskSpace(mininumDiskSpace, i.packagesPath)
+	err := checkAvailableDiskSpace(mininumDiskSpace, filepath.Dir(i.packagesDir))
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
@@ -160,7 +160,7 @@ func (i *installerImpl) Install(ctx context.Context, url string) error {
 func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	err := checkAvailableDiskSpace(mininumDiskSpace, i.packagesPath)
+	err := checkAvailableDiskSpace(mininumDiskSpace, filepath.Dir(i.packagesDir))
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
@@ -300,19 +300,17 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 // See https://man7.org/linux/man-pages/man2/statfs.2.html for more details
 // On Windows, it is computed using `GetDiskFreeSpaceExW` and is the number of bytes available
 // See https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw for more details
-func checkAvailableDiskSpace(requiredDiskSpace uint64, paths ...string) error {
-	for _, path := range paths {
-		_, err := os.Stat(path)
-		if err != nil {
-			return fmt.Errorf("could not stat path %s: %w", path, err)
-		}
-		s, err := fsDisk.GetUsage(path)
-		if err != nil {
-			return err
-		}
-		if s.Available < uint64(requiredDiskSpace) {
-			return fmt.Errorf("not enough disk space at %s: %d bytes available, %d bytes required", path, s.Available, requiredDiskSpace)
-		}
+func checkAvailableDiskSpace(requiredDiskSpace uint64, path string) error {
+	_, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("could not stat path %s: %w", path, err)
+	}
+	s, err := fsDisk.GetUsage(path)
+	if err != nil {
+		return err
+	}
+	if s.Available < uint64(requiredDiskSpace) {
+		return fmt.Errorf("not enough disk space at %s: %d bytes available, %d bytes required", path, s.Available, requiredDiskSpace)
 	}
 	return nil
 }

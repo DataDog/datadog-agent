@@ -36,7 +36,7 @@ func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string, lo
 			repositories: repositories,
 			configsDir:   t.TempDir(),
 			tmpDirPath:   rootPath,
-			packagesPath: rootPath,
+			packagesDir:  rootPath,
 		},
 	}
 }
