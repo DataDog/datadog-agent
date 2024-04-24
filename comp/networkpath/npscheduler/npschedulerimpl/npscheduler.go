@@ -29,8 +29,8 @@ type npSchedulerImpl struct {
 	workers int
 
 	receivedPathtestConfigCount *atomic.Uint64
-	pathtestConfigState         *flowAccumulator
-	pathtestConfigIn            chan *pathtestConfig
+	pathtestConfigState         *pathtestStore
+	pathtestConfigIn            chan *pathtest
 	stopChan                    chan struct{}
 	flushLoopDone               chan struct{}
 	runDone                     chan struct{}
@@ -43,8 +43,8 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 		epForwarder: epForwarder,
 		logger:      logger,
 
-		pathtestConfigState: newFlowAccumulator(10*time.Second, 60*time.Second, logger),
-		pathtestConfigIn:    make(chan *pathtestConfig),
+		pathtestConfigState: newPathtestStore(DefaultFlushTickerInterval, DefaultPathtestRunDurationFromDiscovery, DefaultPathtestRunInterval, logger),
+		pathtestConfigIn:    make(chan *pathtest),
 		workers:             3, // TODO: Make it a configurable
 
 		receivedPathtestConfigCount: atomic.NewUint64(0),
@@ -89,13 +89,13 @@ func (s *npSchedulerImpl) Schedule(hostname string, port uint16) {
 		s.logger.Debugf("Only IPv4 is currently supported. Address not supported: %s", hostname)
 		return
 	}
-	s.pathtestConfigIn <- &pathtestConfig{
+	s.pathtestConfigIn <- &pathtest{
 		hostname: hostname,
 		port:     port,
 	}
 }
 
-func (s *npSchedulerImpl) runTraceroute(job pathtestConfig) {
+func (s *npSchedulerImpl) runTraceroute(job pathtest) {
 	s.logger.Debugf("Run Traceroute for job: %+v", job)
 	// TODO: RUN 3x? Configurable?
 	for i := 0; i < 3; i++ {
@@ -168,7 +168,7 @@ func (s *npSchedulerImpl) flushLoop() {
 }
 
 func (s *npSchedulerImpl) flush() {
-	flowsContexts := s.pathtestConfigState.getFlowContextCount()
+	flowsContexts := s.pathtestConfigState.getPathtestContextCount()
 	flushTime := s.TimeNowFunction()
 	flowsToFlush := s.pathtestConfigState.flush()
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)

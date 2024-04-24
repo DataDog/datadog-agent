@@ -5,12 +5,12 @@ import (
 	"hash/fnv"
 )
 
-type pathtestConfig struct {
+type pathtest struct {
 	hostname string
 	port     uint16
 }
 
-func (p pathtestConfig) AggregationHash() uint64 {
+func (p pathtest) getHash() uint64 {
 	// TODO: TESTME
 	h := fnv.New64()
 	h.Write([]byte(p.hostname))                  //nolint:errcheck
