@@ -44,6 +44,14 @@ int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
     return 0;
 }
 
+// This entry point is needed to bypass stack limit errors if `is_kafka()` is called
+// from the regular TLS dispatch entrypoint.
+SEC("uprobe/tls_protocol_dispatcher_kafka")
+int uprobe__tls_protocol_dispatcher_kafka(struct pt_regs *ctx) {
+    tls_dispatch_kafka(ctx);
+    return 0;
+};
+
 SEC("kprobe/tcp_sendmsg")
 int BPF_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
     log_debug("kprobe/tcp_sendmsg: sk=%p", sk);

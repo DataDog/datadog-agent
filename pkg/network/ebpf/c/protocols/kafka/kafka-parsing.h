@@ -36,6 +36,15 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
 #define extra_debug(fmt, ...)
 #endif
 
+static void __always_inline kafka_tcp_termination(conn_tuple_t *tup)
+{
+    bpf_map_delete_elem(&kafka_response, tup);
+    // Delete the opposite direction also like HTTP/2 does since the termination
+    // for the other direction may not be reached in some cases (localhost).
+    flip_tuple(tup);
+    bpf_map_delete_elem(&kafka_response, tup);
+}
+
 SEC("socket/kafka_filter")
 int socket__kafka_filter(struct __sk_buff* skb) {
     const u32 zero = 0;
@@ -62,11 +71,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     }
 
     if (is_tcp_termination(&skb_info)) {
-        bpf_map_delete_elem(&kafka_response, &tup);
-        // Delete the opposite direction also like HTTP/2 does since the termination
-        // for the other direction may not be reached in some cases (localhost).
-        flip_tuple(&tup);
-        bpf_map_delete_elem(&kafka_response, &tup);
+        kafka_tcp_termination(&tup);
         return 0;
     }
 
@@ -80,6 +85,48 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     return 0;
 }
 
+SEC("uprobe/kafka_tls_filter")
+int uprobe__kafka_tls_filter(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    kafka_info_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
+    if (kafka == NULL) {
+        return 0;
+    }
+
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    // On stack for 4.14
+    conn_tuple_t tup = args->tup;
+
+    pktbuf_t pkt = pktbuf_from_tls(args);
+
+    if (kafka_process_response(ctx, &tup, kafka, pkt, NULL)) {
+        return 0;
+    }
+
+    kafka_process(&tup, kafka, pkt);
+    return 0;
+}
+
+SEC("uprobe/kafka_tls_termination")
+int uprobe__kafka_tls_termination(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    // On stack for 4.14
+    conn_tuple_t tup = args->tup;
+    kafka_tcp_termination(&tup);
+
+    return 0;
+}
 
 PKTBUF_READ_INTO_BUFFER(topic_name_parser, TOPIC_NAME_MAX_STRING_SIZE, BLK_SIZE)
 
@@ -519,6 +566,7 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
         bpf_tail_call_compat(ctx, &protocols_progs, PROG_KAFKA_RESPONSE_PARSER);
         break;
     case PKTBUF_TLS:
+        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_KAFKA_RESPONSE_PARSER);
         break;
     }
 
@@ -587,9 +635,33 @@ int socket__kafka_response_parser(struct __sk_buff *skb) {
     return 0;
 }
 
+SEC("uprobe/kafka_tls_response_parser")
+int uprobe__kafka_tls_response_parser(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+    kafka_info_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
+    if (kafka == NULL) {
+        return 0;
+    }
+
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    // Put tuple on stack for 4.14.
+    conn_tuple_t tup = args->tup;
+    kafka_response_parser(kafka, ctx, &tup, pktbuf_from_tls(args));
+
+    return 0;
+}
+
 // Gets the next expected TCP sequence in the stream, assuming
 // no retransmits and out-of-order segments.
 static __always_inline u32 kafka_get_next_tcp_seq(skb_info_t *skb_info) {
+    if (!skb_info) {
+        return 0;
+    }
+
     u32 data_len = skb_info->data_end - skb_info->data_off;
     u32 next_seq = skb_info->tcp_seq + data_len;
 
@@ -666,7 +738,7 @@ static __always_inline bool kafka_process_new_response(void *ctx, conn_tuple_t *
 static __always_inline bool kafka_process_response(void *ctx, conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, skb_info_t *skb_info) {
     kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, tup);
     if (response) {
-        if (skb_info->tcp_seq == response->expected_tcp_seq) {
+        if (!skb_info || skb_info->tcp_seq == response->expected_tcp_seq) {
             response->expected_tcp_seq = kafka_get_next_tcp_seq(skb_info);
             kafka_call_response_parser(ctx, tup, pkt);
             // It's on the response path, so no need to parser as a request.

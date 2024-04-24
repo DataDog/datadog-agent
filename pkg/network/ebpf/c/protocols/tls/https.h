@@ -77,6 +77,22 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
 
         classify_decrypted_payload(stack, &normalized_tuple, request_fragment, len);
         protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
+        // Could have a maybe_is_kafka() function to do an initial check here based on the
+        // fragment buffer without the tail call.
+        if (is_kafka_monitoring_enabled() && protocol == PROTOCOL_UNKNOWN) {
+            tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+            if (args == NULL) {
+                return;
+            }
+            *args = (tls_dispatcher_arguments_t){
+                .tup = *t,
+                .tags = tags,
+                .buffer_ptr = buffer_ptr,
+                .data_end = len,
+                .data_off = 0,
+            };
+            bpf_tail_call_compat(ctx, &tls_dispatcher_classification_progs, TLS_DISPATCHER_KAFKA_PROG);
+        }
     }
     tls_prog_t prog;
     switch (protocol) {
@@ -86,6 +102,10 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         break;
     case PROTOCOL_HTTP2:
         prog = TLS_HTTP2_FIRST_FRAME;
+        final_tuple = *t;
+        break;
+    case PROTOCOL_KAFKA:
+        prog = TLS_KAFKA;
         final_tuple = *t;
         break;
     default:
@@ -105,6 +125,39 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         .data_off = 0,
     };
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
+}
+
+static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
+{
+    const __u32 zero = 0;
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return;
+    }
+
+    char *request_fragment = bpf_map_lookup_elem(&tls_classification_heap, &zero);
+    if (request_fragment == NULL) {
+        return;
+    }
+
+    conn_tuple_t normalized_tuple = args->tup;
+    normalize_tuple(&normalized_tuple);
+    normalized_tuple.pid = 0;
+    normalized_tuple.netns = 0;
+
+    read_into_user_buffer_classification(request_fragment, args->buffer_ptr);
+    bool is_kafka = tls_is_kafka(args, request_fragment, CLASSIFICATION_MAX_BUFFER);
+    if (!is_kafka) {
+        return;
+    }
+
+    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
+    if (!stack) {
+        return;
+    }
+
+    set_protocol(stack, PROTOCOL_KAFKA);
+    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_KAFKA);
 }
 
 static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, bool skip_http) {
@@ -133,6 +186,10 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
         break;
     case PROTOCOL_HTTP2:
         prog = TLS_HTTP2_TERMINATION;
+        final_tuple = *t;
+        break;
+    case PROTOCOL_KAFKA:
+        prog = TLS_KAFKA_TERMINATION;
         final_tuple = *t;
         break;
     default:

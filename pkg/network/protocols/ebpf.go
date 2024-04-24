@@ -27,6 +27,14 @@ const (
 	DispatcherKafkaProg DispatcherProgramType = C.DISPATCHER_KAFKA_PROG
 )
 
+// TLSDispatcherProgramType is a C type to represent the eBPF programs used for TLS tail calls.
+type TLSDispatcherProgramType C.tls_dispatcher_prog_t
+
+const (
+	// TLSDispatcherKafkaProg is the Golang representation of the C.TLS_DISPATCHER_KAFKA_PROG enum.
+	TLSDispatcherKafkaProg DispatcherProgramType = C.TLS_DISPATCHER_KAFKA_PROG
+)
+
 // ProgramType is a C type to represent the eBPF programs used for tail calls.
 type ProgramType C.protocol_prog_t
 
@@ -120,4 +128,10 @@ const (
 	ProgramTLSHTTP2EOSParser TLSProgramType = C.TLS_HTTP2_EOS_PARSER
 	// ProgramTLSHTTP2Termination is tail call to process TLS HTTP2 termination.
 	ProgramTLSHTTP2Termination TLSProgramType = C.TLS_HTTP2_TERMINATION
+	// ProgramTLSKakfa is tail call to process Kafka TLS frames,
+	ProgramTLSKakfa TLSProgramType = C.TLS_KAFKA
+	// ProgramTLSKakfaResponseParser is tail call to process Kafka TLS responses,
+	ProgramTLSKakfaResponseParser TLSProgramType = C.TLS_KAFKA_RESPONSE_PARSER
+	// ProgramTLSKafkaTermination is tail call to process Kafka TLS termination.
+	ProgramTLSKafkaTermination TLSProgramType = C.TLS_KAFKA_TERMINATION
 )

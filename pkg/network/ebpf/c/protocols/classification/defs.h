@@ -133,6 +133,12 @@ typedef enum {
 } dispatcher_prog_t;
 
 typedef enum {
+    TLS_DISPATCHER_KAFKA_PROG = 0,
+    // Add before this value.
+    TLS_DISPATCHER_PROG_MAX,
+} tls_dispatcher_prog_t;
+
+typedef enum {
     PROG_UNKNOWN = 0,
     PROG_HTTP,
     PROG_HTTP2_HANDLE_FIRST_FRAME,
@@ -157,6 +163,9 @@ typedef enum {
     TLS_HTTP2_DYNAMIC_TABLE_CLEANER,
     TLS_HTTP2_EOS_PARSER,
     TLS_HTTP2_TERMINATION,
+    TLS_KAFKA,
+    TLS_KAFKA_RESPONSE_PARSER,
+    TLS_KAFKA_TERMINATION,
     TLS_PROG_MAX,
 } tls_prog_t;
 

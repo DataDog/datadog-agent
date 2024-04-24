@@ -26,6 +26,8 @@ BPF_PROG_ARRAY(tls_process_progs, TLS_PROG_MAX)
 // by using tail call.
 BPF_PROG_ARRAY(dispatcher_classification_progs, DISPATCHER_PROG_MAX)
 
+BPF_PROG_ARRAY(tls_dispatcher_classification_progs, DISPATCHER_PROG_MAX)
+
 // A per-cpu array to share conn_tuple and skb_info between the dispatcher and the tail-calls.
 BPF_PERCPU_ARRAY_MAP(dispatcher_arguments, dispatcher_arguments_t, 1)
 
