@@ -114,7 +114,7 @@ func (v *vmUpdaterSuite) TestInstallerDirs() {
 func (v *vmUpdaterSuite) TestInstallerUnitLoaded() {
 	t := v.T()
 	host := v.Env().RemoteHost
-	host.MustExecute("sudo datadog-bootstrap")
+	host.MustExecute("sudo datadog-bootstrap bootstrap")
 
 	// temporary hack, remote update enabled by hand and disabled to assert the behavior and pass tests
 	// until agent param passing to the test install script is implemnted
