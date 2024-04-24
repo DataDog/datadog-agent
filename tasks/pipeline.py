@@ -418,9 +418,8 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
 
     repo = get_gitlab_repo(project_name)
 
-    data = {"token": os.environ['CI_JOB_TOKEN'], "ref": git_ref, "variables": {}}
-
     # Fill the environment variables to pass to the child pipeline.
+    variables = {}
     if variable:
         for v in variable:
             # An empty string or a terminal ',' will yield an empty string which
@@ -434,17 +433,15 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
                     )
                 )
                 continue
-            data['variables'][v] = os.environ[v]
+            variables[v] = os.environ[v]
 
     print(
-        f"Creating child pipeline in repo {project_name}, on git ref {git_ref} with params: {data['variables']}",
+        f"Creating child pipeline in repo {project_name}, on git ref {git_ref} with params: {variables}",
         flush=True,
     )
 
     try:
-        data['variables'] = [{'key': key, 'value': value} for (key, value) in data['variables'].items()]
-
-        pipeline = repo.pipelines.create(data)
+        pipeline = repo.trigger_pipeline(git_ref, os.environ['CI_JOB_TOKEN'], variables=variables)
     except GitlabError as e:
         raise Exit(f"Failed to create child pipeline: {e}", code=1)
 
