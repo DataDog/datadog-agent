@@ -802,7 +802,7 @@ static __always_inline bool kafka_allow_packet(conn_tuple_t *tup, struct __sk_bu
 
     // if payload data is empty or if this is an encrypted packet, we only
     // process it if the packet represents a TCP termination
-    bool empty_payload = skb_info->data_off == skb->len;
+    bool empty_payload = skb_info->data_off == skb_info->data_end;
     if (empty_payload) {
         return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
     }
