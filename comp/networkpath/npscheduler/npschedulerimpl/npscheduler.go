@@ -61,6 +61,7 @@ func (s npSchedulerImpl) Schedule(hostname string, port uint16) {
 		return
 	}
 
+	// TODO: RUN 3x? Configurable?
 	for i := 0; i < 3; i++ {
 		s.pathForConn(hostname, port)
 	}
