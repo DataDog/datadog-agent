@@ -5,8 +5,6 @@
 
 //go:build kubeapiserver
 
-// Package autoinstrumentation implements the webhook that injects APM libraries
-// into pods
 package autoinstrumentation
 
 import (

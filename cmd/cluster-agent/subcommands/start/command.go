@@ -316,15 +316,13 @@ func start(log log.Component,
 	rcserv, isSet := rcService.Get()
 	if pkgconfig.IsRemoteConfigEnabled(config) && isSet {
 		var err error
-		rcClient, err = initializeRemoteConfigClient(mainCtx, rcserv, config, clusterId, clusterName)
+		rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterId, clusterName)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
 			rcClient.Start()
-			log.Debugf("Started RcClient")
-			defer func() {
-				rcClient.Close()
-			}()
+			log.Debugf("Remote-config client started successfully")
+			defer rcClient.Close()
 		}
 	}
 
@@ -496,7 +494,6 @@ func setupClusterCheck(ctx context.Context, ac autodiscovery.Component) (*cluste
 }
 
 func initializeRemoteConfigClient(
-	_ context.Context,
 	rcService rccomp.Component,
 	config config.Component,
 	clusterID, clusterName string,

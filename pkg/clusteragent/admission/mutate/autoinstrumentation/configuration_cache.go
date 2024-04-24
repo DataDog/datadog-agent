@@ -5,8 +5,6 @@
 
 //go:build kubeapiserver
 
-// Package autoinstrumentation implements the webhook that injects APM libraries
-// into pods
 package autoinstrumentation
 
 import (
@@ -33,12 +31,10 @@ type enablementConfig struct {
 }
 
 type instrumentationConfigurationCache struct {
-	localConfiguration           *instrumentationConfiguration
-	currentConfiguration         *instrumentationConfiguration
-	configurationUpdatesQueue    chan Request
-	configurationUpdatesResponse chan Response
-	clusterName                  string
-	namespaceToConfigIDMap       map[string]string // maps the namespace with enabled instrumentation to Remote Enablement rule
+	localConfiguration     *instrumentationConfiguration
+	currentConfiguration   *instrumentationConfiguration
+	clusterName            string
+	namespaceToConfigIDMap map[string]string // maps the namespace with enabled instrumentation to Remote Enablement rule
 
 	mu               sync.RWMutex
 	orderedRevisions []int64
@@ -46,49 +42,29 @@ type instrumentationConfigurationCache struct {
 }
 
 func newInstrumentationConfigurationCache(
-	localEnabled *bool,
-	localEnabledNamespaces *[]string,
-	localDisabledNamespaces *[]string,
+	localEnabled bool,
+	localEnabledNamespaces []string,
+	localDisabledNamespaces []string,
 	clusterName string,
 ) *instrumentationConfigurationCache {
 	localConfig := newInstrumentationConfiguration(localEnabled, localEnabledNamespaces, localDisabledNamespaces)
 	currentConfig := newInstrumentationConfiguration(localEnabled, localEnabledNamespaces, localDisabledNamespaces)
-	reqChannel := make(chan Request, 10)
-	respChannel := make(chan Response, 10)
 
 	nsToRules := make(map[string]string)
-	if *localEnabled {
-		for _, ns := range *localEnabledNamespaces {
+	if localEnabled {
+		for _, ns := range localEnabledNamespaces {
 			nsToRules[ns] = "local"
 		}
 	}
 
 	return &instrumentationConfigurationCache{
-		localConfiguration:           localConfig,
-		currentConfiguration:         currentConfig,
-		configurationUpdatesQueue:    reqChannel,
-		configurationUpdatesResponse: respChannel,
-		clusterName:                  clusterName,
-		namespaceToConfigIDMap:       nsToRules,
+		localConfiguration:     localConfig,
+		currentConfiguration:   currentConfig,
+		clusterName:            clusterName,
+		namespaceToConfigIDMap: nsToRules,
 
 		orderedRevisions: make([]int64, 0),
 		enabledRevisions: map[int64]enablementConfig{},
-	}
-}
-
-func (c *instrumentationConfigurationCache) start(stopCh <-chan struct{}) {
-	for {
-		select {
-		case req := <-c.configurationUpdatesQueue:
-			// if err := c.updateConfiguration(nil, nil); err != nil {
-			// 	log.Error(err.Error())
-			// }
-			resp := c.update(req)
-			c.configurationUpdatesResponse <- resp
-		case <-stopCh:
-			log.Info("Shutting down patcher")
-			return
-		}
 	}
 }
 
@@ -102,27 +78,28 @@ func (c *instrumentationConfigurationCache) update(req Request) Response {
 		for _, target := range k8sClusterTargets {
 			clusterName := target.ClusterName
 
-			if c.clusterName == clusterName {
-				log.Infof("Current configuration: %v, %v, %v",
-					c.currentConfiguration.enabled, c.currentConfiguration.enabledNamespaces, c.currentConfiguration.disabledNamespaces)
-				newEnabled := target.Enabled
-				newEnabledNamespaces := target.EnabledNamespaces
+			if c.clusterName != clusterName {
+				continue
+			}
+			log.Infof("Current configuration: %v, %v, %v",
+				c.currentConfiguration.enabled, c.currentConfiguration.enabledNamespaces, c.currentConfiguration.disabledNamespaces)
+			newEnabled := target.Enabled
+			newEnabledNamespaces := target.EnabledNamespaces
 
-				c.mu.Lock()
-				resp = c.updateConfiguration(*newEnabled, newEnabledNamespaces, req.ID, int(req.RcVersion))
-				log.Infof("Updated configuration: %v, %v, %v",
-					c.currentConfiguration.enabled, c.currentConfiguration.enabledNamespaces, c.currentConfiguration.disabledNamespaces)
+			c.mu.Lock()
+			defer c.mu.Unlock()
+			resp = c.updateConfiguration(*newEnabled, newEnabledNamespaces, req.ID, int(req.RcVersion))
+			log.Infof("Updated configuration: %v, %v, %v",
+				c.currentConfiguration.enabled, c.currentConfiguration.enabledNamespaces, c.currentConfiguration.disabledNamespaces)
 
-				c.orderedRevisions = append(c.orderedRevisions, req.Revision)
-				c.enabledRevisions[req.Revision] = enablementConfig{
-					configID:          req.ID,
-					rcVersion:         int(req.RcVersion),
-					rcAction:          string(req.Action),
-					env:               req.LibConfig.Env,
-					enabled:           target.Enabled,
-					enabledNamespaces: target.EnabledNamespaces,
-				}
-				c.mu.Unlock()
+			c.orderedRevisions = append(c.orderedRevisions, req.Revision)
+			c.enabledRevisions[req.Revision] = enablementConfig{
+				configID:          req.ID,
+				rcVersion:         int(req.RcVersion),
+				rcAction:          string(req.Action),
+				env:               req.LibConfig.Env,
+				enabled:           target.Enabled,
+				enabledNamespaces: target.EnabledNamespaces,
 			}
 		}
 	default:
@@ -160,8 +137,7 @@ func (c *instrumentationConfigurationCache) resetConfiguration() {
 }
 
 func (c *instrumentationConfigurationCache) updateConfiguration(enabled bool, enabledNamespaces *[]string, rcID string, rcVersion int) Response {
-	log.Debugf("Updating current APM Instrumentation configuration")
-	log.Debugf("Old APM Instrumentation configuration [enabled=%t enabledNamespaces=%v disabledNamespaces=%v]",
+	log.Debugf("Updating current APM Instrumentation configuration. Old APM Instrumentation configuration [enabled=%t enabledNamespaces=%v disabledNamespaces=%v]",
 		c.currentConfiguration.enabled,
 		c.currentConfiguration.enabledNamespaces,
 		c.currentConfiguration.disabledNamespaces,
@@ -266,24 +242,13 @@ func (c *instrumentationConfigurationCache) updateConfiguration(enabled bool, en
 }
 
 func newInstrumentationConfiguration(
-	enabled *bool,
-	enabledNamespaces *[]string,
-	disabledNamespaces *[]string,
+	enabled bool,
+	enabledNamespaces []string,
+	disabledNamespaces []string,
 ) *instrumentationConfiguration {
-	config := instrumentationConfiguration{
-		enabled:            false,
-		enabledNamespaces:  []string{},
-		disabledNamespaces: []string{},
+	return &instrumentationConfiguration{
+		enabled:            enabled,
+		enabledNamespaces:  enabledNamespaces,
+		disabledNamespaces: disabledNamespaces,
 	}
-	if enabled != nil {
-		config.enabled = *enabled
-	}
-	if enabledNamespaces != nil {
-		config.enabledNamespaces = *enabledNamespaces
-	}
-	if disabledNamespaces != nil {
-		config.disabledNamespaces = *disabledNamespaces
-	}
-
-	return &config
 }

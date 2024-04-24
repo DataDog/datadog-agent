@@ -58,15 +58,14 @@ func (rcp *remoteConfigProvider) start(stopCh <-chan struct{}) {
 	rcp.client.Start()
 	ticker := time.NewTicker(rcp.pollInterval)
 	defer ticker.Stop()
+	defer rcp.client.Close()
 
 	for {
 		select {
 		case <-ticker.C:
-			log.Info("Remote Enablement: polling configuration from remote-config")
 			rcp.process(rcp.client.GetConfigs(state.ProductAPMTracing), rcp.client.UpdateApplyStatus)
 		case <-stopCh:
 			log.Info("Remote Enablement: shutting down remote-config patch provider")
-			rcp.client.Close()
 			return
 		}
 	}

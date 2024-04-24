@@ -118,10 +118,7 @@ func TestUpdateConfiguration(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			enabled := tt.localConfig.enabled
-			enabledNamespaces := tt.localConfig.enabledNamespaces
-			disabledNamespaces := tt.localConfig.disabledNamespaces
-			c := newInstrumentationConfigurationCache(&enabled, &enabledNamespaces, &disabledNamespaces, "")
+			c := newInstrumentationConfigurationCache(tt.localConfig.enabled, tt.localConfig.enabledNamespaces, tt.localConfig.disabledNamespaces, "")
 
 			for _, remoteConfig := range tt.remoteConfigs {
 				c.updateConfiguration(remoteConfig.enabled, &remoteConfig.enabledNamespaces, tt.clusterName, 1)
@@ -242,10 +239,7 @@ func TestDeleteConfiguration(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			enabled := tt.localConfig.enabled
-			enabledNamespaces := tt.localConfig.enabledNamespaces
-			disabledNamespaces := tt.localConfig.disabledNamespaces
-			c := newInstrumentationConfigurationCache(&enabled, &enabledNamespaces, &disabledNamespaces, "")
+			c := newInstrumentationConfigurationCache(tt.localConfig.enabled, tt.localConfig.enabledNamespaces, tt.localConfig.disabledNamespaces, "")
 
 			c.orderedRevisions = tt.orderedRevisions
 			c.enabledRevisions = tt.enabledRevisions
@@ -341,10 +335,7 @@ func TestUpdate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			enabled := tt.localConfig.enabled
-			enabledNamespaces := tt.localConfig.enabledNamespaces
-			disabledNamespaces := tt.localConfig.disabledNamespaces
-			c := newInstrumentationConfigurationCache(&enabled, &enabledNamespaces, &disabledNamespaces, tt.clusterName)
+			c := newInstrumentationConfigurationCache(tt.localConfig.enabled, tt.localConfig.enabledNamespaces, tt.localConfig.disabledNamespaces, tt.clusterName)
 
 			for _, req := range tt.remoteRequests {
 				c.update(req)

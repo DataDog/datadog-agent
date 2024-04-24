@@ -42,7 +42,7 @@ type Request struct {
 	K8sTargetV2 *K8sTargetV2 `json:"k8s_target_v2,omitempty"`
 }
 
-// K8sClusterTarget represents k8s target withing a cluster
+// K8sClusterTarget represents k8s target within a cluster
 type K8sClusterTarget struct {
 	ClusterName       string    `json:"cluster_name"`
 	Enabled           *bool     `json:"enabled,omitempty"`
