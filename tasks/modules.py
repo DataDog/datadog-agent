@@ -189,6 +189,9 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/components/exporter/logsagentexporter": GoModule(
         "comp/otelcol/otlp/components/exporter/logsagentexporter", independent=True
     ),
+    "comp/otelcol/otlp/components/processor/tagenrichmentprocessor": GoModule(
+        "comp/otelcol/otlp/components/processor/tagenrichmentprocessor", independent=True
+    ),
     "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
     "comp/netflow/payload": GoModule("comp/netflow/payload", independent=True),
