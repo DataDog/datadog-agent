@@ -1261,6 +1261,70 @@ func (ev *Event) GetProcessUserSid() string {
 	return ev.BaseEvent.ProcessContext.Process.OwnerSidString
 }
 
+// GetRenameFileDestinationName returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileDestinationName() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.New)
+}
+
+// GetRenameFileDestinationNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileDestinationNameLength() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.New))
+}
+
+// GetRenameFileDestinationPath returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileDestinationPath() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.New)
+}
+
+// GetRenameFileDestinationPathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileDestinationPathLength() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.New))
+}
+
+// GetRenameFileName returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileName() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.Old)
+}
+
+// GetRenameFileNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileNameLength() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.Old))
+}
+
+// GetRenameFilePath returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFilePath() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.Old)
+}
+
+// GetRenameFilePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFilePathLength() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.Old))
+}
+
 // GetSetRegistryKeyName returns the value of the field, resolving if necessary
 func (ev *Event) GetSetRegistryKeyName() string {
 	if ev.GetEventType().String() != "set_key_value" {

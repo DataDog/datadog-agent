@@ -819,12 +819,14 @@ workflow:
         - comp/core/workloadmeta/**/*
         - comp/core/autodiscovery/listeners/**/*
         - comp/core/autodiscovery/providers/**/*
+        - comp/languagedetection/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
         - pkg/collector/corechecks/containerlifecycle/**/*
         - pkg/collector/corechecks/kubernetes/**/*
         - pkg/collector/corechecks/sbom/**/*
+        - pkg/sbom/**/*
         - pkg/util/clusteragent/**/*
         - pkg/util/containerd/**/*
         - pkg/util/containers/**/*
@@ -832,6 +834,7 @@ workflow:
         - pkg/util/ecs/**/*
         - pkg/util/kubernetes/**/*
         - pkg/util/cgroups/**/*
+        - pkg/util/trivy/**/*
         - test/new-e2e/tests/containers/**/*
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
