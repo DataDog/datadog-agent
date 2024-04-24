@@ -82,7 +82,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "create.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: eval.WindowsPathCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File)
@@ -92,7 +92,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "create.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: eval.WindowsPathCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File))
@@ -356,7 +356,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exec.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: eval.WindowsPathCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
@@ -366,7 +366,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exec.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: eval.WindowsPathCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent))
@@ -496,7 +496,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exit.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: eval.WindowsPathCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent)
@@ -506,7 +506,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "exit.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: eval.WindowsPathCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent))
@@ -777,7 +777,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: eval.WindowsPathCmp,
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
 				if result, ok := ctx.StringCache[field]; ok {
@@ -799,7 +799,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.ancestors.file.path.length":
 		return &eval.IntArrayEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: eval.WindowsPathCmp,
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*Event)
 				if result, ok := ctx.IntCache[field]; ok {
@@ -968,7 +968,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: eval.WindowsPathCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
@@ -978,7 +978,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: eval.WindowsPathCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent))
@@ -1072,7 +1072,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.parent.file.path":
 		return &eval.StringEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: eval.WindowsPathCmp,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				if !ev.BaseEvent.ProcessContext.HasParent() {
@@ -1085,7 +1085,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 	case "process.parent.file.path.length":
 		return &eval.IntEvaluator{
-			OpOverrides: eval.CaseInsensitiveCmp,
+			OpOverrides: eval.WindowsPathCmp,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent))

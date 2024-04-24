@@ -36,6 +36,7 @@ def get_kmt_os():
 
 class Linux:
     kmt_dir = get_home_linux()
+    name = "linux"
     libvirt_group = "libvirt"
     rootfs_dir = kmt_dir / "rootfs"
     stacks_dir = kmt_dir / "stacks"
@@ -43,6 +44,7 @@ class Linux:
     libvirt_dir = kmt_dir / "libvirt"
     shared_dir = Path("/opt/kernel-version-testing")
     libvirt_socket = "qemu:///system"
+    ddvm_rsa = kmt_dir / "ddvm_rsa"
 
     qemu_conf = os.path.join("/", "etc", "libvirt", "qemu.conf")
 
@@ -65,11 +67,19 @@ class Linux:
         ctx.run(f"{sudo} sed --in-place 's/#user = \"root\"/user = \"{user}\"/' {Linux.qemu_conf}")
         ctx.run(f"{sudo} sed --in-place 's/#group = \"root\"/group = \"kvm\"/' {Linux.qemu_conf}")
 
+        with open("/etc/exports") as f:
+            if "/opt/kernel-version-testing 100.0.0.0/8(ro,no_root_squash,no_subtree_check)" not in f.read():
+                ctx.run(
+                    f"{sudo} sh -c 'echo \"/opt/kernel-version-testing 100.0.0.0/8(ro,no_root_squash,no_subtree_check)\" >> /etc/exports'"
+                )
+                ctx.run(f"{sudo} exportfs -a")
+
         Linux.restart_libvirtd(ctx, sudo)
 
 
 class MacOS:
     kmt_dir = get_home_macos()
+    name = "macos"
     libvirt_group = "staff"
     rootfs_dir = kmt_dir / "rootfs"
     stacks_dir = kmt_dir / "stacks"
@@ -80,6 +90,7 @@ class MacOS:
     libvirt_system_dir = get_homebrew_prefix() / "var/run/libvirt"
     libvirt_socket = f"qemu:///system?socket={libvirt_system_dir}/libvirt-sock"
     virtlogd_conf = get_homebrew_prefix() / "etc/libvirt/virtlogd.conf"
+    ddvm_rsa = kmt_dir / "ddvm_rsa"
 
     @staticmethod
     def assert_user_in_docker_group(_):
@@ -166,4 +177,4 @@ class MacOS:
             )
 
         ctx.run("sudo nfsd enable || true")
-        ctx.run("sudo nfsd restart")
+        ctx.run("sudo nfsd update")

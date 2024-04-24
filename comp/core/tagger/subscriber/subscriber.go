@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const bufferSize = 100
+const bufferSize = 1000
 
 // Subscriber allows processes to subscribe to entity events generated from a
 // tagger.

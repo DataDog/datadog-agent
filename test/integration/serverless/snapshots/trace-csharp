@@ -83,7 +83,7 @@
               "cold_start": "true",
               "dd_extension_version": "123",
               "env": "integration-tests-env",
-              "function.request.body": "",
+              "function.request": "{}",
               "function.response.body": "ok",
               "function.response.statusCode": "200",
               "function_arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-trace-csharp",

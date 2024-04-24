@@ -4,9 +4,9 @@
 #
 deploy_packages_windows-x64-6:
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy]
   stage: deploy_packages
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["windows_msi_x64-a6"]
   before_script:
@@ -17,16 +17,16 @@ deploy_packages_windows-x64-6:
       --exclude "*"
       --include "datadog-agent-6*.msi"
       --include "datadog-agent-6*.debug.zip"
-      $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/ || true
+      $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/
 
 #
 # Agent v7
 #
 deploy_packages_windows-x64-7:
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy]
   stage: deploy_packages
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["windows_msi_and_bosh_zip_x64-a7"]
   before_script:
@@ -37,13 +37,13 @@ deploy_packages_windows-x64-7:
       --exclude "*"
       --include "datadog-agent-7*.msi"
       --include "datadog-agent-7*.debug.zip"
-      $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/ || true
+      $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/
 
 deploy_staging_windows_tags-7:
   rules:
-    !reference [.on_deploy_stable_or_beta_repo_branch_a7]
+    !reference [.on_deploy_stable_or_beta_repo_branch]
   stage: deploy_packages
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["windows_msi_and_bosh_zip_x64-a7", "windows_zip_agent_binaries_x64-a7"]
   before_script:

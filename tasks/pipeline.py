@@ -1,16 +1,17 @@
 import os
 import pprint
 import re
+import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.libs.ciproviders.github_api import GithubAPI
+from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from tasks.libs.common.color import color_message
-from tasks.libs.common.github_api import GithubAPI
-from tasks.libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
@@ -20,8 +21,9 @@ from tasks.libs.common.utils import (
     nightly_entry_for,
     release_entry_for,
 )
-from tasks.libs.pipeline_notifications import read_owners, send_slack_message
-from tasks.libs.pipeline_tools import (
+from tasks.libs.owners.parsing import read_owners
+from tasks.libs.pipeline.notifications import send_slack_message
+from tasks.libs.pipeline.tools import (
     FilteredOutException,
     cancel_pipelines_with_confirmation,
     get_running_pipelines_on_same_ref,
@@ -134,7 +136,7 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
 
 def workflow_rules(gitlab_file=".gitlab-ci.yml"):
     """Get Gitlab workflow rules list in a YAML-formatted string."""
-    with open(gitlab_file, 'r') as f:
+    with open(gitlab_file) as f:
         return yaml.dump(yaml.safe_load(f.read())["workflow"]["rules"])
 
 
@@ -215,7 +217,7 @@ def run(
     git_ref=None,
     here=False,
     use_release_entries=False,
-    major_versions='6,7',
+    major_versions=None,
     repo_branch="dev",
     deploy=False,
     all_builds=True,
@@ -277,11 +279,11 @@ def run(
         release_version_6 = nightly_entry_for(6)
         release_version_7 = nightly_entry_for(7)
 
-    major_versions = major_versions.split(',')
-    if '6' not in major_versions:
-        release_version_6 = ""
-    if '7' not in major_versions:
-        release_version_7 = ""
+    if major_versions:
+        print(
+            "[WARNING] --major-versions option will be deprecated soon. Both Agent 6 & 7 will be run everytime.",
+            file=sys.stderr,
+        )
 
     if here:
         git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
@@ -509,7 +511,7 @@ def changelog(ctx, new_commit_sha):
     else:
         parent_dir = os.getcwd()
     old_commit_sha = ctx.run(
-        f"{parent_dir}/tools/ci/aws_ssm_get_wrapper.sh $CHANGELOG_COMMIT_SHA_SSM_NAME",
+        f"{parent_dir}/tools/ci/aws_ssm_get_wrapper.sh {os.environ['CHANGELOG_COMMIT_SHA_SSM_NAME']}",
         hide=True,
     ).stdout.strip()
     if not new_commit_sha:
@@ -731,9 +733,9 @@ def verify_workspace(ctx, branch_name=None):
 
 def update_test_infra_def(file_path, image_tag):
     """
-    Override TEST_INFRA_DEFINITIONS_BUILDIMAGES in .gitlab-ci.yml file
+    Override TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
     """
-    with open(file_path, "r") as gl:
+    with open(file_path) as gl:
         file_content = gl.readlines()
     with open(file_path, "w") as gl:
         for line in file_content:
@@ -748,7 +750,7 @@ def update_gitlab_config(file_path, image_tag, test_version):
     """
     Override variables in .gitlab-ci.yml file
     """
-    with open(file_path, "r") as gl:
+    with open(file_path) as gl:
         file_content = gl.readlines()
     gitlab_ci = yaml.load("".join(file_content), Loader=GitlabYamlLoader())
     # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
@@ -760,12 +762,12 @@ def update_gitlab_config(file_path, image_tag, test_version):
     images = [name.replace("_SUFFIX", "") for name in suffixes]
     with open(file_path, "w") as gl:
         for line in file_content:
-            if any(re.search(fr"{suffix}:", line) for suffix in suffixes):
+            if any(re.search(rf"{suffix}:", line) for suffix in suffixes):
                 if test_version:
                     gl.write(line.replace('""', '"_test_only"'))
                 else:
                     gl.write(line.replace('"_test_only"', '""'))
-            elif any(re.search(fr"{image}:", line) for image in images):
+            elif any(re.search(rf"{image}:", line) for image in images):
                 current_version = re.search(r"v\d+-\w+", line)
                 if current_version:
                     gl.write(line.replace(current_version.group(0), image_tag))
@@ -782,7 +784,7 @@ def update_circleci_config(file_path, image_tag, test_version):
     Override variables in .gitlab-ci.yml file
     """
     image_name = "gcr.io/datadoghq/agent-circleci-runner"
-    with open(file_path, "r") as circle:
+    with open(file_path) as circle:
         circle_ci = circle.read()
     match = re.search(rf"({image_name}(_test_only)?):([a-zA-Z0-9_-]+)\n", circle_ci)
     if not match:
@@ -851,16 +853,19 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     ]
 
     # Commands to push the branch
-    commands = [
-        # Fetch
-        f"git remote add {owner} git@github.com:{owner}/datadog-agent.git",
-        f"git fetch '{owner}'",
-        # Create branch
-        f"git checkout '{owner}/{branch}'",  # This first checkout puts us in a detached head state, thus the second checkout below
-        f"git checkout -b '{owner}/{branch}'",
-        # Push
-        f"git push --set-upstream origin '{owner}/{branch}'{no_verify_flag}",
-    ] + restore_commands
+    commands = (
+        [
+            # Fetch
+            f"git remote add {owner} git@github.com:{owner}/datadog-agent.git",
+            f"git fetch '{owner}'",
+            # Create branch
+            f"git checkout '{owner}/{branch}'",  # This first checkout puts us in a detached head state, thus the second checkout below
+            f"git checkout -b '{owner}/{branch}'",
+            # Push
+            f"git push --set-upstream origin '{owner}/{branch}'{no_verify_flag}",
+        ]
+        + restore_commands
+    )
 
     # Run commands then restore commands
     ret_code = 0
@@ -879,3 +884,58 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
 
     print(f'\nBranch {owner}/{branch} pushed to repo: {repo}')
     print(f'CI-Visibility pipeline link: {pipeline}')
+
+
+@task
+def test_merge_queue(ctx):
+    """
+    Test the pipeline in merge-queue context:
+      - Create a temporary copy of main branch
+      - Create a PR of current branch against this copy
+      - Trigger the merge queue
+      - Check if the pipeline is correctly created
+    """
+    # Create a new main and push it
+    print("Creating a new main branch")
+    timestamp = int(datetime.now(timezone.utc).timestamp())
+    test_main = f"mq/test_{timestamp}"
+    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    ctx.run("git checkout main", hide=True)
+    ctx.run("git pull", hide=True)
+    ctx.run(f"git checkout -b {test_main}", hide=True)
+    ctx.run(f"git push origin {test_main}", hide=True)
+    # Create a PR towards this new branch and adds it to the merge queue
+    print("Creating a PR and adding it to the merge queue")
+    gh = GithubAPI()
+    pr = gh.create_pr(f"Test MQ for {current_branch}", "", test_main, current_branch)
+    pr.create_issue_comment("/merge")
+    # Search for the generated pipeline
+    print(f"PR {pr.html_url} is waiting for MQ pipeline generation")
+    gitlab = Gitlab(api_token=get_gitlab_token())
+    max_attempts = 5
+    for attempt in range(max_attempts):
+        time.sleep(30)
+        pipelines = gitlab.last_pipelines()
+        try:
+            pipeline = next(p for p in pipelines if p["ref"].startswith(f"mq-working-branch-{test_main}"))
+            print(f"Pipeline found: {pipeline['web_url']}")
+            break
+        except StopIteration:
+            if attempt == max_attempts - 1:
+                raise RuntimeError("No pipeline found for the merge queue")
+            continue
+    success = pipeline["status"] == "running"
+    if success:
+        print("Pipeline correctly created, congrats")
+    else:
+        print(f"[ERROR] Impossible to generate a pipeline for the merge queue, please check {pipeline['web_url']}")
+    # Clean up
+    print("Cleaning up")
+    if success:
+        gitlab.cancel_pipeline(pipeline["id"])
+    pr.edit(state="closed")
+    ctx.run(f"git checkout {current_branch}", hide=True)
+    ctx.run(f"git branch -D {test_main}", hide=True)
+    ctx.run(f"git push origin :{test_main}", hide=True)
+    if not success:
+        raise Exit(message="Merge queue test failed", code=1)

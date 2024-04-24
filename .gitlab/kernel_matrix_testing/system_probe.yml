@@ -2,17 +2,17 @@
 upload_dependencies_sysprobe_x64:
   extends:
     - .package_dependencies
-  needs: ["pull_test_dockers_x64"]
+  needs: ["pull_test_dockers_x64", "go_deps", "go_tools_deps"]
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
-    ARCH: amd64
+    ARCH: x86_64
     INSTANCE_TYPE: m5d.metal
     TEST_COMPONENT: system-probe
 
 upload_dependencies_sysprobe_arm64:
   extends:
     - .package_dependencies
-  needs: ["pull_test_dockers_arm64"]
+  needs: ["pull_test_dockers_arm64", "go_deps", "go_tools_deps"]
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     ARCH: arm64
@@ -43,7 +43,7 @@ upload_dependencies_sysprobe_arm64:
 pull_test_dockers_x64:
   extends: .pull_test_dockers
   variables:
-    ARCH: amd64
+    ARCH: x86_64
 
 pull_test_dockers_arm64:
   extends: .pull_test_dockers
@@ -228,6 +228,7 @@ kmt_run_sysprobe_tests_x64:
           - "amzn_4.14"
           - "amzn_5.4"
           - "amzn_5.10"
+          - "amzn_2023"
           - "fedora_37"
           - "fedora_38"
           - "debian_10"
@@ -263,6 +264,7 @@ kmt_run_sysprobe_tests_arm64:
           - "amzn_4.14"
           - "amzn_5.4"
           - "amzn_5.10"
+          - "amzn_2023"
           - "fedora_37"
           - "fedora_38"
           - "debian_10"

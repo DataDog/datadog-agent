@@ -604,7 +604,7 @@ func TestExpectedTagDuration(t *testing.T) {
 	mockJournal.entries = append(mockJournal.entries, &sdjournal.JournalEntry{Fields: map[string]string{"MESSAGE": "foobar"}})
 
 	tailer.Start("")
-	assert.Equal(t, tags, (<-tailer.outputChan).Origin.Tags())
+	assert.Equal(t, tags, (<-tailer.outputChan).Tags())
 
 	tailer.Stop()
 

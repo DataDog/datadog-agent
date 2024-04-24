@@ -18,6 +18,7 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -26,7 +27,7 @@ import (
 )
 
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
-func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmeta optional.Option[workloadmeta.Component]) error {
+func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmeta optional.Option[workloadmeta.Component], settings settings.Component) error {
 	conn, err := net.NewListener(cfg.SocketAddress)
 	if err != nil {
 		return fmt.Errorf("error creating IPC socket: %s", err)
@@ -44,7 +45,7 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmet
 		utils.WriteAsJSON(w, module.GetStats())
 	}))
 
-	setupConfigHandlers(mux)
+	setupConfigHandlers(mux, settings)
 
 	// Module-restart handler
 	mux.HandleFunc("/module-restart/{module-name}", func(w http.ResponseWriter, r *http.Request) { restartModuleHandler(w, r, wmeta) }).Methods("POST")

@@ -273,7 +273,7 @@ func TestGetInterfacesMetrics(t *testing.T) {
 
 		require.Equal(t, "2000", count)
 		require.Equal(t, "UTC", timeZone)
-		require.Equal(t, "1999-12-31T23:40:00", startDate)
+		require.Equal(t, "1999-12-31T23:50:00", startDate)
 		require.Equal(t, "2000-01-01T00:00:00", endDate)
 
 		w.WriteHeader(http.StatusOK)
@@ -294,16 +294,16 @@ func TestGetInterfacesMetrics(t *testing.T) {
 	require.Equal(t, "10.10.1.22", devices[0].VmanageSystemIP)
 	require.Equal(t, "GigabitEthernet3", devices[0].Interface)
 	require.Equal(t, float64(1709049697985), devices[0].EntryTime)
-	require.Equal(t, float64(0), devices[0].TxOctets)
-	require.Equal(t, float64(0), devices[0].RxOctets)
-	require.Equal(t, float64(0), devices[0].TxKbps)
-	require.Equal(t, float64(0), devices[0].RxKbps)
+	require.Equal(t, float64(4), devices[0].TxOctets)
+	require.Equal(t, float64(23), devices[0].RxOctets)
+	require.Equal(t, 9.8, devices[0].TxKbps)
+	require.Equal(t, 10.4, devices[0].RxKbps)
 	require.Equal(t, float64(0), devices[0].DownCapacityPercentage)
-	require.Equal(t, float64(0), devices[0].UpCapacityPercentage)
-	require.Equal(t, float64(0), devices[0].RxErrors)
-	require.Equal(t, float64(0), devices[0].TxErrors)
-	require.Equal(t, float64(0), devices[0].RxDrops)
-	require.Equal(t, float64(0), devices[0].TxDrops)
+	require.Equal(t, 0.8, devices[0].UpCapacityPercentage)
+	require.Equal(t, float64(2), devices[0].RxErrors)
+	require.Equal(t, float64(506), devices[0].TxErrors)
+	require.Equal(t, float64(6), devices[0].RxDrops)
+	require.Equal(t, float64(3), devices[0].TxDrops)
 
 	// Ensure endpoint has been called 1 times
 	require.Equal(t, 1, handler.numberOfCalls())
@@ -322,7 +322,7 @@ func TestGetDeviceHardwareMetrics(t *testing.T) {
 
 		require.Equal(t, "2000", count)
 		require.Equal(t, "UTC", timeZone)
-		require.Equal(t, "1999-12-31T23:40:00", startDate)
+		require.Equal(t, "1999-12-31T23:50:00", startDate)
 		require.Equal(t, "2000-01-01T00:00:00", endDate)
 
 		w.WriteHeader(http.StatusOK)
@@ -365,7 +365,7 @@ func TestGetApplicationAwareRoutingMetrics(t *testing.T) {
 
 		require.Equal(t, "2000", count)
 		require.Equal(t, "UTC", timeZone)
-		require.Equal(t, "1999-12-31T23:40:00", startDate)
+		require.Equal(t, "1999-12-31T23:50:00", startDate)
 		require.Equal(t, "2000-01-01T00:00:00", endDate)
 
 		w.WriteHeader(http.StatusOK)

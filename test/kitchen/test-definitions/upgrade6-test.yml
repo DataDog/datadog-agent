@@ -37,6 +37,5 @@ suites:
     dd-agent-upgrade-rspec:
       # Used by the rspec test to know the version to which the agent should be upgraded
       agent_expected_version: &agent_expected_version <%= ENV['DD_AGENT_EXPECTED_VERSION'] || "5.99.0" %>
-      cws_included: &cws_included <%= ENV['WINDOWS_DDPROCMON_DRIVER'] || false %>
     dd-agent-rspec:
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>

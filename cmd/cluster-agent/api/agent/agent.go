@@ -23,13 +23,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -40,7 +40,7 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
-func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], statusComponent status.Component, secretResolver secrets.Component) {
+func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], statusComponent status.Component, secretResolver secrets.Component, settings settings.Component) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) {
@@ -52,10 +52,18 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 	r.HandleFunc("/config-check", func(w http.ResponseWriter, r *http.Request) {
 		getConfigCheck(w, r, ac)
 	}).Methods("GET")
-	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")
-	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
+	r.HandleFunc("/config", settings.GetFullConfig("")).Methods("GET")
+	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
+	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		setting := vars["setting"]
+		settings.GetValue(setting, w, r)
+	}).Methods("GET")
+	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		setting := vars["setting"]
+		settings.SetValue(setting, w, r)
+	}).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
 		getWorkloadList(w, r, wmeta)

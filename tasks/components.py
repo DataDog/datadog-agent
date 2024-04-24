@@ -1,6 +1,7 @@
 """
 Invoke entrypoint, import here all the tasks we want to make available
 """
+
 import os
 import pathlib
 from collections import namedtuple
@@ -9,7 +10,7 @@ from string import Template
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.copyright import COPYRIGHT_HEADER
+from tasks.libs.types.copyright import COPYRIGHT_HEADER
 
 Component = namedtuple('Component', ['path', 'doc', 'team'])
 Bundle = namedtuple('Bundle', ['path', 'doc', 'team', 'components'])
@@ -48,7 +49,6 @@ components_to_migrate = [
     "comp/aggregator/demultiplexer/component.go",
     "comp/core/config/component.go",
     "comp/core/flare/component.go",
-    "comp/core/telemetry/component.go",
     "comp/dogstatsd/replay/component.go",
     "comp/dogstatsd/server/component.go",
     "comp/forwarder/defaultforwarder/component.go",
@@ -81,7 +81,11 @@ implementation_definitions = [
 ]
 
 
-def check_component_contents_and_file_hiearchy(file, content, directory):
+def check_component_contents_and_file_hiearchy(entry_point):
+    content = entry_point.content
+    file = entry_point.file
+    directory = entry_point.dir
+
     if not any(l.startswith('type Component interface') or l.startswith('type Component = ') for l in content):
         return f"** {file} does not define a Component interface; skipping"
 
@@ -120,45 +124,45 @@ def get_components_and_bundles():
 
         component_directory = pathlib.Path(component_file)
         for component_entry in component_directory.iterdir():
+
             # If we encounter a file at the first level it could be a bundle
-            if component_entry.is_file():
-                if component_entry.name == "bundle.go":
-                    content = list(component_entry.open())
-                    if has_type_component(content):
-                        print(f"** {component_entry} defines a Component interface (bundles should not do so)")
-                        ok = False
-                        pass
+            if component_entry.is_file() and component_entry.name == "bundle.go":
+                content = list(component_entry.open())
+                if has_type_component(content):
+                    print(f"** {component_entry} defines a Component interface (bundles should not do so)")
+                    ok = False
+                    pass
 
-                    path = str(component_entry)[: -len('/bundle.go')]
-                    team = find_team(content)
-                    doc = find_doc(content)
+                path = str(component_entry)[: -len('/bundle.go')]
+                team = find_team(content)
+                doc = find_doc(content)
 
-                    if team is None:
-                        print(f"** {component_entry} does not specify a team owner")
-                        ok = False
+                if team is None:
+                    print(f"** {component_entry} does not specify a team owner")
+                    ok = False
 
-                    bundles.append(Bundle(path, doc, team, []))
-            else:
-                for component_file in component_entry.iterdir():
-                    if component_file.name == "component.go":
-                        # We are a component
-                        # Let's check the file content and hierarchy
-                        content = list(component_file.open())
-                        error = check_component_contents_and_file_hiearchy(component_file, content, component_entry)
-                        if error != "":
-                            print(error)
-                            ok = False
-                            pass
+                bundles.append(Bundle(path, doc, team, []))
+                continue
 
-                        path = str(component_file)[: -len('/component.go')]
-                        team = find_team(content)
-                        doc = find_doc(content)
+            component_root = locate_root(component_entry)
+            if component_root is not None:
+                # Found a component's root
+                # Let's check the file content and hierarchy
+                error = check_component_contents_and_file_hiearchy(component_root)
+                if error != "":
+                    print(error)
+                    ok = False
+                    pass
 
-                        if team is None:
-                            print(f"** {path} does not specify a team owner")
-                            ok = False
+                path = str(component_root.dir)
+                team = find_team(component_root.content)
+                doc = find_doc(component_root.content)
 
-                        components.append(Component(path, doc, team))
+                if team is None:
+                    print(f"** {path} does not specify a team owner")
+                    ok = False
+
+                components.append(Component(path, doc, team))
 
     # assign components to bundles
     sorted_bundles = []
@@ -177,6 +181,29 @@ def get_components_and_bundles():
             components_without_bundle.append(c)
 
     return sorted(sorted_bundles), sorted(components_without_bundle), ok
+
+
+class ComponentRoot(object):
+    def __init__(self, file, dir, version):
+        self.file = file
+        self.dir = dir
+        self.version = version
+        self.content = list(self.file.open())
+
+
+def locate_root(dir):
+    """
+    Locate the root of the component, if this directory contains a component
+    """
+    # v2 component: this folder is a component root if it contains 'def/component.go'
+    component_file = dir / 'def/component.go'
+    if component_file.is_file():
+        return ComponentRoot(component_file, dir, 2)
+    # v1 component: this folder is a component root if it contains '/component.go' but the path is not '/def/component.go'
+    #    in particular, the directory named 'def' should not be treated as a component root
+    component_file = dir / 'component.go'
+    if component_file.is_file() and '/def/component.go' not in str(component_file):
+        return ComponentRoot(component_file, dir, 1)
 
 
 def make_components_md(bundles, components_without_bundle):
@@ -264,7 +291,7 @@ def lint_components(_, fix=False):
         with open(filename, "w") as f:
             f.write(components_md)
     else:
-        with open(filename, "r") as f:
+        with open(filename) as f:
             current = f.read()
             if current != components_md:
                 print(f"** {filename} differs")
@@ -273,7 +300,7 @@ def lint_components(_, fix=False):
 
     # Check .github/CODEOWNERS
     filename = ".github/CODEOWNERS"
-    with open(filename, "r") as f:
+    with open(filename) as f:
         current = f.read()
     codeowners = '\n'.join(make_codeowners(current.splitlines(), bundles, components_without_bundle))
     if fix:
@@ -327,7 +354,12 @@ def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */
         inv components.new-component /tmp/baz                 # Create the 'baz' component in the '/tmp/' folder. './comp' prefix is not enforced by the task.
     """
     component_name = os.path.basename(comp_path)
-    template_var_mapping = {"COMPONENT_NAME": component_name, "TEAM_NAME": team}
+    template_var_mapping = {
+        "COMPONENT_PATH": comp_path,
+        "COMPONENT_NAME": component_name,
+        "CAPITALIZED_COMPONENT_NAME": component_name.capitalize(),
+        "TEAM_NAME": team,
+    }
     create_components_framework_files(
         comp_path,
         [
@@ -414,7 +446,7 @@ def read_file_content(template_path):
     """
     Read all lines in files and return them as a single string.
     """
-    with open(template_path, "r") as file:
+    with open(template_path) as file:
         return file.read()
 
 

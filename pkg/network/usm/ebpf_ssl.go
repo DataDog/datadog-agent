@@ -43,8 +43,8 @@ const (
 	sslReadExRetprobe           = "uretprobe__SSL_read_ex"
 	sslWriteExProbe             = "uprobe__SSL_write_ex"
 	sslWriteExRetprobe          = "uretprobe__SSL_write_ex"
-	ssDoHandshakeProbe          = "uprobe__SSL_do_handshake"
-	ssDoHandshakeRetprobe       = "uretprobe__SSL_do_handshake"
+	sslDoHandshakeProbe         = "uprobe__SSL_do_handshake"
+	sslDoHandshakeRetprobe      = "uretprobe__SSL_do_handshake"
 	sslConnectProbe             = "uprobe__SSL_connect"
 	sslConnectRetprobe          = "uretprobe__SSL_connect"
 	sslSetBioProbe              = "uprobe__SSL_set_bio"
@@ -98,12 +98,12 @@ var openSSLProbes = []manager.ProbesSelector{
 		Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: ssDoHandshakeProbe,
+					EBPFFuncName: sslDoHandshakeProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: ssDoHandshakeRetprobe,
+					EBPFFuncName: sslDoHandshakeRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
@@ -295,12 +295,12 @@ var opensslSpec = &protocols.ProtocolSpec{
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: ssDoHandshakeProbe,
+				EBPFFuncName: sslDoHandshakeProbe,
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: ssDoHandshakeRetprobe,
+				EBPFFuncName: sslDoHandshakeRetprobe,
 			},
 		},
 		{
@@ -417,14 +417,15 @@ var opensslSpec = &protocols.ProtocolSpec{
 }
 
 type sslProgram struct {
-	cfg          *config.Config
-	watcher      *sharedlibraries.Watcher
-	istioMonitor *istioMonitor
+	cfg           *config.Config
+	watcher       *sharedlibraries.Watcher
+	istioMonitor  *istioMonitor
+	nodeJSMonitor *nodeJSMonitor
 }
 
 func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
-		if (!c.EnableNativeTLSMonitoring || !http.TLSSupported(c)) && !c.EnableIstioMonitoring {
+		if (!c.EnableNativeTLSMonitoring || !http.TLSSupported(c)) && !c.EnableIstioMonitoring && !c.EnableNodeJSMonitoring {
 			return nil, nil
 		}
 
@@ -459,17 +460,20 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 		}
 
 		return &sslProgram{
-			cfg:          c,
-			watcher:      watcher,
-			istioMonitor: newIstioMonitor(c, m),
+			cfg:           c,
+			watcher:       watcher,
+			istioMonitor:  newIstioMonitor(c, m),
+			nodeJSMonitor: newNodeJSMonitor(c, m),
 		}, nil
 	}
 }
 
+// Name return the program's name.
 func (o *sslProgram) Name() string {
 	return "openssl"
 }
 
+// ConfigureOptions changes map attributes to the given options.
 func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
 		MaxEntries: o.cfg.MaxTrackedConnections,
@@ -477,21 +481,27 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 	}
 }
 
+// PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart(*manager.Manager) error {
 	o.watcher.Start()
 	o.istioMonitor.Start()
+	o.nodeJSMonitor.Start()
 	return nil
 }
 
+// PostStart is a no-op.
 func (o *sslProgram) PostStart(*manager.Manager) error {
 	return nil
 }
 
+// Stop stops the program.
 func (o *sslProgram) Stop(*manager.Manager) {
 	o.watcher.Stop()
 	o.istioMonitor.Stop()
+	o.nodeJSMonitor.Stop()
 }
 
+// DumpMaps dumps the content of the map represented by mapName & currentMap, if it used by the eBPF program, to output.
 func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	switch mapName {
 	case sslSockByCtxMap: // maps/ssl_sock_by_ctx (BPF_MAP_TYPE_HASH), key uintptr // C.void *, value C.ssl_sock_t
@@ -542,6 +552,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 
 }
 
+// GetStats returns the latest monitoring stats from a protocol implementation.
 func (o *sslProgram) GetStats() *protocols.ProtocolStats {
 	return nil
 }
