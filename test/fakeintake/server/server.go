@@ -68,7 +68,8 @@ type Server struct {
 	urlMutex sync.RWMutex
 	url      string
 
-	store serverstore.Store
+	storeDriver string
+	store       serverstore.Store
 
 	responseOverridesMutex    sync.RWMutex
 	responseOverridesByMethod map[string]map[string]httpResponse
@@ -83,11 +84,19 @@ func NewServer(options ...Option) *Server {
 		urlMutex:                  sync.RWMutex{},
 		clock:                     clock.New(),
 		retention:                 15 * time.Minute,
-		store:                     serverstore.NewStore(),
 		responseOverridesMutex:    sync.RWMutex{},
 		responseOverridesByMethod: newResponseOverrides(),
+		server: http.Server{
+			Addr: "0.0.0.0:0",
+		},
+		storeDriver: "memory",
 	}
 
+	for _, opt := range options {
+		opt(fi)
+	}
+
+	fi.store = serverstore.NewStore(fi.storeDriver)
 	registry := prometheus.NewRegistry()
 
 	storeMetrics := fi.store.GetInternalMetrics()
@@ -121,14 +130,7 @@ func NewServer(options ...Option) *Server {
 		Registry:          registry,
 	}))
 
-	fi.server = http.Server{
-		Handler: mux,
-		Addr:    ":0",
-	}
-
-	for _, opt := range options {
-		opt(fi)
-	}
+	fi.server.Handler = mux
 
 	return fi
 }
@@ -150,6 +152,17 @@ func WithAddress(addr string) Option {
 // If the port is 0, a port number is automatically chosen
 func WithPort(port int) Option {
 	return WithAddress(fmt.Sprintf("0.0.0.0:%d", port))
+}
+
+// WithStoreDriver changes the store driver used by the server
+func WithStoreDriver(driver string) func(*Server) {
+	return func(fi *Server) {
+		if fi.IsRunning() {
+			log.Println("Fake intake is already running. Stop it and try again to change the store driver.")
+			return
+		}
+		fi.storeDriver = driver
+	}
 }
 
 // WithReadyChannel assign a boolean channel to get notified when the server is ready

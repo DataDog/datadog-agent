@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"runtime"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -42,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	winmodel "github.com/DataDog/datadog-agent/pkg/security/seclwin/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -54,6 +56,7 @@ type checkPoliciesCliParams struct {
 
 	dir                      string
 	evaluateAllPolicySources bool
+	windowsModel             bool
 }
 
 func commonPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -73,10 +76,11 @@ func commonPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
 type evalCliParams struct {
 	*command.GlobalParams
 
-	dir       string
-	ruleID    string
-	eventFile string
-	debug     bool
+	dir          string
+	ruleID       string
+	eventFile    string
+	debug        bool
+	windowsModel bool
 }
 
 func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -105,6 +109,9 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	evalCmd.Flags().StringVar(&evalArgs.eventFile, "event-file", "", "File of the event data")
 	_ = evalCmd.MarkFlagRequired("event-file")
 	evalCmd.Flags().BoolVar(&evalArgs.debug, "debug", false, "Display an event dump if the evaluation fail")
+	if runtime.GOOS == "linux" {
+		evalCmd.Flags().BoolVar(&evalArgs.windowsModel, "windows-model", false, "Use the Windows model")
+	}
 
 	return []*cobra.Command{evalCmd}
 }
@@ -131,6 +138,9 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 
 	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 	commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.evaluateAllPolicySources, "loaded-policies", false, "Evaluate loaded policies")
+	if runtime.GOOS == "linux" {
+		commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.windowsModel, "windows-model", false, "Evaluate policies using the Windows model")
+	}
 
 	return []*cobra.Command{commonCheckPoliciesCmd}
 }
@@ -365,6 +375,10 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 
 func checkPolicies(_ log.Component, _ config.Component, args *checkPoliciesCliParams) error {
 	if args.evaluateAllPolicySources {
+		if args.windowsModel {
+			return errors.New("unable to evaluator loaded policies using the windows model")
+		}
+
 		client, err := secagent.NewRuntimeSecurityClient()
 		if err != nil {
 			return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -398,6 +412,10 @@ func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.
 
 func newFakeEvent() eval.Event {
 	return model.NewFakeEvent()
+}
+
+func newFakeWindowsEvent() eval.Event {
+	return winmodel.NewFakeEvent()
 }
 
 func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
@@ -436,7 +454,12 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 
 	loader := rules.NewPolicyLoader(provider)
 
-	ruleSet := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	var ruleSet *rules.RuleSet
+	if args.windowsModel {
+		ruleSet = rules.NewRuleSet(&winmodel.Model{}, newFakeWindowsEvent, ruleOpts, evalOpts)
+	} else {
+		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	}
 	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
 	if err != nil {
 		return err
@@ -445,15 +468,17 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 		return err
 	}
 
-	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
-	if err != nil {
-		return err
-	}
+	if !args.windowsModel {
+		report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
+		if err != nil {
+			return err
+		}
 
-	content, _ := json.MarshalIndent(report, "", "\t")
-	_, err = fmt.Fprintf(writer, "%s\n", string(content))
-	if err != nil {
-		return fmt.Errorf("unable to write out report: %w", err)
+		content, _ := json.MarshalIndent(report, "", "\t")
+		_, err = fmt.Fprintf(writer, "%s\n", string(content))
+		if err != nil {
+			return fmt.Errorf("unable to write out report: %w", err)
+		}
 	}
 
 	return nil
@@ -549,7 +574,12 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 
 	loader := rules.NewPolicyLoader(provider)
 
-	ruleSet := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	var ruleSet *rules.RuleSet
+	if evalArgs.windowsModel {
+		ruleSet = rules.NewRuleSet(&winmodel.Model{}, newFakeWindowsEvent, ruleOpts, evalOpts)
+	} else {
+		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	}
 	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
 	if err != nil {
 		return err
@@ -568,11 +598,13 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 		Event: event,
 	}
 
-	approvers, err := ruleSet.GetApprovers(kfilters.GetCapababilities())
-	if err != nil {
-		report.Error = err
-	} else {
-		report.Approvers = approvers
+	if !evalArgs.windowsModel {
+		approvers, err := ruleSet.GetApprovers(kfilters.GetCapababilities())
+		if err != nil {
+			report.Error = err
+		} else {
+			report.Approvers = approvers
+		}
 	}
 
 	report.Succeeded = ruleSet.Evaluate(event)

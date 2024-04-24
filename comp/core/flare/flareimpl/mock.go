@@ -36,13 +36,8 @@ type MockProvides struct {
 // MockFlare is a mock of the
 type MockFlare struct{}
 
-// MockEndpoint wraps the flare mock with the http.Handler interface
-type MockEndpoint struct {
-	Comp *MockFlare
-}
-
 // ServeHTTP is a simple mocked http.Handler function
-func (e MockEndpoint) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+func (fc *MockFlare) handlerFunc(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("OK"))
 }
 
@@ -59,10 +54,9 @@ func (fc *MockFlare) Send(_ string, _ string, _ string, _ helpers.FlareSource) (
 // NewMock returns a new flare provider
 func NewMock() MockProvides {
 	m := &MockFlare{}
-	e := api.NewAgentEndpointProvider(MockEndpoint{Comp: m}, "/flare", "POST")
 
 	return MockProvides{
 		Comp:     m,
-		Endpoint: e,
+		Endpoint: api.NewAgentEndpointProvider(m.handlerFunc, "/flare", "POST"),
 	}
 }

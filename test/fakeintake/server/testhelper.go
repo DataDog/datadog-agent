@@ -21,7 +21,8 @@ func InitialiseForTests(t *testing.T, opts ...Option) (*Server, *clock.Mock) {
 	t.Helper()
 	ready := make(chan bool, 1)
 	mockClock := clock.NewMock()
-	opts = append(opts, WithReadyChannel(ready), WithClock(mockClock), WithAddress("127.0.0.1:0"))
+	// Add the options at the end so they can override the defaults
+	opts = append([]Option{WithReadyChannel(ready), WithClock(mockClock), WithAddress("127.0.0.1:0")}, opts...)
 	fi := NewServer(opts...)
 	fi.Start()
 	isReady := <-ready

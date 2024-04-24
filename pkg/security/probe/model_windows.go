@@ -23,6 +23,7 @@ func NewWindowsModel(_ *WindowsProbe) *model.Model {
 				!strings.HasPrefix(field, "exit.") &&
 				!strings.HasPrefix(field, "create.") &&
 				!strings.HasPrefix(field, "open.") &&
+				!strings.HasPrefix(field, "rename.") &&
 				!strings.HasPrefix(field, "set.") &&
 				!strings.HasPrefix(field, "delete.") &&
 				!strings.HasPrefix(field, "process.") {

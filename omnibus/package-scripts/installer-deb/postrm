@@ -1,0 +1,26 @@
+#!/bin/sh
+#
+# Perform necessary datadog-updater removal steps after package is uninstalled.
+#
+# .deb: STEP 3 of 5
+
+PACKAGES_DIR=/opt/datadog-packages
+INSTALL_DIR=/opt/datadog-installer
+PACKAGES_LOCK_DIR=/var/run/datadog-packages
+
+set -e
+
+case "$1" in
+    purge)
+        echo "Force-deleting $INSTALL_DIR, $PACKAGES_DIR, $PACKAGES_LOCK_DIR"
+        rm -rf $INSTALL_DIR
+        rm -rf $PACKAGES_DIR
+        rm -rf $PACKAGES_LOCK_DIR
+    ;;
+    remove)
+    ;;
+    *)
+    ;;
+esac
+
+exit 0

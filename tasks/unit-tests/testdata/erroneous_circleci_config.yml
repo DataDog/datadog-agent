@@ -133,7 +133,7 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
-          command: inv -e lint-releasenote
+          command: inv -e linter.releasenote
           name: run PR check for release note
 
   team_label:

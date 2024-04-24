@@ -179,11 +179,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
 				autoexitimpl.Module(),
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
-				fx.Supply(
-					settings.Settings{
-						"log_level": commonsettings.NewLogLevelRuntimeSetting(),
-					},
-				),
+				fx.Provide(func(c config.Component) settings.Params {
+					return settings.Params{
+						Settings: map[string]settings.RuntimeSetting{
+							"log_level": commonsettings.NewLogLevelRuntimeSetting(),
+						},
+						Config: c,
+					}
+				}),
 				settingsimpl.Module(),
 			)
 		},
@@ -372,6 +375,8 @@ func setupInternalProfiling(config config.Component) error {
 			MutexProfileFraction: config.GetInt(secAgentKey("internal_profiling.mutex_profile_fraction")),
 			BlockProfileRate:     config.GetInt(secAgentKey("internal_profiling.block_profile_rate")),
 			WithGoroutineProfile: config.GetBool(secAgentKey("internal_profiling.enable_goroutine_stacktraces")),
+			WithBlockProfile:     config.GetBool(secAgentKey("internal_profiling.enable_block_profiling")),
+			WithMutexProfile:     config.GetBool(secAgentKey("internal_profiling.enable_mutex_profiling")),
 			WithDeltaProfiles:    config.GetBool(secAgentKey("internal_profiling.delta_profiles")),
 			Socket:               config.GetString(secAgentKey("internal_profiling.unix_socket")),
 			Tags:                 tags,

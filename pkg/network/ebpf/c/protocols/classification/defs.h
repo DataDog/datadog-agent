@@ -141,6 +141,7 @@ typedef enum {
     PROG_HTTP2_DYNAMIC_TABLE_CLEANER,
     PROG_HTTP2_EOS_PARSER,
     PROG_KAFKA,
+    PROG_KAFKA_RESPONSE_PARSER,
     PROG_GRPC,
     // Add before this value.
     PROG_MAX,
