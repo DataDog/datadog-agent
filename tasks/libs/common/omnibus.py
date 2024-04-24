@@ -37,16 +37,18 @@ def _get_environment_for_cache() -> dict:
             'APP_KEY_',
             'ARTIFACTORY_',
             'AWS_',
+            'BAZEL_',
+            'BETA_',
             'BUILDENV_',
             'CI_',
             'CHOCOLATEY_',
             'CLUSTER_AGENT_',
             'DATADOG_AGENT_',
             'DD_',
-            'DDR_',
             'DEB_',
             'DESTINATION_',
             'DOCKER_',
+            'DYNAMIC_',
             'E2E_TESTS_',
             'EMISSARY_',
             'EXECUTOR_',
@@ -72,6 +74,7 @@ def _get_environment_for_cache() -> dict:
             'STATS_',
             'SMP_',
             'SSH_',
+            'TARGET_',
             'TEST_INFRA_',
             'USE_',
             'VAULT_',
@@ -83,28 +86,39 @@ def _get_environment_for_cache() -> dict:
             '_VERSION',
         ]
         excluded_values = [
+            "APPS",
             "ARTIFACT_DOWNLOAD_ATTEMPTS",
             "AVAILABILITY_ZONE",
             "BENCHMARKS_CI_IMAGE",
+            "BUILD_HOOK",
             "BUNDLE_MIRROR__RUBYGEMS__ORG",
             "BUCKET_BRANCH",
             "CHANGELOG_COMMIT_SHA_SSM_NAME",
             "CLANG_LLVM_VER",
             "CHANNEL",
+            "CHART",
             "CI",
+            "CLUSTER",
             "COMPUTERNAME",
             "CONDA_PROMPT_MODIFIER",
             "CONSUL_HTTP_ADDR",
+            "DATACENTERS",
+            "DDR",
             "DEPLOY_AGENT",
             "DOGSTATSD_BINARIES_DIR",
+            "ENVIRONMENTS",
             "EXPERIMENTS_EVALUATION_ADDRESS",
+            "FILTER",
+            "FORCE_DEPLOYMENT",
             "GCE_METADATA_HOST",
             "GENERAL_ARTIFACTS_CACHE_BUCKET_URL",
             "GET_SOURCES_ATTEMPTS",
             "GO_TEST_SKIP_FLAKE",
+            "HELM_HOOKS_CI_IMAGE",
             "HOME",
             "HOSTNAME",
             "HOST_IP",
+            "INFOPATH",
             "INSTALL_SCRIPT_API_KEY_SSM_NAME",
             "INTEGRATION_WHEELS_CACHE_BUCKET",
             "IRBRC",
@@ -117,6 +131,7 @@ def _get_environment_for_cache() -> dict:
             "MACOS_S3_BUCKET",
             "MANPATH",
             "MESSAGE",
+            "NEW_CLUSTER",
             "OLDPWD",
             "PCP_DIR",
             "PACKAGE_ARCH",
@@ -133,6 +148,8 @@ def _get_environment_for_cache() -> dict:
             "STATIC_BINARIES_DIR",
             "STATSD_URL",
             "SYSTEM_PROBE_BINARIES_DIR",
+            "TESTING_CLEANUP",
+            "TIMEOUT",
             "TMPDIR",
             "TRACE_AGENT_URL",
             "USE_CACHING_PROXY_PYTHON",
@@ -147,6 +164,7 @@ def _get_environment_for_cache() -> dict:
             "VM_ASSETS",
             "WIN_S3_BUCKET",
             "WINGET_PAT_SSM_NAME",
+            "WORKFLOW",
             "_",
             "build_before",
         ]
@@ -199,6 +217,7 @@ def omnibus_compute_cache_key(ctx):
     for k, v in environment.items():
         print(f'\tUsing environment variable {k} to compute cache key')
         h.update(str.encode(f'{k}={v}'))
+        print(f'Current hash value: {h.hexdigest()}')
     cache_key = h.hexdigest()
     print(f'Cache key: {cache_key}')
     return cache_key
@@ -307,6 +326,29 @@ def send_build_metrics(ctx, overall_duration):
         print('Successfully sent build metrics to DataDog')
     else:
         print(f'Failed to send build metrics to DataDog: {r.status_code}')
+        print(r.text)
+
+
+def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
+    if sys.platform == 'win32':
+        aws_cmd = "aws.cmd"
+    else:
+        aws_cmd = "aws"
+    dd_api_key = ctx.run(
+        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2_SSM_NAME"]} --with-decryption --query "Parameter.Value" --out text',
+        hide=True,
+    ).stdout.strip()
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
+    payload = {
+        'title': 'omnibus cache miss',
+        'text': f"Couldn't fetch cache associated with cache key for job {job_name} in pipeline #{pipeline_id}",
+        'source_type_name': 'omnibus',
+        'date_happened': int(datetime.now().timestamp()),
+        'tags': [f'pipeline:{pipeline_id}', f'job:{job_name}', 'source:omnibus-cache', f'job-id:{job_id}'],
+    }
+    r = requests.post("https://api.datadoghq.com/api/v1/events", json=payload, headers=headers)
+    if not r.ok:
+        print('Failed to send cache miss event')
         print(r.text)
 
 

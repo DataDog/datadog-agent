@@ -72,13 +72,20 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 
 	c.store = store
 
+	var err error
+	c.metaV2, err = ecsmeta.V2()
+	if err != nil {
+		return err
+	}
+
 	c.setTaskCollectionParser()
 
 	return nil
 }
 
 func (c *collector) setTaskCollectionParser() {
-	_, err := ecsmeta.V4FromCurrentTask()
+	var err error
+	c.metaV4, err = ecsmeta.V4FromCurrentTask()
 	if c.taskCollectionEnabled && err == nil {
 		c.taskCollectionParser = c.parseTaskFromV4Endpoint
 		return

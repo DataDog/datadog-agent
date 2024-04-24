@@ -1,0 +1,21 @@
+From 21ff59e5b85d3c2498bd3126321eaebe92b42ab5 Mon Sep 17 00:00:00 2001
+From: Michal Ambroz <723625+xambroz@users.noreply.github.com>
+Date: Mon, 27 Nov 2023 06:24:56 +0100
+Subject: [PATCH] fix implicit declaration of INT_MIN/INT_MAX
+
+---
+ src/OVAL/results/oval_cmp_evr_string.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/OVAL/results/oval_cmp_evr_string.c b/src/OVAL/results/oval_cmp_evr_string.c
+index 1c440bb569..f41b00e749 100644
+--- a/src/OVAL/results/oval_cmp_evr_string.c
++++ b/src/OVAL/results/oval_cmp_evr_string.c
+@@ -30,6 +30,7 @@
+ #include <math.h>
+ #include <string.h>
+ #include <ctype.h>
++#include <limits.h>
+ #include "oval_cmp_evr_string_impl.h"
+ #include "oval_definitions.h"
+ #include "oval_types.h"

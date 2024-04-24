@@ -20,11 +20,11 @@ type mockDestination struct {
 	output     chan *message.Payload
 	isRetrying chan bool
 	stopChan   chan struct{}
-	isHA       bool
+	isMRF      bool
 }
 
-func (m *mockDestination) IsHA() bool {
-	return m.isHA
+func (m *mockDestination) IsMRF() bool {
+	return m.isMRF
 }
 
 func (m *mockDestination) Target() string {
@@ -50,7 +50,7 @@ func newDestinationSenderWithBufferSize(bufferSize int) (*mockDestination, *Dest
 func newDestinationSenderWithConfigAndBufferSize(cfg pkgconfigmodel.Reader, bufferSize int) (*mockDestination, *DestinationSender) {
 	output := make(chan *message.Payload)
 	dest := &mockDestination{}
-	dest.isHA = cfg.GetBool("ha.enabled")
+	dest.isMRF = cfg.GetBool("multi_region_failover.enabled")
 	d := NewDestinationSender(cfg, dest, output, bufferSize)
 	return dest, d
 }
@@ -148,26 +148,26 @@ func TestDestinationSenderDeadlock(_ *testing.T) {
 
 func TestDestinationSenderDisabled(t *testing.T) {
 	cfg := getNewConfig()
-	cfg.SetWithoutSource("ha.enabled", true)
-	cfg.SetWithoutSource("ha.failover", false)
+	cfg.SetWithoutSource("multi_region_failover.enabled", true)
+	cfg.SetWithoutSource("multi_region_failover.failover_logs", false)
 
 	dest, destSender := newDestinationSenderWithConfigAndBufferSize(cfg, 1)
 
-	assert.True(t, destSender.Send(&message.Payload{}), "sender should always indicate success when disabled in HA mode")
+	assert.True(t, destSender.Send(&message.Payload{}), "sender should always indicate success when disabled in MRF mode")
 	assert.Len(t, dest.input, 0, "sender should not send anything when disabled")
 }
 
 func TestDestinationSenderDisabledToEnabled(t *testing.T) {
 	cfg := getNewConfig()
-	cfg.SetWithoutSource("ha.enabled", true)
-	cfg.SetWithoutSource("ha.failover", false)
+	cfg.SetWithoutSource("multi_region_failover.enabled", true)
+	cfg.SetWithoutSource("multi_region_failover.failover_logs", false)
 
 	dest, destSender := newDestinationSenderWithConfigAndBufferSize(cfg, 1)
 
-	assert.True(t, destSender.Send(&message.Payload{}), "sender should always indicate success when disabled in HA mode")
+	assert.True(t, destSender.Send(&message.Payload{}), "sender should always indicate success when disabled in MRF mode")
 	assert.Len(t, dest.input, 0, "sender should not send payload when disabled")
 
-	cfg.SetWithoutSource("ha.failover", true)
+	cfg.SetWithoutSource("multi_region_failover.failover_logs", true)
 
 	assert.True(t, destSender.Send(&message.Payload{}), "sender should have buffer space to accept payload when enabled")
 	assert.Len(t, dest.input, 1, "sender should send payload when enabled")
@@ -175,8 +175,8 @@ func TestDestinationSenderDisabledToEnabled(t *testing.T) {
 
 func TestDestinationSenderEnabledToDisabled(t *testing.T) {
 	cfg := getNewConfig()
-	cfg.SetWithoutSource("ha.enabled", true)
-	cfg.SetWithoutSource("ha.failover", true)
+	cfg.SetWithoutSource("multi_region_failover.enabled", true)
+	cfg.SetWithoutSource("multi_region_failover.failover_logs", true)
 
 	dest, destSender := newDestinationSenderWithConfigAndBufferSize(cfg, 1)
 
@@ -185,8 +185,8 @@ func TestDestinationSenderEnabledToDisabled(t *testing.T) {
 
 	// drain input channel and set to disabled
 	<-dest.input
-	cfg.SetWithoutSource("ha.failover", false)
+	cfg.SetWithoutSource("multi_region_failover.failover_logs", false)
 
-	assert.True(t, destSender.Send(&message.Payload{}), "sender should always indicate success when disabled in HA mode")
+	assert.True(t, destSender.Send(&message.Payload{}), "sender should always indicate success when disabled in MRF mode")
 	assert.Len(t, dest.input, 0, "sender should not send payload when disabled")
 }

@@ -129,6 +129,7 @@ type FileSyscallMsg struct {
 	CTime       uint64
 	MTime       uint64
 	Mode        uint32
+	Inode       uint64
 	Credentials *Credentials
 }
 
