@@ -1045,13 +1045,21 @@ func handleFchownAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	return fillFileMetadata(tracer, filename, &msg.Chown.File, disableStats)
 }
 
-func handleMount(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+func handleMount(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	source, err := tracer.ReadArgString(process.Pid, regs, 0)
+	if err != nil {
+		return err
+	}
+	source, err = getFullPathFromFilename(process, source)
 	if err != nil {
 		return err
 	}
 
 	target, err := tracer.ReadArgString(process.Pid, regs, 1)
+	if err != nil {
+		return err
+	}
+	target, err = getFullPathFromFilename(process, target)
 	if err != nil {
 		return err
 	}
@@ -1075,8 +1083,12 @@ func handleMount(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 	return nil
 }
 
-func handleUmount2(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+func handleUmount2(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	path, err := tracer.ReadArgString(process.Pid, regs, 0)
+	if err != nil {
+		return err
+	}
+	path, err = getFullPathFromFilename(process, path)
 	if err != nil {
 		return err
 	}
