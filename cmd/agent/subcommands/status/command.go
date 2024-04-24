@@ -111,7 +111,7 @@ func statusCmd(logger log.Component, config config.Component, _ sysprobeconfig.C
 
 	// TODO: remove in 7.54 release
 	if cliParams.args[0] == "component" {
-		fmt.Fprintf(os.Stderr, "[DEPRECATION WARNING] `datadog-agent status component [name]` syntax will be replace by `datadog-agent status [name]` in Datadog Agent 7.54\n")
+		fmt.Fprintf(os.Stderr, "[DEPRECATION WARNING] `datadog-agent status component [name]` syntax will be replace by `datadog-agent status [name]` in Datadog Agent 7.55\n")
 		cliParams.args = cliParams.args[1:]
 	}
 	return componentStatusCmd(logger, config, cliParams)
