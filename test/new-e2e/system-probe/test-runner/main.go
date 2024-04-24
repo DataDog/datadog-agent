@@ -207,7 +207,7 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
 		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuite, testConfig)
 
-		cmd := exec.Command(fmt.Sprintf("%s/go/bin/gotestsum", testConfig.testingTools), args...)
+		cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
 		baseEnv = append(
 			baseEnv,
 			"DD_SYSTEM_PROBE_BPF_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/ebpf/bytecode/build"),
