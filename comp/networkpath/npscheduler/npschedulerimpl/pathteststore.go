@@ -30,12 +30,12 @@ type pathtestStore struct {
 	pathtestRunUntilDuration time.Duration
 }
 
-func newPathtestContext(pt *pathtest, runInterval time.Duration) pathtestContext {
+func newPathtestContext(pt *pathtest, runUntilDuration time.Duration) pathtestContext {
 	now := timeNow()
 	return pathtestContext{
 		pathtest:     pt,
 		nextRunTime:  now,
-		runUntilTime: now.Add(runInterval),
+		runUntilTime: now.Add(runUntilDuration),
 	}
 }
 
@@ -100,7 +100,7 @@ func (f *pathtestStore) add(pathtestToAdd *pathtest) {
 	hash := pathtestToAdd.getHash()
 	pathtestCtx, ok := f.pathtestContexts[hash]
 	if !ok {
-		f.pathtestContexts[hash] = newPathtestContext(pathtestToAdd, f.pathtestRunInterval)
+		f.pathtestContexts[hash] = newPathtestContext(pathtestToAdd, f.pathtestRunUntilDuration)
 		return
 	}
 	if pathtestCtx.pathtest == nil {
