@@ -60,8 +60,8 @@ type Agent struct {
 	health           *health.Handle
 }
 
-// NewLogsAgentPipeline returns a new instance of Agent with the given dependencies
-func NewLogsAgentPipeline(deps Dependencies) optional.Option[logsagentpipeline.Component] {
+// NewLogsAgentComponent returns a new instance of Agent with the given dependencies
+func NewLogsAgentComponent(deps Dependencies) optional.Option[logsagentpipeline.Component] {
 	logsAgent := NewLogsAgent(deps)
 	if logsAgent == nil {
 		return optional.NewNoneOption[logsagentpipeline.Component]()
