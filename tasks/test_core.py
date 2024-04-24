@@ -146,10 +146,10 @@ def test_core(
             continue
         sectionid = int(random.random() * 100000)
         print(
-            f'\033[0Ksection_start:{int(time.time())}:{module.full_path.replace("/", "")}_{sectionid}[collapsed=true]\r\033[0K{module.full_path().replace("/", "")}'
+            f'\033[0Ksection_start:{int(time.time())}:{module.full_path().replace("/", "")}_{sectionid}[collapsed=true]\r\033[0K{module.full_path().replace("/", "")}'
         )
         command(modules_results, module, module_result)
-        print(f'\033[0Ksection_end:{int(time.time())}:{module.full_path.replace("/", "")}\r\033[0K')
+        print(f'\033[0Ksection_end:{int(time.time())}:{module.full_path().replace("/", "")}\r\033[0K')
     return modules_results
 
 
