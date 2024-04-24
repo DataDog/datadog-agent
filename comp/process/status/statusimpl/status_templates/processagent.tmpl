@@ -4,25 +4,25 @@
 {{- else }}
   Version: {{ .core.version }}
   Status date: {{ formatUnixTime .date }}
-  Process Agent Start: {{ formatUnixTime .expvars.uptime_nano }}
-  Pid: {{ .expvars.pid }}
+  Process Agent Start: {{ formatUnixTime .expvars.process_agent.uptime_nano }}
+  Pid: {{ .expvars.process_agent.pid }}
   Go Version: {{ .core.go_version }}
   Build arch: {{ .core.build_arch }}
   Log Level: {{ .core.config.log_level }}
-  Enabled Checks: {{ .expvars.enabled_checks }}
-  Allocated Memory: {{ humanize .expvars.memstats.alloc }} bytes
+  Enabled Checks: {{ .expvars.process_agent.enabled_checks }}
+  Allocated Memory: {{ humanize .expvars.process_agent.memstats.alloc }} bytes
   Hostname: {{ .core.metadata.meta.hostname }}
-  {{- if .expvars.system_probe_process_module_enabled }}
+  {{- if .expvars.process_agent.system_probe_process_module_enabled }}
   System Probe Process Module Status: Running
   {{- else}}
   System Probe Process Module Status: Not running
   {{- end}}
-  Process Language Detection Enabled: {{ if .expvars.language_detection_enabled }}True{{ else }}False{{ end }}
+  Process Language Detection Enabled: {{ if .expvars.process_agent.language_detection_enabled }}True{{ else }}False{{ end }}
 
   =================
   Process Endpoints
   =================
-  {{- with .expvars.endpoints}}
+  {{- with .expvars.process_agent.endpoints}}
     {{- range $key, $value := .}}
     {{$key}} - API Key{{ if gt (len $value) 1}}s{{end}} ending with:
       {{- range $idx, $apikey := $value }}
@@ -37,21 +37,21 @@
   =========
   Collector
   =========
-    Last collection time: {{.expvars.last_collect_time}}
-    Docker socket: {{.expvars.docker_socket}}
-    Number of processes: {{.expvars.process_count}}
-    Number of containers: {{.expvars.container_count}}
-    Process Queue length: {{.expvars.process_queue_size}}
-    RTProcess Queue length: {{.expvars.rtprocess_queue_size}}
-    Connections Queue length: {{.expvars.connections_queue_size}}
-    Event Queue length: {{.expvars.event_queue_size}}
-    Pod Queue length: {{.expvars.pod_queue_size}}
-    Process Bytes enqueued: {{.expvars.process_queue_bytes}}
-    RTProcess Bytes enqueued: {{.expvars.rtprocess_queue_bytes}}
-    Connections Bytes enqueued: {{.expvars.connections_queue_bytes}}
-    Event Bytes enqueued: {{.expvars.event_queue_bytes}}
-    Pod Bytes enqueued: {{.expvars.pod_queue_bytes}}
-    Drop Check Payloads: {{.expvars.drop_check_payloads}}
+    Last collection time: {{.expvars.process_agent.last_collect_time}}
+    Docker socket: {{.expvars.process_agent.docker_socket}}
+    Number of processes: {{.expvars.process_agent.process_count}}
+    Number of containers: {{.expvars.process_agent.container_count}}
+    Process Queue length: {{.expvars.process_agent.process_queue_size}}
+    RTProcess Queue length: {{.expvars.process_agent.rtprocess_queue_size}}
+    Connections Queue length: {{.expvars.process_agent.connections_queue_size}}
+    Event Queue length: {{.expvars.process_agent.event_queue_size}}
+    Pod Queue length: {{.expvars.process_agent.pod_queue_size}}
+    Process Bytes enqueued: {{.expvars.process_agent.process_queue_bytes}}
+    RTProcess Bytes enqueued: {{.expvars.process_agent.rtprocess_queue_bytes}}
+    Connections Bytes enqueued: {{.expvars.process_agent.connections_queue_bytes}}
+    Event Bytes enqueued: {{.expvars.process_agent.event_queue_bytes}}
+    Pod Bytes enqueued: {{.expvars.process_agent.pod_queue_bytes}}
+    Drop Check Payloads: {{.expvars.process_agent.drop_check_payloads}}
 
   ==========
   Extractors
@@ -59,8 +59,8 @@
 
     Workloadmeta
     ============
-      Cache size: {{.expvars.workloadmeta_extractor_cache_size}}
-      Stale diffs discarded: {{.expvars.workloadmeta_extractor_stale_diffs}}
-      Diffs dropped: {{.expvars.workloadmeta_extractor_diffs_dropped}}
+      Cache size: {{.expvars.process_agent.workloadmeta_extractor_cache_size}}
+      Stale diffs discarded: {{.expvars.process_agent.workloadmeta_extractor_stale_diffs}}
+      Diffs dropped: {{.expvars.process_agent.workloadmeta_extractor_diffs_dropped}}
 {{- end }}
 {{- end }}

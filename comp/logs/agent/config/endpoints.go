@@ -44,7 +44,7 @@ type Endpoint struct {
 	UseCompression          bool `mapstructure:"use_compression" json:"use_compression"`
 	CompressionLevel        int  `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string
-	IsHA                    bool `mapstructure:"-" json:"-"`
+	IsMRF                   bool `mapstructure:"-" json:"-"`
 	ConnectionResetInterval time.Duration
 
 	BackoffFactor    float64

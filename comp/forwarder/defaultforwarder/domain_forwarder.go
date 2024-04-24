@@ -30,7 +30,7 @@ type domainForwarder struct {
 	log                       log.Component
 	isRetrying                *atomic.Bool
 	domain                    string
-	isHA                      bool
+	isMRF                     bool
 	numberOfWorkers           int
 	highPrio                  chan transaction.Transaction // use to receive new transactions
 	lowPrio                   chan transaction.Transaction // use to retry transactions
@@ -51,7 +51,7 @@ func newDomainForwarder(
 	config config.Component,
 	log log.Component,
 	domain string,
-	ha bool,
+	mrf bool,
 	retryQueue *retry.TransactionRetryQueue,
 	numberOfWorkers int,
 	connectionResetInterval time.Duration,
@@ -61,7 +61,7 @@ func newDomainForwarder(
 		config:                    config,
 		log:                       log,
 		isRetrying:                atomic.NewBool(false),
-		isHA:                      ha,
+		isMRF:                     mrf,
 		domain:                    domain,
 		numberOfWorkers:           numberOfWorkers,
 		retryQueue:                retryQueue,
@@ -268,9 +268,9 @@ func (f *domainForwarder) State() uint32 {
 func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) {
 	// Metadata types should always be submitted in dual-shipping fashion - no special considerations for
 	// Metadata transactions.
-	if f.isHA && t.GetKind() != transaction.Metadata {
+	if f.isMRF && t.GetKind() != transaction.Metadata {
 		if f.State() == Disabled {
-			if f.config.GetBool("ha.enabled") && f.config.GetBool("ha.failover") {
+			if f.config.GetBool("multi_region_failover.enabled") && f.config.GetBool("multi_region_failover.failover_metrics") {
 				f.m.Lock()
 				f.internalState = Started
 				f.m.Unlock()
@@ -280,7 +280,7 @@ func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) {
 				return
 			}
 		} else {
-			if (!f.config.GetBool("ha.enabled") || !f.config.GetBool("ha.failover")) && f.State() != Disabled {
+			if (!f.config.GetBool("multi_region_failover.enabled") || !f.config.GetBool("multi_region_failover.failover_metrics")) && f.State() != Disabled {
 				f.m.Lock()
 				f.internalState = Disabled
 				f.m.Unlock()
