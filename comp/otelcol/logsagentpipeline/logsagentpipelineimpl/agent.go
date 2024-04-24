@@ -37,6 +37,7 @@ const (
 	multiLineWarning = "multi_line processing rules are not supported as global processing rules."
 )
 
+// Dependencies specifies the list of dependencies needed to initialize the logs agent
 type Dependencies struct {
 	fx.In
 
