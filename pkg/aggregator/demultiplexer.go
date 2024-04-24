@@ -138,7 +138,9 @@ func sendIterableSeries(serializer serializer.MetricSerializer, start time.Time,
 // GetDogStatsDWorkerAndPipelineCount returns how many routines should be spawned
 // for the DogStatsD workers and how many DogStatsD pipeline should be running.
 func GetDogStatsDWorkerAndPipelineCount() (int, int) {
-	return getDogStatsDWorkerAndPipelineCount(agentruntime.NumVCPU())
+	work, pipe := getDogStatsDWorkerAndPipelineCount(agentruntime.NumVCPU())
+	log.Infof("Dogstatsd configured to run with %d workers and %d pipelines", work, pipe)
+	return work, pipe
 }
 
 func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {

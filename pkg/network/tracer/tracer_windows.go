@@ -55,6 +55,9 @@ type Tracer struct {
 
 	// polling loop for connection event
 	closedEventLoop sync.WaitGroup
+
+	// windows event handle for stopping the closed connection event loop
+	hStopClosedLoopEvent windows.Handle
 }
 
 // NewTracer returns an initialized tracer struct
@@ -90,17 +93,22 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		}
 	}
 
+	stopEvent, err := windows.CreateEvent(nil, 0, 0, nil)
+	if err != nil {
+		return nil, fmt.Errorf("could not create stop event: %w", err)
+	}
 	tr := &Tracer{
-		config:          config,
-		driverInterface: di,
-		stopChan:        make(chan struct{}),
-		timerInterval:   defaultPollInterval,
-		state:           state,
-		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
-		reverseDNS:      reverseDNS,
-		usmMonitor:      newUSMMonitor(config, di.GetHandle()),
-		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
-		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
+		config:               config,
+		driverInterface:      di,
+		stopChan:             make(chan struct{}),
+		timerInterval:        defaultPollInterval,
+		state:                state,
+		closedBuffer:         network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
+		reverseDNS:           reverseDNS,
+		usmMonitor:           newUSMMonitor(config, di.GetHandle()),
+		sourceExcludes:       network.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:         network.ParseConnectionFilters(config.ExcludedDestinationConnections),
+		hStopClosedLoopEvent: stopEvent,
 	}
 	tr.closedEventLoop.Add(1)
 	go func() {
@@ -110,9 +118,15 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		defer runtime.UnlockOSThread()
 	waitloop:
 		for {
-			evt, _ := windows.WaitForSingleObject(di.GetClosedFlowsEvent(), windows.INFINITE)
+			handles := []windows.Handle{tr.hStopClosedLoopEvent, di.GetClosedFlowsEvent()}
+
+			evt, _ := windows.WaitForMultipleObjects(handles, false, windows.INFINITE)
 			switch evt {
 			case windows.WAIT_OBJECT_0:
+				log.Infof("stopping closed connection event loop")
+				break waitloop
+
+			case windows.WAIT_OBJECT_0 + 1:
 				_, err = tr.driverInterface.GetClosedConnectionStats(tr.closedBuffer, func(c *network.ConnectionStats) bool {
 					return !tr.shouldSkipConnection(c)
 				})
@@ -139,14 +153,17 @@ func (t *Tracer) Stop() {
 		_ = t.usmMonitor.Stop()
 	}
 	t.reverseDNS.Close()
+
+	windows.SetEvent(t.hStopClosedLoopEvent)
+	t.closedEventLoop.Wait()
 	err := t.driverInterface.Close()
 	if err != nil {
 		log.Errorf("error closing driver interface: %s", err)
 	}
-	t.closedEventLoop.Wait()
 	if err := driver.Stop(); err != nil {
 		log.Errorf("error stopping driver: %s", err)
 	}
+	windows.CloseHandle(t.hStopClosedLoopEvent)
 }
 
 // GetActiveConnections returns all active connections

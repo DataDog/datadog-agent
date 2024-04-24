@@ -136,7 +136,7 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
 
 def workflow_rules(gitlab_file=".gitlab-ci.yml"):
     """Get Gitlab workflow rules list in a YAML-formatted string."""
-    with open(gitlab_file, 'r') as f:
+    with open(gitlab_file) as f:
         return yaml.dump(yaml.safe_load(f.read())["workflow"]["rules"])
 
 
@@ -735,7 +735,7 @@ def update_test_infra_def(file_path, image_tag):
     """
     Override TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
     """
-    with open(file_path, "r") as gl:
+    with open(file_path) as gl:
         file_content = gl.readlines()
     with open(file_path, "w") as gl:
         for line in file_content:
@@ -750,7 +750,7 @@ def update_gitlab_config(file_path, image_tag, test_version):
     """
     Override variables in .gitlab-ci.yml file
     """
-    with open(file_path, "r") as gl:
+    with open(file_path) as gl:
         file_content = gl.readlines()
     gitlab_ci = yaml.load("".join(file_content), Loader=GitlabYamlLoader())
     # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
@@ -762,12 +762,12 @@ def update_gitlab_config(file_path, image_tag, test_version):
     images = [name.replace("_SUFFIX", "") for name in suffixes]
     with open(file_path, "w") as gl:
         for line in file_content:
-            if any(re.search(fr"{suffix}:", line) for suffix in suffixes):
+            if any(re.search(rf"{suffix}:", line) for suffix in suffixes):
                 if test_version:
                     gl.write(line.replace('""', '"_test_only"'))
                 else:
                     gl.write(line.replace('"_test_only"', '""'))
-            elif any(re.search(fr"{image}:", line) for image in images):
+            elif any(re.search(rf"{image}:", line) for image in images):
                 current_version = re.search(r"v\d+-\w+", line)
                 if current_version:
                     gl.write(line.replace(current_version.group(0), image_tag))
@@ -784,7 +784,7 @@ def update_circleci_config(file_path, image_tag, test_version):
     Override variables in .gitlab-ci.yml file
     """
     image_name = "gcr.io/datadoghq/agent-circleci-runner"
-    with open(file_path, "r") as circle:
+    with open(file_path) as circle:
         circle_ci = circle.read()
     match = re.search(rf"({image_name}(_test_only)?):([a-zA-Z0-9_-]+)\n", circle_ci)
     if not match:
@@ -853,16 +853,19 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     ]
 
     # Commands to push the branch
-    commands = [
-        # Fetch
-        f"git remote add {owner} git@github.com:{owner}/datadog-agent.git",
-        f"git fetch '{owner}'",
-        # Create branch
-        f"git checkout '{owner}/{branch}'",  # This first checkout puts us in a detached head state, thus the second checkout below
-        f"git checkout -b '{owner}/{branch}'",
-        # Push
-        f"git push --set-upstream origin '{owner}/{branch}'{no_verify_flag}",
-    ] + restore_commands
+    commands = (
+        [
+            # Fetch
+            f"git remote add {owner} git@github.com:{owner}/datadog-agent.git",
+            f"git fetch '{owner}'",
+            # Create branch
+            f"git checkout '{owner}/{branch}'",  # This first checkout puts us in a detached head state, thus the second checkout below
+            f"git checkout -b '{owner}/{branch}'",
+            # Push
+            f"git push --set-upstream origin '{owner}/{branch}'{no_verify_flag}",
+        ]
+        + restore_commands
+    )
 
     # Run commands then restore commands
     ret_code = 0

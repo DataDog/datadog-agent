@@ -279,16 +279,17 @@ func assertIP(t *testing.T, input string, snmpConfigList []SNMPConfig, expectedO
 
 func TestParseConfigSnmpMain(t *testing.T) {
 	bConf := []byte(strings.ReplaceAll(`
-	snmp_listener:
-	  configs:
-	  - network_address: 127.0.0.1/30
-	    snmp_version: 1
-	    community_string: public
-	  - network_address: 127.0.0.2/30
-	    snmp_version: 2
-	    community_string: publicX
-	  - network_address: 127.0.0.4/30
-	    snmp_version: 3`, "\t", ""))
+	network_devices:
+	  autodiscovery:
+	    configs:
+	    - network_address: 127.0.0.1/30
+	      snmp_version: 1
+	      community_string: public
+	    - network_address: 127.0.0.2/30
+	      snmp_version: 2
+	      community_string: publicX
+	    - network_address: 127.0.0.4/30
+	      snmp_version: 3`, "\t", ""))
 	rawConf := make(map[string]any)
 	require.NoError(t, yaml.Unmarshal(bConf, &rawConf))
 	conf := fxutil.Test[config.Component](t,
@@ -319,14 +320,15 @@ func TestParseConfigSnmpMain(t *testing.T) {
 
 func TestIPDecodeHook(t *testing.T) {
 	bConf := []byte(`
-snmp_listener:
-    configs:
-    - network_address: 127.0.0.1/30
-      snmp_version: 1
-      community_string: public
-      ignored_ip_addresses:
-        - 10.0.1.0
-        - 10.0.1.1
+network_devices:
+  autodiscovery:
+      configs:
+      - network_address: 127.0.0.1/30
+        snmp_version: 1
+        community_string: public
+        ignored_ip_addresses:
+          - 10.0.1.0
+          - 10.0.1.1
 `)
 	rawConf := make(map[string]any)
 	require.NoError(t, yaml.Unmarshal(bConf, &rawConf))

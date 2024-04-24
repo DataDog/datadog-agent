@@ -28,7 +28,9 @@ func TestLogsExporter(t *testing.T) {
 	ld := lr.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
 
 	type args struct {
-		ld plog.Logs
+		ld            plog.Logs
+		otelSource    string
+		logSourceName string
 	}
 	tests := []struct {
 		name         string
@@ -39,7 +41,9 @@ func TestLogsExporter(t *testing.T) {
 		{
 			name: "message",
 			args: args{
-				ld: lr,
+				ld:            lr,
+				otelSource:    otelSource,
+				logSourceName: logSourceName,
 			},
 
 			want: testutil.JSONLogs{
@@ -70,6 +74,8 @@ func TestLogsExporter(t *testing.T) {
 					ldd.Attributes().PutStr("message", "hello")
 					return lrr
 				}(),
+				otelSource:    otelSource,
+				logSourceName: logSourceName,
 			},
 
 			want: testutil.JSONLogs{
@@ -100,6 +106,8 @@ func TestLogsExporter(t *testing.T) {
 					ldd.Attributes().PutStr("ddtags", "tag1:true")
 					return lrr
 				}(),
+				otelSource:    otelSource,
+				logSourceName: logSourceName,
 			},
 
 			want: testutil.JSONLogs{
@@ -132,6 +140,8 @@ func TestLogsExporter(t *testing.T) {
 					ldd2.Attributes().PutStr("ddtags", "tag1:true")
 					return lrr
 				}(),
+				otelSource:    otelSource,
+				logSourceName: logSourceName,
 			},
 
 			want: testutil.JSONLogs{
@@ -175,6 +185,8 @@ func TestLogsExporter(t *testing.T) {
 					ldd2.Attributes().PutStr("ddtags", "tag2:true")
 					return lrr
 				}(),
+				otelSource:    "datadog_exporter",
+				logSourceName: "custom_source",
 			},
 
 			want: testutil.JSONLogs{
@@ -205,17 +217,19 @@ func TestLogsExporter(t *testing.T) {
 					"resource-attr":        "resource-attr-val-1",
 				},
 			},
-			expectedTags: [][]string{{"tag1:true", "otel_source:datadog_agent"}, {"tag2:true", "otel_source:datadog_agent"}},
+			expectedTags: [][]string{{"tag1:true", "otel_source:datadog_exporter"}, {"tag2:true", "otel_source:datadog_exporter"}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &struct{}{}
-
 			testChannel := make(chan *message.Message, 10)
 
 			params := exportertest.NewNopCreateSettings()
 			f := NewFactory(testChannel)
+			cfg := &Config{
+				OtelSource:    tt.args.otelSource,
+				LogSourceName: tt.args.logSourceName,
+			}
 			ctx := context.Background()
 			exp, err := f.CreateLogsExporter(ctx, params, cfg)
 
@@ -227,7 +241,7 @@ func TestLogsExporter(t *testing.T) {
 				output := <-testChannel
 				outputJSON := make(map[string]interface{})
 				json.Unmarshal(output.GetContent(), &outputJSON)
-				assert.Equal(t, logSourceName, output.Origin.Source())
+				assert.Equal(t, tt.args.logSourceName, output.Origin.Source())
 				assert.Equal(t, tt.expectedTags[i], output.Origin.Tags(nil))
 				ans = append(ans, outputJSON)
 			}

@@ -29,8 +29,11 @@ const SDSEnabled = true
 // has to ensure of the thread safety.
 type Scanner struct {
 	*sds.Scanner
+	// lock used to separate between the lifecycle of the scanner (Reconfigure, Delete)
+	// and the use of the scanner (Scan).
 	sync.Mutex
-
+	// standard rules as received through the remote configuration, indexed
+	// by the standard rule ID for O(1) access when receiving user configurations.
 	standardRules map[string]StandardRuleConfig
 	// rawConfig is the raw config previously received through RC.
 	rawConfig []byte
@@ -56,6 +59,9 @@ const (
 
 	RCPartialRedactFirstCharacters = "first"
 	RCPartialRedactLastCharacters  = "last"
+
+	RCSecondaryValidationChineseIdChecksum = "chinese_id_checksum"
+	RCSecondaryValidationLuhnChecksum      = "luhn_checksum"
 )
 
 // Reconfigure uses the given `ReconfigureOrder` to reconfigure in-memory
@@ -213,8 +219,25 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 // `userRule`     contains the configuration done by the user: match action, etc.
 func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.Rule, error) {
 	var extraConfig sds.ExtraConfig
+
+	// proximity keywords support
 	if len(userRule.IncludedKeywords.Keywords) > 0 {
 		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(userRule.IncludedKeywords.CharacterCount, userRule.IncludedKeywords.Keywords, nil)
+	}
+
+	// the RC schema supports multiple of them,
+	// for now though, the lib only supports one, so we'll just use the first one.
+	if len(standardRule.SecondaryValidators) > 0 {
+		received := standardRule.SecondaryValidators[0]
+		switch received.Type {
+		case RCSecondaryValidationChineseIdChecksum:
+			extraConfig.SecondaryValidator = sds.ChineseIdChecksum
+		case RCSecondaryValidationLuhnChecksum:
+			extraConfig.SecondaryValidator = sds.LuhnChecksum
+		default:
+			log.Warnf("Unknown secondary validator: ", string(received.Type))
+			// TODO(remy): telemetry
+		}
 	}
 
 	// create the rules for the scanner
@@ -245,6 +268,8 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 // Scan scans the given `event` using the internal SDS scanner.
 // Returns an error if the internal SDS scanner is not ready. If you need to
 // validate that the internal SDS scanner can be used, use `IsReady()`.
+// Returns a boolean indicating if the Scan has mutated the event and the returned
+// one should be used instead.
 // This method is thread safe, a reconfiguration can't happen at the same time.
 func (s *Scanner) Scan(event []byte, msg *message.Message) (bool, []byte, error) {
 	s.Lock()
@@ -255,11 +280,9 @@ func (s *Scanner) Scan(event []byte, msg *message.Message) (bool, []byte, error)
 	}
 
 	// scanning
-	processed, rulesMatch, err := s.Scanner.Scan(event)
-	matched := false
-	if len(rulesMatch) > 0 {
-		matched = true
-		for _, match := range rulesMatch {
+	scanResult, err := s.Scanner.Scan(event)
+	if len(scanResult.Matches) > 0 {
+		for _, match := range scanResult.Matches {
 			if rc, err := s.GetRuleByIdx(match.RuleIdx); err != nil {
 				log.Warnf("can't apply rule tags: %v", err)
 			} else {
@@ -271,7 +294,7 @@ func (s *Scanner) Scan(event []byte, msg *message.Message) (bool, []byte, error)
 	// using a tag.
 	msg.ProcessingTags = append(msg.ProcessingTags, ScannedTag)
 
-	return matched, processed, err
+	return scanResult.Mutated, scanResult.Event, err
 }
 
 // GetRuleByIdx returns the configured rule by its idx, referring to the idx
@@ -287,8 +310,11 @@ func (s *Scanner) GetRuleByIdx(idx uint32) (RuleConfig, error) {
 }
 
 // Delete deallocates the internal SDS scanner.
-// This method is NOT thread safe, caller has to ensure the thread safety.
+// This method is thread safe, a reconfiguration or a scan can't happen at the same time.
 func (s *Scanner) Delete() {
+	s.Lock()
+	defer s.Unlock()
+
 	if s.Scanner != nil {
 		s.Scanner.Delete()
 		s.rawConfig = nil

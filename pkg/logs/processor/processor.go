@@ -65,12 +65,14 @@ func (p *Processor) Start() {
 // Stop stops the Processor,
 // this call blocks until inputChan is flushed
 func (p *Processor) Stop() {
+	close(p.inputChan)
+	<-p.done
+	// once the processor mainloop is not running, it's safe
+	// to delete the sds scanner instance.
 	if p.sds != nil {
 		p.sds.Delete()
 		p.sds = nil
 	}
-	close(p.inputChan)
-	<-p.done
 }
 
 // Flush processes synchronously the messages that this processor has to process.
@@ -180,11 +182,11 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 
 	// Global SDS scanner, applied on all log sources
 	if p.sds.IsReady() {
-		matched, processed, err := p.sds.Scan(content, msg)
+		mutated, evtProcessed, err := p.sds.Scan(content, msg)
 		if err != nil {
 			log.Error("while using SDS to scan the log:", err)
-		} else if matched {
-			content = processed
+		} else if mutated {
+			content = evtProcessed
 		}
 	}
 

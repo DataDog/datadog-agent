@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package localapiimpl implements the updater local api component.
+// Package localapiimpl implements the installer local api component.
 package localapiimpl
 
 import (
@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
 	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater"
-	"github.com/DataDog/datadog-agent/pkg/updater"
+	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -34,7 +34,7 @@ type dependencies struct {
 }
 
 func newLocalAPIComponent(lc fx.Lifecycle, dependencies dependencies) (localapi.Component, error) {
-	localAPI, err := updater.NewLocalAPI(dependencies.Updater)
+	localAPI, err := daemon.NewLocalAPI(dependencies.Updater)
 	if err != nil {
 		return nil, fmt.Errorf("could not create local API: %w", err)
 	}

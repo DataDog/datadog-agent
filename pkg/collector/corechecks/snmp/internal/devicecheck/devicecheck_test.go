@@ -6,6 +6,7 @@
 package devicecheck
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -33,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 )
 
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
@@ -105,6 +107,8 @@ profiles:
 
 	snmpTags := []string{
 		"snmp_device:1.2.3.4",
+		"device_ip:1.2.3.4",
+		"device_id:default:1.2.3.4",
 		"snmp_profile:f5-big-ip",
 		"device_vendor:f5",
 		"snmp_host:foo_sys_name",
@@ -146,6 +150,8 @@ profiles:
 	snmpTags = []string{
 		"device_namespace:default",
 		"snmp_device:1.2.3.4",
+		"device_ip:1.2.3.4",
+		"device_id:default:1.2.3.4",
 		"snmp_profile:another-profile",
 		"unknown_symbol:100"}
 	telemetryTags = append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
@@ -300,7 +306,7 @@ collect_topology: false
 	err = deviceCk.Run(timeNow())
 	assert.Nil(t, err)
 
-	snmpTags := []string{"snmp_device:1.2.3.4"}
+	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}
 	telemetryTags := append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
 	row1Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
 	row2Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
@@ -469,13 +475,13 @@ community_string: public
 
 	// without hostname
 	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
-	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
+	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"})
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", []string{"snmp_device:1.2.3.4"})
 
 	// with hostname
 	deviceCk.SetSender(report.NewMetricSender(sender, "device:123", nil, report.MakeInterfaceBandwidthState()))
-	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
-	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "device:123", []string{"snmp_device:1.2.3.4"})
+	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"})
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "device:123", []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"})
 }
 
 func TestDeviceCheck_GetHostname(t *testing.T) {
@@ -561,11 +567,21 @@ profiles:
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
 	assert.Nil(t, err)
 
+	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
+		"static_tag:from_profile_root", "static_tag:from_base_profile", "some_tag:some_tag_value", "prefix:f", "suffix:oo_sys_name"}
+
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(args mock.Arguments) {
+		arg := args.Get(0).([]uint8)
+		var data metadata.NetworkDevicesMetadata
+		json.Unmarshal(arg, &data)
+
+		tags := data.Devices[0].Tags
+		assert.Subset(t, tags, snmpTags)
+	})
 	sender.On("Commit").Return()
 
 	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
@@ -811,9 +827,6 @@ profiles:
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
-	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
-		"static_tag:from_profile_root", "some_tag:some_tag_value", "prefix:f", "suffix:oo_sys_name"}
-
 	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", snmpTags, "")
 	sender.AssertMetric(t, "Gauge", deviceReachableMetric, 1., "", snmpTags)
 	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 0., "", snmpTags)
@@ -1040,6 +1053,8 @@ profiles:
 
 	snmpTags := []string{
 		"snmp_device:1.2.3.4",
+		"device_ip:1.2.3.4",
+		"device_id:default:1.2.3.4",
 		"snmp_profile:f5-big-ip",
 		"device_vendor:f5",
 		"snmp_host:foo_sys_name",
@@ -1081,6 +1096,8 @@ profiles:
 	snmpTags = []string{
 		"device_namespace:default",
 		"snmp_device:1.2.3.4",
+		"device_ip:1.2.3.4",
+		"device_id:default:1.2.3.4",
 		"snmp_profile:another-profile",
 		"unknown_symbol:100"}
 	telemetryTags = append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
@@ -1183,6 +1200,8 @@ profiles:
 
 	snmpTags := []string{
 		"snmp_device:1.2.3.4",
+		"device_ip:1.2.3.4",
+		"device_id:default:1.2.3.4",
 		"snmp_profile:f5-big-ip",
 		"device_vendor:f5",
 		"snmp_host:foo_sys_name",
@@ -1224,6 +1243,8 @@ profiles:
 	snmpTags = []string{
 		"device_namespace:default",
 		"snmp_device:1.2.3.4",
+		"device_ip:1.2.3.4",
+		"device_id:default:1.2.3.4",
 		"snmp_profile:another-profile",
 		"unknown_symbol:100"}
 	telemetryTags = append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)

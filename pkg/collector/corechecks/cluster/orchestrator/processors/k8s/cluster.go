@@ -51,13 +51,15 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 
 	// Cluster information is an aggregation of node list data.
 	var (
-		kubeletVersions   = make(map[string]int32)
-		cpuAllocatable    uint64
-		cpuCapacity       uint64
-		memoryAllocatable uint64
-		memoryCapacity    uint64
-		podAllocatable    uint32
-		podCapacity       uint32
+		kubeletVersions              = make(map[string]int32)
+		cpuAllocatable               uint64
+		cpuCapacity                  uint64
+		memoryAllocatable            uint64
+		memoryCapacity               uint64
+		podAllocatable               uint32
+		podCapacity                  uint32
+		extendedResourcesCapacity    = make(map[string]int64)
+		extendedResourcesAllocatable = make(map[string]int64)
 	)
 	pctx := ctx.(*processors.K8sProcessorContext)
 	resourceList := p.nodeHandlers.ResourceList(ctx, list)
@@ -80,17 +82,34 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 		// Pod allocatable and capacity.
 		podAllocatable += uint32(r.Status.Allocatable.Pods().Value())
 		podCapacity += uint32(r.Status.Capacity.Pods().Value())
+
+		// Extended resources capacity and allocatable.
+		for name, quantity := range r.Status.Capacity {
+			if name == corev1.ResourceCPU || name == corev1.ResourceMemory || name == corev1.ResourcePods {
+				continue
+			}
+			extendedResourcesCapacity[name.String()] += quantity.Value()
+		}
+
+		for name, quantity := range r.Status.Allocatable {
+			if name == corev1.ResourceCPU || name == corev1.ResourceMemory || name == corev1.ResourcePods {
+				continue
+			}
+			extendedResourcesAllocatable[name.String()] += quantity.Value()
+		}
 	}
 
 	clusterModel := &model.Cluster{
-		CpuAllocatable:    cpuAllocatable,
-		CpuCapacity:       cpuCapacity,
-		KubeletVersions:   kubeletVersions,
-		MemoryAllocatable: memoryAllocatable,
-		MemoryCapacity:    memoryCapacity,
-		NodeCount:         nodeCount,
-		PodAllocatable:    podAllocatable,
-		PodCapacity:       podCapacity,
+		CpuAllocatable:               cpuAllocatable,
+		CpuCapacity:                  cpuCapacity,
+		KubeletVersions:              kubeletVersions,
+		MemoryAllocatable:            memoryAllocatable,
+		MemoryCapacity:               memoryCapacity,
+		NodeCount:                    nodeCount,
+		PodAllocatable:               podAllocatable,
+		PodCapacity:                  podCapacity,
+		ExtendedResourcesCapacity:    extendedResourcesCapacity,
+		ExtendedResourcesAllocatable: extendedResourcesAllocatable,
 	}
 
 	kubeSystemCreationTimestamp, err := getKubeSystemCreationTimeStamp(pctx.APIClient.Cl.CoreV1())
