@@ -55,7 +55,7 @@ func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.De
 	)
 }
 
-func TestCentOSARM(t *testing.T) {
+func TestCentOSAMD(t *testing.T) {
 	t.Parallel()
 	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault, false)
 }
