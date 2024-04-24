@@ -92,6 +92,9 @@ func (ps *ProbabilisticSampler) Start() {
 
 // Stop shuts down the ProbabilisticSampler's support routine.
 func (ps *ProbabilisticSampler) Stop() {
+	if !ps.enabled {
+		return
+	}
 	ps.stopOnce.Do(func() {
 		close(ps.stop)
 		<-ps.stopped

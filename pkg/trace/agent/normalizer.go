@@ -204,6 +204,7 @@ func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
 					chunk.Tags = make(map[string]string)
 				}
 				chunk.Tags[tagDecisionMaker] = dm
+				set = true
 			}
 			delete(span.Meta, tagDecisionMaker)
 		}

@@ -81,6 +81,32 @@ func TestProbabilisticSampler(t *testing.T) {
 		})
 		assert.False(t, sampled)
 	})
+	t.Run("keep-dd-64", func(t *testing.T) {
+		conf := &config.AgentConfig{
+			ProbabilisticSamplerEnabled:            true,
+			ProbabilisticSamplerHashSeed:           0,
+			ProbabilisticSamplerSamplingPercentage: 40,
+		}
+		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
+		sampled := sampler.Sample(&trace.Span{
+			TraceID: 555,
+			Meta:    map[string]string{},
+		})
+		assert.True(t, sampled)
+	})
+	t.Run("drop-dd-64", func(t *testing.T) {
+		conf := &config.AgentConfig{
+			ProbabilisticSamplerEnabled:            true,
+			ProbabilisticSamplerHashSeed:           0,
+			ProbabilisticSamplerSamplingPercentage: 40,
+		}
+		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
+		sampled := sampler.Sample(&trace.Span{
+			TraceID: 556,
+			Meta:    map[string]string{},
+		})
+		assert.False(t, sampled)
+	})
 }
 
 type mockConsumer struct {
