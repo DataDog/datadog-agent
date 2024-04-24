@@ -16,7 +16,8 @@ const (
 	loggerNameSidecar = "SERVERLESS_SIDECAR"
 )
 
-func DetectMode() (string, func(logConfig *serverlessLog.Config)) {
+// SetupMode detects the mode in which the serverless agent should run
+func SetupMode() (string, func(logConfig *serverlessLog.Config)) {
 
 	envToSet := map[string]string{
 		"DD_REMOTE_CONFIGURATION_ENABLED": "false",
