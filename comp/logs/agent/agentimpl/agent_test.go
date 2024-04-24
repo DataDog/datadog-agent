@@ -5,7 +5,7 @@
 
 //go:build !serverless
 
-package agent
+package agentimpl
 
 import (
 	"bytes"
@@ -98,7 +98,7 @@ func (suite *AgentTestSuite) TearDownTest() {
 	metrics.DestinationLogsDropped.Init()
 }
 
-func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*agent, *sources.LogSources, *service.Services) {
+func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent, *sources.LogSources, *service.Services) {
 	// setup the sources and the services
 	sources := sources.NewLogSources()
 	services := service.NewServices()
@@ -111,7 +111,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*agent, *s
 		inventoryagentimpl.MockModule(),
 	))
 
-	agent := &agent{
+	agent := &logAgent{
 		log:            deps.Log,
 		config:         deps.Config,
 		inventoryAgent: deps.InventoryAgent,

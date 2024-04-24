@@ -5,17 +5,18 @@
 
 //go:build test
 
-package agent
+package agentimpl
 
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 )
 
 // MockServerlessLogsAgent a mock version of the logs agent for serverless
 type MockServerlessLogsAgent interface {
-	ServerlessLogsAgent
+	agent.ServerlessLogsAgent
 
 	DidFlush() bool
 	SetFlushDelay(time.Duration)

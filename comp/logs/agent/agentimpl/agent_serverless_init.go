@@ -5,7 +5,7 @@
 
 //go:build serverless
 
-package agent
+package agentimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"

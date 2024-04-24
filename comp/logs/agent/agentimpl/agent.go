@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package agent
+// Package agentimpl contains the implementation of the logs agent component.
+package agentimpl
 
 import (
 	"context"
@@ -20,6 +21,7 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -80,16 +82,16 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp           optional.Option[Component]
+	Comp           optional.Option[agent.Component]
 	FlareProvider  flaretypes.Provider
 	StatusProvider statusComponent.InformationProvider
 	RCListener     rctypes.ListenerProvider
 }
 
-// agent represents the data pipeline that collects, decodes,
+// logAgent represents the data pipeline that collects, decodes,
 // processes and sends logs to the backend.  See the package README for
 // a description of its operation.
-type agent struct {
+type logAgent struct {
 	log            logComponent.Component
 	config         pkgConfig.Reader
 	inventoryAgent inventoryagent.Component
@@ -120,7 +122,7 @@ func newLogsAgent(deps dependencies) provides {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
 
-		logsAgent := &agent{
+		logsAgent := &logAgent{
 			log:            deps.Log,
 			config:         deps.Config,
 			inventoryAgent: deps.InventoryAgent,
@@ -148,7 +150,7 @@ func newLogsAgent(deps dependencies) provides {
 		}
 
 		return provides{
-			Comp:           optional.NewOption[Component](logsAgent),
+			Comp:           optional.NewOption[agent.Component](logsAgent),
 			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
 			RCListener:     rcListener,
@@ -157,12 +159,12 @@ func newLogsAgent(deps dependencies) provides {
 
 	deps.Log.Info("logs-agent disabled")
 	return provides{
-		Comp:           optional.NewNoneOption[Component](),
+		Comp:           optional.NewNoneOption[agent.Component](),
 		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 	}
 }
 
-func (a *agent) start(context.Context) error {
+func (a *logAgent) start(context.Context) error {
 	a.log.Info("Starting logs-agent...")
 
 	// setup the server config
@@ -193,7 +195,7 @@ func (a *agent) start(context.Context) error {
 	return nil
 }
 
-func (a *agent) setupAgent() error {
+func (a *logAgent) setupAgent() error {
 	if a.endpoints.UseHTTP {
 		status.SetCurrentTransport(status.TransportHTTP)
 	} else {
@@ -225,7 +227,7 @@ func (a *agent) setupAgent() error {
 
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
-func (a *agent) startPipeline() {
+func (a *logAgent) startPipeline() {
 	a.started.Store(true)
 
 	// setup the status
@@ -242,7 +244,7 @@ func (a *agent) startPipeline() {
 	starter.Start()
 }
 
-func (a *agent) stop(context.Context) error {
+func (a *logAgent) stop(context.Context) error {
 	a.log.Info("Stopping logs-agent")
 
 	status.Clear()
@@ -295,23 +297,23 @@ func (a *agent) stop(context.Context) error {
 }
 
 // AddScheduler adds the given scheduler to the agent.
-func (a *agent) AddScheduler(scheduler schedulers.Scheduler) {
+func (a *logAgent) AddScheduler(scheduler schedulers.Scheduler) {
 	a.schedulers.AddScheduler(scheduler)
 }
 
-func (a *agent) GetSources() *sources.LogSources {
+func (a *logAgent) GetSources() *sources.LogSources {
 	return a.sources
 }
 
-func (a *agent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
+func (a *logAgent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
 	return a.diagnosticMessageReceiver
 }
 
-func (a *agent) GetPipelineProvider() pipeline.Provider {
+func (a *logAgent) GetPipelineProvider() pipeline.Provider {
 	return a.pipelineProvider
 }
 
-func (a *agent) onUpdateSDSRules(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
+func (a *logAgent) onUpdateSDSRules(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
 	var err error
 	for _, config := range updates {
 		if rerr := a.pipelineProvider.ReconfigureSDSStandardRules(config.Config); rerr != nil {
@@ -337,7 +339,7 @@ func (a *agent) onUpdateSDSRules(updates map[string]state.RawConfig, applyStateC
 
 }
 
-func (a *agent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
+func (a *logAgent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
 	var err error
 
 	for _, config := range updates {

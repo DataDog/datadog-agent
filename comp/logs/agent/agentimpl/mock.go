@@ -5,12 +5,13 @@
 
 //go:build test
 
-package agent
+package agentimpl
 
 import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
@@ -24,7 +25,7 @@ import (
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMock),
-		fx.Provide(func(m Mock) Component { return m }))
+		fx.Provide(func(m agent.Mock) agent.Component { return m }))
 }
 
 type mockLogsAgent struct {
@@ -35,7 +36,7 @@ type mockLogsAgent struct {
 	logSources      *sources.LogSources
 }
 
-func newMock(deps dependencies) optional.Option[Mock] {
+func newMock(deps dependencies) optional.Option[agent.Mock] {
 	logsAgent := &mockLogsAgent{
 		hasFlushed:      false,
 		addedSchedulers: make([]schedulers.Scheduler, 0),
@@ -46,7 +47,7 @@ func newMock(deps dependencies) optional.Option[Mock] {
 		OnStart: logsAgent.start,
 		OnStop:  logsAgent.stop,
 	})
-	return optional.NewOption[Mock](logsAgent)
+	return optional.NewOption[agent.Mock](logsAgent)
 }
 
 func (a *mockLogsAgent) start(context.Context) error {
