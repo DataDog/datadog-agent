@@ -411,7 +411,9 @@ func RunJSON(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
 
 	diagnose, err := runDiagnose(w, diagCfg, deps)
 	if err != nil {
-		return err
+		// Make new error with JSON format
+		newErr := fmt.Errorf("{\"error\": \"%s\"}", err.Error())
+		return newErr
 	}
 
 	jsonOutput := make(JSONOutput)

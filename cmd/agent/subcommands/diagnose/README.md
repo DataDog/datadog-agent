@@ -35,7 +35,7 @@ Flags:
   -t, --list              list diagnose suites
   -l, --local             force diagnose execution by the command line instead of the agent process (useful when troubleshooting privilege related problems)
   -v, --verbose           verbose output, includes passed diagnoses, and diagnoses description
-  -j, --json              output in a json file
+  -j, --json              output in a JSON format
 ```
 
 ### ```include``` and ```exclude``` options
@@ -51,4 +51,4 @@ Normally a successful diagnosis is printed as a single dot character. If verbose
 Normally, internal diagnose functions run in the context of the Agent and other services. It can be overridden with –run-as-user options, and if specified, diagnose functions are executed in the context of the Agent diagnose CLI process if possible.
 
 ## ```json``` option
-Normally, diagnose is displayed on stdout. If the JSON option is specified, the output is formatted as JSON
+If JSON option is specified, the output will be formated as JSON and displayed on stdout.
