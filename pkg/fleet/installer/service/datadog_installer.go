@@ -10,6 +10,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"os/user"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -21,17 +25,67 @@ const (
 
 var installerUnits = []string{installerUnit, installerUnitExp}
 
+func addDDAgentUser(ctx context.Context) error {
+	if _, err := user.Lookup("dd-agent"); err == nil {
+		return nil
+	}
+	return exec.CommandContext(ctx, "useradd", "--system", "--shell", "/usr/sbin/nologin", "--home", "/opt/datadog-packages", "--no-create-home", "--no-user-group", "-g", "dd-agent", "dd-agent").Run()
+}
+
+func addDDAgentGroup(ctx context.Context) error {
+	if _, err := user.LookupGroup("dd-agent"); err == nil {
+		return nil
+	}
+	return exec.CommandContext(ctx, "groupadd", "--system", "dd-agent").Run()
+}
+
 // SetupInstaller installs and starts the installer systemd units
-func SetupInstaller(ctx context.Context) (err error) {
+func SetupInstaller(ctx context.Context, enableDaemon bool) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup installer: %s, reverting", err)
-			err = RemoveInstaller(ctx)
-			if err != nil {
-				log.Warnf("Failed to revert installer setup: %s", err)
-			}
+			RemoveInstaller(ctx)
 		}
 	}()
+
+	if err = addDDAgentGroup(ctx); err != nil {
+		return fmt.Errorf("error creating dd-agent group: %w", err)
+	}
+	if addDDAgentUser(ctx) != nil {
+		return fmt.Errorf("error creating dd-agent user: %w", err)
+	}
+	err = exec.CommandContext(ctx, "usermod", "-g", "dd-agent", "dd-agent").Run()
+	if err != nil {
+		return fmt.Errorf("error adding dd-agent user to dd-agent group: %w", err)
+	}
+	ddAgentUID, ddAgentGID, err := getAgentIDs()
+	if err != nil {
+		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
+	}
+	err = os.MkdirAll("/opt/datadog-packages", 0755)
+	if err != nil {
+		return fmt.Errorf("error creating /opt/datadog-packages: %w", err)
+	}
+	err = os.MkdirAll("/var/log/datadog", 0755)
+	if err != nil {
+		return fmt.Errorf("error creating /var/log/datadog: %w", err)
+	}
+	err = os.MkdirAll("/var/run/datadog-packages", 0777)
+	if err != nil {
+		return fmt.Errorf("error creating /var/run/datadog-packages: %w", err)
+	}
+	// Locks directory can already be created by a package install
+	err = os.Chmod("/var/run/datadog-packages", 0777)
+	if err != nil {
+		return fmt.Errorf("error changing permissions of /var/run/datadog-packages: %w", err)
+	}
+	err = os.Chown("/var/log/datadog", ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("error changing owner of /var/log/datadog: %w", err)
+	}
+	if !enableDaemon {
+		return nil
+	}
 
 	// Check if systemd is running, if not return early
 	systemdRunning, err := isSystemdRunning()
@@ -60,26 +114,44 @@ func SetupInstaller(ctx context.Context) (err error) {
 	return startInstallerStable(ctx)
 }
 
+func getAgentIDs() (uid, gid int, err error) {
+	ddAgentUser, err := user.Lookup("dd-agent")
+	if err != nil {
+		return -1, -1, fmt.Errorf("dd-agent user not found: %w", err)
+	}
+	ddAgentGroup, err := user.LookupGroup("dd-agent")
+	if err != nil {
+		return -1, -1, fmt.Errorf("dd-agent group not found: %w", err)
+	}
+	ddAgentUID, err := strconv.Atoi(ddAgentUser.Uid)
+	if err != nil {
+		return -1, -1, fmt.Errorf("error converting dd-agent UID to int: %w", err)
+	}
+	ddAgentGID, err := strconv.Atoi(ddAgentGroup.Gid)
+	if err != nil {
+		return -1, -1, fmt.Errorf("error converting dd-agent GID to int: %w", err)
+	}
+	return ddAgentUID, ddAgentGID, nil
+}
+
 // startInstallerStable starts the stable systemd units for the installer
 func startInstallerStable(ctx context.Context) (err error) {
 	return startUnit(ctx, installerUnit)
 }
 
 // RemoveInstaller removes the installer systemd units
-func RemoveInstaller(ctx context.Context) error {
-	var err error
+func RemoveInstaller(ctx context.Context) {
 	for _, unit := range installerUnits {
-		if err = stopUnit(ctx, unit); err != nil {
-			return fmt.Errorf("Failed stop unit %s: %s", unit, err)
+		if err := stopUnit(ctx, unit); err != nil {
+			log.Warnf("Failed stop unit %s: %s", unit, err)
 		}
-		if err = disableUnit(ctx, unit); err != nil {
-			return fmt.Errorf("Failed to disable %s: %s", unit, err)
+		if err := disableUnit(ctx, unit); err != nil {
+			log.Warnf("Failed to disable %s: %s", unit, err)
 		}
-		if err = removeUnit(ctx, unit); err != nil {
-			return fmt.Errorf("Failed to stop %s: %s", unit, err)
+		if err := removeUnit(ctx, unit); err != nil {
+			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
 	}
-	return nil
 }
 
 // StartInstallerExperiment installs the experimental systemd units for the installer

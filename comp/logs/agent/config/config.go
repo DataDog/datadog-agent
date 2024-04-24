@@ -113,8 +113,8 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 			"please use '%s' and '%s' instead", logsConfig.getConfigKey("logs_dd_url"), logsConfig.getConfigKey("logs_no_ssl"))
 	}
 
-	haEnabled := coreConfig.GetBool("ha.enabled")
-	if logsConfig.isForceHTTPUse() || logsConfig.obsPipelineWorkerEnabled() || haEnabled || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
+	mrfEnabled := coreConfig.GetBool("multi_region_failover.enabled")
+	if logsConfig.isForceHTTPUse() || logsConfig.obsPipelineWorkerEnabled() || mrfEnabled || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
 		return BuildHTTPEndpointsWithConfig(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	}
 	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
@@ -230,20 +230,20 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 
 	additionals := loadHTTPAdditionalEndpoints(main, logsConfig, intakeTrackType, intakeProtocol, intakeOrigin)
 
-	// Add in the HAMR endpoint if HA is enabled.
-	if coreConfig.GetBool("ha.enabled") {
-		haURL, err := pkgconfigutils.GetHAEndpoint(coreConfig, endpointPrefix, "ha.dd_url")
+	// Add in the MRF endpoint if MRF is enabled.
+	if coreConfig.GetBool("multi_region_failover.enabled") {
+		mrfURL, err := pkgconfigutils.GetMRFEndpoint(coreConfig, endpointPrefix, "multi_region_failover.dd_url")
 		if err != nil {
-			return nil, fmt.Errorf("cannot construct HA endpoint: %s", err)
+			return nil, fmt.Errorf("cannot construct MRF endpoint: %s", err)
 		}
 
-		haHost, haPort, haUseSSL, err := parseAddressWithScheme(haURL, defaultNoSSL, parseAddressAsHost)
+		mrfHost, mrfPort, mrfUseSSL, err := parseAddressWithScheme(mrfURL, defaultNoSSL, parseAddressAsHost)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", haURL, err)
+			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
 		}
 
-		e := NewEndpoint(coreConfig.GetString("ha.api_key"), haHost, haPort, haUseSSL)
-		e.IsHA = true
+		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), mrfHost, mrfPort, mrfUseSSL)
+		e.IsMRF = true
 		e.UseCompression = main.UseCompression
 		e.CompressionLevel = main.CompressionLevel
 		e.BackoffBase = main.BackoffBase

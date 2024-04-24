@@ -107,9 +107,18 @@ func TestPatchPrintkNewline(t *testing.T) {
 	foundLines := []string{}
 
 	for _, line := range expectedLines {
-		actualLine, err := traceReader.ReadString('\n')
-		foundLines = append(foundLines, actualLine)
-		require.NoError(t, err)
+		// We allow up to two lines that don't match, to avoid failures with other tests outputting to
+		// the trace pipe.
+		var actualLine string
+		for allowedMisses := 0; allowedMisses < 2; allowedMisses++ {
+			actualLine, err = traceReader.ReadString('\n')
+			require.NoError(t, err)
+			foundLines = append(foundLines, actualLine)
+
+			if strings.Contains(actualLine, line) {
+				break
+			}
+		}
 		require.Contains(t, actualLine, line, "line %s not found in output, all lines until now:\n%s", line, strings.Join(foundLines, ""))
 	}
 }

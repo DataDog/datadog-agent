@@ -339,45 +339,42 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
 
 	var upResult auto.UpResult
+	var upError error
 	upCount := 0
 
 	for {
 		upCount++
 		upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
-		upResult, err = stack.Up(upCtx, progressStreamsUpOption, optup.DebugLogging(loggingOptions))
+		upResult, upError = stack.Up(upCtx, progressStreamsUpOption, optup.DebugLogging(loggingOptions))
 		cancel()
 
-		if err == nil {
-			err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", name), "", []string{"operation:up", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)}, logger)
-			if err != nil {
-				fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
-			}
+		if upError == nil {
+			sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", name), "", []string{"operation:up", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)}, logger)
 			break
 		}
 
-		retryStrategy := sm.getRetryStrategyFrom(err, upCount)
-		err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), err.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)}, logger)
-		if err != nil {
-			fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
-		}
+		retryStrategy := sm.getRetryStrategyFrom(upError, upCount)
+		sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), upError.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)}, logger)
+
 		switch retryStrategy {
 		case reUp:
-			fmt.Fprint(logger, "Got error during stack up, retrying")
+			fmt.Fprint(logger, "Retrying stack on error during stack up: %w", upError)
 		case reCreate:
-			fmt.Fprint(logger, "Got error during stack up, recreating stack")
+			fmt.Fprint(logger, "Recreating stack on error during stack up: %w", upError)
 			destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
-			_, err := stack.Destroy(destroyCtx, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
+			_, err = stack.Destroy(destroyCtx, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 			cancel()
 			if err != nil {
+				fmt.Fprint(logger, "Error during stack destroy at recrate stack attempt: %w", err)
 				return stack, auto.UpResult{}, err
 			}
 		case noRetry:
-			fmt.Fprint(logger, "Got error during stack up, giving up")
-			return stack, upResult, err
+			fmt.Fprint(logger, "Giving up on error during stack up: %w", upError)
+			return stack, upResult, upError
 		}
 	}
 
-	return stack, upResult, err
+	return stack, upResult, upError
 }
 
 func buildWorkspace(ctx context.Context, profile runner.Profile, stackName string, runFunc pulumi.RunFunc) (auto.Workspace, error) {
@@ -444,16 +441,16 @@ func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) retryType {
 }
 
 // sendEventToDatadog sends an event to Datadog, it will use the API Key from environment variable DD_API_KEY if present, otherwise it will use the one from SSM Parameter Store
-func sendEventToDatadog(title string, message string, tags []string, logger io.Writer) error {
+func sendEventToDatadog(title string, message string, tags []string, logger io.Writer) {
 	apiKey, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.APIKey, "")
 	if err != nil {
 		fmt.Fprintf(logger, "error when getting API key from parameter store: %v", err)
-		return err
+		return
 	}
 
 	if apiKey == "" {
 		fmt.Fprintf(logger, "Skipping sending event because API key is empty")
-		return nil
+		return
 	}
 
 	ctx := context.WithValue(context.Background(), datadog.ContextAPIKeys, map[string]datadog.APIKey{
@@ -474,9 +471,8 @@ func sendEventToDatadog(title string, message string, tags []string, logger io.W
 	if err != nil {
 		fmt.Fprintf(logger, "error when calling `EventsApi.CreateEvent`: %v", err)
 		fmt.Fprintf(logger, "Full HTTP response: %v\n", r)
-		return err
+		return
 	}
-	return nil
 }
 
 // GetPulumiStackName returns the Pulumi stack name

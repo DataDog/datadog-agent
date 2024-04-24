@@ -11,8 +11,7 @@ package service
 import (
 	"context"
 	"fmt"
-	"os/exec"
-	"strings"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,17 +54,10 @@ func SetupAgent(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup agent: %s, reverting", err)
-			err = RemoveAgent(ctx)
-			if err != nil {
-				log.Warnf("Failed to revert agent setup: %s", err)
-			}
+			RemoveAgent(ctx)
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-
-	if err = setInstallerAgentGroup(ctx); err != nil {
-		return
-	}
 
 	for _, unit := range stableUnits {
 		if err = loadUnit(ctx, unit); err != nil {
@@ -76,6 +68,17 @@ func SetupAgent(ctx context.Context) (err error) {
 		if err = loadUnit(ctx, unit); err != nil {
 			return
 		}
+	}
+	if err = os.MkdirAll("/etc/datadog-agent", 0755); err != nil {
+		return
+	}
+	ddAgentUID, ddAgentGID, err := getAgentIDs()
+	if err != nil {
+		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
+	}
+
+	if err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID); err != nil {
+		return
 	}
 
 	if err = systemdReload(ctx); err != nil {
@@ -106,44 +109,43 @@ func SetupAgent(ctx context.Context) (err error) {
 }
 
 // RemoveAgent stops and removes the agent
-func RemoveAgent(ctx context.Context) error {
+func RemoveAgent(ctx context.Context) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "remove_agent_units")
 	defer span.Finish()
 	// stop experiments, they can restart stable agent
 	for _, unit := range experimentalUnits {
 		if err := stopUnit(ctx, unit); err != nil {
-			return fmt.Errorf("Failed to stop %s: %s", unit, err)
+			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
 	}
 	// stop stable agents
 	for _, unit := range stableUnits {
 		if err := stopUnit(ctx, unit); err != nil {
-			return fmt.Errorf("Failed to stop %s: %s", unit, err)
+			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
 	}
 	// purge experimental units
 	for _, unit := range experimentalUnits {
 		if err := disableUnit(ctx, unit); err != nil {
-			return fmt.Errorf("Failed to disable %s: %s", unit, err)
+			log.Warnf("Failed to disable %s: %s", unit, err)
 		}
 		if err := removeUnit(ctx, unit); err != nil {
-			return fmt.Errorf("Failed to remove %s: %s", unit, err)
+			log.Warnf("Failed to remove %s: %s", unit, err)
 		}
 	}
 	// purge stable units
 	for _, unit := range stableUnits {
 		if err := disableUnit(ctx, unit); err != nil {
-			return fmt.Errorf("Failed to disable %s: %s", unit, err)
+			log.Warnf("Failed to disable %s: %s", unit, err)
 		}
 		if err := removeUnit(ctx, unit); err != nil {
-			return fmt.Errorf("Failed to remove %s: %s", unit, err)
+			log.Warnf("Failed to remove %s: %s", unit, err)
 		}
 	}
 	if err := rmAgentSymlink(ctx); err != nil {
-		return fmt.Errorf("Failed to remove agent symlink: %s", err)
+		log.Warnf("Failed to remove agent symlink: %s", err)
 	}
 	installinfo.RmInstallInfo()
-	return nil
 }
 
 // StartAgentExperiment starts the agent experiment
@@ -154,17 +156,4 @@ func StartAgentExperiment(ctx context.Context) error {
 // StopAgentExperiment stops the agent experiment
 func StopAgentExperiment(ctx context.Context) error {
 	return startUnit(ctx, agentUnit)
-}
-
-// setInstallerAgentGroup adds the dd-installer to the dd-agent group if it's not already in it
-func setInstallerAgentGroup(ctx context.Context) error {
-	// Get groups of dd-installer
-	out, err := exec.Command("id", "-Gn", "dd-installer").Output()
-	if err != nil {
-		return err
-	}
-	if strings.Contains(string(out), "dd-agent") {
-		return nil
-	}
-	return executeHelperCommand(ctx, string(addInstallerToAgentGroup))
 }

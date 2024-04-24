@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/secrets"
+	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
 )
 
 type linuxRuntimeSecretSuite struct {
