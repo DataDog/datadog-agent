@@ -37,6 +37,7 @@ func Test[T any](t testing.TB, opts ...fx.Option) T {
 
 	app := fxtest.New(
 		t,
+		fx.Provide(newFxLifecycleAdapter),
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		delayed.option(),
 		fx.Options(opts...),
@@ -144,8 +145,8 @@ func TestOneShotSubcommand(
 	subcommands []*cobra.Command,
 	commandline []string,
 	expectedOneShotFunc interface{},
-	verifyFn interface{}) {
-
+	verifyFn interface{},
+) {
 	var oneShotRan bool
 	fxAppTestOverride = func(oneShotFunc interface{}, opts []fx.Option) error {
 		oneShotRan = true

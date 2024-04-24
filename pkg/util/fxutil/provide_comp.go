@@ -14,6 +14,12 @@ import (
 	"go.uber.org/fx"
 )
 
+var (
+	compOutType = reflect.TypeOf((*compdef.Out)(nil)).Elem()
+	fxInType    = reflect.TypeOf(fx.In{})
+	fxOutType   = reflect.TypeOf(fx.Out{})
+)
+
 // ProvideComponentConstructor takes as input a Component constructor function
 // that uses plain (non-fx aware) structs as its argument and return value, and
 // returns an fx.Provide'd Option that will properly include that Component
@@ -44,33 +50,22 @@ import (
 //	    Dep MyDependency
 //	}
 //
-// and essentially make this happen:
-//
-//	fx.Provide(func(fxr FxAwareRequires) fxp FxAwareProvides {
-//	    r := makePlainReqs(fxr)
-//	    p := NewComponent(r)
-//	    return makeFxAwareProvides(p)
-//	})
-
-var (
-	compOutType = reflect.TypeOf((*compdef.Out)(nil)).Elem()
-	fxInType    = reflect.TypeOf(fx.In{})
-	fxOutType   = reflect.TypeOf(fx.Out{})
-)
-
-// ProvideComponentConstructor takes a Component constructor and makes it fx-aware, then fx.Provide's it
+// and then Provide those types into fx's dependency graph
 func ProvideComponentConstructor(compCtorFunc interface{}) fx.Option {
-	inFxType, outFxType, hasErrRet, err := constructFxInAndOut(compCtorFunc)
+	// type-check the input argument to the constructor
+	ctorFuncType := reflect.TypeOf(compCtorFunc)
+	if ctorFuncType.Kind() != reflect.Func || ctorFuncType.NumIn() > 1 || ctorFuncType.NumOut() == 0 || ctorFuncType.NumOut() > 2 {
+		return fx.Error(errors.New("argument must be a function with 0 or 1 arguments, and 1 or 2 return values"))
+	}
+	if ctorFuncType.NumIn() > 0 && ctorFuncType.In(0).Kind() == reflect.Interface {
+		return fx.Error(errors.New("constructor must either take 0 arguments, or 1 argument as a requires struct"))
+	}
+	hasZeroArg := ctorFuncType.NumIn() == 0
+
+	inFxType, outFxType, hasErrRet, err := constructFxInAndOut(ctorFuncType)
 	if err != nil {
 		return fx.Error(err)
 	}
-
-	// type-check the input argument to the constructor
-	constructorFunc := reflect.ValueOf(compCtorFunc)
-	if constructorFunc.Type().NumIn() > 0 && constructorFunc.Type().In(0).Kind() == reflect.Interface {
-		return fx.Error(errors.New("constructor must either take 0 arguments, or 1 argument as a requires struct"))
-	}
-	hasZeroArg := constructorFunc.Type().NumIn() == 0
 
 	// build reflect.Type of the constructor function that will be provided to `fx.Provide`
 	funcFxType := reflect.FuncOf([]reflect.Type{inFxType}, []reflect.Type{outFxType}, false)
@@ -78,13 +73,16 @@ func ProvideComponentConstructor(compCtorFunc interface{}) fx.Option {
 		funcFxType = reflect.FuncOf([]reflect.Type{inFxType}, []reflect.Type{outFxType, errorInterface}, false)
 	}
 
-	// wrapper that receives fx-aware requirements, converts them into regular requirements, and calls the constructor
+	// wrapper that receives fx-aware requirements, converts them into regular requirements, and calls the
 	// constructor function value that will inform fx what the Components are
 	fxAwareProviderFunc := reflect.MakeFunc(funcFxType, func(args []reflect.Value) []reflect.Value {
 		// invoke the regular constructor with the correct arguments
-		ctorArgs := makeConstructorArgs(args[0], hasZeroArg)
-		plainOuts := constructorFunc.Call(ctorArgs)
-		// calling `constructFxInAndOut` earlier ensures that outs has exactly 1 element
+		var ctorArgs []reflect.Value
+		if !hasZeroArg {
+			ctorArgs = makeConstructorArgs(args[0])
+		}
+		plainOuts := reflect.ValueOf(compCtorFunc).Call(ctorArgs)
+		// create return value, an fx-ware provides struct and an optional error
 		res := []reflect.Value{makeFxAwareProvides(plainOuts[0], outFxType)}
 		if hasErrRet {
 			res = append(res, plainOuts[1])
@@ -92,8 +90,7 @@ func ProvideComponentConstructor(compCtorFunc interface{}) fx.Option {
 		return res
 	})
 
-	// NOTE: This will only work if ProvideComponentConstructor is called exactly once
-	return fx.Provide(fxAwareProviderFunc.Interface(), newFxLifecycleAdapter)
+	return fx.Provide(fxAwareProviderFunc.Interface())
 }
 
 // get the input or output argument from a function type
@@ -150,26 +147,12 @@ func hasEmbedField(typ, embed reflect.Type) bool {
 }
 
 // construct fx-aware types for the input and output of the given constructor function
-func constructFxInAndOut(compCtorFunc interface{}) (reflect.Type, reflect.Type, bool, error) {
-	// validate the constructor is a function with 0 or 1 argument(s) and 1 or 2 return values
-	ctorFuncVal := reflect.TypeOf(compCtorFunc)
-	if ctorFuncVal.Kind() != reflect.Func || ctorFuncVal.NumIn() > 1 || ctorFuncVal.NumOut() == 0 || ctorFuncVal.NumOut() > 2 {
-		return nil, nil, false, errors.New("argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
-	}
-
-	ctorInType, err1 := asStruct(getArg(ctorFuncVal, 0, false))
-	ctorOutType, err2 := asStruct(ctorFuncVal.Out(0))
-	hasErrRet, err3 := ensureErrorOrNil(getArg(ctorFuncVal, 1, true))
-
-	// TODO: utility function to combine these?
-	if err1 != nil {
-		return nil, nil, false, err1
-	}
-	if err2 != nil {
-		return nil, nil, false, err2
-	}
-	if err3 != nil {
-		return nil, nil, false, err3
+func constructFxInAndOut(ctorFuncType reflect.Type) (reflect.Type, reflect.Type, bool, error) {
+	ctorInType, err1 := asStruct(getArg(ctorFuncType, 0, false))
+	ctorOutType, err2 := asStruct(ctorFuncType.Out(0))
+	hasErrRet, err3 := ensureErrorOrNil(getArg(ctorFuncType, 1, true))
+	if err := errors.Join(err1, err2, err3); err != nil {
+		return nil, nil, false, err
 	}
 
 	// create types that have fx-aware embed-fields
@@ -227,7 +210,7 @@ func replaceStructEmbeds(typ, oldEmbed, newEmbed reflect.Type, assumeEmbed bool)
 		if field.Type == oldEmbed {
 			continue
 		}
-		if field.Type.Kind() == reflect.Struct && oldEmbed != nil && newEmbed != nil && (assumeEmbed || hasEmbed) {
+		if field.Type.Kind() == reflect.Struct && oldEmbed != nil && newEmbed != nil && hasEmbed {
 			field = reflect.StructField{Name: field.Name, Type: replaceStructEmbeds(field.Type, oldEmbed, newEmbed, false)}
 		}
 		newFields = append(newFields, reflect.StructField{Name: field.Name, Type: field.Type})
@@ -241,10 +224,7 @@ func replaceStructEmbeds(typ, oldEmbed, newEmbed reflect.Type, assumeEmbed bool)
 
 // create arguments that are ready to be passed to the plain constructor by
 // removing fx specific fields from the fx-aware requires struct
-func makeConstructorArgs(fxAwareReqs reflect.Value, hasZeroArg bool) []reflect.Value {
-	if hasZeroArg {
-		return nil
-	}
+func makeConstructorArgs(fxAwareReqs reflect.Value) []reflect.Value {
 	if fxAwareReqs.Kind() != reflect.Struct {
 		panic("pre-condition failure: must be called with Struct")
 	}

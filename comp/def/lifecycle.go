@@ -11,7 +11,7 @@ import (
 
 type lchFunc func(context.Context) error
 
-// Hook represents a function pair for component startup and shutdown
+// Hook represents a function pair for a component's startup and shutdown
 type Hook struct {
 	OnStart lchFunc
 	OnStop  lchFunc

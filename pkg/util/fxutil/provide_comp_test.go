@@ -49,7 +49,7 @@ func TestInvalidArgumentOrReturnValue(t *testing.T) {
 
 func TestConstructFxInAndOut(t *testing.T) {
 	// constructor returns 1 component interface
-	inType, outType, _, err := constructFxInAndOut(func() FirstComp { return &firstImpl{} })
+	inType, outType, _, err := constructFxInAndOut(reflect.TypeOf(func() FirstComp { return &firstImpl{} }))
 	require.NoError(t, err)
 
 	expect := `struct { In dig.In }`
@@ -58,8 +58,8 @@ func TestConstructFxInAndOut(t *testing.T) {
 	expect = `struct { Out dig.Out; FirstComp fxutil.FirstComp }`
 	require.Equal(t, expect, outType.String())
 
-	// constructor needs a `requires`` struct and returns 1 component interface
-	inType, outType, _, err = constructFxInAndOut(func(reqs FirstComp) SecondComp { return &secondImpl{} })
+	// constructor needs a `requires` struct and returns 1 component interface
+	inType, outType, _, err = constructFxInAndOut(reflect.TypeOf(func(reqs FirstComp) SecondComp { return &secondImpl{} }))
 	require.NoError(t, err)
 
 	expect = `struct { In dig.In; FirstComp fxutil.FirstComp }`
@@ -69,13 +69,23 @@ func TestConstructFxInAndOut(t *testing.T) {
 	require.Equal(t, expect, outType.String())
 
 	// constructor returns a struct that has 3 total components
-	inType, outType, _, err = constructFxInAndOut(func() provides3 { return provides3{} })
+	inType, outType, _, err = constructFxInAndOut(reflect.TypeOf(func() provides3 { return provides3{} }))
 	require.NoError(t, err)
 
 	expect = `struct { In dig.In }`
 	require.Equal(t, expect, inType.String())
 
 	expect = `struct { Out dig.Out; A fxutil.Apple; B fxutil.Banana; C struct { Out dig.Out; E fxutil.Egg } }`
+	require.Equal(t, expect, outType.String())
+
+	// constructor needs a `requiresLc` struct and returns 1 component interface
+	inType, outType, _, err = constructFxInAndOut(reflect.TypeOf(func(reqs requiresLc) SecondComp { return &secondImpl{} }))
+	require.NoError(t, err)
+
+	expect = `struct { In dig.In; Lc compdef.Lifecycle }`
+	require.Equal(t, expect, inType.String())
+
+	expect = `struct { Out dig.Out; SecondComp fxutil.SecondComp }`
 	require.Equal(t, expect, outType.String())
 }
 
@@ -88,7 +98,7 @@ func TestMakeConstructorArgs(t *testing.T) {
 	require.Equal(t, expectFields, getFieldNames(fxReqs))
 
 	// make a struct that doesn't have the fx.In field
-	plainReqs := makeConstructorArgs(reflect.ValueOf(fxReqs), false)[0].Interface()
+	plainReqs := makeConstructorArgs(reflect.ValueOf(fxReqs))[0].Interface()
 	expectFields = []string{"A"}
 	require.Equal(t, expectFields, getFieldNames(plainReqs))
 }
@@ -238,6 +248,23 @@ func TestFxProvideEmbed(t *testing.T) {
 	}
 	module := Component(ProvideComponentConstructor(NewAgentComponent))
 	Test[Egg](t, fx.Invoke(start), module)
+}
+
+func TestFxCanUseTwice(t *testing.T) {
+	// plain component constructor, no fx
+	NewAgentComponent := func() FirstComp {
+		return &firstImpl{}
+	}
+	NewAnotherComponent := func(reqs requires1) SecondComp {
+		return &secondImpl{First: reqs.First}
+	}
+	// define an entry point that uses the component
+	start := func(second SecondComp) {
+		require.Equal(t, "2nd", second.Second())
+	}
+	// ProvideComponentConstructor can be used twice
+	module := Component(ProvideComponentConstructor(NewAgentComponent), ProvideComponentConstructor(NewAnotherComponent))
+	Test[SecondComp](t, fx.Invoke(start), module)
 }
 
 // type that fx App can use Lifecycle hooks
