@@ -7,6 +7,7 @@ package health
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -39,10 +40,9 @@ func (v *windowsHealthSuite) TestDefaultInstallUnhealthy() {
 		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\n"))))
 
 	// agent should be unhealthy because the key is invalid
-	_, err := v.Env().Agent.Client.Health()
-	if err == nil {
-		assert.Fail(v.T(), "agent expected to be unhealthy, but no error found!")
-		return
-	}
-	assert.Contains(v.T(), err.Error(), "Agent health: FAIL")
+
+	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		_, err := v.Env().Agent.Client.Health()
+		assert.ErrorContains(t, err, "Agent health: FAIL")
+	}, 1*time.Minute, 10*time.Second)
 }
