@@ -25,10 +25,10 @@ def build_library(ctx):
     print(f"\033[0Ksection_start:{int(time())}:{section_name}[collapsed=true]\r\033[0KClone and build SDS ...")
     with tempfile.TemporaryDirectory() as temp_dir:
         with ctx.cd(temp_dir):
-            ctx.run("git clone https://github.com/DataDog/dd-sensitive-data-scanner")
+            ctx.run("git clone https://github.com/DataDog/dd-sensitive-data-scanner", err_stream=sys.stdout)
             with ctx.cd("dd-sensitive-data-scanner/sds-go/rust"):
-                ctx.run(f"git checkout {sds_version}")
-                ctx.run("cargo build --release")
+                ctx.run(f"git checkout {sds_version}", err_stream=sys.stdout)
+                ctx.run("cargo build --release", err_stream=sys.stdout)
                 # write the lib besides rtloader libs
                 dev_path = get_dev_path()
                 lib_path = os.path.join(dev_path, "lib")
