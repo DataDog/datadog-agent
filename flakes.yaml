@@ -6,3 +6,5 @@ pkg/gohai:
   - TestGetPayload
 test/new-e2e/tests/process:
   - TestLinuxTestSuite
+test/new-e2e/tests/agent-platform:
+  - TestInstallScript
