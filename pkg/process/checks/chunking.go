@@ -6,9 +6,12 @@
 package checks
 
 import (
+	"os"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // chunkProcessesBySizeAndWeight chunks `model.Process` payloads by max allowed size and max allowed weight of a chunk
@@ -16,8 +19,12 @@ func chunkProcessesBySizeAndWeight(procs []*model.Process, ctr *model.Container,
 	if ctr != nil && len(procs) == 0 {
 		// can happen in two scenarios, and we still need to report the container
 		// a) if a process is skipped (e.g. disallowlisted)
-		// b) if process <=> container mapping cannot be established (e.g. Docker on Windows)
-		appendContainerWithoutProcesses(ctr, chunker.GetChunks())
+		// b) if process <=> container mapping cannot be established (e.g. Docker on Windows).
+		// c) pidMode not set to "task" on ECS Fargate
+		if ecsContainerMetadataURI := os.Getenv("ECS_CONTAINER_METADATA_URI_V4"); ecsContainerMetadataURI != "" {
+			log.Warnf("No processes found for container %s, pidMode may not be configured correctly (set to task)", ctr.Name)
+		}
+		appendContainerWithoutProcesses(ctr, chunker)
 		return
 	}
 
@@ -42,9 +49,10 @@ func chunkProcessesBySizeAndWeight(procs []*model.Process, ctr *model.Container,
 	util.ChunkPayloadsBySizeAndWeight[model.CollectorProc, *model.Process](list, chunker, maxChunkSize, maxChunkWeight)
 }
 
-func appendContainerWithoutProcesses(ctr *model.Container, collectorProcs *[]model.CollectorProc) {
+func appendContainerWithoutProcesses(ctr *model.Container, chunker *util.ChunkAllocator[model.CollectorProc, *model.Process]) {
+	collectorProcs := chunker.GetChunks()
 	if len(*collectorProcs) == 0 {
-		*collectorProcs = append(*collectorProcs, model.CollectorProc{})
+		chunker.Accept([]*model.Process{}, 0)
 	}
 	collectorProc := &(*collectorProcs)[len(*collectorProcs)-1]
 	collectorProc.Containers = append(collectorProc.Containers, ctr)
