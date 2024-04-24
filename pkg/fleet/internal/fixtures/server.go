@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/utils"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/tar"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/google/go-containerregistry/pkg/v1/layout"
@@ -66,16 +66,16 @@ var (
 //go:embed *
 var fixturesFS embed.FS
 
-func buildOCIRegistry(t *testing.T) *httptest.Server {
+func extractLayoutsAndBuildRegistry(t *testing.T, layoutsDir string) *httptest.Server {
 	s := httptest.NewServer(registry.New())
 	for _, f := range ociFixtures {
-		tmpDir := t.TempDir()
+		layoutDir := path.Join(layoutsDir, f.layoutPath)
 		file, err := fixturesFS.Open(f.layoutPath)
 		require.NoError(t, err)
-		err = utils.ExtractTarArchive(file, tmpDir, 1<<30)
+		err = tar.Extract(file, layoutDir, 1<<30)
 		require.NoError(t, err)
 
-		layout, err := layout.FromPath(tmpDir)
+		layout, err := layout.FromPath(layoutDir)
 		require.NoError(t, err)
 		index, err := layout.ImageIndex()
 		require.NoError(t, err)
@@ -99,19 +99,28 @@ func buildOCIRegistry(t *testing.T) *httptest.Server {
 type Server struct {
 	t *testing.T
 	s *httptest.Server
+
+	layoutsDir string
 }
 
 // NewServer creates a new test fixtures server.
 func NewServer(t *testing.T) *Server {
+	layoutDir := t.TempDir()
 	return &Server{
-		t: t,
-		s: buildOCIRegistry(t),
+		t:          t,
+		s:          extractLayoutsAndBuildRegistry(t, layoutDir),
+		layoutsDir: layoutDir,
 	}
 }
 
 // PackageURL returns the package URL for the given fixture.
 func (s *Server) PackageURL(f Fixture) string {
 	return fmt.Sprintf("oci://%s/%s@%s", strings.TrimPrefix(s.s.URL, "http://"), f.Package, f.indexDigest)
+}
+
+// PackageLayoutURL returns the package layout URL for the given fixture.
+func (s *Server) PackageLayoutURL(f Fixture) string {
+	return fmt.Sprintf("file://%s/%s", s.layoutsDir, f.layoutPath)
 }
 
 // PackageFS returns the package FS for the given fixture.
