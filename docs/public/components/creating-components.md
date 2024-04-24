@@ -2,12 +2,12 @@
 
 This page explains how to create components in detail.
 
-Thought this page we're going to create a compression component. The component is going to handle the payload compression before it gets sent to the Datadog backend.
+Throughout this page we're going to create a compression component. The component compresses the payload before sending it to the Datadog backend.
 
-Since there are multiple ways to compress data we are going to provide two implementations of the same component interface. 
+Since there are multiple ways to compress data, we are going to provide two implementations of the same component interface: 
 
-* one using [ZSTD](https://en.wikipedia.org/wiki/Zstd) data compression algorithm.
-* one using [ZIP](https://en.wikipedia.org/wiki/ZIP_(file_format)) data compression algorithm.
+* The [ZSTD](https://en.wikipedia.org/wiki/Zstd) data compression algorithm
+* The [ZIP](https://en.wikipedia.org/wiki/ZIP_(file_format)) data compression algorithm
 
 A Component is organize into multiple folders and Go packages. The main reason to separate a component into separate package is to separate the interface from the implementations and to improve code sharing. Having the interface declare in a separate package from the implementation allow to import the interface without having to import the different implementations. 
 
