@@ -52,7 +52,7 @@ func assertRunningChecks(t *assert.CollectT, vm *components.RemoteHost, checks [
 	err := json.Unmarshal([]byte(status), &statusMap)
 	assert.NoError(t, err, "failed to unmarshal agent status")
 
-	fmt.Printf(status)
+	fmt.Print(status)
 
 	assert.ElementsMatch(t, checks, statusMap.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 
