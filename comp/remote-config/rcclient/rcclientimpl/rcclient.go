@@ -220,7 +220,7 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 					continue
 				}
 				change := "disabled"
-				if *mrfUpdate.FailoverMetrics {
+				if *mrfUpdate.FailoverLogs {
 					change = "enabled"
 				}
 				pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for logs", change)
