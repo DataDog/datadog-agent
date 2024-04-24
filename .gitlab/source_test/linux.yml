@@ -233,3 +233,24 @@ go_mod_tidy_check:
   script:
     - inv -e check-mod-tidy
     - inv -e check-go-mod-replaces
+
+
+new-e2e-unit-tests:
+  extends: .linux_tests_with_upload
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  tags: ["arch:amd64"]
+  script:
+    - !reference [.retrieve_linux_go_tools_deps]
+    - inv -e install-tools
+    - FAST_TESTS_FLAG=""
+    - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
+    - inv -e sds.build-library
+    - |
+      inv -e test $FLAVORS --include-sds --race --profile --rerun-fails=2
+      --python-runtimes "$PYTHON_RUNTIMES" --coverage
+      --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS
+      --save-result-json $TEST_OUTPUT_FILE
+      --junit-tar "junit-${CI_JOB_NAME}.tgz"
+      --build-stdlib $FAST_TESTS_FLAG
+      --module test/new-e2e
+      --targets ./pkg/utils
