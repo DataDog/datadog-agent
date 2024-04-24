@@ -30,3 +30,13 @@ func WithUnixSecretPermissions(allowGroupExec bool) optional.Option[perms.FilePe
 
 	return perms.NewUnixPermissions(perms.WithPermissions("0700"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
 }
+
+// WithWindowsSecretPermissions returns a WindowsPermissions object containing correct permissions for a secret backend script.
+func WithWindowsSecretPermissions(allowGroupExec bool) optional.Option[perms.FilePermissions] {
+	icaclsCmd := `/grant "ddagentuser:(RX)"`
+	if allowGroupExec {
+		icaclsCmd += ` "Administrators:(RX)"`
+	}
+
+	return perms.NewWindowsPermissions(perms.WithIcaclsCommand(icaclsCmd), perms.WithDisableInheritance())
+}
