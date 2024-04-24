@@ -57,7 +57,7 @@ func (s npSchedulerImpl) Schedule(hostname string, port uint16) {
 
 	if net.ParseIP(hostname).To4() == nil {
 		// TODO: IPv6 not supported yet
-		log.Debugf("Only IPv4 is currently supported yet. Address not supported: %+v", hostname)
+		log.Debugf("Only IPv4 is currently supported. Address not supported: %s", hostname)
 		return
 	}
 
