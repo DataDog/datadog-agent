@@ -2,5 +2,7 @@
 # For example:
 # "pkg/gohai":
 #   - "TestGetPayload"
-"pkg/gohai":
-  - "TestGetPayload"
+pkg/gohai:
+  - TestGetPayload
+test/new-e2e/tests/process:
+  - TestLinuxTestSuite
