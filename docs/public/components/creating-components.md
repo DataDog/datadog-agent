@@ -24,7 +24,7 @@ comp /
       def /              <-- The folder containing the component interface and ALL its public types.
       impl /             <-- The only or primary implementation of the component.
       impl-<alternate> / <-- An alternate implementation.
-      impl-none /     <-- An alternate implementation.
+      impl-none /        <-- Optional. A none implementation.
       fx /               <-- All fx related logic for the primary implementation, if any.
       fx-<alternate> /   <-- All fx related logic for a specific implementation.
       mock /             <-- The mock interface of the component to ease testing.
