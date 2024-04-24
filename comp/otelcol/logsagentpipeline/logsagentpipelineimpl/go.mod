@@ -1,54 +1,55 @@
-module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/logsagentpipeline
+module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/logsagentpipelineimpl
 
 go 1.21.0
 
 replace (
-	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../../../cmd/agent/common/path
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../../../comp/core/config
-	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../comp/core/flare/types
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../../comp/core/hostname/hostnameinterface
-	github.com/DataDog/datadog-agent/comp/core/log => ../../../../../comp/core/log
-	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../../comp/core/secrets
-	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../comp/core/telemetry
-	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../../../comp/logs/agent/config
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../../pkg/collector/check/defaults
-	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../../pkg/config/env
-	github.com/DataDog/datadog-agent/pkg/config/logs => ../../../../../pkg/config/logs
-	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../../pkg/config/model
-	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../../pkg/config/setup
-	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../../pkg/config/utils
-	github.com/DataDog/datadog-agent/pkg/logs/auditor => ../../../../../pkg/logs/auditor
-	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../../../pkg/logs/client
-	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../../../pkg/logs/diagnostic
-	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../../pkg/logs/message
-	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../../../pkg/logs/metrics
-	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../../pkg/logs/pipeline
-	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../../pkg/logs/processor
-	github.com/DataDog/datadog-agent/pkg/logs/sds => ../../../../../pkg/logs/sds
-	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../../pkg/logs/sender
-	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../../pkg/logs/sources
-	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../../pkg/logs/status/statusinterface
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../../pkg/logs/status/utils
-	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../../../pkg/logs/util/testutils
-	github.com/DataDog/datadog-agent/pkg/status/health => ../../../../../pkg/status/health
-	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../../pkg/telemetry
-	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../../pkg/util/backoff
-	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../../pkg/util/executable
-	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../../pkg/util/filesystem
-	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../../pkg/util/fxutil
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../../pkg/util/hostname/validate
-	github.com/DataDog/datadog-agent/pkg/util/http => ../../../../../pkg/util/http
-	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../../pkg/util/log
-	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../../../pkg/util/optional
-	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../../pkg/util/pointer
-	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../../pkg/util/scrubber
-	github.com/DataDog/datadog-agent/pkg/util/startstop => ../../../../../pkg/util/startstop
-	github.com/DataDog/datadog-agent/pkg/util/statstracker => ../../../../../pkg/util/statstracker
-	github.com/DataDog/datadog-agent/pkg/util/system => ../../../../../pkg/util/system
-	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../../pkg/util/system/socket
-	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../../pkg/util/testutil
-	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../../pkg/util/winutil
-	github.com/DataDog/datadog-agent/pkg/version => ../../../../../pkg/version
+	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../../cmd/agent/common/path
+	github.com/DataDog/datadog-agent/comp/core/config => ../../../core/config
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../core/flare/types
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../core/hostname/hostnameinterface
+	github.com/DataDog/datadog-agent/comp/core/log => ../../../core/log
+	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../core/secrets
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../core/telemetry
+	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../logs/agent/config
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/logsagentpipeline => ../../logsagentpipeline
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/logs => ../../../../pkg/config/logs
+	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
+	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
+	github.com/DataDog/datadog-agent/pkg/logs/auditor => ../../../../pkg/logs/auditor
+	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../../pkg/logs/client
+	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../../pkg/logs/diagnostic
+	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../pkg/logs/message
+	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../../pkg/logs/metrics
+	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../pkg/logs/pipeline
+	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../pkg/logs/processor
+	github.com/DataDog/datadog-agent/pkg/logs/sds => ../../../../pkg/logs/sds
+	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../pkg/logs/sender
+	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources
+	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../pkg/logs/status/statusinterface
+	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../../pkg/logs/util/testutils
+	github.com/DataDog/datadog-agent/pkg/status/health => ../../../../pkg/status/health
+	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
+	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../pkg/util/backoff
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
+	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../pkg/util/filesystem
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
+	github.com/DataDog/datadog-agent/pkg/util/http => ../../../../pkg/util/http
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../../pkg/util/optional
+	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../pkg/util/pointer
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/startstop => ../../../../pkg/util/startstop
+	github.com/DataDog/datadog-agent/pkg/util/statstracker => ../../../../pkg/util/statstracker
+	github.com/DataDog/datadog-agent/pkg/util/system => ../../../../pkg/util/system
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../pkg/util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../pkg/util/testutil
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
+	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
 )
 
 require (
@@ -56,6 +57,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/log v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/logsagentpipeline v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.53.0-rc.2

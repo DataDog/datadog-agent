@@ -183,8 +183,11 @@ DEFAULT_MODULES = {
     "comp/forwarder/orchestrator/orchestratorinterface": GoModule(
         "comp/forwarder/orchestrator/orchestratorinterface", independent=True
     ),
-    "comp/otelcol/otlp/components/logsagentpipeline": GoModule(
-        "comp/otelcol/otlp/components/logsagentpipeline", independent=True
+    "comp/otelcol/logsagentpipeline": GoModule(
+        "comp/otelcol/logsagentpipeline", independent=True
+    ),
+    "comp/otelcol/logsagentpipeline/logsagentpipelineimpl": GoModule(
+        "comp/otelcol/logsagentpipeline/logsagentpipelineimpl", independent=True
     ),
     "comp/otelcol/otlp/components/exporter/serializerexporter": GoModule(
         "comp/otelcol/otlp/components/exporter/serializerexporter", independent=True

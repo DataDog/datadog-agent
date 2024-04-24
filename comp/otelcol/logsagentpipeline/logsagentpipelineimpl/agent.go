@@ -3,14 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-package logsagentpipeline
+package logsagentpipelineimpl
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"time"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -18,9 +16,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/logsagentpipeline"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -59,7 +60,7 @@ type Agent struct {
 	health           *health.Handle
 }
 
-func NewLogsAgent(deps dependencies) optional.Option[Component] {
+func NewLogsAgent(deps dependencies) optional.Option[logsagentpipeline.Component] {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
@@ -77,11 +78,11 @@ func NewLogsAgent(deps dependencies) optional.Option[Component] {
 			})
 		}
 
-		return optional.NewOption[Component](logsAgent)
+		return optional.NewOption[logsagentpipeline.Component](logsAgent)
 	}
 
 	deps.Log.Debug("logs-agent disabled")
-	return optional.NewNoneOption[Component]()
+	return optional.NewNoneOption[logsagentpipeline.Component]()
 }
 
 func (a *Agent) Start(context.Context) error {

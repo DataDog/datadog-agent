@@ -6,10 +6,7 @@
 package logsagentpipeline
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: opentelemetry
@@ -24,15 +21,4 @@ type LogsAgent interface {
 	Component
 	Start() error
 	Stop()
-}
-
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(NewLogsAgent))
 }
