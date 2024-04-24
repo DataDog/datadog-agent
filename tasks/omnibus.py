@@ -17,7 +17,15 @@ from tasks.ssm import get_pfx_pass, get_signing_cert
 
 
 def omnibus_run_task(
-    ctx, task, target_project, base_dir, env, omnibus_s3_cache=False, log_level="info", host_distribution=None
+    ctx,
+    task,
+    target_project,
+    base_dir,
+    env,
+    omnibus_s3_cache=False,
+    log_level="info",
+    host_distribution=None,
+    install_dir=None,
 ):
     with ctx.cd("omnibus"):
         overrides_cmd = ""
@@ -25,6 +33,8 @@ def omnibus_run_task(
             overrides_cmd = f"--override=base_dir:{base_dir}"
         if host_distribution:
             overrides_cmd += f" --override=host_distribution:{host_distribution}"
+        if install_dir:
+            overrides_cmd += f" --override=install_dir:{install_dir}"
 
         omnibus = "bundle exec omnibus"
         if sys.platform == 'win32':

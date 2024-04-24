@@ -13,7 +13,7 @@ third_party_licenses "../LICENSE-3rdparty.csv"
 
 homepage 'http://www.datadoghq.com'
 
-INSTALL_DIR = ENV['INSTALL_DIR'] || '/opt/datadog-installer'
+INSTALL_DIR = Omnibus::Config.install_dir || '/opt/datadog-installer'
 
 install_dir INSTALL_DIR
 
