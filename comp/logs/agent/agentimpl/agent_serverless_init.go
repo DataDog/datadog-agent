@@ -29,7 +29,7 @@ import (
 // NewAgent returns a Logs Agent instance to run in a serverless environment.
 // The Serverless Logs Agent has only one input being the channel to receive the logs to process.
 // It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
-func (a *agent) SetupPipeline(
+func (a *logAgent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
 	_ optional.Option[workloadmeta.Component],
 ) {
