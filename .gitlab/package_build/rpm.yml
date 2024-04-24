@@ -54,6 +54,7 @@ agent_rpm-x64-a6:
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: "2,3"
     PACKAGE_ARCH: amd64
+    DD_PKG_ARCH: "x86_64"
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_6
@@ -78,6 +79,7 @@ agent_rpm-x64-a7:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: "3"
     PACKAGE_ARCH: amd64
+    DD_PKG_ARCH: "x86_64"
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
@@ -103,6 +105,7 @@ agent_rpm-arm64-a6:
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: "2,3"
     PACKAGE_ARCH: arm64
+    DD_PKG_ARCH: "arm64"
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_6
@@ -128,6 +131,7 @@ agent_rpm-arm64-a7:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: "3"
     PACKAGE_ARCH: arm64
+    DD_PKG_ARCH: "arm64"
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
@@ -152,6 +156,10 @@ agent_rpm-arm64-a7:
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e omnibus.build --flavor iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
+    - curl -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg
+    - pushd $OMNIBUS_PACKAGE_DIR
+    - find . -iregex '.*\.\(deb\|rpm\)' -printf '%f\0' | xargs -0 dd-pkg lint
+    - popd
     - !reference [.upload_sbom_artifacts]
   variables:
     KUBERNETES_CPU_REQUEST: 8
@@ -171,6 +179,8 @@ iot_agent_rpm-x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
+  variables:
+    DD_PKG_ARCH: "x86_64"
 
 iot_agent_rpm-arm64:
   extends: .iot_agent_build_common_rpm
@@ -182,6 +192,8 @@ iot_agent_rpm-arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "go_deps"]
+  variables:
+    DD_PKG_ARCH: "arm64"
 
 iot_agent_rpm-armhf:
   extends: .iot_agent_build_common_rpm
@@ -194,6 +206,8 @@ iot_agent_rpm-armhf:
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
   tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "go_deps"]
+  variables:
+    DD_PKG_ARCH: "arm64"
   before_script:
     # Ensures uname -m reports armv7l
     - export LD_PRELOAD="/usr/local/lib/libfakearmv7l.so"
@@ -206,6 +220,8 @@ dogstatsd_rpm-x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
+  variables:
+    DD_PKG_ARCH: "x86_64"
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
@@ -222,9 +238,12 @@ dogstatsd_rpm-x64:
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e omnibus.build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="dogstatsd"
     - ls -la $OMNIBUS_PACKAGE_DIR
+    - curl -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg
+    - pushd $OMNIBUS_PACKAGE_DIR
+    - find . -iregex '.*\.\(deb\|rpm\)' -printf '%f\0' | xargs -0 dd-pkg lint
+    - popd
     - !reference [.upload_sbom_artifacts]
   artifacts:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-
