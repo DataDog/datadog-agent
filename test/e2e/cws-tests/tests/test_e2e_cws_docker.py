@@ -148,7 +148,7 @@ class TestE2EDocker(unittest.TestCase):
             )
 
             jsonSchemaValidator = JsonSchemaValidator()
-            jsonSchemaValidator.validate_json_data("self_test.json", attributes)
+            jsonSchemaValidator.validate_json_data("self_test_schema.json", attributes)
 
         with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)
