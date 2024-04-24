@@ -37,7 +37,7 @@ const (
 	multiLineWarning = "multi_line processing rules are not supported as global processing rules."
 )
 
-type dependencies struct {
+type Dependencies struct {
 	fx.In
 
 	Lc       fx.Lifecycle
@@ -60,7 +60,7 @@ type Agent struct {
 }
 
 // NewLogsAgent returns a new instance of Agent with the given dependencies
-func NewLogsAgent(deps dependencies) optional.Option[logsagentpipeline.Component] {
+func NewLogsAgent(deps Dependencies) optional.Option[logsagentpipeline.Component] {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
