@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/debug"
@@ -56,6 +55,11 @@ type internalError struct {
 
 func (i internalError) Error() string {
 	return fmt.Sprintf("E2E INTERNAL ERROR: %v", i.err)
+}
+
+func (i internalError) Is(target error) bool {
+	_, ok := target.(internalError)
+	return ok
 }
 
 // StackManager handles
@@ -127,7 +131,7 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 		}
 	}()
 
-	stack, upResult, err := sm.getStack(ctx, name, config, deployFunc, failOnMissing, nil)
+	stack, upResult, err := sm.getStack(ctx, name, config, deployFunc, failOnMissing, nil, nil)
 	if err != nil {
 		errDestroy := sm.deleteStack(ctx, name, stack, nil)
 		if errDestroy != nil {
@@ -139,14 +143,14 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 }
 
 // GetStackNoDeleteOnFailure creates or return a stack based on stack name and config, if error occurs during stack creation, it will not destroy the created resources. Using this can lead to resource leaks.
-func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool, logWriter io.Writer) (_ *auto.Stack, _ auto.UpResult, err error) {
+func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool, logWriter io.Writer, datadodatadogEventSender datadogEventSender) (_ *auto.Stack, _ auto.UpResult, err error) {
 	defer func() {
 		if err != nil {
 			err = internalError{err}
 		}
 	}()
 
-	return sm.getStack(ctx, name, config, deployFunc, failOnMissing, logWriter)
+	return sm.getStack(ctx, name, config, deployFunc, failOnMissing, logWriter, datadodatadogEventSender)
 }
 
 // DeleteStack safely deletes a stack
@@ -286,7 +290,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	return err
 }
 
-func (sm *StackManager) getStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool, logWriter io.Writer) (*auto.Stack, auto.UpResult, error) {
+func (sm *StackManager) getStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool, logWriter io.Writer, datadodatadogEventSender datadogEventSender) (*auto.Stack, auto.UpResult, error) {
 	// Build configuration from profile
 	profile := runner.GetProfile()
 	stackName := buildStackName(profile.NamePrefix(), name)
@@ -338,6 +342,14 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 	progressStreamsUpOption := sm.getProgressStreamsOnUp(logger)
 	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
 
+	//initialize datadog event sender
+	if datadodatadogEventSender == nil {
+		datadodatadogEventSender, err = newDatadogEventSender(logger)
+		if err != nil {
+			fmt.Fprintf(logger, "error when creating datadog event sender: %v", err)
+		}
+	}
+
 	var upResult auto.UpResult
 	var upError error
 	upCount := 0
@@ -349,27 +361,27 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		cancel()
 
 		if upError == nil {
-			sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", name), "", []string{"operation:up", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)}, logger)
+			sendEventToDatadog(datadodatadogEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", name), "", []string{"operation:up", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)})
 			break
 		}
 
 		retryStrategy := sm.getRetryStrategyFrom(upError, upCount)
-		sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), upError.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)}, logger)
+		sendEventToDatadog(datadodatadogEventSender, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), upError.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)})
 
 		switch retryStrategy {
 		case reUp:
-			fmt.Fprint(logger, "Retrying stack on error during stack up: %w", upError)
+			fmt.Fprintf(logger, "Retrying stack on error during stack up: %v", upError)
 		case reCreate:
-			fmt.Fprint(logger, "Recreating stack on error during stack up: %w", upError)
+			fmt.Fprintf(logger, "Recreating stack on error during stack up: %v", upError)
 			destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
 			_, err = stack.Destroy(destroyCtx, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 			cancel()
 			if err != nil {
-				fmt.Fprint(logger, "Error during stack destroy at recrate stack attempt: %w", err)
+				fmt.Fprintf(logger, "Error during stack destroy at recrate stack attempt: %v", err)
 				return stack, auto.UpResult{}, err
 			}
 		case noRetry:
-			fmt.Fprint(logger, "Giving up on error during stack up: %w", upError)
+			fmt.Fprintf(logger, "Giving up on error during stack up: %v", upError)
 			return stack, upResult, upError
 		}
 	}
@@ -441,38 +453,12 @@ func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) retryType {
 }
 
 // sendEventToDatadog sends an event to Datadog, it will use the API Key from environment variable DD_API_KEY if present, otherwise it will use the one from SSM Parameter Store
-func sendEventToDatadog(title string, message string, tags []string, logger io.Writer) {
-	apiKey, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.APIKey, "")
-	if err != nil {
-		fmt.Fprintf(logger, "error when getting API key from parameter store: %v", err)
-		return
-	}
-
-	if apiKey == "" {
-		fmt.Fprintf(logger, "Skipping sending event because API key is empty")
-		return
-	}
-
-	ctx := context.WithValue(context.Background(), datadog.ContextAPIKeys, map[string]datadog.APIKey{
-		"apiKeyAuth": {
-			Key: apiKey,
-		},
-	})
-
-	configuration := datadog.NewConfiguration()
-	apiClient := datadog.NewAPIClient(configuration)
-	api := datadogV1.NewEventsApi(apiClient)
-
-	_, r, err := api.CreateEvent(ctx, datadogV1.EventCreateRequest{
+func sendEventToDatadog(sender datadogEventSender, title string, message string, tags []string) {
+	sender.SendEvent(datadogV1.EventCreateRequest{
 		Title: title,
 		Text:  message,
 		Tags:  append([]string{"repository:datadog/datadog-agent", "test:new-e2e", "source:pulumi"}, tags...),
 	})
-	if err != nil {
-		fmt.Fprintf(logger, "error when calling `EventsApi.CreateEvent`: %v", err)
-		fmt.Fprintf(logger, "Full HTTP response: %v\n", r)
-		return
-	}
 }
 
 // GetPulumiStackName returns the Pulumi stack name
