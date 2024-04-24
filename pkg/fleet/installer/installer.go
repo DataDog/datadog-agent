@@ -126,11 +126,14 @@ func (i *installerImpl) States() (map[string]repository.State, error) {
 func (i *installerImpl) Install(ctx context.Context, url string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	err := checkAvailableDiskSpace(mininumDiskSpace, filepath.Dir(i.packagesDir))
+	err := i.preSetupPackage(ctx, packageDatadogInstaller)
+	if err != nil {
+		return fmt.Errorf("could not pre-setup package: %w", err)
+	}
+	err = checkAvailableDiskSpace(mininumDiskSpace, i.packagesDir)
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
-
 	pkg, err := i.downloader.Download(ctx, url)
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
@@ -160,7 +163,7 @@ func (i *installerImpl) Install(ctx context.Context, url string) error {
 func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	err := checkAvailableDiskSpace(mininumDiskSpace, filepath.Dir(i.packagesDir))
+	err := checkAvailableDiskSpace(mininumDiskSpace, i.packagesDir)
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
@@ -259,6 +262,15 @@ func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
 		return service.StopAgentExperiment(ctx)
 	case packageAPMInjector:
 		return service.StopInstallerExperiment(ctx)
+	default:
+		return nil
+	}
+}
+
+func (i *installerImpl) preSetupPackage(_ context.Context, pkg string) error {
+	switch pkg {
+	case packageDatadogInstaller:
+		return service.PreSetupInstaller()
 	default:
 		return nil
 	}

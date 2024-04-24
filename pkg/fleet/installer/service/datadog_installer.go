@@ -25,6 +25,16 @@ const (
 
 var installerUnits = []string{installerUnit, installerUnitExp}
 
+// PreSetupInstaller creates the necessary directories for the installer to be installed.
+// FIXME: This is a preinst and I feel bad about it
+func PreSetupInstaller() error {
+	err := os.MkdirAll("/opt/datadog-packages", 0755)
+	if err != nil {
+		return fmt.Errorf("error creating /opt/datadog-packages: %w", err)
+	}
+	return nil
+}
+
 // SetupInstaller installs and starts the installer systemd units
 func SetupInstaller(ctx context.Context, enableDaemon bool) (err error) {
 	defer func() {
@@ -52,10 +62,6 @@ func SetupInstaller(ctx context.Context, enableDaemon bool) (err error) {
 	ddAgentUID, ddAgentGID, err := getAgentIDs()
 	if err != nil {
 		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
-	}
-	err = os.MkdirAll("/opt/datadog-packages", 0755)
-	if err != nil {
-		return fmt.Errorf("error creating /opt/datadog-packages: %w", err)
 	}
 	err = os.MkdirAll("/var/log/datadog", 0755)
 	if err != nil {

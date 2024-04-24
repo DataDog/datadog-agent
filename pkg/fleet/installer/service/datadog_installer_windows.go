@@ -14,6 +14,11 @@ func SetupInstaller(_ context.Context, _ bool) error {
 	return nil
 }
 
+// PreSetupInstaller noop
+func PreSetupInstaller() error {
+	return nil
+}
+
 // RemoveInstaller noop
 func RemoveInstaller(_ context.Context) {}
 
