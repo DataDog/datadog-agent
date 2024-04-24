@@ -85,6 +85,8 @@ func (f *pathtestStore) flush() []*pathtest {
 			continue
 		}
 		pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx.pathtest)
+		// TODO: increment nextRunTime to a time after current time
+		//       in case flush() is not fast enough, it won't accumulate excessively
 		ptConfigCtx.nextRunTime = ptConfigCtx.nextRunTime.Add(f.pathtestRunInterval)
 		f.pathtestContexts[key] = ptConfigCtx
 	}
