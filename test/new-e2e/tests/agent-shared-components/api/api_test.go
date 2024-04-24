@@ -7,6 +7,7 @@ package api
 
 import (
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
@@ -34,7 +35,7 @@ type apiSuite struct {
 }
 
 func TestApiSuite(t *testing.T) {
-	e2e.Run(t, &apiSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()), e2e.WithDevMode())
+	e2e.Run(t, &apiSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
 type agentEndpointInfo struct {
@@ -88,10 +89,15 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			// TODO: json parse this to a better comparison
 			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				want := `"Major":7,"Minor":5`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+				type Version struct {
+					Major int
+				}
+				var have Version
+				err := json.Unmarshal([]byte(resp), &have)
+				assert.NoError(ct, err)
+				want := Version{Major: 7}
+				assert.Equal(ct, have, want, "%s %s returned: %s, wanted: %v", e.method, e.endpoint, resp, want)
 			},
 		},
 		{
@@ -117,10 +123,14 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			// TODO: json parse this to a better comparison
 			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				want := `{"Healthy":[`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+				type HealthCheck struct {
+					Healthy []string
+				}
+				var have HealthCheck
+				err := json.Unmarshal([]byte(resp), &have)
+				assert.NoError(ct, err)
+				assert.NotEmpty(ct, have.Healthy, "%s %s returned: %s, expected Healthy not to be empty", e.method, e.endpoint, resp)
 			},
 		},
 		{
@@ -132,8 +142,8 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			// TODO: find a better setting to compare output to
 			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				// this returns text output
 				want := `api_key: '*******`
 				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
 			},
@@ -147,10 +157,14 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			// TODO: find a better setting to compare output to
 			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				want := `dogstatsd_capture_duration`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+				type Config struct {
+					DogstatsdCaptureDuration interface{} `json:"dogstatsd_capture_duration"`
+				}
+				var have Config
+				err := json.Unmarshal([]byte(resp), &have)
+				assert.NoError(ct, err)
+				assert.NotEmpty(ct, have.DogstatsdCaptureDuration, "%s %s returned: %s, expected dogstatsd_capture_duration key", e.method, e.endpoint, resp)
 			},
 		},
 		{
@@ -164,8 +178,13 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 			},
 			// TODO: can we set up a jmx environment
 			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				want := `{"configs":{}`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+				type Config struct {
+					JMXConfig interface{} `json:"configs"`
+				}
+				var have Config
+				err := json.Unmarshal([]byte(resp), &have)
+				assert.NoError(ct, err)
+				assert.Equal(ct, have.JMXConfig, make(map[string]interface{}), "%s %s returned: %s, expected jmx configs to be empty", e.method, e.endpoint, resp)
 			},
 		},
 		{
@@ -177,10 +196,14 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			// TODO: json parse this to a better comparison
 			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				want := `{"configs":[{"check_name":`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+				type Config struct {
+					Checks []interface{} `json:"configs"`
+				}
+				var have Config
+				err := json.Unmarshal([]byte(resp), &have)
+				assert.NoError(ct, err)
+				assert.NotEmpty(ct, have.Checks, "%s %s returned: %s, expected \"configs\" checks to be present", e.method, e.endpoint, resp)
 			},
 		},
 		{
@@ -222,8 +245,13 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 			},
 			// TODO: there isn't a configuration to enable this, it needs a dedicated environment setup
 			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				want := `{"entities":{}}`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+				type Tagger struct {
+					Entities interface{} `json:"entities"`
+				}
+				var have Tagger
+				err := json.Unmarshal([]byte(resp), &have)
+				assert.NoError(ct, err)
+				assert.Equal(ct, have.Entities, make(map[string]interface{}), "%s %s returned: %s, expected entities to be empty", e.method, e.endpoint, resp)
 			},
 		},
 		{
@@ -236,8 +264,13 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				data:     "",
 			},
 			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				want := `{"entities":{}}`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+				type Workload struct {
+					Entities interface{} `json:"entities"`
+				}
+				var have Workload
+				err := json.Unmarshal([]byte(resp), &have)
+				assert.NoError(ct, err)
+				assert.Equal(ct, have.Entities, make(map[string]interface{}), "%s %s returned: %s, expected entities to be empty", e.method, e.endpoint, resp)
 			},
 		},
 		{
@@ -249,12 +282,14 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "{}",
 			},
-			// TODO: json parse this output for a better comparison
 			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				want := `{
-  "gohai": {
-    "cpu": {`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+				type Metadata struct {
+					Gohai interface{} `json:"gohai"`
+				}
+				var have Metadata
+				err := json.Unmarshal([]byte(resp), &have)
+				assert.NoError(ct, err)
+				assert.NotEmpty(ct, have.Gohai, "%s %s returned: %s, expected \"gohai\" fields to be present", e.method, e.endpoint, resp)
 			},
 		},
 		{
@@ -266,10 +301,14 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "{}",
 			},
-			// TODO: json parse this output for a better comparison
 			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				want := `"agentVersion": "7.5`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+				type Metadata struct {
+					Version string `json:"agentVersion"`
+				}
+				var have Metadata
+				err := json.Unmarshal([]byte(resp), &have)
+				assert.NoError(ct, err)
+				assert.NotEmpty(ct, have.Version, "%s %s returned: %s, expected \"agentVersion\" to be present", e.method, e.endpoint, resp)
 			},
 		},
 		{
@@ -281,10 +320,14 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "{}",
 			},
-			// TODO: json parse this output for a better comparison
 			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				want := `"check_metadata": {`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+				type Metadata struct {
+					Check interface{} `json:"check_metadata"`
+				}
+				var have Metadata
+				err := json.Unmarshal([]byte(resp), &have)
+				assert.NoError(ct, err)
+				assert.NotEmpty(ct, have.Check, "%s %s returned: %s, expected \"check_metadata\" fields to be present", e.method, e.endpoint, resp)
 			},
 		},
 		{
@@ -296,10 +339,14 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "{}",
 			},
-			// TODO: json parse this output for a better comparison
 			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				want := `"agent_metadata": {`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+				type Metadata struct {
+					Agent interface{} `json:"agent_metadata"`
+				}
+				var have Metadata
+				err := json.Unmarshal([]byte(resp), &have)
+				assert.NoError(ct, err)
+				assert.NotEmpty(ct, have.Agent, "%s %s returned: %s, expected \"agent_metadata\" fields to be present", e.method, e.endpoint, resp)
 			},
 		},
 		{
@@ -311,10 +358,14 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "{}",
 			},
-			// TODO: json parse this output for a better comparison
 			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				want := `"host_metadata": {`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+				type Metadata struct {
+					Host interface{} `json:"host_metadata"`
+				}
+				var have Metadata
+				err := json.Unmarshal([]byte(resp), &have)
+				assert.NoError(ct, err)
+				assert.NotEmpty(ct, have.Host, "%s %s returned: %s, expected \"host_metadata\" fields to be present", e.method, e.endpoint, resp)
 			},
 		},
 		// TODO: figure out how to make this work
@@ -339,8 +390,13 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				data:     "{}",
 			},
 			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				want := `{"SuiteName":"connectivity-datadog-autodiscovery","SuiteDiagnoses":[{`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+				type Diagnose struct {
+					Suite string `json:"SuiteName"`
+				}
+				var have []Diagnose
+				err := json.Unmarshal([]byte(resp), &have)
+				assert.NoError(ct, err)
+				assert.NotZero(ct, len(have), "%s %s returned: %s, expected diagnose suites to be present", e.method, e.endpoint, resp)
 			},
 		},
 	}
@@ -420,8 +476,6 @@ func (v *apiSuite) TestWorkloadMetaAgentAPIEndpoint() {
 		method:   "GET",
 		data:     "",
 	}
-	// TODO: add a better comparison here by json parsing the response
-	want := `{"entities":{"process":{"infos":{"sources(merged):`
 
 	config := `process_config:
   process_collection:
@@ -448,9 +502,16 @@ log_level: debug
 	host := v.Env().RemoteHost
 
 	require.EventuallyWithT(v.T(), func(ct *assert.CollectT) {
+		type Workload struct {
+			Entities interface{} `json:"entities"`
+		}
+
+		var have Workload
 		resp, err := host.Execute(cmd)
 		if assert.NoError(ct, err) {
-			assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+			err := json.Unmarshal([]byte(resp), &have)
+			assert.NoError(ct, err)
+			assert.NotEmpty(ct, have.Entities, "%s %s returned: %s, expected workload entities to be present", e.method, e.endpoint, resp)
 		}
 	}, 2*time.Minute, 10*time.Second)
 }
