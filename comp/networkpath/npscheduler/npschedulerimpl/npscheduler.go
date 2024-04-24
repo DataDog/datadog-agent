@@ -29,8 +29,8 @@ type npSchedulerImpl struct {
 	workers int
 
 	receivedPathtestConfigCount *atomic.Uint64
-	pathtestConfigState         *pathtestStore
-	pathtestConfigIn            chan *pathtest
+	pathtestStore               *pathtestStore
+	pathtestIn                  chan *pathtest
 	stopChan                    chan struct{}
 	flushLoopDone               chan struct{}
 	runDone                     chan struct{}
@@ -43,9 +43,9 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 		epForwarder: epForwarder,
 		logger:      logger,
 
-		pathtestConfigState: newPathtestStore(DefaultFlushTickerInterval, DefaultPathtestRunDurationFromDiscovery, DefaultPathtestRunInterval, logger),
-		pathtestConfigIn:    make(chan *pathtest),
-		workers:             3, // TODO: Make it a configurable
+		pathtestStore: newPathtestStore(DefaultFlushTickerInterval, DefaultPathtestRunDurationFromDiscovery, DefaultPathtestRunInterval, logger),
+		pathtestIn:    make(chan *pathtest),
+		workers:       3, // TODO: Make it a configurable
 
 		receivedPathtestConfigCount: atomic.NewUint64(0),
 		TimeNowFunction:             time.Now,
@@ -72,11 +72,11 @@ func (s *npSchedulerImpl) listenPathtestConfigs() {
 			s.logger.Info("Stop listening to traceroute commands")
 			s.runDone <- struct{}{}
 			return
-		case pathtestConf := <-s.pathtestConfigIn:
+		case ptest := <-s.pathtestIn:
 			// TODO: TESTME
-			s.logger.Infof("Command received: %+v", pathtestConf)
+			s.logger.Infof("Command received: %+v", ptest)
 			s.receivedPathtestConfigCount.Inc()
-			s.pathtestConfigState.add(pathtestConf)
+			s.pathtestStore.add(ptest)
 		}
 	}
 }
@@ -89,7 +89,7 @@ func (s *npSchedulerImpl) Schedule(hostname string, port uint16) {
 		s.logger.Debugf("Only IPv4 is currently supported. Address not supported: %s", hostname)
 		return
 	}
-	s.pathtestConfigIn <- &pathtest{
+	s.pathtestIn <- &pathtest{
 		hostname: hostname,
 		port:     port,
 	}
@@ -168,12 +168,11 @@ func (s *npSchedulerImpl) flushLoop() {
 }
 
 func (s *npSchedulerImpl) flush() {
-	flowsContexts := s.pathtestConfigState.getPathtestContextCount()
+	flowsContexts := s.pathtestStore.getPathtestContextCount()
 	flushTime := s.TimeNowFunction()
-	flowsToFlush := s.pathtestConfigState.flush()
+	flowsToFlush := s.pathtestStore.flush()
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
-	// TODO: run traceroute here for flowsToFlush
 	for _, ptConf := range flowsToFlush {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.hostname, ptConf.port)
 	}
