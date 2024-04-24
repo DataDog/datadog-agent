@@ -174,3 +174,13 @@ func (suite *AgentTestSuite) TestGetPipelineProvider() {
 func TestAgentTestSuite(t *testing.T) {
 	suite.Run(t, new(AgentTestSuite))
 }
+
+func TestBuildEndpoints(t *testing.T) {
+	config := fxutil.Test[configComponent.Component](t, fx.Options(
+		configComponent.MockModule(),
+	))
+
+	endpoints, err := buildEndpoints(config)
+	assert.Nil(t, err)
+	assert.Equal(t, "agent-intake.logs.datadoghq.com", endpoints.Main.Host)
+}
