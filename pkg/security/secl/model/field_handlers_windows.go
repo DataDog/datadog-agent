@@ -84,6 +84,11 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 	case "open_key":
+	case "rename":
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.Old)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.Old)
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.New)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.New)
 	case "set_key_value":
 	}
 }
