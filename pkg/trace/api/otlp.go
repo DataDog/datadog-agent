@@ -603,7 +603,9 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 // resourceFromTags attempts to deduce a more accurate span resource from the given list of tags meta.
 // If this is not possible, it returns an empty string.
 func resourceFromTags(meta map[string]string) string {
-	if m := meta[string(semconv.AttributeHTTPMethod)]; m != "" {
+	// `http.method` was renamed to `http.request.method` in the HTTP stabilization.
+	// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
+	if _, m := getFirstFromMap(meta, "http.request.method", semconv.AttributeHTTPMethod); m != "" {
 		// use the HTTP method + route (if available)
 		if _, route := getFirstFromMap(meta, semconv.AttributeHTTPRoute, "grpc.path"); route != "" {
 			return m + " " + route
@@ -665,8 +667,12 @@ func status2Error(status ptrace.Status, events ptrace.SpanEventSlice, span *pb.S
 		if status.Message() != "" {
 			// use the status message
 			span.Meta["error.msg"] = status.Message()
-		} else if httpcode, ok := span.Meta["http.status_code"]; ok {
-			// we have status code that we can use as details
+		} else if _, httpcode := getFirstFromMap(span.Meta, "http.response.status_code", "http.status_code"); httpcode != "" {
+			// v1.23.0 renamed http.status_code to http.response.status_code
+			// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#common-attributes-across-http-client-and-server-spans
+
+			// http.status_text was removed in spec v0.7.0 (https://github.com/open-telemetry/opentelemetry-specification/pull/972)
+			// TODO (OTEL-????): Remove this and use a map from status code to status text.
 			if httptext, ok := span.Meta["http.status_text"]; ok {
 				span.Meta["error.msg"] = fmt.Sprintf("%s %s", httpcode, httptext)
 			} else {
