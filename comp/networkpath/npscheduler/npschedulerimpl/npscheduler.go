@@ -7,6 +7,7 @@
 package npschedulerimpl
 
 import (
+	"context"
 	"encoding/json"
 	"net"
 	"sync"
@@ -24,7 +25,7 @@ import (
 
 type dependencies struct {
 	fx.In
-
+	Lc          fx.Lifecycle
 	EpForwarder eventplatform.Component
 }
 
@@ -42,9 +43,15 @@ func Module() fxutil.Module {
 }
 
 func newNpScheduler(deps dependencies) provides {
-	// Component initialization
+	scheduler := newNpSchedulerImpl(deps.EpForwarder)
+	deps.Lc.Append(fx.Hook{
+		OnStop: func(context.Context) error {
+			scheduler.Stop()
+			return nil
+		},
+	})
 	return provides{
-		Comp: newNpSchedulerImpl(deps.EpForwarder),
+		Comp: scheduler,
 	}
 }
 
@@ -55,18 +62,38 @@ type npSchedulerImpl struct {
 
 	workers int
 
-	stop     chan bool
-	jobsChan chan tracerouteJob
+	pathtestConfigIn chan pathtestConfig
+	stopChan         chan struct{}
+	flushLoopDone    chan struct{}
+	runDone          chan struct{}
 }
 
 func (s *npSchedulerImpl) Init() {
 	s.initOnce.Do(func() {
-		for w := 0; w < s.workers; w++ {
-			go worker(s, s.jobsChan)
-		}
+		// TODO: conn checks -> job chan
+		//       job chan -> update state
+		//       flush
+		//         - read state
+		//         - traceroute using workers
+		go s.listenPathtestConfigs()
+		//go s.flushLoop()
 	})
 }
-
+func (s *npSchedulerImpl) listenPathtestConfigs() {
+	for {
+		select {
+		case <-s.stopChan:
+			// TODO: TESTME
+			log.Info("Stop listening to traceroute commands")
+			s.runDone <- struct{}{}
+			return
+		case command := <-s.pathtestConfigIn:
+			log.Infof("Command received: %+v", command)
+			//s.receivedFlowCount.Inc()
+			//s.traceroute.add(flow)
+		}
+	}
+}
 func (s *npSchedulerImpl) Schedule(hostname string, port uint16) {
 	// TODO: Use logger component?
 	log.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
@@ -77,17 +104,17 @@ func (s *npSchedulerImpl) Schedule(hostname string, port uint16) {
 		log.Debugf("Only IPv4 is currently supported. Address not supported: %s", hostname)
 		return
 	}
-	s.jobsChan <- tracerouteJob{
-		destination: hostname,
-		port:        port,
+	s.pathtestConfigIn <- pathtestConfig{
+		hostname: hostname,
+		port:     port,
 	}
 }
 
-func (s *npSchedulerImpl) runTraceroute(job tracerouteJob) {
+func (s *npSchedulerImpl) runTraceroute(job pathtestConfig) {
 	log.Debugf("Run Traceroute for job: %+v", job)
 	// TODO: RUN 3x? Configurable?
 	for i := 0; i < 3; i++ {
-		s.pathForConn(job.destination, job.port)
+		s.pathForConn(job.hostname, job.port)
 	}
 }
 
@@ -124,11 +151,15 @@ func (s *npSchedulerImpl) pathForConn(hostname string, port uint16) {
 	}
 }
 
+func (s *npSchedulerImpl) Stop() {
+	log.Error("Stop npSchedulerImpl")
+}
+
 func newNpSchedulerImpl(epForwarder eventplatform.Component) *npSchedulerImpl {
 	return &npSchedulerImpl{
 		epForwarder: epForwarder,
 
-		jobsChan: make(chan tracerouteJob),
-		workers:  3, // TODO: Make it a configurable
+		pathtestConfigIn: make(chan pathtestConfig),
+		workers:          3, // TODO: Make it a configurable
 	}
 }
