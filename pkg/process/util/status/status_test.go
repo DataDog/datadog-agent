@@ -41,36 +41,34 @@ func TestGetStatus(t *testing.T) {
 	testTime := time.Now()
 
 	expectedExpVars := ProcessExpvars{
-		ExpvarsMap: ExpvarsMap{
-			Pid:           1,
-			Uptime:        time.Now().Add(-time.Hour).Nanosecond(),
-			EnabledChecks: []string{"process", "rtprocess"},
-			MemStats: MemInfo{
-				Alloc: 1234,
-			},
-			Endpoints: map[string][]string{
-				"https://process.datadoghq.com": {
-					"fakeAPIKey",
-				},
-			},
-			LastCollectTime:                 "2022-02-011 10:10:00",
-			DockerSocket:                    "/var/run/docker.sock",
-			ProcessCount:                    30,
-			ContainerCount:                  2,
-			ProcessQueueSize:                1,
-			RTProcessQueueSize:              3,
-			ConnectionsQueueSize:            4,
-			PodQueueSize:                    5,
-			ProcessQueueBytes:               2 * 1024,
-			RTProcessQueueBytes:             512,
-			ConnectionsQueueBytes:           8 * 1024,
-			PodQueueBytes:                   4 * 1024,
-			SystemProbeProcessModuleEnabled: true,
-			LanguageDetectionEnabled:        true,
-			WlmExtractorCacheSize:           36,
-			WlmExtractorStaleDiffs:          1,
-			WlmExtractorDiffsDropped:        2,
+		Pid:           1,
+		Uptime:        time.Now().Add(-time.Hour).Nanosecond(),
+		EnabledChecks: []string{"process", "rtprocess"},
+		MemStats: MemInfo{
+			Alloc: 1234,
 		},
+		Endpoints: map[string][]string{
+			"https://process.datadoghq.com": {
+				"fakeAPIKey",
+			},
+		},
+		LastCollectTime:                 "2022-02-011 10:10:00",
+		DockerSocket:                    "/var/run/docker.sock",
+		ProcessCount:                    30,
+		ContainerCount:                  2,
+		ProcessQueueSize:                1,
+		RTProcessQueueSize:              3,
+		ConnectionsQueueSize:            4,
+		PodQueueSize:                    5,
+		ProcessQueueBytes:               2 * 1024,
+		RTProcessQueueBytes:             512,
+		ConnectionsQueueBytes:           8 * 1024,
+		PodQueueBytes:                   4 * 1024,
+		SystemProbeProcessModuleEnabled: true,
+		LanguageDetectionEnabled:        true,
+		WlmExtractorCacheSize:           36,
+		WlmExtractorStaleDiffs:          1,
+		WlmExtractorDiffsDropped:        2,
 	}
 
 	// Feature detection needs to run before host methods are called. During runtime, feature detection happens
