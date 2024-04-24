@@ -1,4 +1,4 @@
-omnibus/package-scripts/installer-rpm/postrm#!/bin/sh
+#!/bin/sh
 #
 # Perform necessary datadog-updater removal steps after package is uninstalled
 # or during the removal of the previous version after an upgrade
