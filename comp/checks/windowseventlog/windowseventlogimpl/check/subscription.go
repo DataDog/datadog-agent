@@ -344,28 +344,43 @@ func (c *Check) initSession() error {
 	return nil
 }
 
-func (c *Check) loadDDSecurityProfile(level string) (eventdatafilter.Filter, error) {
-	// get the path to the security profile
+func (c *Check) getProfilesDir() (string, error) {
 	root := c.ConfigSource()
 	if strings.HasPrefix(root, "file:") {
 		root = strings.TrimPrefix(root, "file:")
 		root = filepath.Dir(root)
 	} else {
-		// TODO: read confd_path option
-		root = `C:\ProgramData\Datadog\conf.d\`
-		root = filepath.Join(root, `win32_event_log.d"`)
+		root = c.agentConfig.GetString("confd_path")
+		if root == "" {
+			return "", fmt.Errorf("confd_path is not set")
+		}
+		root = filepath.Join(root, fmt.Sprintf(`%s.d`, CheckName))
 	}
-	var profileName string
+	return filepath.Join(root, "profiles"), nil
+}
+
+func mapSecurityEventLevelToProfileFile(level string) (string, error) {
 	switch level {
 	case "low":
-		profileName = "dd_security_events_low.yaml"
+		return "dd_security_events_low.yaml", nil
 	case "high":
-		profileName = "dd_security_events_high.yaml"
-	default:
-		return nil, fmt.Errorf("invalid security level: %s", level)
+		return "dd_security_events_high.yaml", nil
 	}
-	profilePath := filepath.Join(root, "profiles", profileName)
-	log.Debugf("Loading security profile from %s", profilePath)
+	return "", fmt.Errorf("invalid security level: %s", level)
+}
+
+func (c *Check) loadDDSecurityProfile(level string) (eventdatafilter.Filter, error) {
+	// get the path to the security profile
+	profilesDir, err := c.getProfilesDir()
+	if err != nil {
+		return nil, err
+	}
+	profileName, err := mapSecurityEventLevelToProfileFile(level)
+	if err != nil {
+		return nil, err
+	}
+	profilePath := filepath.Join(profilesDir, profileName)
+	log.Infof("Loading security profile from %s", profilePath)
 
 	// read the profile
 	reader, err := os.Open(profilePath)

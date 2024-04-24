@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl/check/eventdatafilter"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -44,7 +45,8 @@ type Check struct {
 	core.CheckBase
 	config *Config
 
-	logsAgent optional.Option[logsAgent.Component]
+	logsAgent   optional.Option[logsAgent.Component]
+	agentConfig configComponent.Component
 
 	fetchEventsLoopWaiter sync.WaitGroup
 	fetchEventsLoopStop   chan struct{}
@@ -298,12 +300,13 @@ func (c *Check) Cancel() {
 }
 
 // Factory creates a new check factory
-func Factory(logsAgent optional.Option[logsAgent.Component]) optional.Option[func() check.Check] {
+func Factory(logsAgent optional.Option[logsAgent.Component], config configComponent.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
 		return &Check{
-			CheckBase: core.NewCheckBase(CheckName),
-			logsAgent: logsAgent,
-			evtapi:    winevtapi.New(),
+			CheckBase:   core.NewCheckBase(CheckName),
+			logsAgent:   logsAgent,
+			agentConfig: config,
+			evtapi:      winevtapi.New(),
 		}
 	})
 }
