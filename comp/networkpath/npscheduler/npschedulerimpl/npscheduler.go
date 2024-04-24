@@ -97,10 +97,7 @@ func (s *npSchedulerImpl) Schedule(hostname string, port uint16) {
 
 func (s *npSchedulerImpl) runTraceroute(ptest *pathtest) {
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
-	// TODO: RUN 3x? Configurable?
-	for i := 0; i < 3; i++ {
-		s.pathForConn(ptest)
-	}
+	s.pathForConn(ptest)
 }
 
 func (s *npSchedulerImpl) pathForConn(ptest *pathtest) {
