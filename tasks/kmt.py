@@ -967,7 +967,7 @@ def build(
 @task
 def clean(ctx: Context, stack: str | None = None, container=False, image=False):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(stack), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
+    assert stacks.stack_exists(stack), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
     cc = get_compiler(ctx, full_arch("local"))
     cc.exec("inv -e system-probe.clean", run_dir=CONTAINER_AGENT_PATH)
