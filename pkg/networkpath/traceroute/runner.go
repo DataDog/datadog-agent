@@ -29,7 +29,7 @@ const (
 	DefaultMinTTL       = 1
 	DefaultMaxTTL       = 30
 	DefaultDelay        = 50 //msec
-	DefaultReadTimeout  = 3 * time.Second
+	DefaultReadTimeout  = 10 * time.Second
 	DefaultOutputFormat = "json"
 )
 

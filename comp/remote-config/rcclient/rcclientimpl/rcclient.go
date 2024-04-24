@@ -47,7 +47,7 @@ const (
 
 type rcClient struct {
 	client        *client.Client
-	clientHA      *client.Client
+	clientMRF     *client.Client
 	m             *sync.Mutex
 	taskProcessed map[string]bool
 
@@ -100,9 +100,9 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		return nil, err
 	}
 
-	var clientHA *client.Client
-	if config.Datadog.GetBool("ha.enabled") {
-		clientHA, err = client.NewUnverifiedHAGRPCClient(
+	var clientMRF *client.Client
+	if config.Datadog.GetBool("multi_region_failover.enabled") {
+		clientMRF, err = client.NewUnverifiedMRFGRPCClient(
 			ipcAddress,
 			config.GetIPCPort(),
 			func() (string, error) { return security.FetchAuthToken(config.Datadog) },
@@ -118,7 +118,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		taskListeners:     fxutil.GetAndFilterGroup(deps.TaskListeners),
 		m:                 &sync.Mutex{},
 		client:            c,
-		clientHA:          clientHA,
+		clientMRF:         clientMRF,
 		settingsComponent: deps.SettingsComponent,
 	}
 
@@ -154,36 +154,46 @@ func (rc rcClient) start() {
 
 	rc.client.Start()
 
-	if rc.clientHA != nil {
-		rc.clientHA.Subscribe(state.ProductAgentFailover, rc.haUpdateCallback)
-		rc.clientHA.Start()
+	if rc.clientMRF != nil {
+		rc.clientMRF.Subscribe(state.ProductAgentFailover, rc.mrfUpdateCallback)
+		rc.clientMRF.Start()
 	}
 }
 
-func (rc rcClient) haUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	var failover *bool
 	applied := false
 	for cfgPath, update := range updates {
-		haUpdate, err := parseHighAvailabilityConfig(update.Config)
+		mrfUpdate, err := parseMultiRegionFailoverConfig(update.Config)
 		if err != nil {
-			pkglog.Errorf("HA update unmarshal failed: %s", err)
+			pkglog.Errorf("MRF update unmarshal failed: %s", err)
 			continue
 		}
-		if haUpdate != nil && haUpdate.Failover != nil {
+		if mrfUpdate != nil && mrfUpdate.Failover != nil {
 			if applied {
-				pkglog.Infof("Multiple HA updates received, disregarding update of `ha.failover` to %t", *haUpdate.Failover)
+				pkglog.Infof("Multiple MRF updates received, disregarding update of `multi_region_failover.failover_metrics`/`multi_region_failover.failover_logs` to %t", *mrfUpdate.Failover)
 				continue
 			}
-			failover = haUpdate.Failover
-			pkglog.Infof("Setting `ha.failover: %t` through remote config", *failover)
-			err = rc.settingsComponent.SetRuntimeSetting("ha.failover", *failover, model.SourceRC)
-			if err != nil {
-				pkglog.Errorf("HA failover update failed: %s", err)
-				applyStateCallback(cfgPath, state.ApplyStatus{
-					State: state.ApplyStateError,
-					Error: err.Error(),
-				})
-			} else {
+			failover = mrfUpdate.Failover
+			pkglog.Infof("Setting `multi_region_failover.failover_metrics` and `multi_region_failover.failover_logs` to `%t` through Remote Configuration", *failover)
+
+			applyError := false
+			for _, setting := range []string{"multi_region_failover.failover_metrics", "multi_region_failover.failover_logs"} {
+				// Don't try to apply any further if we already encountered an error while applying it to a specific setting.
+				if !applyError {
+					err = rc.settingsComponent.SetRuntimeSetting(setting, *failover, model.SourceRC)
+					if err != nil {
+						pkglog.Errorf("MRF failover update failed: %s", err)
+						applyError = true
+						applyStateCallback(cfgPath, state.ApplyStatus{
+							State: state.ApplyStateError,
+							Error: err.Error(),
+						})
+					}
+				}
+			}
+
+			if !applyError {
 				applied = true
 				applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 			}
@@ -192,15 +202,17 @@ func (rc rcClient) haUpdateCallback(updates map[string]state.RawConfig, applySta
 
 	// Config update is nil, so we should unset the failover value if it was set via RC previously
 	if failover == nil {
-		// Determine the current source of the ha.failover cfg value
-		haCfgSource := config.Datadog.GetSource("ha.failover")
+		for _, setting := range []string{"multi_region_failover.failover_metrics", "multi_region_failover.failover_logs"} {
+			// Determine the current source of the multi_region_failover.failover cfg value
+			mrfCfgSource := config.Datadog.GetSource(setting)
 
-		// Unset the RC-sourced ha.failover value regardless of what it is
-		config.Datadog.UnsetForSource("ha.failover", model.SourceRC)
+			// Unset the RC-sourced setting value regardless of what it is
+			config.Datadog.UnsetForSource(setting, model.SourceRC)
 
-		// If the ha.failover value was previously set via RC, log the current value now that we've unset it
-		if haCfgSource == model.SourceRC {
-			pkglog.Infof("Falling back to `ha.failover: %t`", config.Datadog.GetBool("ha.failover"))
+			// If the failover setting value was previously set via RC, log the current value now that we've unset it
+			if mrfCfgSource == model.SourceRC {
+				pkglog.Infof("Falling back to `%s: %t`", setting, config.Datadog.GetBool(setting))
+			}
 		}
 	}
 }

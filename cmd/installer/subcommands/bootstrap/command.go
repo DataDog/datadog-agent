@@ -69,8 +69,9 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 	var pkg string
 	var version string
 	bootstrapCmd := &cobra.Command{
-		Use:   "bootstrap",
-		Short: "Bootstraps the package with the first version.",
+		Use:     "bootstrap",
+		Short:   "Bootstraps the package with the first version.",
+		GroupID: "bootstrap",
 		Long: `Installs the first version of the package managed by the installer.
 		This first version is sent remotely to the agent and can be configured from the UI.
 		This command will exit after the first version is installed.`,
