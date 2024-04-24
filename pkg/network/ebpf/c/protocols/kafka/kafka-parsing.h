@@ -9,8 +9,8 @@
 
 // forward declaration
 static __always_inline bool kafka_allow_packet(conn_tuple_t *tup, struct __sk_buff* skb, skb_info_t *skb_info);
-static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, u32 offset);
-static __always_inline bool kafka_process_response(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
+static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt);
+static __always_inline bool kafka_process_response(void *ctx, conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, skb_info_t *skb_info);
 
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
 // The iterations reads up to MIN(max_buffer_size, real_size).
@@ -70,15 +70,18 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    if (kafka_process_response(&tup, kafka, skb, &skb_info)) {
+    pktbuf_t pkt = pktbuf_from_skb(skb, &skb_info);
+
+    if (kafka_process_response(skb, &tup, kafka, pkt, &skb_info)) {
         return 0;
     }
 
-    (void)kafka_process(&tup, kafka, skb, skb_info.data_off);
+    (void)kafka_process(&tup, kafka, pkt);
     return 0;
 }
 
-READ_INTO_BUFFER(topic_name_parser, TOPIC_NAME_MAX_STRING_SIZE, BLK_SIZE)
+
+PKTBUF_READ_INTO_BUFFER(topic_name_parser, TOPIC_NAME_MAX_STRING_SIZE, BLK_SIZE)
 
 static __always_inline void kafka_batch_enqueue_wrapper(kafka_info_t *kafka, conn_tuple_t *tup, kafka_transaction_t *transaction) {
     kafka_event_t *event = &kafka->event;
@@ -108,7 +111,7 @@ enum parse_result {
 // TCP segments splits can happen at any point in the response. If a
 // field happens to straddles the segment boundary, we need to read
 // some bytes from the old packet and the rest from the new packet.
-static __always_inline enum parse_result read_with_remainder(kafka_response_context_t *response, const struct __sk_buff *skb,
+static __always_inline enum parse_result read_with_remainder(kafka_response_context_t *response, pktbuf_t pkt,
                                                              u32 *offset, u32 data_end, s32 *val, bool first)
 {
     if (*offset >= data_end) {
@@ -153,7 +156,7 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
     if (!remainder) {
         // No remainder, and 4 or more bytes more in the packet, so just
         // do a normal read.
-        bpf_skb_load_bytes(skb, *offset, val, sizeof(*val));
+        pktbuf_load_bytes(pkt, *offset, val, sizeof(*val));
         *offset += sizeof(*val);
         *val = bpf_ntohl(*val);
         extra_debug("read without remainder: %d", *val);
@@ -170,7 +173,7 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
     u8 *reconstruct = response->remainder_buf;
     u8 tail[4] = {0};
 
-    bpf_skb_load_bytes(skb, *offset, &tail, 4);
+    pktbuf_load_bytes(pkt, *offset, &tail, 4);
 
     switch (remainder) {
     case 1:
@@ -197,7 +200,7 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
 static __always_inline enum parse_result kafka_continue_parse_response_loop(kafka_info_t *kafka,
                                                                             conn_tuple_t *tup,
                                                                             kafka_response_context_t *response,
-                                                                            struct __sk_buff *skb, u32 offset,
+                                                                            pktbuf_t pkt, u32 offset,
                                                                             u32 data_end)
 {
     u32 orig_offset = offset;
@@ -238,7 +241,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
         case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
             if (request->request_api_version >= 4) {
                 s32 aborted_transactions = 0;
-                ret = read_with_remainder(response, skb, &offset, data_end, &aborted_transactions, first);
+                ret = read_with_remainder(response, pkt, &offset, data_end, &aborted_transactions, first);
                 if (ret != RET_DONE) {
                     return ret;
                 }
@@ -269,7 +272,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
             // fallthrough
 
         case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START:
-            ret = read_with_remainder(response, skb, &offset, data_end, &response->record_batches_num_bytes, first);
+            ret = read_with_remainder(response, pkt, &offset, data_end, &response->record_batches_num_bytes, first);
             if (ret != RET_DONE) {
                 return ret;
             }
@@ -290,7 +293,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
             // fallthrough
 
         case KAFKA_FETCH_RESPONSE_RECORD_BATCH_LENGTH:
-            ret = read_with_remainder(response, skb, &offset, data_end, &response->record_batch_length, first);
+            ret = read_with_remainder(response, pkt, &offset, data_end, &response->record_batch_length, first);
             if (ret != RET_DONE) {
                 return ret;
             }
@@ -332,7 +335,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
                 return RET_EOP;
             }
 
-            READ_BIG_ENDIAN_WRAPPER(s8, magic, skb, offset);
+            PKTBUF_READ_BIG_ENDIAN_WRAPPER(s8, magic, pkt, offset);
             if (magic != 2) {
                 extra_debug("Invalid magic byte");
                 return RET_ERR;
@@ -352,7 +355,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
         case KAFKA_FETCH_RESPONSE_RECORD_BATCH_RECORDS_COUNT:
             {
                 s32 records_count = 0;
-                ret = read_with_remainder(response, skb, &offset, data_end, &records_count, first);
+                ret = read_with_remainder(response, pkt, &offset, data_end, &records_count, first);
                 if (ret != RET_DONE) {
                     return ret;
                 }
@@ -432,12 +435,12 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
 static __always_inline enum parse_result kafka_continue_parse_response(kafka_info_t *kafka,
                                                                        conn_tuple_t *tup,
                                                                        kafka_response_context_t *response,
-                                                                       struct __sk_buff *skb, u32 offset,
+                                                                       pktbuf_t pkt, u32 offset,
                                                                        u32 data_end)
 {
     enum parse_result ret;
 
-    ret = kafka_continue_parse_response_loop(kafka, tup, response, skb, offset, data_end);
+    ret = kafka_continue_parse_response_loop(kafka, tup, response, pkt, offset, data_end);
     if (ret != RET_EOP) {
         return ret;
     }
@@ -451,13 +454,13 @@ static __always_inline enum parse_result kafka_continue_parse_response(kafka_inf
 
         switch (response->carry_over_offset) {
         case -1:
-            bpf_skb_load_bytes(skb, data_end - 1, &response->remainder_buf, 1);
+            pktbuf_load_bytes(pkt, data_end - 1, &response->remainder_buf, 1);
             break;
         case -2:
-            bpf_skb_load_bytes(skb, data_end - 2, &response->remainder_buf, 2);
+            pktbuf_load_bytes(pkt, data_end - 2, &response->remainder_buf, 2);
             break;
         case -3:
-            bpf_skb_load_bytes(skb, data_end - 3, &response->remainder_buf, 3);
+            pktbuf_load_bytes(pkt, data_end - 3, &response->remainder_buf, 3);
             break;
         default:
             // read_with_remainder() only reads 4 byte values, so the remainder
@@ -473,9 +476,15 @@ static __always_inline enum parse_result kafka_continue_parse_response(kafka_inf
     return ret;
 }
 
-static __always_inline void kafka_call_response_parser(conn_tuple_t *tup, struct __sk_buff *skb)
+static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *tup, pktbuf_t pkt)
 {
-    bpf_tail_call_compat(skb, &protocols_progs, PROG_KAFKA_RESPONSE_PARSER);
+    switch (pkt.type) {
+    case PKTBUF_SKB:
+        bpf_tail_call_compat(ctx, &protocols_progs, PROG_KAFKA_RESPONSE_PARSER);
+        break;
+    case PKTBUF_TLS:
+        break;
+    }
 
     // The only reason we would get here if the tail call failed due to too
     // many tail calls.
@@ -483,11 +492,51 @@ static __always_inline void kafka_call_response_parser(conn_tuple_t *tup, struct
     bpf_map_delete_elem(&kafka_response, tup);
 }
 
+static __always_inline void kafka_response_parser(kafka_info_t *kafka, void *ctx, conn_tuple_t *tup, pktbuf_t pkt) {
+    kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, tup);
+    if (!response) {
+        return;
+    }
+
+    u32 data_off = pktbuf_data_offset(pkt);
+    u32 data_end = pktbuf_data_end(pkt);
+
+    enum parse_result result = kafka_continue_parse_response(kafka, tup, response, pkt,
+                                                             data_off, data_end);
+    switch (result) {
+    case RET_EOP:
+        // This packet parsed successfully but more data needed, nothing
+        // more to do for now.
+        break;
+    case RET_ERR:
+        // Error during processing response continuation, abandon this
+        // response.
+        bpf_map_delete_elem(&kafka_response, tup);
+        break;
+    case RET_DONE:
+        // Response parsed fully.
+        bpf_map_delete_elem(&kafka_response, tup);
+        break;
+    case RET_LOOP_END:
+        // We ran out of iterations in the loop, but we're not done
+        // processing this packet, so continue in a self tail call.
+        kafka_call_response_parser(ctx, tup, pkt);
+
+        // If we failed (due to exceeding tail calls), at least flush what
+        // we have.
+        if (response->transaction.records_count) {
+            extra_debug("enqueue (loop exceeded), records_count %d", response->transaction.records_count);
+            kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
+        }
+        break;
+    }
+}
+
 SEC("socket/kafka_response_parser")
 int socket__kafka_response_parser(struct __sk_buff *skb) {
-    const u32 zero = 0;
+    const __u32 zero = 0;
     kafka_info_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
-    if (!kafka) {
+    if (kafka == NULL) {
         return 0;
     }
 
@@ -497,39 +546,7 @@ int socket__kafka_response_parser(struct __sk_buff *skb) {
         return 0;
     }
 
-    kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &tup);
-    if (!response) {
-        return 0;
-    }
-
-    enum parse_result result = kafka_continue_parse_response(kafka, &tup, response, skb, skb_info.data_off, skb_info.data_end);
-    switch (result) {
-    case RET_EOP:
-        // This packet parsed successfully but more data needed, nothing
-        // more to do for now.
-        break;
-    case RET_ERR:
-        // Error during processing response continuation, abandon this
-        // response.
-        bpf_map_delete_elem(&kafka_response, &tup);
-        break;
-    case RET_DONE:
-        // Response parsed fully.
-        bpf_map_delete_elem(&kafka_response, &tup);
-        break;
-    case RET_LOOP_END:
-        // We ran out of iterations in the loop, but we're not done
-        // processing this packet, so continue in a self tail call.
-        kafka_call_response_parser(&tup, skb);
-
-        // If we failed (due to exceeding tail calls), at least flush what
-        // we have.
-        if (response->transaction.records_count) {
-            extra_debug("enqueue (loop exceeded), records_count %d", response->transaction.records_count);
-            kafka_batch_enqueue_wrapper(kafka, &tup, &response->transaction);
-        }
-        break;
-    }
+    kafka_response_parser(kafka, skb, &tup, pktbuf_from_skb(skb, &skb_info));
 
     return 0;
 }
@@ -543,12 +560,12 @@ static __always_inline u32 kafka_get_next_tcp_seq(skb_info_t *skb_info) {
     return next_seq;
 }
 
-static __always_inline bool kafka_process_new_response(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info) {
-    u32 offset = skb_info->data_off;
+static __always_inline bool kafka_process_new_response(void *ctx, conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, skb_info_t *skb_info) {
+    u32 offset = pktbuf_data_offset(pkt);
     u32 orig_offset = offset;
 
     offset += sizeof(__s32); // Skip message size
-    READ_BIG_ENDIAN_WRAPPER(s32, correlation_id, skb, offset);
+    PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, correlation_id, pkt, offset);
 
     kafka_transaction_key_t key = {};
     key.correlation_id = correlation_id;
@@ -573,12 +590,12 @@ static __always_inline bool kafka_process_new_response(conn_tuple_t *tup, kafka_
         offset += sizeof(s32); // Skip session_id
     }
 
-    READ_BIG_ENDIAN_WRAPPER(s32, num_topics, skb, offset);
+    PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, num_topics, pkt, offset);
     if (num_topics <= 0) {
         return false;
     }
 
-    READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, skb, offset);
+    PKTBUF_READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, pkt, offset);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
         return false;
     }
@@ -586,7 +603,7 @@ static __always_inline bool kafka_process_new_response(conn_tuple_t *tup, kafka_
     // Should we check that topic name matches the topic we expect?
     offset += topic_name_size;
 
-    READ_BIG_ENDIAN_WRAPPER(s32, number_of_partitions, skb, offset);
+    PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, number_of_partitions, pkt, offset);
     if (number_of_partitions <= 0) {
         return false;
     }
@@ -604,16 +621,16 @@ static __always_inline bool kafka_process_new_response(conn_tuple_t *tup, kafka_
 
     bpf_map_update_elem(&kafka_response, tup, &response_ctx, BPF_ANY);
 
-    kafka_call_response_parser(tup, skb);
+    kafka_call_response_parser(ctx, tup, pkt);
     return true;
 }
 
-static __always_inline bool kafka_process_response(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info) {
+static __always_inline bool kafka_process_response(void *ctx, conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, skb_info_t *skb_info) {
     kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, tup);
     if (response) {
         if (skb_info->tcp_seq == response->expected_tcp_seq) {
             response->expected_tcp_seq = kafka_get_next_tcp_seq(skb_info);
-            kafka_call_response_parser(tup, skb);
+            kafka_call_response_parser(ctx, tup, pkt);
             // It's on the response path, so no need to parser as a request.
             return true;
         }
@@ -652,18 +669,19 @@ static __always_inline bool kafka_process_response(conn_tuple_t *tup, kafka_info
         // Try to parse it as a new response.
     }
 
-    return kafka_process_new_response(tup, kafka, skb, skb_info);
+    return kafka_process_new_response(ctx, tup, kafka, pkt, skb_info);
 }
 
-static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, u32 offset) {
+static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt) {
     /*
         We perform Kafka request validation as we can get kafka traffic that is not relevant for parsing (unsupported requests, responses, etc)
     */
 
+    u32 offset = pktbuf_data_offset(pkt);
     kafka_transaction_t *kafka_transaction = &kafka->event.transaction;
     kafka_header_t kafka_header;
     bpf_memset(&kafka_header, 0, sizeof(kafka_header));
-    bpf_skb_load_bytes_with_telemetry(skb, offset, (char *)&kafka_header, sizeof(kafka_header));
+    pktbuf_load_bytes_with_telemetry(pkt, offset, (char *)&kafka_header, sizeof(kafka_header));
     kafka_header.message_size = bpf_ntohl(kafka_header.message_size);
     kafka_header.api_key = bpf_ntohs(kafka_header.api_key);
     kafka_header.api_version = bpf_ntohs(kafka_header.api_version);
@@ -685,7 +703,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     // Validate client ID
     // Client ID size can be equal to '-1' if the client id is null.
     if (kafka_header.client_id_size > 0) {
-        if (!is_valid_client_id(skb, offset, kafka_header.client_id_size)) {
+        if (!is_valid_client_id(pkt, offset, kafka_header.client_id_size)) {
             return false;
         }
         offset += kafka_header.client_id_size;
@@ -695,7 +713,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
     switch (kafka_header.api_key) {
     case KAFKA_PRODUCE:
-        if (!get_topic_offset_from_produce_request(&kafka_header, skb, &offset)) {
+        if (!get_topic_offset_from_produce_request(&kafka_header, pkt, &offset)) {
             return false;
         }
         break;
@@ -708,12 +726,12 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
     // Skipping number of entries for now
     offset += sizeof(s32);
-    READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, skb, offset);
+    PKTBUF_READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, pkt, offset);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
         return false;
     }
     bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
-    read_into_buffer_topic_name_parser((char *)kafka_transaction->topic_name, skb, offset);
+    pktbuf_read_into_buffer_topic_name_parser((char *)kafka_transaction->topic_name, pkt, offset);
     offset += topic_name_size;
     kafka_transaction->topic_name_size = topic_name_size;
 
@@ -724,7 +742,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     switch (kafka_header.api_key) {
     case KAFKA_PRODUCE:
     {
-        READ_BIG_ENDIAN_WRAPPER(s32, number_of_partitions, skb, offset);
+        PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, number_of_partitions, pkt, offset);
         if (number_of_partitions <= 0) {
             return false;
         }
@@ -744,7 +762,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         offset += sizeof(s64); // Skipping record batch baseOffset
         offset += sizeof(s32); // Skipping record batch batchLength
         offset += sizeof(s32); // Skipping record batch partitionLeaderEpoch
-        READ_BIG_ENDIAN_WRAPPER(s8, magic_byte, skb, offset);
+        PKTBUF_READ_BIG_ENDIAN_WRAPPER(s8, magic_byte, pkt, offset);
         if (magic_byte != 2) {
             log_debug("Got magic byte != 2, the protocol state it should be 2");
             return false;
@@ -757,7 +775,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         offset += sizeof(s64); // Skipping producer id
         offset += sizeof(s16); // Skipping producer epoch
         offset += sizeof(s32); // Skipping base sequence
-        READ_BIG_ENDIAN_WRAPPER(s32, records_count, skb, offset);
+        PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, records_count, pkt, offset);
         if (records_count <= 0) {
             log_debug("Got number of Kafka produce records <= 0");
             return false;
