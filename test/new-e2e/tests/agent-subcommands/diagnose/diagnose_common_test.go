@@ -50,12 +50,12 @@ func getDiagnoseOutput(v *baseDiagnoseSuite, commandArgs ...agentclient.AgentArg
 
 func (v *baseDiagnoseSuite) TestDiagnoseDefaultConfig() {
 	diagnose := getDiagnoseOutput(v)
-	assert.NotContains(v.T(), diagnose, "FAIL")
+	v.AssertOutputNotError(diagnose)
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseLocal() {
 	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--local"}))
-	assert.NotContains(v.T(), diagnose, "FAIL")
+	v.AssertOutputNotError(diagnose)
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseList() {
@@ -115,6 +115,11 @@ func (v *baseDiagnoseSuite) TestDiagnoseVerbose() {
 	// Verify that verbose mode display extra information such 'PASS' for successful checks
 	assert.Equal(v.T(), len(matches), summary.total, "Expected to have the same number of 'PASS' as the number of checks (%v), but was %v", summary.total, len(matches))
 	assert.Contains(v.T(), diagnose, "connectivity-datadog-core-endpoints")
+}
+
+func (v *baseDiagnoseSuite) AssertOutputNotError(diagnose string) {
+	assert.NotContains(v.T(), diagnose, "FAIL")
+	assert.NotContains(v.T(), diagnose, "UNEXPECTED ERROR")
 }
 
 var summaryRE = createSummaryRegex()

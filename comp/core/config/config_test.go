@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func TestRealConfig(t *testing.T) {
@@ -35,7 +36,9 @@ func TestRealConfig(t *testing.T) {
 			WithConfigMissingOK(true),
 			WithConfFilePath(dir),
 		)),
-		fx.Provide(func() secrets.Component { return secretsimpl.NewMock() }),
+		fx.Provide(func() optional.Option[secrets.Component] {
+			return optional.NewOption[secrets.Component](secretsimpl.NewMock())
+		}),
 		Module(),
 	))
 	require.Equal(t, "https://example.com", config.GetString("dd_url"))

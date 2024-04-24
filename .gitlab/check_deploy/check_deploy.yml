@@ -8,9 +8,9 @@
 # overwrite a public package). To update an erroneous package, first remove it
 # from our S3 bucket.
 check_already_deployed_version_6:
-  rules: !reference [.on_deploy_a6]
+  rules: !reference [.on_deploy]
   stage: check_deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   dependencies: ["agent_deb-x64-a6", "agent_deb-arm64-a6"]
   before_script:
@@ -20,9 +20,9 @@ check_already_deployed_version_6:
     - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_6*_arm64.deb
 
 check_already_deployed_version_7:
-  rules: !reference [.on_deploy_a7]
+  rules: !reference [.on_deploy]
   stage: check_deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   dependencies: ["agent_deb-x64-a7", "agent_deb-arm64-a7"]
   before_script:

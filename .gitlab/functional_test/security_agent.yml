@@ -3,7 +3,7 @@
 # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
-#   - /.gitlab/kitchen_testing/testing.yml
+#   - .gitlab/kitchen_testing/testing.yml
 
 # Expect warning: github.com/DataDog/datadog-agent/pkg/config.LoadCustom:1501 Unknown environment variable: DD_SYSTEM_PROBE_BPF_DIR
 .kitchen_test_security_agent_linux:
@@ -17,11 +17,13 @@
     - tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
     - popd
     - inv system-probe.print-failed-tests --output-dir $DD_AGENT_TESTING_DIR/testjson
+  after_script:
+    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "$DD_AGENT_TESTING_DIR/junit-*.tar.gz"
   artifacts:
     expire_in: 2 weeks
     when: always
     paths:
-      - $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz
+      - $DD_AGENT_TESTING_DIR/junit-*.tar.gz
 
 kitchen_test_security_agent_x64:
   extends:
@@ -52,7 +54,7 @@ kitchen_test_security_agent_x64:
         KITCHEN_CWS_PLATFORM: [host, docker]
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-22-04"
-        KITCHEN_CWS_PLATFORM: [ad, ebpfless]
+        KITCHEN_CWS_PLATFORM: [ad, ebpfless, ebpfless-no-seccomp]
       - KITCHEN_PLATFORM: "suse"
         KITCHEN_OSVERS: "sles-12,sles-15"
         KITCHEN_CWS_PLATFORM: [host]
@@ -86,7 +88,7 @@ kitchen_test_security_agent_arm64:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-20-04-2,ubuntu-22-04"
-        KITCHEN_CWS_PLATFORM: [host, docker, ad, ebpfless]
+        KITCHEN_CWS_PLATFORM: [host, docker, ad, ebpfless, ebpfless-no-seccomp]
 
 kitchen_test_security_agent_amazonlinux_x64:
   extends:

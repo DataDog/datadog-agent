@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import platform
 import tempfile
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from invoke.context import Context
 
@@ -48,8 +48,8 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
     url_base = platforms["url_base"]
 
     arch = arch_mapping[platform.machine()]
-    to_download: List[str] = list()
-    file_ls: List[str] = list()
+    to_download: list[str] = list()
+    file_ls: list[str] = list()
     branch_mapping: dict[str, str] = dict()
 
     for tag in platforms[arch]:
@@ -124,7 +124,7 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
         os.remove(path)
 
     # extract files
-    res = ctx.run(f"find {rootfs_dir} -name \"*qcow2.xz\" -type f -exec xz -d {{}} \\;")
+    res = ctx.run(f"find {rootfs_dir} -name \"*qcow*.xz\" -type f -exec xz -d {{}} \\;")
     if res is None or not res.ok:
         raise Exit("Failed to extract qcow2 files")
 

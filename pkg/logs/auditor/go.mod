@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/logs/auditor
 
-go 1.21.8
+go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
@@ -35,33 +35,33 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/logs/message v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/logs/sources v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/status/health v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/message v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/sources v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/status/health v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
 	github.com/stretchr/testify v1.9.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2 // indirect
 	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
@@ -74,6 +74,7 @@ require (
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
+	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/pelletier/go-toml v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
@@ -88,9 +89,9 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
-	golang.org/x/mod v0.15.0 // indirect
-	golang.org/x/sys v0.17.0 // indirect
-	golang.org/x/text v0.9.0 // indirect
+	golang.org/x/mod v0.17.0 // indirect
+	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.18.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

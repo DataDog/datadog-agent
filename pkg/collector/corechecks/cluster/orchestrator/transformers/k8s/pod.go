@@ -262,6 +262,19 @@ func convertResourceRequirements(rq corev1.ResourceRequirements, containerName s
 		}
 	}
 
+	// Fill non-default values (other than CPU and Memory)
+	for resourceName, quantity := range rq.Limits {
+		if _, found := limits[resourceName.String()]; !found {
+			limits[resourceName.String()] = quantity.Value()
+		}
+	}
+
+	for resourceName, quantity := range rq.Requests {
+		if _, found := requests[resourceName.String()]; !found {
+			requests[resourceName.String()] = quantity.Value()
+		}
+	}
+
 	return &model.ResourceRequirements{
 		Limits:   limits,
 		Requests: requests,

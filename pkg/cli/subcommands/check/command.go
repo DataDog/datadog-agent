@@ -26,6 +26,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
@@ -38,8 +40,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -47,6 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -63,7 +69,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -178,6 +185,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				}),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
+				compressionimpl.Module(),
 				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
@@ -201,22 +209,28 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					},
 				),
 				statusimpl.Module(),
-
+				// The check command do not have settings that change are runtime
+				// still, we need to pass it to ensure the API server is proprely initialized
+				settingsimpl.Module(),
+				fx.Supply(settings.Params{}),
 				// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
 				// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
 				// in others commands such as run.
 				fx.Provide(func() flare.Component { return nil }),
 				fx.Provide(func() server.Component { return nil }),
 				fx.Provide(func() replay.Component { return nil }),
+				fx.Provide(func() pidmap.Component { return nil }),
 				fx.Provide(func() serverdebug.Component { return nil }),
 				fx.Provide(func() host.Component { return nil }),
 				fx.Provide(func() inventoryagent.Component { return nil }),
 				fx.Provide(func() inventoryhost.Component { return nil }),
 				fx.Provide(func() packagesigning.Component { return nil }),
-				fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewNoneOption[rcservice.Component]() }),
-				fx.Provide(func() optional.Option[rcserviceha.Component] { return optional.NewNoneOption[rcserviceha.Component]() }),
-
+				fx.Supply(optional.NewNoneOption[rcservice.Component]()),
+				fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
+				fx.Provide(func() optional.Option[gui.Component] { return optional.NewNoneOption[gui.Component]() }),
 				getPlatformModules(),
+				jmxloggerimpl.Module(),
+				fx.Supply(jmxloggerimpl.NewDisabledParams()),
 			)
 		},
 	}
@@ -269,6 +283,7 @@ func run(
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
+	jmxLogger jmxlogger.Component,
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -294,7 +309,7 @@ func run(
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 	pkgcollector.InitPython(common.GetPythonPaths()...)
-	commonchecks.RegisterChecks(wmeta)
+	commonchecks.RegisterChecks(wmeta, config)
 
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
@@ -325,11 +340,11 @@ func run(
 			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 			selectedChecks := []string{cliParams.checkName}
 			if cliParams.checkRate {
-				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, taggerComp, ac, demultiplexer, agentAPI, collector); err != nil {
+				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, taggerComp, ac, demultiplexer, agentAPI, collector, jmxLogger); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			} else {
-				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, taggerComp, ac, demultiplexer, agentAPI, collector); err != nil {
+				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, taggerComp, ac, demultiplexer, agentAPI, collector, jmxLogger); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			}
@@ -465,7 +480,7 @@ func run(
 	var checkFileOutput bytes.Buffer
 	var instancesData []interface{}
 	printer := aggregator.AgentDemultiplexerPrinter{DemultiplexerWithAggregator: demultiplexer}
-	data, err := statusComponent.GetStatusBySection(status.CollectorSection, "json", false)
+	data, err := statusComponent.GetStatusBySections([]string{status.CollectorSection}, "json", false)
 
 	if err != nil {
 		return err

@@ -206,6 +206,7 @@ type CEdgeInterfaceState struct {
 	TxDrops                 float64 `json:"tx-drops"`
 	RxDrops                 float64 `json:"rx-drops"`
 	IPAddress               string  `json:"ip-address"`
+	IPV6Address             string  `json:"ipv6-addrs"`
 	Hwaddr                  string  `json:"hwaddr"`
 	SpeedMbps               string  `json:"speed-mbps"`
 	AutoDownstreamBandwidth string  `json:"auto-downstream-bandwidth"`

@@ -20,7 +20,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -52,7 +54,7 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 			"cluster_agent.enabled":                      "true",
 			"language_detection.reporting.buffer_period": "50ms",
 		}}),
-		telemetry.MockModule(),
+		telemetryimpl.MockModule(),
 		logimpl.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
@@ -92,12 +94,15 @@ func TestClientEnabled(t *testing.T) {
 			func(t *testing.T) {
 				deps := fxutil.Test[dependencies](t, fx.Options(
 					config.MockModule(),
+					fx.Provide(func() optional.Option[secrets.Component] {
+						return optional.NewOption[secrets.Component](secretsimpl.NewMock())
+					}),
 					fx.Replace(config.MockParams{Overrides: map[string]interface{}{
 						"language_detection.enabled":           testCase.languageDetectionEnabled,
 						"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,
 						"cluster_agent.enabled":                testCase.clusterAgentEnabled,
 					}}),
-					telemetry.MockModule(),
+					telemetryimpl.MockModule(),
 					logimpl.MockModule(),
 					fx.Supply(workloadmeta.NewParams()),
 					workloadmeta.MockModuleV2(),

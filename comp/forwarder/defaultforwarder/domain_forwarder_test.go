@@ -124,9 +124,9 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 func TestDomainForwarderHAPreFailover(t *testing.T) {
 
 	datadogYaml := `
-ha:
+multi_region_failover:
   enabled: true
-  failover: false
+  failover_metrics: false
   apikey: foo
   site: bar.ddhq.com
 `
@@ -172,9 +172,9 @@ ha:
 func TestDomainForwarderHAFailover(t *testing.T) {
 
 	datadogYaml := `
-ha:
+multi_region_failover:
   enabled: true
-  failover: true
+  failover_metrics: true
   apikey: foo
   site: bar.ddhq.com
 `

@@ -127,6 +127,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.mutex_profile_fraction"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.block_profile_rate"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_goroutine_stacktraces"), false)
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_block_profiling"), false)
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_mutex_profiling"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.delta_profiles"), true)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.custom_attributes"), []string{"module", "rule_id"})
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.unix_socket"), "")
@@ -230,6 +232,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), false)
+	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled"))
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "debug"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "args"), defaultServiceMonitoringJavaAgentArgs)
@@ -278,6 +281,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "dns_recorded_query_types"), []string{})
 	// (temporary) enable submitting DNS stats by query type.
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_dns_by_querytype"), false)
+	// connection aggregation with port rollups
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_connection_rollup"), false)
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)

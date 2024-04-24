@@ -30,6 +30,8 @@ type InstanceConfig struct {
 	TimeoutMs uint `yaml:"timeout"` // millisecond
 
 	MinCollectionInterval int `yaml:"min_collection_interval"`
+
+	Tags []string `yaml:"tags"`
 }
 
 // CheckConfig defines the configuration of the
@@ -40,6 +42,7 @@ type CheckConfig struct {
 	MaxTTL                uint8
 	TimeoutMs             uint
 	MinCollectionInterval time.Duration
+	Tags                  []string
 }
 
 // NewCheckConfig builds a new check config
@@ -72,6 +75,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	if c.MinCollectionInterval <= 0 {
 		return nil, fmt.Errorf("min collection interval must be > 0")
 	}
+
+	c.Tags = instance.Tags
 
 	return c, nil
 }

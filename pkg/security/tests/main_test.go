@@ -44,7 +44,6 @@ func init() {
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 	flag.Var(&logTags, "logtag", "List of log tag")
-	flag.BoolVar(&ebpfLessEnabled, "ebpfless", false, "enabled the ebpfless mode")
 
 	rand.Seed(time.Now().UnixNano())
 }

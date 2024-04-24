@@ -13,24 +13,24 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(senderManager sender.SenderManager, hostname string, opts RSAOptions, wmeta workloadmeta.Component) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname string, opts RSAOptions, wmeta workloadmeta.Component) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
 	}
 
 	// on windows do no telemetry
-	telemetry, err := newTelemetry(senderManager, wmeta, opts.LogProfiledWorkloads, opts.IgnoreDDAgentContainers)
+	telemetry, err := newTelemetry(statsdClient, wmeta, opts.LogProfiledWorkloads, opts.IgnoreDDAgentContainers)
 	if err != nil {
 		return nil, errors.New("failed to initialize the telemetry reporter")
 	}
 	// on windows do no storage manager
-	storage, err := dump.NewSecurityAgentStorageManager(senderManager)
+	storage, err := dump.NewSecurityAgentStorageManager()
 	if err != nil {
 		return nil, err
 	}
