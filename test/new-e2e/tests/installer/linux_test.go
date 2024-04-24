@@ -76,12 +76,10 @@ func TestDebianX86(t *testing.T) {
 }
 
 func TestSuseX86(t *testing.T) {
-	t.Skip("FIXME")
 	runTest(t, "rpm", os.AMD64Arch, os.SuseDefault, false)
 }
 
 func TestSuseARM(t *testing.T) {
-	t.Skip("FIXME")
 	runTest(t, "rpm", os.ARM64Arch, os.SuseDefault, false)
 }
 
@@ -115,9 +113,6 @@ func (v *vmUpdaterSuite) TestInstallerUnitLoaded() {
 	t := v.T()
 	host := v.Env().RemoteHost
 	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer bootstrap", bootInstallerDir))
-	if v.packageManager == "rpm" {
-		t.Skip("FIXME(Paul): installer unit files disappear after bootstrap")
-	}
 
 	// temporary hack, remote update enabled by hand and disabled to assert the behavior and pass tests
 	// until agent param passing to the test install script is implemnted
@@ -239,14 +234,9 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 }
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAPMInjector() {
-	// Temporarily disable CentOS & Redhat, as there is a bug in the APM injector
-	if v.distro == os.CentOSDefault {
-		v.T().Skip("APM injector not available for CentOS yet")
+	if v.packageManager == "rpm" {
+		v.T().Skip("skip APMInjector test on rpm distros")
 	}
-	if v.distro == os.SuseDefault {
-		v.T().Skip("Skipping SUSE as it fails")
-	}
-
 	host := v.Env().RemoteHost
 
 	///////////////////
