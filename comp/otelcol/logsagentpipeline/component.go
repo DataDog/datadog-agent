@@ -7,6 +7,8 @@
 package logsagentpipeline
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
@@ -16,4 +18,10 @@ import (
 type Component interface {
 	// GetPipelineProvider gets the pipeline provider
 	GetPipelineProvider() pipeline.Provider
+
+	// Start sets up the logs agent and starts its pipelines
+	Start(context.Context) error
+
+	// Stop stops the logs agent and all elements of the data pipeline
+	Stop(context.Context) error
 }
