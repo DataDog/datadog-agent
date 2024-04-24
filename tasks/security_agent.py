@@ -775,6 +775,7 @@ def generate_cws_proto(ctx):
             content = f.read()
 
         replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
+        replaced_content = re.sub(r"\/\/\s*-\s+protoc\s*v\d+\.\d+\.\d+", "// - protoc", replaced_content)
         with open(path, "w") as f:
             f.write(replaced_content)
 
