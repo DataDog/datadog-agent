@@ -84,9 +84,9 @@ func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.
 		for _, tp := range tr.TracerPayloads {
 			t.Log("Tracer Payload Tags:", tp.Tags["_dd.tags.container"])
 			ctags, ok := getContainerTags(t, tp)
-			assert.True(t, ok)
+			assert.True(t, ok, "expected to find container tags at _dd.tags.container")
 			imageTag, ok := ctags["image_tag"]
-			assert.True(t, ok)
+			assert.True(t, ok, "expected to find image_tag in container tags")
 			t.Logf("Got image Tag: %v", imageTag)
 			assert.Equal(t, "main", imageTag)
 		}
@@ -106,6 +106,25 @@ func testAutoVersionStats(t *testing.T, c *assert.CollectT, intake *components.F
 			assert.Equal(t, "main", s.GetImageTag())
 			t.Logf("Got git commit sha: %v", s.GetGitCommitSha())
 			assert.Equal(t, "abcd1234", s.GetGitCommitSha())
+		}
+	}
+}
+
+func testIsTraceRootTag(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
+	t.Helper()
+	stats, err := intake.Client().GetAPMStats()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, stats)
+	t.Log("Got apm stats:", spew.Sdump(stats))
+	for _, p := range stats {
+		for _, s := range p.StatsPayload.Stats {
+			t.Log("Client Payload:", spew.Sdump(s))
+			for _, b := range s.Stats {
+				for _, cs := range b.Stats {
+					t.Logf("Got IsTraceRoot: %v", cs.GetIsTraceRoot())
+					assert.Equal(t, trace.TraceRootFlag_TRUE, cs.GetIsTraceRoot())
+				}
+			}
 		}
 	}
 }

@@ -42,6 +42,8 @@
       - E2E_MSI_TEST: TestInstallOpts
       - E2E_MSI_TEST: TestSubServicesOpts/all-subservices
       - E2E_MSI_TEST: TestSubServicesOpts/no-subservices
+      - E2E_MSI_TEST: TestInstallAltDir
+      - E2E_MSI_TEST: TestInstallFail
 
 # Agent 6
 .new-e2e_windows_a6_x86_64:

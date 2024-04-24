@@ -20,13 +20,34 @@ type ConnTuple struct {
 }
 
 type EbpfTx struct {
-	Tup                 ConnTuple
-	Request_api_key     uint16
-	Request_api_version uint16
+	Tup         ConnTuple
+	Transaction KafkaTransaction
+}
+
+type KafkaTransactionKey struct {
+	Tuple     ConnTuple
+	Id        int32
+	Pad_cgo_0 [4]byte
+}
+type KafkaTransaction struct {
+	Request_started     uint64
+	Request_api_key     uint8
+	Request_api_version uint8
 	Topic_name          [80]byte
 	Topic_name_size     uint16
 	Records_count       uint32
-	Pad_cgo_0           [4]byte
+}
+
+type KafkaResponseContext struct {
+	State                    uint8
+	Remainder                uint8
+	Remainder_buf            [4]int8
+	Record_batches_num_bytes int32
+	Record_batch_length      int32
+	Expected_tcp_seq         uint32
+	Carry_over_offset        int32
+	Partitions_count         uint32
+	Transaction              KafkaTransaction
 }
 
 type RawKernelTelemetry struct {

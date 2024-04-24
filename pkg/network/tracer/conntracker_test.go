@@ -32,13 +32,18 @@ import (
 
 func TestConntrackers(t *testing.T) {
 	ebpftest.LogLevel(t, "trace")
-	ebpftest.LogTracePipe(t)
 	t.Run("netlink", func(t *testing.T) {
 		runConntrackerTest(t, "netlink", setupNetlinkConntracker)
 	})
 	t.Run("eBPF", func(t *testing.T) {
-		skipEbpfConntrackerTestOnUnsupportedKernel(t)
-		ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled}, "", func(t *testing.T) {
+		modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled}
+		if ebpfCOREConntrackerSupportedOnKernelT(t) {
+			modes = append([]ebpftest.BuildMode{ebpftest.CORE}, modes...)
+		}
+		if ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
+			modes = append([]ebpftest.BuildMode{ebpftest.Prebuilt}, modes...)
+		}
+		ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 			runConntrackerTest(t, "eBPF", setupEBPFConntracker)
 		})
 	})
@@ -92,13 +97,11 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 	})
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
-func setupEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
+func setupEBPFConntracker(_ *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
 	return NewEBPFConntracker(cfg)
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
-func setupNetlinkConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
+func setupNetlinkConntracker(_ *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
 	cfg.ConntrackMaxStateSize = 100
 	cfg.ConntrackRateLimit = 500
 	ct, err := netlink.NewConntracker(cfg)

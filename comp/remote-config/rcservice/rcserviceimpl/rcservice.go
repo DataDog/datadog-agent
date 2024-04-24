@@ -75,8 +75,8 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 	options := []remoteconfig.Option{
 		remoteconfig.WithAPIKey(apiKey),
 		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
-		remoteconfig.WithConfigRootOverride(deps.Cfg.GetString("remote_configuration.config_root")),
-		remoteconfig.WithDirectorRootOverride(deps.Cfg.GetString("remote_configuration.director_root")),
+		remoteconfig.WithConfigRootOverride(deps.Cfg.GetString("site"), deps.Cfg.GetString("remote_configuration.config_root")),
+		remoteconfig.WithDirectorRootOverride(deps.Cfg.GetString("site"), deps.Cfg.GetString("remote_configuration.director_root")),
 		remoteconfig.WithRcKey(deps.Cfg.GetString("remote_configuration.key")),
 	}
 	if deps.Params != nil {

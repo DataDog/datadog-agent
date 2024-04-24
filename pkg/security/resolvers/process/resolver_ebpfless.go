@@ -88,6 +88,7 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 	entry.PPid = ppid
 	entry.ForkTime = time.Unix(0, int64(ts))
 	entry.IsThread = true
+	entry.Source = model.ProcessCacheEntryFromEvent
 
 	p.Lock()
 	defer p.Unlock()
@@ -97,12 +98,14 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 	return entry
 }
 
-// AddExecEntry adds an entry to the local cache and returns the newly created entry
-func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
-	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string) *model.ProcessCacheEntry {
+// NewEntry returns a new entry
+func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
+	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string, source uint64) *model.ProcessCacheEntry {
+
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext.Pid = key.Pid
 	entry.PPid = ppid
+	entry.Source = source
 
 	entry.Process.ArgsEntry = &model.ArgsEntry{
 		Values:    argv,
@@ -134,10 +137,39 @@ func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, ppid uint32, file 
 
 	entry.ExecTime = time.Unix(0, int64(ts))
 
+	return entry
+}
+
+// AddExecEntry adds an entry to the local cache and returns the newly created entry
+func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
+	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string) *model.ProcessCacheEntry {
+	entry := p.NewEntry(key, ppid, file, argv, argsTruncated, envs, envsTruncated, ctrID, ts, tty, model.ProcessCacheEntryFromEvent)
+
 	p.Lock()
 	defer p.Unlock()
 
 	p.insertExecEntry(key, entry)
+
+	return entry
+}
+
+// AddProcFSEntry add a procfs entry
+func (p *EBPFLessResolver) AddProcFSEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
+	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string) *model.ProcessCacheEntry {
+	entry := p.NewEntry(key, ppid, file, argv, argsTruncated, envs, envsTruncated, ctrID, ts, tty, model.ProcessCacheEntryFromProcFS)
+
+	p.Lock()
+	defer p.Unlock()
+
+	parentKey := CacheResolverKey{NSID: key.NSID, Pid: ppid}
+	if parent := p.entryCache[parentKey]; parent != nil {
+		if parent.Equals(entry) {
+			entry.SetParentOfForkChild(parent)
+		} else {
+			entry.SetAncestor(parent)
+		}
+	}
+	p.insertEntry(key, entry, p.entryCache[key])
 
 	return entry
 }

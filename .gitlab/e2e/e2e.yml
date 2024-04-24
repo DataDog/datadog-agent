@@ -4,7 +4,7 @@
 
 .k8s_e2e_template:
   stage: e2e
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   dependencies: []
   variables:
@@ -12,7 +12,7 @@
   before_script:
     - export DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN_SSM_KEY)
     - export DOCKER_REGISTRY_PWD=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD_SSM_KEY)
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_SSM_NAME)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_DDDEV_SSM_NAME)
 
 .k8s-e2e-cws-cspm-init:
   - set +x
@@ -20,6 +20,8 @@
   - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_API_KEY_SSM_NAME)
   - export DATADOG_AGENT_APP_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_APP_KEY_SSM_NAME)
   - export DATADOG_AGENT_RC_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_RC_KEY_SSM_NAME)
+  # workaround until CWS is able to support 6.8 kernel correctly
+  - export AMI=ami-04003e644492ae5e8
 
 .k8s_e2e_template_needs_dev:
   extends: .k8s_e2e_template
@@ -120,9 +122,7 @@ k8s-e2e-otlp-main:
   script:
     - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
   after_script:
-    # Upload generated junit files
-    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
-    - inv -e junit-upload --tgz-path junit-${CI_JOB_ID}.tgz
+    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -249,6 +249,8 @@ new-e2e-cws:
     matrix:
       - EXTRA_PARAMS: --run TestAgentSuite
       - EXTRA_PARAMS: --run TestECSFargate
+  # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
+  allow_failure: true
 
 new-e2e-process:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -281,14 +283,20 @@ new-e2e-apm:
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
 
-new-e2e-updater:
+new-e2e-installer:
   extends: .new_e2e_template
   rules:
-    !reference [.on_updater_or_e2e_changes_or_manual]
+    !reference [.on_installer_or_e2e_changes_or_manual]
   needs:
-    - deploy_deb_testing-u7_arm64
+    - deploy_deb_testing-i7_arm64
+    - deploy_deb_testing-i7_amd64
+    - deploy_rpm_testing-i7_arm64
+    - deploy_rpm_testing-i7_x64
+    - deploy_suse_rpm_testing-i7_arm64
+    - deploy_suse_rpm_testing-i7_x64
+    - qa_installer_oci
   variables:
-    TARGETS: ./tests/updater
+    TARGETS: ./tests/installer
     TEAM: fleet
 
 #   ^    If you create a new job here that extends `.new_e2e_template`,

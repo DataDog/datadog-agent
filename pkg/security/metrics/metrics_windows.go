@@ -59,6 +59,14 @@ var (
 	//Tags: -
 	MetricWindowsFileIDRename29 = newRuntimeMetric(".windows.file.id_rename29")
 
+	//MetricWindowsFileCreateSkippedDiscardedPaths is the metric for counting file create notifications for skipped discarded paths
+	//Tags: -
+	MetricWindowsFileCreateSkippedDiscardedPaths = newRuntimeMetric(".windows.file.create_skipped_discarded_paths")
+
+	//MetricWindowsFileCreateSkippedDiscardedBasenames is the metric for counting file create notifications for skipped discarded basenames
+	//Tags: -
+	MetricWindowsFileCreateSkippedDiscardedBasenames = newRuntimeMetric(".windows.file.create_skipped_discarded_basenames")
+
 	//MetricWindowsRegCreateKey is the metric for counting registry key create notifications
 	//Tags: -
 	MetricWindowsRegCreateKey = newRuntimeMetric(".windows.registry.create_key")

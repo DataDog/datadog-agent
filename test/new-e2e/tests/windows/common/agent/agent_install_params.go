@@ -23,7 +23,9 @@ type InstallAgentParams struct {
 
 	msi.InstallAgentParams
 	// Installer parameters
-	WixFailWhenDeferred string `installer_arg:"WIXFAILWHENDEFERRED"`
+	WixFailWhenDeferred      string `installer_arg:"WIXFAILWHENDEFERRED"`
+	ProjectLocation          string `installer_arg:"PROJECTLOCATION"`
+	ApplicationDataDirectory string `installer_arg:"APPLICATIONDATADIRECTORY"`
 	// Installer parameters for agent config
 	APIKey                  string `installer_arg:"APIKEY"`
 	Tags                    string `installer_arg:"TAGS"`
@@ -267,6 +269,22 @@ func WithProcessDiscoveryEnabled(processDiscoveryEnabled string) InstallAgentOpt
 func WithAPMEnabled(apmEnabled string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.APMEnabled = apmEnabled
+		return nil
+	}
+}
+
+// WithApplicationDataDirectory specifies the APPLICATIONDATADIRECTORY parameter.
+func WithApplicationDataDirectory(applicationDataDirectory string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ApplicationDataDirectory = applicationDataDirectory
+		return nil
+	}
+}
+
+// WithProjectLocation specifies the PROJECTLOCATION parameter.
+func WithProjectLocation(projectLocation string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProjectLocation = projectLocation
 		return nil
 	}
 }

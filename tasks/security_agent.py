@@ -752,7 +752,7 @@ def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
 def generate_cws_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.32.0")
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.33.0")
             ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.6.0")
             ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0")
 
@@ -775,6 +775,7 @@ def generate_cws_proto(ctx):
             content = f.read()
 
         replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
+        replaced_content = re.sub(r"\/\/\s*-\s+protoc\s*v\d+\.\d+\.\d+", "// - protoc", replaced_content)
         with open(path, "w") as f:
             f.write(replaced_content)
 
@@ -940,10 +941,13 @@ def sync_secl_win_pkg(ctx):
     ctx.run("rm -r pkg/security/seclwin/model")
     ctx.run("mkdir -p pkg/security/seclwin/model")
 
-    for (ffrom, fto) in files_to_copy:
+    for ffrom, fto in files_to_copy:
         if not fto:
             fto = ffrom
 
         ctx.run(f"cp pkg/security/secl/model/{ffrom} pkg/security/seclwin/model/{fto}")
-        ctx.run(f"sed -i '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
+        if sys.platform == "darwin":
+            ctx.run(f"sed -i '' '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
+        else:
+            ctx.run(f"sed -i '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
         ctx.run(f"gofmt -s -w pkg/security/seclwin/model/{fto}")
