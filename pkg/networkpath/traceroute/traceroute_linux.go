@@ -42,6 +42,7 @@ func (l *LinuxTraceroute) Run() (NetworkPath, error) {
 		log.Warnf("could not initialize system-probe connection: %s", err.Error())
 		return NetworkPath{}, err
 	}
+
 	resp, err := tu.GetTraceroute(clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.MaxTTL, l.cfg.TimeoutMs)
 	if err != nil {
 		return NetworkPath{}, err

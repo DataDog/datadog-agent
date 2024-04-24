@@ -140,10 +140,9 @@ func (fh *forwarderHealth) healthCheckLoop() {
 	defer close(fh.stopped)
 
 	valid := fh.checkValidAPIKey()
-	// If no key is valid, no need to keep checking, they won't magically become valid
+	// If no key is valid, keep checking in case the failures are due to an issue on the API side
 	if !valid {
 		fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
-		return
 	}
 
 	for {
@@ -154,7 +153,6 @@ func (fh *forwarderHealth) healthCheckLoop() {
 			valid := fh.checkValidAPIKey()
 			if !valid {
 				fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
-				return
 			}
 		case <-fh.health.C:
 		}

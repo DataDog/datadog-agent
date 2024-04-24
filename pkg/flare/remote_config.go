@@ -64,9 +64,9 @@ func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 	}
 
 	var haState *pbgo.GetStateConfigResponse
-	if config.Datadog.GetBool("ha.enabled") {
+	if config.Datadog.GetBool("multi_region_failover.enabled") {
 		if haState, err = cli.GetConfigStateHA(ctx, in); err != nil {
-			return fmt.Errorf("couldn't get the HA repositories state: %v", err)
+			return fmt.Errorf("couldn't get the MRF repositories state: %v", err)
 		}
 	}
 
