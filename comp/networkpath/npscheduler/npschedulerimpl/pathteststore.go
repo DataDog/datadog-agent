@@ -103,13 +103,7 @@ func (f *pathtestStore) add(pathtestToAdd *pathtest) {
 		f.pathtestContexts[hash] = newPathtestContext(pathtestToAdd, f.pathtestRunUntilDuration)
 		return
 	}
-	if pathtestCtx.pathtest == nil {
-		pathtestCtx.pathtest = pathtestToAdd
-	} else {
-		// accumulate pathtestToAdd with existing pathtest(s) with same hash
-		//pathtestCtx.pathtest.Bytes += pathtestToAdd.Bytes
-		f.logger.Warn("Extend TTL of pathtest here")
-	}
+	pathtestCtx.runUntilTime = timeNow().Add(f.pathtestRunUntilDuration)
 	f.pathtestContexts[hash] = pathtestCtx
 }
 
