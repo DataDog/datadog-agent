@@ -347,7 +347,7 @@ func TestScan(t *testing.T) {
 		},
 		"and so we go": {
 			matched:    false,
-			event:      "",
+			event:      "and so we go",
 			matchCount: 0,
 		},
 	}
@@ -431,7 +431,7 @@ func TestCloseCycleScan(t *testing.T) {
 			},
 			"and so we go": {
 				matched:    false,
-				event:      "",
+				event:      "and so we go",
 				matchCount: 0,
 			},
 		}

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
 )
 
 type linuxRuntimeSecretSuite struct {
@@ -36,15 +37,8 @@ hostname: ENC[hostname]`
 
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
-			agentparams.WithFile("/tmp/bin/secret.sh", string(secretScript), true),
-		),
-	))
-
-	v.Env().RemoteHost.MustExecute(`sudo sh -c "chown dd-agent:dd-agent /tmp/bin/secret.sh && chmod 700 /tmp/bin/secret.sh"`)
-	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithAgentOptions(
+			agentparams.WithFileWithPermissions("/tmp/bin/secret.sh", string(secretScript), true, secrets.WithUnixSecretPermissions(false)),
 			agentparams.WithAgentConfig(config),
-			agentparams.WithFile("/tmp/bin/secret.sh", string(secretScript), true),
 		),
 	))
 

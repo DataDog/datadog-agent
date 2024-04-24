@@ -13,12 +13,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/stretchr/testify/assert"
 )
 
 type VMFakeintakeSuite struct {
@@ -178,7 +179,7 @@ func (s *VMFakeintakeSuite) TestAutoVersionTraces() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
-	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+	service := fmt.Sprintf("tracegen-traces-%s", s.transport)
 
 	// Wait for agent to be live
 	s.T().Log("Waiting for Trace Agent to be live.")
@@ -194,7 +195,7 @@ func (s *VMFakeintakeSuite) TestAutoVersionTraces() {
 		s.logStatus()
 		testAutoVersionTraces(s.T(), c, s.Env().FakeIntake)
 		s.logJournal()
-	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
+	}, 3*time.Minute, 10*time.Second, "Failed finding traces")
 }
 
 func (s *VMFakeintakeSuite) TestAutoVersionStats() {

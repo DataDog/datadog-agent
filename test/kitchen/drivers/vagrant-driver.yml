@@ -47,7 +47,7 @@ platforms:
 # uncomment below to locally inspect junit tarballs used for CI visibility
 #    verifier:
 #      downloads:
-#        "/tmp/junit.tar.gz": kitchen-junit-<%= platform[0] %>.tar.gz
+#        "/tmp/junit.tar.gz": junit-<%= platform[0] %>.tar.gz
 #        "/tmp/testjson.tar.gz": testjson/<%= platform[0] %>/testjson.tar.gz
 <%
     end
