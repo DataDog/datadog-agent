@@ -60,5 +60,7 @@ jobs:
           export PATH="/c/msys64/mingw64/bin:/c/msys64/usr/bin/:$PATH" # prepend msys, otherwise make from mingw gets used
           echo $PATH
           powershell.exe -Command ./tasks/winbuildscripts/pre-go-build.ps1
+          echo Clang format version
+          clang-format --version
           inv -e rtloader.format --raise-if-changed
           inv -e linter.go --timeout 30
