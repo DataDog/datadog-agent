@@ -517,7 +517,7 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 }
 
 func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
-	if c.networkPathEnabled {
+	if !c.networkPathEnabled {
 		return
 	}
 	for _, conn := range conns {
