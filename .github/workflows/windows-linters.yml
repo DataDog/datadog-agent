@@ -1,7 +1,8 @@
 name: "Windows linters"
 
-# on:
-#   push:
+on:
+  push:
+
 #     branches:
 #       - main
 #       - "[0-9]+.[0-9]+.x"
