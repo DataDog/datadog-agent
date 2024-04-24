@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package logs //nolint:revive // TODO(AML) Fix revive linter
 
 import (
@@ -10,10 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-metrics-logs
-
-// Bundle defines the fx options for this bundle.
-func Bundle() fxutil.BundleOptions {
+// MockBundle defines the mock fx options for this bundle.
+func MockBundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		agent.Module())
+		agent.MockModule())
 }
