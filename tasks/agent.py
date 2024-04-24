@@ -582,7 +582,8 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
         {
             # Run eventlog check tests with the Windows API, which depend on the EventLog service
             "dir": ".",
-            'prefix': './comp/checks/windowseventlog/windowseventlogimpl/check/...',
+            # Don't include submodules, since the `-evtapi` flag is not defined in them
+            'prefix': './comp/checks/windowseventlog/windowseventlogimpl/check',
             'extra_args': '-evtapi Windows',
         },
     ]
