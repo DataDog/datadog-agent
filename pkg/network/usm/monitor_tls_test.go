@@ -508,6 +508,23 @@ func (s *tlsSuite) TestJavaInjection() {
 	}
 }
 
+func TestGoTLSInitialization(t *testing.T) {
+	// This is meant to test the eBPF program loading in isolation to detect
+	// things such as verifier errors
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+		cfg := config.New()
+		cfg.EnableGoTLSSupport = true
+
+		if !gotlstestutil.GoTLSSupported(t, cfg) {
+			t.Skip("GoTLS not supported for this setup")
+		}
+
+		monitor := setupUSMTLSMonitor(t, cfg)
+		assert.NotNil(t, monitor)
+	})
+}
+
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	t.Skip("skipping GoTLS tests while we investigate their flakiness")
 
