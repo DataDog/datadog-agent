@@ -220,11 +220,12 @@ const (
 
 // ParseInstrumentationMode returns the instrumentation mode from an input string
 func ParseInstrumentationMode(input string) (InstrumentationMode, error) {
-	switch InstrumentationMode(input) {
+	mode := InstrumentationMode(input)
+	switch mode {
 	case InitContainer, RemoteCopy:
-		return InstrumentationMode(input), nil
+		return mode, nil
 	default:
-		return "", fmt.Errorf("unknown instrumentation mode: %v", input)
+		return "", fmt.Errorf("unknown instrumentation mode: %q, input: %q", mode, input)
 	}
 }
 

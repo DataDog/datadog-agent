@@ -165,7 +165,7 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     except FileExistsError:
         # Directory already exists
         pass
-    except OSError as e:
+    except Exception as e:
         # Handle other OS-related errors
         print(f"Error creating directory: {e}")
 
