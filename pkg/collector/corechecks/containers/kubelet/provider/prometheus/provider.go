@@ -70,6 +70,9 @@ type ScraperConfig struct {
 	// AllowNotFound determines whether the check should error out or just return nothing when a 404 status code is encountered
 	AllowNotFound       bool
 	TextFilterBlacklist []string
+	// ShouldDisable determines if a provider should be disabled when a 404 status code is encountered
+	ShouldDisable bool
+	IsDisabled    bool
 }
 
 // NewProvider returns a new Provider.
@@ -156,11 +159,20 @@ func NewProvider(config *common.KubeletConfig, transformers Transformers, scrape
 // Provide sends the metrics collected.
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	// Collect raw data
+	if p.ScraperConfig.IsDisabled {
+		log.Debugf("Skipping collecting metrics as provider is disabled")
+		return nil
+	}
 	data, status, err := kc.QueryKubelet(context.TODO(), p.ScraperConfig.Path)
 	if err != nil {
 		log.Debugf("Unable to collect query probes endpoint: %s", err)
 		return err
 	}
+	if status == 404 && p.ScraperConfig.ShouldDisable {
+		p.ScraperConfig.IsDisabled = true
+		return nil
+	}
+
 	if status == 404 && p.ScraperConfig.AllowNotFound {
 		return nil
 	}

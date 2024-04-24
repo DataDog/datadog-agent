@@ -13,8 +13,8 @@ class JsonSchemaValidator:
                 with open(os.path.join(self.schema_directory, filename)) as file:
                     schema = json.load(file)
                     if "$id" in schema:
-                        # Add each schema to the store using its 'id' as key
-                        self.schema_store[f"/schemas/{schema['$id']}"] = schema
+                        # Add each schema to the store using its 'filename' as key
+                        self.schema_store[f"/schemas/{filename}"] = schema
 
         # Create a resolver that uses the schema store for resolving references
         self.resolver = RefResolver(base_uri='', referrer=None, store=self.schema_store)
