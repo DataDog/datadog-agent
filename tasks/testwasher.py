@@ -76,7 +76,8 @@ class TestWasher:
                 for package, tests in non_flaky_failing_tests.items():
                     for test in tests:
                         failed_tests_string += f"- {package} {test}\n"
-        print("The test command failed, the following tests failed and are not supposed to be flaky:")
-        print(failed_tests_string)
+        if failed_tests_string:
+            print("The test command failed, the following tests failed and are not supposed to be flaky:")
+            print(failed_tests_string)
 
         return should_succeed
