@@ -142,8 +142,11 @@ def test_core(
             print(f"----- {skipped_header} Module '{module.full_path()}'")
         if not module.condition():
             continue
+        print("\\e[0Ksection_start:`date +%s`:my_first_section\r\\e[0KHeader of the 1st collapsible section")
 
         command(modules_results, module, module_result)
+
+        print("\\e[0Ksection_end:`date +%s`:my_first_section\r\\e[0K")
     return modules_results
 
 
