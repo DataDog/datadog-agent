@@ -40,6 +40,9 @@ func newProcessor(sender sender.Sender, maxNbItem int, maxRetentionTime time.Dur
 
 	return &processor{
 		queue: queue.NewQueue(maxNbItem, maxRetentionTime, func(images []*model.ContainerImage) {
+			for _, img := range images {
+				log.Infof("containerImage: Sending image to the event platform: %s", img.String())
+			}
 			encoded, err := proto.Marshal(&model.ContainerImagePayload{
 				Version: "v1",
 				Host:    hname,
@@ -50,7 +53,6 @@ func newProcessor(sender sender.Sender, maxNbItem int, maxRetentionTime time.Dur
 				log.Errorf("Unable to encode message: %+v", err)
 				return
 			}
-
 			sender.EventPlatformEvent(encoded, eventplatform.EventTypeContainerImages)
 		}),
 	}
@@ -62,6 +64,7 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 	log.Tracef("Processing %d events", len(evBundle.Events))
 
 	for _, event := range evBundle.Events {
+		log.Infof("containerImage: Processing event %s", event.Entity.String(false))
 		p.processImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
 	}
 }
@@ -69,6 +72,7 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 func (p *processor) processRefresh(allImages []*workloadmeta.ContainerImageMetadata) {
 	// So far, the check is refreshing all the images every 5 minutes all together.
 	for _, img := range allImages {
+		log.Infof("containerImage: Refreshing image %s", img.String(false))
 		p.processImage(img)
 	}
 }

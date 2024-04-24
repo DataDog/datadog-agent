@@ -138,6 +138,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 			Addresses:  computeContainerAddrs(container),
 			RepoDigest: container.Image.RepoDigest,
 		}
+		log.Infof("processContainers: dump GetContainers: %s", processContainer.String())
 
 		// Always adding container if we have metadata as we do want to report containers without stats
 		processContainers = append(processContainers, processContainer)
