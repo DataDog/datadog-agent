@@ -36,7 +36,7 @@ func PreSetupInstaller() error {
 }
 
 // SetupInstaller installs and starts the installer systemd units
-func SetupInstaller(ctx context.Context, enableDaemon bool) (err error) {
+func SetupInstaller(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup installer: %s, reverting", err)
@@ -80,7 +80,9 @@ func SetupInstaller(ctx context.Context, enableDaemon bool) (err error) {
 	if err != nil {
 		return fmt.Errorf("error changing owner of /var/log/datadog: %w", err)
 	}
-	if !enableDaemon {
+
+	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the agent
+	if os.Getenv("DD_REMOTE_UPDATES") != "true" {
 		return nil
 	}
 

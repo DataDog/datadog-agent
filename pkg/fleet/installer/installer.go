@@ -279,7 +279,7 @@ func (i *installerImpl) preSetupPackage(_ context.Context, pkg string) error {
 func (i *installerImpl) setupPackage(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogInstaller:
-		return service.SetupInstaller(ctx, true)
+		return service.SetupInstaller(ctx)
 	case packageDatadogAgent:
 		return service.SetupAgent(ctx)
 	case packageAPMInjector:
