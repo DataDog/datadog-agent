@@ -163,7 +163,6 @@ func (rc rcClient) start() {
 func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	// If the updates map is empty, we should unset the failover settings if they were set via RC previously
 	if len(updates) == 0 {
-		// Determine the current source of the multi_region_failover.failover_metrics and multi_region_failover.failover_logs cfg value
 		mrfFailoverMetricsSource := config.Datadog.GetSource("multi_region_failover.failover_metrics")
 		mrfFailoverLogsSource := config.Datadog.GetSource("multi_region_failover.failover_logs")
 
@@ -183,7 +182,6 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 
 	applied := false
 	for cfgPath, update := range updates {
-		// Parse the config contents
 		mrfUpdate, err := parseMultiRegionFailoverConfig(update.Config)
 		if err != nil {
 			pkglog.Errorf("Multi-region Failover update unmarshal failed: %s", err)
@@ -206,21 +204,24 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 			}
 
 			if mrfUpdate.FailoverMetrics != nil {
-				appliedMetrics := rc.applyMRFRuntimeSetting("multi_region_failover.failover_metrics", *mrfUpdate.FailoverMetrics, cfgPath, applyStateCallback)
-				applied = applied || appliedMetrics
+				err = rc.applyMRFRuntimeSetting("multi_region_failover.failover_metrics", *mrfUpdate.FailoverMetrics, cfgPath, applyStateCallback)
+				if err != nil {
+					continue
+				}
 			}
 			if mrfUpdate.FailoverLogs != nil {
-				appliedLogs := rc.applyMRFRuntimeSetting("multi_region_failover.failover_logs", *mrfUpdate.FailoverLogs, cfgPath, applyStateCallback)
-				applied = applied || appliedLogs
+				err = rc.applyMRFRuntimeSetting("multi_region_failover.failover_logs", *mrfUpdate.FailoverLogs, cfgPath, applyStateCallback)
+				if err != nil {
+					continue
+				}
 			}
-			if applied {
-				applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-			}
+			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+			applied = true
 		}
 	}
 }
 
-func (rc rcClient) applyMRFRuntimeSetting(setting string, value bool, cfgPath string, applyStateCallback func(string, state.ApplyStatus)) bool {
+func (rc rcClient) applyMRFRuntimeSetting(setting string, value bool, cfgPath string, applyStateCallback func(string, state.ApplyStatus)) error {
 	pkglog.Infof("Setting `%s: %t` through remote config", setting, value)
 	err := rc.settingsComponent.SetRuntimeSetting(setting, value, model.SourceRC)
 	if err != nil {
@@ -230,7 +231,7 @@ func (rc rcClient) applyMRFRuntimeSetting(setting string, value bool, cfgPath st
 			Error: err.Error(),
 		})
 	}
-	return err == nil
+	return err
 }
 
 func (rc rcClient) SubscribeAgentTask() {
