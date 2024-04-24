@@ -61,7 +61,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	)
 	verbose := r.URL.Query().Get("verbose") == "true"
 	if statusType == "collector" {
-		stats, err = statusComponent.GetStatusBySection(status.CollectorSection, "html", verbose)
+		stats, err = statusComponent.GetStatusBySections([]string{status.CollectorSection}, "html", verbose)
 	} else {
 		stats, err = statusComponent.GetStatus("html", verbose, status.CollectorSection)
 	}

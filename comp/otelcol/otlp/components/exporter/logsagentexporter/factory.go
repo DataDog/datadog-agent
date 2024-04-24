@@ -31,8 +31,8 @@ const (
 
 // Config defines configuration for the logs agent exporter.
 type Config struct {
-	otelSource    string
-	logSourceName string
+	OtelSource    string
+	LogSourceName string
 }
 
 type factory struct {
@@ -48,8 +48,8 @@ func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
 		cfgType,
 		func() component.Config {
 			return &Config{
-				otelSource:    otelSource,
-				logSourceName: logSourceName,
+				OtelSource:    otelSource,
+				LogSourceName: logSourceName,
 			}
 		},
 		exp.WithLogs(f.createLogsExporter, stability),
@@ -62,7 +62,7 @@ func (f *factory) createLogsExporter(
 	c component.Config,
 ) (exp.Logs, error) {
 	cfg := checkAndCastConfig(c)
-	logSource := sources.NewLogSource(cfg.logSourceName, &config.LogsConfig{})
+	logSource := sources.NewLogSource(cfg.LogSourceName, &config.LogsConfig{})
 
 	// TODO: Ideally the attributes translator would be created once and reused
 	// across all signals. This would need unifying the logsagent and serializer

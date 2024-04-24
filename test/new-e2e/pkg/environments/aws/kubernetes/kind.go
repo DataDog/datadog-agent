@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+	"github.com/DataDog/test-infra-definitions/common/utils"
 
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
@@ -154,10 +155,16 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	kindCluster, err := kubeComp.NewKindCluster(*awsEnv.CommonEnvironment, host, awsEnv.CommonNamer.ResourceName("kind"), params.name, awsEnv.KubernetesVersion())
+	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
 	if err != nil {
 		return err
 	}
+
+	kindCluster, err := kubeComp.NewKindCluster(*awsEnv.CommonEnvironment, host, awsEnv.CommonNamer.ResourceName("kind"), params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	if err != nil {
+		return err
+	}
+
 	err = kindCluster.Export(ctx, &env.KubernetesCluster.ClusterOutput)
 	if err != nil {
 		return err

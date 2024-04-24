@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, cast
+from typing import TYPE_CHECKING, cast
 
 from invoke.context import Context
 from invoke.runners import Result
@@ -56,7 +56,7 @@ class CompilerImage:
             info(f"[*] Compiler for {self.arch} not running, starting it...")
             self.start()
 
-    def exec(self, cmd: str, user="compiler", verbose=True, run_dir: Optional[PathOrStr] = None):
+    def exec(self, cmd: str, user="compiler", verbose=True, run_dir: PathOrStr | None = None):
         if run_dir:
             cmd = f"cd {run_dir} && {cmd}"
 
@@ -85,7 +85,7 @@ class CompilerImage:
             )
 
         # Add build arguments (such as go version) from go.env
-        with open(buildimages_path / "go.env", "r") as f:
+        with open(buildimages_path / "go.env") as f:
             for line in f:
                 docker_build_args += ["--build-arg", line.strip()]
 
