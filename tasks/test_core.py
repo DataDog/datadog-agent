@@ -1,6 +1,8 @@
 import abc
 import json
 import os
+import time
+import random
 from collections import defaultdict
 from typing import Dict, List
 
@@ -142,11 +144,12 @@ def test_core(
             print(f"----- {skipped_header} Module '{module.full_path()}'")
         if not module.condition():
             continue
-        print("\\e[0Ksection_start:`date +%s`:my_first_section\r\\e[0KHeader of the 1st collapsible section")
-
+        sectionid = int(random.random() * 100000)
+        print(
+            f'\033[0Ksection_start:{int(time.time())}:{module.full_path.replace("/", "")}_{sectionid}[collapsed=true]\r\033[0K{module.full_path().replace("/", "")}'
+        )
         command(modules_results, module, module_result)
-
-        print("\\e[0Ksection_end:`date +%s`:my_first_section\r\\e[0K")
+        print(f'\033[0Ksection_end:{int(time.time())}:{module.full_path.replace("/", "")}\r\033[0K')
     return modules_results
 
 
