@@ -75,11 +75,19 @@ type WindowsProbe struct {
 	filePathResolver     map[fileObjectPointer]string
 	regPathResolver      map[regObjectPointer]string
 
+	// state tracking
+	renamePreArgs renameState
+
 	// stats
 	stats stats
 	// discarders
 	discardedPaths     *lru.Cache[string, struct{}]
 	discardedBasenames *lru.Cache[string, struct{}]
+}
+
+type renameState struct {
+	fileObject uint64
+	path       string
 }
 
 type etwNotification struct {
@@ -536,8 +544,6 @@ func (p *WindowsProbe) handleProcessStop(ev *model.Event, stop *procmon.ProcessS
 	return true
 }
 
-var renameOldArgs string
-
 func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotification) bool {
 	// handle incoming events here
 	// each event will come in as a different type
@@ -553,14 +559,22 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 			},
 		}
 	case *renameArgs:
-		renameOldArgs = arg.fileName
+		p.renamePreArgs = renameState{
+			fileObject: uint64(arg.fileObject),
+			path:       arg.fileName,
+		}
+	case *rename29Args:
+		p.renamePreArgs = renameState{
+			fileObject: uint64(arg.fileObject),
+			path:       arg.fileName,
+		}
 	case *renamePath:
 		ev.Type = uint32(model.FileRenameEventType)
 		ev.RenameFile = model.RenameFileEvent{
 			Old: model.FileEvent{
-				FileObject:  uint64(arg.fileObject),
-				PathnameStr: renameOldArgs,
-				BasenameStr: filepath.Base(renameOldArgs),
+				FileObject:  p.renamePreArgs.fileObject,
+				PathnameStr: p.renamePreArgs.path,
+				BasenameStr: filepath.Base(p.renamePreArgs.path),
 			},
 			New: model.FileEvent{
 				FileObject:  uint64(arg.fileObject),
