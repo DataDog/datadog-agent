@@ -7,7 +7,7 @@
       "kernel": "6.0.7-301.fc37",
       "os_version": "37",
       "image": "Fedora-Cloud-Base-37.x86_64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "fedora_38": {
       "os_name": "Fedora Linux",
@@ -15,7 +15,7 @@
       "kernel": "6.2.9-300.fc38",
       "os_version": "38",
       "image": "Fedora-Cloud-Base-38.x86_64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "amazon_4.14": {
       "os_name": "Amazon Linux",
@@ -23,7 +23,7 @@
       "kernel": "4.14.314-237.533.amzn2",
       "os_version": "2",
       "image": "amzn2-kvm-2.0-x86_64-4.14.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "amazon_5.10": {
       "os_name": "Amazon Linux",
@@ -31,7 +31,7 @@
       "kernel": "5.10.214-202.855.amzn2",
       "os_version": "2",
       "image": "amzn2-kvm-2.0-x86_64-5.10.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "amazon_5.4": {
       "os_name": "Amazon Linux",
@@ -39,15 +39,15 @@
       "kernel": "5.4.273-186.370.amzn2",
       "os_version": "2",
       "image": "amzn2-kvm-2.0-x86_64-5.4.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
-    "amazon_al2023": {
+    "amazon_2023": {
       "os_name": "Amazon Linux",
       "os_id": "amzn",
       "kernel": "6.1.77-99.164.amzn2023",
       "os_version": "2023",
-      "image": "amzn2023-kvm-2.0-amd64-al2023.qcow2.xz",
-      "image_version": "master"
+      "image": "amzn2023-kvm-2.0-amd64-2023.qcow2.xz",
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "centos_7.9": {
       "os_name": "CentOS Linux",
@@ -55,7 +55,7 @@
       "kernel": "3.10.0-1160.80.1.el7",
       "os_version": "7.9.2009",
       "image": "centos-7.9-x86_64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "centos_8": {
       "os_name": "CentOS Stream",
@@ -71,7 +71,7 @@
       "kernel": "4.19.0-26",
       "os_version": "10",
       "image": "debian-10-generic-x86_64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9",
+      "image_version": "guillermo.julian/correct-ubuntu-names",
       "alt_version_names": [
         "buster"
       ]
@@ -82,7 +82,7 @@
       "kernel": "5.10.0-28",
       "os_version": "11",
       "image": "debian-11-generic-x86_64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9",
+      "image_version": "guillermo.julian/correct-ubuntu-names",
       "alt_version_names": [
         "bullseye"
       ]
@@ -93,7 +93,7 @@
       "kernel": "6.1.0-18",
       "os_version": "12",
       "image": "debian-12-generic-x86_64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9",
+      "image_version": "guillermo.julian/correct-ubuntu-names",
       "alt_version_names": [
         "bookworm"
       ]
@@ -104,7 +104,7 @@
       "kernel": "3.10.0-1160.105.1.0.1.el7",
       "os_version": "7.9",
       "image": "oracle-7.9-x86_64.qcow.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "oracle_8.9": {
       "os_name": "Oracle Linux Server",
@@ -112,7 +112,7 @@
       "kernel": "5.15.0-200.131.27.el8uek",
       "os_version": "8.9",
       "image": "oracle-8.9-x86_64.qcow.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "oracle_9.3": {
       "os_name": "Oracle Linux Server",
@@ -120,7 +120,7 @@
       "kernel": "5.15.0-200.131.27.el9uek",
       "os_version": "9.3",
       "image": "oracle-9.3-x86_64.qcow.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "rocky_8.5": {
       "os_name": "Rocky Linux",
@@ -128,7 +128,7 @@
       "kernel": "4.18.0-348.el8.0.2",
       "os_version": "8.5",
       "image": "rocky-8.5-x86_64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "rocky_9.3": {
       "os_name": "Rocky Linux",
@@ -136,59 +136,59 @@
       "kernel": "5.14.0-362.8.1.el9_3",
       "os_version": "9.3",
       "image": "rocky-9.3-x86_64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
-    "ubuntu_16": {
+    "ubuntu_16.04": {
       "os_name": "Ubuntu",
       "os_id": "ubuntu",
       "kernel": "4.4.0-210-generic",
       "os_version": "16.04",
-      "image": "ubuntu-16-x86_64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9",
+      "image": "ubuntu-16.04-x86_64.qcow2.xz",
+      "image_version": "guillermo.julian/correct-ubuntu-names",
       "alt_version_names": [
         "xenial"
       ]
     },
-    "ubuntu_18": {
+    "ubuntu_18.04": {
       "os_name": "Ubuntu",
       "os_id": "ubuntu",
       "kernel": "4.18.0-25-generic",
       "os_version": "18.04",
-      "image": "ubuntu-18-x86_64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9",
+      "image": "ubuntu-18.04-x86_64.qcow2.xz",
+      "image_version": "guillermo.julian/correct-ubuntu-names",
       "alt_version_names": [
         "bionic"
       ]
     },
-    "ubuntu_20": {
+    "ubuntu_20.04": {
       "os_name": "Ubuntu",
       "os_id": "ubuntu",
       "kernel": "5.4.0-167-generic",
       "os_version": "20.04",
-      "image": "ubuntu-20-x86_64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9",
+      "image": "ubuntu-20.04-x86_64.qcow2.xz",
+      "image_version": "guillermo.julian/correct-ubuntu-names",
       "alt_version_names": [
         "focal"
       ]
     },
-    "ubuntu_22": {
+    "ubuntu_22.04": {
       "os_name": "Ubuntu",
       "os_id": "ubuntu",
       "kernel": "5.15.0-91-generic",
       "os_version": "22.04",
-      "image": "ubuntu-22-x86_64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9",
+      "image": "ubuntu-22.04-x86_64.qcow2.xz",
+      "image_version": "guillermo.julian/correct-ubuntu-names",
       "alt_version_names": [
         "jammy"
       ]
     },
-    "ubuntu_23": {
+    "ubuntu_23.10": {
       "os_name": "Ubuntu",
       "os_id": "ubuntu",
       "kernel": "6.5.0-9-generic",
       "os_version": "23.10",
-      "image": "ubuntu-23-x86_64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9",
+      "image": "ubuntu-23.10-x86_64.qcow2.xz",
+      "image_version": "guillermo.julian/correct-ubuntu-names",
       "alt_version_names": [
         "mantic"
       ]
@@ -201,7 +201,7 @@
       "kernel": "6.0.7-301.fc37",
       "os_version": "37",
       "image": "Fedora-Cloud-Base-37.arm64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "fedora_38": {
       "os_name": "Fedora Linux",
@@ -209,7 +209,7 @@
       "kernel": "6.2.9-300.fc38",
       "os_version": "38",
       "image": "Fedora-Cloud-Base-38.arm64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "amazon_4.14": {
       "os_name": "Amazon Linux",
@@ -217,7 +217,7 @@
       "kernel": "4.14.314-237.533.amzn2",
       "os_version": "2",
       "image": "amzn2-kvm-2.0-arm64-4.14.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "amazon_5.4": {
       "os_name": "Amazon Linux",
@@ -225,7 +225,7 @@
       "kernel": "5.4.273-186.370.amzn2",
       "os_version": "2",
       "image": "amzn2-kvm-2.0-arm64-5.4.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "centos_7.9": {
       "os_name": "CentOS Linux",
@@ -233,7 +233,7 @@
       "kernel": "4.18.0-348.20.1.el7",
       "os_version": "7.9.2009",
       "image": "centos-7.9-arm64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "centos_8": {
       "os_name": "CentOS Stream",
@@ -249,7 +249,7 @@
       "kernel": "4.19.0-26",
       "os_version": "10",
       "image": "debian-10-generic-arm64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9",
+      "image_version": "guillermo.julian/correct-ubuntu-names",
       "alt_version_names": [
         "buster"
       ]
@@ -260,7 +260,7 @@
       "kernel": "5.10.0-28",
       "os_version": "11",
       "image": "debian-11-generic-arm64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9",
+      "image_version": "guillermo.julian/correct-ubuntu-names",
       "alt_version_names": [
         "bullseye"
       ]
@@ -271,7 +271,7 @@
       "kernel": "6.1.0-18",
       "os_version": "12",
       "image": "debian-12-generic-arm64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9",
+      "image_version": "guillermo.julian/correct-ubuntu-names",
       "alt_version_names": [
         "bookworm"
       ]
@@ -282,7 +282,7 @@
       "kernel": "5.15.0-200.131.27.el8uek",
       "os_version": "8.9",
       "image": "oracle-8.9-arm64.qcow.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "oracle_9.3": {
       "os_name": "Oracle Linux Server",
@@ -290,7 +290,7 @@
       "kernel": "5.15.0-200.131.27.el9uek",
       "os_version": "9.3",
       "image": "oracle-9.3-arm64.qcow.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "rocky_8.5": {
       "os_name": "Rocky Linux",
@@ -298,7 +298,7 @@
       "kernel": "4.18.0-348.el8.0.2",
       "os_version": "8.5",
       "image": "rocky-8.5-arm64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "rocky_9.3": {
       "os_name": "Rocky Linux",
@@ -306,51 +306,7 @@
       "kernel": "5.14.0-362.8.1.el9_3",
       "os_version": "9.3",
       "image": "rocky-9.3-arm64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
-    },
-    "ubuntu_18": {
-      "os_name": "Ubuntu",
-      "os_id": "ubuntu",
-      "kernel": "4.18.0-25-generic",
-      "os_version": "18.04",
-      "image": "ubuntu-18-arm64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9",
-      "alt_version_names": [
-        "bionic"
-      ]
-    },
-    "ubuntu_20": {
-      "os_name": "Ubuntu",
-      "os_id": "ubuntu",
-      "kernel": "5.4.0-167-generic",
-      "os_version": "20.04",
-      "image": "ubuntu-20-arm64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9",
-      "alt_version_names": [
-        "focal"
-      ]
-    },
-    "ubuntu_22": {
-      "os_name": "Ubuntu",
-      "os_id": "ubuntu",
-      "kernel": "5.15.0-91-generic",
-      "os_version": "22.04",
-      "image": "ubuntu-22-arm64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9",
-      "alt_version_names": [
-        "jammy"
-      ]
-    },
-    "ubuntu_23": {
-      "os_name": "Ubuntu",
-      "os_id": "ubuntu",
-      "kernel": "6.5.0-9-generic",
-      "os_version": "23.10",
-      "image": "ubuntu-23-arm64.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9",
-      "alt_version_names": [
-        "mantic"
-      ]
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
     "amazon_5.10": {
       "os_name": "Amazon Linux",
@@ -358,15 +314,59 @@
       "kernel": "5.10.214-202.855.amzn2",
       "os_version": "2",
       "image": "amzn2-kvm-2.0-arm64-5.10.qcow2.xz",
-      "image_version": "20240422_8e2cf5b9"
+      "image_version": "guillermo.julian/correct-ubuntu-names"
     },
-    "amazon_al2023": {
+    "amazon_2023": {
       "os_name": "Amazon Linux",
       "os_id": "amzn",
       "kernel": "6.1.77-99.164.amzn2023",
       "os_version": "2023",
-      "image": "amzn2023-kvm-2.0-arm64-al2023.qcow2.xz",
-      "image_version": "20240423_7cfb8eda"
+      "image": "amzn2023-kvm-2.0-arm64-2023.qcow2.xz",
+      "image_version": "guillermo.julian/correct-ubuntu-names"
+    },
+    "ubuntu_18.04": {
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "4.18.0-25-generic",
+      "os_version": "18.04",
+      "image": "ubuntu-18.04-arm64.qcow2.xz",
+      "image_version": "guillermo.julian/correct-ubuntu-names",
+      "alt_version_names": [
+        "bionic"
+      ]
+    },
+    "ubuntu_20.04": {
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "5.4.0-167-generic",
+      "os_version": "20.04",
+      "image": "ubuntu-20.04-arm64.qcow2.xz",
+      "image_version": "guillermo.julian/correct-ubuntu-names",
+      "alt_version_names": [
+        "focal"
+      ]
+    },
+    "ubuntu_22.04": {
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "5.15.0-91-generic",
+      "os_version": "22.04",
+      "image": "ubuntu-22.04-arm64.qcow2.xz",
+      "image_version": "guillermo.julian/correct-ubuntu-names",
+      "alt_version_names": [
+        "jammy"
+      ]
+    },
+    "ubuntu_23.10": {
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.5.0-9-generic",
+      "os_version": "23.10",
+      "image": "ubuntu-23.10-arm64.qcow2.xz",
+      "image_version": "guillermo.julian/correct-ubuntu-names",
+      "alt_version_names": [
+        "mantic"
+      ]
     }
   }
 }

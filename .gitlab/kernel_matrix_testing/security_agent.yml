@@ -143,10 +143,10 @@ kmt_run_secagent_tests_x64:
   parallel:
     matrix:
       - TAG:
-          - "ubuntu_18"
-          - "ubuntu_20"
-          - "ubuntu_22"
-          - "ubuntu_23"
+          - "ubuntu_18.04"
+          - "ubuntu_20.04"
+          - "ubuntu_22.04"
+          - "ubuntu_23.10"
           - "amazon_5.4"
           - "amazon_5.10"
           - "fedora_37"
@@ -179,8 +179,8 @@ kmt_run_secagent_tests_arm64:
   parallel:
     matrix:
       - TAG:
-          - "ubuntu_22"
-          - "ubuntu_23"
+          - "ubuntu_22.04"
+          - "ubuntu_23.10"
           - "amazon_5.4"
           - "amazon_5.10"
           - "fedora_37"
