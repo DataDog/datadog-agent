@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Package metadata - metadata for tag enrichment processor.
 package metadata
 
 import (
@@ -12,19 +13,25 @@ import (
 )
 
 var (
+	// Type for tag enrichment processor.
 	Type = component.MustNewType("tagenrichment")
 )
 
 const (
-	TracesStability  = component.StabilityLevelAlpha
+	// TracesStability - stability level for traces.
+	TracesStability = component.StabilityLevelAlpha
+	// MetricsStability - stability level for metrics.
 	MetricsStability = component.StabilityLevelAlpha
-	LogsStability    = component.StabilityLevelAlpha
+	// LogsStability - stability level for logs.
+	LogsStability = component.StabilityLevelAlpha
 )
 
+// Meter for tag enrichement.
 func Meter(settings component.TelemetrySettings) metric.Meter {
 	return settings.MeterProvider.Meter("otelcol/tagenrichment")
 }
 
+// Tracer for tag enrichment.
 func Tracer(settings component.TelemetrySettings) trace.Tracer {
 	return settings.TracerProvider.Tracer("otelcol/tagenrichment")
 }

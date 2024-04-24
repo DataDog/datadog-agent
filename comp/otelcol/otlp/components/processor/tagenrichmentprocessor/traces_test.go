@@ -15,17 +15,17 @@ import (
 	"go.opentelemetry.io/collector/processor/processortest"
 )
 
-// All the data we need to test the Span 
+// All the data we need to test the Span
 type testTrace struct {
-	spanName           string
-	libraryName        string
-	libraryVersion     string
+	spanName       string
+	libraryName    string
+	libraryVersion string
 }
 
 // All the data we need to define a test
 type traceTest struct {
-	name              string
-	inTraces          ptrace.Traces
+	name     string
+	inTraces ptrace.Traces
 }
 
 var (
@@ -39,8 +39,8 @@ var (
 
 	standardTraceTests = []traceTest{
 		{
-			name:              "keepServiceName",
-			inTraces:          generateTraces(nameTraces),
+			name:     "keepServiceName",
+			inTraces: generateTraces(nameTraces),
 		},
 	}
 )
@@ -50,8 +50,7 @@ func TestTagEnrichmentTraceProcessor(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
 			next := new(consumertest.TracesSink)
-			cfg := &Config{
-			}
+			cfg := &Config{}
 			factory := NewFactory()
 			fmp, err := factory.CreateTracesProcessor(
 				ctx,

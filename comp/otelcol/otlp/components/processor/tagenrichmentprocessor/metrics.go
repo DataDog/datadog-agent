@@ -14,10 +14,10 @@ import (
 )
 
 type tagEnrichmentMetricProcessor struct {
-	logger            *zap.Logger
+	logger *zap.Logger
 }
 
-func newTagEnrichmentMetricProcessor(set processor.CreateSettings, cfg *Config) (*tagEnrichmentMetricProcessor, error) {
+func newTagEnrichmentMetricProcessor(set processor.CreateSettings, _ *Config) (*tagEnrichmentMetricProcessor, error) {
 	tesp := &tagEnrichmentMetricProcessor{
 		logger: set.Logger,
 	}
@@ -25,8 +25,6 @@ func newTagEnrichmentMetricProcessor(set processor.CreateSettings, cfg *Config) 
 	return tesp, nil
 }
 
-func (temp *tagEnrichmentMetricProcessor) processMetrics(ctx context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
+func (temp *tagEnrichmentMetricProcessor) processMetrics(_ context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
 	return md, nil
 }
-
-

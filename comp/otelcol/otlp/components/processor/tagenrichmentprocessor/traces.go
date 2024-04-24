@@ -14,10 +14,10 @@ import (
 )
 
 type tagEnrichmentSpanProcessor struct {
-	logger            *zap.Logger
+	logger *zap.Logger
 }
 
-func newTagEnrichmentSpanProcessor(set processor.CreateSettings, cfg *Config) (*tagEnrichmentSpanProcessor, error) {
+func newTagEnrichmentSpanProcessor(set processor.CreateSettings, _ *Config) (*tagEnrichmentSpanProcessor, error) {
 	tesp := &tagEnrichmentSpanProcessor{
 		logger: set.Logger,
 	}
@@ -25,6 +25,6 @@ func newTagEnrichmentSpanProcessor(set processor.CreateSettings, cfg *Config) (*
 	return tesp, nil
 }
 
-func (tesp *tagEnrichmentSpanProcessor) processTraces(ctx context.Context, td ptrace.Traces) (ptrace.Traces, error) {
+func (tesp *tagEnrichmentSpanProcessor) processTraces(_ context.Context, td ptrace.Traces) (ptrace.Traces, error) {
 	return td, nil
 }

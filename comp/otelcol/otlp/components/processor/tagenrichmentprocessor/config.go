@@ -16,21 +16,24 @@ type Config struct {
 	Traces  TraceTagEnrichment  `mapstructure:"traces"`
 }
 
+// MetricTagEnrichment - configuration for metrics.
 type MetricTagEnrichment struct {
 	MetricTagEnrichment []string `mapstructure:"metric"`
 }
 
+// TraceTagEnrichment - configuration for trace spans.
 type TraceTagEnrichment struct {
 	SpanTagEnrichment []string `mapstructure:"span"`
 }
 
+// LogTagEnrichment - configuration for logs.
 type LogTagEnrichment struct {
 	LogTagEnrichment []string `mapstructure:"log"`
 }
 
 var _ component.Config = (*Config)(nil)
 
-// Validate checks if the processor configuration is valid
+// Validate configuration
 func (cfg *Config) Validate() error {
 	var errors error
 	return errors
