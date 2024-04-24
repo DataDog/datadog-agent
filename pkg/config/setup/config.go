@@ -210,6 +210,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.SetDefault("proxy", nil)
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("sslkeylogfile", "")
+	config.BindEnv("tls_handshake_timeout")
 	config.BindEnvAndSetDefault("hostname", "")
 	config.BindEnvAndSetDefault("hostname_file", "")
 	config.BindEnvAndSetDefault("tags", []string{})
@@ -771,6 +772,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	})
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.enabled", true)
+	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.base_backoff", "5m")
+	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.max_backoff", "1h")
 	// sets the expiration deadline (TTL) for reported languages
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.language_ttl", "30m")
 	// language annotation cleanup period
@@ -894,6 +897,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
+	config.BindEnvAndSetDefault("internal_profiling.enable_block_profiling", false)
+	config.BindEnvAndSetDefault("internal_profiling.enable_mutex_profiling", false)
 	config.BindEnvAndSetDefault("internal_profiling.delta_profiles", true)
 	config.BindEnvAndSetDefault("internal_profiling.extra_tags", []string{})
 	config.BindEnvAndSetDefault("internal_profiling.custom_attributes", []string{"check_id"})
@@ -1159,6 +1164,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// The histogram buckets use to track the time in nanoseconds it takes for a DogStatsD listeners to push data to the server
 	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_channel_latency_buckets", []string{})
 
+	// Agent Telemetry. It is experimental feature and is subject to change.
+	// It should not be enabled unless prompted by Datadog Support
+	config.BindEnvAndSetDefault("agent_telemetry.enabled", false)
+
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
 	config.SetKnown("metadata_providers")
@@ -1264,6 +1273,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_goroutine_stacktraces", false)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_block_profiling", false)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_mutex_profiling", false)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.delta_profiles", true)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.unix_socket", "")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.extra_tags", []string{})
@@ -1358,7 +1369,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	setupAPM(config)
 	OTLP(config)
 	setupProcesses(config)
-	setupHighAvailability(config)
+	setupMultiRegionFailover(config)
 
 	// Updater configuration
 	config.BindEnvAndSetDefault("updater.remote_updates", false)

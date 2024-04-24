@@ -75,11 +75,19 @@ type WindowsProbe struct {
 	filePathResolver     map[fileObjectPointer]string
 	regPathResolver      map[regObjectPointer]string
 
+	// state tracking
+	renamePreArgs renameState
+
 	// stats
 	stats stats
 	// discarders
 	discardedPaths     *lru.Cache[string, struct{}]
 	discardedBasenames *lru.Cache[string, struct{}]
+}
+
+type renameState struct {
+	fileObject uint64
+	path       string
 }
 
 type etwNotification struct {
@@ -192,7 +200,7 @@ func (p *WindowsProbe) initEtwFIM() error {
 		*/
 		// try masking on create & create_new_file
 		// given the current requirements, I think we can _probably_ just do create_new_file
-		cfg.MatchAnyKeyword = 0x10A0
+		cfg.MatchAnyKeyword = 0x18A0
 	})
 	p.fimSession.ConfigureProvider(p.regguid, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
@@ -259,6 +267,18 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
+			case idNameCreate:
+				if ca, err := p.parseNameCreateArgs(e); err == nil {
+					log.Tracef("Received nameCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					ecb(ca, e.EventHeader.ProcessID)
+				}
+
+			case idNameDelete:
+				if ca, err := p.parseNameDeleteArgs(e); err == nil {
+					log.Tracef("Received nameDelete event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					ecb(ca, e.EventHeader.ProcessID)
+				}
+
 			case idCreate:
 				if ca, err := p.parseCreateHandleArgs(e); err == nil {
 					log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
@@ -273,12 +293,13 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				p.stats.fileCreateNew++
 			case idCleanup:
 				if ca, err := p.parseCleanupArgs(e); err == nil {
+					log.Tracef("Received cleanup event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 				p.stats.fileCleanup++
 			case idClose:
 				if ca, err := p.parseCloseArgs(e); err == nil {
-					//fmt.Printf("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					log.Tracef("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 					if e.EventHeader.EventDescriptor.ID == idClose {
 						p.filePathResolverLock.Lock()
@@ -293,22 +314,59 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				}
 				p.stats.fileFlush++
 
-			// cases below here are file id events we're not currently processing.
-			// for now, just count them so that we can get an idea of frequency/voluem
+			case idWrite:
+				if wa, err := p.parseWriteArgs(e); err == nil {
+					//fmt.Printf("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
+					log.Tracef("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
+					ecb(wa, e.EventHeader.ProcessID)
+				}
+
 			case idSetInformation:
+				if si, err := p.parseInformationArgs(e); err == nil {
+					log.Tracef("Received SetInformation event %d %s\n", e.EventHeader.EventDescriptor.ID, si)
+					ecb(si, e.EventHeader.ProcessID)
+				}
 				p.stats.fileSetInformation++
 
 			case idSetDelete:
+				if sd, err := p.parseSetDeleteArgs(e); err == nil {
+					log.Tracef("Received SetDelete event %d %s\n", e.EventHeader.EventDescriptor.ID, sd)
+					ecb(sd, e.EventHeader.ProcessID)
+				}
 				p.stats.fileSetDelete++
 
+			case idDeletePath:
+				if dp, err := p.parseDeletePathArgs(e); err == nil {
+					log.Tracef("Received DeletePath event %d %s\n", e.EventHeader.EventDescriptor.ID, dp)
+					ecb(dp, e.EventHeader.ProcessID)
+				}
+
 			case idRename:
+				if rn, err := p.parseRenameArgs(e); err == nil {
+					log.Tracef("Received Rename event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
+					ecb(rn, e.EventHeader.ProcessID)
+				}
 				p.stats.fileidRename++
+
+			case idRenamePath:
+				if rn, err := p.parseRenamePathArgs(e); err == nil {
+					log.Tracef("Received RenamePath event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
+					ecb(rn, e.EventHeader.ProcessID)
+				}
 			case idQueryInformation:
 				p.stats.fileidQueryInformation++
 			case idFSCTL:
+				if fs, err := p.parseFsctlArgs(e); err == nil {
+					log.Tracef("Received FSCTL event %d %s\n", e.EventHeader.EventDescriptor.ID, fs)
+					ecb(fs, e.EventHeader.ProcessID)
+				}
 				p.stats.fileidFSCTL++
 
 			case idRename29:
+				if rn, err := p.parseRename29Args(e); err == nil {
+					log.Tracef("Received Rename29 event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
+					ecb(rn, e.EventHeader.ProcessID)
+				}
 				p.stats.fileidRename29++
 			}
 
@@ -500,6 +558,30 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 				BasenameStr: filepath.Base(arg.fileName),
 			},
 		}
+	case *renameArgs:
+		p.renamePreArgs = renameState{
+			fileObject: uint64(arg.fileObject),
+			path:       arg.fileName,
+		}
+	case *rename29Args:
+		p.renamePreArgs = renameState{
+			fileObject: uint64(arg.fileObject),
+			path:       arg.fileName,
+		}
+	case *renamePath:
+		ev.Type = uint32(model.FileRenameEventType)
+		ev.RenameFile = model.RenameFileEvent{
+			Old: model.FileEvent{
+				FileObject:  p.renamePreArgs.fileObject,
+				PathnameStr: p.renamePreArgs.path,
+				BasenameStr: filepath.Base(p.renamePreArgs.path),
+			},
+			New: model.FileEvent{
+				FileObject:  uint64(arg.fileObject),
+				PathnameStr: arg.filePath,
+				BasenameStr: filepath.Base(arg.filePath),
+			},
+		}
 
 	case *createKeyArgs:
 		ev.Type = uint32(model.CreateRegistryKeyEventType)
@@ -535,6 +617,7 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 			ValueName: arg.valueName,
 		}
 	}
+
 	if ev.Type != uint32(model.UnknownEventType) {
 		errRes := p.setProcessContext(notif.pid, ev)
 		if errRes != nil {

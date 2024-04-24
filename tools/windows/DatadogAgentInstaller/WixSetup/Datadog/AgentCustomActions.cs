@@ -178,7 +178,7 @@ namespace WixSetup.Datadog
                     Return.check,
                     When.Before,
                     Step.InstallServices,
-                    Conditions.FirstInstall
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
             {
                 Execute = Execute.deferred,
@@ -429,8 +429,7 @@ namespace WixSetup.Datadog
                 Impersonate = false
             }
                 .SetProperties("DDAGENTUSER_PROCESSED_PASSWORD=[DDAGENTUSER_PROCESSED_PASSWORD], " +
-                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
-                               "INSTALL_CWS=[INSTALL_CWS]")
+                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], ")
                 .HideTarget(true);
 
             ConfigureServicesRollback = new CustomAction<ServiceCustomAction>(
@@ -445,8 +444,7 @@ namespace WixSetup.Datadog
                 Execute = Execute.rollback,
                 Impersonate = false
             }
-                .SetProperties("DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
-                               "INSTALL_CWS=[INSTALL_CWS]")
+                .SetProperties("DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], ")
                 .HideTarget(true);
 
             // WiX built-in StopServices only stops services if the component is changing.

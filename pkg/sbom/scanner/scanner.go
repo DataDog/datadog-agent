@@ -15,8 +15,8 @@ import (
 
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
@@ -34,12 +34,17 @@ var (
 	globalScanner *Scanner
 )
 
+type scannerConfig struct {
+	cacheCleanInterval time.Duration
+}
+
 // Scanner defines the scanner
 type Scanner struct {
+	cfg scannerConfig
+
 	startOnce sync.Once
 	running   bool
 	disk      filesystem.Disk
-
 	// scanQueue is the workqueue used to process scan requests
 	scanQueue workqueue.RateLimitingInterface
 	// cacheMutex is used to protect the cache from concurrent access
@@ -52,7 +57,7 @@ type Scanner struct {
 
 // NewScanner creates a new SBOM scanner. Call Start to start the store and its
 // collectors.
-func NewScanner(cfg config.Config, collectors map[string]collectors.Collector, wmeta optional.Option[workloadmeta.Component]) *Scanner {
+func NewScanner(cfg config.Component, collectors map[string]collectors.Collector, wmeta optional.Option[workloadmeta.Component]) *Scanner {
 	return &Scanner{
 		scanQueue: workqueue.NewRateLimitingQueueWithConfig(
 			workqueue.NewItemExponentialFailureRateLimiter(
@@ -60,12 +65,15 @@ func NewScanner(cfg config.Config, collectors map[string]collectors.Collector, w
 				cfg.GetDuration("sbom.scan_queue.max_backoff"),
 			),
 			workqueue.RateLimitingQueueConfig{
-				Name:            "sbom_request",
-				MetricsProvider: telemetry.QueueMetricProvider{},
+				Name:            telemetry.Subsystem,
+				MetricsProvider: telemetry.QueueMetricsProvider,
 			},
 		),
-		disk:       filesystem.NewDisk(),
-		wmeta:      wmeta,
+		disk:  filesystem.NewDisk(),
+		wmeta: wmeta,
+		cfg: scannerConfig{
+			cfg.GetDuration("sbom.cache.clean_interval"),
+		},
 		collectors: collectors,
 	}
 }
@@ -73,7 +81,7 @@ func NewScanner(cfg config.Config, collectors map[string]collectors.Collector, w
 // CreateGlobalScanner creates a SBOM scanner, sets it as the default
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
-func CreateGlobalScanner(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) (*Scanner, error) {
+func CreateGlobalScanner(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) (*Scanner, error) {
 	if !cfg.GetBool("sbom.host.enabled") && !cfg.GetBool("sbom.container_image.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
 		return nil, nil
 	}
@@ -90,6 +98,12 @@ func CreateGlobalScanner(cfg config.Config, wmeta optional.Option[workloadmeta.C
 
 	globalScanner = NewScanner(cfg, collectors.Collectors, wmeta)
 	return globalScanner, nil
+}
+
+// SetGlobalScanner sets a global instance of the SBOM scanner. It should be
+// used only for testing purposes.
+func SetGlobalScanner(s *Scanner) {
+	globalScanner = s
 }
 
 // GetGlobalScanner returns a global instance of the SBOM scanner. It does
@@ -151,12 +165,13 @@ func sendResult(ctx context.Context, requestID string, result *sbom.ScanResult, 
 		result.Error = fmt.Errorf("context cancelled while sending scan result for '%s'", requestID)
 	case <-time.After(sendTimeout):
 		result.Error = fmt.Errorf("timeout while sending scan result for '%s'", requestID)
+		log.Errorf("%s", result.Error)
 	}
 }
 
 // startCacheCleaner periodically cleans the SBOM cache of all collectors
 func (s *Scanner) startCacheCleaner(ctx context.Context) {
-	cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache.clean_interval"))
+	cleanTicker := time.NewTicker(s.cfg.cacheCleanInterval)
 	defer func() {
 		cleanTicker.Stop()
 		s.running = false
@@ -217,13 +232,14 @@ func (s *Scanner) handleScanRequest(ctx context.Context, r interface{}) {
 		return
 	}
 
-	telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
 	collector, ok := s.collectors[request.Collector()]
 	if !ok {
 		_ = log.Errorf("invalid collector '%s'", request.Collector())
 		s.scanQueue.Forget(request)
 		return
 	}
+
+	telemetry.SBOMAttempts.Inc(request.Collector(), request.Type(collector.Options()))
 
 	var imgMeta *workloadmeta.ContainerImageMetadata
 	if collector.Type() == collectors.ContainerImageScanType {
@@ -264,7 +280,7 @@ func (s *Scanner) processScan(ctx context.Context, request sbom.ScanRequest, img
 		errorType = "scan"
 	}
 	sendResult(ctx, request.ID(), result, collector)
-	s.handleScanResult(result, request, collector, errorType)
+	s.handleScanResult(result, collector, request, errorType)
 	waitAfterScanIfNecessary(ctx, collector)
 }
 
@@ -297,21 +313,19 @@ func (s *Scanner) performScan(ctx context.Context, request sbom.ScanRequest, col
 	return &scanResult
 }
 
-func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, request sbom.ScanRequest, collector collectors.Collector, errorType string) {
+func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, collector collectors.Collector, request sbom.ScanRequest, errorType string) {
 	if scanResult == nil {
-		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "nil_scan_result")
+		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(collector.Options()), "nil_scan_result")
 		log.Errorf("nil scan result for '%s'", request.ID())
 		return
 	}
 	if scanResult.Error != nil {
-		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), errorType)
-		if collector.Type() == collectors.ContainerImageScanType {
-			s.scanQueue.AddRateLimited(request)
-		}
+		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(collector.Options()), errorType)
+		s.scanQueue.AddRateLimited(request)
 		return
 	}
 
-	telemetry.SBOMGenerationDuration.Observe(scanResult.Duration.Seconds(), request.Collector(), request.Type())
+	telemetry.SBOMGenerationDuration.Observe(scanResult.Duration.Seconds(), request.Collector(), request.Type(collector.Options()))
 	s.scanQueue.Forget(request)
 }
 
