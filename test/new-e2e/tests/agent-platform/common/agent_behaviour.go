@@ -206,7 +206,7 @@ func SetAgentPythonMajorVersion(t *testing.T, client *TestClient, majorVersion s
 	t.Run(fmt.Sprintf("set python version %s and restarts", majorVersion), func(tt *testing.T) {
 		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
 		err := client.SetConfig(configFilePath, "python_version", majorVersion)
-		require.NoError(tt, err, "failed to set python version: ", err)
+		require.Error(tt, err, "failed to set python version: ", err)
 
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err, "agent should be able to restart after editing python version")

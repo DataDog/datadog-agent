@@ -1,8 +1,6 @@
 import abc
 import json
 import os
-import time
-import random
 from collections import defaultdict
 from typing import Dict, List
 
@@ -144,12 +142,9 @@ def test_core(
             print(f"----- {skipped_header} Module '{module.full_path()}'")
         if not module.condition():
             continue
-        sectionid = int(random.random() * 100000)
-        print(
-            f'\033[0Ksection_start:{int(time.time())}:{sectionid}[collapsed=true]\r\033[0K{module.full_path().replace("go/src/github.com/DataDog/", "").replace("/", "-")}'
-        )
+
         command(modules_results, module, module_result)
-        print(f'\033[0Ksection_end:{int(time.time())}:{sectionid}\r\033[0K')
+
     return modules_results
 
 
