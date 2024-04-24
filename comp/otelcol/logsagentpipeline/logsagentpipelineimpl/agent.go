@@ -60,7 +60,7 @@ type Agent struct {
 	health           *health.Handle
 }
 
-// NewLogsAgentComponent returns a new instance of Agent with the given dependencies
+// NewLogsAgentComponent returns a new instance of Agent as a Component
 func NewLogsAgentComponent(deps Dependencies) optional.Option[logsagentpipeline.Component] {
 	logsAgent := NewLogsAgent(deps)
 	if logsAgent == nil {
@@ -69,6 +69,7 @@ func NewLogsAgentComponent(deps Dependencies) optional.Option[logsagentpipeline.
 	return optional.NewOption[logsagentpipeline.Component](logsAgent)
 }
 
+// NewLogsAgent returns a new instance of Agent with the given dependencies
 func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
