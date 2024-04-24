@@ -3,20 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package check
+package processchecks
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestRunCheckCmdCommand(t *testing.T) {
+func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"check", "process"},
-		RunCheckCmd,
-		func(CliParams *CliParams) {},
+		[]string{"processchecks", "process"},
+		check.RunCheckCmd,
+		func(CliParams *check.CliParams) {},
 	)
 }
