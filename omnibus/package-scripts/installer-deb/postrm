@@ -11,13 +11,11 @@ PACKAGES_LOCK_DIR=/var/run/datadog-packages
 set -e
 
 case "$1" in
-    purge)
-        echo "Force-deleting $INSTALL_DIR, $PACKAGES_DIR, $PACKAGES_LOCK_DIR"
-        rm -rf $INSTALL_DIR
+    remove | purge)
+        echo "Force-deleting $INSTALL_DIR $PACKAGES_DIR"
         rm -rf $PACKAGES_DIR
         rm -rf $PACKAGES_LOCK_DIR
-    ;;
-    remove)
+        rm -rf $INSTALL_DIR
     ;;
     *)
     ;;
