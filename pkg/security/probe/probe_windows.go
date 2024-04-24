@@ -75,11 +75,19 @@ type WindowsProbe struct {
 	filePathResolver     map[fileObjectPointer]string
 	regPathResolver      map[regObjectPointer]string
 
+	// state tracking
+	renamePreArgs renameState
+
 	// stats
 	stats stats
 	// discarders
 	discardedPaths     *lru.Cache[string, struct{}]
 	discardedBasenames *lru.Cache[string, struct{}]
+}
+
+type renameState struct {
+	fileObject uint64
+	path       string
 }
 
 type etwNotification struct {
@@ -550,6 +558,30 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 				BasenameStr: filepath.Base(arg.fileName),
 			},
 		}
+	case *renameArgs:
+		p.renamePreArgs = renameState{
+			fileObject: uint64(arg.fileObject),
+			path:       arg.fileName,
+		}
+	case *rename29Args:
+		p.renamePreArgs = renameState{
+			fileObject: uint64(arg.fileObject),
+			path:       arg.fileName,
+		}
+	case *renamePath:
+		ev.Type = uint32(model.FileRenameEventType)
+		ev.RenameFile = model.RenameFileEvent{
+			Old: model.FileEvent{
+				FileObject:  p.renamePreArgs.fileObject,
+				PathnameStr: p.renamePreArgs.path,
+				BasenameStr: filepath.Base(p.renamePreArgs.path),
+			},
+			New: model.FileEvent{
+				FileObject:  uint64(arg.fileObject),
+				PathnameStr: arg.filePath,
+				BasenameStr: filepath.Base(arg.filePath),
+			},
+		}
 
 	case *createKeyArgs:
 		ev.Type = uint32(model.CreateRegistryKeyEventType)
@@ -585,6 +617,7 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 			ValueName: arg.valueName,
 		}
 	}
+
 	if ev.Type != uint32(model.UnknownEventType) {
 		errRes := p.setProcessContext(notif.pid, ev)
 		if errRes != nil {

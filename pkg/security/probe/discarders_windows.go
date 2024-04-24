@@ -15,6 +15,10 @@ func init() {
 					Field:     "create.file.path",
 					EventType: "create",
 				},
+				{
+					Field:     "rename.file.path",
+					EventType: "rename",
+				},
 			},
 			FinalField:     "create.file.path",
 			FinalEventType: "create",
@@ -24,6 +28,10 @@ func init() {
 				{
 					Field:     "create.file.name",
 					EventType: "create",
+				},
+				{
+					Field:     "rename.file.name",
+					EventType: "rename",
 				},
 			},
 			FinalField:     "create.file.name",
