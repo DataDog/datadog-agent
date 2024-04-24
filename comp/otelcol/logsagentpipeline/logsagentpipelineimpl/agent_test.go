@@ -31,9 +31,7 @@ import (
 
 type AgentTestSuite struct {
 	suite.Suite
-	testDir     string
-	testLogFile string
-	fakeLogs    int64
+	fakeLogs int64
 
 	source          *sources.LogSource
 	configOverrides map[string]interface{}

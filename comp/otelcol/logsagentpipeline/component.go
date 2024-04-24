@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package logsagentpipeline contains logs agent pipeline component
 package logsagentpipeline
 
 import (
@@ -15,10 +16,4 @@ import (
 type Component interface {
 	// GetPipelineProvider gets the pipeline provider
 	GetPipelineProvider() pipeline.Provider
-}
-
-type LogsAgent interface {
-	Component
-	Start() error
-	Stop()
 }

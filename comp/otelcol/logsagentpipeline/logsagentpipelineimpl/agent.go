@@ -13,7 +13,6 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	"github.com/DataDog/datadog-agent/comp/core/log"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/logsagentpipeline"
@@ -49,7 +48,7 @@ type dependencies struct {
 
 // Agent represents the data pipeline that collects, decodes, processes and sends logs to the backend.
 type Agent struct {
-	log      log.Component
+	log      logComponent.Component
 	config   pkgconfigmodel.Reader
 	hostname hostnameinterface.Component
 
@@ -60,6 +59,7 @@ type Agent struct {
 	health           *health.Handle
 }
 
+// NewLogsAgent returns a new instance of Agent with the given dependencies
 func NewLogsAgent(deps dependencies) optional.Option[logsagentpipeline.Component] {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
@@ -85,6 +85,7 @@ func NewLogsAgent(deps dependencies) optional.Option[logsagentpipeline.Component
 	return optional.NewNoneOption[logsagentpipeline.Component]()
 }
 
+// Start sets up the logs agent and starts its pipelines
 func (a *Agent) Start(context.Context) error {
 	a.log.Debug("Starting logs-agent...")
 
@@ -127,8 +128,7 @@ func (a *Agent) setupAgent() error {
 	return nil
 }
 
-// Start starts all the elements of the data pipeline
-// in the right order to prevent data loss
+// startPipeline starts all the elements of the data pipeline in the right order to prevent data loss
 func (a *Agent) startPipeline() {
 	starter := startstop.NewStarter(
 		a.destinationsCtx,
@@ -138,6 +138,7 @@ func (a *Agent) startPipeline() {
 	starter.Start()
 }
 
+// Stop stops the logs agent and all elements of the data pipeline
 func (a *Agent) Stop(context.Context) error {
 	a.log.Debug("Stopping logs-agent")
 
@@ -180,6 +181,7 @@ func (a *Agent) Stop(context.Context) error {
 	return nil
 }
 
+// GetPipelineProvider gets the pipeline provider
 func (a *Agent) GetPipelineProvider() pipeline.Provider {
 	return a.pipelineProvider
 }
