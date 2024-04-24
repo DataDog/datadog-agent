@@ -18,6 +18,7 @@ const (
 	registerURL          = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/register"
 	languageDetectionURL = "http://localhost:3333/" + string(sysconfig.LanguageDetectionModule) + "/detect"
 	statsURL             = "http://localhost:3333/debug/stats"
+	pprofURL             = "http://localhost:3333/debug/pprof"
 	tracerouteURL        = "http://localhost:3333/" + string(sysconfig.TracerouteModule) + "/traceroute/"
 	netType              = "tcp"
 

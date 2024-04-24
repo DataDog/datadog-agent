@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -36,19 +37,25 @@ func getPprofTestServer(t *testing.T) (tcpServer *httptest.Server, unixServer *h
 			w.Write([]byte("mutex"))
 		case "/debug/pprof/block":
 			w.Write([]byte("block"))
+		case "/debug/stats": // only for system-probe
+			w.WriteHeader(200)
 		default:
 			w.WriteHeader(500)
 		}
 	})
 
 	tcpServer = httptest.NewServer(handler)
-	unixServer = httptest.NewUnstartedServer(handler)
-	var err error
-	unixServer.Listener, err = net.Listen("unix", sysprobeSockPath)
-	require.NoError(t, err, "could not create listener for unix socket /tmp/sysprobe.sock")
-	unixServer.Start()
+	if runtime.GOOS == "linux" {
+		unixServer = httptest.NewUnstartedServer(handler)
+		var err error
+		unixServer.Listener, err = net.Listen("unix", sysprobeSockPath)
+		require.NoError(t, err, "could not create listener for unix socket /tmp/sysprobe.sock")
+		unixServer.Start()
 
-	return tcpServer, unixServer
+		return tcpServer, unixServer
+	}
+
+	return tcpServer, tcpServer
 }
 
 func TestReadProfileData(t *testing.T) {
@@ -72,7 +79,11 @@ func TestReadProfileData(t *testing.T) {
 
 	mockSysProbeConfig := config.MockSystemProbe(t)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
+	if runtime.GOOS == "windows" {
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
+	} else {
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
+	}
 
 	data, err := readProfileData(10)
 	require.NoError(t, err)
@@ -132,7 +143,11 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 
 	mockSysProbeConfig := config.MockSystemProbe(t)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
+	if runtime.GOOS == "windows" {
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
+	} else {
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
+	}
 
 	data, err := readProfileData(10)
 	require.Error(t, err)
