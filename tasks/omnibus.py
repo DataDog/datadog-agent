@@ -25,7 +25,7 @@ def omnibus_run_task(
     omnibus_s3_cache=False,
     log_level="info",
     host_distribution=None,
-    install_dir=None,
+    install_directory=None,
 ):
     with ctx.cd("omnibus"):
         overrides_cmd = ""
@@ -33,8 +33,8 @@ def omnibus_run_task(
             overrides_cmd = f"--override=base_dir:{base_dir}"
         if host_distribution:
             overrides_cmd += f" --override=host_distribution:{host_distribution}"
-        if install_dir:
-            overrides_cmd += f" --override=install_dir:{install_dir}"
+        if install_directory:
+            overrides_cmd += f" --override=install_dir:{install_directory}"
 
         omnibus = "bundle exec omnibus"
         if sys.platform == 'win32':
@@ -288,6 +288,7 @@ def build(
             omnibus_s3_cache=omnibus_s3_cache,
             log_level=log_level,
             host_distribution=host_distribution,
+            install_directory=install_directory,
         )
 
     # Delete the temporary pip.conf file once the build is done
