@@ -140,7 +140,7 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
 
 
-MOCK_JMXFETCH_CONTENT = "jmxfetch content".encode('utf-8')
+MOCK_JMXFETCH_CONTENT = b"jmxfetch content"
 
 
 def mocked_jmxfetch_requests_get(*_args, **_kwargs):

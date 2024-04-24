@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package app
+package check
 
 import (
 	"testing"
@@ -16,6 +16,7 @@ func TestRunCheckCmdCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"check", "process"},
-		runCheckCmd,
-		func() {})
+		RunCheckCmd,
+		func(CliParams *CliParams) {},
+	)
 }

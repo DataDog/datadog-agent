@@ -15,4 +15,9 @@ import "C"
 
 type ConnTuple C.conn_tuple_t
 
-type EbpfTx C.kafka_transaction_t
+type EbpfTx C.kafka_event_t
+
+type KafkaTransactionKey C.kafka_transaction_key_t
+type KafkaTransaction C.kafka_transaction_t
+
+type KafkaResponseContext C.kafka_response_context_t

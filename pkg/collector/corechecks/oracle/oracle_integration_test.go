@@ -321,8 +321,9 @@ func TestLegacyMode(t *testing.T) {
 		err := c.Run()
 		assert.NoError(t, err)
 		expectedServerTag := fmt.Sprintf("server:%s", c.config.InstanceConfig.Server)
-		s.AssertServiceCheck(t, canConnectServiceCheckName, servicecheck.ServiceCheckOK, "", []string{expectedServerTag}, "")
-		s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, "", []string{expectedServerTag}, "")
+		host := c.dbHostname
+		s.AssertServiceCheck(t, canConnectServiceCheckName, servicecheck.ServiceCheckOK, host, []string{expectedServerTag}, "")
+		s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, host, []string{expectedServerTag}, "")
 	}
 }
 

@@ -6,10 +6,15 @@
 package flare
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -28,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -73,11 +79,9 @@ func newFlare(deps dependencies) (provides, rcclienttypes.TaskListenerProvider) 
 		diagnoseDeps: diagnoseDeps,
 	}
 
-	endpoint := EndpointProvider{flareComp: f}
-
 	p := provides{
 		Comp:     f,
-		Endpoint: api.NewAgentEndpointProvider(endpoint, "/flare", "POST"),
+		Endpoint: api.NewAgentEndpointProvider(f.createAndReturnFlarePath, "/flare", "POST"),
 	}
 
 	return p, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
@@ -105,6 +109,47 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 
 	_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
 	return true, err
+}
+
+func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request) {
+	var profile ProfileData
+
+	if r.Body != http.NoBody {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, f.log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+			return
+		}
+
+		if err := json.Unmarshal(body, &profile); err != nil {
+			http.Error(w, f.log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
+			return
+		}
+	}
+
+	// Reset the `server_timeout` deadline for this connection as creating a flare can take some time
+	conn := getConnection(r)
+	_ = conn.SetDeadline(time.Time{})
+
+	var filePath string
+	var err error
+	f.log.Infof("Making a flare")
+	filePath, err = f.Create(profile, nil)
+
+	if err != nil || filePath == "" {
+		if err != nil {
+			f.log.Errorf("The flare failed to be created: %s", err)
+		} else {
+			f.log.Warnf("The flare failed to be created")
+		}
+		http.Error(w, err.Error(), 500)
+	}
+	w.Write([]byte(filePath))
+}
+
+// getConnection returns the connection for the request
+func getConnection(r *http.Request) net.Conn {
+	return r.Context().Value(grpc.ConnContextKey).(net.Conn)
 }
 
 // Send sends a flare archive to Datadog

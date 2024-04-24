@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Optional, cast
+from typing import TYPE_CHECKING, cast
 
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.tool import Exit
@@ -13,13 +13,13 @@ if TYPE_CHECKING:
 class ConfigManager:
     def __init__(self):
         self._cfg_path = get_kmt_os().kmt_dir / "config.json"
-        self._config: Optional[KMTConfig] = None
+        self._config: KMTConfig | None = None
 
     def load(self):
         if not self._cfg_path.is_file():
             self._config = cast('KMTConfig', dict())
         else:
-            with open(self._cfg_path, "r") as f:
+            with open(self._cfg_path) as f:
                 self._config = json.load(f)
 
     @property

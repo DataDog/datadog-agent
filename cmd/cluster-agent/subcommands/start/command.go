@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -169,6 +170,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				statusimpl.Module(),
 				collectorimpl.Module(),
+				fx.Provide(func() optional.Option[serializer.MetricSerializer] {
+					return optional.NewNoneOption[serializer.MetricSerializer]()
+				}),
 				autodiscoveryimpl.Module(),
 				rcserviceimpl.Module(),
 				rctelemetryreporterimpl.Module(),
@@ -275,7 +279,7 @@ func start(log log.Component,
 	}
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver, settings); err != nil {
+	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver, settings, config); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

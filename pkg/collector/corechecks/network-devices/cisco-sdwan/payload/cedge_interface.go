@@ -48,17 +48,17 @@ func (itf *CEdgeInterface) ID() string {
 }
 
 // Index returns the interface index
-func (itf *CEdgeInterface) Index() (int, error) {
-	index, err := strconv.Atoi(itf.Ifindex)
+func (itf *CEdgeInterface) Index() (int32, error) {
+	index, err := strconv.ParseInt(itf.Ifindex, 10, 32) // 32 bit size because index is stored as int32 in interface metadata
 	if err != nil {
 		return 0, err
 	}
-	return index, nil
+	return int32(index), nil
 }
 
 // GetSpeedMbps returns the interface speed
-func (itf *CEdgeInterface) GetSpeedMbps() int {
-	speed, err := strconv.Atoi(itf.SpeedMbps)
+func (itf *CEdgeInterface) GetSpeedMbps() float64 {
+	speed, err := strconv.ParseFloat(itf.SpeedMbps, 64)
 	if err != nil {
 		log.Warnf("Unable to parse cEdge interface %s speed %s", itf.Ifname, itf.SpeedMbps)
 	}
@@ -85,7 +85,7 @@ func (itf *CEdgeInterface) Metadata(namespace string) (devicemetadata.InterfaceM
 	return devicemetadata.InterfaceMetadata{
 		DeviceID:    fmt.Sprintf("%s:%s", namespace, itf.VmanageSystemIP), // VmanageSystemIP is the device's System IP from vManage
 		IDTags:      []string{fmt.Sprintf("interface:%s", itf.Ifname)},
-		Index:       int32(index),
+		Index:       index,
 		Name:        itf.Ifname,
 		Description: itf.Description,
 		MacAddress:  itf.Hwaddr,
