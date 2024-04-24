@@ -34,6 +34,8 @@ type npSchedulerImpl struct {
 	stopChan                    chan struct{}
 	flushLoopDone               chan struct{}
 	runDone                     chan struct{}
+
+	TimeNowFunction func() time.Time // Allows to mock time in tests
 }
 
 func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Component) *npSchedulerImpl {
@@ -46,6 +48,7 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 		workers:             3, // TODO: Make it a configurable
 
 		receivedPathtestConfigCount: atomic.NewUint64(0),
+		TimeNowFunction:             time.Now,
 	}
 }
 
@@ -165,6 +168,13 @@ func (s *npSchedulerImpl) flushLoop() {
 }
 
 func (s *npSchedulerImpl) flush() {
-	s.logger.Debug("Flushing")
-	//agg.Logger.Debugf("Flushing %d pathtestConfigs to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
+	flowsContexts := s.pathtestConfigState.getFlowContextCount()
+	flushTime := s.TimeNowFunction()
+	flowsToFlush := s.pathtestConfigState.flush()
+	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
+
+	// TODO: run traceroute here for flowsToFlush
+	for _, ptConf := range flowsToFlush {
+		s.logger.Tracef("flushed ptConf %s:%d", ptConf.hostname, ptConf.port)
+	}
 }

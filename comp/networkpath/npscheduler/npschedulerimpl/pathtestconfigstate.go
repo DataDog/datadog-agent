@@ -60,6 +60,14 @@ func (f *flowAccumulator) flush() []*pathtestConfig {
 	f.pathtestConfigsMutex.Lock()
 	defer f.pathtestConfigsMutex.Unlock()
 
+	f.logger.Tracef("f.pathtestConfigs: %+v", f.pathtestConfigs)
+	// DEBUG STATEMENTS
+	for _, ptConf := range f.pathtestConfigs {
+		if ptConf.flow != nil {
+			f.logger.Tracef("in-mem ptConf %s:%d", ptConf.flow.hostname, ptConf.flow.port)
+		}
+	}
+
 	var flowsToFlush []*pathtestConfig
 	for key, ptConfigCtx := range f.pathtestConfigs {
 		now := timeNow()
