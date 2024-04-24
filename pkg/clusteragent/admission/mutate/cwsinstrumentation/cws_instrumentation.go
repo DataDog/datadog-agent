@@ -54,6 +54,25 @@ const (
 
 	webhookForPodsName     = "cws_pod_instrumentation"
 	webhookForCommandsName = "cws_exec_instrumentation"
+
+	// Failed or ignored instrumentation reasons
+	cwsNilInputReason                      = "nil_input"
+	cwsNilCommandReason                    = "nil_command"
+	cwsClusterAgentServiceAccountReason    = "cluster_agent_service_account"
+	cwsClusterAgentKubectlCPReason         = "cluster_agent_kubectl_cp"
+	cwsExcludedResourceReason              = "excluded_resource"
+	cwsDescribePodErrorReason              = "describe_pod_error"
+	cwsExcludedByAnnotationReason          = "excluded_by_annotation"
+	cwsPodNotInstrumentedReason            = "pod_not_instrumented"
+	cwsReadonlyFilesystemReason            = "readonly_filesystem"
+	cwsMissingArchReason                   = "missing_arch"
+	cwsCompletedPodReason                  = "completed_pod"
+	cwsInvalidInputContainerReason         = "invalid_input_container"
+	cwsRemoteCopyFailedReason              = "remote_copy_failed"
+	cwsUnknownModeReason                   = "unknown_mode"
+	cwsCredentialsSerializationErrorReason = "credentials_serialization_error"
+	cwsAlreadyInstrumentedReason           = "already_instrumented"
+	cwsNoInstrumentationNeededReason       = "no_instrumentation_needed"
 )
 
 type mutatePodExecFunc func(*corev1.PodExecOptions, string, string, *authenticationv1.UserInfo, dynamic.Interface, kubernetes.Interface) (bool, error)
@@ -218,6 +237,10 @@ const (
 	// RemoteCopy configures the CWS Instrumentation admission controller endpoint to use the `kubectl cp` method
 	RemoteCopy InstrumentationMode = "remote_copy"
 )
+
+func (im InstrumentationMode) String() string {
+	return string(im)
+}
 
 // ParseInstrumentationMode returns the instrumentation mode from an input string
 func ParseInstrumentationMode(input string) (InstrumentationMode, error) {
@@ -384,9 +407,11 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 
 	if exec == nil || userInfo == nil {
 		log.Errorf("cannot inject CWS instrumentation into nil exec options or nil userInfo")
+		metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsNilInputReason)
 		return false, errors.New(metrics.InvalidInput)
 	}
 	if len(exec.Command) == 0 {
+		metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsNilCommandReason)
 		return false, nil
 	}
 
@@ -394,18 +419,21 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	if ci.mode == RemoteCopy {
 		if userInfo.Username == ci.clusterAgentServiceAccount {
 			log.Debugf("Ignoring exec request to %s from the cluster agent", name)
+			metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsClusterAgentServiceAccountReason)
 			return false, nil
 		}
 
 		// fall back in case the service account filter somehow didn't work
 		if len(exec.Command) > len(k8scp.CWSRemoteCopyCommand) && slices.Equal(exec.Command[0:len(k8scp.CWSRemoteCopyCommand)], k8scp.CWSRemoteCopyCommand) {
 			log.Debugf("Ignoring kubectl cp requests to %s from the cluster agent", name)
+			metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsClusterAgentKubectlCPReason)
 			return false, nil
 		}
 	}
 
 	// is the namespace / container targeted by the instrumentation ?
 	if ci.filter.IsExcluded(nil, exec.Container, "", ns) {
+		metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsExcludedResourceReason)
 		return false, nil
 	}
 
@@ -413,11 +441,13 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	pod, err := apiClient.CoreV1().Pods(ns).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil || pod == nil {
 		log.Errorf("couldn't describe pod %s in namespace %s from the API server: %v", name, ns, err)
+		metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsDescribePodErrorReason)
 		return false, errors.New(metrics.InternalError)
 	}
 
 	// is the pod targeted by the instrumentation ?
 	if ci.filter.IsExcluded(pod.Annotations, "", "", "") {
+		metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsExcludedByAnnotationReason)
 		return false, nil
 	}
 
@@ -430,6 +460,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		if !isPodCWSInstrumentationReady(pod.Annotations) {
 			// pod isn't instrumented, do not attempt to override the pod exec command
 			log.Debugf("Ignoring exec request into %s, pod not instrumented yet", common.PodString(pod))
+			metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsPodNotInstrumentedReason)
 			return false, nil
 		}
 	case RemoteCopy:
@@ -438,6 +469,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 			if !isPodCWSInstrumentationReady(pod.Annotations) {
 				// pod isn't instrumented, do not attempt to override the pod exec command
 				log.Debugf("Ignoring exec request into %s, pod not instrumented yet", common.PodString(pod))
+				metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsPodNotInstrumentedReason)
 				return false, nil
 			}
 			cwsInstrumentationRemotePath = filepath.Join(cwsMountPath, "cws-instrumentation")
@@ -446,6 +478,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 			if readOnly := ci.hasReadonlyRootfs(pod, exec.Container); readOnly {
 				// readonly rootfs containers can't be instrumented
 				log.Errorf("Ignoring exec request into %s, container %s has read only rootfs. Try enabling admission_controller.cws_instrumentation.remote_copy.mount_volume", common.PodString(pod), exec.Container)
+				metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsReadonlyFilesystemReason)
 				return false, errors.New(metrics.InvalidInput)
 			}
 			cwsInstrumentationRemotePath = "/cws-instrumentation"
@@ -454,6 +487,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		arch, err := ci.resolveNodeArch(pod.Spec.NodeName, apiClient)
 		if err != nil {
 			log.Errorf("Ignoring exec request into %s: %v", common.PodString(pod), err)
+			metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsMissingArchReason)
 			return false, errors.New(metrics.InternalError)
 		}
 		cwsInstrumentationLocalPath := filepath.Join(cwsInstrumentationEmbeddedPath, "cws-instrumentation."+arch)
@@ -461,6 +495,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		// check if the pod is ready to be exec-ed into
 		if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
 			log.Errorf("Ignoring exec request into %s: cannot exec into a container in a completed pod; current phase is %s", common.PodString(pod), pod.Status.Phase)
+			metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsCompletedPodReason)
 			return false, errors.New(metrics.InvalidInput)
 		}
 
@@ -468,16 +503,19 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		container, err := podcmd.FindOrDefaultContainerByName(pod, exec.Container, true, nil)
 		if err != nil {
 			log.Errorf("Ignoring exec request into %s, invalid container: %v", common.PodString(pod), err)
+			metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsInvalidInputContainerReason)
 			return false, errors.New(metrics.InvalidInput)
 		}
 
 		// copy CWS instrumentation directly to the target container
 		if err := ci.injectCWSCommandInstrumentationRemoteCopy(pod, container.Name, cwsInstrumentationLocalPath, cwsInstrumentationRemotePath); err != nil {
 			log.Errorf("Ignoring exec request into %s, remote copy failed: %v", common.PodString(pod), err)
+			metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsRemoteCopyFailedReason)
 			return false, errors.New(metrics.InternalError)
 		}
 	default:
 		log.Errorf("Ignoring exec request into %s, unknown CWS Instrumentation mode %v", common.PodString(pod), ci.mode)
+		metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsUnknownModeReason)
 		return false, errors.New(metrics.InvalidInput)
 	}
 
@@ -485,6 +523,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	userSessionCtx, err := usersessions.PrepareK8SUserSessionContext(userInfo, cwsUserSessionDataMaxSize)
 	if err != nil {
 		log.Debugf("ignoring instrumentation of %s: %v", common.PodString(pod), err)
+		metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsCredentialsSerializationErrorReason)
 		return false, errors.New(metrics.InternalError)
 	}
 
@@ -499,6 +538,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 
 			if exec.Command[5] == string(userSessionCtx) {
 				log.Debugf("Exec request into %s is already instrumented, ignoring", common.PodString(pod))
+				metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsAlreadyInstrumentedReason)
 				return true, nil
 			}
 		}
@@ -516,6 +556,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	}, exec.Command...)
 
 	log.Debugf("Pod exec request to %s by %s is now instrumented for CWS", common.PodString(pod), userInfo.Username)
+	metrics.CWSExecInstrumentationAttempts.Inc(ci.mode.String(), "true", "")
 	injected = true
 
 	return injected, nil
@@ -538,16 +579,19 @@ func (ci *CWSInstrumentation) injectForPod(request *admission.MutateRequest) ([]
 func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
 	if pod == nil {
 		log.Errorf("cannot inject CWS instrumentation into nil pod")
+		metrics.CWSPodInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsNilInputReason)
 		return false, errors.New(metrics.InvalidInput)
 	}
 
 	// is the pod targeted by the instrumentation ?
 	if ci.filter.IsExcluded(pod.Annotations, "", "", ns) {
+		metrics.CWSPodInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsExcludedResourceReason)
 		return false, nil
 	}
 
 	// check if the pod has already been instrumented
 	if isPodCWSInstrumentationReady(pod.Annotations) {
+		metrics.CWSPodInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsAlreadyInstrumentedReason)
 		// nothing to do, return
 		return true, nil
 	}
@@ -562,6 +606,7 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 		instrumented = ci.injectCWSPodInstrumentationRemoteCopy(pod)
 	default:
 		log.Errorf("Ignoring Pod %s admission request: unknown CWS Instrumentation mode %v", common.PodString(pod), ci.mode)
+		metrics.CWSPodInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsUnknownModeReason)
 		return false, errors.New(metrics.InvalidInput)
 	}
 
@@ -572,6 +617,9 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 		}
 		pod.Annotations[cwsInstrumentationPodAnotationStatus] = cwsInstrumentationPodAnotationReady
 		log.Debugf("Pod %s is now instrumented for CWS", common.PodString(pod))
+		metrics.CWSPodInstrumentationAttempts.Inc(ci.mode.String(), "true", "")
+	} else {
+		metrics.CWSPodInstrumentationAttempts.Inc(ci.mode.String(), "false", cwsNoInstrumentationNeededReason)
 	}
 
 	return true, nil
