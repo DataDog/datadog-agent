@@ -309,8 +309,9 @@ func testSimpleFileWrite(t *testing.T, et *etwTester, testfilename string) {
 		select {
 		case <-et.loopExited:
 			return true
+		default:
+			return false
 		}
-		return false
 	}, 10*time.Second, 250*time.Millisecond, "did not get notification")
 
 	stopLoop(et, &wg)
@@ -365,8 +366,9 @@ func testSimpleFileDelete(t *testing.T, et *etwTester, testfilename string) {
 		select {
 		case <-et.loopExited:
 			return true
+		default:
+			return false
 		}
-		return false
 	}, 10*time.Second, 250*time.Millisecond, "did not get notification")
 
 	stopLoop(et, &wg)
@@ -429,8 +431,9 @@ func testSimpleFileRename(t *testing.T, et *etwTester, testfilename, testfileren
 		select {
 		case <-et.loopExited:
 			return true
+		default:
+			return false
 		}
-		return false
 	}, 10*time.Second, 250*time.Millisecond, "did not get notification")
 
 	stopLoop(et, &wg)
