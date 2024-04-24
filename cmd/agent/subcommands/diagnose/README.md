@@ -35,7 +35,7 @@ Flags:
   -t, --list              list diagnose suites
   -l, --local             force diagnose execution by the command line instead of the agent process (useful when troubleshooting privilege related problems)
   -v, --verbose           verbose output, includes passed diagnoses, and diagnoses description
-  -j, --json              output in a JSON format
+  -j, --json              output diagnosis results in JSON format
 ```
 
 ### ```include``` and ```exclude``` options
