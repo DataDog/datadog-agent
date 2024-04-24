@@ -216,12 +216,48 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
     offset += response->carry_over_offset;
     response->carry_over_offset = 0;
 
+    if (response->state == KAFKA_FETCH_RESPONSE_START) {
+         if (request->request_api_version >= 1) {
+            offset += sizeof(s32); // Skip throttle_time_ms
+        }
+        if (request->request_api_version >= 7) {
+            offset += sizeof(s16); // Skip error_code
+            offset += sizeof(s32); // Skip session_id
+        }
+
+        PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, num_topics, pkt, offset);
+        if (num_topics <= 0) {
+            return RET_ERR;
+        }
+
+        PKTBUF_READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, pkt, offset);
+        if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+            return RET_ERR;
+        }
+
+        // Should we check that topic name matches the topic we expect?
+        offset += topic_name_size;
+
+        PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, number_of_partitions, pkt, offset);
+        if (number_of_partitions <= 0) {
+            return RET_ERR;
+        }
+
+        response->partitions_count = number_of_partitions;
+        response->state = KAFKA_FETCH_RESPONSE_PARTITION_START;
+        response->record_batches_num_bytes = 0;
+        response->record_batch_length = 0;
+    }
+
 #pragma unroll(KAFKA_RESPONSE_PARSER_MAX_ITERATIONS)
     for (int i = 0; i < KAFKA_RESPONSE_PARSER_MAX_ITERATIONS; i++) {
         bool first = i == 0;
 
         extra_debug("state: %d", response->state);
         switch (response->state) {
+        case KAFKA_FETCH_RESPONSE_START:
+            // Never happens. Only present to supress a compiler warning.
+            break;
         case KAFKA_FETCH_RESPONSE_PARTITION_START:
             offset += sizeof(s32); // Skip partition_index
             offset += sizeof(s16); // Skip error_code
@@ -561,58 +597,60 @@ static __always_inline u32 kafka_get_next_tcp_seq(skb_info_t *skb_info) {
 }
 
 static __always_inline bool kafka_process_new_response(void *ctx, conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, skb_info_t *skb_info) {
+    u32 pktlen = pktbuf_data_end(pkt) - pktbuf_data_offset(pkt);
     u32 offset = pktbuf_data_offset(pkt);
     u32 orig_offset = offset;
 
-    offset += sizeof(__s32); // Skip message size
+    // Usually the first packet containts the message size, correlation ID, and the first
+    // fields of the headers up to the partirtion start. However, with TLS, each read from
+    // user space will arrive as a separate "packet".
+    //
+    // In theory the program can read even one byte at a time, but since supporting arbitrary
+    // sizes costs instructions we assume some common cases:
+    //
+    // (a) message size (4 bytes) read first, then rest of the packet read (eg. franz-go)
+    // (b) message size and correlation id (8 byte) read first, then rest of the packet (eg. librdkafka)
+    // (c) message size read first (4), then correlation id (4), then rest of the packet (eg. kafka-go)
+    // (d) message size, correlation ID, and first headers read together (eg. non-TLS)
+    //
+    // There could be some false positives due to this, if the message size happens to match
+    // a valid in-flight correlation ID.
+
+    if (pkt.type != PKTBUF_TLS || pktlen >= 8) {
+        offset += sizeof(__s32); // Skip message size
+    }
+
     PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, correlation_id, pkt, offset);
+
+    extra_debug("pktlen %u correlation_id: %d", pktlen, correlation_id);
 
     kafka_transaction_key_t key = {};
     key.correlation_id = correlation_id;
     bpf_memcpy(&key.tuple, tup, sizeof(key.tuple));
     kafka_transaction_t *request = bpf_map_lookup_elem(&kafka_in_flight, &key);
     if (!request) {
-        return false;
+        if (pkt.type == PKTBUF_TLS && pktlen >= 8) {
+            // Try reading the first value, in case it's case (a) or (c)
+            offset = orig_offset;
+            PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, correlation_id2, pkt, offset);
+            key.correlation_id = correlation_id2;
+
+            extra_debug("correlation_id2: %d", correlation_id2);
+            request = bpf_map_lookup_elem(&kafka_in_flight, &key);
+        }
+
+        if (!request) {
+            return false;
+        }
     }
+
+    extra_debug("Received response for request with correlation id %d", correlation_id);
 
     kafka->response.transaction = *request;
     bpf_map_delete_elem(&kafka_in_flight, &key);
 
-    request = &kafka->response.transaction;
-
-    extra_debug("Received response for request with correlation id %d", correlation_id);
-
-    if (request->request_api_version >= 1) {
-        offset += sizeof(s32); // Skip throttle_time_ms
-    }
-    if (request->request_api_version >= 7) {
-        offset += sizeof(s16); // Skip error_code
-        offset += sizeof(s32); // Skip session_id
-    }
-
-    PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, num_topics, pkt, offset);
-    if (num_topics <= 0) {
-        return false;
-    }
-
-    PKTBUF_READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, pkt, offset);
-    if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
-        return false;
-    }
-
-    // Should we check that topic name matches the topic we expect?
-    offset += topic_name_size;
-
-    PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, number_of_partitions, pkt, offset);
-    if (number_of_partitions <= 0) {
-        return false;
-    }
-
-    kafka->response.partitions_count = number_of_partitions;
-    kafka->response.state = KAFKA_FETCH_RESPONSE_PARTITION_START;
-    kafka->response.record_batches_num_bytes = 0;
+    kafka->response.state = KAFKA_FETCH_RESPONSE_START;
     kafka->response.carry_over_offset = offset - orig_offset;
-    kafka->response.record_batch_length = 0;
     kafka->response.expected_tcp_seq = kafka_get_next_tcp_seq(skb_info);
 
     // Copy it to the stack since the verifier on 4.14 complains otherwise.
