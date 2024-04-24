@@ -223,3 +223,53 @@ func TestProvider_Provide(t *testing.T) {
 		})
 	}
 }
+
+func TestProvider_DisableProvider(t *testing.T) {
+	slisEndpoint := "http://10.8.0.1:10255/metrics/slis"
+
+	var err error
+
+	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle(),
+		collectors.GetCatalog(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2(),
+	))
+
+	mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
+	mockSender.SetupAcceptAll()
+
+	err = commontesting.StorePopulatedFromFile(store, "../../testdata/pods.json", common.NewPodUtils())
+	if err != nil {
+		t.Errorf("unable to populate store from file at: %s, err: %v", "../../testdata/pods.json", err)
+	}
+
+	kubeletMock := mock.NewKubeletMock()
+	var content []byte
+	kubeletMock.MockReplies["/metrics/slis"] = &mock.HTTPReplyMock{
+		Data:         content,
+		ResponseCode: 404,
+		Error:        nil,
+	}
+
+	config := &common.KubeletConfig{
+		SlisMetricsEndpoint: &slisEndpoint,
+	}
+
+	p, err := NewProvider(
+		&containers.Filter{
+			Enabled:         true,
+			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
+		},
+		config,
+		store,
+	)
+	assert.NoError(t, err)
+
+	err = p.Provide(kubeletMock, mockSender)
+	assert.Truef(t, p.ScraperConfig.IsDisabled, "provider should be disabled")
+	if !reflect.DeepEqual(err, nil) {
+		t.Errorf("Collect() error = %v, wantErr %v", err, nil)
+		return
+	}
+}
