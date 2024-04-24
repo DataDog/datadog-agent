@@ -184,7 +184,7 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 	for cfgPath, update := range updates {
 		mrfUpdate, err := parseMultiRegionFailoverConfig(update.Config)
 		if err != nil {
-			pkglog.Errorf("Multi-region Failover update unmarshal failed: %s", err)
+			pkglog.Errorf("Multi-Region Failover update unmarshal failed: %s", err)
 			applyStateCallback(cfgPath, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
@@ -195,10 +195,10 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 		if mrfUpdate != nil && (mrfUpdate.FailoverMetrics != nil || mrfUpdate.FailoverLogs != nil) {
 			// If we've received multiple config files updating the failover settings, we should disregard all but the first update and log it, as this is unexpected
 			if applied {
-				pkglog.Infof("Multiple multi-region failover updates received, disregarding update of `multi_region_failover.failover_metrics` to %v and `multi_region_failover.failover_logs` to %v", mrfUpdate.FailoverMetrics, mrfUpdate.FailoverLogs)
+				pkglog.Warnf("Multiple Multi-Region Failover updates received, disregarding update of `multi_region_failover.failover_metrics` to %v and `multi_region_failover.failover_logs` to %v", mrfUpdate.FailoverMetrics, mrfUpdate.FailoverLogs)
 				applyStateCallback(cfgPath, state.ApplyStatus{
 					State: state.ApplyStateError,
-					Error: "Multiple multi-region failover updates received. Only the first was applied.",
+					Error: "Multiple Multi-Region Failover updates received. Only the first was applied.",
 				})
 				continue
 			}
@@ -208,12 +208,22 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 				if err != nil {
 					continue
 				}
+				change := "disabled"
+				if *mrfUpdate.FailoverMetrics {
+					change = "enabled"
+				}
+				pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for metrics", change)
 			}
 			if mrfUpdate.FailoverLogs != nil {
 				err = rc.applyMRFRuntimeSetting("multi_region_failover.failover_logs", *mrfUpdate.FailoverLogs, cfgPath, applyStateCallback)
 				if err != nil {
 					continue
 				}
+				change := "disabled"
+				if *mrfUpdate.FailoverMetrics {
+					change = "enabled"
+				}
+				pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for logs", change)
 			}
 			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 			applied = true
@@ -222,7 +232,7 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 }
 
 func (rc rcClient) applyMRFRuntimeSetting(setting string, value bool, cfgPath string, applyStateCallback func(string, state.ApplyStatus)) error {
-	pkglog.Infof("Setting `%s: %t` through remote config", setting, value)
+	pkglog.Debugf("Setting `%s: %t` through remote config", setting, value)
 	err := rc.settingsComponent.SetRuntimeSetting(setting, value, model.SourceRC)
 	if err != nil {
 		pkglog.Errorf("Failed to set %s runtime setting to %t: %s", setting, value, err)
