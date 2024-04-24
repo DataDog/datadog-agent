@@ -53,7 +53,7 @@ type ProbabilisticSampler struct {
 func NewProbabilisticSampler(conf *config.AgentConfig, statsd statsd.ClientInterface) *ProbabilisticSampler {
 	hashSeedBytes := make([]byte, 4)
 	binary.LittleEndian.PutUint32(hashSeedBytes, conf.ProbabilisticSamplerHashSeed)
-	ps := &ProbabilisticSampler{
+	return &ProbabilisticSampler{
 		enabled:                  conf.ProbabilisticSamplerEnabled,
 		hashSeed:                 hashSeedBytes,
 		scaledSamplingPercentage: uint32(conf.ProbabilisticSamplerSamplingPercentage * percentageScaleFactor),
@@ -64,7 +64,6 @@ func NewProbabilisticSampler(conf *config.AgentConfig, statsd statsd.ClientInter
 		stop:                     make(chan struct{}),
 		stopped:                  make(chan struct{}),
 	}
-	return ps
 }
 
 // Start starts up the ProbabilisticSamler's support routine, which periodically sends stats.
