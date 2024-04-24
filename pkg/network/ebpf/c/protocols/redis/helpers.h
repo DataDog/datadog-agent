@@ -22,6 +22,8 @@ static __always_inline bool check_supported_ascii_and_crlf(const char* buf, __u3
             continue;
         } else if (current_char == '.' || current_char == ' ' || current_char == '-' || current_char == '_') {
             continue;
+        } else if ('0' <= current_char && current_char <= '9') {
+            continue;
         }
         return false;
     }
@@ -80,6 +82,7 @@ static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
         return check_err_prefix(buf, buf_size);
     case ':':
     case '$':
+        return check_supported_ascii_and_crlf(buf, buf_size, 1);
     case '*':
         return check_integer_and_crlf(buf, buf_size, 1);
     default:
