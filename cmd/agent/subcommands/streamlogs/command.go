@@ -98,21 +98,30 @@ func streamLogs(log log.Component, config config.Component, cliParams *cliParams
 	}
 
 	urlstr := fmt.Sprintf("https://%v:%v/agent/stream-logs", ipcAddress, config.GetInt("cmd_port"))
+
+	var f *os.File
+	var bufWriter *bufio.Writer
+
+	if cliParams.FilePath != "" {
+		f, bufWriter, err = openFileForWriting(cliParams.FilePath)
+		if err != nil {
+			return fmt.Errorf("error opening file %s for writing: %v", cliParams.FilePath, err)
+		}
+		defer f.Close()
+
+		if bufWriter != nil {
+			defer bufWriter.Flush()
+		}
+	}
+
 	return streamRequest(urlstr, body, func(chunk []byte) {
 		fmt.Print(string(chunk))
 
-		if cliParams.FilePath != "" {
-			f, bufWriter, err := writeToFile(cliParams.FilePath, string(chunk))
-			if err != nil {
+		if bufWriter != nil {
+			if err = writeToBuffer(bufWriter, string(chunk)); err != nil {
 				fmt.Printf("Error writing stream-logs to file %s: %v", cliParams.FilePath, err)
 			}
-			defer f.Close()
-			if err = bufWriter.Flush(); err != nil {
-				fmt.Printf("Error flushing stream-log buffered data: %v ", err)
-			}
-
 		}
-
 	})
 }
 
@@ -137,20 +146,19 @@ func streamRequest(url string, body []byte, onChunk func([]byte)) error {
 	return e
 }
 
-func writeToFile(filePath, message string) (*os.File, *bufio.Writer, error) {
-	// Open the file for writing, create it if it does not exist.
+func openFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("error opening file %s: %v", filePath, err)
 	}
-
-	// Use a buffered writer to minimize direct writes to disk.
 	bufWriter := bufio.NewWriter(f)
-
-	_, err = bufWriter.WriteString(message + "\n")
-	if err != nil {
-		return nil, nil, err
-	}
-
 	return f, bufWriter, nil
+}
+
+func writeToBuffer(bufWriter *bufio.Writer, message string) error {
+	_, err := bufWriter.WriteString(message)
+	if err != nil {
+		return fmt.Errorf("error writing log messages to buffer: %v", err)
+	}
+	return nil
 }
