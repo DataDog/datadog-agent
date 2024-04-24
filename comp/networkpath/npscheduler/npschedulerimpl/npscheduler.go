@@ -7,65 +7,46 @@
 package npschedulerimpl
 
 import (
-	"context"
 	"encoding/json"
 	"net"
 	"sync"
+	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/atomic"
 )
-
-type dependencies struct {
-	fx.In
-	Lc          fx.Lifecycle
-	EpForwarder eventplatform.Component
-}
-
-type provides struct {
-	fx.Out
-
-	Comp npscheduler.Component
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newNpScheduler),
-	)
-}
-
-func newNpScheduler(deps dependencies) provides {
-	scheduler := newNpSchedulerImpl(deps.EpForwarder)
-	deps.Lc.Append(fx.Hook{
-		OnStop: func(context.Context) error {
-			scheduler.Stop()
-			return nil
-		},
-	})
-	return provides{
-		Comp: scheduler,
-	}
-}
 
 type npSchedulerImpl struct {
 	epForwarder eventplatform.Component
+	logger      log.Component
 
 	initOnce sync.Once
 
 	workers int
 
-	pathtestConfigIn chan pathtestConfig
-	stopChan         chan struct{}
-	flushLoopDone    chan struct{}
-	runDone          chan struct{}
+	receivedPathtestConfigCount *atomic.Uint64
+	pathtestConfigState         *flowAccumulator
+	pathtestConfigIn            chan *pathtestConfig
+	stopChan                    chan struct{}
+	flushLoopDone               chan struct{}
+	runDone                     chan struct{}
+}
+
+func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Component) *npSchedulerImpl {
+	return &npSchedulerImpl{
+		epForwarder: epForwarder,
+		logger:      logger,
+
+		pathtestConfigState: newFlowAccumulator(10*time.Second, 60*time.Second, logger),
+		pathtestConfigIn:    make(chan *pathtestConfig),
+		workers:             3, // TODO: Make it a configurable
+
+		receivedPathtestConfigCount: atomic.NewUint64(0),
+	}
 }
 
 func (s *npSchedulerImpl) Init() {
@@ -75,8 +56,9 @@ func (s *npSchedulerImpl) Init() {
 		//       flush
 		//         - read state
 		//         - traceroute using workers
+		s.logger.Info("Init NpScheduler")
 		go s.listenPathtestConfigs()
-		//go s.flushLoop()
+		go s.flushLoop()
 	})
 }
 func (s *npSchedulerImpl) listenPathtestConfigs() {
@@ -84,34 +66,34 @@ func (s *npSchedulerImpl) listenPathtestConfigs() {
 		select {
 		case <-s.stopChan:
 			// TODO: TESTME
-			log.Info("Stop listening to traceroute commands")
+			s.logger.Info("Stop listening to traceroute commands")
 			s.runDone <- struct{}{}
 			return
-		case command := <-s.pathtestConfigIn:
-			log.Infof("Command received: %+v", command)
-			//s.receivedFlowCount.Inc()
-			//s.traceroute.add(flow)
+		case pathtestConf := <-s.pathtestConfigIn:
+			// TODO: TESTME
+			s.logger.Infof("Command received: %+v", pathtestConf)
+			s.receivedPathtestConfigCount.Inc()
+			s.pathtestConfigState.add(pathtestConf)
 		}
 	}
 }
 func (s *npSchedulerImpl) Schedule(hostname string, port uint16) {
-	// TODO: Use logger component?
-	log.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
+	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
 	statsd.Client.Incr("datadog.network_path.scheduler.count", []string{}, 1) //nolint:errcheck
 
 	if net.ParseIP(hostname).To4() == nil {
 		// TODO: IPv6 not supported yet
-		log.Debugf("Only IPv4 is currently supported. Address not supported: %s", hostname)
+		s.logger.Debugf("Only IPv4 is currently supported. Address not supported: %s", hostname)
 		return
 	}
-	s.pathtestConfigIn <- pathtestConfig{
+	s.pathtestConfigIn <- &pathtestConfig{
 		hostname: hostname,
 		port:     port,
 	}
 }
 
 func (s *npSchedulerImpl) runTraceroute(job pathtestConfig) {
-	log.Debugf("Run Traceroute for job: %+v", job)
+	s.logger.Debugf("Run Traceroute for job: %+v", job)
 	// TODO: RUN 3x? Configurable?
 	for i := 0; i < 3; i++ {
 		s.pathForConn(job.hostname, job.port)
@@ -129,37 +111,60 @@ func (s *npSchedulerImpl) pathForConn(hostname string, port uint16) {
 	tr := traceroute.New(cfg)
 	path, err := tr.Run()
 	if err != nil {
-		log.Warnf("traceroute error: %+v", err)
+		s.logger.Warnf("traceroute error: %+v", err)
 		return
 	}
-	log.Debugf("Network Path: %+v", path)
+	s.logger.Debugf("Network Path: %+v", path)
 
 	epForwarder, ok := s.epForwarder.Get()
 	if ok {
 		payloadBytes, err := json.Marshal(path)
 		if err != nil {
-			log.Errorf("json marshall error: %s", err)
+			s.logger.Errorf("json marshall error: %s", err)
 		} else {
 
-			log.Debugf("network path event: %s", string(payloadBytes))
+			s.logger.Debugf("network path event: %s", string(payloadBytes))
 			m := message.NewMessage(payloadBytes, nil, "", 0)
 			err = epForwarder.SendEventPlatformEvent(m, eventplatform.EventTypeNetworkPath)
 			if err != nil {
-				log.Errorf("SendEventPlatformEvent error: %s", err)
+				s.logger.Errorf("SendEventPlatformEvent error: %s", err)
 			}
 		}
 	}
 }
 
 func (s *npSchedulerImpl) Stop() {
-	log.Error("Stop npSchedulerImpl")
+	s.logger.Error("Stop npSchedulerImpl")
 }
 
-func newNpSchedulerImpl(epForwarder eventplatform.Component) *npSchedulerImpl {
-	return &npSchedulerImpl{
-		epForwarder: epForwarder,
+func (s *npSchedulerImpl) flushLoop() {
+	flushTicker := time.NewTicker(10 * time.Second)
 
-		pathtestConfigIn: make(chan pathtestConfig),
-		workers:          3, // TODO: Make it a configurable
+	var lastFlushTime time.Time
+	for {
+		select {
+		// stop sequence
+		case <-s.stopChan:
+			s.flushLoopDone <- struct{}{}
+			flushTicker.Stop()
+			return
+		// automatic flush sequence
+		case <-flushTicker.C:
+			now := time.Now()
+			if !lastFlushTime.IsZero() {
+				flushInterval := now.Sub(lastFlushTime)
+				statsd.Client.Gauge("datadog.network_path.scheduler.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
+			}
+			lastFlushTime = now
+
+			flushStartTime := time.Now()
+			s.flush()
+			statsd.Client.Gauge("datadog.network_path.scheduler.flush_duration", time.Since(flushStartTime).Seconds(), []string{}, 1) //nolint:errcheck
+		}
 	}
+}
+
+func (s *npSchedulerImpl) flush() {
+	s.logger.Debug("Flushing")
+	//agg.Logger.Debugf("Flushing %d pathtestConfigs to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 }
