@@ -89,6 +89,14 @@ func CreateHTTPTransport() *http.Transport {
 	// desirable side-effect of disabling http/2; if removing those fields then
 	// consider the implication of the protocol switch for intakes and other http
 	// servers. See ForceAttemptHTTP2 in https://pkg.go.dev/net/http#Transport.
+
+	var tlsHandshakeTimeout time.Duration
+	if config.Datadog.IsSet("tls_handshake_timeout") {
+		tlsHandshakeTimeout = config.Datadog.GetDuration("tls_handshake_timeout")
+	} else {
+		tlsHandshakeTimeout = 10 * time.Second
+	}
+
 	transport := &http.Transport{
 		TLSClientConfig: tlsConfig,
 		DialContext: (&net.Dialer{
@@ -102,7 +110,7 @@ func CreateHTTPTransport() *http.Transport {
 		MaxIdleConnsPerHost: 5,
 		// This parameter is set to avoid connections sitting idle in the pool indefinitely
 		IdleConnTimeout:       45 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
