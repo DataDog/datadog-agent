@@ -6,7 +6,6 @@
 
 PACKAGES_DIR=/opt/datadog-packages
 INSTALL_DIR=/opt/datadog-installer
-LOG_DIR=/var/log/datadog
 PACKAGES_LOCK_DIR=/var/run/datadog-packages
 
 set -e
