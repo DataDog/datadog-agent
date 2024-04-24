@@ -108,14 +108,14 @@ type MutatingWebhook interface {
 // the config one. The reason is that the volume mount for the APM socket added
 // by the config webhook doesn't always work on Fargate (one of the envs where
 // we use an agent sidecar), and the agent sidecar webhook needs to remove it.
-func mutatingWebhooks(wmeta workloadmeta.Component, rcClient *rcclient.Client, isLeaderNotif <-chan struct{}, stopCh <-chan struct{}, clusterName string) []MutatingWebhook {
+func mutatingWebhooks(wmeta workloadmeta.Component, rcClient *rcclient.Client, stopCh <-chan struct{}, clusterName string) []MutatingWebhook {
 	webhooks := []MutatingWebhook{
 		config.NewWebhook(wmeta),
 		tagsfromlabels.NewWebhook(wmeta),
 		agentsidecar.NewWebhook(),
 	}
 
-	apm, err := autoinstrumentation.GetWebhook(wmeta, rcClient, isLeaderNotif, stopCh, clusterName)
+	apm, err := autoinstrumentation.GetWebhook(wmeta, rcClient, stopCh, clusterName)
 	if err == nil {
 		webhooks = append(webhooks, apm)
 	} else {

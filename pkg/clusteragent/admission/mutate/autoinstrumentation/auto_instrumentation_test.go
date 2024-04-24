@@ -243,7 +243,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			webhook, err := GetWebhook(wmeta, nil, nil, nil, "")
+			webhook, err := GetWebhook(wmeta, nil, nil, "")
 			require.NoError(t, err)
 
 			err = webhook.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")

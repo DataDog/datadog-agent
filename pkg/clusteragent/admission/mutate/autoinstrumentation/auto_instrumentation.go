@@ -174,7 +174,6 @@ func NewWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
 func GetWebhook(
 	wmeta workloadmeta.Component,
 	rcClient *rcclient.Client,
-	isLeaderNotif <-chan struct{},
 	stopCh <-chan struct{},
 	clusterName string,
 ) (*Webhook, error) {
@@ -589,7 +588,7 @@ func ShouldInject(pod *corev1.Pod, wmeta workloadmeta.Component) bool {
 		}
 	}
 
-	apmWebhook, err := GetWebhook(wmeta, nil, nil, nil, "")
+	apmWebhook, err := GetWebhook(wmeta, nil, nil, "")
 	if err != nil {
 		return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 	}
