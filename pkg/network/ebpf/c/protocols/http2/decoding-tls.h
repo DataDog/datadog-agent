@@ -548,8 +548,6 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
             break;
         }
 
-        check_frame_split(http2_tel, info->data_off, info->data_end, current_frame);
-
         // END_STREAM can appear only in Headers and Data frames.
         // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
         // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
@@ -560,6 +558,9 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
             iteration_value->frames_array[iteration_value->frames_count].offset = info->data_off;
             iteration_value->frames_count++;
         }
+
+        // We are not checking for frame splits in the previous condition due to a verifier issue.
+        check_frame_split(http2_tel, info->data_off, info->data_end, current_frame);
 
         info->data_off += current_frame.length;
 
