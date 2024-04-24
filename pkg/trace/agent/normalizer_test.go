@@ -572,6 +572,20 @@ func TestNormalizePopulatePriorityFromAnySpan(t *testing.T) {
 	assert.EqualValues(sampler.PriorityAutoKeep, chunk.Priority)
 }
 
+func TestTagDecisionMaker(t *testing.T) {
+	assert := assert.New(t)
+	root := newTestSpan()
+	chunk := testutil.TraceChunkWithSpan(root)
+	chunk.Priority = int32(sampler.PriorityNone)
+	chunk.Spans = []*pb.Span{newTestSpan(), newTestSpan(), newTestSpan()}
+	chunk.Spans[0].Metrics = nil
+	chunk.Spans[2].Metrics = nil
+	traceutil.SetMeta(chunk.Spans[1], tagDecisionMaker, "right")
+	traceutil.SetMeta(chunk.Spans[2], tagDecisionMaker, "wrong")
+	setChunkAttributes(chunk, root)
+	assert.Equal("right", chunk.Tags[tagDecisionMaker])
+}
+
 func BenchmarkNormalization(b *testing.B) {
 	a := &Agent{conf: config.New()}
 	b.ReportAllocs()
