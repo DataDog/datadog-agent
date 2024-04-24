@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -133,9 +132,8 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 		})
 	}
 
-	numContainers := float64(len(containers))
-	statsd.Client.Gauge("datadog.process.containers.host_count", numContainers, []string{}, 1) //nolint:errcheck
-	log.Debugf("collected %d containers in %s", int(numContainers), time.Since(startTime))
+	numContainers := len(containers)
+	log.Debugf("collected %d containers in %s", numContainers, time.Since(startTime))
 	return StandardRunResult(messages), nil
 }
 
