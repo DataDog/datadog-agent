@@ -9,7 +9,6 @@ package process
 import (
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
@@ -51,8 +50,6 @@ func assertRunningChecks(t *assert.CollectT, vm *components.RemoteHost, checks [
 	}
 	err := json.Unmarshal([]byte(status), &statusMap)
 	assert.NoError(t, err, "failed to unmarshal agent status")
-
-	fmt.Print(status)
 
 	assert.ElementsMatch(t, checks, statusMap.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 
