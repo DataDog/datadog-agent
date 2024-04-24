@@ -16,6 +16,7 @@ import (
 type TargetObjKind string
 
 const (
+	// KindCluster refers to k8s clusters
 	KindCluster TargetObjKind = "cluster"
 )
 
@@ -41,16 +42,19 @@ type Request struct {
 	K8sTargetV2 *K8sTargetV2 `json:"k8s_target_v2,omitempty"`
 }
 
+// K8sClusterTarget represents k8s target withing a cluster
 type K8sClusterTarget struct {
 	ClusterName       string    `json:"cluster_name"`
 	Enabled           *bool     `json:"enabled,omitempty"`
 	EnabledNamespaces *[]string `json:"enabled_namespaces,omitempty"`
 }
 
+// K8sTargetV2 represent the targetet k8s scope
 type K8sTargetV2 struct {
 	ClusterTargets []K8sClusterTarget `json:"cluster_targets"`
 }
 
+// Response represents the result of applying RC config
 type Response struct {
 	ID        string            `json:"id"`
 	Revision  int64             `json:"revision"`

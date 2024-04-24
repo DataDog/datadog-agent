@@ -38,12 +38,11 @@ type instrumentationConfigurationCache struct {
 	configurationUpdatesQueue    chan Request
 	configurationUpdatesResponse chan Response
 	clusterName                  string
-	namespaceToConfigIdMap       map[string]string // maps the namespace with enabled instrumentation to Remote Enablement rule
+	namespaceToConfigIDMap       map[string]string // maps the namespace with enabled instrumentation to Remote Enablement rule
 
-	mu                  sync.RWMutex
-	lastAppliedRevision int64
-	orderedRevisions    []int64
-	enabledRevisions    map[int64]enablementConfig
+	mu               sync.RWMutex
+	orderedRevisions []int64
+	enabledRevisions map[int64]enablementConfig
 }
 
 func newInstrumentationConfigurationCache(
@@ -70,7 +69,7 @@ func newInstrumentationConfigurationCache(
 		configurationUpdatesQueue:    reqChannel,
 		configurationUpdatesResponse: respChannel,
 		clusterName:                  clusterName,
-		namespaceToConfigIdMap:       nsToRules,
+		namespaceToConfigIDMap:       nsToRules,
 
 		orderedRevisions: make([]int64, 0),
 		enabledRevisions: map[int64]enablementConfig{},
@@ -133,24 +132,16 @@ func (c *instrumentationConfigurationCache) update(req Request) Response {
 	return resp
 }
 
-func (c *instrumentationConfigurationCache) readConfiguration() *instrumentationConfiguration {
-	return c.currentConfiguration
-}
-
-func (c *instrumentationConfigurationCache) readLocalConfiguration() *instrumentationConfiguration {
-	return c.localConfiguration
-}
-
 func (c *instrumentationConfigurationCache) delete(rcConfigID string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	for i, rev := range c.orderedRevisions {
-		confId, ok := c.enabledRevisions[rev]
+		confID, ok := c.enabledRevisions[rev]
 		if !ok {
 			log.Error("Revision was not found")
 		}
-		if confId.configID == rcConfigID {
+		if confID.configID == rcConfigID {
 			delete(c.enabledRevisions, rev)
 			c.orderedRevisions = append(c.orderedRevisions[:i], c.orderedRevisions[i+1:]...)
 			break
@@ -204,18 +195,18 @@ func (c *instrumentationConfigurationCache) updateConfiguration(enabled bool, en
 			// remote configuration - APM Instrumentation enabled in the whole cluster
 			// result - enable APM instrumentation in the whole cluster
 			c.currentConfiguration.enabledNamespaces = []string{}
-			c.namespaceToConfigIdMap["cluster"] = fmt.Sprintf("%s-%d", rcID, rcVersion)
+			c.namespaceToConfigIDMap["cluster"] = fmt.Sprintf("%s-%d", rcID, rcVersion)
 		} else if len(c.currentConfiguration.enabledNamespaces) > 0 {
 			// current configuration - APM Instrumentation enabled in specific namespaces
 			// remote configuration - APM Instrumentation enabled in specific namespaces
 			// result - enable APM instrumentation in namespaces specified by current + remote configuration
 			alreadyEnabledNamespaces := []string{}
 			for _, ns := range *enabledNamespaces {
-				if _, ok := c.namespaceToConfigIdMap[ns]; ok {
+				if _, ok := c.namespaceToConfigIDMap[ns]; ok {
 					alreadyEnabledNamespaces = append(alreadyEnabledNamespaces, ns)
 				} else {
 					c.currentConfiguration.enabledNamespaces = append(c.currentConfiguration.enabledNamespaces, ns)
-					c.namespaceToConfigIdMap[ns] = fmt.Sprintf("%s-%d", rcID, rcVersion)
+					c.namespaceToConfigIDMap[ns] = fmt.Sprintf("%s-%d", rcID, rcVersion)
 				}
 			}
 			if len(alreadyEnabledNamespaces) > 0 {
@@ -228,7 +219,7 @@ func (c *instrumentationConfigurationCache) updateConfiguration(enabled bool, en
 			// remote configuration - APM Instrumentation enabled in the whole cluster
 			// result - enable APM instrumentation in the whole cluster
 			c.currentConfiguration.disabledNamespaces = []string{}
-			c.namespaceToConfigIdMap["cluster"] = fmt.Sprintf("%s-%d", rcID, rcVersion)
+			c.namespaceToConfigIDMap["cluster"] = fmt.Sprintf("%s-%d", rcID, rcVersion)
 		} else if len(c.currentConfiguration.disabledNamespaces) > 0 {
 			// current configuration - APM Instrumentation disabled in specific namespaces
 			// remote configuration - APM Instrumentation enabled in specific namespaces
@@ -238,10 +229,8 @@ func (c *instrumentationConfigurationCache) updateConfiguration(enabled bool, en
 				disabledNsMap[ns] = struct{}{}
 			}
 			for _, ns := range *enabledNamespaces {
-				if _, ok := disabledNsMap[ns]; ok {
-					delete(disabledNsMap, ns)
-				}
-				c.namespaceToConfigIdMap[ns] = fmt.Sprintf("%s-%d", rcID, rcVersion)
+				delete(disabledNsMap, ns)
+				c.namespaceToConfigIDMap[ns] = fmt.Sprintf("%s-%d", rcID, rcVersion)
 			}
 			disabledNs := make([]string, 0, len(disabledNsMap))
 			for k := range disabledNsMap {
@@ -255,10 +244,10 @@ func (c *instrumentationConfigurationCache) updateConfiguration(enabled bool, en
 			if enabledNamespaces != nil && len(*enabledNamespaces) > 0 {
 				for _, ns := range *enabledNamespaces {
 					c.currentConfiguration.enabledNamespaces = append(c.currentConfiguration.enabledNamespaces, ns)
-					c.namespaceToConfigIdMap[ns] = fmt.Sprintf("%s-%d", rcID, rcVersion)
+					c.namespaceToConfigIDMap[ns] = fmt.Sprintf("%s-%d", rcID, rcVersion)
 				}
 			} else {
-				c.namespaceToConfigIdMap["cluster"] = fmt.Sprintf("%s-%d", rcID, rcVersion)
+				c.namespaceToConfigIDMap["cluster"] = fmt.Sprintf("%s-%d", rcID, rcVersion)
 			}
 		} else {
 			log.Errorf("Noop: APM Instrumentation is off")

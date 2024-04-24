@@ -496,7 +496,7 @@ func setupClusterCheck(ctx context.Context, ac autodiscovery.Component) (*cluste
 }
 
 func initializeRemoteConfigClient(
-	ctx context.Context,
+	_ context.Context,
 	rcService rccomp.Component,
 	config config.Component,
 	clusterID, clusterName string,

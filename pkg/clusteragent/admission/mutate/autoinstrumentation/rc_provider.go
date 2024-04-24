@@ -21,8 +21,6 @@ import (
 type remoteConfigProvider struct {
 	client                  *rcclient.Client
 	pollInterval            time.Duration
-	subscribers             map[TargetObjKind]chan Request
-	responseChan            chan Response
 	clusterName             string
 	lastProcessedRCRevision int64
 	rcConfigIDs             map[string]struct{}
@@ -46,8 +44,6 @@ func newRemoteConfigProvider(
 	}
 	return &remoteConfigProvider{
 		client:                  client,
-		subscribers:             make(map[TargetObjKind]chan Request),
-		responseChan:            make(chan Response, 10),
 		clusterName:             clusterName,
 		pollInterval:            10 * time.Second,
 		lastProcessedRCRevision: 0,
@@ -80,7 +76,7 @@ func (rcp *remoteConfigProvider) start(stopCh <-chan struct{}) {
 func (rcp *remoteConfigProvider) process(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	log.Infof("Got %d updates from remote-config", len(update))
 	toDelete := make(map[string]struct{}, len(rcp.rcConfigIDs))
-	for k, _ := range rcp.rcConfigIDs {
+	for k := range rcp.rcConfigIDs {
 		toDelete[k] = struct{}{}
 	}
 

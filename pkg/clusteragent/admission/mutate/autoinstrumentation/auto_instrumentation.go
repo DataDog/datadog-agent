@@ -173,9 +173,9 @@ func NewWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
 // GetWebhook returns the Webhook instance, creating it if it doesn't exist
 func GetWebhook(
 	wmeta workloadmeta.Component,
-	rcClient *rcclient.Client,
-	stopCh <-chan struct{},
-	clusterName string,
+	_ *rcclient.Client,
+	_ <-chan struct{},
+	_ string,
 ) (*Webhook, error) {
 	initOnce.Do(func() {
 		if apmInstrumentationWebhook == nil {

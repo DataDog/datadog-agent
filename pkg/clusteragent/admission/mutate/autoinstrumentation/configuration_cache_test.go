@@ -250,8 +250,8 @@ func TestDeleteConfiguration(t *testing.T) {
 			c.orderedRevisions = tt.orderedRevisions
 			c.enabledRevisions = tt.enabledRevisions
 
-			for _, configId := range tt.remoteConfigIDsToDisable {
-				c.delete(configId)
+			for _, configID := range tt.remoteConfigIDsToDisable {
+				c.delete(configID)
 			}
 			require.Equal(t, tt.expectedConfig.enabled, c.currentConfiguration.enabled)
 			require.Equal(t, tt.expectedConfig.enabledNamespaces, c.currentConfiguration.enabledNamespaces)
@@ -358,11 +358,6 @@ func TestUpdate(t *testing.T) {
 
 func newTrue() *bool {
 	b := true
-	return &b
-}
-
-func newFalse() *bool {
-	b := false
 	return &b
 }
 
