@@ -4,6 +4,7 @@ go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry/
+	github.com/DataDog/datadog-agent/comp/def => ../../comp/def/
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model/
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../pkg/tagger/types
@@ -32,6 +33,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.53.0-rc.2 // indirect

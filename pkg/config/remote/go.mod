@@ -4,6 +4,7 @@ go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/pkg/config/model => ../model
 	github.com/DataDog/datadog-agent/pkg/proto => ../../proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../remoteconfig/state
