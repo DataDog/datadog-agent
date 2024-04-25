@@ -15,6 +15,8 @@ unit_tests_arm64_windows_junit_upload:
   script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
 
+# The corresponding upload for the x86 tests is in the test jobs themselves, we have to upload
+# the ARM64 test results here as we need an x86 image to run the upload.
 kmt_arm64_junit_upload:
   stage: junit_upload
   rules:
