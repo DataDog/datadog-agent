@@ -48,3 +48,13 @@ func (s *Scanner) IsReady() bool { return false }
 func (s *Scanner) Scan(_ []byte, _ *message.Message) (bool, []byte, error) {
 	return false, nil, nil
 }
+
+// GetEnableRulesNames mocks the GetEnabledRulesNames function.
+func (s *Scanner) GetEnabledRulesNames() []string {
+	return []string{}
+}
+
+// GetStandardRulesNames mocks the GetStandardRulesNames function.
+func (s *Scanner) GetStandardRulesNames() []string {
+	return []string{}
+}
