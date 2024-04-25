@@ -30,6 +30,7 @@ installer_deb-amd64:
   variables:
     PACKAGE_ARCH: amd64
     DESTINATION_DEB: "datadog-installer_7_amd64.deb"
+    DD_PKG_ARCH: "x86_64"
 
 installer_deb-arm64:
   extends: .installer_package_deb_common
@@ -42,4 +43,5 @@ installer_deb-arm64:
   variables:
     PACKAGE_ARCH: arm64
     DESTINATION_DEB: "datadog-installer_7_arm64.deb"
+    DD_PKG_ARCH: "arm64"
 

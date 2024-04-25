@@ -34,6 +34,7 @@ installer_rpm-amd64:
   needs: ["installer-amd64"]
   variables:
     PACKAGE_ARCH: x86_64
+    DD_PKG_ARCH: "x86_64"
 
 installer_rpm-arm64:
   extends: .installer_package_rpm_common
@@ -42,6 +43,7 @@ installer_rpm-arm64:
   needs: ["installer-arm64"]
   variables:
     PACKAGE_ARCH: aarch64
+    DD_PKG_ARCH: "arm64"
 
 .installer_package_suse_rpm_common:
   extends: .installer_package_rpm_common
@@ -55,6 +57,7 @@ installer_suse_rpm-amd64:
   needs: ["installer-amd64"]
   variables:
     PACKAGE_ARCH: x86_64
+    DD_PKG_ARCH: "x86_64"
 
 installer_suse_rpm-arm64:
   extends: .installer_package_suse_rpm_common
@@ -63,3 +66,4 @@ installer_suse_rpm-arm64:
   needs: ["installer-arm64"]
   variables:
     PACKAGE_ARCH: aarch64
+    DD_PKG_ARCH: "arm64"
