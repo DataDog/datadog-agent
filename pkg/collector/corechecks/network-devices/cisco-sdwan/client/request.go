@@ -118,7 +118,7 @@ func getMoreEntries[T Content](client *Client, endpoint string, pageInfo PageInf
 		}
 
 		log.Tracef("Getting page %d from endpoint %s", page+1+1, endpoint)
-		// Update the params to get next API page
+		// Build pagination parameters for the to get next API page
 		nextParams, err := getNextPaginationParams(currentPageInfo, client.maxCount)
 		if err != nil {
 			return nil, err
