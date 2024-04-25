@@ -57,8 +57,8 @@ func ProvideComponentConstructor(compCtorFunc interface{}) fx.Option {
 	if ctorFuncType.Kind() != reflect.Func || ctorFuncType.NumIn() > 1 || ctorFuncType.NumOut() == 0 || ctorFuncType.NumOut() > 2 {
 		return fx.Error(errors.New("argument must be a function with 0 or 1 arguments, and 1 or 2 return values"))
 	}
-	if ctorFuncType.NumIn() > 0 && ctorFuncType.In(0).Kind() == reflect.Interface {
-		return fx.Error(errors.New("constructor must either take 0 arguments, or 1 argument as a requires struct"))
+	if ctorFuncType.NumIn() > 0 && ctorFuncType.In(0).Kind() != reflect.Struct {
+		return fx.Error(errors.New(`constructor must either take 0 arguments, or 1 "requires" struct`))
 	}
 	hasZeroArg := ctorFuncType.NumIn() == 0
 

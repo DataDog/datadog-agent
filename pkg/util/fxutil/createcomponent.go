@@ -42,7 +42,7 @@ func getComponentName() string {
 	filename = filepath.ToSlash(filename)
 	components := strings.Split(filename, "/")
 
-	// testing only
+	// need for testing: tests in this folder should not fail for defining components outside of "comp/" folder.
 	if len(components) >= 2 && components[len(components)-2] == "fxutil" {
 		return "fxutil"
 	}
