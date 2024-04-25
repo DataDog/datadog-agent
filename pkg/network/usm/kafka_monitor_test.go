@@ -542,18 +542,20 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					topicName           string
 					expectedBucketIndex int
 				}{
-					{name: "Topic size is 9", topicName: strings.Repeat("a", 9), expectedBucketIndex: 0},
-					{name: "Topic size is 19", topicName: strings.Repeat("a", 19), expectedBucketIndex: 1},
-					{name: "Topic size is 29", topicName: strings.Repeat("a", 29), expectedBucketIndex: 2},
-					{name: "Topic size is 39", topicName: strings.Repeat("a", 39), expectedBucketIndex: 3},
-					{name: "Topic size is 9 again", topicName: strings.Repeat("a", 9), expectedBucketIndex: 0},
-					{name: "Topic size is 49", topicName: strings.Repeat("a", 49), expectedBucketIndex: 4},
-					{name: "Topic size is 59", topicName: strings.Repeat("a", 59), expectedBucketIndex: 5},
-					{name: "Topic size is 69", topicName: strings.Repeat("a", 69), expectedBucketIndex: 6},
+					{name: "Topic size is 1", topicName: strings.Repeat("a", 1), expectedBucketIndex: 0},
+					{name: "Topic size is 10", topicName: strings.Repeat("a", 10), expectedBucketIndex: 0},
+					{name: "Topic size is 20", topicName: strings.Repeat("a", 20), expectedBucketIndex: 1},
+					{name: "Topic size is 30", topicName: strings.Repeat("a", 30), expectedBucketIndex: 2},
+					{name: "Topic size is 40", topicName: strings.Repeat("a", 40), expectedBucketIndex: 3},
+					{name: "Topic size is 10 again", topicName: strings.Repeat("a", 10), expectedBucketIndex: 0},
+					{name: "Topic size is 50", topicName: strings.Repeat("a", 50), expectedBucketIndex: 4},
+					{name: "Topic size is 60", topicName: strings.Repeat("a", 60), expectedBucketIndex: 5},
+					{name: "Topic size is 70", topicName: strings.Repeat("a", 70), expectedBucketIndex: 6},
 					{name: "Topic size is 79", topicName: strings.Repeat("a", 79), expectedBucketIndex: 7},
-					{name: "Topic size is 80", topicName: strings.Repeat("a", 80), expectedBucketIndex: 8},
-					{name: "Topic size is 89", topicName: strings.Repeat("a", 89), expectedBucketIndex: 8},
-					{name: "Topic size is 99", topicName: strings.Repeat("a", 99), expectedBucketIndex: 9},
+					{name: "Topic size is 80", topicName: strings.Repeat("a", 80), expectedBucketIndex: 7},
+					{name: "Topic size is 81", topicName: strings.Repeat("a", 81), expectedBucketIndex: 8},
+					{name: "Topic size is 90", topicName: strings.Repeat("a", 90), expectedBucketIndex: 8},
+					{name: "Topic size is 100", topicName: strings.Repeat("a", 100), expectedBucketIndex: 9},
 					{name: "Topic size is 120", topicName: strings.Repeat("a", 120), expectedBucketIndex: 9},
 				}
 
