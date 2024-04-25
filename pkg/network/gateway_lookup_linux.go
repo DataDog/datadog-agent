@@ -49,25 +49,29 @@ var gatewayLookupTelemetry = struct {
 // gatewayLookup implements a gateway lookup
 // functionality for linux
 type gatewayLookup struct {
-	rootNetNs           netns.NsHandle
-	routeCache          RouteCache
-	subnetCache         *simplelru.LRU[int, interface{}] // interface index to subnet cache
-	subnetForHwAddrFunc func(net.HardwareAddr) (Subnet, error)
+	rootNetNs   netns.NsHandle
+	routeCache  RouteCache
+	subnetCache *simplelru.LRU[int, interface{}] // interface index to subnet cache
 }
 
 type cloudProvider interface {
 	IsAWS() bool
 }
 
-var cloud cloudProvider
+// SubnetForHwAddrFunc is exported for tracer testing purposes
+var SubnetForHwAddrFunc func(net.HardwareAddr) (Subnet, error)
+
+// Cloud is exported for tracer testing purposes
+var Cloud cloudProvider
 
 func init() {
-	cloud = &cloudProviderImpl{}
+	Cloud = &cloudProviderImpl{}
+	SubnetForHwAddrFunc = ec2SubnetForHardwareAddr
 }
 
 func gwLookupEnabled() bool {
 	// only enabled on AWS currently
-	return cloud.IsAWS() && ddconfig.IsCloudProviderEnabled(ec2.CloudProviderName)
+	return Cloud.IsAWS() && ddconfig.IsCloudProviderEnabled(ec2.CloudProviderName)
 }
 
 // NewGatewayLookup creates a new instance of a gateway lookup using
@@ -76,7 +80,6 @@ func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32) Gatew
 	if !gwLookupEnabled() {
 		return nil
 	}
-	log.Tracef("gateway lookup is enabled, isAWS %t, cloud provider: %s", cloud.IsAWS(), ec2.CloudProviderName)
 
 	rootNetNs, err := rootNsLookup()
 	if err != nil {
@@ -85,8 +88,7 @@ func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32) Gatew
 	}
 
 	gl := &gatewayLookup{
-		rootNetNs:           rootNetNs,
-		subnetForHwAddrFunc: ec2SubnetForHardwareAddr,
+		rootNetNs: rootNetNs,
 	}
 
 	router, err := NewNetlinkRouter(rootNetNs)
@@ -157,7 +159,7 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 			}
 
 			gatewayLookupTelemetry.subnetLookups.Inc()
-			if s, err = g.subnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
+			if s, err = SubnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
 				log.Debugf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
 
 				// cache an empty result so that we don't keep hitting the

@@ -198,8 +198,6 @@ type netlinkRouter struct {
 
 // NewNetlinkRouter create a Router that queries routes via netlink
 func NewNetlinkRouter(rootNs netns.NsHandle) (Router, error) {
-	defer rootNs.Close()
-
 	rootNsIno, err := kernel.GetInoForNs(rootNs)
 	if err != nil {
 		return nil, fmt.Errorf("netlink gw cache backing: could not get root net ns: %w", err)
