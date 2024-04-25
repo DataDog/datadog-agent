@@ -76,10 +76,10 @@ type Creds struct {
 
 // TracerOpts defines ptracer options
 type TracerOpts struct {
-	Syscalls       []string
-	Creds          Creds
-	Logger         Logger
-	DisableSeccomp bool
+	Syscalls        []string
+	Creds           Creds
+	Logger          Logger
+	SeccompDisabled bool
 }
 
 func processVMReadv(pid int, addr uintptr, data []byte) (int, error) {
@@ -435,7 +435,7 @@ func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, 
 
 // Trace traces a process
 func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
-	if t.opts.DisableSeccomp {
+	if t.opts.SeccompDisabled {
 		return t.trace(cb)
 	}
 	return t.traceWithSeccomp(cb)
@@ -486,7 +486,7 @@ func NewTracer(path string, args []string, envs []string, opts TracerOpts) (*Tra
 	var prog *syscall.SockFprog
 
 	// syscalls specified then we generate a seccomp filter
-	if !opts.DisableSeccomp {
+	if !opts.SeccompDisabled {
 		prog, err = traceFilterProg(opts)
 		if err != nil {
 			return nil, fmt.Errorf("unable to compile bpf prog: %w", err)
