@@ -22,8 +22,10 @@ from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
 from tasks.kernel_matrix_testing.infra import HostInstance, LibvirtDomain, build_infrastructure
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
+from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
+from tasks.kernel_matrix_testing.vars import arch_ls
 from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
 from tasks.system_probe import EMBEDDED_SHARE_DIR
 
@@ -247,7 +249,7 @@ def init(ctx: Context, lite=False):
 
 
 @task
-def update_resources(ctx: Context, vmconfig_template="system-probe"):
+def update_resources(ctx: Context, vmconfig_template="system-probe", all_archs=False):
     kmt_os = get_kmt_os()
 
     warn("Updating resource dependencies will delete all running stacks.")
@@ -257,7 +259,7 @@ def update_resources(ctx: Context, vmconfig_template="system-probe"):
     for stack in glob(f"{kmt_os.stacks_dir}/*"):
         destroy_stack(ctx, stack=os.path.basename(stack))
 
-    update_rootfs(ctx, kmt_os.rootfs_dir, vmconfig_template)
+    update_rootfs(ctx, kmt_os.rootfs_dir, vmconfig_template, all_archs=all_archs)
 
 
 @task
@@ -771,3 +773,156 @@ def status(ctx: Context, stack: Optional[str] = None, all=False):
         for line in lines:
             print(line)
         print("")
+
+
+@task(
+    help={
+        "version": "The version to update the images to. If not provided, version will not be changed. If 'latest' is provided, the latest version will be used.",
+        "update-only-matching": "Only update the platform info for images that match the given regex",
+        "exclude-matching": "Exclude images that match the given regex",
+    }
+)
+def update_platform_info(
+    ctx: Context,
+    version: str | None = None,
+    update_only_matching: str | None = None,
+    exclude_matching: str | None = None,
+):
+    """Generate a JSON file with platform information for all the images
+    found in the KMT S3 bucket.
+    """
+    res = ctx.run(
+        "aws-vault exec sso-staging-engineering -- aws s3 ls --recursive s3://dd-agent-omnibus/kernel-version-testing/rootfs",
+        warn=True,
+    )
+    if res is None or not res.ok:
+        raise Exit("Cannot list bucket contents")
+
+    objects = [line.split()[-1] for line in res.stdout.splitlines()]
+    objects_by_version: dict[str, list[str]] = defaultdict(list)
+
+    for obj in objects:
+        v = "/".join(obj.split("/")[2:-1])
+        if v != "":
+            objects_by_version[v].append(obj)
+
+    if version is None:
+        master_versions = [v for v in objects_by_version if re.match(r"^20[0-9]{6}_[0-9a-f]+$", v)]
+        if len(master_versions) == 0:
+            raise Exit("No master versions available")
+
+        version = sorted(master_versions)[-1]
+        info(f"[+] detected {version} as latest version from master branch")
+
+    if version not in objects_by_version:
+        raise Exit(f"Version {version} not found in S3 bucket, cannot update")
+
+    manifests = [obj for obj in objects_by_version[version] if obj.endswith(".manifest")]
+    platforms = get_platforms()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        for manifest in manifests:
+            info(f"[+] Processing manifest {manifest}")
+            ctx.run(f"aws-vault exec sso-staging-engineering -- aws s3 cp s3://dd-agent-omnibus/{manifest} {tmpdir}")
+            with open(f"{tmpdir}/{os.path.basename(manifest)}") as f:
+                options = f.readlines()
+                keyvals = {line.split("=")[0]: line.split("=")[1].strip().strip('"') for line in options}
+
+            try:
+                arch = arch_mapping[keyvals['ARCH']]
+                image_name = keyvals['IMAGE_NAME']
+                image_filename = keyvals['IMAGE_FILENAME']
+            except KeyError:
+                raise Exit(f"[!] Invalid manifest {manifest}")
+
+            if arch not in platforms:
+                warn(f"[!] Unsupported architecture {arch}, skipping")
+                continue
+
+            if update_only_matching is not None and re.search(update_only_matching, image_name) is None:
+                warn(f"[!] Image {image_name} does not match the filter, skipping")
+                continue
+
+            if exclude_matching is not None and re.search(exclude_matching, image_name) is not None:
+                warn(f"[!] Image {image_name} matches the exclude filter, skipping")
+                continue
+
+            manifest_to_platinfo_keys = {
+                'NAME': 'os_name',
+                'ID': 'os_id',
+                'KERNEL_VERSION': 'kernel',
+                'VERSION_ID': 'os_version',
+            }
+
+            if image_name not in platforms[arch]:
+                platforms[arch][image_name] = {}
+
+            for mkey, pkey in manifest_to_platinfo_keys.items():
+                if mkey in keyvals:
+                    platforms[arch][image_name][pkey] = keyvals[mkey]
+
+            platforms[arch][image_name]['image'] = image_filename + ".xz"
+            platforms[arch][image_name]['image_version'] = version
+
+            if 'VERSION_CODENAME' in keyvals:
+                altname = keyvals['VERSION_CODENAME']
+                # Do not modify existing altnames
+                altnames = platforms[arch][image_name].get('alt_version_names', [])
+                if altname not in altnames:
+                    altnames.append(altname)
+
+                platforms[arch][image_name]['alt_version_names'] = altnames
+
+    info(f"[+] Writing output to {platforms_file}...")
+
+    # Do validation of the platforms dict, check that there are no outdated versions
+    for arch in arch_ls:
+        for image_name, platinfo in platforms[arch].items():
+            if update_only_matching is not None and re.search(update_only_matching, image_name) is None:
+                continue  # Only validate those that match
+
+            if exclude_matching is not None and re.search(exclude_matching, image_name) is not None:
+                continue
+
+            version_from_file = platinfo.get('image_version')
+            if version_from_file != version:
+                warn(
+                    f"[!] Image {image_name} ({arch}) has version {version_from_file} but we are updating to {version}, manifest file may be missing?"
+                )
+
+    with open(platforms_file, "w") as f:
+        json.dump(platforms, f, indent=2)
+
+
+@task
+def validate_platform_info(ctx: Context):
+    """Validate the platform info file for correctness, ensuring that all images can be found"""
+    platforms = get_platforms()
+    errors: set[str] = set()
+
+    for arch in arch_ls:
+        for image_name, platinfo in platforms[arch].items():
+            image = platinfo.get('image')
+            if image is None:
+                warn(f"[!] {image_name} does not have an image filename")
+                errors.add(image_name)
+                continue
+
+            version = platinfo.get('image_version')
+            if version is None:
+                warn(f"[!] {image_name} does not have an image version")
+                errors.add(image_name)
+                continue
+
+            remote = f"{platforms['url_base']}/{version}/{image}"
+            res = ctx.run(f"curl -s -I {remote}")
+            if res is None or not res.ok:
+                warn(f"[!] {image_name}: {image} for version {version} not found at {remote}")
+                errors.add(image_name)
+            else:
+                info(f"[+] {image_name}: {image} for version {version} found at {remote}")
+
+    if len(errors) == 0:
+        info("[+] Platform info file is valid")
+    else:
+        raise Exit(f"[!] Found {len(errors)} errors in the platform info file. Images failed: {', '.join(errors)}")
