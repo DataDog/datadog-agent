@@ -8,6 +8,7 @@ package installtest
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
