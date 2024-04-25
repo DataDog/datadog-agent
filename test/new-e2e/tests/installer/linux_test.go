@@ -250,9 +250,13 @@ func (v *installerSuite) TestPurgeAndInstallAgent() {
 }
 
 func (v *installerSuite) TestPurgeAndInstallAPMInjector() {
-	if v.packageManager == "rpm" {
-		v.T().Skip("skip APMInjector test on rpm distros")
+	if v.distro == os.SuseDefault {
+		v.T().Skip(
+			"Docker is not supported on SUSE without arch s390x (IBM Z), but we don't support that arch in E2E tests.\n" +
+				"See https://docs.docker.com/engine/install/sles/#os-requirements for more details",
+		)
 	}
+
 	host := v.Env().RemoteHost
 
 	///////////////////
