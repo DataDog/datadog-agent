@@ -74,7 +74,7 @@ type Tracer interface {
 	// FlushPending forces any closed connections waiting for batching to be processed immediately.
 	FlushPending()
 	// GetFailedConnections fjdskl
-	GetFailedConnections() network.FailedConnMap
+	GetFailedConnections() *network.FailedConns
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error
@@ -349,7 +349,7 @@ func (t *tracer) FlushPending() {
 	t.closeConsumer.FlushPending()
 }
 
-func (t *tracer) GetFailedConnections() network.FailedConnMap {
+func (t *tracer) GetFailedConnections() *network.FailedConns {
 	return t.failedConnConsumer.failedConnMap
 }
 

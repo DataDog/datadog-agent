@@ -34,7 +34,7 @@ type tcpFailedConnConsumer struct {
 	requests      chan chan struct{}
 	once          sync.Once
 	closed        chan struct{}
-	failedConnMap network.FailedConnMap
+	failedConnMap *network.FailedConns
 	mux           sync.Mutex
 }
 
@@ -43,7 +43,7 @@ func newFailedConnConsumer(eventHandler ddebpf.EventHandler) *tcpFailedConnConsu
 		eventHandler:  eventHandler,
 		requests:      make(chan chan struct{}),
 		closed:        make(chan struct{}),
-		failedConnMap: make(network.FailedConnMap),
+		failedConnMap: network.NewFailedConns(),
 		mux:           sync.Mutex{},
 	}
 }
@@ -59,17 +59,16 @@ func (c *tcpFailedConnConsumer) Stop() {
 }
 
 func (c *tcpFailedConnConsumer) extractConn(data []byte) {
-	c.mux.Lock()
-	defer c.mux.Unlock()
+	c.failedConnMap.Lock()
+	defer c.failedConnMap.Unlock()
 	ct := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
-	log.Infof("adamk: failed connection: %v, reason: %v", ct.Tup, ct.Reason)
 
-	stats, ok := c.failedConnMap[ct.Tup]
+	stats, ok := c.failedConnMap.FailedConnMap[ct.Tup]
 	if !ok {
 		stats = &network.FailedConnStats{
 			CountByErrCode: make(map[uint32]uint32),
 		}
-		c.failedConnMap[ct.Tup] = stats
+		c.failedConnMap.FailedConnMap[ct.Tup] = stats
 	}
 	stats.CountByErrCode[ct.Reason]++
 }
@@ -80,8 +79,6 @@ func (c *tcpFailedConnConsumer) Start() {
 	}
 
 	var (
-		//then             = time.Now()
-		//failedCount      uint64
 		lostSamplesCount uint64
 	)
 

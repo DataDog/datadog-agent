@@ -109,7 +109,7 @@ type State interface {
 	RemoveConnections(conns []*ConnectionStats)
 
 	// StoreClosedConnections stores a batch of closed connections
-	StoreClosedConnections(connections []ConnectionStats, failedConnMap FailedConnMap)
+	StoreClosedConnections(connections []ConnectionStats, failedConnMap *FailedConns)
 
 	// GetStats returns a map of statistics about the current network state
 	GetStats() map[string]interface{}
@@ -581,8 +581,19 @@ func (t FailedConnStats) String() string {
 // FailedConnMap is a map of connection tuples to failed connection stats
 type FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
 
+type FailedConns struct {
+	FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
+	sync.RWMutex
+}
+
+func NewFailedConns() *FailedConns {
+	return &FailedConns{
+		FailedConnMap: make(map[ebpf.ConnTuple]*FailedConnStats),
+	}
+}
+
 // StoreClosedConnections stores the given closed connections
-func (ns *networkState) StoreClosedConnections(closed []ConnectionStats, failedConnMap FailedConnMap) {
+func (ns *networkState) StoreClosedConnections(closed []ConnectionStats, failedConnMap *FailedConns) {
 	ns.Lock()
 	defer ns.Unlock()
 
@@ -590,7 +601,7 @@ func (ns *networkState) StoreClosedConnections(closed []ConnectionStats, failedC
 }
 
 // storeClosedConnection stores the given connection for every client
-func (ns *networkState) storeClosedConnections(conns []ConnectionStats, failedConnMap FailedConnMap) {
+func (ns *networkState) storeClosedConnections(conns []ConnectionStats, failedConnMap *FailedConns) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
 			matchFailedConn(&c, failedConnMap)
@@ -606,23 +617,25 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats, failedCo
 	}
 }
 
-func matchFailedConn(conn *ConnectionStats, failedConnMap FailedConnMap) {
+func matchFailedConn(conn *ConnectionStats, failedConnMap *FailedConns) {
 	connTuple := connStatsToTuple(conn)
-	if failedConn, ok := failedConnMap[connTuple]; ok {
+	failedConnMap.RLock()
+	defer failedConnMap.RUnlock()
+	if failedConn, ok := failedConnMap.FailedConnMap[connTuple]; ok {
 		conn.TCPFailures = make(map[TCPFailure]uint32)
 		for errCode, count := range failedConn.CountByErrCode {
 			switch errCode {
 			case 104:
-				log.Debugf("Incrementing TCP Failed Reset counter for connection: %+v", conn)
+				log.Infof("Incrementing TCP Failed Reset counter for connection: %+v", conn)
 				conn.TCPFailures[TCPFailureConnectionReset] += count
 			case 110:
-				log.Debugf("Incrementing TCP Failed Timeout counter for connection: %+v", conn)
+				log.Infof("Incrementing TCP Failed Timeout counter for connection: %+v", conn)
 				conn.TCPFailures[TCPFailureConnectionTimeout] += count
 			case 111:
-				log.Debugf("Incrementing TCP Failed Refused counter for connection: %+v", conn)
+				log.Infof("Incrementing TCP Failed Refused counter for connection: %+v", conn)
 				conn.TCPFailures[TCPFailureConnectionRefused] += count
 			default:
-				log.Debugf("Incrementing TCP Failed Default counter for connection: %+v", conn)
+				log.Infof("Incrementing TCP Failed Default counter for connection: %+v", conn)
 				conn.TCPFailures[TCPFailureUnknown] += count
 				// add some prometheus telemetry here
 			}
