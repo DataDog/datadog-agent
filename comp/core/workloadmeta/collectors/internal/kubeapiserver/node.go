@@ -10,24 +10,28 @@ package kubeapiserver
 import (
 	"context"
 
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newNodeStore(ctx context.Context, wlm workloadmeta.Component, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newNodeStore(ctx context.Context, wlm workloadmeta.Component, client kubernetes.Interface, metadataclient metadata.Client) (*cache.Reflector, *reflectorStore) {
+	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "nodes"}
+
 	nodeListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			return client.CoreV1().Nodes().List(ctx, options)
+			return metadataclient.Resource(gvr).List(ctx, options)
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return client.CoreV1().Nodes().Watch(ctx, options)
+			return metadataclient.Resource(gvr).Watch(ctx, options)
 		},
 	}
 
@@ -35,7 +39,7 @@ func newNodeStore(ctx context.Context, wlm workloadmeta.Component, client kubern
 	nodeReflector := cache.NewNamedReflector(
 		componentName,
 		nodeListerWatcher,
-		&corev1.Node{},
+		&v1.PartialObjectMetadata{},
 		nodeStore,
 		noResync,
 	)
@@ -60,17 +64,18 @@ func newNodeParser() objectParser {
 }
 
 func (p nodeParser) Parse(obj interface{}) workloadmeta.Entity {
-	node := obj.(*corev1.Node)
+	nodemeta := obj.(*v1.PartialObjectMetadata)
 
+	log.Infof("Parsing node from node collector: ", *nodemeta)
 	return &workloadmeta.KubernetesNode{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesNode,
-			ID:   node.Name,
+			ID:   nodemeta.Name,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name:        node.Name,
-			Annotations: node.Annotations,
-			Labels:      node.Labels,
+			Name:        nodemeta.Name,
+			Annotations: nodemeta.Annotations,
+			Labels:      nodemeta.Labels,
 		},
 	}
 }
