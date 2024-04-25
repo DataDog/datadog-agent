@@ -115,10 +115,19 @@ func getPorts(configDestPort uint16) (uint16, uint16, bool) {
 	return destPort, srcPort, useSourcePort
 }
 
-func processResults(r *results.Results, hname string, destinationHost string, destinationIP net.IP, destPort uint16) (NetworkPath, error) {
+func processResults(r *results.Results, hname string, destHostname string, destinationIP net.IP, destPort uint16) (NetworkPath, error) {
 	type node struct {
 		node  string
 		probe *results.Probe
+	}
+
+	destIP := destinationIP.String()
+	newDestHostname := destHostname
+	if newDestHostname == destIP {
+		fetchedHostname := getHostname(newDestHostname)
+		if fetchedHostname != "" {
+			newDestHostname = fetchedHostname
+		}
 	}
 
 	pathID := uuid.New().String()
@@ -130,8 +139,8 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 			Hostname: hname,
 		},
 		Destination: NetworkPathDestination{
-			Hostname:  destinationHost,
-			IPAddress: destinationIP.String(),
+			Hostname:  newDestHostname,
+			IPAddress: destIP,
 			Port:      destPort,
 		},
 	}

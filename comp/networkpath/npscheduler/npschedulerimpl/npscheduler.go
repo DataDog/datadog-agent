@@ -53,6 +53,10 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 
 		receivedPathtestConfigCount: atomic.NewUint64(0),
 		TimeNowFunction:             time.Now,
+
+		stopChan:      make(chan struct{}),
+		runDone:       make(chan struct{}),
+		flushLoopDone: make(chan struct{}),
 	}
 }
 
@@ -205,8 +209,8 @@ func (s *npSchedulerImpl) sendTelemetry(path traceroute.NetworkPath, startTime t
 		if lastHop.Success {
 			statsd.Client.Gauge("datadog.network_path.path.hops", float64(len(path.Hops)), tags, 1) //nolint:errcheck
 		}
-		statsd.Client.Gauge("datadog.network_path.path.reachable", float64(utils.BoolToFloat64(lastHop.Success)), tags, 1)    //nolint:errcheck
-		statsd.Client.Gauge("datadog.network_path.path.unreachable", float64(utils.BoolToFloat64(!lastHop.Success)), tags, 1) //nolint:errcheck
+		statsd.Client.Gauge("datadog.network_path.path.reachable", float64(utils.BoolToFloat64(lastHop.Success)), tags, 1) //nolint:errcheck
+		statsd.Client.Gauge("datadog.network_path.path.unreachable", float64(utils.BoolToFloat64(!lastHop.Success)), tags, 1)
 	}
 }
 
