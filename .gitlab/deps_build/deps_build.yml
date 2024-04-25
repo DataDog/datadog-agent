@@ -6,6 +6,8 @@
   rules:
     !reference [.manual]
   stage: deps_build
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
   script:
     # use tmpdir to prevent git remote capture by clang build
     - mkdir /tmp/clangbuild && cd /tmp/clangbuild
