@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-// team: container-integrations
+// team: container-platform
 
 // Mock implements mock-specific methods.
 type Mock interface {
