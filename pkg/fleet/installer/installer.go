@@ -270,7 +270,7 @@ func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
 func (i *installerImpl) preSetupPackage(_ context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogInstaller:
-		return service.PreSetupInstaller()
+		return service.PreSetupInstaller(i.packagesDir)
 	default:
 		return nil
 	}
