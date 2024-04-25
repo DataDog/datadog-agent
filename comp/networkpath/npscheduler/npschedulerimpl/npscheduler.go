@@ -44,7 +44,7 @@ type npSchedulerImpl struct {
 	epForwarder eventplatform.Component
 }
 
-func (s *npSchedulerImpl) Schedule(hostname string, port uint16) {
+func (s *npSchedulerImpl) Schedule(_ string, _ uint16) {
 	// TODO: IMPLEMENTATION IN SEPARATE PR (to make PRs easier to review)
 }
 
