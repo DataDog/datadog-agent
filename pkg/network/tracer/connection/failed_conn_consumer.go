@@ -35,7 +35,6 @@ type tcpFailedConnConsumer struct {
 	once          sync.Once
 	closed        chan struct{}
 	failedConnMap *network.FailedConns
-	mux           sync.Mutex
 }
 
 func newFailedConnConsumer(eventHandler ddebpf.EventHandler) *tcpFailedConnConsumer {
@@ -44,7 +43,6 @@ func newFailedConnConsumer(eventHandler ddebpf.EventHandler) *tcpFailedConnConsu
 		requests:      make(chan chan struct{}),
 		closed:        make(chan struct{}),
 		failedConnMap: network.NewFailedConns(),
-		mux:           sync.Mutex{},
 	}
 }
 
