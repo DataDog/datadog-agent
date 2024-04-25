@@ -200,11 +200,13 @@ func TestSet(t *testing.T) {
 	config.Set("foo", "quux", SourceRC)
 	config.Set("foo", "corge", SourceCLI)
 
-	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceFile), map[string]interface{}{"foo": "bar"})
-	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceEnvVar), map[string]interface{}{"foo": "baz"})
-	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceAgentRuntime), map[string]interface{}{"foo": "qux"})
-	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceRC), map[string]interface{}{"foo": "quux"})
-	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceCLI), map[string]interface{}{"foo": "corge"})
+	layers := config.AllSettingsBySource()
+
+	assert.Equal(t, layers[SourceFile], map[string]interface{}{"foo": "bar"})
+	assert.Equal(t, layers[SourceEnvVar], map[string]interface{}{"foo": "baz"})
+	assert.Equal(t, layers[SourceAgentRuntime], map[string]interface{}{"foo": "qux"})
+	assert.Equal(t, layers[SourceRC], map[string]interface{}{"foo": "quux"})
+	assert.Equal(t, layers[SourceCLI], map[string]interface{}{"foo": "corge"})
 
 	assert.Equal(t, config.Get("foo"), "corge")
 }
@@ -291,7 +293,7 @@ func TestAllFileSettingsWithoutDefault(t *testing.T) {
 		map[string]interface{}{
 			"baz": "qux",
 		},
-		config.AllSourceSettingsWithoutDefault(SourceFile),
+		config.AllSettingsWithoutDefault(),
 	)
 }
 
@@ -311,7 +313,7 @@ foo: bar
 
 	assert.Equal(t, "bar", config.Get("foo"))
 	assert.Equal(t, SourceFile, config.GetSource("foo"))
-	assert.Equal(t, map[string]interface{}{"foo": "bar"}, config.AllSourceSettingsWithoutDefault(SourceFile))
+	assert.Equal(t, map[string]interface{}{"foo": "bar"}, config.AllSettingsWithoutDefault())
 }
 
 func TestNotification(t *testing.T) {
