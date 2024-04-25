@@ -200,9 +200,9 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     sk = (struct sock *)PT_REGS_PARM1(ctx);
 
     // Should actually delete something only if the connection never got established & increment counter
-    if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
-        increment_telemetry_count(tcp_failed_connect);
-    }
+    // if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
+    //     increment_telemetry_count(tcp_failed_connect);
+    // }
 
     // Get network namespace id
     log_debug("kprobe/tcp_close: tgid: %u, pid: %u", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);

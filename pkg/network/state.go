@@ -16,6 +16,7 @@ import (
 	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
@@ -108,7 +109,7 @@ type State interface {
 	RemoveConnections(conns []*ConnectionStats)
 
 	// StoreClosedConnections stores a batch of closed connections
-	StoreClosedConnections(connections []ConnectionStats)
+	StoreClosedConnections(connections []ConnectionStats, failedConnMap FailedConnMap)
 
 	// GetStats returns a map of statistics about the current network state
 	GetStats() map[string]interface{}
@@ -565,17 +566,31 @@ func (ns *networkState) mergeByCookie(conns []ConnectionStats) ([]ConnectionStat
 	return conns, connsByKey
 }
 
-func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
+type FailedConnStats struct {
+	CountByErrCode map[uint32]uint32
+}
+
+// String returns a string representation of the failedConnStats
+func (t FailedConnStats) String() string {
+	return fmt.Sprintf(
+		"failedConnStats{countByErrCode: %+v}", t.CountByErrCode,
+	)
+}
+
+type FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
+
+func (ns *networkState) StoreClosedConnections(closed []ConnectionStats, failedConnMap FailedConnMap) {
 	ns.Lock()
 	defer ns.Unlock()
 
-	ns.storeClosedConnections(closed)
+	ns.storeClosedConnections(closed, failedConnMap)
 }
 
 // storeClosedConnection stores the given connection for every client
-func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
+func (ns *networkState) storeClosedConnections(conns []ConnectionStats, failedConnMap FailedConnMap) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
+			matchFailedConn(&c, failedConnMap)
 			if i, ok := client.closed.byCookie[c.Cookie]; ok {
 				if ns.mergeConnectionStats(&client.closed.conns[i], &c) {
 					stateTelemetry.statsCookieCollisions.Inc()
@@ -586,6 +601,53 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 			client.closed.insert(c, ns.maxClosedConns)
 		}
 	}
+}
+
+func matchFailedConn(conn *ConnectionStats, failedConnMap FailedConnMap) {
+	conn.TCPFailures = make(map[TCPFailure]uint32)
+	connTuple := connStatsToTuple(conn)
+	if failedConn, ok := failedConnMap[connTuple]; ok {
+		for errCode, count := range failedConn.CountByErrCode {
+			switch errCode {
+			case 104:
+				log.Debugf("Incrementing TCP Failed Reset counter for connection: %+v", conn)
+				conn.TCPFailures[TCPFailureConnectionReset] += count
+			case 110:
+				log.Debugf("Incrementing TCP Failed Timeout counter for connection: %+v", conn)
+				conn.TCPFailures[TCPFailureConnectionTimeout] += count
+			case 111:
+				log.Debugf("Incrementing TCP Failed Refused counter for connection: %+v", conn)
+				conn.TCPFailures[TCPFailureConnectionRefused] += count
+			default:
+				log.Debugf("Incrementing TCP Failed Default counter for connection: %+v", conn)
+				conn.TCPFailures[TCPFailureUnknown] += count
+				// add some prometheus telemetry here
+			}
+		}
+	}
+}
+
+func connStatsToTuple(c *ConnectionStats) ebpf.ConnTuple {
+	var tup ebpf.ConnTuple
+	tup.Sport = c.SPort
+	tup.Dport = c.DPort
+	tup.Netns = c.NetNS
+	tup.Pid = c.Pid
+	if c.Family == AFINET {
+		tup.SetFamily(ebpf.IPv4)
+	} else {
+		tup.SetFamily(ebpf.IPv6)
+	}
+	if c.Type == TCP {
+		tup.SetType(ebpf.TCP)
+	} else {
+		tup.SetType(ebpf.UDP)
+	}
+	tup.SetSourceAddress(c.Source)
+	tup.SetDestAddress(c.Dest)
+
+	return tup
+
 }
 
 func getDeepDNSStatsCount(stats dns.StatsByKeyByNameByType) int {

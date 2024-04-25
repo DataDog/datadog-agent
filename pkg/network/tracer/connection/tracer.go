@@ -65,7 +65,7 @@ const (
 // Tracer is the common interface implemented by all connection tracers.
 type Tracer interface {
 	// Start begins collecting network connection data.
-	Start(func([]network.ConnectionStats), func(stats FailedConnMap)) error
+	Start(func([]network.ConnectionStats)) error
 	// Stop halts all network data collection.
 	Stop()
 	// GetConnections returns the list of currently active connections, using the buffer provided.
@@ -73,6 +73,8 @@ type Tracer interface {
 	GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error
 	// FlushPending forces any closed connections waiting for batching to be processed immediately.
 	FlushPending()
+	// GetFailedConnections fjdskl
+	GetFailedConnections() network.FailedConnMap
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error
@@ -308,7 +310,7 @@ func boolConst(name string, value bool) manager.ConstantEditor {
 	return c
 }
 
-func (t *tracer) Start(callback func([]network.ConnectionStats), failedConnCallback func(connMap FailedConnMap)) (err error) {
+func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 	defer func() {
 		if err != nil {
 			t.Stop()
@@ -326,7 +328,7 @@ func (t *tracer) Start(callback func([]network.ConnectionStats), failedConnCallb
 
 	t.closeConsumer.Start(callback)
 	log.Info("starting failed connection consumer")
-	t.failedConnConsumer.Start(failedConnCallback)
+	t.failedConnConsumer.Start()
 	return nil
 }
 
@@ -346,6 +348,10 @@ func (t *tracer) Resume() error {
 func (t *tracer) FlushPending() {
 	t.closeConsumer.FlushPending()
 	t.failedConnConsumer.FlushPending()
+}
+
+func (t *tracer) GetFailedConnections() network.FailedConnMap {
+	return t.failedConnConsumer.failedConnMap
 }
 
 func (t *tracer) Stop() {

@@ -41,8 +41,8 @@ type Conn struct {
 }
 type FailedConn struct {
 	Tup       ConnTuple
-	Reason    uint16
-	Pad_cgo_0 [6]byte
+	Reason    uint32
+	Pad_cgo_0 [4]byte
 }
 type Batch struct {
 	C0        Conn

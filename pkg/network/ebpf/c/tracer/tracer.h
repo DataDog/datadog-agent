@@ -79,7 +79,7 @@ typedef struct {
 
 typedef struct {
     conn_tuple_t tup;
-    __u16 failure_reason;
+    __u32 failure_reason;
 } conn_failed_t;
 
 // Must match the number of conn_t objects embedded in the batch_t struct

@@ -12,6 +12,7 @@
 #include "cookie.h"
 #include "ip.h"
 #include "port_range.h"
+#include <asm-generic/errno.h>
 
 #ifdef COMPILE_CORE
 #define MSG_PEEK 2
@@ -144,7 +145,27 @@ static __always_inline void flush_tcp_failure(void *ctx, conn_tuple_t *tup, int 
     log_debug("adamk flushing TCP failure for connection: %d", tup->pid);
     conn_failed_t failure = {};
     failure.tup = *tup;
-    failure.failure_reason = (__u16)failure_reason;
+    failure.failure_reason = failure_reason;
+    // switch (failure_reason) {
+    // case ECONNREFUSED:
+    //     // increment_telemetry_count(tcp_failed_connect);
+    //     failure.failure_reason = CONNREFUSED;
+    //     break;
+    // case ECONNRESET:
+    //     // increment_telemetry_count(tcp_failed_reset);
+    //     failure.failure_reason = CONNRESET;
+    //     break;
+    // case ECONNABORTED:
+    //     // increment_telemetry_count(tcp_failed_abort);
+    //     break;
+    // case EHOSTUNREACH:
+    //     // increment_telemetry_count(tcp_failed_unreach);
+    //     break;
+    // case ETIMEDOUT:
+    //     // increment_telemetry_count(tcp_failed_timeout);
+    //     failure.failure_reason = TIMEOUT;
+    //     break;
+    // }
 
     __u64 ringbuffers_enabled = 0;
     LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);

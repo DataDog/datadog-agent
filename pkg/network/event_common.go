@@ -46,6 +46,26 @@ func (c ConnectionType) String() string {
 	return "UDP"
 }
 
+type TCPFailure string
+
+const (
+	// TCPFailureUnknown is the default value, failure was not detected
+	TCPFailureUnknown TCPFailure = "EUNKNOWN"
+
+	// TCPFailureConnectionReset indicates a connection reset
+	TCPFailureConnectionReset TCPFailure = "ECONNRESET"
+
+	// TCPFailureConnectionRefused indicates a connection refused
+	TCPFailureConnectionRefused TCPFailure = "ECONNREFUSED"
+
+	// TCPFailureConnectionTimeout indicates a connection timeout
+	TCPFailureConnectionTimeout TCPFailure = "ETIMEDOUT"
+)
+
+func (f TCPFailure) String() string {
+	return string(f)
+}
+
 const (
 	// AFINET represents v4 connections
 	AFINET ConnectionFamily = 0
@@ -284,7 +304,8 @@ type ConnectionStats struct {
 
 	ProtocolStack protocols.Stack
 
-	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
+	TCPFailures map[TCPFailure]uint32
+	DNSStats    map[dns.Hostname]map[dns.QueryType]dns.Stats
 }
 
 // Via has info about the routing decision for a flow

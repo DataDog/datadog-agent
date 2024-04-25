@@ -8,6 +8,7 @@
 package ebpf
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"strconv"
@@ -56,6 +57,48 @@ func (t ConnTuple) DestAddress() util.Address {
 // DestEndpoint returns the destination address and source port joined
 func (t ConnTuple) DestEndpoint() string {
 	return net.JoinHostPort(t.DestAddress().String(), strconv.Itoa(int(t.Dport)))
+}
+
+// SetFamily sets the family (IPv4 or IPv6) for a tuple.
+func (t *ConnTuple) SetFamily(family ConnFamily) {
+	if family == IPv6 {
+		t.Metadata |= uint32(IPv6) // Set the IPv6 bit
+	} else {
+		t.Metadata &^= uint32(IPv6) // Clear the IPv6 bit, assuming IPv4 is default
+	}
+}
+
+// SetType sets the type (TCP or UDP) for a tuple.
+func (t *ConnTuple) SetType(connType ConnType) {
+	if connType == TCP {
+		t.Metadata |= uint32(TCP) // Set the TCP bit
+	} else {
+		t.Metadata &^= uint32(TCP) // Clear the TCP bit, assuming UDP is default
+	}
+}
+
+// SetSourceAddress sets the source address.
+func (t *ConnTuple) SetSourceAddress(addr util.Address) {
+	if t.Family() == IPv4 {
+		ip := addr.As4()
+		t.Saddr_l = uint64(ip[0]) | uint64(ip[1])<<8 | uint64(ip[2])<<16 | uint64(ip[3])<<24
+	} else {
+		ip := addr.As16()
+		t.Saddr_h = binary.LittleEndian.Uint64(ip[:8])
+		t.Saddr_l = binary.LittleEndian.Uint64(ip[8:])
+	}
+}
+
+// SetDestAddress sets the destination address.
+func (t *ConnTuple) SetDestAddress(addr util.Address) {
+	if t.Family() == IPv4 {
+		ip := addr.As4()
+		t.Daddr_l = uint64(ip[0]) | uint64(ip[1])<<8 | uint64(ip[2])<<16 | uint64(ip[3])<<24
+	} else {
+		ip := addr.As16()
+		t.Daddr_h = binary.LittleEndian.Uint64(ip[:8])
+		t.Daddr_l = binary.LittleEndian.Uint64(ip[8:])
+	}
 }
 
 func (t ConnTuple) String() string {

@@ -223,7 +223,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 // start starts the tracer. This function is present to separate
 // the creation from the start of the tracer for tests
 func (tr *Tracer) start() error {
-	err := tr.ebpfTracer.Start(tr.storeClosedConnections, tr.storeFailedConnections)
+	err := tr.ebpfTracer.Start(tr.storeClosedConnections)
 	if err != nil {
 		tr.Stop()
 		return fmt.Errorf("could not start ebpf tracer: %s", err)
@@ -316,23 +316,9 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	}
 
 	connections = connections[rejected:]
-	t.state.StoreClosedConnections(connections)
-}
+	failedConnMap := t.ebpfTracer.GetFailedConnections()
 
-func (t *Tracer) storeFailedConnections(connections connection.FailedConnMap) {
-	for conn := range connections {
-		log.Debugf("failed connection: %s", conn)
-		//cs := &network.ConnectionStats{
-		//	Source: util.Address{
-		//		Addr:   conn.SourceAddress(),
-		//		Port: conn.Sport,
-		//	},
-		//}
-		//if t.shouldSkipConnection(cs) {
-		//	continue
-		//}
-		//t.state.StoreFailedConnection(conn, stats)
-	}
+	t.state.StoreClosedConnections(connections, failedConnMap)
 }
 
 //nolint:revive // TODO(NET) Fix revive linter

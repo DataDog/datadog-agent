@@ -8,9 +8,7 @@
 package connection
 
 import (
-	"fmt"
 	"sync"
-	"time"
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -37,22 +35,10 @@ type tcpFailedConnConsumer struct {
 	buffer        *network.ConnectionBuffer
 	once          sync.Once
 	closed        chan struct{}
-	failedConnMap FailedConnMap
+	failedConnMap network.FailedConnMap
 	mux           sync.Mutex
+	ch            *cookieHasher
 }
-
-type failedConnStats struct {
-	countByErrCode map[uint16]uint16
-}
-
-// String returns a string representation of the failedConnStats
-func (t failedConnStats) String() string {
-	return fmt.Sprintf(
-		"failedConnStats{countByErrCode: %v}", t.countByErrCode,
-	)
-}
-
-type FailedConnMap map[netebpf.ConnTuple]*failedConnStats
 
 func newFailedConnConsumer(eventHandler ddebpf.EventHandler) *tcpFailedConnConsumer {
 	return &tcpFailedConnConsumer{
@@ -60,8 +46,9 @@ func newFailedConnConsumer(eventHandler ddebpf.EventHandler) *tcpFailedConnConsu
 		requests:      make(chan chan struct{}),
 		buffer:        network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
 		closed:        make(chan struct{}),
-		failedConnMap: make(FailedConnMap),
+		failedConnMap: make(network.FailedConnMap),
 		mux:           sync.Mutex{},
+		ch:            newCookieHasher(),
 	}
 }
 
@@ -102,21 +89,21 @@ func (c *tcpFailedConnConsumer) extractConn(data []byte) {
 
 	stats, ok := c.failedConnMap[ct.Tup]
 	if !ok {
-		stats = &failedConnStats{
-			countByErrCode: make(map[uint16]uint16),
+		stats = &network.FailedConnStats{
+			CountByErrCode: make(map[uint32]uint32),
 		}
 		c.failedConnMap[ct.Tup] = stats
 	}
-	stats.countByErrCode[ct.Reason]++
+	stats.CountByErrCode[ct.Reason]++
 }
 
-func (c *tcpFailedConnConsumer) Start(callback func(connMap FailedConnMap)) {
+func (c *tcpFailedConnConsumer) Start() {
 	if c == nil {
 		return
 	}
 
 	var (
-		then             = time.Now()
+		//then             = time.Now()
 		failedCount      uint64
 		lostSamplesCount uint64
 	)
@@ -154,23 +141,22 @@ func (c *tcpFailedConnConsumer) Start(callback func(connMap FailedConnMap)) {
 				}
 				failedConnConsumerTelemetry.perfLost.Add(float64(lc))
 				lostSamplesCount += lc
-			case request := <-c.requests:
-				failedCount += uint64(len(c.failedConnMap))
-				callback(c.failedConnMap)
-				clear(c.failedConnMap)
-				close(request)
-				now := time.Now()
-				elapsed := now.Sub(then)
-				then = now
-				log.Debugf(
-					"failed conn summary: failed_count=%d elapsed=%s failure_rate=%.2f/s lost_samples_count=%d",
-					failedCount,
-					elapsed,
-					float64(failedCount)/elapsed.Seconds(),
-					lostSamplesCount,
-				)
-				failedCount = 0
-				lostSamplesCount = 0
+				//case request := <-c.requests:
+				//	failedCount += uint64(len(c.failedConnMap))
+				//	clear(c.failedConnMap)
+				//	close(request)
+				//	now := time.Now()
+				//	elapsed := now.Sub(then)
+				//	then = now
+				//	log.Debugf(
+				//		"failed conn summary: failed_count=%d elapsed=%s failure_rate=%.2f/s lost_samples_count=%d",
+				//		failedCount,
+				//		elapsed,
+				//		float64(failedCount)/elapsed.Seconds(),
+				//		lostSamplesCount,
+				//	)
+				//	failedCount = 0
+				//	lostSamplesCount = 0
 			}
 		}
 	}()
