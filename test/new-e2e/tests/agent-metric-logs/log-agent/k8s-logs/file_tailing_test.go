@@ -1,4 +1,4 @@
-// Unless explicitly stated otherwise, all files in this repository are licensed
+// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	customkind "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/k8sfiletailing"
+	kindfilelogger "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/kindfilelogging"
 )
 
 type k8sSuite struct {
@@ -28,7 +28,7 @@ type k8sSuite struct {
 }
 
 func TestK8sSuite(t *testing.T) {
-	e2e.Run(t, &k8sSuite{}, e2e.WithProvisioner(customkind.Provisioner()))
+	e2e.Run(t, &k8sSuite{}, e2e.WithProvisioner(kindfilelogger.Provisioner()))
 }
 
 func (v *k8sSuite) TestSingleLogAndMetadata() {
