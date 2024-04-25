@@ -226,8 +226,16 @@ func runTimeExitGate() <-chan time.Time {
 	return time.After(5 * time.Second)
 }
 
+func getProcessStartTime() time.Time {
+	var creation windows.Filetime
+	var blank windows.Filetime
+	windows.GetProcessTimes(windows.CurrentProcess(), &creation, &blank, &blank, &blank)
+	return time.UnixMicro(creation.Nanoseconds() / 1000)
+}
+
 func (s *controlHandler) eventlog(msgnum uint32, arg string) {
-	winutil.LogEventViewer(s.service.Name(), msgnum, arg)
+	argPlusTime := fmt.Sprintf("%s <took %v>", arg, time.Since(getProcessStartTime()))
+	winutil.LogEventViewer(s.service.Name(), msgnum, argPlusTime)
 }
 
 // Execute is called by golang svc.Run and is responsible for handling the control requests and state transitions for the service
