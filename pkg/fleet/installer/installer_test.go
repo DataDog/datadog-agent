@@ -48,7 +48,7 @@ func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
 
 func TestInstallStable(t *testing.T) {
 	if runtime.GOOS == "darwin" {
-		t.Skip("Skipping failing test on macOS - #incident-26965")
+		t.Skip("FIXME: Failing test on macOS - #incident-26965")
 	}
 
 	s := fixtures.NewServer(t)
@@ -68,7 +68,7 @@ func TestInstallStable(t *testing.T) {
 
 func TestInstallExperiment(t *testing.T) {
 	if runtime.GOOS == "darwin" {
-		t.Skip("Skipping failing test on macOS - #incident-26965")
+		t.Skip("FIXME: Failing test on macOS - #incident-26965")
 	}
 
 	s := fixtures.NewServer(t)
@@ -91,7 +91,7 @@ func TestInstallExperiment(t *testing.T) {
 
 func TestInstallPromoteExperiment(t *testing.T) {
 	if runtime.GOOS == "darwin" {
-		t.Skip("Skipping failing test on macOS - #incident-26965")
+		t.Skip("FIXME: Failing test on macOS - #incident-26965")
 	}
 
 	s := fixtures.NewServer(t)
@@ -115,7 +115,7 @@ func TestInstallPromoteExperiment(t *testing.T) {
 
 func TestUninstallExperiment(t *testing.T) {
 	if runtime.GOOS == "darwin" {
-		t.Skip("Skipping failing test on macOS - #incident-26965")
+		t.Skip("FIXME: Failing test on macOS - #incident-26965")
 	}
 
 	s := fixtures.NewServer(t)
