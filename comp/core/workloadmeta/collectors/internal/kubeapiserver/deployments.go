@@ -10,13 +10,16 @@ package kubeapiserver
 
 import (
 	"context"
-	appsv1 "k8s.io/api/apps/v1"
+	"strings"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/tools/cache"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	languagedetectionUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
@@ -32,13 +35,14 @@ func (f *deploymentFilter) filteredOut(entity workloadmeta.Entity) bool {
 	return deployment == nil
 }
 
-func newDeploymentStore(ctx context.Context, wlm workloadmeta.Component, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newDeploymentStore(ctx context.Context, wlm workloadmeta.Component, client kubernetes.Interface, metadataclient metadata.Client) (*cache.Reflector, *reflectorStore) {
+	gvr := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 	deploymentListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			return client.AppsV1().Deployments(metav1.NamespaceAll).List(ctx, options)
+			return metadataclient.Resource(gvr).List(ctx, options)
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return client.AppsV1().Deployments(metav1.NamespaceAll).Watch(ctx, options)
+			return metadataclient.Resource(gvr).Watch(ctx, options)
 		},
 	}
 
@@ -46,7 +50,7 @@ func newDeploymentStore(ctx context.Context, wlm workloadmeta.Component, client 
 	deploymentReflector := cache.NewNamedReflector(
 		componentName,
 		deploymentListerWatcher,
-		&appsv1.Deployment{},
+		&v1.PartialObjectMetadata{},
 		deploymentStore,
 		noResync,
 	)
@@ -81,7 +85,7 @@ func updateContainerLanguage(cl languagedetectionUtil.ContainersLanguages, conta
 }
 
 func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
-	deployment := obj.(*appsv1.Deployment)
+	deployment := obj.(*v1.PartialObjectMetadata)
 	containerLanguages := make(languagedetectionUtil.ContainersLanguages)
 
 	for annotation, languages := range deployment.Annotations {

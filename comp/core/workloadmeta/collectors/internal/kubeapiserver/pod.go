@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -23,7 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newPodStore(ctx context.Context, wlm workloadmeta.Component, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+// func restrictObjectFields(options *metav1.ListOptions) {
+// 	options.FieldSelector = fields.
+// }
+
+func newPodStore(ctx context.Context, wlm workloadmeta.Component, client kubernetes.Interface, metadataclient metadata.Client) (*cache.Reflector, *reflectorStore) {
 	podListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
