@@ -8,7 +8,7 @@
 #include "protocols/kafka/usm-events.h"
 
 // forward declaration
-static __always_inline bool kafka_allow_packet(conn_tuple_t *tup, struct __sk_buff* skb, skb_info_t *skb_info);
+static __always_inline bool kafka_allow_packet(skb_info_t *skb_info);
 static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, u32 offset, kafka_telemetry_t *kafka_tel);
 static __always_inline bool kafka_process_response(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
 static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size);
@@ -58,6 +58,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
+    if (!kafka_allow_packet(&skb_info)) {
     kafka_telemetry_t *kafka_tel = bpf_map_lookup_elem(&kafka_telemetry, &zero);
     if (kafka_tel == NULL) {
         return 0;
@@ -801,17 +802,10 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
 // this function is called by the socket-filter program to decide whether or not we should inspect
 // the contents of a certain packet, in order to avoid the cost of processing packets that are not
-// of interest such as empty ACKs, UDP data or encrypted traffic.
-static __always_inline bool kafka_allow_packet(conn_tuple_t *tup, struct __sk_buff* skb, skb_info_t *skb_info) {
-    // we're only interested in TCP traffic
-    if (!(tup->metadata&CONN_TYPE_TCP)) {
-        return false;
-    }
-
-    // if payload data is empty or if this is an encrypted packet, we only
-    // process it if the packet represents a TCP termination
-    bool empty_payload = skb_info->data_off == skb->len;
-    if (empty_payload) {
+// of interest such as empty ACKs.
+static __always_inline bool kafka_allow_packet(skb_info_t *skb_info) {
+    // if payload data is empty, we only process it if the packet represents a TCP termination
+    if (is_payload_empty(skb_info)) {
         return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
     }
 
