@@ -2,7 +2,7 @@
 Invoke entrypoint, import here all the tasks we want to make available
 """
 
-from invoke import Collection
+from invoke import Collection, Task
 
 from tasks import (
     agent,
@@ -82,6 +82,9 @@ from tasks.show_linters_issues import show_linters_issues
 from tasks.unit_tests import invoke_unit_tests
 from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
+from .custom_task import custom__call__
+
+Task.__call__ = custom__call__
 
 # the root namespace
 ns = Collection()
