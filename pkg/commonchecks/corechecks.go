@@ -7,6 +7,7 @@
 package commonchecks
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
@@ -50,7 +51,7 @@ import (
 )
 
 // RegisterChecks registers all core checks
-func RegisterChecks(store workloadmeta.Component) {
+func RegisterChecks(store workloadmeta.Component, cfg config.Component) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
@@ -88,7 +89,7 @@ func RegisterChecks(store workloadmeta.Component) {
 	corecheckLoader.RegisterCheck(systemd.CheckName, systemd.Factory())
 	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory())
 	corecheckLoader.RegisterCheck(docker.CheckName, docker.Factory(store))
-	corecheckLoader.RegisterCheck(sbom.CheckName, sbom.Factory(store))
+	corecheckLoader.RegisterCheck(sbom.CheckName, sbom.Factory(store, cfg))
 	corecheckLoader.RegisterCheck(kubelet.CheckName, kubelet.Factory(store))
 	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store))
 	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store))

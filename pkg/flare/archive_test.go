@@ -269,7 +269,7 @@ func TestProcessAgentChecks(t *testing.T) {
 
 	t.Run("without process-agent running", func(t *testing.T) {
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getProcessChecks(mock.Fb, func() (string, error) { return "fake:1337", nil })
+		getChecksFromProcessAgent(mock.Fb, func() (string, error) { return "fake:1337", nil })
 
 		mock.AssertFileContentMatch("error: process-agent is not running or is unreachable: error collecting data for 'process_discovery_check_output.json': .*", "process_check_output.json")
 	})
@@ -300,7 +300,7 @@ func TestProcessAgentChecks(t *testing.T) {
 		setupIPCAddress(t, srv.URL)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getProcessChecks(mock.Fb, config.GetProcessAPIAddressPort)
+		getChecksFromProcessAgent(mock.Fb, config.GetProcessAPIAddressPort)
 
 		mock.AssertFileContent(string(expectedProcessesJSON), "process_check_output.json")
 		mock.AssertFileContent(string(expectedContainersJSON), "container_check_output.json")

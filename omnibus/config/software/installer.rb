@@ -36,26 +36,7 @@ build do
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
     mkdir "#{install_dir}/systemd/"
-
-
-    # Config
-    mkdir "/etc/datadog-agent"
-    mkdir "/etc/init"
-    mkdir "/var/log/datadog"
-    mkdir "/var/run/datadog-packages"
-
-    # Packages
-    mkdir "/opt/datadog-packages"
     copy 'bin/installer', "#{install_dir}/bin/"
-
-    uninstall_command="sudo yum remove datadog-installer"
-    if debian_target?
-        uninstall_command="sudo apt-get remove datadog-installer"
-    end
-    erb source: "README.md.erb",
-       dest: "#{install_dir}/README.md",
-       mode: 0644,
-       vars: { uninstall_command: uninstall_command}
 
     systemdPath = "#{install_dir}/systemd/"
     erb source: "datadog-installer.service.erb",

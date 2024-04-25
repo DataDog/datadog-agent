@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"google.golang.org/grpc/codes"
@@ -42,7 +42,7 @@ type serverSecure struct {
 	taggerServer       *taggerserver.Server
 	workloadmetaServer *workloadmetaServer.Server
 	configService      optional.Option[rcservice.Component]
-	configServiceHA    optional.Option[rcserviceha.Component]
+	configServiceMRF   optional.Option[rcservicemrf.Component]
 	dogstatsdServer    dogstatsdServer.Component
 	capture            dsdReplay.Component
 	pidMap             pidmap.Component
@@ -119,7 +119,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 }
 
 var rcNotInitializedErr = status.Error(codes.Unimplemented, "remote configuration service not initialized")
-var haRcNotInitializedErr = status.Error(codes.Unimplemented, "HA remote configuration service not initialized")
+var mrfRcNotInitializedErr = status.Error(codes.Unimplemented, "MRF remote configuration service not initialized")
 
 func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
 	rcService, isSet := s.configService.Get()
@@ -140,21 +140,21 @@ func (s *serverSecure) GetConfigState(_ context.Context, _ *emptypb.Empty) (*pb.
 }
 
 func (s *serverSecure) ClientGetConfigsHA(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
-	rcServiceHA, isSet := s.configServiceHA.Get()
-	if !isSet || rcServiceHA == nil {
-		log.Debug(haRcNotInitializedErr.Error())
-		return nil, haRcNotInitializedErr
+	rcServiceMRF, isSet := s.configServiceMRF.Get()
+	if !isSet || rcServiceMRF == nil {
+		log.Debug(mrfRcNotInitializedErr.Error())
+		return nil, mrfRcNotInitializedErr
 	}
-	return rcServiceHA.ClientGetConfigs(ctx, in)
+	return rcServiceMRF.ClientGetConfigs(ctx, in)
 }
 
 func (s *serverSecure) GetConfigStateHA(_ context.Context, _ *emptypb.Empty) (*pb.GetStateConfigResponse, error) {
-	rcServiceHA, isSet := s.configServiceHA.Get()
-	if !isSet || rcServiceHA == nil {
-		log.Debug(haRcNotInitializedErr.Error())
-		return nil, haRcNotInitializedErr
+	rcServiceMRF, isSet := s.configServiceMRF.Get()
+	if !isSet || rcServiceMRF == nil {
+		log.Debug(mrfRcNotInitializedErr.Error())
+		return nil, mrfRcNotInitializedErr
 	}
-	return rcServiceHA.ConfigGetState()
+	return rcServiceMRF.ConfigGetState()
 }
 
 // WorkloadmetaStreamEntities streams entities from the workloadmeta store applying the given filter

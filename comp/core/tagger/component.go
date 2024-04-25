@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
-// team: container-integrations
+// team: container-platform
 
 // Component is the component type.
 type Component interface {

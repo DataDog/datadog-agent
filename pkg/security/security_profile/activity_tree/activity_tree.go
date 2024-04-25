@@ -15,7 +15,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -766,8 +765,6 @@ func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 func (at *ActivityTree) Snapshot(newEvent func() *model.Event) {
 	for _, pn := range at.ProcessNodes {
 		pn.snapshot(at.validator, at.Stats, newEvent, at.pathsReducer)
-		// iterate slowly
-		time.Sleep(50 * time.Millisecond)
 	}
 }
 

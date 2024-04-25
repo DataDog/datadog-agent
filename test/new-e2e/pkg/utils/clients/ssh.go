@@ -231,6 +231,34 @@ func ReadFile(client *ssh.Client, path string) ([]byte, error) {
 	return content.Bytes(), nil
 }
 
+// DownloadFile downloads the file from the remote host to the local host
+func DownloadFile(client *ssh.Client, remotePath, localPath string) error {
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return err
+	}
+	defer sftpClient.Close()
+
+	remoteFile, err := sftpClient.Open(remotePath)
+	if err != nil {
+		return err
+	}
+	defer remoteFile.Close()
+
+	localFile, err := os.Create(localPath)
+	if err != nil {
+		return err
+	}
+	defer localFile.Close()
+
+	_, err = io.Copy(localFile, remoteFile)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // WriteFile write content to the file and returns the number of bytes written and error if any
 func WriteFile(client *ssh.Client, path string, content []byte) (int64, error) {
 	sftpClient, err := sftp.NewClient(client)
@@ -255,7 +283,6 @@ func AppendFile(client *ssh.Client, os, path string, content []byte) (int64, err
 		return appendWithSudo(client, path, content)
 	}
 	return appendWithSftp(client, path, content)
-
 }
 
 // appendWithSudo appends content to the file using sudo tee for Linux environment

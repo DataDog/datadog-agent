@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,7 +28,6 @@ type Tagger struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	health          *health.Handle
 	telemetryTicker *time.Ticker
 }
 
@@ -44,7 +42,6 @@ func NewTagger() *Tagger {
 // Start starts the connection to the replay tagger and starts watching for
 // events.
 func (t *Tagger) Start(ctx context.Context) error {
-	t.health = health.RegisterLiveness("tagger")
 	t.telemetryTicker = time.NewTicker(1 * time.Minute)
 
 	t.ctx, t.cancel = context.WithCancel(ctx)
@@ -57,10 +54,6 @@ func (t *Tagger) Stop() error {
 	t.cancel()
 
 	t.telemetryTicker.Stop()
-	err := t.health.Deregister()
-	if err != nil {
-		return err
-	}
 
 	log.Info("replay tagger stopped successfully")
 
