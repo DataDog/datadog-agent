@@ -252,24 +252,34 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 		return c.scanOverlayFS(ctx, fanalImage, scanOptions)
 	}
 
-		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["UpperDir"]; ok {
-			layers = append(layers, strings.Split(layerDirs, ":")...)
-		}
+	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
+}
 
-		fs := NewFS(layers)
-		report, err := c.scanFilesystem(ctx, fs, ".", nil, scanOptions)
-		if err != nil {
-			return nil, err
-		}
-
-		if report, ok := report.(*Report); ok {
-			report.Report.Metadata.ImageID = imgMeta.ID
-		}
-
-		return report, nil
+func (c *Collector) scanOverlayFS(ctx context.Context, fanalImage *image, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	if !c.config.overlayFSSupport || fanalImage.inspect.GraphDriver.Name != "overlay2" {
+		return nil, fmt.Errorf("failed to scan overlayfs for %s", fanalImage.inspect.ID)
 	}
 
-	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
+	var layers []string
+	if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["LowerDir"]; ok {
+		layers = append(layers, strings.Split(layerDirs, ":")...)
+	}
+
+	if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["UpperDir"]; ok {
+		layers = append(layers, strings.Split(layerDirs, ":")...)
+	}
+
+	fs := NewFS(layers)
+	report, err := c.scanFilesystem(ctx, fs, ".", nil, scanOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	if report, ok := report.(*Report); ok {
+		report.Report.Metadata.ImageID, _ = fanalImage.ID()
+	}
+
+	return report, nil
 }
 
 // ScanContainerdImage scans containerd image
@@ -280,6 +290,10 @@ func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 	}
 	if err != nil {
 		return nil, fmt.Errorf("unable to convert containerd image, err: %w", err)
+	}
+
+	if c.config.overlayFSSupport && fanalImage.inspect.GraphDriver.Name == "overlay2" {
+		return c.scanOverlayFS(ctx, fanalImage, scanOptions)
 	}
 
 	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
@@ -332,6 +346,9 @@ func (c *Collector) scanFilesystem(ctx context.Context, fsys fs.FS, path string,
 
 	trivyReport, err := c.scan(ctx, fsArtifact, applier.NewApplier(cache), imgMeta, cache)
 	if err != nil {
+		if imgMeta != nil {
+			return nil, fmt.Errorf("unable to marshal report to sbom format for image %s, err: %w", imgMeta.ID, err)
+		}
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
