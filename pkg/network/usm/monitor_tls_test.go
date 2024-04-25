@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/tls"
 	"fmt"
@@ -583,6 +584,7 @@ func TestOldConnectionRegression(t *testing.T) {
 		tlsConfig := &tls.Config{InsecureSkipVerify: true}
 		conn, err := tls.Dial("tcp", serverAddr, tlsConfig)
 		require.NoError(t, err)
+		defer conn.Close()
 
 		// Start USM monitor
 		cfg := config.New()
@@ -594,20 +596,30 @@ func TestOldConnectionRegression(t *testing.T) {
 		// Ensure this test program is being traced
 		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid())
 
-		// Issue HTTP request
-		requestBody := fmt.Sprintf("GET %s HTTP/1.1\nHost: %s\n\n", httpPath, serverAddr)
-		conn.Write([]byte(requestBody))
-		io.Copy(io.Discard, conn)
+		// The HTTPServer used here effectively works as an "echo" servers and
+		// returns back in the response whatever it received in the request
+		// body. Here we add a `$` to the request body as a way to delimit the
+		// end of the http response since we can't rely on EOFs for the code
+		// below because we're sending multiple requests over the same socket.
+		requestBody := fmt.Sprintf("GET %s HTTP/1.1\nHost: %s\n\n$", httpPath, serverAddr)
 
-		// Issue another HTTP request
+		// Create a bufio.Reader to help with reading until the delimiter
+		// mentioned above.
+		reader := bufio.NewReader(conn)
+
+		// Issue multiple HTTP requests
 		// NOTE: This is a temporary hack to avoid test flakiness because
 		// currently the TLS.Close() codepath may fail due to a race condition
 		// in which the `protocol_stack` object is deleted before the
-		// termination code runs. By issuing a second request on the same socket
-		// we force the first one to be flushed.
-		conn.Write([]byte(requestBody))
-		io.Copy(io.Discard, conn)
-		conn.Close()
+		// termination code runs. By issuing a multiple requests on the same socket
+		// we force the previous ones to be flushed.
+		for i := 0; i < 10; i++ {
+			conn.Write([]byte(requestBody))
+			_, err := reader.ReadBytes('$')
+			if err != nil {
+				break
+			}
+		}
 
 		// Ensure we have captured a request
 		stats, ok := usmMonitor.GetProtocolStats()[protocols.HTTP]
