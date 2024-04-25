@@ -143,7 +143,7 @@ func castValue(value interface{}, targetType reflect.Type) (reflect.Value, error
 	}
 
 	var o any = reflect.Value{}
-	var err error = errors.New("")
+	var err = errors.New("")
 
 	switch targetType.Kind() {
 	case reflect.Bool:
