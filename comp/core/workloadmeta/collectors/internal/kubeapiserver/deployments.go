@@ -10,13 +10,15 @@ package kubeapiserver
 
 import (
 	"context"
+	"strings"
+
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/tools/cache"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	languagedetectionUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
@@ -32,7 +34,7 @@ func (f *deploymentFilter) filteredOut(entity workloadmeta.Entity) bool {
 	return deployment == nil
 }
 
-func newDeploymentStore(ctx context.Context, wlm workloadmeta.Component, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newDeploymentStore(ctx context.Context, wlm workloadmeta.Component, client kubernetes.Interface, metadataclient metadata.Client) (*cache.Reflector, *reflectorStore) {
 	deploymentListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return client.AppsV1().Deployments(metav1.NamespaceAll).List(ctx, options)

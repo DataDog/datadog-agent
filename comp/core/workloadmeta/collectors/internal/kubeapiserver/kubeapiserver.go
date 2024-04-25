@@ -20,6 +20,7 @@ import (
 
 	"go.uber.org/fx"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -30,7 +31,7 @@ const (
 )
 
 // storeGenerator returns a new store specific to a given resource
-type storeGenerator func(context.Context, workloadmeta.Component, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
+type storeGenerator func(context.Context, workloadmeta.Component, kubernetes.Interface, metadata.Client) (*cache.Reflector, *reflectorStore)
 
 func storeGenerators(cfg config.Reader) []storeGenerator {
 	generators := []storeGenerator{newNodeStore}
@@ -75,9 +76,16 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	}
 	client := apiserverClient.Cl
 
+	restconfig, err := apiserver.GetClientConfig(10 * time.Second)
+	if err != nil {
+		return err
+	}
+
+	metaclient := metadata.NewForConfigOrDie(restconfig).(*metadata.Client)
+
 	// TODO(components): do not use the config.Datadog reference, use a component instead
 	for _, storeBuilder := range storeGenerators(config.Datadog) {
-		reflector, store := storeBuilder(ctx, wlmetaStore, client)
+		reflector, store := storeBuilder(ctx, wlmetaStore, client, *metaclient)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
 	}
