@@ -86,7 +86,7 @@ func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmet
 
 // Scan performs a scan
 func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
-	hostScanRequest, ok := request.(*ScanRequest)
+	hostScanRequest, ok := request.(ScanRequest)
 	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectors.HostCollector)}
 	}
