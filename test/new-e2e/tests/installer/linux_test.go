@@ -62,6 +62,21 @@ func TestCentOSAMD(t *testing.T) {
 	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault, false)
 }
 
+func TestAmazonLinux2023ARM(t *testing.T) {
+	t.Parallel()
+	runTest(t, "rpm", os.ARM64Arch, os.AmazonLinux2023, false)
+}
+
+func TestAmazonLinux2AMD(t *testing.T) {
+	t.Parallel()
+	runTest(t, "rpm", os.AMD64Arch, os.AmazonLinux2, false)
+}
+
+func TestFedoraAMD(t *testing.T) {
+	t.Parallel()
+	runTest(t, "rpm", os.AMD64Arch, os.FedoraDefault, false)
+}
+
 func TestRedHatARM(t *testing.T) {
 	t.Parallel()
 	runTest(t, "rpm", os.ARM64Arch, os.RedHatDefault, false)
