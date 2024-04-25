@@ -41,7 +41,7 @@
 # !reference [.cache_omnibus_ruby_deps, cache] under `cache` for the same job
 .cache_omnibus_ruby_deps:
   setup:
-    - (cd omnibus; bundle config set --local path 'vendor/bundle')
+    - pushd omnibus && bundle config set --local path 'vendor/bundle' && popd
   cache:
     key:
       files:
