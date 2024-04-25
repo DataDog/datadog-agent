@@ -6,6 +6,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../env
 	github.com/DataDog/datadog-agent/pkg/config/model => ../model/
@@ -45,6 +46,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2 // indirect

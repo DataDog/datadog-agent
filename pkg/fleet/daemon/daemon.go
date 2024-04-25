@@ -170,7 +170,7 @@ func (d *daemonImpl) Install(ctx context.Context, url string) error {
 }
 
 func (d *daemonImpl) install(ctx context.Context, url string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "start_experiment")
+	span, ctx := tracer.StartSpanFromContext(ctx, "install")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)

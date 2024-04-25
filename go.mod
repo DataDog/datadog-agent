@@ -33,6 +33,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/status => ./comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ./comp/core/status/statusimpl
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry/
+	github.com/DataDog/datadog-agent/comp/def => ./comp/def/
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ./comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ./comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
@@ -740,6 +741,7 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.53.0-rc.2 // indirect
