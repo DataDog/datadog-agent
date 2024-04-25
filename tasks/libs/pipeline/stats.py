@@ -31,10 +31,10 @@ def get_failed_jobs_stats(project_name, pipeline_id):
         global_failure_reason = FailedJobType.INFRA_FAILURE.name
 
     for job in failed_jobs.all_mandatory_failures():
-        failure_type = job.failure_type
-        failure_reason = job.failure_reason
+        failure_type = job["failure_type"]
+        failure_reason = job["failure_reason"]
 
-        key = tuple(sorted(job.tag_list + [f"type:{failure_type.name}", f"reason:{failure_reason.name}"]))
+        key = tuple(sorted(job["tag_list"] + [f"type:{failure_type.name}", f"reason:{failure_reason.name}"]))
         job_failure_stats[key] += 1
 
     return global_failure_reason, job_failure_stats

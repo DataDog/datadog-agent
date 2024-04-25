@@ -14,10 +14,13 @@ func SetupInstaller(_ context.Context) error {
 	return nil
 }
 
-// RemoveInstaller noop
-func RemoveInstaller(_ context.Context) error {
+// PreSetupInstaller noop
+func PreSetupInstaller() error {
 	return nil
 }
+
+// RemoveInstaller noop
+func RemoveInstaller(_ context.Context) {}
 
 // StartInstallerExperiment noop
 func StartInstallerExperiment(_ context.Context) error {

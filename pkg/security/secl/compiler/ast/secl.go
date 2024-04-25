@@ -56,7 +56,7 @@ func buildParser(obj interface{}, lexer lexer.Definition) *participle.Parser {
 	parser, err := participle.Build(obj,
 		participle.Lexer(lexer),
 		participle.Elide("Whitespace", "Comment"),
-		participle.Unquote("String"),
+		participle.Map(unquoteLiteral, "String"),
 		participle.Map(parseDuration, "Duration"),
 		participle.Map(unquotePattern, "Pattern", "Regexp"),
 	)
@@ -64,6 +64,13 @@ func buildParser(obj interface{}, lexer lexer.Definition) *participle.Parser {
 		panic(err)
 	}
 	return parser
+}
+
+func unquoteLiteral(t lexer.Token) (lexer.Token, error) {
+	unquoted := strings.TrimSpace(t.Value)
+	unquoted = unquoted[1 : len(unquoted)-1]
+	t.Value = unquoted
+	return t, nil
 }
 
 func unquotePattern(t lexer.Token) (lexer.Token, error) {

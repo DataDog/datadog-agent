@@ -65,8 +65,8 @@ func NewScanner(cfg config.Component, collectors map[string]collectors.Collector
 				cfg.GetDuration("sbom.scan_queue.max_backoff"),
 			),
 			workqueue.RateLimitingQueueConfig{
-				Name:            "sbom_request",
-				MetricsProvider: telemetry.QueueMetricProvider{},
+				Name:            telemetry.Subsystem,
+				MetricsProvider: telemetry.QueueMetricsProvider,
 			},
 		),
 		disk:  filesystem.NewDisk(),
