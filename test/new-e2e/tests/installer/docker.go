@@ -48,10 +48,6 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plug
 			),
 		)
 		require.Nil(t, err)
-		host.MustExecute(`sudo chmod +x /tmp/install-docker.sh`)
-		host.MustExecute(`/tmp/install-docker.sh`)
-		err = host.Remove("/tmp/install-docker.sh")
-		require.Nil(t, err)
 	case os.CentOSDefault, os.RedHatDefault:
 		_, err := host.WriteFile(
 			"/tmp/install-docker.sh",
@@ -64,16 +60,40 @@ sudo systemctl start docker`,
 			),
 		)
 		require.Nil(t, err)
-		host.MustExecute(`sudo chmod +x /tmp/install-docker.sh`)
-		host.MustExecute(`/tmp/install-docker.sh`)
-		err = host.Remove("/tmp/install-docker.sh")
+	case os.AmazonLinux2023, os.AmazonLinux2:
+		_, err := host.WriteFile(
+			"/tmp/install-docker.sh",
+			[]byte(`
+set -e
+sudo yum update
+sudo yum -y install docker
+sudo systemctl start docker`,
+			),
+		)
+		require.Nil(t, err)
+	case os.FedoraDefault:
+		_, err := host.WriteFile(
+			"/tmp/install-docker.sh",
+			[]byte(`
+set -e
+sudo dnf -y install dnf-plugins-core
+sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl start docker`,
+			),
+		)
 		require.Nil(t, err)
 	default:
 		t.Fatalf("unsupported distro: %s", distro.String())
 	}
 
+	host.MustExecute(`sudo chmod +x /tmp/install-docker.sh`)
+	host.MustExecute(`/tmp/install-docker.sh`)
+	err := host.Remove("/tmp/install-docker.sh")
+	require.Nil(t, err)
+
 	// Authorize docker to contact our docker mirror
-	_, err := host.WriteFile(
+	_, err = host.WriteFile(
 		"/tmp/authz-docker.sh",
 		[]byte(
 			fmt.Sprintf(`
