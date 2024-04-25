@@ -77,6 +77,8 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		} else {
 			log.Warnf("workloadmeta.container.image: cannot get repo digest for image %s from containerd client", imageID)
 		}
+	} else {
+		log.Infof("workloadmeta.container.image: got repo digest %s for image %s from workloadmeta store", image.RepoDigest, imageID)
 	}
 	status, err := containerdClient.Status(namespace, container)
 	if err != nil {

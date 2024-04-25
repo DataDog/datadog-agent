@@ -99,11 +99,12 @@ func NewDefaultContainerProvider(wmeta workloadmeta.Component) ContainerProvider
 // GetContainers returns containers found on the machine
 func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error) {
 	containersMetadata := p.metadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
-
+	log.Infof("processContainers: GetContainers: found %d containers", len(containersMetadata))
 	processContainers := make([]*model.Container, 0)
 	rateStats := make(map[string]*ContainerRateMetrics)
 	pidToCid := make(map[int]string)
 	for _, container := range containersMetadata {
+		log.Infof("processContainers: start processing container: %s", container.String(false))
 		var annotations map[string]string
 		if pod, err := p.metadataStore.GetKubernetesPodForContainer(container.ID); err == nil {
 			annotations = pod.Annotations
