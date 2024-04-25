@@ -244,12 +244,4 @@ new-e2e-unit-tests:
     - inv -e install-tools
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
-    - |
-      inv -e test $FLAVORS --race --profile --rerun-fails=2 \
-      --python-runtimes "$PYTHON_RUNTIMES" --coverage \
-      --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS \
-      --save-result-json $TEST_OUTPUT_FILE \
-      --junit-tar "junit-${CI_JOB_NAME}.tgz" \
-      $FAST_TESTS_FLAG \
-      --module test/new-e2e \
-      --targets ./pkg/utils
+    - inv -e test $FLAVORS --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" $FAST_TESTS_FLAG --module test/new-e2e --targets ./pkg/utils
