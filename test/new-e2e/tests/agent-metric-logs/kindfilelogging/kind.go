@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package customkind spins up the same pulumi environment as the awskubernetes package but includes
-// a logger container as well
+// Package kindfilelogging spins up the same pulumi environment as the awskubernetes package but
+// includes a logger container as well
 package kindfilelogging
 
 import (
