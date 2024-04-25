@@ -273,7 +273,7 @@ func TestGetInterfacesMetrics(t *testing.T) {
 
 		require.Equal(t, "2000", count)
 		require.Equal(t, "UTC", timeZone)
-		require.Equal(t, "1999-12-31T23:40:00", startDate)
+		require.Equal(t, "1999-12-31T23:50:00", startDate)
 		require.Equal(t, "2000-01-01T00:00:00", endDate)
 
 		w.WriteHeader(http.StatusOK)
@@ -322,7 +322,7 @@ func TestGetDeviceHardwareMetrics(t *testing.T) {
 
 		require.Equal(t, "2000", count)
 		require.Equal(t, "UTC", timeZone)
-		require.Equal(t, "1999-12-31T23:40:00", startDate)
+		require.Equal(t, "1999-12-31T23:50:00", startDate)
 		require.Equal(t, "2000-01-01T00:00:00", endDate)
 
 		w.WriteHeader(http.StatusOK)
@@ -365,7 +365,7 @@ func TestGetApplicationAwareRoutingMetrics(t *testing.T) {
 
 		require.Equal(t, "2000", count)
 		require.Equal(t, "UTC", timeZone)
-		require.Equal(t, "1999-12-31T23:40:00", startDate)
+		require.Equal(t, "1999-12-31T23:50:00", startDate)
 		require.Equal(t, "2000-01-01T00:00:00", endDate)
 
 		w.WriteHeader(http.StatusOK)
