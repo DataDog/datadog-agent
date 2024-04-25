@@ -106,11 +106,15 @@ func TestPatchPrintkNewline(t *testing.T) {
 
 	foundLines := []string{}
 
-	for _, line := range expectedLines {
+	for i, line := range expectedLines {
 		// We allow up to two lines that don't match, to avoid failures with other tests outputting to
 		// the trace pipe.
 		var actualLine string
-		for allowedMisses := 0; allowedMisses < 2; allowedMisses++ {
+		maxLinesToRead := 1 // Only read one line, don't allow failures as our output should be coming all together
+		if i == 0 {
+			maxLinesToRead = 100 // Except for the first line, we might need to flush previous trace pipe output
+		}
+		for readLines := 0; readLines < maxLinesToRead; readLines++ {
 			actualLine, err = traceReader.ReadString('\n')
 			require.NoError(t, err)
 			foundLines = append(foundLines, actualLine)
