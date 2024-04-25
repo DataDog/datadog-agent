@@ -26,22 +26,16 @@ import (
 
 type vmSuite struct {
 	e2e.BaseSuite[environments.Host]
+
+	testspath string
 }
 
 var (
-	kitchenDir string
-	testspath  string
-	reporoot   string
-	devMode    = flag.Bool("devmode", false, "run tests in dev mode")
+	devMode = flag.Bool("devmode", false, "run tests in dev mode")
 )
 
 func init() {
-	// Get the absolute path to the test assets directory
-	currDir, _ := os.Getwd()
 
-	reporoot, _ = filepath.Abs(filepath.Join(currDir, "..", "..", "..", ".."))
-	kitchenDir = filepath.Join(reporoot, "test", "kitchen", "site-cookbooks")
-	testspath = filepath.Join(kitchenDir, "dd-system-probe-check", "files", "default", "tests")
 }
 
 func TestVMSuite(t *testing.T) {
@@ -53,7 +47,18 @@ func TestVMSuite(t *testing.T) {
 	e2e.Run(t, &vmSuite{}, suiteParams...)
 }
 
+func (v *vmSuite) SetupSuite() {
+	t := v.T()
+	// Get the absolute path to the test assets directory
+	currDir, _ := os.Getwd()
+	repoRoot, err := filepath.Abs(filepath.Join(currDir, "..", "..", "..", ".."))
+	require.NoError(t, err)
+	kitchenDir := filepath.Join(repoRoot, "test", "kitchen", "site-cookbooks")
+	v.testspath = filepath.Join(kitchenDir, "dd-system-probe-check", "files", "default", "tests")
+}
+
 func (v *vmSuite) TestSystemProbeSuite() {
+	v.BaseSuite.SetupSuite()
 	t := v.T()
 	// get the remote host
 	vm := v.Env().RemoteHost
@@ -89,7 +94,7 @@ func (v *vmSuite) TestSystemProbeSuite() {
 	require.NoError(t, err)
 	t.Log("Sites created, continuing")
 
-	rs := windows.NewRemoteExecutable(vm, t, "testsuite.exe", testspath)
+	rs := windows.NewRemoteExecutable(vm, t, "testsuite.exe", v.testspath)
 	err = rs.FindTestPrograms()
 	require.NoError(t, err)
 
