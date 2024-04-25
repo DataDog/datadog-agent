@@ -39,11 +39,13 @@ type MockK8sClientInterface struct {
 	annotations map[string]string
 	// shouldFail indicates if the mocked client should return an error
 	shouldFail bool
+	// containerName is the name of the first container for the fake generated pod
+	containerName string
 }
 
 // CoreV1 retrieves the CoreV1Client
 func (mkci MockK8sClientInterface) CoreV1() v1.CoreV1Interface {
-	return &MockCoreV1Interface{annotations: mkci.annotations, shouldFail: mkci.shouldFail}
+	return &MockCoreV1Interface{annotations: mkci.annotations, containerName: mkci.containerName, shouldFail: mkci.shouldFail}
 }
 
 // MockCoreV1Interface is a mocked client that implements v1.CoreV1Interface
@@ -54,11 +56,13 @@ type MockCoreV1Interface struct {
 	annotations map[string]string
 	// shouldFail indicates if the mocked client should return an error
 	shouldFail bool
+	// containerName is the name of the first container for the fake generated pod
+	containerName string
 }
 
 // Pods returns an interface which has a method to return a PodInterface
 func (mcvi MockCoreV1Interface) Pods(_ string) v1.PodInterface {
-	return &MockV1PodsGetter{annotations: mcvi.annotations, shouldFail: mcvi.shouldFail}
+	return &MockV1PodsGetter{annotations: mcvi.annotations, containerName: mcvi.containerName, shouldFail: mcvi.shouldFail}
 }
 
 // Nodes returns an interface which has a method to return a NodeInterface
@@ -74,6 +78,8 @@ type MockV1PodsGetter struct {
 	annotations map[string]string
 	// shouldFail indicates if the mocked client should return an error
 	shouldFail bool
+	// containerName is the name of the first container for the fake generated pod
+	containerName string
 }
 
 // Get looks up a pod based on user input
@@ -84,6 +90,13 @@ func (mvpg *MockV1PodsGetter) Get(_ context.Context, _ string, _ metav1.GetOptio
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: mvpg.annotations,
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: mvpg.containerName,
+				},
+			},
 		},
 	}, nil
 }
@@ -440,12 +453,13 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 			name: "CWS instrumentation ready, command, all namespaces, service account filter",
 			args: args{
 				exec: &corev1.PodExecOptions{
-					Command: []string{"bash"},
+					Container: "my-container",
+					Command:   []string{"bash"},
 				},
-				name: "my-pod",
-				ns:   "my-namespace",
+				name: "my-container",
+				ns:   "default",
 				userInfo: &authenticationv1.UserInfo{
-					Username: "system:serviceaccount:my-namespace:datadog-cluster-agent",
+					Username: "system:serviceaccount:default:datadog-cluster-agent",
 				},
 				include: []string{"kube_namespace:.*"},
 				apiClientAnnotations: map[string]string{
@@ -479,10 +493,14 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {
-				injected, err := ci.injectCWSCommandInstrumentation(tt.args.exec, tt.args.name, tt.args.ns, tt.args.userInfo, nil, MockK8sClientInterface{
+				apiClient := MockK8sClientInterface{
 					annotations: tt.args.apiClientAnnotations,
 					shouldFail:  tt.args.apiClientShouldFail,
-				})
+				}
+				if tt.args.exec != nil {
+					apiClient.containerName = tt.args.exec.Container
+				}
+				injected, err := ci.injectCWSCommandInstrumentation(tt.args.exec, tt.args.name, tt.args.ns, tt.args.userInfo, nil, apiClient)
 
 				if tt.wantErr {
 					assert.False(t, injected)
