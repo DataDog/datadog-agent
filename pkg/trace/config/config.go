@@ -309,6 +309,11 @@ type AgentConfig struct {
 	RareSamplerCooldownPeriod time.Duration
 	RareSamplerCardinality    int
 
+	// Probabilistic Sampler configuration
+	ProbabilisticSamplerEnabled            bool
+	ProbabilisticSamplerHashSeed           uint32
+	ProbabilisticSamplerSamplingPercentage float32
+
 	// Receiver
 	ReceiverHost    string
 	ReceiverPort    int
