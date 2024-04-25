@@ -11,16 +11,18 @@ var timeNow = time.Now
 
 // pathtestContext contains pathtest information and additional flush related data
 type pathtestContext struct {
-	pathtest     *pathtest
-	nextRunTime  time.Time
-	runUntilTime time.Time
+	pathtest          *pathtest
+	nextRunTime       time.Time
+	runUntilTime      time.Time
+	lastFlushTime     time.Time
+	lastFlushInterval time.Duration
 }
 
 // pathtestStore is used to accumulate aggregated pathtestContexts
 type pathtestStore struct {
 	logger log.Component
 
-	pathtestContexts map[uint64]pathtestContext
+	pathtestContexts map[uint64]*pathtestContext
 	// mutex is needed to protect `pathtestContexts` since `pathtestStore.add()` and  `pathtestStore.flush()`
 	// are called by different routines.
 	pathtestConfigsMutex sync.Mutex
@@ -30,9 +32,9 @@ type pathtestStore struct {
 	pathtestRunUntilDuration time.Duration
 }
 
-func newPathtestContext(pt *pathtest, runUntilDuration time.Duration) pathtestContext {
+func newPathtestContext(pt *pathtest, runUntilDuration time.Duration) *pathtestContext {
 	now := timeNow()
-	return pathtestContext{
+	return &pathtestContext{
 		pathtest:     pt,
 		nextRunTime:  now,
 		runUntilTime: now.Add(runUntilDuration),
@@ -41,7 +43,7 @@ func newPathtestContext(pt *pathtest, runUntilDuration time.Duration) pathtestCo
 
 func newPathtestStore(flushInterval time.Duration, pathtestRunUntilDuration time.Duration, pathtestRunInterval time.Duration, logger log.Component) *pathtestStore {
 	return &pathtestStore{
-		pathtestContexts:         make(map[uint64]pathtestContext),
+		pathtestContexts:         make(map[uint64]*pathtestContext),
 		flushInterval:            flushInterval,
 		pathtestRunUntilDuration: pathtestRunUntilDuration,
 		pathtestRunInterval:      pathtestRunInterval,
@@ -59,7 +61,7 @@ func newPathtestStore(flushInterval time.Duration, pathtestRunUntilDuration time
 // We need to keep pathtestContext (contains `nextRunTime` and `lastSuccessfulFlush`) after flush
 // to be able to flush at regular interval (`flushInterval`).
 // Example, after a flush, pathtestContext will have a new nextRunTime, that will be the next flush time for new pathtestContexts being added.
-func (f *pathtestStore) flush() []*pathtest {
+func (f *pathtestStore) flush() []*pathtestContext {
 	f.pathtestConfigsMutex.Lock()
 	defer f.pathtestConfigsMutex.Unlock()
 
@@ -71,7 +73,7 @@ func (f *pathtestStore) flush() []*pathtest {
 		}
 	}
 
-	var pathtestsToFlush []*pathtest
+	var pathtestsToFlush []*pathtestContext
 	for key, ptConfigCtx := range f.pathtestContexts {
 		now := timeNow()
 
@@ -84,7 +86,12 @@ func (f *pathtestStore) flush() []*pathtest {
 		if ptConfigCtx.nextRunTime.After(now) {
 			continue
 		}
-		pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx.pathtest)
+		// TODO: test lastFlushTime and lastFlushInterval
+		if !ptConfigCtx.lastFlushTime.IsZero() {
+			ptConfigCtx.lastFlushInterval = now.Sub(ptConfigCtx.lastFlushTime)
+		}
+		ptConfigCtx.lastFlushTime = now
+		pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx)
 		// TODO: increment nextRunTime to a time after current time
 		//       in case flush() is not fast enough, it won't accumulate excessively
 		ptConfigCtx.nextRunTime = ptConfigCtx.nextRunTime.Add(f.pathtestRunInterval)

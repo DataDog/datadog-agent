@@ -90,7 +90,7 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 		return NetworkPath{}, err
 	}
 
-	pathResult, err := processResults(results, hname, rawDest, dest)
+	pathResult, err := processResults(results, hname, rawDest, dest, destPort)
 	if err != nil {
 		return NetworkPath{}, err
 	}
@@ -115,7 +115,7 @@ func getPorts(configDestPort uint16) (uint16, uint16, bool) {
 	return destPort, srcPort, useSourcePort
 }
 
-func processResults(r *results.Results, hname string, destinationHost string, destinationIP net.IP) (NetworkPath, error) {
+func processResults(r *results.Results, hname string, destinationHost string, destinationIP net.IP, destPort uint16) (NetworkPath, error) {
 	type node struct {
 		node  string
 		probe *results.Probe
@@ -132,6 +132,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 		Destination: NetworkPathDestination{
 			Hostname:  destinationHost,
 			IPAddress: destinationIP.String(),
+			Port:      destPort,
 		},
 	}
 

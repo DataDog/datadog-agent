@@ -72,6 +72,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	// test first flush, it should increment nextRunTime
 	flushTime1 := MockTimeNow().Add(10 * time.Second)
 	setMockTimeNow(flushTime1)
+	// TODO: check flush results
 	store.flush()
 	ptCtx = store.pathtestContexts[pt.getHash()]
 	assert.Equal(t, MockTimeNow().Add(store.pathtestRunInterval), ptCtx.nextRunTime)

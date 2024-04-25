@@ -7,16 +7,20 @@
 package npschedulerimpl
 
 import (
+	"context"
 	"encoding/json"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.uber.org/atomic"
 )
 
@@ -82,7 +86,6 @@ func (s *npSchedulerImpl) listenPathtestConfigs() {
 }
 func (s *npSchedulerImpl) Schedule(hostname string, port uint16) {
 	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
-	statsd.Client.Incr("datadog.network_path.scheduler.count", []string{}, 1) //nolint:errcheck
 
 	if net.ParseIP(hostname).To4() == nil {
 		// TODO: IPv6 not supported yet
@@ -95,15 +98,16 @@ func (s *npSchedulerImpl) Schedule(hostname string, port uint16) {
 	}
 }
 
-func (s *npSchedulerImpl) runTraceroute(ptest *pathtest) {
+func (s *npSchedulerImpl) runTraceroute(ptest *pathtestContext) {
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 	s.pathForConn(ptest)
 }
 
-func (s *npSchedulerImpl) pathForConn(ptest *pathtest) {
+func (s *npSchedulerImpl) pathForConn(ptest *pathtestContext) {
+	startTime := time.Now()
 	cfg := traceroute.Config{
-		DestHostname: ptest.hostname,
-		DestPort:     uint16(ptest.port),
+		DestHostname: ptest.pathtest.hostname,
+		DestPort:     uint16(ptest.pathtest.port),
 		MaxTTL:       24,
 		TimeoutMs:    1000,
 	}
@@ -115,6 +119,8 @@ func (s *npSchedulerImpl) pathForConn(ptest *pathtest) {
 		return
 	}
 	s.logger.Debugf("Network Path: %+v", path)
+
+	s.sendTelemetry(path, startTime, ptest)
 
 	epForwarder, ok := s.epForwarder.Get()
 	if ok {
@@ -171,7 +177,54 @@ func (s *npSchedulerImpl) flush() {
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
 	for _, ptConf := range flowsToFlush {
-		s.logger.Tracef("flushed ptConf %s:%d", ptConf.hostname, ptConf.port)
+		s.logger.Tracef("flushed ptConf %s:%d", ptConf.pathtest.hostname, ptConf.pathtest.port)
 		s.runTraceroute(ptConf)
 	}
+}
+
+func (s *npSchedulerImpl) sendTelemetry(path traceroute.NetworkPath, startTime time.Time, ptest *pathtestContext) {
+	// TODO: Factor Network Path telemetry from Network Path Integration and use the code
+	// TODO: Factor Network Path telemetry from Network Path Integration and use the code
+	// TODO: Factor Network Path telemetry from Network Path Integration and use the code
+	// TODO: Factor Network Path telemetry from Network Path Integration and use the code
+	tags := s.getTelemetryTags(path)
+
+	checkDuration := time.Since(startTime)
+	statsd.Client.Gauge("datadog.network_path.check_duration", checkDuration.Seconds(), tags, 1)
+
+	if ptest.lastFlushInterval > 0 {
+		statsd.Client.Gauge("datadog.network_path.check_interval", ptest.lastFlushInterval.Seconds(), tags, 1)
+	}
+
+	statsd.Client.Gauge("datadog.network_path.path.monitored", float64(1), tags, 1)
+	if len(path.Hops) > 0 {
+		lastHop := path.Hops[len(path.Hops)-1]
+		if lastHop.Success {
+			statsd.Client.Gauge("datadog.network_path.path.hops", float64(len(path.Hops)), tags, 1)
+		}
+		statsd.Client.Gauge("datadog.network_path.path.reachable", float64(utils.BoolToFloat64(lastHop.Success)), tags, 1)
+		statsd.Client.Gauge("datadog.network_path.path.unreachable", float64(utils.BoolToFloat64(!lastHop.Success)), tags, 1)
+	}
+}
+
+func (s *npSchedulerImpl) getTelemetryTags(path traceroute.NetworkPath) []string {
+	var tags []string
+	agentHost, err := hostname.Get(context.TODO())
+	if err != nil {
+		s.logger.Warnf("Error getting the hostname: %v", err)
+	} else {
+		tags = append(tags, "agent_host:"+agentHost)
+	}
+	tags = append(tags, utils.GetAgentVersionTag())
+
+	destPortTag := "unspecified"
+	if path.Destination.Port > 0 {
+		destPortTag = strconv.Itoa(int(path.Destination.Port))
+	}
+	tags = append(tags, []string{
+		"protocol:udp", // TODO: Update to protocol from config when we support tcp/icmp
+		"destination_hostname:" + path.Destination.Hostname,
+		"destination_port:" + destPortTag,
+	}...)
+	return tags
 }
