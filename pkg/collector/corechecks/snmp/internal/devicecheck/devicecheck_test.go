@@ -107,6 +107,8 @@ profiles:
 
 	snmpTags := []string{
 		"snmp_device:1.2.3.4",
+		"device_ip:1.2.3.4",
+		"device_id:default:1.2.3.4",
 		"snmp_profile:f5-big-ip",
 		"device_vendor:f5",
 		"snmp_host:foo_sys_name",
@@ -148,6 +150,8 @@ profiles:
 	snmpTags = []string{
 		"device_namespace:default",
 		"snmp_device:1.2.3.4",
+		"device_ip:1.2.3.4",
+		"device_id:default:1.2.3.4",
 		"snmp_profile:another-profile",
 		"unknown_symbol:100"}
 	telemetryTags = append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
@@ -302,7 +306,7 @@ collect_topology: false
 	err = deviceCk.Run(timeNow())
 	assert.Nil(t, err)
 
-	snmpTags := []string{"snmp_device:1.2.3.4"}
+	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}
 	telemetryTags := append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
 	row1Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
 	row2Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
@@ -471,13 +475,13 @@ community_string: public
 
 	// without hostname
 	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
-	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
+	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"})
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", []string{"snmp_device:1.2.3.4"})
 
 	// with hostname
 	deviceCk.SetSender(report.NewMetricSender(sender, "device:123", nil, report.MakeInterfaceBandwidthState()))
-	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
-	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "device:123", []string{"snmp_device:1.2.3.4"})
+	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"})
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "device:123", []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"})
 }
 
 func TestDeviceCheck_GetHostname(t *testing.T) {
@@ -563,7 +567,7 @@ profiles:
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
 	assert.Nil(t, err)
 
-	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
+	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
 		"static_tag:from_profile_root", "static_tag:from_base_profile", "some_tag:some_tag_value", "prefix:f", "suffix:oo_sys_name"}
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -1049,6 +1053,8 @@ profiles:
 
 	snmpTags := []string{
 		"snmp_device:1.2.3.4",
+		"device_ip:1.2.3.4",
+		"device_id:default:1.2.3.4",
 		"snmp_profile:f5-big-ip",
 		"device_vendor:f5",
 		"snmp_host:foo_sys_name",
@@ -1090,6 +1096,8 @@ profiles:
 	snmpTags = []string{
 		"device_namespace:default",
 		"snmp_device:1.2.3.4",
+		"device_ip:1.2.3.4",
+		"device_id:default:1.2.3.4",
 		"snmp_profile:another-profile",
 		"unknown_symbol:100"}
 	telemetryTags = append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
@@ -1192,6 +1200,8 @@ profiles:
 
 	snmpTags := []string{
 		"snmp_device:1.2.3.4",
+		"device_ip:1.2.3.4",
+		"device_id:default:1.2.3.4",
 		"snmp_profile:f5-big-ip",
 		"device_vendor:f5",
 		"snmp_host:foo_sys_name",
@@ -1233,6 +1243,8 @@ profiles:
 	snmpTags = []string{
 		"device_namespace:default",
 		"snmp_device:1.2.3.4",
+		"device_ip:1.2.3.4",
+		"device_id:default:1.2.3.4",
 		"snmp_profile:another-profile",
 		"unknown_symbol:100"}
 	telemetryTags = append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)

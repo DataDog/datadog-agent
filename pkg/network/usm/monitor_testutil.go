@@ -36,10 +36,12 @@ type protocolMockSpec struct {
 	stopFn      func(*manager.Manager)
 }
 
+// Name return the program's name.
 func (p *protocolMock) Name() string {
 	return "mock"
 }
 
+// ConfigureOptions changes map attributes to the given options.
 func (p *protocolMock) ConfigureOptions(m *manager.Manager, opts *manager.Options) {
 	p.inner.ConfigureOptions(m, opts)
 }

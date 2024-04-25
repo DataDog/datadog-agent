@@ -30,9 +30,9 @@ func TestRegister(t *testing.T) {
 	pid := uint32(cmd.Process.Pid)
 
 	r := newFileRegistry()
-	r.Register(path, pid, registerRecorder.Callback(), IgnoreCB)
+	require.NoError(t, r.Register(path, pid, registerRecorder.Callback(), IgnoreCB))
 
-	assert.Equal(t, 1, registerRecorder.CallsForPathID((pathID)))
+	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
 	assert.Contains(t, r.GetRegisteredProcesses(), pid)
 	assert.Equal(t, int64(1), r.telemetry.fileRegistered.Get())
 }
@@ -56,11 +56,11 @@ func TestMultiplePIDsSharingSameFile(t *testing.T) {
 	pid2 := uint32(cmd2.Process.Pid)
 
 	// Trying to register the same file twice from different PIDs
-	r.Register(path, pid1, registerCallback, unregisterCallback)
-	r.Register(path, pid2, registerCallback, unregisterCallback)
+	require.NoError(t, r.Register(path, pid1, registerCallback, unregisterCallback))
+	require.Equal(t, errPathIsAlreadyRegistered, r.Register(path, pid2, registerCallback, unregisterCallback))
 
-	// Assert that the callback should executed only *once*
-	assert.Equal(t, 1, registerRecorder.CallsForPathID((pathID)))
+	// Assert that the callback should execute only *once*
+	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
 
 	// Assert that the two PIDs are being tracked
 	assert.Contains(t, r.GetRegisteredProcesses(), pid1)
@@ -68,15 +68,15 @@ func TestMultiplePIDsSharingSameFile(t *testing.T) {
 
 	// Assert that the first call to `Unregister` (from pid1) doesn't trigger
 	// the callback but removes pid1 from the list
-	r.Unregister(pid1)
-	assert.Equal(t, 0, unregisterRecorder.CallsForPathID((pathID)))
+	require.NoError(t, r.Unregister(pid1))
+	assert.Equal(t, 0, unregisterRecorder.CallsForPathID(pathID))
 	assert.NotContains(t, r.GetRegisteredProcesses(), pid1)
 	assert.Contains(t, r.GetRegisteredProcesses(), pid2)
 
 	// After the second call to Unregister` we should trigger the callback
 	// because there are no longer PIDs pointing to this file
-	r.Unregister(pid2)
-	assert.Equal(t, 1, unregisterRecorder.CallsForPathID((pathID)))
+	require.NoError(t, r.Unregister(pid2))
+	assert.Equal(t, 1, unregisterRecorder.CallsForPathID(pathID))
 	assert.NotContains(t, r.GetRegisteredProcesses(), pid1)
 	assert.NotContains(t, r.GetRegisteredProcesses(), pid2)
 
@@ -99,14 +99,14 @@ func TestRepeatedRegistrationsFromSamePID(t *testing.T) {
 	require.NoError(t, err)
 	pid := uint32(cmd.Process.Pid)
 
-	r.Register(path, pid, registerCallback, unregisterCallback)
-	r.Register(path, pid, registerCallback, unregisterCallback)
-	r.Unregister(pid)
+	require.NoError(t, r.Register(path, pid, registerCallback, unregisterCallback))
+	require.Equal(t, errPathIsAlreadyRegistered, r.Register(path, pid, registerCallback, unregisterCallback))
+	require.NoError(t, r.Unregister(pid))
 
 	// Assert that despite multiple calls to `Register` from the same PID we
-	// only need a single call to `Unregister` to trigger the unregister callback
-	assert.Equal(t, 1, registerRecorder.CallsForPathID((pathID)))
-	assert.Equal(t, 1, unregisterRecorder.CallsForPathID((pathID)))
+	// only need a single call to `Unregister` to trigger the Unregister callback
+	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
+	assert.Equal(t, 1, unregisterRecorder.CallsForPathID(pathID))
 	assert.NotContains(t, r.GetRegisteredProcesses(), pid)
 }
 
@@ -122,19 +122,19 @@ func TestFailedRegistration(t *testing.T) {
 	require.NoError(t, err)
 	pid := uint32(cmd.Process.Pid)
 
-	r.Register(path, pid, registerCallback, IgnoreCB)
+	require.NoError(t, r.Register(path, pid, registerCallback, IgnoreCB))
 
 	// First let's assert that the callback was executed once, but there are no
 	// registered processes because the registration should have failed
-	assert.Equal(t, 1, registerRecorder.CallsForPathID((pathID)))
+	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
 	assert.Empty(t, r.GetRegisteredProcesses())
 
 	// Now let's try to register the same process again
-	r.Register(path, pid, registerCallback, IgnoreCB)
+	require.Equal(t, errPathIsBlocked, r.Register(path, pid, registerCallback, IgnoreCB))
 
 	// Assert that the number of callback executions hasn't changed for this pathID
 	// This is because we have block-listed this file
-	assert.Equal(t, 1, registerRecorder.CallsForPathID((pathID)))
+	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
 }
 
 func TestFilePathInCallbackArgument(t *testing.T) {
@@ -150,7 +150,7 @@ func TestFilePathInCallbackArgument(t *testing.T) {
 	pid := cmd.Process.Pid
 
 	r := newFileRegistry()
-	r.Register(path, uint32(pid), callback, callback)
+	require.NoError(t, r.Register(path, uint32(pid), callback, callback))
 
 	// Assert that the callback paths match the pattern <proc_root>/<pid>/root/<path>
 	expectedPath := filepath.Join(r.procRoot, strconv.Itoa(pid), "root", path)
@@ -182,11 +182,11 @@ func TestRelativeFilePathInCallbackArgument(t *testing.T) {
 	pid := cmd.Process.Pid
 
 	r := newFileRegistry()
-	r.Register(relpath, uint32(pid), callback, callback)
+	require.NoError(t, r.Register(relpath, uint32(pid), callback, callback))
 
 	// Assert that the callback paths match the pattern <proc_root>/<pid>/cwd/<path>.
 	// We need to avoid `filepath.Join` for the last component since using
-	// since that would `Clean` the path, removing the relative components.
+	// that would `Clean` the path, removing the relative components.
 	expectedPath := filepath.Join(r.procRoot, strconv.Itoa(pid), "cwd") + string(filepath.Separator) + relpath
 	assert.Equal(t, expectedPath, capturedPath)
 }
@@ -196,7 +196,7 @@ func createTempTestFile(t *testing.T, name string) (string, PathIdentifier) {
 
 	f, err := os.Create(path)
 	require.NoError(t, err)
-	f.Close()
+	require.NoError(t, f.Close())
 
 	pathID, err := NewPathIdentifier(path)
 	require.NoError(t, err)

@@ -70,6 +70,12 @@ const (
 	SyscallTypeLoadModule
 	// SyscallTypeUnloadModule delete_module type
 	SyscallTypeUnloadModule
+	// SyscallTypeChdir chdir/fchdir type
+	SyscallTypeChdir
+	// SyscallTypeMount mount type
+	SyscallTypeMount
+	// SyscallTypeUmount umount/umount2 type
+	SyscallTypeUmount
 )
 
 // ContainerContext defines a container context
@@ -129,6 +135,7 @@ type FileSyscallMsg struct {
 	CTime       uint64
 	MTime       uint64
 	Mode        uint32
+	Inode       uint64
 	Credentials *Credentials
 }
 
@@ -143,9 +150,9 @@ type DupSyscallFakeMsg struct {
 	OldFd int32
 }
 
-// ChdirSyscallFakeMsg defines a chdir message
-type ChdirSyscallFakeMsg struct {
-	Path string
+// ChdirSyscallMsg defines a chdir message
+type ChdirSyscallMsg struct {
+	Dir FileSyscallMsg
 }
 
 // SetUIDSyscallMsg defines a setreuid message
@@ -256,10 +263,29 @@ type UnloadModuleSyscallMsg struct {
 	Name string
 }
 
+// SpanContext stores a span context (if any)
+type SpanContext struct {
+	SpanID  uint64
+	TraceID uint64
+}
+
+// MountSyscallMsg defines a mount message
+type MountSyscallMsg struct {
+	Source string
+	Target string
+	FSType string
+}
+
+// UmountSyscallMsg defines a mount message
+type UmountSyscallMsg struct {
+	Path string
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	Type         SyscallType
 	PID          uint32
+	SpanContext  *SpanContext `json:",omitempty"`
 	Timestamp    uint64
 	Retval       int64
 	ContainerID  string
@@ -283,10 +309,12 @@ type SyscallMsg struct {
 	Chown        *ChownSyscallMsg        `json:",omitempty"`
 	LoadModule   *LoadModuleSyscallMsg   `json:",omitempty"`
 	UnloadModule *UnloadModuleSyscallMsg `json:",omitempty"`
+	Chdir        *ChdirSyscallMsg        `json:",omitempty"`
+	Mount        *MountSyscallMsg        `json:",omitempty"`
+	Umount       *UmountSyscallMsg       `json:",omitempty"`
 
 	// internals
-	Dup   *DupSyscallFakeMsg   `json:",omitempty"`
-	Chdir *ChdirSyscallFakeMsg `json:",omitempty"`
+	Dup *DupSyscallFakeMsg `json:",omitempty"`
 }
 
 // String returns string representation

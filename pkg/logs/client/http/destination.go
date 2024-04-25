@@ -67,7 +67,7 @@ type Destination struct {
 	destinationsContext *client.DestinationsContext
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
-	isHA                bool
+	isMRF               bool
 
 	// Concurrency
 	climit chan struct{} // semaphore for limiting concurrent background sends
@@ -151,7 +151,7 @@ func newDestination(endpoint config.Endpoint,
 		shouldRetry:         shouldRetry,
 		expVars:             expVars,
 		telemetryName:       telemetryName,
-		isHA:                endpoint.IsHA,
+		isMRF:               endpoint.IsMRF,
 	}
 }
 
@@ -165,9 +165,9 @@ func errorToTag(err error) string {
 	}
 }
 
-// IsHA indicates that this destination is a High Availability destination.
-func (d *Destination) IsHA() bool {
-	return d.isHA
+// IsMRF indicates that this destination is a Multi-Region Failover destination.
+func (d *Destination) IsMRF() bool {
+	return d.isMRF
 }
 
 // Target is the address of the destination.
