@@ -178,17 +178,12 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
         .fd = ssl_sock->fd,
     };
 
-    struct sock **sock = bpf_map_lookup_elem(&sock_by_pid_fd, &pid_fd);
-    if (sock == NULL)  {
+    conn_tuple_t *t = bpf_map_lookup_elem(&tuple_by_pid_fd, &pid_fd);
+    if (t == NULL)  {
         return NULL;
     }
 
-    conn_tuple_t t;
-    if (!read_conn_tuple(&t, *sock, pid_tgid, CONN_TYPE_TCP)) {
-        return NULL;
-    }
-
-    bpf_memcpy(&ssl_sock->tup, &t, sizeof(conn_tuple_t));
+    bpf_memcpy(&ssl_sock->tup, t, sizeof(conn_tuple_t));
     return &ssl_sock->tup;
 }
 

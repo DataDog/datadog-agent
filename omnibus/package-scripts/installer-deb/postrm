@@ -11,17 +11,12 @@ PACKAGES_LOCK_DIR=/var/run/datadog-packages
 set -e
 
 case "$1" in
-    purge)
-        echo "Deleting dd-installer user"
-        deluser dd-installer --quiet
-        echo "Deleting dd-installer group"
-        (getent group dd-installer >/dev/null && delgroup dd-installer --quiet) || true
-        echo "Force-deleting $INSTALL_DIR, $PACKAGES_DIR, $PACKAGES_LOCK_DIR"
-        rm -rf $INSTALL_DIR
+    remove | purge)
+        rm -f "/usr/bin/datadog-bootstrap"
+        echo "Force-deleting $INSTALL_DIR $PACKAGES_DIR $PACKAGES_LOCK_DIR"
         rm -rf $PACKAGES_DIR
         rm -rf $PACKAGES_LOCK_DIR
-    ;;
-    remove)
+        rm -rf $INSTALL_DIR
     ;;
     *)
     ;;
