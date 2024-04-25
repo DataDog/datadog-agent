@@ -2,6 +2,8 @@
 ## To make modifications to the check configuration, please copy this file
 ## to `conf.yaml` and make your changes on that file.
 
+## This integration is currently in beta.
+
 instances:
 
   -
