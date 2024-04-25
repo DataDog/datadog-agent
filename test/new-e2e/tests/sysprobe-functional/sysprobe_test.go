@@ -50,10 +50,16 @@ func TestVMSuite(t *testing.T) {
 func (v *vmSuite) SetupSuite() {
 	t := v.T()
 	// Get the absolute path to the test assets directory
-	currDir, _ := os.Getwd()
-	repoRoot, err := filepath.Abs(filepath.Join(currDir, "..", "..", "..", ".."))
+	currDir, err := os.Getwd()
 	require.NoError(t, err)
-	kitchenDir := filepath.Join(repoRoot, "test", "kitchen", "site-cookbooks")
+	// walk up until we find the repo root, where .git directory is
+	for {
+		if _, err := os.Stat(filepath.Join(currDir, ".git")); err == nil {
+			break
+		}
+		currDir = filepath.Dir(currDir)
+	}
+	kitchenDir := filepath.Join(currDir, "test", "kitchen", "site-cookbooks")
 	v.testspath = filepath.Join(kitchenDir, "dd-system-probe-check", "files", "default", "tests")
 }
 
