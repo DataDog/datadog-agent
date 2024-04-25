@@ -6,6 +6,7 @@
 package config
 
 import (
+	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -30,7 +31,7 @@ func adjustSecurity(cfg config.Config) {
 
 	if cfg.GetBool(secNS("enabled")) {
 		// if runtime is enabled then we enable fim as well (except if force disabled)
-		if !cfg.IsSet(secNS("fim_enabled")) {
+		if runtime.GOOS != "windows" || !cfg.IsSet(secNS("fim_enabled")) {
 			cfg.Set(secNS("fim_enabled"), true, model.SourceAgentRuntime)
 		}
 	} else {

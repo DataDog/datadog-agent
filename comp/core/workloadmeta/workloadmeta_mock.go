@@ -8,7 +8,7 @@
 
 package workloadmeta
 
-// team: container-integrations
+// team: container-platform
 
 import (
 	"context"

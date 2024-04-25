@@ -3,4 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package daemon
+//go:build !linux
+
+package utils
+
+// GetFSTypeFromFilePath returns the filesystem type of the mount holding the speficied file path
+func GetFSTypeFromFilePath(_ string) string {
+	// not implemented yet for windows/macos
+	return ""
+}

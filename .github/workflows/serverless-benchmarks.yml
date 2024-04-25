@@ -132,6 +132,8 @@ jobs:
             <details>
             <summary>tl;dr</summary>
 
+            Use these benchmarks as an insight tool during development.
+
             1. Skim down the `vs base` column in each chart. If there is a `~`, then there was no statistically significant change to the benchmark. Otherwise, ensure the estimated percent change is either negative or very small.
 
             2. The last row of each chart is the `geomean`. Ensure this percentage is either negative or very small.
@@ -161,6 +163,15 @@ jobs:
             > Note that "statistically significant" is not the same as "large": with enough low-noise data, even very small changes can be distinguished from noise and considered statistically significant.  It is, of course, generally easier to distinguish large changes from noise.
             >
             > Finally, the last row of the table shows the geometric mean of each column, giving an overall picture of how the benchmarks changed.  Proportional changes in the geomean reflect proportional changes in the benchmarks. For example, given n benchmarks, if sec/op for one of them increases by a factor of 2, then the sec/op geomean will increase by a factor of ⁿ√2.
+
+            </details>
+
+            <details>
+            <summary>I need more help</summary>
+
+            First off, do not worry if the benchmarks are failing.  They are not tests.  The intention is for them to be a tool for you to use during development.
+
+            If you would like a hand interpreting the results come chat with us in `#serverless-agent` in the internal DataDog slack or in `#serverless` in the [public DataDog slack](https://chat.datadoghq.com/).  We're happy to help!
 
             </details>
 
