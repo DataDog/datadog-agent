@@ -20,6 +20,7 @@ func newCCObfuscator(config *CreditCardsConfig) *creditCard {
 	}
 }
 
+// ObfuscateCreditCardNumber obfuscates any "credit card like" numbers in value for keys not in the allow-list
 func (o *Obfuscator) ObfuscateCreditCardNumber(key, val string) string {
 	switch key {
 	case "_sample_rate",
