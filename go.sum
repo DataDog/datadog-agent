@@ -914,8 +914,8 @@ github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20240409155312-
 github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20240409155312-26d1ea377073/go.mod h1:2nlYPkG0rFrODp6R875pk/kOnB8Ivj3+onhzk2mO57g=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
-github.com/beevik/ntp v0.3.0 h1:xzVrPrE4ziasFXgBVBZJDP0Wg/KpMwk2KHJ4Ba8GrDw=
-github.com/beevik/ntp v0.3.0/go.mod h1:hIHWr+l3+/clUnF44zdK+CWW7fO8dR5cIylAQ76NRpg=
+github.com/beevik/ntp v1.3.1 h1:Y/srlT8L1yQr58kyPWFPZIxRL8ttx2SRIpVYJqZIlAM=
+github.com/beevik/ntp v1.3.1/go.mod h1:fT6PylBq86Tsq23ZMEe47b7QQrZfYBFPnpzt0a9kJxw=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.5 h1:VvXlSJBzZpA/zum6Sj74hxwYI2DIxRWuNIoXAzHZz5o=
 github.com/benbjohnson/clock v1.3.5/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=

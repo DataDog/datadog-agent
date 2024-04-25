@@ -577,7 +577,7 @@ core,github.com/awslabs/amazon-ecr-credential-helper/ecr-login/cache,Apache-2.0,
 core,github.com/awslabs/amazon-ecr-credential-helper/ecr-login/config,Apache-2.0,"Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/awslabs/amazon-ecr-credential-helper/ecr-login/version,Apache-2.0,"Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/bahlo/generic-list-go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,github.com/beevik/ntp,BSD-2-Clause,Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers (beevik) | Christopher Batey (chbatey) | Copyright 2015-2017 Brett Vickers. All rights reserved | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB)
+core,github.com/beevik/ntp,BSD-2-Clause,Al Cutter (AlCutter) | Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers (beevik) | Christopher Batey (chbatey) | Copyright © 2015-2023 Brett Vickers. All rights reserved | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB) | Silves-Xiang (silves-xiang)
 core,github.com/benbjohnson/clock,MIT,Copyright (c) 2014 Ben Johnson
 core,github.com/beorn7/perks/quantile,MIT,Copyright (C) 2013 Blake Mizerany
 core,github.com/bgentry/go-netrc/netrc,MIT,Copyright © 2010 Fazlul Shahriar <fshahriar@gmail.com>. Newer | Copyright © 2014 Blake Gentry <blakesgentry@gmail.com>
