@@ -50,9 +50,12 @@ if($err -ne 0){
     Write-Host -ForegroundColor Red "rtloader test failed $err"
     [Environment]::Exit($err)
 }
-
+$TEST_WASHER_FLAG=""
+if($Env:TEST_WASHER){
+    $TEST_WASHER_FLAG="--test-washer"
+}
 & inv -e install-tools
-& inv -e test --junit-tar="$Env:JUNIT_TAR" --race --profile --rerun-fails=2 --coverage --cpus 8 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\$test_output_file $Env:EXTRA_OPTS --build-stdlib
+& inv -e test --junit-tar="$Env:JUNIT_TAR" --race --profile --rerun-fails=2 --coverage --cpus 8 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\$test_output_file $Env:EXTRA_OPTS --build-stdlib $TEST_WASHER_FLAG
 
 $err = $LASTEXITCODE
 Write-Host Test result is $err
