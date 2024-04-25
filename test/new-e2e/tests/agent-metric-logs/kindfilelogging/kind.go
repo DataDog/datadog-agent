@@ -141,7 +141,11 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	if err != nil {
 		return fmt.Errorf("ec2.NewVM: %w", err)
 	}
+
 	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
+	if err != nil {
+		return fmt.Errorf("ec2.InstallECRCredentialsHelper %w", err)
+	}
 
 	kindCluster, err := kubeComp.NewKindCluster(*awsEnv.CommonEnvironment, host, awsEnv.CommonNamer.ResourceName("kind"), params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	if err != nil {
