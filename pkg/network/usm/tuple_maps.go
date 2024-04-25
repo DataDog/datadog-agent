@@ -56,7 +56,14 @@ func initializeTupleMaps(m *ddebpf.Manager) {
 			Metadata: meta,
 		}
 
-		tupleByPidFD.Put(pidfd, tuple) //nolint:errcheck
-		pidFDByTuple.Put(tuple, pidfd) //nolint:errcheck
+		err := tupleByPidFD.Put(pidfd, tuple)
+		if err != nil {
+			continue
+		}
+
+		err = pidFDByTuple.Put(tuple, pidfd)
+		if err != nil {
+			tupleByPidFD.Delete(pidfd) //nolint:errcheck
+		}
 	}
 }
