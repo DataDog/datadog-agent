@@ -101,10 +101,10 @@ func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32) Gatew
 	if maxRouteCacheSize <= routeCacheSize {
 		routeCacheSize = maxRouteCacheSize
 	} else {
-		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, maxRouteCacheSize)
+		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, defaultMaxRouteCacheSize)
 	}
 
-	gl.subnetCache, _ = simplelru.NewLRU[int, interface{}](defaultMaxSubnetCacheSize, nil)
+	gl.subnetCache, _ = simplelru.NewLRU[int, interface{}](int(routeCacheSize), nil)
 	gl.routeCache = NewRouteCache(int(routeCacheSize), router)
 	return gl
 }
