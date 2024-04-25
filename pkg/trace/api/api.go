@@ -40,6 +40,12 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// defaultReceiverBufferSize is used as a default for the initial size of http body buffer
+// if no content-length is provided (Content-Encoding: Chunked) which happens in some tracers.
+//
+// This value has been picked as a "safe" default. Most real life traces should be at least a few KiB
+// so allocating 8KiB should provide a big enough buffer to prevent initial resizing, without blowing
+// up memory usage of the tracer.
 const defaultReceiverBufferSize = 8192 // 8KiB
 
 var bufferPool = sync.Pool{
@@ -64,9 +70,13 @@ func copyRequestBody(buf *bytes.Buffer, req *http.Request) (written int64, err e
 }
 
 func reserveBodySize(buf *bytes.Buffer, req *http.Request) {
+	var err error
 	bufferSize := 0
 	if contentSize := req.Header.Get("Content-Length"); contentSize != "" {
-		bufferSize, _ = strconv.Atoi(contentSize)
+		bufferSize, err = strconv.Atoi(contentSize)
+		if err != nil {
+			log.Debugf("could not parse Content-Length header value as integer: %v", err)
+		}
 	}
 	if bufferSize == 0 {
 		bufferSize = defaultReceiverBufferSize
