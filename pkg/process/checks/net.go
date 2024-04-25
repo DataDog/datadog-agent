@@ -7,6 +7,7 @@ package checks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	stdnet "net"
 	"runtime"
@@ -192,6 +193,10 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	c.notifyProcessConnRates(c.config, conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
+
+	// TODO: REMOVE ME
+	jsonStr, _ := json.Marshal(conns)
+	log.Debugf("Collected Conns: %s", jsonStr)
 
 	c.scheduleNetworkPath(conns.Conns)
 
