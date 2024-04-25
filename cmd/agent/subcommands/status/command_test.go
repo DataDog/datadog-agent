@@ -35,9 +35,9 @@ func TestComponentStatusCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"status", "component", "abc"},
-		componentStatusCmd,
+		statusCmd,
 		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
-			require.Equal(t, []string{"abc"}, cliParams.args)
+			require.Equal(t, []string{"component", "abc"}, cliParams.args)
 			require.Equal(t, false, cliParams.jsonStatus)
 			require.Equal(t, false, secretParams.Enabled)
 		})
