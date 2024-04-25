@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    The Process Agent will no longer crash when pidMode is misconfigured on ECS Fargate and a warning will be logged instead.
+    The Process Agent no longer crashes when pidMode is misconfigured on ECS Fargate. A warning is logged instead.
