@@ -76,7 +76,7 @@ func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32) Gatew
 	if !gwLookupEnabled() {
 		return nil
 	}
-	log.Tracef("gateway lookup is enabled")
+	log.Tracef("gateway lookup is enabled, isAWS %t, cloud provider: %s", cloud.IsAWS(), ec2.CloudProviderName)
 
 	rootNetNs, err := rootNsLookup()
 	if err != nil {
@@ -142,7 +142,7 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 			var ifi *net.Interface
 			ifi, err = net.InterfaceByIndex(r.IfIndex)
 			if err != nil {
-				log.Errorf("error getting interface for interface index %d: %s", r.IfIndex, err)
+				log.Debugf("error getting interface for interface index %d: %s", r.IfIndex, err)
 				// negative cache for 1 minute
 				g.subnetCache.Add(r.IfIndex, time.Now().Add(1*time.Minute))
 				gatewayLookupTelemetry.subnetCacheSize.Inc()
@@ -151,7 +151,6 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 
 			if ifi.Flags&net.FlagLoopback != 0 {
 				// negative cache loopback interfaces
-				log.Error("was loopback")
 				g.subnetCache.Add(r.IfIndex, nil)
 				gatewayLookupTelemetry.subnetCacheSize.Inc()
 				return err
@@ -159,7 +158,7 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 
 			gatewayLookupTelemetry.subnetLookups.Inc()
 			if s, err = g.subnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
-				log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
+				log.Debugf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
 
 				// cache an empty result so that we don't keep hitting the
 				// ec2 metadata endpoint for this interface
@@ -179,7 +178,6 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 		})
 
 		if err != nil {
-			log.Errorf("failed subnet lookup: %s", err.Error())
 			return nil
 		}
 
@@ -193,7 +191,6 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 
 	switch cv := v.(type) {
 	case time.Time:
-		log.Error("was time")
 		if time.Now().After(cv) {
 			g.subnetCache.Remove(r.IfIndex)
 			gatewayLookupTelemetry.subnetCacheSize.Dec()
@@ -202,7 +199,6 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 	case *Via:
 		return cv
 	default:
-		log.Error("was something else")
 		return nil
 	}
 }
