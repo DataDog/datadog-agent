@@ -40,6 +40,8 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+const defaultReceiverBufferSize = 8192 // 8KiB
+
 var bufferPool = sync.Pool{
 	New: func() interface{} {
 		return new(bytes.Buffer)
@@ -54,6 +56,22 @@ func getBuffer() *bytes.Buffer {
 
 func putBuffer(buffer *bytes.Buffer) {
 	bufferPool.Put(buffer)
+}
+
+func copyRequestBody(buf *bytes.Buffer, req *http.Request) (written int64, err error) {
+	reserveBodySize(buf, req)
+	return io.Copy(buf, req.Body)
+}
+
+func reserveBodySize(buf *bytes.Buffer, req *http.Request) {
+	bufferSize := 0
+	if contentSize := req.Header.Get("Content-Length"); contentSize != "" {
+		bufferSize, _ = strconv.Atoi(contentSize)
+	}
+	if bufferSize == 0 {
+		bufferSize = defaultReceiverBufferSize
+	}
+	buf.Grow(bufferSize)
 }
 
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
@@ -387,7 +405,7 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 	case v05:
 		buf := getBuffer()
 		defer putBuffer(buf)
-		if _, err = io.Copy(buf, req.Body); err != nil {
+		if _, err = copyRequestBody(buf, req); err != nil {
 			return nil, false, err
 		}
 		var traces pb.Traces
@@ -402,7 +420,7 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 	case V07:
 		buf := getBuffer()
 		defer putBuffer(buf)
-		if _, err = io.Copy(buf, req.Body); err != nil {
+		if _, err = copyRequestBody(buf, req); err != nil {
 			return nil, false, err
 		}
 		var tracerPayload pb.TracerPayload
@@ -719,7 +737,7 @@ func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error)
 	case "application/msgpack":
 		buf := getBuffer()
 		defer putBuffer(buf)
-		_, err = io.Copy(buf, req.Body)
+		_, err = copyRequestBody(buf, req)
 		if err != nil {
 			return false, err
 		}
@@ -737,7 +755,7 @@ func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error)
 		if err1 := json.NewDecoder(req.Body).Decode(&dest); err1 != nil {
 			buf := getBuffer()
 			defer putBuffer(buf)
-			_, err2 := io.Copy(buf, req.Body)
+			_, err2 := copyRequestBody(buf, req)
 			if err2 != nil {
 				return false, err2
 			}
