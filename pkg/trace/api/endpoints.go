@@ -105,6 +105,14 @@ var endpoints = []Endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleStats) },
 	},
 	{
+		Pattern: "/api/v1/lineage/",
+		Handler: func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleOpenLineage) },
+	},
+	{
+		Pattern: "/api/v1/lineage",
+		Handler: func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleOpenLineage) },
+	},
+	{
 		Pattern: "/v0.1/pipeline_stats",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.pipelineStatsProxyHandler() },
 	},
