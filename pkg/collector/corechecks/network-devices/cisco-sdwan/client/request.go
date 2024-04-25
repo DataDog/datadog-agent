@@ -120,14 +120,15 @@ func getMoreEntries[T Content](client *Client, endpoint string, params map[strin
 
 		log.Tracef("Getting page %d from endpoint %s", page+1+1, endpoint)
 		// Update the params to get next API page
-		err := updatePaginationParams(currentPageInfo, params)
+		nextParams, err := getNextPaginationParams(currentPageInfo, client.maxCount)
 		if err != nil {
-			return nil, err
+			log.Errorf("Could not get %s page %d : %s", endpoint, page+1+1, err)
+			break
 		}
 		log.Tracef("Pagination params for page %d from endpoint %s : %v", page+1+1, endpoint, params)
 
 		// Call the endpoint with the new params
-		data, err := get[T](client, endpoint, params)
+		data, err := get[T](client, endpoint, nextParams)
 		if err != nil {
 			return nil, err
 		}
@@ -139,20 +140,24 @@ func getMoreEntries[T Content](client *Client, endpoint string, params map[strin
 	return responses, nil
 }
 
-// updatePaginationParams updates query params to get next page
-func updatePaginationParams(info PageInfo, params map[string]string) error {
+// getNextPaginationParams builds query params to get next page
+func getNextPaginationParams(info PageInfo, count string) (map[string]string, error) {
+	newParams := make(map[string]string)
 	if info.MoreEntries {
 		// For endpoints that uses index-based pagination
 		endID, err := strconv.Atoi(info.EndID)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		params["startId"] = fmt.Sprintf("%v", endID+1)
+		newParams["count"] = count
+		newParams["startId"] = fmt.Sprintf("%v", endID)
+		return newParams, nil
 	} else if info.HasMoreData {
 		// For endpoints that uses scroll-based pagination (ES like)
-		params["scrollId"] = info.ScrollID
+		newParams["scrollId"] = info.ScrollID
+		return newParams, nil
 	}
-	return nil
+	return nil, fmt.Errorf("could not build next page params")
 }
 
 // getAllEntries gets all entries from paginated endpoints
