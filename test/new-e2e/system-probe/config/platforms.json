@@ -192,6 +192,30 @@
       "alt_version_names": [
         "mantic"
       ]
+    },
+    "opensuse_15.3": {
+      "os_name": "openSUSE Leap",
+      "os_id": "opensuse-leap",
+      "kernel": "5.3.18-150300.59.106.1",
+      "os_version": "15.3",
+      "image": "opensuse-15.3-x86_64.qcow2.xz",
+      "image_version": "20240424_95349298"
+    },
+    "opensuse_15.5": {
+      "os_name": "openSUSE Leap",
+      "os_id": "opensuse-leap",
+      "kernel": "5.14.21-150500.55.52.1",
+      "os_version": "15.5",
+      "image": "opensuse-15.5-x86_64.qcow2.xz",
+      "image_version": "20240424_95349298"
+    },
+    "suse_12.5": {
+      "os_name": "SLES",
+      "os_id": "sles",
+      "kernel": "4.12.14-122.201.1",
+      "os_version": "12.5",
+      "image": "suse-12.5-x86_64.qcow2.xz",
+      "image_version": "20240424_95349298"
     }
   },
   "arm64": {
@@ -367,6 +391,30 @@
       "alt_version_names": [
         "mantic"
       ]
+    },
+    "opensuse_15.3": {
+      "os_name": "openSUSE Leap",
+      "os_id": "opensuse-leap",
+      "kernel": "5.3.18-150300.59.106.1",
+      "os_version": "15.3",
+      "image": "opensuse-15.3-arm64.qcow2.xz",
+      "image_version": "20240424_95349298"
+    },
+    "opensuse_15.5": {
+      "os_name": "openSUSE Leap",
+      "os_id": "opensuse-leap",
+      "kernel": "5.14.21-150500.55.52.1",
+      "os_version": "15.5",
+      "image": "opensuse-15.5-arm64.qcow2.xz",
+      "image_version": "20240424_95349298"
+    },
+    "suse_12.5": {
+      "os_name": "SLES",
+      "os_id": "sles",
+      "kernel": "4.12.14-122.201.1",
+      "os_version": "12.5",
+      "image": "suse-12.5-arm64.qcow2.xz",
+      "image_version": "20240424_95349298"
     }
   }
 }
