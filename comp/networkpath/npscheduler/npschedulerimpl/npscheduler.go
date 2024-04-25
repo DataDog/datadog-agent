@@ -78,7 +78,7 @@ func (s *npSchedulerImpl) listenPathtestConfigs() {
 			return
 		case ptest := <-s.pathtestIn:
 			// TODO: TESTME
-			s.logger.Infof("Command received: %+v", ptest)
+			s.logger.Debugf("Pathtest received: %+v", ptest)
 			s.receivedPathtestConfigCount.Inc()
 			s.pathtestStore.add(ptest)
 		}
@@ -140,7 +140,10 @@ func (s *npSchedulerImpl) pathForConn(ptest *pathtestContext) {
 }
 
 func (s *npSchedulerImpl) Stop() {
-	s.logger.Error("Stop npSchedulerImpl")
+	s.logger.Infof("Stop npSchedulerImpl")
+	close(s.stopChan)
+	<-s.flushLoopDone
+	<-s.runDone
 }
 
 func (s *npSchedulerImpl) flushLoop() {
