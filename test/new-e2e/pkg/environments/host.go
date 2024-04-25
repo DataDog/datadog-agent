@@ -23,6 +23,9 @@ type Host struct {
 	Agent      *components.RemoteHostAgent
 	Updater    *components.RemoteHostUpdater
 
+	// WARN: do not use outside of the Init method
+	// Agent Client options are stored here as a workaround to make it easier to customize the agent client,
+	// but they should not be used for anything else as it should eventually be refactored differently
 	AgentClientOptions []agentclientparams.Option
 }
 
