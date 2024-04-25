@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"net"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -27,8 +26,6 @@ import (
 type npSchedulerImpl struct {
 	epForwarder eventplatform.Component
 	logger      log.Component
-
-	initOnce sync.Once
 
 	workers int
 
@@ -60,18 +57,6 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 	}
 }
 
-func (s *npSchedulerImpl) Init() {
-	s.initOnce.Do(func() {
-		// TODO: conn checks -> job chan
-		//       job chan -> update state
-		//       flush
-		//         - read state
-		//         - traceroute using workers
-		s.logger.Info("Init NpScheduler")
-		go s.listenPathtestConfigs()
-		go s.flushLoop()
-	})
-}
 func (s *npSchedulerImpl) listenPathtestConfigs() {
 	for {
 		select {
@@ -141,6 +126,13 @@ func (s *npSchedulerImpl) pathForConn(ptest *pathtestContext) {
 			}
 		}
 	}
+}
+
+func (s *npSchedulerImpl) Start() {
+	// TODO: START ONLY IF network_config.network_path.enabled IS ENABLED?
+	s.logger.Info("Start NpScheduler")
+	go s.listenPathtestConfigs()
+	go s.flushLoop()
 }
 
 func (s *npSchedulerImpl) Stop() {

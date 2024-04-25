@@ -124,9 +124,6 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.serviceExtractor)
 
 	c.networkPathEnabled = c.sysprobeYamlConfig.GetBool("network_config.network_path.enabled")
-	if c.networkPathEnabled {
-		c.npScheduler.Init()
-	}
 
 	// LocalResolver is a singleton LocalResolver
 	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(c.wmeta), clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
