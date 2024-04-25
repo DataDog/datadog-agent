@@ -24,13 +24,13 @@ comp /
       def /              <-- The folder containing the component interface and ALL its public types.
       impl /             <-- The only or primary implementation of the component.
       impl-<alternate> / <-- An alternate implementation.
-      impl-none /        <-- Optional. A none implementation.
+      impl-none /        <-- Optional. A noop implementation.
       fx /               <-- All fx related logic for the primary implementation, if any.
       fx-<alternate> /   <-- All fx related logic for a specific implementation.
-      mock /             <-- The mock interface of the component to ease testing.
+      mock /             <-- The mock implementation of the component to ease testing.
 ```
 
-TODO: where do we put the `optional.NoneOption` ? Into its own fx-none folder ?
+<!-- TODO: where do we put the `optional.NoneOption` ? Into its own fx-none folder ? -->
 
 To note:
 
@@ -52,13 +52,6 @@ This file hierarchy aimed at solving a few problems:
 * A main that imports a component should be able to select a specific implementation without compiling with the others.
   For example: the ZSTD library should not be included at compile time when the ZIP version is used.
 
-
-**Go package naming convention**:
-
-All implementations must use the package name: `<component name>impl`.
-
-For example, a compression component with 2 implementation would use `package compressionimpl` in both
-`comp/<bundle>/compression/impl-zstd` and `comp/<bundle>/compression/impl-zip` folders.
 
 ## Bootstraping Components
 
@@ -129,11 +122,6 @@ The only requirement is that there is a public instantiation function called `Ne
     ```go
     package zstdimpl
 
-    import (
-        // We always import the component def folder to be able to return a 'def.Component' type.
-        "github.com/DataDog/datadog-agent/comp/compression/def"
-    )
-
     // NewComponent returns a new ZSTD implementation for the compression component
     func NewComponent(){
         ....
@@ -150,11 +138,7 @@ For our component we are going to need to access the configuration component and
 
     import (
         "fmt"
-
-        // We always import the component def folder to be able to return a 'def.Component' type. As a reminder fx
-        // only work on type and will not try to convert a real type to an interface.
-        "github.com/DataDog/datadog-agent/comp/compression/def"
-
+        
         config "github.com/DataDog/datadog-agent/comp/core/config/def"
         log "github.com/DataDog/datadog-agent/comp/core/log/def"
     )
@@ -177,6 +161,13 @@ As for the output of our component we are going populate the `Provides` struct w
  . 
 === ":octicons-file-code-16: comp/compression/fx-zstd/component.go"
     ```go
+    package zstdimpl
+
+    import (
+        // We always import the component def folder to be able to return a 'def.Component' type.
+        "github.com/DataDog/datadog-agent/comp/compression/def"
+    )
+    
     // Here we list all the types we're going to return. You can return as many types as you want and they will all
     // be available through FX in other components.
     // The type and field needs to be public to be used in the `fx` folders.

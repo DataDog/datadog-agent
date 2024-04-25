@@ -3,6 +3,8 @@
 The Agent is structured as a collection of components working together. Depending on how the binary is built, and how it
 is invoked, different components may be instantiated.
 
+<!-- TODO: What are the goals of using the components?  -->
+
 ## What is a Component?
 
 A component encapsulates a particular piece of logic/feature in a clear and documented interface. 
@@ -35,6 +37,8 @@ comes at the cost of manually doing the work of `Fx`, our dependency injection f
 The component framework project core goal is to improve the Agent codebase by decoupling parts of the code, removing global state and init
 methods, and increased reusability by separating logical units into components. **`Fx` itself is not intrinsic to the
 benefits of componentization**.
+
+<!-- TODO: Let's have a disclaimer about components not being 1 to 1 to Fx -->
 
 ## Next
 
