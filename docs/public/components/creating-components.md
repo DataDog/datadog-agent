@@ -4,7 +4,7 @@ This page explains how to create components in detail.
 
 Throughout this page we're going to create a compression component. The component compresses the payload before sending it to the Datadog backend.
 
-Since there are multiple ways to compress data, we are going to provide two implementations of the same component interface: 
+Since there are multiple ways to compress data, this component provides two implementations of the same interface: 
 
 * The [ZSTD](https://en.wikipedia.org/wiki/Zstd) data compression algorithm
 * The [ZIP](https://en.wikipedia.org/wiki/ZIP_(file_format)) data compression algorithm
@@ -35,8 +35,8 @@ comp /
 To note:
 
 * If your component has only one implementation it should live in the `impl` folder.
-* If your component don't have a single implementation but several versions you should have no `impl` folder but
-  multiple `impl-<version>` folders. For example a component in charge of compressing data will have `impl-zstd` and `impl-zip` but not `impl` folder.
+* If your component has several implementations instead of a single implementation, you have multiple `impl-<version>` folders instead of an `impl` folder. 
+For example, our compression component will have `impl-zstd` and `impl-zip` folders, but not an `impl` folder.
 * If your component needs to offer a dummy/empty version it should live in the `impl-none` folder.
 
 ### Why all those files ?
@@ -87,7 +87,7 @@ All component interfaces must be called `Component`, so all imports have the for
 You can see that our interface only exposes the bare minimum. You should aim at having the smallest possible interface
 for your component. 
 
-When defining a component interface we try to use struct or interface from third-party dependencies. Ensuring that using the component interface doesn't require importing any thrid-party dependency.
+When defining a component interface, we avoid using structs or interfaces from third-party dependencies.
 
 !!! warning "Interface using a third-party dependency"
     ```
@@ -104,14 +104,14 @@ When defining a component interface we try to use struct or interface from third
     }
     ```
 
-For the example above every user of the telemetry component would have to import `github.com/prometheus/client_golang/prometheus`. To avoid those cases is best to design your interface mindfully.
+For the example above every user of the `telemetry` component would have to import `github.com/prometheus/client_golang/prometheus` no matter which implementation they use.
+	
+In general, be mindful of using external types in the public interface of your component. For example, it would make sens to use docker types in a `docker` component but not in a `container` component.
 
-TODO: write alternative solution
+<!-- Also note that there is no `Start`/`Stop` method. Anything related to lifecycle will be handle
+internally by each component (more on this [here TODO]()). -->
 
-Also note that there is no `Start`/`Stop` method. Anything related to lifecycle will be handle
-internally by each component (more on this [here TODO]()).
-
-TODO: write the lifecycle part and update the link above
+<!-- TODO: write the lifecycle part and update the link above -->
 
 ### The impl folders
 
