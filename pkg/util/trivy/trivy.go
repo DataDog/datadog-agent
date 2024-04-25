@@ -275,10 +275,6 @@ func (c *Collector) scanOverlayFS(ctx context.Context, fanalImage *image, scanOp
 		return nil, err
 	}
 
-	if report, ok := report.(*Report); ok {
-		report.Report.Metadata.ImageID, _ = fanalImage.ID()
-	}
-
 	return report, nil
 }
 
