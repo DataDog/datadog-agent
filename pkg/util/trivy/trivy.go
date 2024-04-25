@@ -68,6 +68,7 @@ type ContainerdAccessor func() (cutil.ContainerdItf, error)
 type collectorConfig struct {
 	clearCacheOnClose bool
 	maxCacheSize      int
+	overlayFSSupport  bool
 }
 
 // Collector uses trivy to generate a SBOM
@@ -169,6 +170,7 @@ func NewCollector(cfg config.Component, wmeta optional.Option[workloadmeta.Compo
 		config: collectorConfig{
 			clearCacheOnClose: cfg.GetBool("sbom.clear_cache_on_exit"),
 			maxCacheSize:      cfg.GetInt("sbom.cache.max_disk_size"),
+			overlayFSSupport:  cfg.GetBool("sbom.container_image.overlayfs_direct_scan"),
 		},
 		osScanner:   ospkg.NewScanner(),
 		langScanner: langpkg.NewScanner(),
@@ -246,11 +248,9 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 		return nil, fmt.Errorf("unable to convert docker image, err: %w", err)
 	}
 
-	if fanalImage.inspect.GraphDriver.Name == "overlay2" {
-		var layers []string
-		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["LowerDir"]; ok {
-			layers = append(layers, strings.Split(layerDirs, ":")...)
-		}
+	if c.config.overlayFSSupport && fanalImage.inspect.GraphDriver.Name == "overlay2" {
+		return c.scanOverlayFS(ctx, fanalImage, scanOptions)
+	}
 
 		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["UpperDir"]; ok {
 			layers = append(layers, strings.Split(layerDirs, ":")...)
