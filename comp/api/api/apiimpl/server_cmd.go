@@ -47,7 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -64,7 +64,7 @@ func startCMDServer(
 	tlsConfig *tls.Config,
 	tlsCertPool *x509.CertPool,
 	configService optional.Option[rcservice.Component],
-	configServiceHA optional.Option[rcserviceha.Component],
+	configServiceMRF optional.Option[rcservicemrf.Component],
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
 	pidMap pidmap.Component,
@@ -107,9 +107,9 @@ func startCMDServer(
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &server{})
 	pb.RegisterAgentSecureServer(s, &serverSecure{
-		configService:   configService,
-		configServiceHA: configServiceHA,
-		taggerServer:    taggerserver.NewServer(taggerComp),
+		configService:    configService,
+		configServiceMRF: configServiceMRF,
+		taggerServer:     taggerserver.NewServer(taggerComp),
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer: workloadmetaServer.NewServer(wmeta),
 		dogstatsdServer:    dogstatsdServer,

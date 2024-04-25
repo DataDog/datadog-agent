@@ -20,14 +20,14 @@ typedef struct {
 
 typedef struct kafka_transaction_t {
     __u64 request_started;
+    __u32 records_count;
     // Request API key and version are 16-bit in the protocol but we store
     // them as u8 to reduce memory usage of the map since the APIs and
     // versions we support don't need more than 8 bits.
     __u8 request_api_key;
     __u8 request_api_version;
+    __u8 topic_name_size;
     char topic_name[TOPIC_NAME_MAX_STRING_SIZE];
-    __u16 topic_name_size;
-    __u32 records_count;
 } kafka_transaction_t;
 
 typedef struct kafka_event_t {
@@ -76,5 +76,11 @@ typedef struct kafka_info_t {
     kafka_response_context_t response;
     kafka_event_t event;
 } kafka_info_t;
+
+// kafka_telemetry_t is used to hold the Kafka kernel telemetry.
+typedef struct {
+    // The array topic_name_size_buckets maps a bucket index to the number of occurrences observed for topic name lengths
+    __u64 topic_name_size_buckets[KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS];
+} kafka_telemetry_t;
 
 #endif
