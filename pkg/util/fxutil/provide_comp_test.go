@@ -43,7 +43,7 @@ func TestInvalidArgumentOrReturnValue(t *testing.T) {
 	assertIsSingleError(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
 
 	errOpt = ProvideComponentConstructor(func(comp FirstComp) SecondComp { return &secondImpl{} })
-	assertIsSingleError(t, errOpt, "constructor must either take 0 arguments, or 1 argument as a requires struct")
+	assertIsSingleError(t, errOpt, `constructor must either take 0 arguments, or 1 "requires" struct`)
 
 	errOpt = ProvideComponentConstructor(func() (FirstComp, SecondComp) { return &firstImpl{}, &secondImpl{} })
 	assertIsSingleError(t, errOpt, "second return value must be error, got fxutil.SecondComp")
