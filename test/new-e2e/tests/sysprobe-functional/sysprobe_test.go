@@ -34,10 +34,6 @@ var (
 	devMode = flag.Bool("devmode", false, "run tests in dev mode")
 )
 
-func init() {
-
-}
-
 func TestVMSuite(t *testing.T) {
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(componentsos.WindowsDefault))))}
 	if *devMode {
