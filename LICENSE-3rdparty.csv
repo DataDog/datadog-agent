@@ -3102,6 +3102,7 @@ core,golang.org/x/net/internal/socks,BSD-3-Clause,Copyright (c) 2009 The Go Auth
 core,golang.org/x/net/internal/timeseries,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/ipv4,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/ipv6,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/net/netutil,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/proxy,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/publicsuffix,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/trace,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
