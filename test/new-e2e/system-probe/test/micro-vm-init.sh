@@ -6,9 +6,9 @@ docker_dir=/kmt-dockers
 
 # Add provisioning steps here !
 ## Start docker if available, some images (e.g. SUSE arm64 for CWS) do not have it installed
-if systemctl list-unit-files | grep -q docker.service; then
+if systemctl list-unit-files | grep -q docker.service ; then
     systemctl start docker
-
+    
     ## Load docker images
     if [[ -d "${docker_dir}" ]]; then
         find "${docker_dir}" -maxdepth 1 -type f -exec docker load -i {} \;
