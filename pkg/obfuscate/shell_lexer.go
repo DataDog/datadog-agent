@@ -80,6 +80,10 @@ func scanUntil(s *ShellScanner, pattern *regexp.Regexp) *string {
 	}
 
 	matched := s.String()[initialPosition:s.Index()]
+	if len(matched) == 0 {
+		return nil
+	}
+
 	return &matched
 }
 
@@ -289,9 +293,9 @@ func changeStates(ret []ShellToken) []ShellToken {
 	for i := 0; i < len(ret); i++ {
 		t := ret[i]
 		if t.Kind == DoubleQuote {
-			if stateList[len(stateList)-1] == DoubleQuote {
+			if len(stateList) > 0 && stateList[len(stateList)-1] == DoubleQuote {
 				stateList = stateList[:len(stateList)-1]
-				if stateList[len(stateList)-1] == VariableDefinition {
+				if len(stateList) > 0 && stateList[len(stateList)-1] == VariableDefinition {
 					withoutWhitespaces[len(withoutWhitespaces)-1].Kind = Executable
 					stateList = stateList[:len(stateList)-1]
 				}
@@ -300,7 +304,7 @@ func changeStates(ret []ShellToken) []ShellToken {
 			}
 		}
 		if t.Kind == SingleQuote {
-			if stateList[len(stateList)-1] == SingleQuote {
+			if len(stateList) > 0 && stateList[len(stateList)-1] == SingleQuote {
 				stateList = stateList[:len(stateList)-1]
 			} else {
 				stateList = append(stateList, t.Kind)
@@ -312,12 +316,14 @@ func changeStates(ret []ShellToken) []ShellToken {
 				codeExecutionBackticks = false
 			} else {
 				codeExecutionBackticks = true
-				stateList[len(stateList)-1] = VariableDefinition
+				if len(stateList) > 0 {
+					stateList[len(stateList)-1] = VariableDefinition
+				}
 			}
 		}
 
 		if t.Kind == Dollar {
-			if i < len(ret)-1 && ret[i+1].Kind == ParentheseOpen {
+			if i < len(ret)-1 && ret[i+1].Kind == ParentheseOpen && len(stateList) > 0 {
 				stateList[len(stateList)-1] = VariableDefinition
 			} else if i < len(ret)-1 && ret[i+1].Kind == Field {
 				if len(ret[i+1].Val) > 0 && ret[i+1].Val[0] == '{' {
@@ -330,7 +336,7 @@ func changeStates(ret []ShellToken) []ShellToken {
 			}
 		}
 
-		if t.Kind == Control {
+		if t.Kind == Control && len(stateList) > 0 {
 			stateList[len(stateList)-1] = VariableDefinition
 		} else if len(stateList) > 0 && stateList[len(stateList)-1] == VariableDefinition {
 			if t.Kind == Field {

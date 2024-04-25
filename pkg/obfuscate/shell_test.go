@@ -407,3 +407,58 @@ func TestCommandObfuscation(t *testing.T) {
 		})
 	}
 }
+
+func TestMalformedShellCommandObfuscation(t *testing.T) {
+	tests := []cmdTestCase{
+		{
+			command:           "md5 --pa",
+			expected:          "md5 ?",
+			obfuscatedIndices: "4:4",
+		},
+		{
+			command:           "m d 5 --pass",
+			expected:          "m d 5 --pass",
+			obfuscatedIndices: "",
+		},
+		{
+			command:           "VAR=$(exec password",
+			expected:          "VAR=?",
+			obfuscatedIndices: "4:15",
+		},
+		{
+			command:           "executable1 --pass=secret; VAR1=password executable2 --pass=secret; $()={}; VAR2=password",
+			expected:          "executable1 --pass=?; VAR1=? executable2 --pass=?; $()={}; VAR2=?",
+			obfuscatedIndices: "19:6 27:8 48:6 64:8",
+		},
+		{
+			command:           "$command1 $(subcommand --pass secret) $)",
+			expected:          "$command1 $(subcommand --pass ?) $)",
+			obfuscatedIndices: "30:6",
+		},
+		{
+			command:           "$() ${}\"\"\" ${#}^& & ` $(] $& $}{ ${'",
+			expected:          "$() ${}\"\"\" ${#}^& & ` $(] $& $}{ ${'",
+			obfuscatedIndices: "",
+		},
+	}
+
+	assert := assert.New(t)
+	for _, tt := range tests {
+		t.Run("", func(t *testing.T) {
+			obfuscatedCmd, obfuscatedIndices := NewObfuscator(Config{}).ObfuscateShellCommand(tt.command)
+			assert.Equal(tt.expected, obfuscatedCmd)
+			assert.NotNil(obfuscatedIndices)
+			assert.Equal(tt.obfuscatedIndices, obfuscatedIndices)
+		})
+	}
+}
+
+func FuzzObfuscateShell(f *testing.F) {
+	f.Fuzz(func(t *testing.T, b []byte) {
+		NewObfuscator(Config{}).ObfuscateShellCommand(string(b))
+		NewObfuscator(Config{}).ObfuscateShellCommand(string(b) + "$(" + string(b) + ")")
+		_, _, _ = NewObfuscator(Config{}).ObfuscateExecCommand(string(b))
+		_, _, _ = NewObfuscator(Config{}).ObfuscateExecCommand("bash -c \"" + string(b) + "\"")
+
+	})
+}

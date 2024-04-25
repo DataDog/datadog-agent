@@ -477,6 +477,10 @@ func grabFullArgument(tokens []ShellToken, index int) (int, int) {
 		}
 	}
 
+	if index >= tokensLength {
+		index--
+	}
+
 	return index, nbrGrabbed
 }
 
