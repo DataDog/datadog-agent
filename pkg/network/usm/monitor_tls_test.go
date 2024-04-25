@@ -589,7 +589,6 @@ func TestOldConnectionRegression(t *testing.T) {
 		cfg.EnableHTTPMonitoring = true
 		cfg.EnableGoTLSSupport = true
 		cfg.GoTLSExcludeSelf = false
-		cfg.BPFDebug = true
 		usmMonitor := setupUSMTLSMonitor(t, cfg)
 
 		// Ensure this test program is being traced
