@@ -435,6 +435,7 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 	str += fmt.Sprintf(", protocol: %+v", c.ProtocolStack)
 	str += fmt.Sprintf(", netns: %d", c.NetNS)
 	str += fmt.Sprintf(", duration: %+v", c.Duration)
+	str += fmt.Sprintf(", failures: %v", c.TCPFailures)
 
 	return str
 }

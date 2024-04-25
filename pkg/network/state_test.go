@@ -220,9 +220,8 @@ func TestDropEmptyConnections(t *testing.T) {
 			RecvBytes:   6789,
 			Retransmits: 2,
 		},
-		IntraHost:   true,
-		Cookie:      1,
-		TCPFailures: make(map[TCPFailure]uint32),
+		IntraHost: true,
+		Cookie:    1,
 	}
 
 	clientID := "1"

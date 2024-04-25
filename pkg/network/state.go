@@ -607,10 +607,9 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats, failedCo
 }
 
 func matchFailedConn(conn *ConnectionStats, failedConnMap FailedConnMap) {
-	conn.TCPFailures = make(map[TCPFailure]uint32)
-	log.Errorf("Failed connection: %+v", conn)
 	connTuple := connStatsToTuple(conn)
 	if failedConn, ok := failedConnMap[connTuple]; ok {
+		conn.TCPFailures = make(map[TCPFailure]uint32)
 		for errCode, count := range failedConn.CountByErrCode {
 			switch errCode {
 			case 104:
