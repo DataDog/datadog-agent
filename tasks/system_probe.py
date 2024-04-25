@@ -233,6 +233,25 @@ def ninja_network_ebpf_program(nw, infile, outfile, flags):
     ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
 
 
+def ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, flags):
+    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
+    root, ext = os.path.splitext(outfile)
+
+
+def ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir):
+    src_dir = os.path.join("pkg", "ebpf", "c")
+
+    telemetry_co_re_programs = [
+        "lock_contention",
+    ]
+    for prog in telemetry_co_re_programs:
+        infile = os.path.join(src_dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"{prog}.c")
+
+        co_re_flags = [f"-I{src_dir}"]
+        ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, ' '.join(co_re_flags))
+
+
 def ninja_network_ebpf_co_re_program(nw, infile, outfile, flags):
     ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
     root, ext = os.path.splitext(outfile)
@@ -510,6 +529,7 @@ def ninja_generate(
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
+            ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
 
