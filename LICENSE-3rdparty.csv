@@ -1770,6 +1770,7 @@ core,go.opentelemetry.io/collector/confmap/provider/yamlprovider,Apache-2.0,Copy
 core,go.opentelemetry.io/collector/connector,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/consumer,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/consumer/consumererror,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/consumer/consumertest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exporterbatcher,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exporterhelper,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1791,6 +1792,7 @@ core,go.opentelemetry.io/collector/internal/localhostgate,Apache-2.0,Copyright T
 core,go.opentelemetry.io/collector/internal/obsreportconfig,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/obsreportconfig/obsmetrics,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/sharedcomponent,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/internal/testdata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/otelcol,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/otelcol/internal/configunmarshaler,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/otelcol/internal/grpclog,Apache-2.0,Copyright The OpenTelemetry Authors
