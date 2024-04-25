@@ -63,6 +63,9 @@ type Watcher struct {
 	libMatches *telemetry.Counter
 }
 
+// Validate that Watcher implements the Attacher interface.
+var _ utils.Attacher = &Watcher{}
+
 // NewWatcher creates a new Watcher instance
 func NewWatcher(cfg *config.Config, rules ...Rule) (*Watcher, error) {
 	ebpfProgram := newEBPFProgram(cfg)

@@ -123,6 +123,9 @@ type nodeJSMonitor struct {
 	done chan struct{}
 }
 
+// Validate that nodeJSMonitor implements the Attacher interface.
+var _ utils.Attacher = &nodeJSMonitor{}
+
 func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) *nodeJSMonitor {
 	if !c.EnableNodeJSMonitoring {
 		return nil
@@ -200,6 +203,34 @@ func (m *nodeJSMonitor) Stop() {
 	m.wg.Wait()
 }
 
+// DetachPID detaches a given pid from the eBPF program
+func (m *nodeJSMonitor) DetachPID(pid uint32) error {
+	// We avoid filtering PIDs here because it's cheaper to simply do a registry lookup
+	// instead of fetching a process name in order to determine whether it is an
+	// envoy process or not (which at the very minimum involves syscalls)
+	return m.registry.Unregister(pid)
+}
+
+var (
+	// ErrNoNodeJSPath is returned when no nodejs path is found for a given PID
+	ErrNoNodeJSPath = errors.New("no nodejs path found for PID")
+)
+
+// AttachPID attaches a given pid to the eBPF program
+func (m *nodeJSMonitor) AttachPID(pid uint32) error {
+	path := m.getNodeJSPath(pid)
+	if path == "" {
+		return ErrNoNodeJSPath
+	}
+
+	return m.registry.Register(
+		path,
+		pid,
+		m.registerCB,
+		m.unregisterCB,
+	)
+}
+
 // sync state of nodeJSMonitor with the current state of procFS
 // the purpose of this method is two-fold:
 // 1) register processes for which we missed exec events (targeted mostly at startup)
@@ -225,33 +256,6 @@ func (m *nodeJSMonitor) sync() {
 	for pid := range deletionCandidates {
 		m.handleProcessExit(pid)
 	}
-}
-
-// DetachPID detaches a given pid from the eBPF program
-func (m *nodeJSMonitor) DetachPID(pid uint32) error {
-	// We avoid filtering PIDs here because it's cheaper to simply do a registry lookup
-	// instead of fetching a process name in order to determine whether it is an
-	// envoy process or not (which at the very minimum involves syscalls)
-	return m.registry.Unregister(pid)
-}
-
-var (
-	errNoNodeJSPath = errors.New("no nodejs path found for PID")
-)
-
-// AttachPID attaches a given pid to the eBPF program
-func (m *nodeJSMonitor) AttachPID(pid uint32) error {
-	path := m.getNodeJSPath(pid)
-	if path == "" {
-		return errNoNodeJSPath
-	}
-
-	return m.registry.Register(
-		path,
-		pid,
-		m.registerCB,
-		m.unregisterCB,
-	)
 }
 
 func (m *nodeJSMonitor) handleProcessExit(pid uint32) {

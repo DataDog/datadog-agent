@@ -108,6 +108,9 @@ type istioMonitor struct {
 	done chan struct{}
 }
 
+// Validate that istioMonitor implements the Attacher interface.
+var _ utils.Attacher = &istioMonitor{}
+
 func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 	if !c.EnableIstioMonitoring {
 		return nil
@@ -128,6 +131,26 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 // DetachPID detaches a given pid from the eBPF program
 func (m *istioMonitor) DetachPID(pid uint32) error {
 	return m.registry.Unregister(pid)
+}
+
+var (
+	// ErrNoEnvoyPath is returned when no envoy path is found for a given PID
+	ErrNoEnvoyPath = fmt.Errorf("no envoy path found for PID")
+)
+
+// AttachPID attaches a given pid to the eBPF program
+func (m *istioMonitor) AttachPID(pid uint32) error {
+	path := m.getEnvoyPath(pid)
+	if path == "" {
+		return ErrNoEnvoyPath
+	}
+
+	return m.registry.Register(
+		path,
+		pid,
+		m.registerCB,
+		m.unregisterCB,
+	)
 }
 
 // Start the istioMonitor
@@ -216,25 +239,6 @@ func (m *istioMonitor) sync() {
 	for pid := range deletionCandidates {
 		m.handleProcessExit(pid)
 	}
-}
-
-var (
-	errNoEnvoyPath = fmt.Errorf("no envoy path found for PID")
-)
-
-// AttachPID attaches a given pid to the eBPF program
-func (m *istioMonitor) AttachPID(pid uint32) error {
-	path := m.getEnvoyPath(pid)
-	if path == "" {
-		return errNoEnvoyPath
-	}
-
-	return m.registry.Register(
-		path,
-		pid,
-		m.registerCB,
-		m.unregisterCB,
-	)
 }
 
 func (m *istioMonitor) handleProcessExit(pid uint32) {
