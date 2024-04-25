@@ -286,14 +286,13 @@ func TestGetMoreEntriesMaxPages(t *testing.T) {
 	// Set max pages to 20 for testing
 	client.maxPages = 20
 
-	params := make(map[string]string)
 	pageInfo := PageInfo{
 		StartID:     "1",
 		EndID:       "15",
 		MoreEntries: true,
 	}
 
-	_, err = getMoreEntries[Device](client, "/dataservice/device", params, pageInfo)
+	_, err = getMoreEntries[Device](client, "/dataservice/device", pageInfo)
 	require.ErrorContains(t, err, "max number of page reached")
 
 	// Ensure endpoint has been called 20 times
@@ -346,14 +345,13 @@ func TestGetMoreEntriesIndexPagination(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	params := make(map[string]string)
 	pageInfo := PageInfo{
 		StartID:     "1",
 		EndID:       "15",
 		MoreEntries: true,
 	}
 
-	_, err = getMoreEntries[Device](client, "/dataservice/device", params, pageInfo)
+	_, err = getMoreEntries[Device](client, "/dataservice/device", pageInfo)
 	require.NoError(t, err)
 
 	// Ensure endpoint has been called 2 times
@@ -411,18 +409,12 @@ func TestGetMoreEntriesScrollPagination(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	params := map[string]string{
-		"startDate": "2006-01-02T15:04:05",
-		"endDate":   "2006-01-02T15:14:05",
-		"timeZone":  "UTC",
-		"count":     "1000",
-	}
 	pageInfo := PageInfo{
 		ScrollID:    "test",
 		HasMoreData: true,
 	}
 
-	_, err = getMoreEntries[Device](client, "/dataservice/device", params, pageInfo)
+	_, err = getMoreEntries[Device](client, "/dataservice/device", pageInfo)
 	require.NoError(t, err)
 
 	// Ensure endpoint has been called 2 times

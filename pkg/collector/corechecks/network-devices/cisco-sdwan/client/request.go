@@ -106,7 +106,7 @@ func isValidStatusCode(code int) bool {
 }
 
 // getMoreEntries gets all results from paginated endpoints
-func getMoreEntries[T Content](client *Client, endpoint string, params map[string]string, pageInfo PageInfo) ([]T, error) {
+func getMoreEntries[T Content](client *Client, endpoint string, pageInfo PageInfo) ([]T, error) {
 	var responses []T
 	currentPageInfo := pageInfo
 
@@ -123,7 +123,7 @@ func getMoreEntries[T Content](client *Client, endpoint string, params map[strin
 		if err != nil {
 			return nil, err
 		}
-		log.Tracef("Pagination params for page %d from endpoint %s : %v", page+1+1, endpoint, params)
+		log.Tracef("Pagination params for page %d from endpoint %s : %v", page+1+1, endpoint, nextParams)
 
 		// Call the endpoint with the new params
 		data, err := get[T](client, endpoint, nextParams)
@@ -162,7 +162,7 @@ func getAllEntries[T Content](client *Client, endpoint string, params map[string
 	}
 
 	// If API response is paginated, get the rest
-	entries, err := getMoreEntries[T](client, endpoint, params, data.PageInfo)
+	entries, err := getMoreEntries[T](client, endpoint, data.PageInfo)
 	if err != nil {
 		return nil, err
 	}
