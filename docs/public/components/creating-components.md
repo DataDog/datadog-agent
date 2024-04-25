@@ -53,7 +53,7 @@ This file hierarchy aimed at solving a few problems:
   For example: the ZSTD library should not be included at compile time when the ZIP version is used.
 
 
-## Bootstraping Components
+## Bootstrapping components
 
 You can use the [invoke](../setup.md#invoke) task `inv components.new-component comp/<component>` to generate a scaffold for your new component.
 
@@ -82,7 +82,7 @@ For our compression example it will look like this:
     }
     ```
 
-All component interfaces must be called `Component` so all imports would be similar to `compressiondef.Component`.
+All component interfaces must be called `Component`, so all imports have the form `compressiondef.Component`.
 
 You can see that our interface only exposes the bare minimum. You should aim at having the smallest possible interface
 for your component. 
@@ -115,7 +115,7 @@ TODO: write the lifecycle part and update the link above
 
 ### The impl folders
 
-The `impl` folder is where the component implementation is written. The component implementation details is up to the developer to design. 
+The `impl` folder is where the component implementation is written. The component implementation details is up to the developer. 
 The only requirement is that there is a public instantiation function called `NewComponent`.
 
 === ":octicons-file-code-16: comp/compression/fx-zstd/component.go"
@@ -178,7 +178,7 @@ As for the output of our component we are going populate the `Provides` struct w
     }
     ```
  
-If we peace all together our component code looks like this:
+All together, the component code looks like the following:
 
 === ":octicons-file-code-16: comp/compression/fx-zstd/component.go"
     ```go
