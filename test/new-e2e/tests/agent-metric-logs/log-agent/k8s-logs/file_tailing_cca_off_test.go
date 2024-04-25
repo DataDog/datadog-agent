@@ -1,4 +1,4 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
+// Unless explicitly stated otherwise, all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
@@ -7,7 +7,6 @@ package k8sfiletailing
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -21,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	customkind "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/customkind"
+	customkind "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/k8sfiletailing"
 )
 
 type k8sCCAOffSuite struct {
@@ -113,15 +112,6 @@ func (v *k8sCCAOffSuite) TestCCAOff() {
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		logsServiceNames, err := v.Env().FakeIntake.Client().GetLogServiceNames()
 		assert.NoError(c, err, "Error starting job")
-		// assert.NotContains(c, logsServiceNames, "ubuntu", "Ubuntu service found with container collect all off")
-
-		if slices.Contains(logsServiceNames, "ubuntu") {
-			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("ubuntu")
-			assert.NoError(c, err, "Error filtering logs")
-			fmt.Println("LOGS here:")
-			fmt.Printf("%s\n", filteredLogs[0].Message)
-			assert.Nil(c, filteredLogs, "Filtered logs is not nil")
-		}
-
+		assert.NotContains(c, logsServiceNames, "ubuntu", "Ubuntu service found with container collect all off")
 	}, 1*time.Minute, 10*time.Second)
 }

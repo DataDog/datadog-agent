@@ -1,4 +1,4 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
+// Unless explicitly stated otherwise, all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
@@ -114,13 +114,13 @@ func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
 // Provisioner creates a new provisioner
 func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
-	// and it's easy to forget about it, leading to hard to debug issues.
+	// and it's easy to forget about it, leading to issues that are hard to debug.
 	params := newProvisionerParams()
 	_ = optional.ApplyOptions(params, opts)
 
 	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
-		// and it's easy to forget about it, leading to hard to debug issues.
+		// and it's easy to forget about it, leading to issues that are hard to debug.
 		params := newProvisionerParams()
 		_ = optional.ApplyOptions(params, opts)
 
@@ -134,22 +134,22 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ku
 func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
 	awsEnv, err := aws.NewEnvironment(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("aws.NewEnvironment: %w", err)
 	}
 
 	host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
 	if err != nil {
-		return err
+		return fmt.Errorf("ec2.NewVM: %w", err)
 	}
 	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
 
 	kindCluster, err := kubeComp.NewKindCluster(*awsEnv.CommonEnvironment, host, awsEnv.CommonNamer.ResourceName("kind"), params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	if err != nil {
-		return err
+		return fmt.Errorf("kubeComp.NewKindCluster: %w", err)
 	}
 	err = kindCluster.Export(ctx, &env.KubernetesCluster.ClusterOutput)
 	if err != nil {
-		return err
+		return fmt.Errorf("kindCluster.Export: %w", err)
 	}
 
 	kubeProvider, err := kubernetes.NewProvider(ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
@@ -157,7 +157,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		Kubeconfig:            kindCluster.KubeConfig,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("kubernetes.NewProvider: %w", err)
 	}
 
 	if params.fakeintakeOptions != nil {
@@ -165,11 +165,11 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		params.fakeintakeOptions = append(fakeintakeOpts, params.fakeintakeOptions...)
 		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
 		if err != nil {
-			return err
+			return fmt.Errorf("fakeintake.NewECSFargateInstance: %w", err)
 		}
 		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
 		if err != nil {
-			return err
+			return fmt.Errorf("fakeIntake.Export: %w", err)
 		}
 
 		if params.agentOptions != nil {
@@ -197,11 +197,11 @@ agents:
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := agent.NewKubernetesAgent(*awsEnv.CommonEnvironment, kindClusterName, kubeProvider, params.agentOptions...)
 		if err != nil {
-			return err
+			return fmt.Errorf("agent.NewKubernetesAgent: %w", err)
 		}
 		err = agent.Export(ctx, &env.Agent.KubernetesAgentOutput)
 		if err != nil {
-			return err
+			return fmt.Errorf("agent.Export: %w", err)
 		}
 
 	} else {
