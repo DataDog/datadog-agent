@@ -77,4 +77,10 @@ typedef struct kafka_info_t {
     kafka_event_t event;
 } kafka_info_t;
 
+// kafka_telemetry_t is used to hold the Kafka kernel telemetry.
+typedef struct {
+    // The array topic_name_size_buckets maps a bucket index to the number of occurrences observed for topic name lengths
+    __u64 topic_name_size_buckets[KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS];
+} kafka_telemetry_t;
+
 #endif
