@@ -11,7 +11,7 @@ case "$1" in
         # $1 contains the number of packages with the same name left
         # on the system after the current action completes.
         # If 0, then we are uninstalling
-        $INSTALL_DIR/bin/installer/installer purge --package=datadog-installer
+        $INSTALL_DIR/bin/installer/installer remove datadog-installer
     ;;
     *)
         # For other cases, we're upgrading

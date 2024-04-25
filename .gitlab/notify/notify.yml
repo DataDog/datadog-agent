@@ -59,7 +59,7 @@ send_pipeline_stats:
 notify_github:
   stage: notify
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:docker"]
+  tags: ["arch:amd64"]
   rules:
     - !reference [.except_mergequeue]
     - !reference [.except_main_or_release_branch]
@@ -77,6 +77,7 @@ notify_github:
   dependencies: []
   allow_failure: true
   script:
+    - source /root/.bashrc
     - !reference [.install_pr_commenter]
     - messagefile="$(mktemp)"
     - echo "Use this command from [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) to manually test this PR changes on a VM:" >> "$messagefile"
