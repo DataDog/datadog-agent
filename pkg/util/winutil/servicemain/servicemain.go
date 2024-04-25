@@ -234,7 +234,8 @@ func getProcessStartTime() time.Time {
 }
 
 func (s *controlHandler) eventlog(msgnum uint32, arg string) {
-	argPlusTime := fmt.Sprintf("%s <took %v>", arg, time.Since(getProcessStartTime()))
+	processStartTime := getProcessStartTime()
+	argPlusTime := fmt.Sprintf("%s <time:%v, took:%v>", arg, processStartTime, time.Since(getProcessStartTime()))
 	winutil.LogEventViewer(s.service.Name(), msgnum, argPlusTime)
 }
 
