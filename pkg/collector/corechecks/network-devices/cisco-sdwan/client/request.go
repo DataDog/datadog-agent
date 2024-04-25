@@ -121,8 +121,7 @@ func getMoreEntries[T Content](client *Client, endpoint string, params map[strin
 		// Update the params to get next API page
 		nextParams, err := getNextPaginationParams(currentPageInfo, client.maxCount)
 		if err != nil {
-			log.Errorf("Could not get %s page %d : %s", endpoint, page+1+1, err)
-			break
+			return nil, err
 		}
 		log.Tracef("Pagination params for page %d from endpoint %s : %v", page+1+1, endpoint, params)
 
