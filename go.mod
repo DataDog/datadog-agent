@@ -676,7 +676,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.26.0
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20240409155312-26d1ea377073
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
-	github.com/containerd/cgroups/v3 v3.0.2
+	github.com/containerd/cgroups/v3 v3.0.3
 	github.com/containerd/typeurl/v2 v2.1.1
 	github.com/elastic/go-seccomp-bpf v1.4.0
 	github.com/glaslos/ssdeep v0.4.0
