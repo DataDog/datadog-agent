@@ -46,6 +46,7 @@ func (c ConnectionType) String() string {
 	return "UDP"
 }
 
+// TCPFailure represents the type of TCP Failure that occurred in a connection
 type TCPFailure string
 
 const (

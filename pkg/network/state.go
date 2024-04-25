@@ -566,6 +566,7 @@ func (ns *networkState) mergeByCookie(conns []ConnectionStats) ([]ConnectionStat
 	return conns, connsByKey
 }
 
+// FailedConnStats is a wrapper to help document the purpose of the underlying map
 type FailedConnStats struct {
 	CountByErrCode map[uint32]uint32
 }
@@ -577,8 +578,10 @@ func (t FailedConnStats) String() string {
 	)
 }
 
+// FailedConnMap is a map of connection tuples to failed connection stats
 type FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
 
+// StoreClosedConnections stores the given closed connections
 func (ns *networkState) StoreClosedConnections(closed []ConnectionStats, failedConnMap FailedConnMap) {
 	ns.Lock()
 	defer ns.Unlock()
@@ -605,6 +608,7 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats, failedCo
 
 func matchFailedConn(conn *ConnectionStats, failedConnMap FailedConnMap) {
 	conn.TCPFailures = make(map[TCPFailure]uint32)
+	log.Errorf("Failed connection: %+v", conn)
 	connTuple := connStatsToTuple(conn)
 	if failedConn, ok := failedConnMap[connTuple]; ok {
 		for errCode, count := range failedConn.CountByErrCode {
@@ -643,11 +647,17 @@ func connStatsToTuple(c *ConnectionStats) ebpf.ConnTuple {
 	} else {
 		tup.SetType(ebpf.UDP)
 	}
-	tup.SetSourceAddress(c.Source)
-	tup.SetDestAddress(c.Dest)
-
+	if !c.Source.IsZero() {
+		tup.Saddr_l, tup.Saddr_h = util.ToLowHigh(c.Source)
+	} else {
+		tup.Saddr_l, tup.Saddr_h = 0, 0
+	}
+	if !c.Dest.IsZero() {
+		tup.Daddr_l, tup.Daddr_h = util.ToLowHigh(c.Dest)
+	} else {
+		tup.Daddr_l, tup.Daddr_h = 0, 0
+	}
 	return tup
-
 }
 
 func getDeepDNSStatsCount(stats dns.StatsByKeyByNameByType) int {

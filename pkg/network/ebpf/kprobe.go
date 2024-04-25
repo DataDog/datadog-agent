@@ -8,7 +8,6 @@
 package ebpf
 
 import (
-	"encoding/binary"
 	"fmt"
 	"net"
 	"strconv"
@@ -77,29 +76,28 @@ func (t *ConnTuple) SetType(connType ConnType) {
 	}
 }
 
-// SetSourceAddress sets the source address.
-func (t *ConnTuple) SetSourceAddress(addr util.Address) {
-	if t.Family() == IPv4 {
-		ip := addr.As4()
-		t.Saddr_l = uint64(ip[0]) | uint64(ip[1])<<8 | uint64(ip[2])<<16 | uint64(ip[3])<<24
-	} else {
-		ip := addr.As16()
-		t.Saddr_h = binary.LittleEndian.Uint64(ip[:8])
-		t.Saddr_l = binary.LittleEndian.Uint64(ip[8:])
-	}
-}
-
-// SetDestAddress sets the destination address.
-func (t *ConnTuple) SetDestAddress(addr util.Address) {
-	if t.Family() == IPv4 {
-		ip := addr.As4()
-		t.Daddr_l = uint64(ip[0]) | uint64(ip[1])<<8 | uint64(ip[2])<<16 | uint64(ip[3])<<24
-	} else {
-		ip := addr.As16()
-		t.Daddr_h = binary.LittleEndian.Uint64(ip[:8])
-		t.Daddr_l = binary.LittleEndian.Uint64(ip[8:])
-	}
-}
+//// SetSourceAddress sets the source address.
+//func (t *ConnTuple) SetSourceAddress(addr util.Address) {
+//	if t.Family() == IPv4 {
+//		t.Saddr_l, t.Saddr_h = util.ToLowHigh(addr)
+//	} else {
+//		ip := addr.As16()
+//		t.Saddr_h = binary.LittleEndian.Uint64(ip[:8])
+//		t.Saddr_l = binary.LittleEndian.Uint64(ip[8:])
+//	}
+//}
+//
+//// SetDestAddress sets the destination address.
+//func (t *ConnTuple) SetDestAddress(addr util.Address) {
+//	if t.Family() == IPv4 {
+//		ip := addr.As4()
+//		t.Daddr_l = uint64(ip[0]) | uint64(ip[1])<<8 | uint64(ip[2])<<16 | uint64(ip[3])<<24
+//	} else {
+//		ip := addr.As16()
+//		t.Daddr_h = binary.LittleEndian.Uint64(ip[:8])
+//		t.Daddr_l = binary.LittleEndian.Uint64(ip[8:])
+//	}
+//}
 
 func (t ConnTuple) String() string {
 	return fmt.Sprintf(
