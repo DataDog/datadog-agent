@@ -46,8 +46,7 @@ agent_dmg*                           @DataDog/agent-build-and-releases
 windows_msi*                         @DataDog/windows-agent
 
 # Packaging
-updater_deb-*                        @DataDog/agent-build-and-releases
-updater_rpm-*                        @DataDog/agent-build-and-releases
+installer_*                          @DataDog/agent-build-and-releases
 
 # Testing package deploy
 deploy_deb_testing*                  @DataDog/agent-build-and-releases
