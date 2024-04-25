@@ -258,7 +258,7 @@ require (
 	go.mongodb.org/mongo-driver v1.13.1
 	go.opentelemetry.io/collector v0.97.0 // indirect
 	go.opentelemetry.io/collector/component v0.97.0
-	go.opentelemetry.io/collector/confmap v0.97.0
+	go.opentelemetry.io/collector/confmap v0.99.0
 	go.opentelemetry.io/collector/exporter v0.97.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.97.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.97.0
@@ -690,7 +690,7 @@ require (
 	github.com/sijms/go-ora/v2 v2.8.6
 	github.com/swaggest/jsonschema-go v0.3.64
 	github.com/vibrantbyte/go-antpath v1.1.1
-	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.97.0
+	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.99.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v0.97.0
 	go.opentelemetry.io/collector/confmap/provider/fileprovider v0.97.0
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.97.0
@@ -744,7 +744,7 @@ require (
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/hashicorp/go-getter v1.7.4 // indirect
 	github.com/hashicorp/go-safetemp v1.0.0 // indirect
-	github.com/knadh/koanf/v2 v2.1.0 // indirect
+	github.com/knadh/koanf/v2 v2.1.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-shellwords v1.0.12 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
