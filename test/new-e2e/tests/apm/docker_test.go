@@ -33,29 +33,46 @@ func dockerSuiteOpts(tr transport, opts ...awsdocker.ProvisionerOption) []e2e.Su
 	return options
 }
 
+var dockerUDSAgentOptions = []func(*dockeragentparams.Params) error{
+	// Enable the UDS receiver in the trace-agent
+	dockeragentparams.WithAgentServiceEnvVariable(
+		"DD_APM_RECEIVER_SOCKET",
+		pulumi.String("/var/run/datadog/apm.socket")),
+	// Optional: UDS is more reliable for statsd metrics
+	// Set DD_DOGSTATSD_SOCKET to enable the UDS statsd listener in the core-agent
+	dockeragentparams.WithAgentServiceEnvVariable(
+		"DD_DOGSTATSD_SOCKET",
+		pulumi.String("/var/run/datadog/dsd.socket")),
+	// Set STATSD_URL to instruct the statsd client in the trace-agent to send metrics through UDS
+	dockeragentparams.WithAgentServiceEnvVariable(
+		"STATSD_URL",
+		pulumi.String("unix:///var/run/datadog/dsd.socket")),
+}
+
+func dockerAgentOptions(tr transport) []func(*dockeragentparams.Params) error {
+	switch tr {
+	case uds:
+		return dockerUDSAgentOptions
+	case tcp:
+		return nil
+	}
+	return nil
+}
+
 // TestDockerFakeintakeSuiteUDS runs basic Trace Agent tests over the UDS transport
 func TestDockerFakeintakeSuiteUDS(t *testing.T) {
 	options := dockerSuiteOpts(uds, awsdocker.WithAgentOptions(
-		// Enable the UDS receiver in the trace-agent
-		dockeragentparams.WithAgentServiceEnvVariable(
-			"DD_APM_RECEIVER_SOCKET",
-			pulumi.String("/var/run/datadog/apm.socket")),
-		// Optional: UDS is more reliable for statsd metrics
-		// Set DD_DOGSTATSD_SOCKET to enable the UDS statsd listener in the core-agent
-		dockeragentparams.WithAgentServiceEnvVariable(
-			"DD_DOGSTATSD_SOCKET",
-			pulumi.String("/var/run/datadog/dsd.socket")),
-		// Set STATSD_URL to instruct the statsd client in the trace-agent to send metrics through UDS
-		dockeragentparams.WithAgentServiceEnvVariable(
-			"STATSD_URL",
-			pulumi.String("unix:///var/run/datadog/dsd.socket")),
+		dockerAgentOptions(uds)...,
 	))
 	e2e.Run(t, &DockerFakeintakeSuite{transport: uds}, options...)
 }
 
 // TestDockerFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
 func TestDockerFakeintakeSuiteTCP(t *testing.T) {
-	e2e.Run(t, &DockerFakeintakeSuite{transport: tcp}, dockerSuiteOpts(tcp)...)
+	options := dockerSuiteOpts(uds, awsdocker.WithAgentOptions(
+		dockerAgentOptions(tcp)...,
+	))
+	e2e.Run(t, &DockerFakeintakeSuite{transport: tcp}, options...)
 }
 
 func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {
@@ -153,4 +170,35 @@ func (s *DockerFakeintakeSuite) TestBasicTrace() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
+}
+
+func (s *DockerFakeintakeSuite) TestProbabilitySampler() {
+	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithAgentOptions(
+		append(dockerAgentOptions(s.transport),
+			dockeragentparams.WithAgentServiceEnvVariable(
+				"DD_APM_PROBABILISTIC_SAMPLER_ENABLED",
+				pulumi.Bool(true)),
+			dockeragentparams.WithAgentServiceEnvVariable(
+				"DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE",
+				pulumi.Int(50)),
+			dockeragentparams.WithAgentServiceEnvVariable(
+				"DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE",
+				pulumi.Int(22)),
+		)...)))
+
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-probability-sampler-%s", s.transport)
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		tracesSampledByProbabilitySampler(s.T(), c, s.Env().FakeIntake)
+	}, 2*time.Minute, 10*time.Second, "Failed to find traces sampled by the probability sampler")
 }
