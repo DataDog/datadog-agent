@@ -22,7 +22,7 @@ func chunkProcessesBySizeAndWeight(procs []*model.Process, ctr *model.Container,
 		// b) if process <=> container mapping cannot be established (e.g. Docker on Windows).
 		// c) if no processes were collected from the container (e.g. pidMode not set to "task" on ECS Fargate)
 		if ecsContainerMetadataURI := os.Getenv("ECS_CONTAINER_METADATA_URI_V4"); ecsContainerMetadataURI != "" {
-			log.Warnf("No processes found for container %s, pidMode may not be configured correctly (set to task)", ctr.Name)
+			log.Warnf("No processes found for container %s, pidMode may not be configured correctly (should be set to task)", ctr.Name)
 		}
 		appendContainerWithoutProcesses(ctr, chunker)
 		return
