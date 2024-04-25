@@ -193,20 +193,20 @@ func (s *npSchedulerImpl) sendTelemetry(path traceroute.NetworkPath, startTime t
 	tags := s.getTelemetryTags(path)
 
 	checkDuration := time.Since(startTime)
-	statsd.Client.Gauge("datadog.network_path.check_duration", checkDuration.Seconds(), tags, 1)
+	statsd.Client.Gauge("datadog.network_path.check_duration", checkDuration.Seconds(), tags, 1) //nolint:errcheck
 
 	if ptest.lastFlushInterval > 0 {
-		statsd.Client.Gauge("datadog.network_path.check_interval", ptest.lastFlushInterval.Seconds(), tags, 1)
+		statsd.Client.Gauge("datadog.network_path.check_interval", ptest.lastFlushInterval.Seconds(), tags, 1) //nolint:errcheck
 	}
 
-	statsd.Client.Gauge("datadog.network_path.path.monitored", float64(1), tags, 1)
+	statsd.Client.Gauge("datadog.network_path.path.monitored", float64(1), tags, 1) //nolint:errcheck
 	if len(path.Hops) > 0 {
 		lastHop := path.Hops[len(path.Hops)-1]
 		if lastHop.Success {
-			statsd.Client.Gauge("datadog.network_path.path.hops", float64(len(path.Hops)), tags, 1)
+			statsd.Client.Gauge("datadog.network_path.path.hops", float64(len(path.Hops)), tags, 1) //nolint:errcheck
 		}
-		statsd.Client.Gauge("datadog.network_path.path.reachable", float64(utils.BoolToFloat64(lastHop.Success)), tags, 1)
-		statsd.Client.Gauge("datadog.network_path.path.unreachable", float64(utils.BoolToFloat64(!lastHop.Success)), tags, 1)
+		statsd.Client.Gauge("datadog.network_path.path.reachable", float64(utils.BoolToFloat64(lastHop.Success)), tags, 1)    //nolint:errcheck
+		statsd.Client.Gauge("datadog.network_path.path.unreachable", float64(utils.BoolToFloat64(!lastHop.Success)), tags, 1) //nolint:errcheck
 	}
 }
 

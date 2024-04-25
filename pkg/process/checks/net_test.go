@@ -695,12 +695,3 @@ func TestConvertAndEnrichWithServiceTags(t *testing.T) {
 		})
 	}
 }
-
-func TestConnectionsCheck_scheduleNetworkPath(t *testing.T) {
-	// TODO: TESTME
-	//conns := makeConnections(4)
-	//conns[0].Raddr.Ip = "127.0.0.1"
-
-	//c := &ConnectionsCheck{}
-	//c.scheduleNetworkPath(conns)
-}
