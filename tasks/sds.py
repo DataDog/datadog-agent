@@ -21,8 +21,6 @@ def build_library(ctx):
     if is_windows:
         print("Not building the SDS library: unsupported on Windows.", file=sys.stderr)
         return
-    # section_name = "Build_SDS_library"
-    # print(f"\033[0Ksection_start:{int(time())}:{section_name}[collapsed=true]\r\033[0KClone and build SDS ...")
     with collapsed_section("Clone and build SDS"):
         with tempfile.TemporaryDirectory() as temp_dir:
             with ctx.cd(temp_dir):
@@ -43,4 +41,3 @@ def build_library(ctx):
                         ctx.run(f"cp target/release/libsds_go.so {lib_path}")
                         if os.path.exists(lib64_path):
                             ctx.run(f"cp target/release/libsds_go.so {lib64_path}")
-    # print(f"\033[0Ksection_end:{int(time())}:{section_name}\r\033[0K")
