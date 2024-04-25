@@ -54,6 +54,7 @@ type Opts struct {
 	DisableStats    bool
 	DisableProcScan bool
 	ScanProcEvery   time.Duration
+	DisableSeccomp  bool
 }
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
@@ -202,11 +203,13 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	syscallHandlers := make(map[int]syscallHandler)
 	PtracedSyscalls := registerFIMHandlers(syscallHandlers)
 	PtracedSyscalls = append(PtracedSyscalls, registerProcessHandlers(syscallHandlers)...)
+	PtracedSyscalls = append(PtracedSyscalls, registerSpanHandlers(syscallHandlers)...)
 
 	tracerOpts := TracerOpts{
-		Syscalls: PtracedSyscalls,
-		Creds:    opts.Creds,
-		Logger:   logger,
+		Syscalls:       PtracedSyscalls,
+		Creds:          opts.Creds,
+		Logger:         logger,
+		DisableSeccomp: opts.DisableSeccomp,
 	}
 
 	tracer, err := NewTracer(entry, args, envs, tracerOpts)
@@ -348,6 +351,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 				}
 			}
 
+			// if available, gather span
+			syscallMsg.SpanContext = fillSpanContext(tracer, process.Tgid, pid, pc.GetSpan(process.Tgid))
+
 			/* internal special cases */
 			switch nr {
 			case ExecveNr:
@@ -390,6 +396,8 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 				if process.Pid != process.Tgid {
 					pc.Add(process.Tgid, process)
 				}
+			case IoctlNr:
+				pc.SetSpan(process.Tgid, handleIoctl(tracer, process, regs))
 
 			}
 		case CallbackPostType:
@@ -415,6 +423,8 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 			case ExecveNr, ExecveatNr:
 				// now the pid is the tgid
 				process.Pid = process.Tgid
+				// remove previously registered TLS
+				pc.UnsetSpan(process.Tgid)
 			case CloneNr:
 				if flags := tracer.ReadArgUint64(regs, 0); flags&uint64(unix.SIGCHLD) == 0 {
 					pc.SetAsThreadOf(process, ppid)
@@ -465,7 +475,10 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 				} else if waitStatus.Signaled() {
 					exitCtx.Cause = model.ExitSignaled
 					exitCtx.Code = uint32(waitStatus.Signal())
+				} else {
+					exitCtx.Code = uint32(waitStatus.Signal())
 				}
+
 				sendSyscallMsg(&ebpfless.SyscallMsg{
 					Type: ebpfless.SyscallTypeExit,
 					Exit: exitCtx,

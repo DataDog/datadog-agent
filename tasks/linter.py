@@ -95,7 +95,7 @@ def go(
     ctx,
     module=None,
     targets=None,
-    flavors=None,
+    flavor=None,
     build="lint",
     build_tags=None,
     build_include=None,
@@ -129,7 +129,7 @@ def go(
         ctx=ctx,
         module=module,
         targets=targets,
-        flavors=flavors,
+        flavor=flavor,
         build=build,
         build_tags=build_tags,
         build_include=build_include,
@@ -149,7 +149,7 @@ def _lint_go(
     ctx,
     module,
     targets,
-    flavors,
+    flavor,
     build,
     build_tags,
     build_include,
@@ -165,20 +165,12 @@ def _lint_go(
     if not check_tools_version(ctx, ['go', 'golangci-lint']):
         print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
 
-    # Format:
-    # {
-    #     "phase1": {
-    #         "flavor1": [module_result1, module_result2],
-    #         "flavor2": [module_result3, module_result4],
-    #     }
-    # }
-    modules_results_per_phase = defaultdict(dict)
+    modules, flavor = process_input_args(module, targets, flavor, headless_mode)
 
-    modules_results_per_phase["lint"] = run_lint_go(
+    lint_results = run_lint_go(
         ctx=ctx,
-        module=module,
-        targets=targets,
-        flavors=flavors,
+        modules=modules,
+        flavor=flavor,
         build=build,
         build_tags=build_tags,
         build_include=build_include,
@@ -192,7 +184,7 @@ def _lint_go(
         include_sds=include_sds,
     )
 
-    success = process_module_results(modules_results_per_phase)
+    success = process_module_results(flavor=flavor, module_results=lint_results)
 
     if success:
         if not headless_mode:
@@ -204,9 +196,8 @@ def _lint_go(
 
 def run_lint_go(
     ctx,
-    module=None,
-    targets=None,
-    flavors=None,
+    modules=None,
+    flavor=None,
     build="lint",
     build_tags=None,
     build_include=None,
@@ -219,38 +210,29 @@ def run_lint_go(
     headless_mode=False,
     include_sds=False,
 ):
-    modules, flavors = process_input_args(module, targets, flavors, headless_mode)
+    linter_tags = build_tags or compute_build_tags_for_flavor(
+        flavor=flavor,
+        build=build,
+        arch=arch,
+        build_include=build_include,
+        build_exclude=build_exclude,
+        include_sds=include_sds,
+    )
 
-    linter_tags = {
-        f: build_tags
-        or compute_build_tags_for_flavor(
-            flavor=f,
-            build=build,
-            arch=arch,
-            build_include=build_include,
-            build_exclude=build_exclude,
-            include_sds=include_sds,
-        )
-        for f in flavors
-    }
+    lint_results = lint_flavor(
+        ctx,
+        modules=modules,
+        flavor=flavor,
+        build_tags=linter_tags,
+        arch=arch,
+        rtloader_root=rtloader_root,
+        concurrency=cpus,
+        timeout=timeout,
+        golangci_lint_kwargs=golangci_lint_kwargs,
+        headless_mode=headless_mode,
+    )
 
-    modules_lint_results_per_flavor = {flavor: [] for flavor in flavors}
-
-    for flavor, build_tags in linter_tags.items():
-        modules_lint_results_per_flavor[flavor] = lint_flavor(
-            ctx,
-            modules=modules,
-            flavor=flavor,
-            build_tags=build_tags,
-            arch=arch,
-            rtloader_root=rtloader_root,
-            concurrency=cpus,
-            timeout=timeout,
-            golangci_lint_kwargs=golangci_lint_kwargs,
-            headless_mode=headless_mode,
-        )
-
-    return modules_lint_results_per_flavor
+    return lint_results
 
 
 def lint_flavor(

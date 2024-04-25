@@ -179,6 +179,8 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig) *profiling.Settings {
 		MutexProfileFraction: coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
 		BlockProfileRate:     coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),
 		WithGoroutineProfile: coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+		WithBlockProfile:     coreconfig.Datadog.GetBool("internal_profiling.enable_block_profiling"),
+		WithMutexProfile:     coreconfig.Datadog.GetBool("internal_profiling.enable_mutex_profiling"),
 		Tags:                 tags,
 	}
 }

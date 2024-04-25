@@ -201,7 +201,7 @@ func (p *goTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Opt
 	}
 }
 
-// Start launches the goTLS main goroutine to handle events.
+// PreStart launches the goTLS main goroutine to handle events.
 func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 	var err error
 
@@ -244,18 +244,21 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 	return nil
 }
 
-func (p *goTLSProgram) PostStart(_ *manager.Manager) error {
+// PostStart is a no-op.
+func (p *goTLSProgram) PostStart(*manager.Manager) error {
 	return nil
 }
 
-func (p *goTLSProgram) DumpMaps(_ io.Writer, _ string, _ *ebpf.Map) {}
+// DumpMaps is a no-op.
+func (p *goTLSProgram) DumpMaps(io.Writer, string, *ebpf.Map) {}
 
+// GetStats is a no-op.
 func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
 	return nil
 }
 
 // Stop terminates goTLS main goroutine.
-func (p *goTLSProgram) Stop(_ *manager.Manager) {
+func (p *goTLSProgram) Stop(*manager.Manager) {
 	close(p.done)
 	// Waiting for the main event loop to finish.
 	p.wg.Wait()

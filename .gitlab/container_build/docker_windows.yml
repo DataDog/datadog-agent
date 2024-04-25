@@ -75,7 +75,7 @@
     ["windows_msi_and_bosh_zip_x64-a7", "build_windows_container_entrypoint"]
   variables:
     AGENT_ZIP: "datadog-agent-7*-x86_64.zip"
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}"
 
 .docker_build_agent6_windows_common:
   extends:
@@ -86,7 +86,7 @@
   needs: ["windows_msi_x64-a6", "build_windows_container_entrypoint"]
   variables:
     AGENT_ZIP: "datadog-agent-6*-x86_64.zip"
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}"
 
 .docker_build_agent6_windows_servercore_common:
   extends:
