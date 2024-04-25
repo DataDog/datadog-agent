@@ -1581,7 +1581,6 @@ def process_btfhub_archive(ctx, branch="main"):
             # at least one file needs to be moved for directory to exist
             if os.path.exists(btfs_dir):
                 with ctx.cd(temp_dir):
-                    # gzip ends up being much faster than xz, for roughly the same output file size
                     # include btfs-$ARCH as prefix for all paths
                     ctx.run(f"tar -cf {output_path} btfs-{arch}")
 
