@@ -16,6 +16,7 @@
   variables:
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
+    KUBERNETES_CPU_REQUEST: 6
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
@@ -49,6 +50,8 @@ tests_ebpf_arm64:
     - !reference [.except_mergequeue]
     - when: on_success
   needs: ["go_deps", "go_tools_deps"]
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
   artifacts:
     when: always
     paths:
