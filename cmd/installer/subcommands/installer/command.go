@@ -45,13 +45,14 @@ type cmd struct {
 }
 
 func newCmd(operation string) *cmd {
+	t := newTelemetry()
 	span, ctx := newSpan(operation)
 	registry := os.Getenv(envRegistry)
 	registryAuth := os.Getenv(envRegistryAuth)
 	apiKey := os.Getenv(envAPIKey)
 	site := os.Getenv(envSite)
 	return &cmd{
-		t:            newTelemetry(),
+		t:            t,
 		ctx:          ctx,
 		span:         span,
 		registry:     registry,
@@ -131,6 +132,11 @@ func newTelemetry() *telemetry.Telemetry {
 	t, err := telemetry.NewTelemetry(apiKey, site, "datadog-installer")
 	if err != nil {
 		fmt.Printf("failed to initialize telemetry: %v\n", err)
+		return nil
+	}
+	err = t.Start(context.Background())
+	if err != nil {
+		fmt.Printf("failed to start telemetry: %v\n", err)
 		return nil
 	}
 	return t
