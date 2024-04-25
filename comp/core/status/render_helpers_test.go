@@ -35,6 +35,7 @@ func TestMkHuman(t *testing.T) {
 
 func TestUntypeFuncMap(t *testing.T) {
 	templateText := `
+	{{ version .VersionValue }}
 	{{ doNotEscape .DoNotEscapeValue }}
 	{{ lastError .LastErrorValue }}
 	{{ configError .ConfigErrorValue }}
@@ -49,14 +50,13 @@ func TestUntypeFuncMap(t *testing.T) {
 	{{ yellowText .YellowTextValue }}
 	{{ greenText .GreenTextValue }}
 	{{ ntpWarning .NtpWarningValue }}
-	{{ version .VersionValue }}
 	{{ percent .PercentValue }}
 	{{ complianceResult .ComplianceResultValue }}
 	{{ lastErrorTraceback .LastErrorTracebackValue }}
 	{{ lastErrorMessage .LastErrorMessageValue }}
 	{{ pythonLoaderError .PythonLoaderErrorValue }}
+	{{ status .StatusValue }}
 	`
-	// {{ status .StatusValue }}
 	valueStruct := struct {
 		DoNotEscapeValue        string
 		LastErrorValue          string
@@ -75,7 +75,7 @@ func TestUntypeFuncMap(t *testing.T) {
 		YellowTextValue         string
 		GreenTextValue          string
 		NtpWarningValue         string
-		VersionValue            string
+		VersionValue            map[string]string
 		PercentValue            float64
 		ComplianceResultValue   int
 		LastErrorTracebackValue string
@@ -100,7 +100,7 @@ func TestUntypeFuncMap(t *testing.T) {
 		YellowTextValue:         "mockYellowText",
 		GreenTextValue:          "mockGreenText",
 		NtpWarningValue:         "mockNtpWarning",
-		VersionValue:            "mockVersion",
+		VersionValue:            map[string]string{"test": "test"},
 		PercentValue:            0.5,
 		ComplianceResultValue:   12,
 		LastErrorTracebackValue: "mockLastErrorTraceback",
@@ -114,7 +114,6 @@ func TestUntypeFuncMap(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	// Run the template to verify the output.
 	err = tmpl.Execute(&buf, valueStruct)
 	assert.NoError(t, err)
 }

@@ -8,6 +8,7 @@ package status
 import (
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	htemplate "html/template"
 	"io"
@@ -137,152 +138,53 @@ func untypeFuncMap(funcMap map[string]any) map[string]any {
 }
 
 func castValue(value interface{}, targetType reflect.Type) (reflect.Value, error) {
-	if reflect.TypeOf(value) == targetType {
+	if reflect.TypeOf(value).AssignableTo(targetType) {
 		return reflect.ValueOf(value), nil
 	}
+
+	var o any = reflect.Value{}
+	var err error = errors.New("")
 
 	switch targetType.Kind() {
-	case reflect.Interface:
-		return reflect.ValueOf(value), nil
-	case reflect.String:
-		o, err := cast.ToStringE(value)
-		if err != nil {
-			return reflect.Value{}, err
-		}
-		return reflect.ValueOf(o), nil
-	case reflect.Int:
-		if targetType.Size() == 1 {
-			o, err := cast.ToInt8E(value)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			return reflect.ValueOf(o), nil
-		} else if targetType.Size() == 2 {
-			o, err := cast.ToInt16E(value)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			return reflect.ValueOf(o), nil
-		} else if targetType.Size() == 4 {
-			o, err := cast.ToInt32E(value)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			return reflect.ValueOf(o), nil
-		} else {
-			o, err := cast.ToIntE(value)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			return reflect.ValueOf(o), nil
-		}
-	case reflect.Int64:
-		o, err := cast.ToInt64E(value)
-		if err != nil {
-			return reflect.Value{}, err
-		}
-		return reflect.ValueOf(o), nil
-	case reflect.Float32:
-		o, err := cast.ToFloat32E(value)
-		if err != nil {
-			return reflect.Value{}, err
-		}
-		return reflect.ValueOf(o), nil
-	case reflect.Float64:
-		o, err := cast.ToFloat64E(value)
-		if err != nil {
-			return reflect.Value{}, err
-		}
-		return reflect.ValueOf(o), nil
 	case reflect.Bool:
-		o, err := cast.ToBoolE(value)
-		if err != nil {
-			return reflect.Value{}, err
-		}
-		return reflect.ValueOf(o), nil
-	case reflect.Slice:
-		elemType := targetType.Elem()
-		if elemType.Kind() == reflect.String {
-			o, err := cast.ToStringSliceE(value)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			return reflect.ValueOf(o), nil
-		} else if elemType.Kind() == reflect.Int {
-			o, err := cast.ToIntSliceE(value)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			return reflect.ValueOf(o), nil
-		} else if elemType.Kind() == reflect.Bool {
-			o, err := cast.ToBoolSliceE(value)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			return reflect.ValueOf(o), nil
-		}
-		return reflect.MakeSlice(targetType, 0, 0), nil
-	case reflect.Map:
-		keyType := targetType.Key()
-		elemType := targetType.Elem()
-		if keyType.Kind() == reflect.String && elemType.Kind() == reflect.String {
-			o, err := cast.ToStringMapStringE(value)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			return reflect.ValueOf(o), nil
-		}
-		return reflect.MakeMap(targetType), nil
-	case reflect.Struct:
-		if targetType == reflect.TypeOf(time.Time{}) {
-			o, err := cast.ToTimeE(value)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			return reflect.ValueOf(o), nil
-		} else if targetType == reflect.TypeOf(time.Nanosecond) {
-			o, err := cast.ToDurationE(value)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			return reflect.ValueOf(o), nil
-		}
+		o, err = cast.ToBoolE(value)
+	case reflect.Int:
+		o, err = cast.ToIntE(value)
+	case reflect.Int8:
+		o, err = cast.ToInt8E(value)
+	case reflect.Int16:
+		o, err = cast.ToInt16E(value)
+	case reflect.Int32:
+		o, err = cast.ToInt32E(value)
+	case reflect.Int64:
+		o, err = cast.ToInt64E(value)
 	case reflect.Uint:
-		if targetType.Size() == 1 {
-			o, err := cast.ToUint8E(value)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			return reflect.ValueOf(o), nil
-		} else if targetType.Size() == 2 {
-			o, err := cast.ToUint16E(value)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			return reflect.ValueOf(o), nil
-		} else if targetType.Size() == 4 {
-			o, err := cast.ToUint32E(value)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			return reflect.ValueOf(o), nil
-		} else {
-			o, err := cast.ToUintE(value)
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			return reflect.ValueOf(o), nil
-		}
+		o, err = cast.ToUintE(value)
+	case reflect.Uint8:
+		o, err = cast.ToUint8E(value)
+	case reflect.Uint16:
+		o, err = cast.ToUint16E(value)
+	case reflect.Uint32:
+		o, err = cast.ToUint32E(value)
 	case reflect.Uint64:
-		o, err := cast.ToUint64E(value)
-		if err != nil {
-			return reflect.Value{}, err
-		}
-		return reflect.ValueOf(o), nil
+		o, err = cast.ToUint64E(value)
+	case reflect.Float32:
+		o, err = cast.ToFloat32E(value)
+	case reflect.Float64:
+		o, err = cast.ToFloat64E(value)
+	case reflect.Slice:
+		o, err = cast.ToSliceE(value)
+	case reflect.String:
+		o, err = cast.ToStringE(value)
+	case reflect.Interface:
+		o, err = reflect.ValueOf(o).Interface(), nil
 	}
 
-	// If no matching type is found, return the original value
-	return reflect.Value{}, fmt.Errorf("unable to cast %+v to type %s", value, targetType)
+	if err != nil {
+		err = fmt.Errorf("{{CAST_ERROR: unable to cast value of type \"%T\" to \"%s\"}}", value, targetType)
+	}
+
+	return reflect.ValueOf(o), err
 }
 
 // RenderHTML reads, parse and execute template from embed.FS
