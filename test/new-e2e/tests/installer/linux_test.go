@@ -89,7 +89,7 @@ func TestSuseARM(t *testing.T) {
 
 func (v *installerSuite) bootstrap(remoteUpdatesEnabled bool) {
 	v.Env().RemoteHost.MustExecute(
-		fmt.Sprintf("sudo -E %v/bin/installer/installer bootstrap", bootInstallerDir),
+		"sudo -E datadog-bootstrap bootstrap",
 		components.WithEnvVariables(components.EnvVar{
 			"DD_INSTALLER_REGISTRY":          "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 			"DD_INSTALLER_REGISTRY_AUTH":     "ecr",
