@@ -53,12 +53,14 @@ func (f *eventDataGetter) run(w *sync.WaitGroup) {
 		e, err := f.getEventData(winevent)
 		if err != nil {
 			log.Errorf("%v", err)
+			evtapi.EvtCloseRecord(f.evtapi, winevent.EventRecordHandle)
 			continue
 		}
 
 		select {
 		case f.outCh <- e:
 		case <-f.doneCh:
+			e.Close()
 			return
 		}
 	}

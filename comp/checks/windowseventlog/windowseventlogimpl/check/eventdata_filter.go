@@ -40,6 +40,7 @@ func (f *eventDataFilter) run(w *sync.WaitGroup) {
 		select {
 		case f.outCh <- e:
 		case <-f.doneCh:
+			e.Close()
 			return
 		}
 	}
