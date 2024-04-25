@@ -306,14 +306,14 @@ func TestGetMoreEntriesIndexPagination(t *testing.T) {
 	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
 		startID := r.URL.Query().Get("startId")
 		if calls == 1 {
-			// First call, expect startId to be 16
+			// First call, expect startId to be 15
 
-			require.Equal(t, "16", startID, "startId should be correct")
+			require.Equal(t, "15", startID, "startId should be correct")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`
 				{
   					"pageInfo": {
-        				"startId": "16",
+        				"startId": "15",
 						"endId": "30",
         				"moreEntries": true,
         				"count": 14
@@ -324,12 +324,12 @@ func TestGetMoreEntriesIndexPagination(t *testing.T) {
 		}
 
 		// Second call, expect startId to be 31
-		require.Equal(t, "31", startID, "startId should be correct")
+		require.Equal(t, "30", startID, "startId should be correct")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`
 			{
   				"pageInfo": {
-       	 			"startId": "31",
+       	 			"startId": "30",
         			"endId": "35",
         			"moreEntries": false,
         			"count": 4
@@ -457,18 +457,6 @@ func TestGetNextPaginationParams(t *testing.T) {
 				Count:       10,
 			},
 			expectedParams: map[string]string{"scrollId": "test"},
-		},
-		{
-			name:  "index based pagination with invalid end id",
-			count: "1000",
-			pageInfo: PageInfo{
-				StartID:     "0",
-				EndID:       "invalid id",
-				MoreEntries: true,
-				Count:       10,
-			},
-			expectedError:  "invalid syntax",
-			expectedParams: nil,
 		},
 		{
 			name:           "invalid page info",

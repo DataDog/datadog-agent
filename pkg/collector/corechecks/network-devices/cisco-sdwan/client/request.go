@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -145,12 +144,8 @@ func getNextPaginationParams(info PageInfo, count string) (map[string]string, er
 	newParams := make(map[string]string)
 	if info.MoreEntries {
 		// For endpoints that uses index-based pagination
-		endID, err := strconv.Atoi(info.EndID)
-		if err != nil {
-			return nil, err
-		}
 		newParams["count"] = count
-		newParams["startId"] = fmt.Sprintf("%v", endID)
+		newParams["startId"] = info.EndID
 		return newParams, nil
 	} else if info.HasMoreData {
 		// For endpoints that uses scroll-based pagination (ES like)
