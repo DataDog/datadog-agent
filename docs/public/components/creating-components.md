@@ -9,7 +9,7 @@ Since there are multiple ways to compress data, we are going to provide two impl
 * The [ZSTD](https://en.wikipedia.org/wiki/Zstd) data compression algorithm
 * The [ZIP](https://en.wikipedia.org/wiki/ZIP_(file_format)) data compression algorithm
 
-A Component is organize into multiple folders and Go packages. The main reason to separate a component into separate package is to separate the interface from the implementations and to improve code sharing. Having the interface declare in a separate package from the implementation allow to import the interface without having to import the different implementations. 
+A component contains multiple folders and Go packages. Developers separate a component into a separate package to separate the interface from the implementations and improve code sharing. Declaring the interface in a separate package from the implementation allows you to import the interface without importing all of the implementations. 
 
 ## File hierarchy
 
