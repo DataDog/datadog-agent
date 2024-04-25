@@ -110,9 +110,12 @@ func TestPatchPrintkNewline(t *testing.T) {
 		// We allow up to two lines that don't match, to avoid failures with other tests outputting to
 		// the trace pipe.
 		var actualLine string
-		maxLinesToRead := 1 // Only read one line, don't allow failures as our output should be coming all together
+		// Only read one line, don't allow failures as our output should be coming all together.
+		// If we ignored failing lines, we would miss the case where our patcher doesn't work and
+		// outputs an extra newline.
+		maxLinesToRead := 1
 		if i == 0 {
-			maxLinesToRead = 100 // Except for the first line, we might need to flush previous trace pipe output
+			maxLinesToRead = 1000 // Except for the first line, we might need to flush previous trace pipe output
 		}
 		for readLines := 0; readLines < maxLinesToRead; readLines++ {
 			actualLine, err = traceReader.ReadString('\n')
