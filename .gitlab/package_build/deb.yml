@@ -19,10 +19,7 @@
     - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe ${FLAVOR:+--flavor $FLAVOR}
     - ls -la $OMNIBUS_PACKAGE_DIR
-    - curl -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg
-    - pushd $OMNIBUS_PACKAGE_DIR
-    - find . -iregex '.*\.\(deb\|rpm\)' -printf '%f\0' | xargs -0 dd-pkg lint
-    - popd
+    - !reference [.lint_linux_packages]
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
     - !reference [.upload_sbom_artifacts]
@@ -154,10 +151,7 @@ agent_deb-arm64-a7:
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e omnibus.build --flavor iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
-    - curl -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg
-    - pushd $OMNIBUS_PACKAGE_DIR
-    - find . -iregex '.*\.\(deb\|rpm\)' -printf '%f\0' | xargs -0 dd-pkg lint
-    - popd
+    - !reference [.lint_linux_packages]
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-iot-agent*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -237,10 +231,7 @@ dogstatsd_deb-x64:
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e omnibus.build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="dogstatsd"
     - ls -la $OMNIBUS_PACKAGE_DIR
-    - curl -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg
-    - pushd $OMNIBUS_PACKAGE_DIR
-    - find . -iregex '.*\.\(deb\|rpm\)' -printf '%f\0' | xargs -0 dd-pkg lint
-    - popd
+    - !reference [.lint_linux_packages]
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd*_amd64.deb $S3_ARTIFACTS_URI/datadog-dogstatsd_amd64.deb
     - !reference [.upload_sbom_artifacts]
   artifacts:
@@ -272,10 +263,7 @@ dogstatsd_deb-arm64:
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e omnibus.build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="dogstatsd"
     - ls -la $OMNIBUS_PACKAGE_DIR
-    - curl -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg
-    - pushd $OMNIBUS_PACKAGE_DIR
-    - find . -iregex '.*\.\(deb\|rpm\)' -printf '%f\0' | xargs -0 dd-pkg lint
-    - popd
+    - !reference [.lint_linux_packages]
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd*_arm64.deb $S3_ARTIFACTS_URI/datadog-dogstatsd_arm64.deb
     - !reference [.upload_sbom_artifacts]
   artifacts:

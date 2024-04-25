@@ -12,6 +12,7 @@
     - echo "Packaging artifact ${OMNIBUS_PACKAGE_ARTIFACT} to .deb"
     - !reference [.setup_deb_signing_key]
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project installer
+    - !reference [.lint_linux_packages]
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-installer_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
   artifacts:
     expire_in: 2 weeks
