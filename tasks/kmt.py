@@ -960,9 +960,15 @@ def status(ctx: Context, stack: str | None = None, all=False, ssh_key: str | Non
     help={
         "version": "The version to update the images to. If not provided, version will not be changed. If 'latest' is provided, the latest version will be used.",
         "update-only-matching": "Only update the platform info for images that match the given regex",
+        "exclude-matching": "Exclude images that match the given regex",
     }
 )
-def update_platform_info(ctx: Context, version: str | None = None, update_only_matching: str | None = None):
+def update_platform_info(
+    ctx: Context,
+    version: str | None = None,
+    update_only_matching: str | None = None,
+    exclude_matching: str | None = None,
+):
     """Generate a JSON file with platform information for all the images
     found in the KMT S3 bucket.
     """
@@ -1018,6 +1024,10 @@ def update_platform_info(ctx: Context, version: str | None = None, update_only_m
                 warn(f"[!] Image {image_name} does not match the filter, skipping")
                 continue
 
+            if exclude_matching is not None and re.search(exclude_matching, image_name) is not None:
+                warn(f"[!] Image {image_name} matches the exclude filter, skipping")
+                continue
+
             manifest_to_platinfo_keys = {
                 'NAME': 'os_name',
                 'ID': 'os_id',
@@ -1051,6 +1061,9 @@ def update_platform_info(ctx: Context, version: str | None = None, update_only_m
         for image_name, platinfo in platforms[arch].items():
             if update_only_matching is not None and re.search(update_only_matching, image_name) is None:
                 continue  # Only validate those that match
+
+            if exclude_matching is not None and re.search(exclude_matching, image_name) is not None:
+                continue
 
             version_from_file = platinfo.get('image_version')
             if version_from_file != version:
