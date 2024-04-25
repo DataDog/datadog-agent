@@ -10,6 +10,7 @@ package host
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -27,30 +28,31 @@ import (
 // not trigger multiple scans at the same time unlike for container-images.
 const channelSize = 1
 
-// scanRequest defines a scan request. This struct should be
+// ScanRequest defines a scan request. This struct should be
 // hashable to be pushed in the work queue for processing.
-type scanRequest struct {
-	path string
+type ScanRequest struct {
+	Path string
+	FS   fs.FS
 }
 
 // NewScanRequest creates a new scan request
-func NewScanRequest(path string) sbom.ScanRequest {
-	return scanRequest{path: path}
+func NewScanRequest(path string, fs fs.FS) sbom.ScanRequest {
+	return ScanRequest{Path: path, FS: fs}
 }
 
 // Collector returns the collector name
-func (r scanRequest) Collector() string {
+func (r ScanRequest) Collector() string {
 	return collectors.HostCollector
 }
 
 // Type returns the scan request type
-func (r scanRequest) Type(sbom.ScanOptions) string {
+func (r ScanRequest) Type(sbom.ScanOptions) string {
 	return sbom.ScanFilesystemType
 }
 
 // ID returns the scan request ID
-func (r scanRequest) ID() string {
-	return r.path
+func (r ScanRequest) ID() string {
+	return r.Path
 }
 
 // Collector defines a host collector
@@ -84,13 +86,13 @@ func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmet
 
 // Scan performs a scan
 func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
-	hostScanRequest, ok := request.(scanRequest)
+	hostScanRequest, ok := request.(*ScanRequest)
 	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectors.HostCollector)}
 	}
 	log.Infof("host scan request [%v]", hostScanRequest.ID())
 
-	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.path, c.opts)
+	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.FS, hostScanRequest.Path, c.opts)
 	return sbom.ScanResult{
 		Error:  err,
 		Report: report,
