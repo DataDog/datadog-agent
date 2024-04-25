@@ -109,6 +109,9 @@ func newBootstraperCmd(operation string) *bootstraperCmd {
 	if cmd.apiKey != "" {
 		opts = append(opts, bootstraper.WithAPIKey(cmd.apiKey))
 	}
+	if cmd.site != "" {
+		opts = append(opts, bootstraper.WithSite(cmd.site))
+	}
 	if os.Getenv(envBootstrapInstallerVersion) != "" {
 		opts = append(opts, bootstraper.WithInstallerVersion(os.Getenv(envBootstrapInstallerVersion)))
 	}
