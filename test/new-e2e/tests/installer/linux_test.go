@@ -62,6 +62,21 @@ func TestCentOSAMD(t *testing.T) {
 	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault, false)
 }
 
+func TestAmazonLinux2023ARM(t *testing.T) {
+	t.Parallel()
+	runTest(t, "rpm", os.ARM64Arch, os.AmazonLinux2023, false)
+}
+
+func TestAmazonLinux2AMD(t *testing.T) {
+	t.Parallel()
+	runTest(t, "rpm", os.AMD64Arch, os.AmazonLinux2, false)
+}
+
+func TestFedoraAMD(t *testing.T) {
+	t.Parallel()
+	runTest(t, "rpm", os.AMD64Arch, os.FedoraDefault, false)
+}
+
 func TestRedHatARM(t *testing.T) {
 	t.Parallel()
 	runTest(t, "rpm", os.ARM64Arch, os.RedHatDefault, false)
@@ -89,7 +104,7 @@ func TestSuseARM(t *testing.T) {
 
 func (v *installerSuite) bootstrap(remoteUpdatesEnabled bool) {
 	v.Env().RemoteHost.MustExecute(
-		fmt.Sprintf("sudo -E %v/bin/installer/installer bootstrap", bootInstallerDir),
+		"sudo -E datadog-bootstrap bootstrap",
 		components.WithEnvVariables(components.EnvVar{
 			"DD_INSTALLER_REGISTRY":          "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 			"DD_INSTALLER_REGISTRY_AUTH":     "ecr",
@@ -250,9 +265,13 @@ func (v *installerSuite) TestPurgeAndInstallAgent() {
 }
 
 func (v *installerSuite) TestPurgeAndInstallAPMInjector() {
-	if v.packageManager == "rpm" {
-		v.T().Skip("skip APMInjector test on rpm distros")
+	if v.distro == os.SuseDefault {
+		v.T().Skip(
+			"Docker is not supported on SUSE without arch s390x (IBM Z), but we don't support that arch in E2E tests.\n" +
+				"See https://docs.docker.com/engine/install/sles/#os-requirements for more details",
+		)
 	}
+
 	host := v.Env().RemoteHost
 
 	///////////////////

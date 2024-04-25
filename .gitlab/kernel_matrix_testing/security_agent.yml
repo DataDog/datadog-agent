@@ -147,8 +147,8 @@ kmt_run_secagent_tests_x64:
           - "ubuntu_20.04"
           - "ubuntu_22.04"
           - "ubuntu_23.10"
-          - "amzn_5.4"
-          - "amzn_5.10"
+          - "amazon_5.4"
+          - "amazon_5.10"
           - "fedora_37"
           - "fedora_38"
           - "debian_10"
@@ -158,6 +158,9 @@ kmt_run_secagent_tests_x64:
           - "oracle_9.3"
           - "rocky_8.5"
           - "rocky_9.3"
+          - "opensuse_15.3"
+          - "opensuse_15.5"
+          - "suse_12.5"
         TEST_SET: [all_tests]
   after_script:
     - !reference [.collect_outcomes_kmt]
@@ -181,8 +184,8 @@ kmt_run_secagent_tests_arm64:
       - TAG:
           - "ubuntu_22.04"
           - "ubuntu_23.10"
-          - "amzn_5.4"
-          - "amzn_5.10"
+          - "amazon_5.4"
+          - "amazon_5.10"
           - "fedora_37"
           - "fedora_38"
           - "debian_11"
@@ -191,6 +194,9 @@ kmt_run_secagent_tests_arm64:
           - "oracle_9.3"
           - "rocky_8.5"
           - "rocky_9.3"
+          - "opensuse_15.3"
+          - "opensuse_15.5"
+          - "suse_12.5"
         TEST_SET: ["all_tests"]
   after_script:
     - !reference [.collect_outcomes_kmt]

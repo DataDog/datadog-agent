@@ -71,6 +71,13 @@ func WithAPIKey(apiKey string) Option {
 	}
 }
 
+// WithSite sets the site.
+func WithSite(site string) Option {
+	return func(o *options) {
+		o.site = site
+	}
+}
+
 // Bootstrap installs a first version of the installer on the disk.
 //
 // The bootstrap process is composed of the following steps:
