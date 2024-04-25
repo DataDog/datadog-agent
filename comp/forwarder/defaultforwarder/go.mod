@@ -60,7 +60,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2
-	github.com/golang/protobuf v1.5.3
+	github.com/golang/protobuf v1.5.4
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/atomic v1.11.0
