@@ -17,7 +17,7 @@ import (
 // chunkProcessesBySizeAndWeight chunks `model.Process` payloads by max allowed size and max allowed weight of a chunk
 func chunkProcessesBySizeAndWeight(procs []*model.Process, ctr *model.Container, maxChunkSize, maxChunkWeight int, chunker *util.ChunkAllocator[model.CollectorProc, *model.Process]) {
 	if ctr != nil && len(procs) == 0 {
-		// can happen in two scenarios, and we still need to report the container
+		// can happen in three scenarios, and we still need to report the container
 		// a) if a process is skipped (e.g. disallowlisted)
 		// b) if process <=> container mapping cannot be established (e.g. Docker on Windows).
 		// c) pidMode not set to "task" on ECS Fargate
