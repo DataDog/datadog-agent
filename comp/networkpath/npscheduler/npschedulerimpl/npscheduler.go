@@ -225,6 +225,7 @@ func (s *npSchedulerImpl) getTelemetryTags(path traceroute.NetworkPath) []string
 	tags = append(tags, []string{
 		"protocol:udp", // TODO: Update to protocol from config when we support tcp/icmp
 		"destination_hostname:" + path.Destination.Hostname,
+		"destination_ip:" + path.Destination.IPAddress,
 		"destination_port:" + destPortTag,
 	}...)
 	return tags
