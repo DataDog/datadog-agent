@@ -6,43 +6,49 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
-	"time"
 
-	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
-	"github.com/cenkalti/backoff"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
+	"github.com/mitchellh/mapstructure"
 )
 
-// WaitAppLogs waits for the app log corresponding to the query
-func WaitAppLogs(apiClient *Client, query string) (*datadog.LogAttributes, error) {
-	var resp *datadog.LogAttributes
-	err := backoff.Retry(func() error {
-		tmpResp, err := apiClient.GetAppLog(query)
-		if err != nil {
-			return err
-		}
-		if len(tmpResp.Data) > 0 {
-			resp = tmpResp.Data[0].Attributes
-			return nil
-		}
-		return errors.New("no log found")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-	return resp, err
+// ErrNoSignalFound is returned when no signal is found
+var ErrNoSignalFound = errors.New("no signal found")
+
+// GetSignal returns the last signal matching the query
+func (c *Client) GetSignal(query string) (*datadogV2.SecurityMonitoringSignalAttributes, error) {
+	resp, err := c.getSignals(query)
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Data) > 0 {
+		return resp.Data[len(resp.Data)-1].Attributes, nil
+	}
+	return nil, ErrNoSignalFound
 }
 
-// WaitAppSignal waits for the signal corresponding to the query
-func WaitAppSignal(apiClient *Client, query string) (*datadog.SecurityMonitoringSignalAttributes, error) {
-	var resp *datadog.SecurityMonitoringSignalAttributes
-	err := backoff.Retry(func() error {
-		tmpResp, err := apiClient.GetAppSignal(query)
-		if err != nil {
-			return err
-		}
-		if len(tmpResp.Data) > 0 {
-			resp = tmpResp.Data[0].Attributes
-			return nil
-		}
-		return errors.New("no log found")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-	return resp, err
+// GetterFromPointer is a type constraint for log-based events
+type GetterFromPointer[T any, E any] interface {
+	*T
+	Get() E
+}
+
+// GetAppEvent returns the last event matching the query
+func GetAppEvent[T any, PT GetterFromPointer[T, *Event]](c *Client, query string) (*T, error) {
+	log, err := c.getLastMatchingLog(query)
+	if err != nil {
+		return nil, err
+	}
+	var e T
+	err = mapstructure.Decode(log.Attributes, &e)
+	if err != nil {
+		return nil, err
+	}
+	ptr := PT(&e)
+	ptr.Get().marshaler = func() ([]byte, error) {
+		return json.Marshal(log.Attributes)
+	}
+	ptr.Get().Tags = log.Tags
+	return &e, nil
 }

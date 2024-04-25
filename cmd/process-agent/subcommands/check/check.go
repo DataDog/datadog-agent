@@ -4,12 +4,14 @@
 // Copyright 2016-present Datadog, Inc.
 
 //nolint:revive // TODO(PROC) Fix revive linter
-package app
+package check
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -39,17 +41,17 @@ import (
 
 const defaultWaitInterval = time.Second
 
-type cliParams struct {
+type CliParams struct {
 	*command.GlobalParams
 	checkName       string
 	checkOutputJSON bool
 	waitInterval    time.Duration
 }
 
-type dependencies struct {
+type Dependencies struct {
 	fx.In
 
-	CliParams *cliParams
+	CliParams *CliParams
 
 	Config   config.Component
 	Syscfg   sysprobeconfig.Component
@@ -73,17 +75,26 @@ func nextGroupID() func() int32 {
 
 // Commands returns a slice of subcommands for the `check` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &cliParams{
+	checkAllowlist := []string{"process", "rtprocess", "container", "rtcontainer", "connections", "process_discovery", "process_events"}
+	return []*cobra.Command{MakeCommand(globalParams, "check", checkAllowlist)}
+}
+
+func MakeCommand(globalParams *command.GlobalParams, name string, allowlist []string) *cobra.Command {
+	cliParams := &CliParams{
 		GlobalParams: globalParams,
 	}
 
 	checkCmd := &cobra.Command{
-		Use:   "check",
-		Short: "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery, process_events",
+		Use:   name,
+		Short: "Run a specific check and print the results. Choose from: " + strings.Join(allowlist, ", "),
 
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.checkName = args[0]
+
+			if !slices.Contains(allowlist, cliParams.checkName) {
+				return fmt.Errorf("invalid check '%s'", cliParams.checkName)
+			}
 
 			bundleParams := command.GetCoreBundleParamsForOneShot(globalParams)
 
@@ -92,7 +103,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				bundleParams.LogParams = logimpl.ForOneShot(string(command.LoggerName), "off", true)
 			}
 
-			return fxutil.OneShot(runCheckCmd,
+			return fxutil.OneShot(RunCheckCmd,
 				fx.Supply(cliParams, bundleParams),
 				core.Bundle(),
 				// Provide workloadmeta module
@@ -129,10 +140,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	checkCmd.Flags().BoolVar(&cliParams.checkOutputJSON, "json", false, "Output check results in JSON")
 	checkCmd.Flags().DurationVarP(&cliParams.waitInterval, "wait", "w", defaultWaitInterval, "How long to wait before running the check")
 
-	return []*cobra.Command{checkCmd}
+	return checkCmd
 }
 
-func runCheckCmd(deps dependencies) error {
+func RunCheckCmd(deps Dependencies) error {
 	command.SetHostMountEnv(deps.Log)
 
 	// Now that the logger is configured log host info
@@ -184,7 +195,7 @@ func matchingCheck(checkName string, ch checks.Check) bool {
 	return ch.Name() == checkName
 }
 
-func runCheck(log log.Component, cliParams *cliParams, ch checks.Check) error {
+func runCheck(log log.Component, cliParams *CliParams, ch checks.Check) error {
 	nextGroupID := nextGroupID()
 
 	options := &checks.RunOptions{

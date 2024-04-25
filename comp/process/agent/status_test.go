@@ -62,7 +62,6 @@ func TestStatus(t *testing.T) {
 
 			val, ok := processStats.(map[string]interface{})
 			assert.True(t, ok)
-
 			assert.NotEmpty(t, val["core"])
 			assert.Empty(t, val["error"])
 		}},
