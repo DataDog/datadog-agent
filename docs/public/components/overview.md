@@ -3,61 +3,31 @@
 The Agent is structured as a collection of components working together. Depending on how the binary is built, and how it
 is invoked, different components may be instantiated.
 
+<!-- TODO: What are the goals of using the components?  -->
+
 ## What is a Component?
 
-Any well-defined portion of the codebase, with a clearly documented API, _should_ be a component. The ultimate goal of
-any component is to clearly encapsulate the logic/feature block that composes the Datadog Agent. Components can be small
-or very large but all share the same goals.
+The goal of a component is to encapsulates a particular piece of logic/feature and provide a clear and documented interface. 
 
 A component must:
 
-* **Limit blast radius**:
-    + Have a single interface clearly highlighting how the component must be used and what features it offers.
-    + Encapsulate and abstract all the complexity of its subject. As much as possible a user of a component should not
-      have to know all the internals of it. As well, any change to the internals of a component should have no
-      impact on the code using it.
-    + Clearly list its dependencies, which could be passed using dependency injection (more on this below).
-* **Increase development velocity**:
-    + All components must be reusable no matter the context or the binary in which they're included.
-    + Expose a mock implementing their interface to ease testing.
-    + As long as its dependencies are present a component should work the same no matter in which context it's used.
-      This means we should be able to easily create new binary/agents by composing different components.
-    + The interface must be carefully documented allowing developers from other team to easily reuse it.
-    + Any change within a component, that don't change its interface, should not require QA of the other component using
-      it.
-* **Clear ownership and responsibility**:
-    + Each component should be owned by a single team which will support and maintain it.
+  + Hide the complexity of the implementation from its users.
+  + Be reusable no matter the context or the binary in which they're included.
+  + Be tested.
+  + Expose a mock implementation to help testing.
+  + Be owned by a single team which supports and maintains it.
+  
+Any change within a component that don't change its interface should not require QA of another component using it.
 
 Since each component is an interface to the outside we can have several implementations for it.
 
-## Grouping components: Bundles
-
-There is a large and growing number of components, and listing those components out repeatedly could grow tiresome and
-cause bugs. Component bundles provide a way to manipulate multiple components, usually at the meta or service level, as
-a single unit. For example, while Logs-Agent is internally composed of many components, those can be used as a single unit
-with a `logs` bundle.
-
-As an aid to thinking about this question, consider the following levels:
-
-1. Large-scale parts of the Agent that agglomerate multiple components would be a `Bundle`. Example: the Logs-Agent.
-2. Dedicated section or logic block that can be reused in multiple places would be a `Component`. Example: the logger
-   component.
-3. A specific version of a component would be an implementation. Example: a component in charge of compressing payload
-   could have a ZSTD and ZIP implementation. Most components will only have a single implementation.
-
-## Stateless logic
-
-Any logic/helper that is stateless (no globals and not `init` function) can but doesn't need to be a component. Such
-basic helpers can remain or be added to the `pkg` folder.
-
 ## FX vs Go module
 
-Components are designed to be used with a dependency injection. In the Agent repo we use [Fx](fx.md) for this. All agent
+Components are designed to be used with a dependency injection framework. In the Agent, we use [Fx](fx.md) for this. All Agent
 binaries use `FX` to load, coordinate and start the required components.
 
-Some components are used outside the `datadog-agent` repository where `FX` is not available. To support this, the
-`FX` wrappers are split from each component's implementations. Components implementation can be exported as a Go module. We
-will see in more detail how to create components in the next section.
+Some components are used outside the `datadog-agent` repository where `FX` is not available. To support this, the components implementation must not require `FX`. 
+Component implementations can be exported as Go modules. The next section explains in more detail how to create components.
 
 The important information here is that it's possible to use components without FX **outside** the agent repository. This
 comes at the cost of manually doing the work of `Fx`, our dependency injection framework.
@@ -65,9 +35,10 @@ comes at the cost of manually doing the work of `Fx`, our dependency injection f
 ## Important note on Fx
 
 The component framework project core goal is to improve the Agent codebase by decoupling parts of the code, removing global state and init
-methods, and increased reusability by separating logical units into components. We use the `Fx` library to perform
-dependency injection and startup orchestration of the agent components, however **`Fx` itself is not intrinsic to the
+methods, and increased reusability by separating logical units into components. **`Fx` itself is not intrinsic to the
 benefits of componentization**.
+
+<!-- TODO: Let's have a disclaimer about components not being 1 to 1 to Fx -->
 
 ## Next
 
