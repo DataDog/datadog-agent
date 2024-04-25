@@ -199,7 +199,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		url, err := url.Parse(addr)
 		if err == nil {
 			c.ProxyURL = url
-			c.Proxy = http.ProxyURL(c.ProxyURL)
 		} else {
 			log.Errorf("Failed to parse proxy URL from proxy.https configuration: %s", err)
 		}
