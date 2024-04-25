@@ -14,22 +14,22 @@ import (
 )
 
 const (
-	idProcessStart = uint16(1)
-	idProcessStop  = uint16(2)
-	idThreadStart  = uint16(3)
-	idThreadStop   = uint16(4)
-	idImageLoad    = uint16(5)
-	idImageUnload  = uint16(6)
+	idProcessStart = uint16(1) // nolint:unused,revive
+	idProcessStop  = uint16(2) // nolint:unused,revive
+	idThreadStart  = uint16(3) // nolint:unused,revive
+	idThreadStop   = uint16(4) // nolint:unused,revive
+	idImageLoad    = uint16(5) // nolint:unused,revive
+	idImageUnload  = uint16(6) // nolint:unused,revive
 
-	idCpuBasePriorityChange = uint16(7)
-	idCpuPriorityChange     = uint16(8)
-	idPagePriorityChange    = uint16(9)
-	idIoPriorityChange      = uint16(10)
-	idProcessFreezeStart    = uint16(11)
-	idProcessFreezeStop     = uint16(12)
-	idJobStart              = uint16(13)
-	idJobTerminateStop      = uint16(14)
-	idProcessRundown        = uint16(15)
+	idCpuBasePriorityChange = uint16(7)  // nolint:unused,revive
+	idCpuPriorityChange     = uint16(8)  // nolint:unused,revive
+	idPagePriorityChange    = uint16(9)  // nolint:unused,revive
+	idIoPriorityChange      = uint16(10) // nolint:unused,revive
+	idProcessFreezeStart    = uint16(11) // nolint:unused,revive
+	idProcessFreezeStop     = uint16(12) // nolint:unused,revive
+	idJobStart              = uint16(13) // nolint:unused,revive
+	idJobTerminateStop      = uint16(14) // nolint:unused,revive
+	idProcessRundown        = uint16(15) // nolint:unused,revive
 )
 
 /*
