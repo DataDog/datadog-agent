@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.21.0
+go 1.22.2
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -698,6 +698,7 @@ require (
 	go.opentelemetry.io/collector/otelcol v0.97.0
 	go.opentelemetry.io/collector/processor v0.97.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
+	go4.org/mem v0.0.0-20220726221520-4f986261bf13
 	gotest.tools v2.2.0+incompatible
 )
 
