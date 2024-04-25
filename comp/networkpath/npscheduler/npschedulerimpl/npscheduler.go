@@ -186,6 +186,8 @@ func (s *npSchedulerImpl) sendTelemetry(path traceroute.NetworkPath, startTime t
 	// TODO: Factor Network Path telemetry from Network Path Integration and use the code
 	// TODO: Factor Network Path telemetry from Network Path Integration and use the code
 	// TODO: Factor Network Path telemetry from Network Path Integration and use the code
+
+	// TODO: Add collector type tag (np_scheduler | network_path_integration)
 	tags := s.getTelemetryTags(path)
 
 	checkDuration := time.Since(startTime)
