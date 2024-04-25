@@ -9,7 +9,7 @@
 
 // forward declaration
 static __always_inline bool kafka_allow_packet(conn_tuple_t *tup, struct __sk_buff* skb, skb_info_t *skb_info);
-static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, u32 offset);
+static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, u32 offset, kafka_telemetry_t *kafka_tel);
 static __always_inline bool kafka_process_response(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
 static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size);
 
