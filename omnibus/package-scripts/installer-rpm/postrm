@@ -6,7 +6,6 @@
 
 PACKAGES_DIR=/opt/datadog-packages
 INSTALL_DIR=/opt/datadog-installer
-LOG_DIR=/var/log/datadog
 PACKAGES_LOCK_DIR=/var/run/datadog-packages
 
 set -e
@@ -16,17 +15,9 @@ if [ "$1" -ne 0 ]; then
     exit 0
 fi
 
-echo "Deleting dd-agent user"
-userdel dd-agent
-userdel dd-installer
-echo "Deleting dd-agent group"
-(getent group dd-agent >/dev/null && groupdel dd-agent) || true
-(getent group dd-installer >/dev/null && groupdel dd-installer) || true
-echo "Force-deleting $INSTALL_DIR $PACKAGES_DIR $LOG_DIR"
-rm -rf $LOG_DIR
+echo "Force-deleting $INSTALL_DIR $PACKAGES_DIR"
 rm -rf $PACKAGES_DIR
 rm -rf $PACKAGES_LOCK_DIR
 rm -rf $INSTALL_DIR
 
 exit 0
-

@@ -29,8 +29,10 @@ func adjustSecurity(cfg config.Config) {
 	)
 
 	if cfg.GetBool(secNS("enabled")) {
-		// if runtime is enabled then we force fim
-		cfg.Set(secNS("fim_enabled"), true, model.SourceAgentRuntime)
+		// if runtime is enabled then we enable fim as well (except if force disabled)
+		if !cfg.IsSet(secNS("fim_enabled")) {
+			cfg.Set(secNS("fim_enabled"), true, model.SourceAgentRuntime)
+		}
 	} else {
 		// if runtime is disabled then we force disable activity dumps and security profiles
 		cfg.Set(secNS("activity_dump.enabled"), false, model.SourceAgentRuntime)
