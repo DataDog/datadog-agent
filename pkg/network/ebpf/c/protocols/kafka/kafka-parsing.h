@@ -59,12 +59,11 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     }
 
     if (!kafka_allow_packet(&skb_info)) {
-    kafka_telemetry_t *kafka_tel = bpf_map_lookup_elem(&kafka_telemetry, &zero);
-    if (kafka_tel == NULL) {
         return 0;
     }
 
-    if (!kafka_allow_packet(&tup, skb, &skb_info)) {
+    kafka_telemetry_t *kafka_tel = bpf_map_lookup_elem(&kafka_telemetry, &zero);
+    if (kafka_tel == NULL) {
         return 0;
     }
 
