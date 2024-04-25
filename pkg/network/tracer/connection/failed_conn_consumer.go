@@ -32,42 +32,19 @@ var failedConnConsumerTelemetry = struct {
 type tcpFailedConnConsumer struct {
 	eventHandler  ddebpf.EventHandler
 	requests      chan chan struct{}
-	buffer        *network.ConnectionBuffer
 	once          sync.Once
 	closed        chan struct{}
 	failedConnMap network.FailedConnMap
 	mux           sync.Mutex
-	ch            *cookieHasher
 }
 
 func newFailedConnConsumer(eventHandler ddebpf.EventHandler) *tcpFailedConnConsumer {
 	return &tcpFailedConnConsumer{
 		eventHandler:  eventHandler,
 		requests:      make(chan chan struct{}),
-		buffer:        network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
 		closed:        make(chan struct{}),
 		failedConnMap: make(network.FailedConnMap),
 		mux:           sync.Mutex{},
-		ch:            newCookieHasher(),
-	}
-}
-
-func (c *tcpFailedConnConsumer) FlushPending() {
-	if c == nil {
-		return
-	}
-
-	select {
-	case <-c.closed:
-		return
-	default:
-	}
-
-	wait := make(chan struct{})
-	select {
-	case <-c.closed:
-	case c.requests <- wait:
-		<-wait
 	}
 }
 
@@ -104,7 +81,7 @@ func (c *tcpFailedConnConsumer) Start() {
 
 	var (
 		//then             = time.Now()
-		failedCount      uint64
+		//failedCount      uint64
 		lostSamplesCount uint64
 	)
 
@@ -129,10 +106,7 @@ func (c *tcpFailedConnConsumer) Start() {
 					log.Errorf("unknown type received from buffer, skipping. data size=%d, expecting %d", len(dataEvent.Data), netebpf.SizeofFailedConn)
 					continue
 				}
-
-				failedConnConsumerTelemetry.perfReceived.Add(float64(c.buffer.Len()))
-				failedCount += uint64(c.buffer.Len())
-				c.buffer.Reset()
+				failedConnConsumerTelemetry.perfLost.Inc()
 				dataEvent.Done()
 			// lost events only occur when using perf buffers
 			case lc, ok := <-lostChannel:
@@ -141,22 +115,6 @@ func (c *tcpFailedConnConsumer) Start() {
 				}
 				failedConnConsumerTelemetry.perfLost.Add(float64(lc))
 				lostSamplesCount += lc
-				//case request := <-c.requests:
-				//	failedCount += uint64(len(c.failedConnMap))
-				//	clear(c.failedConnMap)
-				//	close(request)
-				//	now := time.Now()
-				//	elapsed := now.Sub(then)
-				//	then = now
-				//	log.Debugf(
-				//		"failed conn summary: failed_count=%d elapsed=%s failure_rate=%.2f/s lost_samples_count=%d",
-				//		failedCount,
-				//		elapsed,
-				//		float64(failedCount)/elapsed.Seconds(),
-				//		lostSamplesCount,
-				//	)
-				//	failedCount = 0
-				//	lostSamplesCount = 0
 			}
 		}
 	}()

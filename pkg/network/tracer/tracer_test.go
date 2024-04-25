@@ -1175,22 +1175,28 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 	if !testConfig().CollectUDPv6Conns {
 		t.Skip("UDPv6 disabled")
 	}
+	log.Errorf("adamk setting up tracer")
 	tr := setupTracer(t, cfg)
+	log.Errorf("adamk setting up tracer 2")
 
 	remotePort := rand.Int()%5000 + 15000
 	remoteAddr := &net.UDPAddr{IP: net.IPv6loopback, Port: remotePort}
 	conn, err := net.DialUDP("udp6", nil, remoteAddr)
+	log.Errorf("adamk setting up tracer 3")
 	require.NoError(t, err)
 	defer conn.Close()
 	message := []byte("payload")
 	bytesSent, err := conn.Write(message)
+	log.Errorf("adamk setting up tracer 4")
 	require.NoError(t, err)
 
 	connections := getConnections(t, tr)
+	log.Errorf("adamk setting up tracer 5")
 	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
 		return cs.DPort == uint16(remotePort)
 	})
 
+	log.Errorf("adamk setting up tracer 6")
 	require.Len(t, outgoing, 1)
 	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
 	assert.Equal(t, bytesSent, int(outgoing[0].Monotonic.SentBytes))

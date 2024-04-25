@@ -347,7 +347,6 @@ func (t *tracer) Resume() error {
 
 func (t *tracer) FlushPending() {
 	t.closeConsumer.FlushPending()
-	t.failedConnConsumer.FlushPending()
 }
 
 func (t *tracer) GetFailedConnections() network.FailedConnMap {
