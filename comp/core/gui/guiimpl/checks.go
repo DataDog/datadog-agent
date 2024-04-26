@@ -249,12 +249,14 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	if checkFolder != "" {
 		checkConfFolderPath, err = securejoin.SecureJoin(config.Datadog.GetString("confd_path"), checkFolder)
 		if err != nil {
-			log.Errorf("Error: Unable to join provided \"confd_path\" setting path with checkFolder: %s", fileName)
+			http.Error(w, "invalid checkFolder path", http.StatusBadRequest)
+			log.Errorf("Error: Unable to join provided \"confd_path\" setting path with checkFolder: %s", err.Error())
 			return
 		}
 		defaultCheckConfFolderPath, err = securejoin.SecureJoin(filepath.Join(path.GetDistPath(), "conf.d"), checkFolder)
 		if err != nil {
-			log.Errorf("Error: Unable to join conf folder path with checkFolder: %s", fileName)
+			http.Error(w, "invalid checkFolder path", http.StatusBadRequest)
+			log.Errorf("Error: Unable to join conf folder path with checkFolder: %s", err.Error())
 			return
 		}
 	} else {
