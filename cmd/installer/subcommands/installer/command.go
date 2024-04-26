@@ -27,6 +27,7 @@ const (
 	envRegistryAuth              = "DD_INSTALLER_REGISTRY_AUTH"
 	envAPIKey                    = "DD_API_KEY"
 	envSite                      = "DD_SITE"
+	commandTimeout               = 10 * time.Minute
 )
 
 // Commands returns the installer subcommands.
@@ -37,6 +38,7 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 type cmd struct {
 	t            *telemetry.Telemetry
 	ctx          context.Context
+	cancelCtx    context.CancelFunc
 	span         ddtrace.Span
 	registry     string
 	registryAuth string
@@ -47,6 +49,7 @@ type cmd struct {
 func newCmd(operation string) *cmd {
 	t := newTelemetry()
 	span, ctx := newSpan(operation)
+	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
 	registry := os.Getenv(envRegistry)
 	registryAuth := os.Getenv(envRegistryAuth)
 	apiKey := os.Getenv(envAPIKey)
@@ -54,6 +57,7 @@ func newCmd(operation string) *cmd {
 	return &cmd{
 		t:            t,
 		ctx:          ctx,
+		cancelCtx:    cancel,
 		span:         span,
 		registry:     registry,
 		registryAuth: registryAuth,

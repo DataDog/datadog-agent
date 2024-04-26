@@ -11,12 +11,15 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
+
+const commandTimeout = 10 * time.Minute
 
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
 type InstallerExec struct {
@@ -46,12 +49,14 @@ func NewInstallerExec(installerBinPath string, registry string, registryAuth str
 
 type installerCmd struct {
 	*exec.Cmd
-	span tracer.Span
-	ctx  context.Context
+	span      tracer.Span
+	ctx       context.Context
+	cancelCtx context.CancelFunc
 }
 
 func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
 	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
+	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
 	span.SetTag("args", args)
 	span.SetTag("config.registry", i.registry)
 	span.SetTag("config.registryAuth", i.registryAuth)
@@ -65,16 +70,17 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 		fmt.Sprintf("DD_SITE=%s", i.site),
 	}...)
 	cmd.Cancel = func() error {
-		return cmd.Process.Signal(os.Interrupt)
+		return nil
 	}
 	env = append(env, telemetry.EnvFromSpanContext(span.Context())...)
 	cmd.Env = env
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return &installerCmd{
-		Cmd:  cmd,
-		span: span,
-		ctx:  ctx,
+		Cmd:       cmd,
+		span:      span,
+		ctx:       ctx,
+		cancelCtx: cancel,
 	}
 }
 
