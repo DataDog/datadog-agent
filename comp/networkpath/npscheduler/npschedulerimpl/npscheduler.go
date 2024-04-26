@@ -42,7 +42,7 @@ type npSchedulerImpl struct {
 
 func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Component) *npSchedulerImpl {
 	// TODO: MAKE pathtestInputChannelSize CONFIGURABLE
-	pathtestInputChannelSize := 100
+	pathtestInputChannelSize := 1000
 
 	// TODO: MAKE workers CONFIGURABLE
 	workers := 3
