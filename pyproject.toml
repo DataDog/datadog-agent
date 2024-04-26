@@ -71,9 +71,6 @@ unfixable = [
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 
-[tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]
-
 [tool.ruff.format]
 # Enable preview style formatting.
 quote-style = "preserve"

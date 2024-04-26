@@ -82,7 +82,7 @@ from tasks.show_linters_issues import show_linters_issues
 from tasks.unit_tests import invoke_unit_tests
 from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
-from .custom_task import custom__call__
+from tasks.custom_task.custom_task import custom__call__
 
 Task.__call__ = custom__call__
 
