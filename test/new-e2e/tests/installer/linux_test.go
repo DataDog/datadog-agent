@@ -33,7 +33,7 @@ import (
 const (
 	confDir               = "/etc/datadog-agent"
 	logDir                = "/var/log/datadog"
-	stableInstallerRunDir = "/opt/datadog-pacakges/datadog-installer/stable/run"
+	stableInstallerRunDir = "/opt/datadog-packages/datadog-installer/stable/run"
 	locksDir              = "/var/run/datadog-packages"
 	packagesDir           = "/opt/datadog-packages"
 	bootInstallerDir      = "/opt/datadog-installer"
