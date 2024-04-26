@@ -278,6 +278,17 @@ func collectEntry(file os.DirEntry, path string, integrationName string, integra
 	}
 
 	var err error
+
+	confFile, err := os.Open(absPath)
+	if err == nil && confFile != nil {
+		fileInfo, err := confFile.Stat()
+		if err != nil && fileInfo.Size() == 0 {
+			log.Tracef("Skipping file: %s", absPath)
+			entry.err = errors.New("empty file")
+			return entry, integrationErrors
+		}
+	}
+
 	entry.conf, err = GetIntegrationConfigFromFile(integrationName, absPath)
 	if err != nil {
 		log.Warnf("%s is not a valid config file: %s", absPath, err)

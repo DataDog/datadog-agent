@@ -32,6 +32,21 @@ func TestGetIntegrationConfig(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Equal(t, len(config.Instances), 0)
 
+	// valid yaml, invalid configuration file
+	config, err = GetIntegrationConfigFromFile("foo", "tests/empty.yaml")
+	assert.NotNil(t, err)
+	assert.Equal(t, len(config.Instances), 0)
+
+	// valid yaml, invalid configuration file
+	config, err = GetIntegrationConfigFromFile("foo", "tests/stub.yaml")
+	assert.Nil(t, err)
+	assert.Equal(t, len(config.Instances), 1)
+
+	// valid yaml, invalid configuration file
+	config, err = GetIntegrationConfigFromFile("foo", "tests/null_instances.yaml")
+	assert.NotNil(t, err)
+	assert.Equal(t, len(config.Instances), 0)
+
 	// valid metric file
 	config, err = GetIntegrationConfigFromFile("foo", "tests/metrics.yaml")
 	assert.Nil(t, err)
