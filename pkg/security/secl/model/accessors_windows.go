@@ -24,6 +24,7 @@ func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
 		eval.EventType("create"),
 		eval.EventType("create_key"),
+		eval.EventType("delete"),
 		eval.EventType("delete_key"),
 		eval.EventType("exec"),
 		eval.EventType("exit"),
@@ -176,6 +177,46 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "delete.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.DeleteFile.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "delete.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.DeleteFile.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "delete.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.DeleteFile.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "delete.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.DeleteFile.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "delete.registry.key_name":
 		return &eval.StringEvaluator{
@@ -1408,6 +1449,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"create_key.registry.key_name.length",
 		"create_key.registry.key_path",
 		"create_key.registry.key_path.length",
+		"delete.file.name",
+		"delete.file.name.length",
+		"delete.file.path",
+		"delete.file.path.length",
 		"delete.registry.key_name",
 		"delete.registry.key_name.length",
 		"delete.registry.key_path",
@@ -1551,6 +1596,14 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.CreateRegistryKey.Registry.KeyPath, nil
 	case "create_key.registry.key_path.length":
 		return len(ev.CreateRegistryKey.Registry.KeyPath), nil
+	case "delete.file.name":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.DeleteFile.File), nil
+	case "delete.file.name.length":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.DeleteFile.File), nil
+	case "delete.file.path":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.DeleteFile.File), nil
+	case "delete.file.path.length":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.DeleteFile.File), nil
 	case "delete.registry.key_name":
 		return ev.DeleteRegistryKey.Registry.KeyName, nil
 	case "delete.registry.key_name.length":
@@ -1967,6 +2020,14 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "create_key", nil
 	case "create_key.registry.key_path.length":
 		return "create_key", nil
+	case "delete.file.name":
+		return "delete", nil
+	case "delete.file.name.length":
+		return "delete", nil
+	case "delete.file.path":
+		return "delete", nil
+	case "delete.file.path.length":
+		return "delete", nil
 	case "delete.registry.key_name":
 		return "delete_key", nil
 	case "delete.registry.key_name.length":
@@ -2219,6 +2280,14 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "create_key.registry.key_path":
 		return reflect.String, nil
 	case "create_key.registry.key_path.length":
+		return reflect.Int, nil
+	case "delete.file.name":
+		return reflect.String, nil
+	case "delete.file.name.length":
+		return reflect.Int, nil
+	case "delete.file.path":
+		return reflect.String, nil
+	case "delete.file.path.length":
 		return reflect.Int, nil
 	case "delete.registry.key_name":
 		return reflect.String, nil
@@ -2530,6 +2599,24 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return nil
 	case "create_key.registry.key_path.length":
 		return &eval.ErrFieldReadOnly{Field: "create_key.registry.key_path.length"}
+	case "delete.file.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DeleteFile.File.BasenameStr"}
+		}
+		ev.DeleteFile.File.BasenameStr = rv
+		return nil
+	case "delete.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "delete.file.name.length"}
+	case "delete.file.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DeleteFile.File.PathnameStr"}
+		}
+		ev.DeleteFile.File.PathnameStr = rv
+		return nil
+	case "delete.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "delete.file.path.length"}
 	case "delete.registry.key_name":
 		rv, ok := value.(string)
 		if !ok {
