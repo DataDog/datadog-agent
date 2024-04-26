@@ -396,6 +396,9 @@ workflow:
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
         USE_CACHING_PROXY_RUBY: "false"
+    - if: $DDR_WORKFLOW_ID != null
+      variables:
+        DEPLOY_AGENT: "true"
 
 #
 # List of rule blocks used in the pipeline
