@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+enhancements:
   - |
-    Add ``serializer_compressor_kind`` config which supports zstd and zlib (default)
+    Report EKS Fargate configuration to the Agent metadata payload.

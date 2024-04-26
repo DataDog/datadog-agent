@@ -8,11 +8,6 @@ package telemetry
 
 import (
 	"net/http"
-
-	"go.opentelemetry.io/otel/metric"
-
-	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
 )
 
 // team: agent-shared-components
@@ -24,12 +19,11 @@ type Component interface {
 	// Reset resets all tracked telemetry
 	Reset()
 	// RegisterCollector Registers a Collector with the prometheus registry
-	RegisterCollector(c prometheus.Collector)
+	RegisterCollector(c Collector)
 	// UnregisterCollector unregisters a Collector with the prometheus registry
-	UnregisterCollector(c prometheus.Collector) bool
+	UnregisterCollector(c Collector) bool
 	// Meter returns a new OTEL meter
-	Meter(name string, opts ...metric.MeterOption) metric.Meter
-
+	Meter(name string, opts ...MeterOption) Meter
 	// NewCounter creates a Counter with default options for telemetry purpose.
 	NewCounter(subsystem, name string, tags []string, help string) Counter
 	// NewCounterWithOpts creates a Counter with the given options for telemetry purpose.
@@ -61,5 +55,5 @@ type Component interface {
 	NewSimpleHistogramWithOpts(subsystem, name, help string, buckets []float64, opts Options) SimpleHistogram
 
 	// Gather exposes metrics from the general or default telemetry registry (see options.DefaultMetric)
-	Gather(defaultGather bool) ([]*dto.MetricFamily, error)
+	Gather(defaultGather bool) ([]*MetricFamily, error)
 }
