@@ -831,7 +831,6 @@ def images_matching_ci(ctx, domains):
         if not check_tag:
             continue
 
-
         manifest_file = '.'.join(platinfo["image"].split('.')[:-2]) + ".manifest"
 
         if not os.path.exists(f"{kmt_os.rootfs_dir / manifest_file}"):
