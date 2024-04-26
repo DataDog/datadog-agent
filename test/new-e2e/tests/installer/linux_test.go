@@ -129,6 +129,16 @@ func (v *installerSuite) TestSharedAgentDirs() {
 	}
 }
 
+func (v *installerSuite) TestInstallerInPath() {
+	host := v.Env().RemoteHost
+	v.bootstrap(false)
+	_ = host.MustExecute(`test -L /usr/bin/datadog-installer`)
+	require.Equal(v.T(), "/usr/bin/datadog-installer\n", host.MustExecute("which datadog-installer"))
+	binPath := host.MustExecute("readlink -f $(which datadog-installer)")
+	assert.True(v.T(), strings.HasPrefix(binPath, "/opt/datadog-packages/datadog-installer/7."))
+	assert.True(v.T(), strings.HasSuffix(binPath, "/bin/installer/installer\n"))
+}
+
 func (v *installerSuite) TestInstallerDirs() {
 	host := v.Env().RemoteHost
 	v.bootstrap(false)

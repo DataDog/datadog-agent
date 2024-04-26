@@ -90,6 +90,12 @@ func SetupInstaller(ctx context.Context) (err error) {
 		return fmt.Errorf("error changing owner of /var/log/datadog: %w", err)
 	}
 
+	// Create installer path symlink
+	err = os.Symlink("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "/usr/bin/datadog-installer")
+	if err != nil {
+		return fmt.Errorf("error creating symlink to /usr/bin/datadog-installer: %w", err)
+	}
+
 	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the agent
 	if os.Getenv("DD_REMOTE_UPDATES") != "true" {
 		return nil
@@ -159,6 +165,11 @@ func RemoveInstaller(ctx context.Context) {
 		if err := removeUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
+	}
+
+	// Remove symlink
+	if err := os.Remove("/usr/bin/datadog-installer"); err != nil {
+		log.Warnf("Failed to remove /usr/bin/datadog-installer: %s", err)
 	}
 }
 
