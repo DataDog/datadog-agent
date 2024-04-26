@@ -5,7 +5,7 @@
 #include "protocols/kafka/defs.h"
 #include "protocols/kafka/maps.h"
 #include "protocols/kafka/types.h"
-#include "protocols/http/buffer.h"
+#include "protocols/read_into_buffer.h"
 
 enum pktbuf_type {
     PKTBUF_SKB,

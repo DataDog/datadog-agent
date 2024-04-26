@@ -6,7 +6,6 @@
 #include "protocols/kafka/maps.h"
 #include "protocols/kafka/pktbuf.h"
 #include "protocols/kafka/types.h"
-#include "protocols/http/buffer.h"
 
 #define STRINGIFY(a) #a
 
