@@ -536,7 +536,7 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
 		}
 		err := c.npScheduler.Schedule(remoteAddr.Ip, uint16(conn.Raddr.Port))
 		if err != nil {
-			log.Errorf("Error scheduling pathtests: %w", err)
+			log.Errorf("Error scheduling pathtests: %s", err)
 		}
 	}
 
