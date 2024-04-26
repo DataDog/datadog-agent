@@ -127,7 +127,7 @@ func Bootstrap(ctx context.Context, opts ...Option) error {
 	// 4. Run the installer from the extract layer with `install file://<layout-path>`.
 	installerBinPath := filepath.Join(binTmpDir, installerBinPath)
 	cmd := exec.NewInstallerExec(installerBinPath, o.registry, o.registryAuth, o.apiKey, o.site)
-	err = cmd.Install(ctx, fmt.Sprintf("file://%s", layoutTmpDir))
+	err = cmd.Install(ctx, fmt.Sprintf("file://%s", layoutTmpDir), nil)
 	if err != nil {
 		return fmt.Errorf("failed to run installer: %w", err)
 	}
