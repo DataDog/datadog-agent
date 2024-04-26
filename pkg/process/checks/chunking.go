@@ -6,12 +6,9 @@
 package checks
 
 import (
-	"os"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // chunkProcessesBySizeAndWeight chunks `model.Process` payloads by max allowed size and max allowed weight of a chunk
@@ -20,10 +17,7 @@ func chunkProcessesBySizeAndWeight(procs []*model.Process, ctr *model.Container,
 		// can happen in three scenarios, and we still need to report the container
 		// a) if a process is skipped (e.g. disallowlisted)
 		// b) if process <=> container mapping cannot be established (e.g. Docker on Windows).
-		// c) if no processes were collected from the container (e.g. pidMode not set to "task" on ECS Fargate)
-		if ecsContainerMetadataURI := os.Getenv("ECS_CONTAINER_METADATA_URI_V4"); ecsContainerMetadataURI != "" {
-			log.Warnf("No processes found for container %s, pidMode may not be configured correctly (should be set to task)", ctr.Name)
-		}
+		// c) No non-containerized process detected (e.g. ECS Fargate)
 		appendContainerWithoutProcesses(ctr, chunker)
 		return
 	}
