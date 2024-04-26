@@ -317,7 +317,9 @@ def process_test_result(test_results, junit_tar, flavor, test_washer):
         tw = TestWasher()
         should_succeed = tw.process_module_results(test_results)
         if should_succeed:
-            print(color_message("All failing tests are known to be flaky, marking the build as successful", "orange"))
+            print(
+                color_message("All failing tests are known to be flaky, marking the test job as successful", "orange")
+            )
             return True
 
     else:
