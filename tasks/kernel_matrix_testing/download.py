@@ -4,6 +4,7 @@ import os
 import platform
 import tempfile
 from typing import TYPE_CHECKING
+from pathlib import Path
 
 from invoke.context import Context
 
@@ -125,9 +126,12 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
                 info(f"[+] {f} needs to be downloaded, using branch {branch}")
                 filename = f"{f}.xz"
                 sum_file = f"{f}.sum"
+                wo_qcow2 = '.'.join(f.split('.')[:-1])
+                manifest_file = f"{wo_qcow2}.manifest"
                 # remove this file and sum, uncompressed file too if it exists
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, filename)}")
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, sum_file)}")
+                ctx.run(f"rm -f {os.path.join(rootfs_dir, manifest_file)}")
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, f)} || true")  # remove old file if it exists
                 # download package entry
                 tmp.write(os.path.join(url_base, branch, filename) + "\n")
@@ -137,6 +141,10 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
                 tmp.write(os.path.join(url_base, branch, f"{sum_file}") + "\n")
                 tmp.write(f" dir={rootfs_dir}\n")
                 tmp.write(f" out={sum_file}\n")
+                # download manifest file
+                tmp.write(os.path.join(url_base, branch, f"{manifest_file}") + "\n")
+                tmp.write(f" dir={rootfs_dir}\n")
+                tmp.write(f" out={manifest_file}\n")
             tmp.write("\n")
         ctx.run(f"cat {path}")
         res = ctx.run(f"aria2c -i {path} -j {len(to_download)}")
