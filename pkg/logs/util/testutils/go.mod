@@ -58,7 +58,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2 // indirect
-	github.com/DataDog/viper v1.13.3-0.20240426134232-ad820bb7e16d // indirect
+	github.com/DataDog/viper v1.13.3-0.20240426154822-ee42f58c545e // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
