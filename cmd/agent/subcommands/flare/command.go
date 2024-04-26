@@ -271,6 +271,9 @@ func makeFlare(flareComp flare.Component,
 		err     error
 	)
 
+	fmt.Fprintln(color.Output, color.BlueString("NEW: You can now generate a flare from the comfort of your Datadog UI!"))
+	fmt.Fprintln(color.Output, color.BlueString("See https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/?tab=agentv6v7#send-a-flare-from-the-datadog-site for more info."))
+
 	warnings := config.Warnings()
 	if warnings != nil && warnings.Err != nil {
 		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Err))
