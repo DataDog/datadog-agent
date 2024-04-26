@@ -1,5 +1,6 @@
 """
-This module defines the InvokeLogger context manager to log the invoke task information to the DD_INVOKE_LOGS_PATH.
+This module defines the InvokeLogger context manager.
+It logs the invoke task information to the DD_INVOKE_LOGS_PATH.
 This will then be uploaded to Datadog's backend with a correct Log Agent configuration.
 """
 
@@ -7,6 +8,7 @@ from time import perf_counter
 from getpass import getuser
 from datetime import datetime
 import logging
+import sys
 import traceback
 from invoke import Context
 
@@ -53,16 +55,23 @@ class InvokeLogger:
         self.start = perf_counter()
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        self.end = perf_counter()
-        duration = round(self.end - self.start, 4)
-        name = self.task.__name__
-        module = self.task.__module__.replace("tasks.", "")
-        task_result = (
-            None if exc_type is None else "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
-        )
-        log_invoke_task(
-            name=name, module=module, task_datetime=self.datetime, duration=duration, task_result=task_result
-        )
+        # Avoid disturbing the smooth running of the task by wrapping the logging in a try-except block.
+        try:
+            self.end = perf_counter()
+            duration = round(self.end - self.start, 4)
+            name = self.task.__name__
+            module = self.task.__module__.replace("tasks.", "")
+            task_result = (
+                None if exc_type is None else "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            )
+            log_invoke_task(
+                name=name, module=module, task_datetime=self.datetime, duration=duration, task_result=task_result
+            )
+        except Exception as e:
+            print(
+                f"Warning: couldn't log the invoke task in the InvokeLogger context manager (error: {e})",
+                file=sys.stderr,
+            )
 
 
 def custom__call__(self, *args, **kwargs):
