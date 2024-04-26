@@ -9,6 +9,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../config/env
@@ -44,7 +45,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
-	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240418080137-a7c7a570540d
+	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240419161837-f1b2f553edfe
 	github.com/stretchr/testify v1.9.0
 )
 
@@ -69,7 +70,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2 // indirect
-	github.com/DataDog/viper v1.13.0 // indirect
+	github.com/DataDog/viper v1.13.2 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

@@ -96,9 +96,9 @@ func GlobalTags(cardinality collectors.TagCardinality) ([]string, error) {
 }
 
 // List the content of the defaulTagger
-func List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
+func List() tagger_api.TaggerListResponse {
 	if globalTagger != nil {
-		return globalTagger.List(cardinality)
+		return globalTagger.List()
 	}
 	return tagger_api.TaggerListResponse{}
 }

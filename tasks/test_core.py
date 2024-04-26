@@ -147,9 +147,9 @@ def test_core(
     return modules_results
 
 
-def process_input_args(input_module, input_targets, input_flavors, headless_mode=False):
+def process_input_args(input_module, input_targets, input_flavor, headless_mode=False):
     """
-    Takes the input module, targets and flavors arguments from inv test and inv codecov,
+    Takes the input module, targets and flavor arguments from inv test and inv codecov,
     sets default values for them & casts them to the expected types.
     """
     if isinstance(input_module, str):
@@ -166,35 +166,24 @@ def process_input_args(input_module, input_targets, input_flavors, headless_mode
             print("Using default modules and targets")
         modules = DEFAULT_MODULES.values()
 
-    if not input_flavors:
-        flavors = [AgentFlavor.base]
-    else:
-        flavors = [AgentFlavor[f] for f in input_flavors]
+    flavor = AgentFlavor.base
+    if input_flavor:
+        flavor = AgentFlavor[input_flavor]
 
-    return modules, flavors
+    return modules, flavor
 
 
-def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult]]]):
+def process_module_results(flavor: AgentFlavor, module_results: Dict[str, Dict[str, List[ModuleResult]]]):
     """
-    Expects results in the format:
-    {
-        "phase1": {
-            "flavor1": [module_result1, module_result2],
-            "flavor2": [module_result3, module_result4],
-        }
-    }
-
-    Prints failures, and returns False if at least one module failed in one phase.
+    Prints failures in module results, and returns False if at least one module failed.
     """
 
     success = True
-    for phase in module_results:
-        for flavor in module_results[phase]:
-            for module_result in module_results[phase][flavor]:
-                if module_result is not None:
-                    module_failed, failure_string = module_result.get_failure(flavor)
-                    success = success and (not module_failed)
-                    if module_failed:
-                        print(failure_string)
+    for module_result in module_results:
+        if module_result is not None:
+            module_failed, failure_string = module_result.get_failure(flavor)
+            success = success and (not module_failed)
+            if module_failed:
+                print(failure_string)
 
     return success

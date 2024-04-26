@@ -8,6 +8,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../comp/core/hostname/hostnameinterface
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../config/env
@@ -55,6 +56,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2 // indirect
@@ -74,8 +76,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2 // indirect
-	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240418080137-a7c7a570540d // indirect
-	github.com/DataDog/viper v1.13.0 // indirect
+	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240419161837-f1b2f553edfe // indirect
+	github.com/DataDog/viper v1.13.2 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect

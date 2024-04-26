@@ -224,9 +224,7 @@ func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
 }
 
 // List returns all the entities currently stored by the tagger.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (t *Tagger) List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
+func (t *Tagger) List() tagger_api.TaggerListResponse {
 	entities := t.store.listEntities()
 	resp := tagger_api.TaggerListResponse{
 		Entities: make(map[string]tagger_api.TaggerListEntity),

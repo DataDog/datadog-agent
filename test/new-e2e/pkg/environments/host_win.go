@@ -6,10 +6,12 @@
 package environments
 
 import (
+	"github.com/DataDog/test-infra-definitions/resources/aws"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 )
 
 // WindowsHost is an environment based on environments.Host but that is specific to Windows.
@@ -20,6 +22,11 @@ type WindowsHost struct {
 	FakeIntake      *components.FakeIntake
 	Agent           *components.RemoteHostAgent
 	ActiveDirectory *components.RemoteActiveDirectory
+
+	// WARN: do not use outside of the Init method
+	// Agent Client options are stored here as a workaround to make it easier to customize the agent client,
+	// but they should not be used for anything else as it should eventually be refactored differently
+	AgentClientOptions []agentclientparams.Option
 }
 
 var _ e2e.Initializable = &WindowsHost{}
@@ -27,7 +34,7 @@ var _ e2e.Initializable = &WindowsHost{}
 // Init initializes the environment
 func (e *WindowsHost) Init(ctx e2e.Context) error {
 	if e.Agent != nil {
-		agent, err := client.NewHostAgentClient(ctx.T(), e.RemoteHost, true)
+		agent, err := client.NewHostAgentClientWithParams(ctx.T(), e.RemoteHost, e.AgentClientOptions...)
 		if err != nil {
 			return err
 		}

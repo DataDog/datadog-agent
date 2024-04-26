@@ -35,6 +35,8 @@ type Scanner struct {
 	// standard rules as received through the remote configuration, indexed
 	// by the standard rule ID for O(1) access when receiving user configurations.
 	standardRules map[string]StandardRuleConfig
+	// standardDefaults contains some consts for using the standard rules definition.
+	standardDefaults StandardRulesDefaults
 	// rawConfig is the raw config previously received through RC.
 	rawConfig []byte
 	// configuredRules are stored on configuration to retrieve rules
@@ -123,9 +125,14 @@ func (s *Scanner) reconfigureStandardRules(rawConfig []byte) error {
 	for _, rule := range unmarshaled.Rules {
 		standardRules[rule.ID] = rule
 	}
-	s.standardRules = standardRules
 
-	log.Info("Reconfigured SDS standard rules.")
+	s.standardRules = standardRules
+	s.standardDefaults = unmarshaled.Defaults
+
+	log.Info("Reconfigured", len(s.standardRules), "SDS standard rules.")
+	for _, rule := range s.standardRules {
+	    log.Debug("Std rule:", rule.Name)
+	}
 	return nil
 }
 
@@ -180,7 +187,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 			continue
 		}
 
-		if rule, err := interpretRCRule(userRule, standardRule); err != nil {
+		if rule, err := interpretRCRule(userRule, standardRule, s.standardDefaults); err != nil {
 			// we warn that we can't interpret this rule, but we continue in order
 			// to properly continue processing with the rest of the rules.
 			log.Warnf("%v", err.Error())
@@ -207,7 +214,10 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	s.rawConfig = rawConfig
 	s.configuredRules = config.Rules
 
-	log.Infof("Created an SDS scanner with %d enabled rules.", len(scanner.Rules))
+	log.Info("Created an SDS scanner with", len(scanner.Rules), "enabled rules")
+	for _, rule := range s.configuredRules {
+	    log.Debug("Configured rule:", rule.Name)
+	}
 	s.Scanner = scanner
 
 	return nil
@@ -217,36 +227,70 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 // an sds.Rule usable with the shared library.
 // `standardRule` contains the definition, with the name, pattern, etc.
 // `userRule`     contains the configuration done by the user: match action, etc.
-func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.Rule, error) {
+func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defaults StandardRulesDefaults) (sds.Rule, error) {
 	var extraConfig sds.ExtraConfig
 
-	// proximity keywords support
-	if len(userRule.IncludedKeywords.Keywords) > 0 {
-		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(userRule.IncludedKeywords.CharacterCount, userRule.IncludedKeywords.Keywords, nil)
-	}
+	var defToUse = StandardRuleDefinition{Version: -1}
 
-	// the RC schema supports multiple of them,
-	// for now though, the lib only supports one, so we'll just use the first one.
-	if len(standardRule.SecondaryValidators) > 0 {
-		received := standardRule.SecondaryValidators[0]
-		switch received.Type {
-		case RCSecondaryValidationChineseIdChecksum:
-			extraConfig.SecondaryValidator = sds.ChineseIdChecksum
-		case RCSecondaryValidationLuhnChecksum:
-			extraConfig.SecondaryValidator = sds.LuhnChecksum
-		default:
-			log.Warnf("Unknown secondary validator: ", string(received.Type))
-			// TODO(remy): telemetry
+	// go through all received definitions, use the most recent supported one.
+	// O(n) number of definitions in the rule.
+	for _, stdRuleDef := range standardRule.Definitions {
+		if defToUse.Version > stdRuleDef.Version {
+			continue
+		}
+
+		// The RC schema supports multiple of them,
+		// for now though, the lib only supports one, so we'll just use the first one.
+		reqCapabilitiesCount := len(stdRuleDef.RequiredCapabilities)
+		if reqCapabilitiesCount > 0 {
+			if reqCapabilitiesCount > 1 {
+				// TODO(remy): telemetry
+				log.Warnf("Standard rule '%v' with multiple required capabilities: %d. Only the first one will be used", standardRule.Name, reqCapabilitiesCount)
+			}
+			received := stdRuleDef.RequiredCapabilities[0]
+			switch received {
+			case RCSecondaryValidationChineseIdChecksum:
+				extraConfig.SecondaryValidator = sds.ChineseIdChecksum
+				defToUse = stdRuleDef
+			case RCSecondaryValidationLuhnChecksum:
+				extraConfig.SecondaryValidator = sds.LuhnChecksum
+				defToUse = stdRuleDef
+			default:
+				// we don't know this required capability, test another version
+				log.Warnf("unknown required capability: ", string(received))
+				continue
+			}
+		} else {
+			// no extra config to set
+			defToUse = stdRuleDef
 		}
 	}
 
+	if defToUse.Version == -1 {
+		// TODO(remy): telemetry
+		return sds.Rule{}, fmt.Errorf("unsupported rule with no compatible definition")
+	}
+
+	// we use the filled `CharacterCount` value to decide if we want
+	// to use the user provided configuration for proximity keywords
+	// or if we have to use the information provided in the std rules instead.
+	if userRule.IncludedKeywords.CharacterCount > 0 {
+		// proximity keywords configuration provided by the user
+		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(userRule.IncludedKeywords.CharacterCount, userRule.IncludedKeywords.Keywords, nil)
+	} else if len(defToUse.DefaultIncludedKeywords) > 0 && defaults.IncludedKeywordsCharCount > 0 {
+		// the user has not specified proximity keywords
+		// use the proximity keywords provided by the standard rule if any
+		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(defaults.IncludedKeywordsCharCount, defToUse.DefaultIncludedKeywords, nil)
+	}
+
+	// we've compiled all necessary information merging the standard rule and the user config
 	// create the rules for the scanner
 	matchAction := strings.ToLower(userRule.MatchAction.Type)
 	switch matchAction {
 	case matchActionRCNone:
-		return sds.NewMatchingRule(standardRule.Name, standardRule.Pattern, extraConfig), nil
+		return sds.NewMatchingRule(standardRule.Name, defToUse.Pattern, extraConfig), nil
 	case matchActionRCRedact:
-		return sds.NewRedactingRule(standardRule.Name, standardRule.Pattern, userRule.MatchAction.Placeholder, extraConfig), nil
+		return sds.NewRedactingRule(standardRule.Name, defToUse.Pattern, userRule.MatchAction.Placeholder, extraConfig), nil
 	case matchActionRCPartialRedact:
 		direction := sds.LastCharacters
 		switch userRule.MatchAction.Direction {
@@ -257,9 +301,9 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 		default:
 			log.Warnf("Unknown PartialRedact direction (%v), falling back on LastCharacters", userRule.MatchAction.Direction)
 		}
-		return sds.NewPartialRedactRule(standardRule.Name, standardRule.Pattern, userRule.MatchAction.CharacterCount, direction, extraConfig), nil
+		return sds.NewPartialRedactRule(standardRule.Name, defToUse.Pattern, userRule.MatchAction.CharacterCount, direction, extraConfig), nil
 	case matchActionRCHash:
-		return sds.NewHashRule(standardRule.Name, standardRule.Pattern, extraConfig), nil
+		return sds.NewHashRule(standardRule.Name, defToUse.Pattern, extraConfig), nil
 	}
 
 	return sds.Rule{}, fmt.Errorf("Unknown MatchAction type (%v) received through RC for rule '%s':", matchAction, standardRule.Name)
@@ -268,6 +312,8 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig) (sds.
 // Scan scans the given `event` using the internal SDS scanner.
 // Returns an error if the internal SDS scanner is not ready. If you need to
 // validate that the internal SDS scanner can be used, use `IsReady()`.
+// Returns a boolean indicating if the Scan has mutated the event and the returned
+// one should be used instead.
 // This method is thread safe, a reconfiguration can't happen at the same time.
 func (s *Scanner) Scan(event []byte, msg *message.Message) (bool, []byte, error) {
 	s.Lock()
@@ -278,11 +324,9 @@ func (s *Scanner) Scan(event []byte, msg *message.Message) (bool, []byte, error)
 	}
 
 	// scanning
-	processed, rulesMatch, err := s.Scanner.Scan(event)
-	matched := false
-	if len(rulesMatch) > 0 {
-		matched = true
-		for _, match := range rulesMatch {
+	scanResult, err := s.Scanner.Scan(event)
+	if len(scanResult.Matches) > 0 {
+		for _, match := range scanResult.Matches {
 			if rc, err := s.GetRuleByIdx(match.RuleIdx); err != nil {
 				log.Warnf("can't apply rule tags: %v", err)
 			} else {
@@ -294,7 +338,7 @@ func (s *Scanner) Scan(event []byte, msg *message.Message) (bool, []byte, error)
 	// using a tag.
 	msg.ProcessingTags = append(msg.ProcessingTags, ScannedTag)
 
-	return matched, processed, err
+	return scanResult.Mutated, scanResult.Event, err
 }
 
 // GetRuleByIdx returns the configured rule by its idx, referring to the idx

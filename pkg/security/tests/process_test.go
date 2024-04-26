@@ -1842,6 +1842,8 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-signaled", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
 		test.WaitSignal(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGKILL", "2", sleepExec, "9"}
 			envp := []string{envpExitSleep}
