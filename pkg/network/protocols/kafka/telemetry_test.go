@@ -18,49 +18,49 @@ import (
 func TestTelemetry_Count(t *testing.T) {
 	tests := []struct {
 		name string
-		tx1  *EbpfTx
-		tx2  *EbpfTx
+		tx1  *KafkaTransaction
+		tx2  *KafkaTransaction
 	}{
 		{
 			name: "Sanity",
-			tx1: &EbpfTx{
+			tx1: &KafkaTransaction{
 				Request_api_key:     0,
 				Request_api_version: 4,
 			},
-			tx2: &EbpfTx{
+			tx2: &KafkaTransaction{
 				Request_api_key:     1,
 				Request_api_version: 7,
 			},
 		},
 		{
 			name: "One unsupported version",
-			tx1: &EbpfTx{
+			tx1: &KafkaTransaction{
 				Request_api_key:     0,
 				Request_api_version: 0,
 			},
-			tx2: &EbpfTx{
+			tx2: &KafkaTransaction{
 				Request_api_key:     1,
 				Request_api_version: 7,
 			},
 		},
 		{
 			name: "Two unsupported version",
-			tx1: &EbpfTx{
+			tx1: &KafkaTransaction{
 				Request_api_key:     0,
 				Request_api_version: 0,
 			},
-			tx2: &EbpfTx{
+			tx2: &KafkaTransaction{
 				Request_api_key:     1,
 				Request_api_version: 0,
 			},
 		},
 		{
 			name: "Unsupported api key",
-			tx1: &EbpfTx{
+			tx1: &KafkaTransaction{
 				Request_api_key:     3,
 				Request_api_version: 5,
 			},
-			tx2: &EbpfTx{
+			tx2: &KafkaTransaction{
 				Request_api_key:     1,
 				Request_api_version: 8,
 			},
@@ -78,7 +78,7 @@ func TestTelemetry_Count(t *testing.T) {
 	}
 }
 
-func verifyHitsCount(t *testing.T, telemetry *Telemetry, tx *EbpfTx) {
+func verifyHitsCount(t *testing.T, telemetry *Telemetry, tx *KafkaTransaction) {
 	if tx.Request_api_key == 0 {
 		if tx.Request_api_version < minSupportedAPIVersion || tx.Request_api_version > maxSupportedAPIVersion {
 			assert.Equal(t, telemetry.produceHits.hitsUnsupportedVersion.Get(), int64(1), "hitsUnsupportedVersion count is incorrect")

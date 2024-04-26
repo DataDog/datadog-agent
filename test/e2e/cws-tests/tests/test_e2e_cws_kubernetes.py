@@ -172,7 +172,7 @@ class TestE2EKubernetes(unittest.TestCase):
             )
 
             jsonSchemaValidator = JsonSchemaValidator()
-            jsonSchemaValidator.validate_json_data("self_test.json", attributes)
+            jsonSchemaValidator.validate_json_data("self_test_schema.json", attributes)
 
         with Step(msg="wait for datadog.security_agent.runtime.running metric", emoji="\N{BEER MUG}"):  # fmt: off
             self.app.wait_for_metric("datadog.security_agent.runtime.running", host=TestE2EKubernetes.hostname)

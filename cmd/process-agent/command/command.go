@@ -149,6 +149,6 @@ func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams
 		ConfigParams:         configComponent.NewAgentParams(globalParams.ConfFilePath),
 		SecretParams:         secrets.NewEnabledParams(),
 		SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-		LogParams:            logComponentimpl.ForOneShot(string(LoggerName), "info", true),
+		LogParams:            OneShotLogParams,
 	}
 }

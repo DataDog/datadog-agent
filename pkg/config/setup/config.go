@@ -210,6 +210,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.SetDefault("proxy", nil)
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("sslkeylogfile", "")
+	config.BindEnv("tls_handshake_timeout")
 	config.BindEnvAndSetDefault("hostname", "")
 	config.BindEnvAndSetDefault("hostname_file", "")
 	config.BindEnvAndSetDefault("tags", []string{})
@@ -643,7 +644,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
 
 	config.BindEnvAndSetDefault("kubelet_tls_verify", true)
-	config.BindEnvAndSetDefault("kubelet_core_check_enabled", false)
+	config.BindEnvAndSetDefault("kubelet_core_check_enabled", true)
 	config.BindEnvAndSetDefault("collect_kubernetes_events", false)
 	config.BindEnvAndSetDefault("kubelet_client_ca", "")
 
@@ -771,6 +772,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	})
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.enabled", true)
+	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.base_backoff", "5m")
+	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.max_backoff", "1h")
 	// sets the expiration deadline (TTL) for reported languages
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.language_ttl", "30m")
 	// language annotation cleanup period
@@ -894,6 +897,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
+	config.BindEnvAndSetDefault("internal_profiling.enable_block_profiling", false)
+	config.BindEnvAndSetDefault("internal_profiling.enable_mutex_profiling", false)
 	config.BindEnvAndSetDefault("internal_profiling.delta_profiles", true)
 	config.BindEnvAndSetDefault("internal_profiling.extra_tags", []string{})
 	config.BindEnvAndSetDefault("internal_profiling.custom_attributes", []string{"check_id"})
@@ -969,6 +974,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.enabled", false)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.discovery_interval", 300)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.region", "")
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.query_timeout", 10)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.tags", []string{"datadoghq.com/scrape:true"})
 
@@ -1268,6 +1274,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_goroutine_stacktraces", false)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_block_profiling", false)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_mutex_profiling", false)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.delta_profiles", true)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.unix_socket", "")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.extra_tags", []string{})
@@ -1362,7 +1370,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	setupAPM(config)
 	OTLP(config)
 	setupProcesses(config)
-	setupHighAvailability(config)
+	setupMultiRegionFailover(config)
 
 	// Updater configuration
 	config.BindEnvAndSetDefault("updater.remote_updates", false)

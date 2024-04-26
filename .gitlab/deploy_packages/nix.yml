@@ -154,7 +154,7 @@ deploy_packages_dmg-x64-a7:
   rules:
     !reference [.on_deploy]
   stage: deploy_packages
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["agent_dmg-x64-a7"]
   before_script:
@@ -167,7 +167,7 @@ deploy_staging_dsd:
   rules:
     !reference [.on_deploy]
   stage: deploy_packages
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["build_dogstatsd-binary_x64"]
   script:
@@ -180,7 +180,7 @@ deploy_staging_iot_agent:
   rules:
     !reference [.on_deploy]
   stage: deploy_packages
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["build_iot_agent-binary_x64"]
   script:
@@ -213,3 +213,17 @@ deploy_installer_rpm_amd64:
   needs: ["installer_rpm-amd64"]
   variables:
     PACKAGE_ARCH: x86_64
+
+deploy_installer_suse_rpm_arm64:
+  extends: .deploy_installer_rpm
+  needs: ["installer_suse_rpm-arm64"]
+  variables:
+    PACKAGE_ARCH: aarch64
+    ARTIFACTS_PREFIX: suse_
+
+deploy_installer_suse_rpm_amd64:
+  extends: .deploy_installer_rpm
+  needs: ["installer_suse_rpm-amd64"]
+  variables:
+    PACKAGE_ARCH: x86_64
+    ARTIFACTS_PREFIX: suse_
