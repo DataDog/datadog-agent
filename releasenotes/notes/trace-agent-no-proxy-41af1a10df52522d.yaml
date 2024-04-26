@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    APM: fix a bug where the trace agent would ignore proxy.no_proxy configuration value
+    APM: fix a bug where the Trace Agent would ignore `proxy.no_proxy` configuration values
