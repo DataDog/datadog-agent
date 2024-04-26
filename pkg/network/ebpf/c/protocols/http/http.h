@@ -137,9 +137,9 @@ static __always_inline bool http_seen_before(http_transaction_t *http, skb_info_
         skb_info->tcp_seq = HTTP_TERMINATING;
     }
 
-    if (http->tcp_seq == skb_info->tcp_seq) {
-        return true;
-    }
+    // if (http->tcp_seq == skb_info->tcp_seq) {
+    //     return true;
+    // }
 
     // Update map entry with latest TCP sequence number
     http->tcp_seq = skb_info->tcp_seq;

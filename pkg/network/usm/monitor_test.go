@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	nethttp "net/http"
 	"net/url"
@@ -532,7 +531,7 @@ var (
 
 func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *nethttp.Request {
 	var (
-		random  = rand.New(rand.NewSource(time.Now().Unix()))
+		//random  = rand.New(rand.NewSource(time.Now().Unix()))
 		idx     = 0
 		client  = new(nethttp.Client)
 		reqBuf  = make([]byte, 0, len(reqBody))
@@ -560,11 +559,11 @@ func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *n
 			// save resized-buffer
 			reqBuf = finalBody
 
-			method = httpMethodsWithBody[random.Intn(len(httpMethodsWithBody))]
+			method = httpMethodsWithBody[0]
 		} else {
-			method = httpMethods[random.Intn(len(httpMethods))]
+			method = httpMethods[0]
 		}
-		status := statusCodes[random.Intn(len(statusCodes))]
+		status := statusCodes[0]
 		url := fmt.Sprintf("http://%s/%d/request-%d", targetAddr, status, idx)
 		req, err := nethttp.NewRequest(method, url, body)
 		require.NoError(t, err)

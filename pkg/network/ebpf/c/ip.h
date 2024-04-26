@@ -192,60 +192,36 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
 
 __maybe_unused static __always_inline __u64 read_conn_tuple_skb_cgroup(struct __sk_buff *skb, skb_info_t *info, conn_tuple_t *tup) {
     bpf_memset(info, 0, sizeof(skb_info_t));
-    __u8 l4_proto = 0;
-    __u8 l4_proto_alt = 0;
-    
-    info->data_off = ETH_HLEN;
-    switch (skb->protocol) {
-    case 8:
+
+    log_debug("read_conn_tuple_skb_cgroup bytes");
+    log_debug("%08x %08x", (__u32)__load_word(skb, 0), (__u32)__load_word(skb, 4));
+    log_debug("%08x %08x", (__u32)__load_word(skb, 8), (__u32)__load_word(skb, 12));
+    log_debug("remote_ip4: %08x (%u)", bpf_ntohl(skb->remote_ip4), bpf_ntohl(skb->remote_port));
+    log_debug("local_ip4: %08x (%u)", bpf_ntohl(skb->local_ip4), skb->local_port);
+    log_debug("proto: %d", skb->protocol);
+
+    info->data_off = 0;
+    info->data_end = skb->len;
+
+    if (skb->protocol != 8) {
+        log_debug("unknown protocol %d", skb->protocol);
+        return 0;
+    }
+
+    // TCP ack, termination, etc, cannot be captured(?)
+
         tup->saddr_l = skb->local_ip4;
         tup->saddr_h = 0;
         tup->daddr_l = skb->remote_ip4;
         tup->daddr_h = 0;
-        tup->sport = skb->local_port;
-        tup->dport = bpf_htonl(skb->remote_port);
-        tup->metadata |= CONN_V4;
-        __u8 ipv4_hdr_len = (__load_byte(skb, 0) & 0x0f) << 2;
-        log_debug("dispatch ipv4_hdr_len %d", ipv4_hdr_len);
-        if (ipv4_hdr_len < sizeof(struct iphdr)) {
-            return 0;
-        }
-        info->data_end = __load_half(skb, offsetof(struct iphdr, tot_len));
-        l4_proto = __load_byte(skb, offsetof(struct iphdr, protocol));
-        l4_proto_alt = __load_byte(skb, ETH_HLEN + offsetof(struct iphdr, protocol));
+        tup->sport = bpf_htonl(skb->local_port);
+        tup->dport = skb->remote_port;
+        tup->metadata |= CONN_V4 | CONN_TYPE_TCP;
 
-        info->data_off += ipv4_hdr_len;
-        break;
-    case ETH_P_IPV6:
-        tup->sport = skb->local_port;
-        tup->dport = bpf_htonl(skb->remote_port);
-        tup->metadata |= CONN_V6;
-        info->data_end = sizeof(struct ipv6hdr) + __load_half(skb, offsetof(struct ipv6hdr, payload_len));
-        break;
-    default:
-        return 0;
-    }
-
-    log_debug("dispatch l4_proto %d alt %d", l4_proto, l4_proto_alt);
-
-    switch (l4_proto) {
-    case __IPPROTO_UDP:
-        tup->metadata |= CONN_TYPE_UDP;
-        tup->sport = __load_half(skb, info->data_off + offsetof(struct udphdr, source));
-        tup->dport = __load_half(skb, info->data_off + offsetof(struct udphdr, dest));
-        info->data_off += sizeof(struct udphdr);
-        break;
-    case __IPPROTO_TCP:
-        tup->metadata |= CONN_TYPE_TCP;
-        tup->sport = __load_half(skb, info->data_off + offsetof(struct __tcphdr, source));
-        tup->dport = __load_half(skb, info->data_off + offsetof(struct __tcphdr, dest));
-
-        info->tcp_seq = __load_word(skb, info->data_off + offsetof(struct __tcphdr, seq));
-        info->tcp_flags = __load_byte(skb, info->data_off + TCP_FLAGS_OFFSET);
-        info->data_off += ((__load_byte(skb, info->data_off + offsetof(struct __tcphdr, ack_seq) + 4) & 0xF0) >> 4) * 4;
-        break;
-    default:
-        return 0;
+    // Assume that empty packets arriving at the streamparser are TCP FINs. FIXME is this valid?
+    // Is there some other way to get at the metadata of the packet?
+    if (skb->len == 0) {
+      info->tcp_flags |= TCPHDR_FIN | TCPHDR_RST;
     }
 
     return 1;
