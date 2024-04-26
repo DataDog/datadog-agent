@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    CWS: Add support ``write`` events on Windows.
+    CWS: Add support for ``write`` events on Windows.
   - |
     CWS: Add support for ``delete`` event on Windows.
   - |
