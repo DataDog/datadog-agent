@@ -367,13 +367,14 @@ func (t *TaggerClient) ResetCaptureTagger() {
 func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
 	cardinality := taggerCardinality(originInfo.Cardinality)
 
-	// If dogstatsdUnifiedEnabled is disabled, we use DogStatsD's Legacy Origin Detection.
-	// TODO: remove this when dogstatsd_origin_detection_unified is enabled by default
-	if !t.datadogConfig.originDetectionUnifiedEnabled {
-		originInfo.ProductOrigin = taggertypes.ProductOriginDogStatsDLegacy
+	productOrigin := originInfo.ProductOrigin
+	// If origin_detection_unified is disabled, we use DogStatsD's Legacy Origin Detection.
+	// TODO: remove this when origin_detection_unified is enabled by default
+	if !t.datadogConfig.originDetectionUnifiedEnabled && productOrigin == taggertypes.ProductOriginDogStatsD {
+		productOrigin = taggertypes.ProductOriginDogStatsDLegacy
 	}
 
-	switch originInfo.ProductOrigin {
+	switch productOrigin {
 	case taggertypes.ProductOriginDogStatsDLegacy:
 		// The following was moved from the dogstatsd package
 		// originFromUDS is the origin discovered via UDS origin detection (container ID).
