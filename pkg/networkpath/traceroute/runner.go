@@ -259,6 +259,5 @@ func getHostname(ipAddr string) string {
 		currHost = ipAddr
 	}
 	// TODO: should we strip the trialing `.` in the domains returned by net.LookupAddr?
-	strings.TrimRight(currHost, ".")
-	return currHost
+	return strings.TrimRight(currHost, ".")
 }
