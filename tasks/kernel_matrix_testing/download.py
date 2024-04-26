@@ -12,6 +12,9 @@ from tasks.kernel_matrix_testing.tool import Exit, debug, info, warn
 from tasks.kernel_matrix_testing.vars import arch_mapping
 from tasks.kernel_matrix_testing.vmconfig import get_vmconfig_template
 
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import ArchOrLocal #noqa: F401
+
 try:
     import requests
 except ImportError:
@@ -41,7 +44,7 @@ def requires_update(url_base: str, rootfs_dir: PathOrStr, image: str, branch: st
     return False
 
 
-def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name: str, arch: Arch | None = None):
+def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name: str, arch: Arch | None = None, images: str | None = None):
     platforms = get_platforms()
     vmconfig_template = get_vmconfig_template(vmconfig_template_name)
 
@@ -53,10 +56,25 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
     file_ls: list[str] = list()
     branch_mapping: dict[str, str] = dict()
 
+    images_to_download = dict()
+    if images is not None:
+        for td in images.split(","):
+            id_version = td.split("-")
+            assert len(id_version) == 2, f"Invalid format for image to download: {td}. Format should be <os_id>-<os_version>"
+            images_to_download[id_version[0]] = id_version[1]
+
+
     for tag in platforms[arch]:
         platinfo = platforms[arch][tag]
         if "image" not in platinfo:
             raise Exit("image is not defined in platform info")
+
+        if len(images_to_download) > 0:
+            if platinfo["os_id"] not in images_to_download:
+                continue
+            if platinfo["os_version"] != images_to_download[platinfo["os_id"]]:
+                continue
+
         path = os.path.basename(platinfo["image"])
         if path.endswith(".xz"):
             path = path[: -len(".xz")]
@@ -138,11 +156,19 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
         raise Exit("Failed to set permissions 0766 to rootfs")
 
 
-def update_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template: str, all_archs: bool = False):
+def full_arch(arch: ArchOrLocal) -> Arch:
+    if arch == "local":
+        return arch_mapping[platform.machine()]
+    return arch
+
+
+def update_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template: str, all_archs: bool = False, images: str | None = None):
     if all_archs:
         arch_ls: list[Arch] = ["x86_64", "arm64"]
         for arch in arch_ls:
             info(f"[+] Updating root filesystem for {arch}")
-            download_rootfs(ctx, rootfs_dir, vmconfig_template, arch)
+            download_rootfs(ctx, rootfs_dir, vmconfig_template, arch, images)
+    else:
+        download_rootfs(ctx, rootfs_dir, vmconfig_template, full_arch("local"), images)
 
     info("[+] Root filesystem and bootables images updated")

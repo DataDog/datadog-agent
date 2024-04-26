@@ -3,7 +3,6 @@ from __future__ import annotations
 import itertools
 import json
 import os
-import platform
 import re
 import tempfile
 from collections import defaultdict
@@ -18,7 +17,7 @@ from tasks.kernel_matrix_testing import stacks, vmconfig
 from tasks.kernel_matrix_testing.ci import KMTTestRunJob, get_all_jobs_for_pipeline
 from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, all_compilers, get_compiler
 from tasks.kernel_matrix_testing.config import ConfigManager
-from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
+from tasks.kernel_matrix_testing.download import arch_mapping, full_arch, update_rootfs
 from tasks.kernel_matrix_testing.infra import (
     SSH_OPTIONS,
     HostInstance,
@@ -329,8 +328,14 @@ def config_ssh_key(ctx: Context):
     )
 
 
-@task
-def update_resources(ctx: Context, vmconfig_template="system-probe", all_archs=False):
+@task(
+    help={
+        "vmconfig-template": "template to use for the target component",
+        "all_archs": "Download images for all supported architectures. By default only images for the host architecture are downloaded",
+        "images": "Comma separated list of images to update, instead of everything. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
+    }
+)
+def update_resources(ctx: Context, vmconfig_template="system-probe", all_archs: bool = False, images: str | None = None):
     kmt_os = get_kmt_os()
 
     warn("Updating resource dependencies will delete all running stacks.")
@@ -340,7 +345,7 @@ def update_resources(ctx: Context, vmconfig_template="system-probe", all_archs=F
     for stack in glob(f"{kmt_os.stacks_dir}/*"):
         destroy_stack(ctx, stack=os.path.basename(stack))
 
-    update_rootfs(ctx, kmt_os.rootfs_dir, vmconfig_template, all_archs=all_archs)
+    update_rootfs(ctx, kmt_os.rootfs_dir, vmconfig_template, all_archs=all_archs, images=images)
 
 
 @task
@@ -398,11 +403,6 @@ def download_gotestsum(ctx: Context, arch: Arch, fgotestsum: PathOrStr):
 
     ctx.run(f"cp {paths.tools}/gotestsum {fgotestsum}")
 
-
-def full_arch(arch: ArchOrLocal) -> Arch:
-    if arch == "local":
-        return arch_mapping[platform.machine()]
-    return arch
 
 
 class KMTPaths:
