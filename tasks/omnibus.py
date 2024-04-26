@@ -49,7 +49,8 @@ def omnibus_run_task(
             "populate_s3_cache": populate_s3_cache,
         }
 
-        ctx.run(cmd.format(**args), env=env)
+        with collapsed_section(f"Running omnibus task {task}"):
+            ctx.run(cmd.format(**args), env=env, err_stream=sys.stdout)
 
 
 def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
@@ -252,25 +253,26 @@ def build(
         # Individual developers are still able to leverage the cache by providing
         # the OMNIBUS_GIT_CACHE_DIR env variable, but they won't pull from the CI
         # generated one.
-        use_remote_cache = remote_cache_name is not None
-        if use_remote_cache:
-            cache_state = None
-            cache_key = omnibus_compute_cache_key(ctx)
-            git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
-            bundle_path = (
-                "/tmp/omnibus-git-cache-bundle" if sys.platform != 'win32' else "C:\\TEMP\\omnibus-git-cache-bundle"
-            )
-            with timed(quiet=True) as restore_cache:
-                # Allow failure in case the cache was evicted
-                if ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
-                    print(f'Successfully restored cache {cache_key}')
-                    ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}")
-                    cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
-                else:
-                    print(f'Failed to restore cache from key {cache_key}')
-                    send_cache_miss_event(
-                        ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
-                    )
+        with collapsed_section("Manage omnibus cache"):
+            use_remote_cache = remote_cache_name is not None
+            if use_remote_cache:
+                cache_state = None
+                cache_key = omnibus_compute_cache_key(ctx)
+                git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
+                bundle_path = (
+                    "/tmp/omnibus-git-cache-bundle" if sys.platform != 'win32' else "C:\\TEMP\\omnibus-git-cache-bundle"
+                )
+                with timed(quiet=True) as restore_cache:
+                    # Allow failure in case the cache was evicted
+                    if ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
+                        print(f'Successfully restored cache {cache_key}')
+                        ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}", err_stream=sys.stdout)
+                        cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
+                    else:
+                        print(f'Failed to restore cache from key {cache_key}')
+                        send_cache_miss_event(
+                            ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
+                        )
 
     with timed(quiet=True) as omnibus_elapsed:
         omnibus_run_task(
