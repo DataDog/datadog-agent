@@ -31,7 +31,6 @@ var failedConnConsumerTelemetry = struct {
 
 type tcpFailedConnConsumer struct {
 	eventHandler  ddebpf.EventHandler
-	requests      chan chan struct{}
 	once          sync.Once
 	closed        chan struct{}
 	failedConnMap *network.FailedConns
@@ -40,7 +39,6 @@ type tcpFailedConnConsumer struct {
 func newFailedConnConsumer(eventHandler ddebpf.EventHandler) *tcpFailedConnConsumer {
 	return &tcpFailedConnConsumer{
 		eventHandler:  eventHandler,
-		requests:      make(chan chan struct{}),
 		closed:        make(chan struct{}),
 		failedConnMap: network.NewFailedConns(),
 	}

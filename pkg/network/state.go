@@ -581,11 +581,13 @@ func (t FailedConnStats) String() string {
 // FailedConnMap is a map of connection tuples to failed connection stats
 type FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
 
+// FailedConns is a struct to hold failed connections
 type FailedConns struct {
 	FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
 	sync.RWMutex
 }
 
+// NewFailedConns returns a new FailedConns struct
 func NewFailedConns() *FailedConns {
 	return &FailedConns{
 		FailedConnMap: make(map[ebpf.ConnTuple]*FailedConnStats),
