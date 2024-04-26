@@ -68,6 +68,7 @@ def trigger_macos(
     retry_download=3,
     retry_interval=10,
     fast_tests=None,
+    test_washer=None,
     integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
     if workflow_type == "build":
@@ -102,6 +103,7 @@ def trigger_macos(
             python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
             fast_tests=fast_tests,
+            test_washer=test_washer,
         )
         repack_macos_junit_tar(conclusion, "junit-tests_macos.tgz", "junit-tests_macos-repacked.tgz")
     elif workflow_type == "lint":
