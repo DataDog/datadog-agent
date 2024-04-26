@@ -48,8 +48,19 @@ func GetTCPConnections() []TCPConnection {
 	procRoot := kernel.ProcFSRoot()
 
 	connByInode := make(map[int]TCPConnection)
-	populateIndex(connByInode, filepath.Join(procRoot, "net", "tcp"))
-	populateIndex(connByInode, filepath.Join(procRoot, "net", "tcp6"))
+	namespaces, err := kernel.GetNetNamespaces(procRoot)
+	if err != nil {
+		return nil
+	}
+
+	for _, netNS := range namespaces {
+		_ = kernel.WithNS(netNS, func() error {
+			populateIndex(connByInode, filepath.Join(procRoot, "net", "tcp"))
+			populateIndex(connByInode, filepath.Join(procRoot, "net", "tcp6"))
+			return nil
+		})
+		netNS.Close()
+	}
 
 	result := make([]TCPConnection, 0, len(connByInode))
 	_ = kernel.WithAllProcs(procRoot, func(pid int) error {
