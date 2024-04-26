@@ -6,9 +6,12 @@
 package flare
 
 import (
+	"maps"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -21,8 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func getPprofTestServer() *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+const sysprobeSockPath = "/tmp/sysprobe.sock"
+
+func getPprofTestServer(t *testing.T) (tcpServer *httptest.Server, unixServer *httptest.Server) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/debug/pprof/heap":
 			w.Write([]byte("heap_profile"))
@@ -33,15 +38,33 @@ func getPprofTestServer() *httptest.Server {
 			w.Write([]byte("mutex"))
 		case "/debug/pprof/block":
 			w.Write([]byte("block"))
+		case "/debug/stats": // only for system-probe
+			w.WriteHeader(200)
 		default:
 			w.WriteHeader(500)
 		}
-	}))
+	})
+
+	tcpServer = httptest.NewServer(handler)
+	if runtime.GOOS == "linux" {
+		unixServer = httptest.NewUnstartedServer(handler)
+		var err error
+		unixServer.Listener, err = net.Listen("unix", sysprobeSockPath)
+		require.NoError(t, err, "could not create listener for unix socket /tmp/sysprobe.sock")
+		unixServer.Start()
+
+		return tcpServer, unixServer
+	}
+
+	return tcpServer, tcpServer
 }
 
 func TestReadProfileData(t *testing.T) {
-	ts := getPprofTestServer()
-	defer ts.Close()
+	ts, uts := getPprofTestServer(t)
+	t.Cleanup(func() {
+		ts.Close()
+		uts.Close()
+	})
 
 	u, err := url.Parse(ts.URL)
 	require.NoError(t, err)
@@ -54,7 +77,14 @@ func TestReadProfileData(t *testing.T) {
 	mockConfig.SetWithoutSource("apm_config.receiver_timeout", "10")
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
-	mockConfig.SetWithoutSource("system_probe_config.debug_port", port)
+
+	mockSysProbeConfig := config.MockSystemProbe(t)
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
+	if runtime.GOOS == "windows" {
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
+	} else {
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
+	}
 
 	data, err := readProfileData(10)
 	require.NoError(t, err)
@@ -80,11 +110,15 @@ func TestReadProfileData(t *testing.T) {
 		"trace-block.pprof":             []byte("block"),
 		"trace-cpu.pprof":               []byte("10_sec_cpu_pprof"),
 		"trace-mutex.pprof":             []byte("mutex"),
-		"system-probe-1st-heap.pprof":   []byte("heap_profile"),
-		"system-probe-2nd-heap.pprof":   []byte("heap_profile"),
-		"system-probe-block.pprof":      []byte("block"),
-		"system-probe-cpu.pprof":        []byte("10_sec_cpu_pprof"),
-		"system-probe-mutex.pprof":      []byte("mutex"),
+	}
+	if runtime.GOOS != "darwin" {
+		maps.Copy(expected, flare.ProfileData{
+			"system-probe-1st-heap.pprof": []byte("heap_profile"),
+			"system-probe-2nd-heap.pprof": []byte("heap_profile"),
+			"system-probe-block.pprof":    []byte("block"),
+			"system-probe-cpu.pprof":      []byte("10_sec_cpu_pprof"),
+			"system-probe-mutex.pprof":    []byte("mutex"),
+		})
 	}
 
 	require.Len(t, data, len(expected), "expected pprof data has more or less profiles than expected")
@@ -94,8 +128,11 @@ func TestReadProfileData(t *testing.T) {
 }
 
 func TestReadProfileDataNoTraceAgent(t *testing.T) {
-	ts := getPprofTestServer()
-	defer ts.Close()
+	ts, uts := getPprofTestServer(t)
+	t.Cleanup(func() {
+		ts.Close()
+		uts.Close()
+	})
 
 	u, err := url.Parse(ts.URL)
 	require.NoError(t, err)
@@ -108,7 +145,14 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 	mockConfig.SetWithoutSource("apm_config.receiver_timeout", "10")
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
-	mockConfig.SetWithoutSource("system_probe_config.debug_port", port)
+
+	mockSysProbeConfig := config.MockSystemProbe(t)
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
+	if runtime.GOOS == "windows" {
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
+	} else {
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
+	}
 
 	data, err := readProfileData(10)
 	require.Error(t, err)
@@ -130,11 +174,15 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 		"security-agent-block.pprof":    []byte("block"),
 		"security-agent-cpu.pprof":      []byte("10_sec_cpu_pprof"),
 		"security-agent-mutex.pprof":    []byte("mutex"),
-		"system-probe-1st-heap.pprof":   []byte("heap_profile"),
-		"system-probe-2nd-heap.pprof":   []byte("heap_profile"),
-		"system-probe-block.pprof":      []byte("block"),
-		"system-probe-cpu.pprof":        []byte("10_sec_cpu_pprof"),
-		"system-probe-mutex.pprof":      []byte("mutex"),
+	}
+	if runtime.GOOS != "darwin" {
+		maps.Copy(expected, flare.ProfileData{
+			"system-probe-1st-heap.pprof": []byte("heap_profile"),
+			"system-probe-2nd-heap.pprof": []byte("heap_profile"),
+			"system-probe-block.pprof":    []byte("block"),
+			"system-probe-cpu.pprof":      []byte("10_sec_cpu_pprof"),
+			"system-probe-mutex.pprof":    []byte("mutex"),
+		})
 	}
 
 	require.Len(t, data, len(expected), "expected pprof data has more or less profiles than expected")
