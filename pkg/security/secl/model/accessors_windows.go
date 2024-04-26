@@ -28,6 +28,7 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("exec"),
 		eval.EventType("exit"),
 		eval.EventType("open_key"),
+		eval.EventType("rename"),
 		eval.EventType("set_key_value"),
 	}
 }
@@ -1177,6 +1178,86 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "rename.file.destination.name":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.New)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "rename.file.destination.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.New))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "rename.file.destination.path":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.New)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "rename.file.destination.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.New))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "rename.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.Old)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "rename.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.Old))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "rename.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.Old)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "rename.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.Old))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "set.registry.key_name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -1414,6 +1495,14 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ppid",
 		"process.user",
 		"process.user_sid",
+		"rename.file.destination.name",
+		"rename.file.destination.name.length",
+		"rename.file.destination.path",
+		"rename.file.destination.path.length",
+		"rename.file.name",
+		"rename.file.name.length",
+		"rename.file.path",
+		"rename.file.path.length",
 		"set.registry.key_name",
 		"set.registry.key_name.length",
 		"set.registry.key_path",
@@ -1799,6 +1888,22 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveUser(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.user_sid":
 		return ev.BaseEvent.ProcessContext.Process.OwnerSidString, nil
+	case "rename.file.destination.name":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.New), nil
+	case "rename.file.destination.name.length":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.New), nil
+	case "rename.file.destination.path":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.New), nil
+	case "rename.file.destination.path.length":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.New), nil
+	case "rename.file.name":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.Old), nil
+	case "rename.file.name.length":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.Old), nil
+	case "rename.file.path":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.Old), nil
+	case "rename.file.path.length":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.Old), nil
 	case "set.registry.key_name":
 		return ev.SetRegistryKeyValue.Registry.KeyName, nil
 	case "set.registry.key_name.length":
@@ -2036,6 +2141,22 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.user_sid":
 		return "*", nil
+	case "rename.file.destination.name":
+		return "rename", nil
+	case "rename.file.destination.name.length":
+		return "rename", nil
+	case "rename.file.destination.path":
+		return "rename", nil
+	case "rename.file.destination.path.length":
+		return "rename", nil
+	case "rename.file.name":
+		return "rename", nil
+	case "rename.file.name.length":
+		return "rename", nil
+	case "rename.file.path":
+		return "rename", nil
+	case "rename.file.path.length":
+		return "rename", nil
 	case "set.registry.key_name":
 		return "set_key_value", nil
 	case "set.registry.key_name.length":
@@ -2273,6 +2394,22 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.user_sid":
 		return reflect.String, nil
+	case "rename.file.destination.name":
+		return reflect.String, nil
+	case "rename.file.destination.name.length":
+		return reflect.Int, nil
+	case "rename.file.destination.path":
+		return reflect.String, nil
+	case "rename.file.destination.path.length":
+		return reflect.Int, nil
+	case "rename.file.name":
+		return reflect.String, nil
+	case "rename.file.name.length":
+		return reflect.Int, nil
+	case "rename.file.path":
+		return reflect.String, nil
+	case "rename.file.path.length":
+		return reflect.Int, nil
 	case "set.registry.key_name":
 		return reflect.String, nil
 	case "set.registry.key_name.length":
@@ -3215,6 +3352,42 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Process.OwnerSidString = rv
 		return nil
+	case "rename.file.destination.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RenameFile.New.BasenameStr"}
+		}
+		ev.RenameFile.New.BasenameStr = rv
+		return nil
+	case "rename.file.destination.name.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.name.length"}
+	case "rename.file.destination.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RenameFile.New.PathnameStr"}
+		}
+		ev.RenameFile.New.PathnameStr = rv
+		return nil
+	case "rename.file.destination.path.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.path.length"}
+	case "rename.file.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RenameFile.Old.BasenameStr"}
+		}
+		ev.RenameFile.Old.BasenameStr = rv
+		return nil
+	case "rename.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.name.length"}
+	case "rename.file.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RenameFile.Old.PathnameStr"}
+		}
+		ev.RenameFile.Old.PathnameStr = rv
+		return nil
+	case "rename.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.path.length"}
 	case "set.registry.key_name":
 		rv, ok := value.(string)
 		if !ok {
