@@ -55,8 +55,13 @@ func GetTCPConnections() []TCPConnection {
 
 	for _, netNS := range namespaces {
 		_ = kernel.WithNS(netNS, func() error {
-			populateIndex(connByInode, filepath.Join(procRoot, "net", "tcp"))
-			populateIndex(connByInode, filepath.Join(procRoot, "net", "tcp6"))
+			ino, err := kernel.GetInoForNs(netNS)
+			if err != nil {
+				return nil
+			}
+
+			populateIndex(connByInode, ino, filepath.Join(procRoot, "net", "tcp"))
+			populateIndex(connByInode, ino, filepath.Join(procRoot, "net", "tcp6"))
 			return nil
 		})
 		netNS.Close()
@@ -73,7 +78,7 @@ func GetTCPConnections() []TCPConnection {
 
 // populateIndex builds an index of TCP connection data by inode by
 // reading /proc/net/{tcp,tcp6} files
-func populateIndex(connByInode map[int]TCPConnection, file string) {
+func populateIndex(connByInode map[int]TCPConnection, ino uint32, file string) {
 	scanner, err := newScanner(file)
 	if err != nil {
 		return
@@ -94,6 +99,7 @@ func populateIndex(connByInode map[int]TCPConnection, file string) {
 			Lport: lport,
 			Rport: rport,
 			State: entry.ConnectionState(),
+			NetNS: ino,
 		}
 	}
 }
@@ -106,11 +112,6 @@ func populateIndex(connByInode map[int]TCPConnection, file string) {
 // original `connsByInode` map size because one TCP socket can potentially "map"
 // to multiple (PID, FD) pairs (eg. forked processes etc).
 func matchFDWithSocket(procRoot string, pid int, connByInode map[int]TCPConnection, conns []TCPConnection) []TCPConnection {
-	netNS, err := kernel.GetNetNsInoFromPid(procRoot, pid)
-	if err != nil {
-		return conns
-	}
-
 	fdsPath := filepath.Join(procRoot, fmt.Sprintf("%d", pid), "fd")
 	fdsDir, err := os.Open(fdsPath)
 	if err != nil {
@@ -146,7 +147,6 @@ func matchFDWithSocket(procRoot string, pid int, connByInode map[int]TCPConnecti
 
 		conn.PID = uint32(pid)
 		conn.FD = uint32(fdNum)
-		conn.NetNS = netNS
 		conns = append(conns, conn)
 	}
 
