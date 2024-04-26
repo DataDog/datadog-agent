@@ -27,7 +27,7 @@ var agentNames = map[string]struct{}{
 	"dogstatsd": {},
 }
 
-// diagnosePortSuite displays information about the ports used in the agent configuration
+// DiagnosePortSuite displays information about the ports used in the agent configuration
 func DiagnosePortSuite(_ diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 	ports, err := port.GetUsedPorts()
 	if err != nil {
