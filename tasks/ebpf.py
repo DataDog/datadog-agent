@@ -331,7 +331,17 @@ def get_complexity_for_function(program: str, function: str, debug=False) -> Com
         return json.load(f)
 
 
-@task
+@task(
+    help={
+        "program": "The program to analyze",
+        "function": "The function to analyze",
+        "debug": "Use debug builds",
+        "show_assembly": "Show the assembly code for each line",
+        "show_register_state": "Show the register state after each instruction",
+        "assembly_instruction_limit": "Limit the number of assembly instructions to show",
+        "show_raw_register_state": "Show the raw register state from the verifier after each instruction",
+    }
+)
 def annotate_complexity(
     _: Context,
     program: str,
@@ -342,6 +352,7 @@ def annotate_complexity(
     assembly_instruction_limit=20,
     show_raw_register_state=False,
 ):
+    """Show source code with annotated complexity information for the given program and function"""
     complexity_data = get_complexity_for_function(program, function, debug)
     all_files = {x.split(":")[0] for x in complexity_data["source_map"].keys()}
 
@@ -457,6 +468,7 @@ def show_top_complexity_lines(
     n=10,
     debug=False,
 ):
+    """Show the lines with the most complexity for the given program and function"""
     complexity_data = get_complexity_for_function(program, function, debug)
     top_complexity_lines = sorted(
         complexity_data["source_map"].items(),
