@@ -180,7 +180,7 @@ func (r *Runner) processResults(res *results.Results, hname string, destinationH
 	}
 
 	destIP := destinationIP.String()
-	newDestHostname := destHostname
+	newDestHostname := destinationHost
 	if newDestHostname == destIP {
 		fetchedHostname := getHostname(newDestHostname)
 		if fetchedHostname != "" {
