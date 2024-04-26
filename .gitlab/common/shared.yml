@@ -37,7 +37,7 @@
 
 # Sets up a cache for gems used by Omnibus
 # Usage:
-# !reference [.cache_omnibus_ruby_deps, setup] somewhere ahead of invoking bundlex
+# !reference [.cache_omnibus_ruby_deps, setup] somewhere ahead of invoking bundle
 # !reference [.cache_omnibus_ruby_deps, cache] under `cache` for the same job
 .cache_omnibus_ruby_deps:
   setup:
