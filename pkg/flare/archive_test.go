@@ -24,7 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -111,13 +111,13 @@ func setupIPCAddress(t *testing.T, URL string) *config.MockConfig {
 }
 
 func TestGetAgentTaggerList(t *testing.T) {
-	tagMap := make(map[string]tagger_api.TaggerListEntity)
-	tagMap["random_entity_name"] = tagger_api.TaggerListEntity{
+	tagMap := make(map[string]types.TaggerListEntity)
+	tagMap["random_entity_name"] = types.TaggerListEntity{
 		Tags: map[string][]string{
 			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
 		},
 	}
-	resp := tagger_api.TaggerListResponse{
+	resp := types.TaggerListResponse{
 		Entities: tagMap,
 	}
 
