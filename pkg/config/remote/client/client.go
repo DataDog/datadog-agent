@@ -535,6 +535,7 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 			Version:    f.Version,
 			Product:    f.Product,
 			ApplyState: uint64(f.ApplyStatus.State),
+			ApplyError: f.ApplyStatus.Error,
 		})
 	}
 
