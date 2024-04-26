@@ -66,13 +66,13 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 				Diagnosis:   "Misconfiguration of agent endpoints",
 				Remediation: "Please validate agent configuration",
 				RawError:    err.Error(),
-				StatusCode:  400, // Hardcoded 400 status code since error is not nil
+				ResultCode:  400, // Hardcoded 400 status code since error is not nil
 			})
 		} else {
 			url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, config.Datadog)
 
 			name := fmt.Sprintf("Connectivity to %s", url)
-			diag := createDiagnosis("", 200, name, url, "", err) // Hardcoded 200 status code since error is nil
+			diag := createDiagnosis(url, 200, name, url, "", err) // Hardcoded 200 status code since error is nil
 
 			diagnoses = append(diagnoses, diag)
 		}
@@ -123,11 +123,10 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 func createDiagnosis(endpointName string, statusCode int, name string, logURL string, report string, err error) diagnosis.Diagnosis {
 	d := diagnosis.Diagnosis{
-		Name:         name,
-		StatusCode:   statusCode,
-		URL:          logURL,
-		EndpointName: endpointName,
+		Name:       name,
+		ResultCode: statusCode,
 	}
+	d.Name = endpointName
 
 	if err == nil {
 		d.Result = diagnosis.DiagnosisSuccess

@@ -420,12 +420,9 @@ func RunJSON(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
 	for _, ds := range diagnose {
 		category := make(categoryName)
 		for _, d := range ds.SuiteDiagnoses {
-			if d.EndpointName == "" {
-				d.EndpointName = d.URL
-			}
-			category[d.EndpointName] = diagnosis{
+			category[d.Name] = diagnosis{
 				Diagnosis:  d.Diagnosis,
-				StatusCode: d.StatusCode,
+				StatusCode: d.ResultCode,
 				IsOk:       d.Result == 0,
 			}
 		}

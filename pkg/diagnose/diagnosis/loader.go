@@ -94,12 +94,9 @@ type Diagnosis struct {
 	Remediation string
 	// run-time
 	RawError string
-	// Status code
-	StatusCode int
-	// endpoint URL
-	URL string
-	// Name of the endpoint
-	EndpointName string
+	// Result code
+	ResultCode int
+
 }
 
 // Diagnoses is a collection of Diagnosis
