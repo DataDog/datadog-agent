@@ -24,7 +24,7 @@ type linuxSecretSuite struct {
 	baseSecretSuite
 }
 
-func TestAgentSecretSuite(t *testing.T) {
+func TestLinuxSecretSuite(t *testing.T) {
 	e2e.Run(t, &linuxSecretSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
