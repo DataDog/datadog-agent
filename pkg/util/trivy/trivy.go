@@ -348,12 +348,12 @@ func (c *Collector) scanFilesystem(ctx context.Context, fsys fs.FS, path string,
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
-	log.Infof("Found OS: %+v", trivyReport.Metadata.OS)
+	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
 	pkgCount := 0
 	for _, results := range trivyReport.Results {
 		pkgCount += len(results.Packages)
 	}
-	log.Infof("Found %d packages", pkgCount)
+	log.Debugf("Found %d packages", pkgCount)
 
 	return &Report{
 		Report:    trivyReport,
