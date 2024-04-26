@@ -335,7 +335,7 @@ func (a *apmInjectorInstaller) deleteAgentConfigContent(content []byte) []byte {
 func backupAgentConfig(ctx context.Context) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "backup_agent_config")
 	defer span.Finish()
-	return exec.Command("cp", "-f", datadogConfigPath, datadogConfigPath+".bak").Run()
+	return exec.CommandContext(ctx, "cp", "-f", datadogConfigPath, datadogConfigPath+".bak").Run()
 }
 
 // restoreAgentConfig restores the agent configuration & restarts the agent

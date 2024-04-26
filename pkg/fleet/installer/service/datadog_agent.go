@@ -97,7 +97,7 @@ func SetupAgent(ctx context.Context) (err error) {
 			return
 		}
 	}
-	if err = exec.Command("ln", "-sf", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", agentSymlink).Run(); err != nil {
+	if err = exec.CommandContext(ctx, "ln", "-sf", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", agentSymlink).Run(); err != nil {
 		return
 	}
 

@@ -59,35 +59,35 @@ func stopUnit(ctx context.Context, unit string) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "stop_unit")
 	defer span.Finish()
 	span.SetTag("unit", unit)
-	return exec.Command("systemctl", "stop", unit, "--no-block").Run()
+	return exec.CommandContext(ctx, "systemctl", "stop", unit, "--no-block").Run()
 }
 
 func startUnit(ctx context.Context, unit string) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "start_unit")
 	defer span.Finish()
 	span.SetTag("unit", unit)
-	return exec.Command("systemctl", "start", unit, "--no-block").Run()
+	return exec.CommandContext(ctx, "systemctl", "start", unit, "--no-block").Run()
 }
 
 func enableUnit(ctx context.Context, unit string) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "enable_unit")
 	defer span.Finish()
 	span.SetTag("unit", unit)
-	return exec.Command("systemctl", "enable", unit).Run()
+	return exec.CommandContext(ctx, "systemctl", "enable", unit).Run()
 }
 
 func disableUnit(ctx context.Context, unit string) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "disable_unit")
 	defer span.Finish()
 	span.SetTag("unit", unit)
-	return exec.Command("systemctl", "disable", unit).Run()
+	return exec.CommandContext(ctx, "systemctl", "disable", unit).Run()
 }
 
 func loadUnit(ctx context.Context, unit string) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "load_unit")
 	defer span.Finish()
 	span.SetTag("unit", unit)
-	return exec.Command("cp", "-f", path.Join(setup.InstallPath, "systemd", unit), path.Join(systemdPath, unit)).Run()
+	return exec.CommandContext(ctx, "cp", "-f", path.Join(setup.InstallPath, "systemd", unit), path.Join(systemdPath, unit)).Run()
 }
 
 func removeUnit(ctx context.Context, unit string) error {
@@ -100,7 +100,7 @@ func removeUnit(ctx context.Context, unit string) error {
 func systemdReload(ctx context.Context) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "systemd_reload")
 	defer span.Finish()
-	return exec.Command("systemctl", "daemon-reload").Run()
+	return exec.CommandContext(ctx, "systemctl", "daemon-reload").Run()
 }
 
 // isSystemdRunning checks if systemd is running using the documented way

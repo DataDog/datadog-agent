@@ -340,7 +340,7 @@ func (r *repositoryFiles) setStable(ctx context.Context, name string, sourcePath
 	return r.stable.Set(path)
 }
 
-func movePackageFromSource(_ context.Context, packageName string, rootPath string, lockedPackages map[string]bool, sourcePath string) (string, error) {
+func movePackageFromSource(ctx context.Context, packageName string, rootPath string, lockedPackages map[string]bool, sourcePath string) (string, error) {
 	if packageName == "" || packageName == stableVersionLink || packageName == experimentVersionLink {
 		return "", fmt.Errorf("invalid package name")
 	}
@@ -367,7 +367,7 @@ func movePackageFromSource(_ context.Context, packageName string, rootPath strin
 		return "", fmt.Errorf("could not set permissions on package: %w", err)
 	}
 	if filepath.Base(rootPath) == "datadog-agent" {
-		if err := exec.Command("chown", "-R", "dd-agent:dd-agent", targetPath).Run(); err != nil {
+		if err := exec.CommandContext(ctx, "chown", "-R", "dd-agent:dd-agent", targetPath).Run(); err != nil {
 			return "", err
 		}
 	}

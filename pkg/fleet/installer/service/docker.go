@@ -174,19 +174,22 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte)
 func restartDocker(ctx context.Context) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "restart_docker")
 	defer span.Finish()
-	if !isDockerInstalled() {
+	if !isDockerInstalled(ctx) {
 		log.Info("installer: docker is not installed, skipping reload")
 		return nil
 	}
-	return exec.Command("systemctl", "restart", "docker").Run()
+	return exec.CommandContext(ctx, "systemctl", "restart", "docker").Run()
 }
 
 // isDockerInstalled checks if docker is installed on the system
-func isDockerInstalled() bool {
-	cmd := exec.Command("which", "docker")
+func isDockerInstalled(ctx context.Context) bool {
+	span, _ := tracer.StartSpanFromContext(ctx, "is_docker_installed")
+	defer span.Finish()
+	cmd := exec.CommandContext(ctx, "which", "docker")
 	var outb bytes.Buffer
 	cmd.Stdout = &outb
 	err := cmd.Run()
+	span.SetTag("is_installed", err == nil)
 	if err != nil {
 		log.Warn("installer: failed to check if docker is installed, assuming it isn't: ", err)
 		return false
