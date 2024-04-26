@@ -10,12 +10,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/mux"
 	"net"
 	"net/http"
 	"os"
-	"runtime"
-
-	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -59,28 +57,17 @@ type localAPIImpl struct {
 
 // NewLocalAPI returns a new LocalAPI.
 func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
-	if runtime.GOOS != "windows" {
-		socketPath := defaultSocketPath
-		err := os.RemoveAll(socketPath)
-		if err != nil {
-			return nil, fmt.Errorf("could not remove socket: %w", err)
-		}
-		listener, err := net.Listen("unix", socketPath)
-		if err != nil {
-			return nil, err
-		}
-		if err := os.Chmod(socketPath, 0700); err != nil {
-			return nil, fmt.Errorf("error setting socket permissions: %v", err)
-		}
-		return &localAPIImpl{
-			server:   &http.Server{},
-			listener: listener,
-			daemon:   daemon,
-		}, nil
+	socketPath := defaultSocketPath
+	err := os.RemoveAll(socketPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not remove socket: %w", err)
 	}
-	listener, err := net.Listen("tcp", ":5008")
+	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		return nil, err
+	}
+	if err := os.Chmod(socketPath, 0700); err != nil {
+		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
 	return &localAPIImpl{
 		server:   &http.Server{},
@@ -251,24 +238,12 @@ type localAPIClientImpl struct {
 
 // NewLocalAPIClient returns a new LocalAPIClient.
 func NewLocalAPIClient() LocalAPIClient {
-	if runtime.GOOS != "windows" {
-		return &localAPIClientImpl{
-			addr: "daemon", // this has no meaning when using a unix socket
-			client: &http.Client{
-				Transport: &http.Transport{
-					Dial: func(_, _ string) (net.Conn, error) {
-						return net.Dial("unix", defaultSocketPath)
-					},
-				},
-			},
-		}
-	}
 	return &localAPIClientImpl{
-		addr: "127.0.0.1:5008",
+		addr: "daemon", // this has no meaning when using a unix socket
 		client: &http.Client{
 			Transport: &http.Transport{
 				Dial: func(_, _ string) (net.Conn, error) {
-					return net.Dial("tcp", ":5008")
+					return net.Dial("unix", defaultSocketPath)
 				},
 			},
 		},
