@@ -181,6 +181,9 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
     http_parse_data(buffer, &packet_type, &method);
 
     http = http_fetch_state(tuple, http, packet_type);
+    log_debug("http: saddr %llx:%llx %u", tuple->saddr_h, tuple->saddr_l, tuple->sport);
+    log_debug("http: daddr %llx:%llx %u", tuple->daddr_h, tuple->daddr_l, tuple->dport);
+    log_debug("http: %p req_started %llu", http, http ? http->request_started : -1);
     if (!http || http_seen_before(http, skb_info, packet_type)) {
          log_debug("!http / seen_before");
         return;
@@ -293,6 +296,18 @@ int uprobe__http_termination(struct pt_regs *ctx) {
     skb_info.tcp_flags |= TCPHDR_FIN;
     http_process(&event, &skb_info, NO_TAGS);
     http_batch_flush(ctx);
+
+    return 0;
+}
+
+static __always_inline  int sockops_http_termination(conn_tuple_t *tup) {
+    http_event_t event;
+    bpf_memset(&event, 0, sizeof(http_event_t));
+    bpf_memcpy(&event.tuple, tup, sizeof(conn_tuple_t));
+    skb_info_t skb_info = {0};
+    skb_info.tcp_flags |= TCPHDR_FIN;
+    normalize_tuple(&event.tuple);
+    http_process(&event, &skb_info, NO_TAGS);
 
     return 0;
 }

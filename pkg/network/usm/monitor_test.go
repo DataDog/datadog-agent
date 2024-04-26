@@ -171,7 +171,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	})
 
 	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
-	abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ignore", slowServerAddr), emptyBody)
+	abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ign", slowServerAddr), emptyBody)
 	wg := sync.WaitGroup{}
 	abortedRequests := make(chan *nethttp.Request, 100)
 	for i := 0; i < 100; i++ {
@@ -195,6 +195,8 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	for i := 0; i < 10; i++ {
 		time.Sleep(10 * time.Millisecond)
 		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
+		log.Info(stats)
+		fmt.Println(stats)
 		for req := range abortedRequests {
 			checkRequestIncluded(t, stats, req, false)
 		}
@@ -569,7 +571,7 @@ func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *n
 		require.NoError(t, err)
 
 		resp, err := client.Do(req)
-		if strings.Contains(targetAddr, "ignore") {
+		if strings.Contains(targetAddr, "ign") {
 			return req
 		}
 		require.NoError(t, err)

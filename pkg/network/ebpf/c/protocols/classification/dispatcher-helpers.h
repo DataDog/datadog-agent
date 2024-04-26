@@ -87,18 +87,7 @@ static __always_inline void dispatcher_delete_protocol_stack(conn_tuple_t *tuple
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies & dispatches the protocols of the connections.
-static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb) {
-    skb_info_t skb_info = {0};
-    conn_tuple_t skb_tup = {0};
-    
-    log_debug("dispatch");
-
-    // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
-    if (!read_conn_tuple_skb_cgroup(skb, &skb_info, &skb_tup)) {
-        log_debug("dispatch no read conn");
-        return;
-    }
-
+static __always_inline void protocol_dispatcher_entrypoint_tail(struct __sk_buff *skb, skb_info_t skb_info, conn_tuple_t skb_tup) {
     bool tcp_termination = is_tcp_termination(&skb_info);
     // We don't process non tcp packets, nor empty tcp packets which are not tcp termination packets.
     if (!is_tcp(&skb_tup) || (is_payload_empty(&skb_info) && !tcp_termination)) {
@@ -136,7 +125,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         return;
     }
 
-    if (cur_fragment_protocol == PROTOCOL_UNKNOWN) {
+    if (skb && cur_fragment_protocol == PROTOCOL_UNKNOWN) {
         log_debug("[protocol_dispatcher_entrypoint]: %p was not classified", skb);
         char request_fragment[CLASSIFICATION_MAX_BUFFER];
         bpf_memset(request_fragment, 0, sizeof(request_fragment));
@@ -169,6 +158,22 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         log_debug("dispatching to protocol number: %d", cur_fragment_protocol);
         bpf_tail_call_compat(skb, &protocols_progs, protocol_to_program(cur_fragment_protocol));
     }
+}
+
+// A shared implementation for the runtime & prebuilt socket filter that classifies & dispatches the protocols of the connections.
+static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb) {
+    skb_info_t skb_info = {0};
+    conn_tuple_t skb_tup = {0};
+    
+    log_debug("dispatch");
+
+    // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
+    if (!read_conn_tuple_skb_cgroup(skb, &skb_info, &skb_tup)) {
+        log_debug("dispatch no read conn");
+        return;
+    }
+ 
+    protocol_dispatcher_entrypoint_tail(skb, skb_info, skb_tup);
 }
 
 static __always_inline void dispatch_kafka(struct __sk_buff *skb) {

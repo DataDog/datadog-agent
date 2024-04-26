@@ -214,8 +214,8 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb_cgroup(struct __
         tup->saddr_h = 0;
         tup->daddr_l = skb->remote_ip4;
         tup->daddr_h = 0;
-        tup->sport = bpf_htonl(skb->local_port);
-        tup->dport = skb->remote_port;
+        tup->sport = skb->local_port;
+        tup->dport = bpf_htonl(skb->remote_port);
         tup->metadata |= CONN_V4 | CONN_TYPE_TCP;
 
     // Assume that empty packets arriving at the streamparser are TCP FINs. FIXME is this valid?

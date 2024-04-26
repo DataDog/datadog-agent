@@ -53,7 +53,7 @@ int sk_skb__kafka_stream_parser(struct __sk_buff* skb) {
 
 SEC("sk_skb/stream_verdict/verdict")
 int sk_skb__kafka_stream_verdict(struct __sk_buff* skb) {
-    log_debug("%s: sockops stream verdict skb %p len %u", __func__, skb, skb->len);
+    log_debug("sk_skb__kafka_stream_verdict: sockops stream verdict skb %p skb->sk %p len %u", skb, skb->sk, skb->len);
     // u32 val  = 0xdead;
     // long ret = bpf_skb_load_bytes(skb, skb->len - sizeof(val), &val, sizeof(val));
     // if (ret != 1000) {
@@ -68,6 +68,28 @@ SEC("sockops/sockops")
 int sockops__sockops(struct bpf_sock_ops *skops) {
     int op = (int) skops->op;
 
+    if (op == BPF_SOCK_OPS_STATE_CB) {
+        u32 new = skops->args[1];
+        log_debug("sockops state cb old %d new %d", skops->args[0], skops->args[1]);
+        log_debug("sockops ip %x local_port %u", skops->local_ip4, skops->local_port);
+        log_debug("sockops ip %x remote_port %u", skops->remote_ip4, bpf_ntohl(skops->remote_port));
+
+        if (new == BPF_TCP_CLOSE || new == BPF_TCP_LAST_ACK) {
+            conn_tuple_t tup = {};
+
+            bpf_memset(&tup, 0, sizeof(tup));
+
+            tup.metadata = CONN_V4 | CONN_TYPE_TCP;
+            tup.saddr_l = skops->local_ip4;
+            tup.daddr_l = skops->remote_ip4;
+            tup.sport = skops->local_port;
+            tup.dport = bpf_ntohl(skops->remote_port);
+
+            sockops_http_termination(&tup);
+            return 0;
+        }
+    }
+
     if (op != BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB && op != BPF_SOCK_OPS_ACTIVE_ESTABLISHED_CB) {
         return 0;
     }
@@ -79,7 +101,7 @@ int sockops__sockops(struct bpf_sock_ops *skops) {
         .local_port = skops->local_port,
     };
 
-    log_debug("sockops op %u", skops->op);
+    log_debug("sockops! op %u", skops->op);
     log_debug("sockops local_port %u", skops->local_port);
     log_debug("sockops remote_port %u", bpf_ntohl(skops->remote_port));
 
@@ -89,6 +111,8 @@ int sockops__sockops(struct bpf_sock_ops *skops) {
     if (ret != 1000) {
         log_debug("sockops ret %ld", ret);
     }
+
+    bpf_sock_ops_cb_flags_set(skops, BPF_SOCK_OPS_STATE_CB_FLAG);
 
     // case (op) {
     // case BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB:
