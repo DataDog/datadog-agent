@@ -31,7 +31,6 @@ headers = [
     "Stack Usage",
     "Instructions Processed",
     "Instructions Processed limit",
-    "Verification time",
     "Max States per Instruction",
     "Peak States",
     "Total States",
@@ -41,12 +40,12 @@ verifier_stat_json_keys = [
     "stack_usage",
     "instruction_processed",
     "limit",
-    "verification_time",
     "max_states_per_insn",
     "peak_states",
     "total_states",
 ]
 
+skip_stat_keys = ["Complexity","verification_time"]
 
 def tabulate_stats(stats):
     table = list()
@@ -89,14 +88,14 @@ def write_verifier_stats(verifier_stats, f, jsonfmt):
 
 # the go program return stats in the form {func_name: {stat_name: {Value: X}}}.
 # convert this to {func_name: {stat_name: X}}
-def cleanup_verifier_stats(verifier_stats):
-    cleaned = dict()
+def format_verifier_stats(verifier_stats):
+    filtered = dict()
     for func in verifier_stats:
-        cleaned[func] = dict()
+        filtered[func] = dict()
         for stat in verifier_stats[func]:
-            if stat != "Complexity":
-                cleaned[func][stat] = verifier_stats[func][stat]["Value"]
-    return cleaned
+            if stat not in skip_stat_keys:
+                filtered[func][stat] = verifier_stats[func][stat]["Value"]
+    return filtered
 
 
 @task(
@@ -129,7 +128,7 @@ def collect_verification_stats(
     env = {"DD_SYSTEM_PROBE_BPF_DIR": "./pkg/ebpf/bytecode/build"}
 
     # ensure all files are object files
-    for f in filter_file:
+    for f in filter_file or []:
         _, ext = os.path.splitext(f)
         if ext != ".o":
             raise Exit(f"File {f} does not have the valid '.o' extension")
@@ -140,8 +139,8 @@ def collect_verification_stats(
             "-summary-output",
             os.fspath(VERIFIER_STATS),
         ]
-        + [f"-filter-file {f}" for f in filter_file]
-        + [f"-filter-prog {p}" for p in grep]
+        + [f"-filter-file {f}" for f in filter_file or []]
+        + [f"-filter-prog {p}" for p in grep or []]
     )
 
     if save_verifier_logs:
@@ -154,12 +153,16 @@ def collect_verification_stats(
 
     ctx.run(f"{sudo} ./main {' '.join(args)}", env=env)
 
-    with open(VERIFIER_STATS) as f:
-        verifier_stats = json.load(f)
+    # Ensure permissions are correct
+    ctx.run(f"{sudo} chmod a+wr -R {VERIFIER_DATA_DIR}")
+    ctx.run(f"{sudo} find {VERIFIER_DATA_DIR} -type d -exec chmod a+xr {{}} +")
 
-    cleaned_up = cleanup_verifier_stats(verifier_stats)
-    with open(VERIFIER_STATS, 'w') as f:
+    with open(VERIFIER_STATS, "r+") as f:
+        verifier_stats = json.load(f)
+        cleaned_up = format_verifier_stats(verifier_stats)
+        f.seek(0)
         json.dump(cleaned_up, f, indent=4)
+        f.truncate()
 
 
 @task(

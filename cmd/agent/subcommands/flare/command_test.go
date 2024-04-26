@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -109,11 +110,15 @@ func TestReadProfileData(t *testing.T) {
 		"trace-block.pprof":             []byte("block"),
 		"trace-cpu.pprof":               []byte("10_sec_cpu_pprof"),
 		"trace-mutex.pprof":             []byte("mutex"),
-		"system-probe-1st-heap.pprof":   []byte("heap_profile"),
-		"system-probe-2nd-heap.pprof":   []byte("heap_profile"),
-		"system-probe-block.pprof":      []byte("block"),
-		"system-probe-cpu.pprof":        []byte("10_sec_cpu_pprof"),
-		"system-probe-mutex.pprof":      []byte("mutex"),
+	}
+	if runtime.GOOS != "darwin" {
+		maps.Copy(expected, flare.ProfileData{
+			"system-probe-1st-heap.pprof": []byte("heap_profile"),
+			"system-probe-2nd-heap.pprof": []byte("heap_profile"),
+			"system-probe-block.pprof":    []byte("block"),
+			"system-probe-cpu.pprof":      []byte("10_sec_cpu_pprof"),
+			"system-probe-mutex.pprof":    []byte("mutex"),
+		})
 	}
 
 	require.Len(t, data, len(expected), "expected pprof data has more or less profiles than expected")
@@ -169,11 +174,15 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 		"security-agent-block.pprof":    []byte("block"),
 		"security-agent-cpu.pprof":      []byte("10_sec_cpu_pprof"),
 		"security-agent-mutex.pprof":    []byte("mutex"),
-		"system-probe-1st-heap.pprof":   []byte("heap_profile"),
-		"system-probe-2nd-heap.pprof":   []byte("heap_profile"),
-		"system-probe-block.pprof":      []byte("block"),
-		"system-probe-cpu.pprof":        []byte("10_sec_cpu_pprof"),
-		"system-probe-mutex.pprof":      []byte("mutex"),
+	}
+	if runtime.GOOS != "darwin" {
+		maps.Copy(expected, flare.ProfileData{
+			"system-probe-1st-heap.pprof": []byte("heap_profile"),
+			"system-probe-2nd-heap.pprof": []byte("heap_profile"),
+			"system-probe-block.pprof":    []byte("block"),
+			"system-probe-cpu.pprof":      []byte("10_sec_cpu_pprof"),
+			"system-probe-mutex.pprof":    []byte("mutex"),
+		})
 	}
 
 	require.Len(t, data, len(expected), "expected pprof data has more or less profiles than expected")
