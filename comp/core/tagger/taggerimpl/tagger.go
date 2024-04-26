@@ -314,8 +314,8 @@ func (t *TaggerClient) globalTagBuilder(cardinality types.TagCardinality, tb tag
 }
 
 // List the content of the defaulTagger
-func (t *TaggerClient) List(cardinality types.TagCardinality) types.TaggerListResponse {
-	return t.defaultTagger.List(cardinality)
+func (t *TaggerClient) List() types.TaggerListResponse {
+	return t.defaultTagger.List()
 }
 
 // SetNewCaptureTagger sets the tagger to be used when replaying a capture

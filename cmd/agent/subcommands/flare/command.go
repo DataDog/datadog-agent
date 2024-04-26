@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
@@ -156,39 +157,57 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	pdata := flare.ProfileData{}
 	c := util.GetClient(false)
 
-	serviceProfileCollector := func(portConfig string, seconds int) agentProfileCollector {
+	type pprofGetter func(path string) ([]byte, error)
+
+	tcpGet := func(portConfig string) pprofGetter {
+		pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog.GetInt(portConfig))
+		return func(path string) ([]byte, error) {
+			return util.DoGet(c, pprofURL+path, util.LeaveConnectionOpen)
+		}
+	}
+
+	probeUtil, probeUtilErr := net.GetRemoteSystemProbeUtil(pkgconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+	sysProbeGet := func() pprofGetter {
+		return func(path string) ([]byte, error) {
+			if probeUtilErr != nil {
+				return nil, probeUtilErr
+			}
+
+			return probeUtil.GetPprof(path)
+		}
+	}
+
+	serviceProfileCollector := func(get func(url string) ([]byte, error), seconds int) agentProfileCollector {
 		return func(service string) error {
 			fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from %s.", seconds, service))
-			pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog.GetInt(portConfig))
-
-			for _, prof := range []struct{ name, URL string }{
+			for _, prof := range []struct{ name, path string }{
 				{
 					// 1st heap profile
 					name: service + "-1st-heap.pprof",
-					URL:  pprofURL + "/heap",
+					path: "/heap",
 				},
 				{
 					// CPU profile
 					name: service + "-cpu.pprof",
-					URL:  fmt.Sprintf("%s/profile?seconds=%d", pprofURL, seconds),
+					path: fmt.Sprintf("/profile?seconds=%d", seconds),
 				},
 				{
 					// 2nd heap profile
 					name: service + "-2nd-heap.pprof",
-					URL:  pprofURL + "/heap",
+					path: "/heap",
 				},
 				{
 					// mutex profile
 					name: service + "-mutex.pprof",
-					URL:  pprofURL + "/mutex",
+					path: "/mutex",
 				},
 				{
 					// goroutine blocking profile
 					name: service + "-block.pprof",
-					URL:  pprofURL + "/block",
+					path: "/block",
 				},
 			} {
-				b, err := util.DoGet(c, prof.URL, util.LeaveConnectionOpen)
+				b, err := get(prof.path)
 				if err != nil {
 					return err
 				}
@@ -199,15 +218,15 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	}
 
 	agentCollectors := map[string]agentProfileCollector{
-		"core":           serviceProfileCollector("expvar_port", seconds),
-		"security-agent": serviceProfileCollector("security_agent.expvar_port", seconds),
+		"core":           serviceProfileCollector(tcpGet("expvar_port"), seconds),
+		"security-agent": serviceProfileCollector(tcpGet("security_agent.expvar_port"), seconds),
 	}
 
 	if pkgconfig.Datadog.GetBool("process_config.enabled") ||
 		pkgconfig.Datadog.GetBool("process_config.container_collection.enabled") ||
 		pkgconfig.Datadog.GetBool("process_config.process_collection.enabled") {
 
-		agentCollectors["process"] = serviceProfileCollector("process_config.expvar_port", seconds)
+		agentCollectors["process"] = serviceProfileCollector(tcpGet("process_config.expvar_port"), seconds)
 	}
 
 	if pkgconfig.Datadog.GetBool("apm_config.enabled") {
@@ -220,11 +239,11 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 			traceCpusec = 4
 		}
 
-		agentCollectors["trace"] = serviceProfileCollector("apm_config.debug.port", traceCpusec)
+		agentCollectors["trace"] = serviceProfileCollector(tcpGet("apm_config.debug.port"), traceCpusec)
 	}
 
-	if debugPort := pkgconfig.Datadog.GetInt("system_probe_config.debug_port"); debugPort > 0 {
-		agentCollectors["system-probe"] = serviceProfileCollector("system_probe_config.debug_port", seconds)
+	if pkgconfig.SystemProbe.GetBool("system_probe_config.enabled") {
+		agentCollectors["system-probe"] = serviceProfileCollector(sysProbeGet(), seconds)
 	}
 
 	var errs error

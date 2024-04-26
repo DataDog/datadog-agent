@@ -114,7 +114,7 @@ func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
 }
 
 // List the content of the tagger
-func (t *Tagger) List(types.TagCardinality) types.TaggerListResponse {
+func (t *Tagger) List() types.TaggerListResponse {
 	return t.tagStore.List()
 }
 

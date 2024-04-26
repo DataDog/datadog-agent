@@ -92,7 +92,7 @@ func (t *Tagger) Standard(entityID string) ([]string, error) {
 }
 
 // List returns all the entities currently stored by the tagger.
-func (t *Tagger) List(types.TagCardinality) types.TaggerListResponse {
+func (t *Tagger) List() types.TaggerListResponse {
 	return t.store.List()
 }
 

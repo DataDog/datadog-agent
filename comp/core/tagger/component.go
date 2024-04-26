@@ -28,7 +28,7 @@ type Component interface {
 	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
 	AccumulateTagsFor(entity string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
 	Standard(entity string) ([]string, error)
-	List(cardinality types.TagCardinality) types.TaggerListResponse
+	List() types.TaggerListResponse
 	GetEntity(entityID string) (*types.Entity, error)
 	Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent
 	Unsubscribe(ch chan []types.EntityEvent)

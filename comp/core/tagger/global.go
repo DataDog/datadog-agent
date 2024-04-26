@@ -101,9 +101,9 @@ func GlobalTags(cardinality types.TagCardinality) ([]string, error) {
 }
 
 // List the content of the defaulTagger
-func List(cardinality types.TagCardinality) types.TaggerListResponse {
+func List() types.TaggerListResponse {
 	if globalTagger != nil {
-		return globalTagger.List(cardinality)
+		return globalTagger.List()
 	}
 	return types.TaggerListResponse{}
 }

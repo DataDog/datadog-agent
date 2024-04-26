@@ -224,7 +224,7 @@ func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
 }
 
 // List returns all the entities currently stored by the tagger.
-func (t *Tagger) List(types.TagCardinality) types.TaggerListResponse {
+func (t *Tagger) List() types.TaggerListResponse {
 	entities := t.store.listEntities()
 	resp := types.TaggerListResponse{
 		Entities: make(map[string]types.TaggerListEntity),

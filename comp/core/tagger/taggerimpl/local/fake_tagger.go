@@ -108,7 +108,7 @@ func (f *FakeTagger) GetEntity(entityID string) (*types.Entity, error) {
 }
 
 // List fake implementation
-func (f *FakeTagger) List(types.TagCardinality) types.TaggerListResponse {
+func (f *FakeTagger) List() types.TaggerListResponse {
 	return f.store.List()
 }
 

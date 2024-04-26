@@ -63,3 +63,8 @@ func (r *RemoteSysProbeUtil) Register(clientID string) error {
 func (r *RemoteSysProbeUtil) DetectLanguage([]int32) ([]languagemodels.Language, error) {
 	return nil, ErrNotImplemented
 }
+
+// GetPprof is not supported
+func (r *RemoteSysProbeUtil) GetPprof(_ string) ([]byte, error) {
+	return nil, ErrNotImplemented
+}
