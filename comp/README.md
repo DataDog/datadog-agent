@@ -111,7 +111,7 @@ Package agenttelemetry implements a component to generate Agent telemetry
 
 ### [comp/core/autodiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/autodiscovery)
 
-*Datadog Team*: container-integrations
+*Datadog Team*: container-platform
 
 Package autodiscovery provides the autodiscovery component for the Datadog Agent
 
@@ -174,7 +174,7 @@ component temporarily wraps pkg/config.
 
 ### [comp/core/tagger](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/tagger)
 
-*Datadog Team*: container-integrations
+*Datadog Team*: container-platform
 
 Package tagger provides the tagger component for the Datadog Agent
 
@@ -184,7 +184,7 @@ Package telemetry implements a component for all agent telemetry.
 
 ### [comp/core/workloadmeta](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/workloadmeta)
 
-*Datadog Team*: container-integrations
+*Datadog Team*: container-platform
 
 Package workloadmeta provides the workloadmeta component for the Datadog Agent
 
@@ -246,7 +246,7 @@ Package orchestratorinterface defines the interface for the orchestrator forward
 
 ## [comp/languagedetection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection) (Component Bundle)
 
-*Datadog Team*: container-integrations
+*Datadog Team*: container-platform
 
 Package languagedetection implements the "languagedetection" bundle
 
@@ -346,17 +346,9 @@ into the agent components.
 
 Package collector implements the OpenTelemetry Collector component.
 
-<<<<<<< HEAD
 ### [comp/otelcol/collector-contrib](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib)
 
-*Datadog Team*: opentelemetry
-
 Package collectorcontrib defines the OTel collector-contrib component
-=======
-### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
-
-Package logsagentpipeline contains logs agent pipeline component
->>>>>>> stanley.liu/logsagentpipeline
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 
