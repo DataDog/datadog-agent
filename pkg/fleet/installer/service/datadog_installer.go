@@ -122,6 +122,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	return startInstallerStable(ctx)
 }
 
+// getAgentIDs returns the UID and GID of the dd-agent user and group.
 func getAgentIDs() (uid, gid int, err error) {
 	ddAgentUser, err := user.Lookup("dd-agent")
 	if err != nil {

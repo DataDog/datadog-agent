@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -19,6 +20,7 @@ import (
 )
 
 const (
+	agentSymlink      = "/usr/bin/datadog-agent"
 	agentUnit         = "datadog-agent.service"
 	traceAgentUnit    = "datadog-agent-trace.service"
 	processAgentUnit  = "datadog-agent-process.service"
@@ -95,7 +97,7 @@ func SetupAgent(ctx context.Context) (err error) {
 			return
 		}
 	}
-	if err = createAgentSymlink(ctx); err != nil {
+	if err = exec.Command("ln", "-sf", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", agentSymlink).Run(); err != nil {
 		return
 	}
 
@@ -142,7 +144,7 @@ func RemoveAgent(ctx context.Context) {
 			log.Warnf("Failed to remove %s: %s", unit, err)
 		}
 	}
-	if err := rmAgentSymlink(ctx); err != nil {
+	if err := os.Remove(agentSymlink); err != nil {
 		log.Warnf("Failed to remove agent symlink: %s", err)
 	}
 	installinfo.RmInstallInfo()

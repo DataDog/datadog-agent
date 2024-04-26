@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 type dockerDaemonConfig map[string]interface{}
@@ -32,7 +33,7 @@ var (
 // later
 func (a *apmInjectorInstaller) setDockerConfig(ctx context.Context) error {
 	// Create docker dir if it doesn't exist
-	err := executeHelperCommand(ctx, createDockerDirCommand)
+	err := os.MkdirAll("/etc/docker", 0755) // todo verify etc/docker permissions
 	if err != nil {
 		return err
 	}
@@ -65,7 +66,7 @@ func (a *apmInjectorInstaller) setDockerConfig(ctx context.Context) error {
 	}
 
 	// Move the temporary file to the final location
-	err = executeHelperCommand(ctx, string(replaceDockerCommand))
+	err = os.Rename(tmpDockerDaemonPath, dockerDaemonPath)
 	if err != nil {
 		return err
 	}
@@ -133,7 +134,7 @@ func (a *apmInjectorInstaller) deleteDockerConfig(ctx context.Context) error {
 	}
 
 	// Move the temporary file to the final location
-	err = executeHelperCommand(ctx, string(replaceDockerCommand))
+	err = os.Rename(tmpDockerDaemonPath, dockerDaemonPath)
 	if err != nil {
 		return err
 	}
@@ -171,11 +172,13 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte)
 
 // restartDocker reloads the docker daemon if it exists
 func restartDocker(ctx context.Context) error {
+	span, _ := tracer.StartSpanFromContext(ctx, "restart_docker")
+	defer span.Finish()
 	if !isDockerInstalled() {
 		log.Info("installer: docker is not installed, skipping reload")
 		return nil
 	}
-	return executeHelperCommand(ctx, restartDockerCommand)
+	return exec.Command("systemctl", "restart", "docker").Run()
 }
 
 // isDockerInstalled checks if docker is installed on the system

@@ -12,12 +12,12 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 
 	"github.com/DataDog/gopsutil/process"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -340,7 +340,7 @@ func (r *repositoryFiles) setStable(ctx context.Context, name string, sourcePath
 	return r.stable.Set(path)
 }
 
-func movePackageFromSource(ctx context.Context, packageName string, rootPath string, lockedPackages map[string]bool, sourcePath string) (string, error) {
+func movePackageFromSource(_ context.Context, packageName string, rootPath string, lockedPackages map[string]bool, sourcePath string) (string, error) {
 	if packageName == "" || packageName == stableVersionLink || packageName == experimentVersionLink {
 		return "", fmt.Errorf("invalid package name")
 	}
@@ -366,22 +366,16 @@ func movePackageFromSource(ctx context.Context, packageName string, rootPath str
 	if err := os.Chmod(targetPath, 0755); err != nil {
 		return "", fmt.Errorf("could not set permissions on package: %w", err)
 	}
-	switch filepath.Base(rootPath) {
-	case "datadog-agent":
-		if err := service.ChownDDAgent(ctx, targetPath); err != nil {
+	if filepath.Base(rootPath) == "datadog-agent" {
+		if err := exec.Command("chown", "-R", "dd-agent:dd-agent", targetPath).Run(); err != nil {
 			return "", err
-		}
-	case "datadog-installer":
-		helperPath := filepath.Join(rootPath, packageName, "bin/installer/helper")
-		if err := os.Chmod(helperPath, 0750); err != nil {
-			return "", fmt.Errorf("could not set permissions on installer-helper: %w", err)
 		}
 	}
 
 	return targetPath, nil
 }
 
-func (r *repositoryFiles) cleanup(ctx context.Context) error {
+func (r *repositoryFiles) cleanup(_ context.Context) error {
 	files, err := os.ReadDir(r.rootPath)
 	if err != nil {
 		return fmt.Errorf("could not read root directory: %w", err)
@@ -403,7 +397,7 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 			pkgRepositoryPath := filepath.Join(r.rootPath, file.Name())
 			pkgLocksPath := filepath.Join(r.locksPath, file.Name())
 			log.Debugf("package %s isn't locked, removing it", pkgRepositoryPath)
-			if err := service.RemoveAll(ctx, pkgRepositoryPath); err != nil {
+			if err := os.RemoveAll(pkgRepositoryPath); err != nil {
 				log.Errorf("could not remove package %s directory, will retry: %v", pkgRepositoryPath, err)
 			}
 			if err := os.RemoveAll(pkgLocksPath); err != nil {

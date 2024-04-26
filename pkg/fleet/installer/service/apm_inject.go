@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
@@ -137,7 +138,9 @@ func (a *apmInjectorInstaller) setLDPreloadConfig(ctx context.Context) error {
 }
 
 func replaceLDPreload(ctx context.Context) error {
-	return executeHelperCommand(ctx, string(replaceLDPreloadCommand))
+	span, _ := tracer.StartSpanFromContext(ctx, "replace_ld_preload")
+	defer span.Finish()
+	return os.Rename(filepath.Join(setup.InstallPath, "run", "ld.so.preload.tmp"), ldSoPreloadPath)
 }
 
 // setLDPreloadConfigContent sets the content of the LD preload configuration
@@ -330,22 +333,16 @@ func (a *apmInjectorInstaller) deleteAgentConfigContent(content []byte) []byte {
 
 // backupAgentConfig backs up the agent configuration
 func backupAgentConfig(ctx context.Context) error {
-	return executeCommandStruct(ctx, privilegeCommand{
-		Command: string(backupCommand),
-		Path:    datadogConfigPath,
-	})
+	span, _ := tracer.StartSpanFromContext(ctx, "backup_agent_config")
+	defer span.Finish()
+	return exec.Command("cp", "-f", datadogConfigPath, datadogConfigPath+".bak").Run()
 }
 
 // restoreAgentConfig restores the agent configuration & restarts the agent
 func restoreAgentConfig(ctx context.Context) error {
-	err := executeCommandStruct(ctx, privilegeCommand{
-		Command: string(restoreCommand),
-		Path:    datadogConfigPath,
-	})
-	if err != nil {
-		return err
-	}
-	return restartTraceAgent(ctx)
+	span, _ := tracer.StartSpanFromContext(ctx, "restore_agent_config")
+	defer span.Finish()
+	return os.Rename(datadogConfigPath+".bak", datadogConfigPath)
 }
 
 // restartTraceAgent restarts the stable trace agent
