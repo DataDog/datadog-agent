@@ -116,8 +116,12 @@ func (s *npSchedulerImpl) pathForConn(ptest *pathtestContext) {
 		TimeoutMs:    1000,
 	}
 
-	tr := traceroute.New(cfg)
-	path, err := tr.Run()
+	tr, err := traceroute.New(cfg)
+	if err != nil {
+		s.logger.Warnf("traceroute error: %+v", err)
+		return
+	}
+	path, err := tr.Run(context.TODO())
 	if err != nil {
 		s.logger.Warnf("traceroute error: %+v", err)
 		return
