@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 
 	"github.com/gorilla/mux"
 
@@ -58,17 +59,28 @@ type localAPIImpl struct {
 
 // NewLocalAPI returns a new LocalAPI.
 func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
-	socketPath := defaultSocketPath
-	err := os.RemoveAll(socketPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not remove socket: %w", err)
+	if runtime.GOOS != "windows" {
+		socketPath := defaultSocketPath
+		err := os.RemoveAll(socketPath)
+		if err != nil {
+			return nil, fmt.Errorf("could not remove socket: %w", err)
+		}
+		listener, err := net.Listen("unix", socketPath)
+		if err != nil {
+			return nil, err
+		}
+		if err := os.Chmod(socketPath, 0700); err != nil {
+			return nil, fmt.Errorf("error setting socket permissions: %v", err)
+		}
+		return &localAPIImpl{
+			server:   &http.Server{},
+			listener: listener,
+			daemon:   daemon,
+		}, nil
 	}
-	listener, err := net.Listen("unix", socketPath)
+	listener, err := net.Listen("tcp", ":5008")
 	if err != nil {
 		return nil, err
-	}
-	if err := os.Chmod(socketPath, 0700); err != nil {
-		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
 	return &localAPIImpl{
 		server:   &http.Server{},
@@ -213,7 +225,7 @@ func (l *localAPIImpl) install(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("Received local request to install package %s version %s", pkg, request.Version)
-	err = l.daemon.Install(r.Context(), catalogPkg.URL)
+	err = l.daemon.Install(r.Context(), catalogPkg.URL, request.InstallArgs)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -239,12 +251,24 @@ type localAPIClientImpl struct {
 
 // NewLocalAPIClient returns a new LocalAPIClient.
 func NewLocalAPIClient() LocalAPIClient {
+	if runtime.GOOS != "windows" {
+		return &localAPIClientImpl{
+			addr: "daemon", // this has no meaning when using a unix socket
+			client: &http.Client{
+				Transport: &http.Transport{
+					Dial: func(_, _ string) (net.Conn, error) {
+						return net.Dial("unix", defaultSocketPath)
+					},
+				},
+			},
+		}
+	}
 	return &localAPIClientImpl{
-		addr: "daemon", // this has no meaning when using a unix socket
+		addr: "127.0.0.1:5008",
 		client: &http.Client{
 			Transport: &http.Transport{
 				Dial: func(_, _ string) (net.Conn, error) {
-					return net.Dial("unix", defaultSocketPath)
+					return net.Dial("tcp", ":5008")
 				},
 			},
 		},

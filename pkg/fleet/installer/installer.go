@@ -9,9 +9,12 @@ package installer
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -47,7 +50,7 @@ type Installer interface {
 	State(pkg string) (repository.State, error)
 	States() (map[string]repository.State, error)
 
-	Install(ctx context.Context, url string) error
+	Install(ctx context.Context, url string, args []string) error
 	Remove(ctx context.Context, pkg string) error
 
 	InstallExperiment(ctx context.Context, url string) error
@@ -103,12 +106,24 @@ func NewInstaller(opts ...Option) Installer {
 	for _, opt := range opts {
 		opt(o)
 	}
+	if runtime.GOOS != "windows" {
+		return &installerImpl{
+			downloader:   oci.NewDownloader(http.DefaultClient, o.registry, o.registryAuth),
+			repositories: repository.NewRepositories(PackagesPath, LocksPack),
+			configsDir:   defaultConfigsDir,
+			tmpDirPath:   TmpDirPath,
+			packagesDir:  PackagesPath,
+		}
+	}
+
+	updaterPath, _ := internal.GetProgramDataDirForProduct("Datadog Installer")
+	agentConfigPath, _ := winutil.GetProgramDataDir()
 	return &installerImpl{
 		downloader:   oci.NewDownloader(http.DefaultClient, o.registry, o.registryAuth),
-		repositories: repository.NewRepositories(PackagesPath, LocksPack),
-		configsDir:   defaultConfigsDir,
-		tmpDirPath:   TmpDirPath,
-		packagesDir:  PackagesPath,
+		repositories: repository.NewRepositories(updaterPath, filepath.Join(updaterPath, "locks")),
+		configsDir:   agentConfigPath,
+		tmpDirPath:   updaterPath,
+		packagesDir:  updaterPath,
 	}
 }
 
@@ -123,7 +138,7 @@ func (i *installerImpl) States() (map[string]repository.State, error) {
 }
 
 // Install installs or updates a package.
-func (i *installerImpl) Install(ctx context.Context, url string) error {
+func (i *installerImpl) Install(ctx context.Context, url string, args []string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 	err := i.preSetupPackage(ctx, packageDatadogInstaller)
@@ -156,7 +171,7 @@ func (i *installerImpl) Install(ctx context.Context, url string) error {
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	return i.setupPackage(ctx, pkg.Name)
+	return i.setupPackage(ctx, pkg.Name, args)
 }
 
 // InstallExperiment installs an experiment on top of an existing package.
@@ -217,7 +232,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
-	return i.stopExperiment(ctx, pkg)
+	return i.promoteExperiment(ctx, pkg)
 }
 
 // Remove uninstalls a package.
@@ -267,6 +282,17 @@ func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
 	}
 }
 
+func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error {
+	switch pkg {
+	case packageDatadogAgent:
+		return service.PromoteAgentExperiment(ctx)
+	/*case packageAPMInjector:
+	return service.PromoteExperiment(ctx)*/
+	default:
+		return nil
+	}
+}
+
 func (i *installerImpl) preSetupPackage(_ context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogInstaller:
@@ -276,12 +302,12 @@ func (i *installerImpl) preSetupPackage(_ context.Context, pkg string) error {
 	}
 }
 
-func (i *installerImpl) setupPackage(ctx context.Context, pkg string) error {
+func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []string) error {
 	switch pkg {
 	case packageDatadogInstaller:
 		return service.SetupInstaller(ctx)
 	case packageDatadogAgent:
-		return service.SetupAgent(ctx)
+		return service.SetupAgent(ctx, args)
 	case packageAPMInjector:
 		return service.SetupAPMInjector(ctx)
 	default:

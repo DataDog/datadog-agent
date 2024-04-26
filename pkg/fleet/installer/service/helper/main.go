@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 // Package main is a package that allows dd-agent
 // to execute a subset of priviledged commands
 package main

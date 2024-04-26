@@ -49,7 +49,7 @@ var (
 )
 
 // SetupAgent installs and starts the agent
-func SetupAgent(ctx context.Context) (err error) {
+func SetupAgent(ctx context.Context, _ string, _ []string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
 		if err != nil {
@@ -156,4 +156,9 @@ func StartAgentExperiment(ctx context.Context) error {
 // StopAgentExperiment stops the agent experiment
 func StopAgentExperiment(ctx context.Context) error {
 	return startUnit(ctx, agentUnit)
+}
+
+// PromoteAgentExperiment promotes the agent experiment
+func PromoteAgentExperiment(ctx context.Context) error {
+	return StopAgentExperiment(ctx)
 }
