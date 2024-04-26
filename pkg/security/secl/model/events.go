@@ -128,6 +128,8 @@ const (
 	CreateNewFileEventType
 	// DeleteFileEventType event
 	DeleteFileEventType
+	// WriteFileEventType event
+	WriteFileEventType
 	// CreateRegistryKeyEventType event
 	CreateRegistryKeyEventType
 	// OpenRegistryKeyEventType event
@@ -240,6 +242,8 @@ func (t EventType) String() string {
 		return "create"
 	case DeleteFileEventType:
 		return "delete"
+	case WriteFileEventType:
+		return "write"
 	case CreateRegistryKeyEventType:
 		return "create_key"
 	case OpenRegistryKeyEventType:

@@ -36,6 +36,7 @@ type Event struct {
 	CreateNewFile CreateNewFileEvent `field:"create" event:"create"` // [7.52] [File] A file was created
 	RenameFile    RenameFileEvent    `field:"rename" event:"rename"` // [7.54] [File] A file was renamed
 	DeleteFile    DeleteFileEvent    `field:"delete" event:"delete"` // [7.54] [File] A file was deleted
+	WriteFile     WriteFileEvent     `field:"write" event:"write"`   // [7.54] [File] A file was written
 
 	// Registries
 	CreateRegistryKey   CreateRegistryKeyEvent   `field:"create_key;create" event:"create_key" `   // [7.52] [Registry] A registry key was created
@@ -122,6 +123,11 @@ type RenameFileEvent struct {
 
 // DeleteFileEvent represents an unlink event
 type DeleteFileEvent struct {
+	File FileEvent `field:"file"` // SECLDoc[file] Definition:`File Event`
+}
+
+// WriteFileEvent represents a write event
+type WriteFileEvent struct {
 	File FileEvent `field:"file"` // SECLDoc[file] Definition:`File Event`
 }
 

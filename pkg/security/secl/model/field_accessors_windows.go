@@ -1473,3 +1473,35 @@ func (ev *Event) GetSetKeyValueValueName() string {
 func (ev *Event) GetTimestamp() time.Time {
 	return ev.FieldHandlers.ResolveEventTime(ev, &ev.BaseEvent)
 }
+
+// GetWriteFileName returns the value of the field, resolving if necessary
+func (ev *Event) GetWriteFileName() string {
+	if ev.GetEventType().String() != "write" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.WriteFile.File)
+}
+
+// GetWriteFileNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetWriteFileNameLength() int {
+	if ev.GetEventType().String() != "write" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.WriteFile.File))
+}
+
+// GetWriteFilePath returns the value of the field, resolving if necessary
+func (ev *Event) GetWriteFilePath() string {
+	if ev.GetEventType().String() != "write" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFilePath(ev, &ev.WriteFile.File)
+}
+
+// GetWriteFilePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetWriteFilePathLength() int {
+	if ev.GetEventType().String() != "write" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.WriteFile.File))
+}
