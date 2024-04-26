@@ -86,6 +86,7 @@ int sockops__sockops(struct bpf_sock_ops *skops) {
             tup.dport = bpf_ntohl(skops->remote_port);
 
             sockops_http_termination(&tup);
+            sockops_http2_termination(&tup);
             return 0;
         }
     }

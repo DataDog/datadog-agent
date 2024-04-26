@@ -477,6 +477,19 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
             iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS);
 }
 
+static void __always_inline sockops_http2_termination(conn_tuple_t *tup)
+{
+    // Deleting the entry for the original tuple.
+    bpf_map_delete_elem(&http2_remainder, tup);
+    bpf_map_delete_elem(&http2_dynamic_counter_table, tup);
+    terminated_http2_batch_enqueue(tup);
+    // In case of local host, the protocol will be deleted for both (client->server) and (server->client),
+    // so we won't reach for that path again in the code, so we're deleting the opposite side as well.
+    flip_tuple(tup);
+    bpf_map_delete_elem(&http2_dynamic_counter_table, tup);
+    bpf_map_delete_elem(&http2_remainder, tup);
+}
+
 SEC("sk_skb/stream_verdict/http2_handle_first_frame")
 int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     const __u32 zero = 0;
