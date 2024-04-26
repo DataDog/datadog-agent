@@ -121,7 +121,7 @@ iot_agent_suse-x64:
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
-    UBERNETES_CPU_REQUEST: 4
+    KUBERNETES_CPU_REQUEST: 4
     DD_PKG_ARCH: "x86_64"
   before_script:
     - source /root/.bashrc
