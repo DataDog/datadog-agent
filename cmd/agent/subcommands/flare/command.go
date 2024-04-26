@@ -9,6 +9,7 @@ package flare
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -166,17 +167,6 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 		}
 	}
 
-	probeUtil, probeUtilErr := net.GetRemoteSystemProbeUtil(pkgconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
-	sysProbeGet := func() pprofGetter {
-		return func(path string) ([]byte, error) {
-			if probeUtilErr != nil {
-				return nil, probeUtilErr
-			}
-
-			return probeUtil.GetPprof(path)
-		}
-	}
-
 	serviceProfileCollector := func(get func(url string) ([]byte, error), seconds int) agentProfileCollector {
 		return func(service string) error {
 			fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from %s.", seconds, service))
@@ -243,7 +233,21 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	}
 
 	if pkgconfig.SystemProbe.GetBool("system_probe_config.enabled") {
-		agentCollectors["system-probe"] = serviceProfileCollector(sysProbeGet(), seconds)
+		probeUtil, probeUtilErr := net.GetRemoteSystemProbeUtil(pkgconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+
+		if !errors.Is(probeUtilErr, net.ErrNotImplemented) {
+			sysProbeGet := func() pprofGetter {
+				return func(path string) ([]byte, error) {
+					if probeUtilErr != nil {
+						return nil, probeUtilErr
+					}
+
+					return probeUtil.GetPprof(path)
+				}
+			}
+
+			agentCollectors["system-probe"] = serviceProfileCollector(sysProbeGet(), seconds)
+		}
 	}
 
 	var errs error
