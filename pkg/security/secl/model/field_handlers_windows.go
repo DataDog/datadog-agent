@@ -64,6 +64,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File)
 	case "create_key":
+	case "delete":
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.DeleteFile.File)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.DeleteFile.File)
 	case "delete_key":
 	case "exec":
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
@@ -90,6 +93,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.New)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.New)
 	case "set_key_value":
+	case "write":
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.WriteFile.File)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.WriteFile.File)
 	}
 }
 
