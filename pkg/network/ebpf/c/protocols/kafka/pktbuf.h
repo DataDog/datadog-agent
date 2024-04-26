@@ -30,7 +30,7 @@ typedef const struct pktbuf pktbuf_t;
 // Never defined, intended to catch some implementation/usage errors at build-time.
 extern void pktbuf_invalid_operation(void);
 
-static __always_inline u32 pktbuf_data_offset(pktbuf_t pkt)
+static __always_inline __maybe_unused u32 pktbuf_data_offset(pktbuf_t pkt)
 {
     switch (pkt.type) {
     case PKTBUF_SKB:
@@ -43,7 +43,7 @@ static __always_inline u32 pktbuf_data_offset(pktbuf_t pkt)
     return 0;
 }
 
-static __always_inline u32 pktbuf_data_end(pktbuf_t pkt)
+static __always_inline __maybe_unused u32 pktbuf_data_end(pktbuf_t pkt)
 {
     switch (pkt.type) {
     case PKTBUF_SKB:
@@ -69,7 +69,7 @@ static __always_inline long pktbuf_load_bytes_with_telemetry(pktbuf_t pkt, u32 o
     return 0;
 }
 
-static __always_inline long pktbuf_load_bytes(pktbuf_t pkt, u32 offset, void *to, u32 len)
+static __always_inline __maybe_unused long pktbuf_load_bytes(pktbuf_t pkt, u32 offset, void *to, u32 len)
 {
     switch (pkt.type) {
     case PKTBUF_SKB:
@@ -91,7 +91,7 @@ static __always_inline pktbuf_t pktbuf_from_skb(struct __sk_buff* skb, skb_info_
     };
 }
 
-static __always_inline pktbuf_t pktbuf_from_tls(tls_dispatcher_arguments_t *tls)
+static __always_inline __maybe_unused pktbuf_t pktbuf_from_tls(tls_dispatcher_arguments_t *tls)
 {
     return (pktbuf_t) {
         .type = PKTBUF_TLS,
