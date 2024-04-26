@@ -356,6 +356,11 @@ func generateLoadFunction(file string, opts *StatsOptions, stats map[string]*Sta
 						progSourceMap := sourceMap[progSpec.Name]
 						if progSourceMap == nil {
 							log.Printf("No source map found for program %s\n", progSpec.Name)
+							currSectName := strings.ReplaceAll(progSpec.SectionName, "/", "__") // match naming convention
+							progSourceMap = sourceMap[currSectName]
+							if progSourceMap == nil {
+								log.Printf("No source map found for section %s\n", currSectName)
+							}
 						}
 						compl, err := unmarshalComplexity(p.VerifierLog, progSourceMap)
 						if err != nil {
