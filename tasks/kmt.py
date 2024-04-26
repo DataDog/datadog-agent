@@ -826,6 +826,7 @@ def images_matching_ci(ctx, domains):
         for d in domains:
             if vmid in d.name:
                 check_tag = True
+                break
 
         if not check_tag:
             continue
