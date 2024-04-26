@@ -1463,7 +1463,6 @@ core,github.com/hetznercloud/hcloud-go/v2/hcloud/internal/instrumentation,MIT,Co
 core,github.com/hetznercloud/hcloud-go/v2/hcloud/schema,MIT,Copyright (c) 2018-2020 Hetzner Cloud GmbH
 core,github.com/huandu/xstrings,MIT,Copyright (c) 2015 Huan Du
 core,github.com/iancoleman/strcase,MIT,"Copyright (c) 2015 Ian Coleman | Copyright (c) 2018 Ma_124, <github.com/Ma124>"
-core,github.com/ianlancetaylor/cgosymbolizer,BSD-3-Clause,"Copyright (C) 2012-2015 Free Software Foundation, Inc | Copyright (c) 2015 The Go Authors. All rights reserved"
 core,github.com/ianlancetaylor/demangle,BSD-3-Clause,Copyright (c) 2015 The Go Authors. All rights reserved
 core,github.com/imdario/mergo,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2013 Dario Castañé. All rights reserved
 core,github.com/in-toto/in-toto-golang/in_toto,Apache-2.0,Copyright 2018 New York University
