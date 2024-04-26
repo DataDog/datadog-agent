@@ -265,6 +265,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	}
 
 	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidity, p.lastContainerRates)
+	log.Infof("Container provider: %v", containers)
 	if err == nil {
 		p.lastContainerRates = lastContainerRates
 	} else {
@@ -427,6 +428,8 @@ func chunkProcessesAndContainers(
 		},
 	}
 
+	log.Infof("Chunking processes and containers: %v", containers)
+
 	totalProcs := len(procsByCtr[emptyCtrID])
 
 	// we first split non-container processes in chunks
@@ -436,7 +439,7 @@ func chunkProcessesAndContainers(
 	for _, ctr := range containers {
 		procs := procsByCtr[ctr.Id]
 		totalProcs += len(procs)
-
+		log.Infof("Chunking processes for container: %v", ctr)
 		chunkProcessesBySizeAndWeight(procs, ctr, maxChunkSize, maxChunkWeight, chunker)
 	}
 	return chunker.GetChunks(), totalProcs, totalContainers
