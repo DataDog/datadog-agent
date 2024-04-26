@@ -27,7 +27,7 @@ class TestWasher:
         """
         failing_tests = defaultdict(set)
         flaky_marked_tests = defaultdict(set)
-        with open(f"{module_path}/{self.test_output_json_file}") as f:
+        with open(f"{module_path}/{self.test_output_json_file}", encoding='utf-8') as f:
             for line in f:
                 test_result = json.loads(line)
                 # TODO: tests can be retried we should handle that
