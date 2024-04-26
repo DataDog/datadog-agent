@@ -28,30 +28,30 @@ import (
 // not trigger multiple scans at the same time unlike for container-images.
 const channelSize = 1
 
-// ScanRequest defines a scan request. This struct should be
+// scanRequest defines a scan request. This struct should be
 // hashable to be pushed in the work queue for processing.
-type ScanRequest struct {
+type scanRequest struct {
 	Path string
 	FS   fs.FS
 }
 
 // NewScanRequest creates a new scan request
 func NewScanRequest(path string, fs fs.FS) sbom.ScanRequest {
-	return ScanRequest{Path: path, FS: fs}
+	return scanRequest{Path: path, FS: fs}
 }
 
 // Collector returns the collector name
-func (r ScanRequest) Collector() string {
+func (r scanRequest) Collector() string {
 	return collectors.HostCollector
 }
 
 // Type returns the scan request type
-func (r ScanRequest) Type(sbom.ScanOptions) string {
+func (r scanRequest) Type(sbom.ScanOptions) string {
 	return sbom.ScanFilesystemType
 }
 
 // ID returns the scan request ID
-func (r ScanRequest) ID() string {
+func (r scanRequest) ID() string {
 	return r.Path
 }
 
@@ -86,7 +86,7 @@ func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmet
 
 // Scan performs a scan
 func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
-	hostScanRequest, ok := request.(ScanRequest)
+	hostScanRequest, ok := request.(scanRequest)
 	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectors.HostCollector)}
 	}
