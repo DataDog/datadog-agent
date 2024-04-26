@@ -305,7 +305,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			case idImageLoad:
 				p.stats.moduleLoad++
 				if il, err := p.parseImageLoadArgs(e); err == nil {
-					log.Infof("Received ImageLoad event %d %s\n", e.EventHeader.EventDescriptor.ID, il)
+					log.Tracef("Received ImageLoad event %d %s\n", e.EventHeader.EventDescriptor.ID, il)
 					ecb(il, e.EventHeader.ProcessID)
 				}
 
