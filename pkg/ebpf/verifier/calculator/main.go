@@ -161,7 +161,7 @@ func main() {
 		if err := os.MkdirAll(filepath.Dir(*summaryOutput), 0755); err != nil {
 			log.Fatalf("failed to create directory %s: %v", filepath.Dir(*summaryOutput), err)
 		}
-		if err := os.WriteFile(*summaryOutput, j, 0644); err != nil {
+		if err := os.WriteFile(*summaryOutput, j, 0666); err != nil {
 			log.Fatalf("failed to write summary file %s: %v", *summaryOutput, err)
 		}
 	}

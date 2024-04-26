@@ -129,7 +129,7 @@ def collect_verification_stats(
     env = {"DD_SYSTEM_PROBE_BPF_DIR": "./pkg/ebpf/bytecode/build"}
 
     # ensure all files are object files
-    for f in filter_file:
+    for f in filter_file or []:
         _, ext = os.path.splitext(f)
         if ext != ".o":
             raise Exit(f"File {f} does not have the valid '.o' extension")
@@ -140,8 +140,8 @@ def collect_verification_stats(
             "-summary-output",
             os.fspath(VERIFIER_STATS),
         ]
-        + [f"-filter-file {f}" for f in filter_file]
-        + [f"-filter-prog {p}" for p in grep]
+        + [f"-filter-file {f}" for f in filter_file or []]
+        + [f"-filter-prog {p}" for p in grep or []]
     )
 
     if save_verifier_logs:
@@ -153,6 +153,10 @@ def collect_verification_stats(
         args += ["-line-complexity", "-complexity-data-dir", os.fspath(COMPLEXITY_DATA_DIR)]
 
     ctx.run(f"{sudo} ./main {' '.join(args)}", env=env)
+
+    # Ensure permissions are correct
+    ctx.run(f"{sudo} chmod a+wr -R {VERIFIER_DATA_DIR}")
+    ctx.run(f"{sudo} find {VERIFIER_DATA_DIR} -type d -exec chmod a+xr {{}} +")
 
     with open(VERIFIER_STATS) as f:
         verifier_stats = json.load(f)
