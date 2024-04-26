@@ -705,7 +705,7 @@ func status2Error(status ptrace.Status, events ptrace.SpanEventSlice, span *pb.S
 			// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
 
 			// http.status_text was removed in spec v0.7.0 (https://github.com/open-telemetry/opentelemetry-specification/pull/972)
-			// TODO (OTEL-????): Remove this and use a map from status code to status text.
+			// TODO (OTEL-1791) Remove this and use a map from status code to status text.
 			if httptext, ok := span.Meta["http.status_text"]; ok {
 				span.Meta["error.msg"] = fmt.Sprintf("%s %s", httpcode, httptext)
 			} else {
