@@ -11,11 +11,16 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
-from typing_extensions import TypedDict
+
+if TYPE_CHECKING:
+    from typing_extensions import TypedDict
+else:
+    TypedDict = dict
 
 try:
     from tabulate import tabulate
