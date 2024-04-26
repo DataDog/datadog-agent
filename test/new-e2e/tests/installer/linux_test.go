@@ -123,7 +123,7 @@ func (v *installerSuite) TestUserGroupsCreation() {
 }
 
 func (v *installerSuite) TestSharedAgentDirs() {
-	for _, dir := range []string{logDir, stableInstallerRunDir} {
+	for _, dir := range []string{logDir} {
 		require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(`stat -c "%U" `+dir))
 		require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(`stat -c "%G" `+dir))
 		require.Equal(v.T(), "drwxr-xr-x\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" `+dir))
@@ -136,6 +136,11 @@ func (v *installerSuite) TestInstallerDirs() {
 	for _, dir := range []string{packagesDir, bootInstallerDir} {
 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%U" `+dir))
 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%G" `+dir))
+	}
+	for _, dir := range []string{stableInstallerRunDir} {
+		require.Equal(v.T(), "dd-agent\n", host.MustExecute(`stat -c "%U" `+dir))
+		require.Equal(v.T(), "dd-agent\n", host.MustExecute(`stat -c "%G" `+dir))
+
 	}
 	require.Equal(v.T(), "drwxrwxrwx\n", host.MustExecute(`stat -c "%A" `+locksDir))
 	require.Equal(v.T(), "drwxr-xr-x\n", host.MustExecute(`stat -c "%A" `+packagesDir))
