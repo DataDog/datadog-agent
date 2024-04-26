@@ -617,12 +617,17 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats, failedCo
 			client.closed.insert(c, ns.maxClosedConns)
 		}
 	}
+	failedConnMap.Lock()
+	defer failedConnMap.Unlock()
+	clear(failedConnMap.FailedConnMap)
 }
 
 func matchFailedConn(conn *ConnectionStats, failedConnMap *FailedConns) {
 	connTuple := connStatsToTuple(conn)
 	failedConnMap.RLock()
 	defer failedConnMap.RUnlock()
+	log.Errorf("FailedConnMap: %+v", len(failedConnMap.FailedConnMap))
+	log.Errorf("ConnTuple: %+v", connTuple)
 	if failedConn, ok := failedConnMap.FailedConnMap[connTuple]; ok {
 		conn.TCPFailures = make(map[TCPFailure]uint32)
 		for errCode, count := range failedConn.CountByErrCode {
