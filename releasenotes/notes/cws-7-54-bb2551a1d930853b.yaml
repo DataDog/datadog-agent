@@ -12,7 +12,7 @@ features:
     CWS: Add support for file hashing in ``ptracer`` mode.
 enhancements:
   - |
-    CWS: Always snapshot mmaped files in activity dumps. This allows easier mapping of workload to loaded shared libraries.
+    CWS: Always snapshot memory mapped files in activity dumps. This allows easier mapping of workload to loaded shared libraries.
   - |
     CWS: Normalize Windows filenames before going through glob matching.
   - |
