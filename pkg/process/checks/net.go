@@ -14,6 +14,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/benbjohnson/clock"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -525,6 +526,7 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
 	if !c.networkPathEnabled {
 		return
 	}
+	startTime := time.Now()
 	// TODO: TESTME
 	for _, conn := range conns {
 		remoteAddr := conn.Raddr
@@ -534,4 +536,7 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
 		}
 		c.npScheduler.Schedule(remoteAddr.Ip, uint16(conn.Raddr.Port))
 	}
+
+	scheduleDuration := time.Since(startTime)
+	statsd.Client.Gauge("datadog.network_path.connections_check.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
 }
