@@ -174,15 +174,13 @@ func (c *TestClient) GetAgentVersion() (string, error) {
 
 // ExecuteWithRetry execute the command with retry
 func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
-	ok := false
-
 	var err error
 	var output string
 
-	for try := 0; try < 5 && !ok; try++ {
+	for try := 0; try < 5; try++ {
 		output, err = c.Host.Execute(cmd)
 		if err == nil {
-			ok = true
+			break
 		}
 		time.Sleep(1 * time.Second)
 	}
