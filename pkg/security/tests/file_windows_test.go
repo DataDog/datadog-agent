@@ -101,6 +101,42 @@ func TestRenameFileEvent(t *testing.T) {
 	})
 }
 
+func TestDeleteFileEvent(t *testing.T) {
+	// ebpftest.LogLevel(t, "info")
+	cfn := &rules.RuleDefinition{
+		ID:         "test_delete_file",
+		Expression: `delete.file.name =~ "test.bad" && delete.file.path =~ "\Device\*\Temp\**"`,
+	}
+	opts := testOpts{
+		enableFIM: true,
+	}
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{cfn}, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
+	// so wait around for it to start
+	time.Sleep(5 * time.Second)
+
+	os.MkdirAll("C:\\Temp", 0755)
+	f, err := os.Create("C:\\Temp\\test.bad")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	test.Run(t, "delete", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			return os.Remove("C:\\Temp\\test.bad")
+		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+			assertFieldEqualCaseInsensitve(t, event, "delete.file.name", "test.bad", event, "delete.file.name file didn't match")
+		}))
+	})
+}
+
 func (tm *testModule) validateFileEvent(tb *testing.T, kind wrapperType, validate func(event *model.Event, rule *rules.Rule)) func(event *model.Event, rule *rules.Rule) {
 	return func(event *model.Event, rule *rules.Rule) {
 		validate(event, rule)
