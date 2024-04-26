@@ -534,7 +534,10 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
 			log.Debugf("Skip loopback IP: %s", remoteAddr.Ip)
 			continue
 		}
-		c.npScheduler.Schedule(remoteAddr.Ip, uint16(conn.Raddr.Port))
+		err := c.npScheduler.Schedule(remoteAddr.Ip, uint16(conn.Raddr.Port))
+		if err != nil {
+			log.Errorf("Error scheduling pathtests: %w", err)
+		}
 	}
 
 	scheduleDuration := time.Since(startTime)

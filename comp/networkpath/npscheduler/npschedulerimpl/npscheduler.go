@@ -9,6 +9,7 @@ package npschedulerimpl
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"strconv"
 	"time"
@@ -73,17 +74,26 @@ func (s *npSchedulerImpl) listenPathtestConfigs() {
 		}
 	}
 }
-func (s *npSchedulerImpl) Schedule(hostname string, port uint16) {
+
+// Schedule schedules pathtests.
+// It shouldn't block, if the input channel is full, an error is returned.
+func (s *npSchedulerImpl) Schedule(hostname string, port uint16) error {
 	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
 
 	if net.ParseIP(hostname).To4() == nil {
 		// TODO: IPv6 not supported yet
 		s.logger.Debugf("Only IPv4 is currently supported. Address not supported: %s", hostname)
-		return
+		return nil
 	}
-	s.pathtestIn <- &pathtest{
+	ptest := &pathtest{
 		hostname: hostname,
 		port:     port,
+	}
+	select {
+	case s.pathtestIn <- ptest:
+		return nil
+	default:
+		return fmt.Errorf("scheduler input channel is full (channel capacity is %d)", cap(s.pathtestIn))
 	}
 }
 
