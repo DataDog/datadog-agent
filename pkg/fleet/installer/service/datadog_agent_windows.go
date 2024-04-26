@@ -33,7 +33,7 @@ func msiexec(target, operation string, args []string) (err error) {
 		return fmt.Errorf("too many MSIs in package")
 	}
 
-	tmpDir, err := os.MkdirTemp(os.TempDir(), fmt.Sprintf("install-%s-*", msis[0]))
+	tmpDir, err := os.MkdirTemp(os.TempDir(), fmt.Sprintf("install-%s-*", filepath.Base(msis[0])))
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
@@ -48,11 +48,7 @@ func SetupAgent(ctx context.Context, args []string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
 		if err != nil {
-			log.Errorf("Failed to setup agent: %s, reverting", err)
-			err = RemoveAgent(ctx)
-			if err != nil {
-				log.Warnf("Failed to revert agent setup: %s", err)
-			}
+			log.Errorf("Failed to setup agent: %s", err)
 		}
 		span.Finish(tracer.WithError(err))
 	}()
@@ -64,11 +60,7 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "start_experiment")
 	defer func() {
 		if err != nil {
-			log.Errorf("Failed to setup agent: %s, reverting", err)
-			err = RemoveAgent(ctx)
-			if err != nil {
-				log.Warnf("Failed to revert agent setup: %s", err)
-			}
+			log.Errorf("Failed to start agent experiment: %s", err)
 		}
 		span.Finish(tracer.WithError(err))
 	}()
@@ -81,15 +73,10 @@ func StopAgentExperiment(ctx context.Context) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "stop_experiment")
 	defer func() {
 		if err != nil {
-			log.Errorf("Failed to setup agent: %s, reverting", err)
-			err = RemoveAgent(ctx)
-			if err != nil {
-				log.Warnf("Failed to revert agent setup: %s", err)
-			}
+			log.Errorf("Failed to stop agent experiment: %s", err)
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	return msiexec("experiment", "/x", nil)
 
 	// TODO: Need args here to restore DDAGENTUSER
 	return msiexec("stable", "/i", nil)
@@ -103,14 +90,10 @@ func PromoteAgentExperiment(_ context.Context) error {
 
 // RemoveAgent noop
 func RemoveAgent(ctx context.Context) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "stop_experiment")
+	span, ctx := tracer.StartSpanFromContext(ctx, "remove_agent")
 	defer func() {
 		if err != nil {
-			log.Errorf("Failed to setup agent: %s, reverting", err)
-			err = RemoveAgent(ctx)
-			if err != nil {
-				log.Warnf("Failed to revert agent setup: %s", err)
-			}
+			log.Errorf("Failed to remove agent: %s", err)
 		}
 		span.Finish(tracer.WithError(err))
 	}()
