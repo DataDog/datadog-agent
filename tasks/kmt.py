@@ -630,9 +630,9 @@ def prepare(
     else:
         raise Exit(f"Component can only be 'system-probe' or 'security-agent'. {component} not supported.")
 
-    go_root = os.getenv("GOROOT")
+    go_root = os.getenv("GOPATH")
     if go_root is None:
-        raise Exit("GOROOT is not set, cannot continue.")
+        raise Exit("GOPATH is not set, cannot continue.")
 
     if not ci:
         download_gotestsum(ctx, arch, f"{go_root}/bin/gotestsum")
