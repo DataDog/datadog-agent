@@ -75,8 +75,8 @@ func GetRemoteSystemProbeUtil(path string) (*RemoteSysProbeUtil, error) {
 			Name:          "system-probe-util",
 			AttemptMethod: globalUtil.init,
 			Strategy:      retry.RetryCount,
-			// 10 tries w/ 30s delays = 5m of trying before permafail
-			RetryCount: 10,
+			// 100 tries w/ 30s delays = 50m of trying before permafail
+			RetryCount: 100,
 			RetryDelay: 30 * time.Second,
 		})
 	})
