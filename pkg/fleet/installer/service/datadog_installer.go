@@ -89,8 +89,12 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error changing owner of /var/log/datadog: %w", err)
 	}
+	err = os.Chown("/opt/datadog-packages/datadog-installer/stable/run", ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("error changing owner of /opt/datadog-packages/datadog-installer/stable/run: %w", err)
+	}
 
-	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the agent
+	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the system probe
 	if os.Getenv("DD_REMOTE_UPDATES") != "true" {
 		return nil
 	}
