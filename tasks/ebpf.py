@@ -157,11 +157,12 @@ def collect_verification_stats(
     ctx.run(f"{sudo} chmod a+wr -R {VERIFIER_DATA_DIR}")
     ctx.run(f"{sudo} find {VERIFIER_DATA_DIR} -type d -exec chmod a+xr {{}} +")
 
-    with open(VERIFIER_STATS) as f:
+    with open(VERIFIER_STATS, "r+") as f:
         verifier_stats = json.load(f)
         cleaned_up = format_verifier_stats(verifier_stats)
         f.seek(0)
         json.dump(cleaned_up, f, indent=4)
+        f.truncate()
 
 
 @task(
