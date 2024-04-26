@@ -16,6 +16,7 @@ from tasks.build_tags import get_build_tags, get_default_build_tags
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.go import deps
 from tasks.libs.common.utils import load_release_versions
+from cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
@@ -143,14 +144,37 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     latest_file = max(dca_binary, key=os.path.getctime)
     ctx.run(f"chmod +x {latest_file}")
 
+    # add CWS instrumentation
+    cws_instrumentation_binary = glob.glob(CWS_INSTRUMENTATION_BIN_PATH)
+    if not cws_instrumentation_binary:
+        print(f"No bin found in {CWS_INSTRUMENTATION_BIN_PATH}")
+        print("You need to run cws-instrumentation.build first")
+        raise Exit(code=1)
+    latest_cws_instrumentation_file = max(cws_instrumentation_binary, key=os.path.getctime)
+    ctx.run(f"chmod +x {latest_cws_instrumentation_file}")
+
     build_context = "Dockerfiles/cluster-agent"
     exec_path = f"{build_context}/datadog-cluster-agent.{arch}"
+    cws_instrumentation_base = f"{build_context}/datadog-cws-instrumentation"
+    cws_instrumentation_exec_path = f"{cws_instrumentation_base}/cws-instrumentation.{arch}"
+
     dockerfile_path = f"{build_context}/Dockerfile"
 
+    try:
+        os.mkdir(cws_instrumentation_base)
+    except FileExistsError:
+        # Directory already exists
+        pass
+    except Exception as e:
+        # Handle other OS-related errors
+        print(f"Error creating directory: {e}")
+
     shutil.copy2(latest_file, exec_path)
+    shutil.copy2(latest_cws_instrumentation_file, cws_instrumentation_exec_path)
     shutil.copytree("Dockerfiles/agent/nosys-seccomp", f"{build_context}/nosys-seccomp", dirs_exist_ok=True)
     ctx.run(f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path}")
     ctx.run(f"rm {exec_path}")
+    ctx.run(f"rm -rf {cws_instrumentation_base}")
 
     if push:
         ctx.run(f"docker push {tag}")
