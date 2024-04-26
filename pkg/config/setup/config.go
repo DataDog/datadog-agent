@@ -215,6 +215,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("hostname_file", "")
 	config.BindEnvAndSetDefault("tags", []string{})
 	config.BindEnvAndSetDefault("extra_tags", []string{})
+	// If enabled, all origin detection mechanisms will be unified to use the same logic.
+	// Will override all other origin detection settings in favor of the unified one.
+	config.BindEnvAndSetDefault("origin_detection_unified", false)
 	config.BindEnv("env")
 	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
 	config.BindEnvAndSetDefault("conf_path", ".")
@@ -527,8 +530,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 20)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection_client", false)
-	// If enabled, all origin detection mechanisms will be unified to use the same logic.
-	config.BindEnvAndSetDefault("origin_detection_unified", false)
 	config.BindEnvAndSetDefault("dogstatsd_origin_optout_enabled", true)
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
 	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
