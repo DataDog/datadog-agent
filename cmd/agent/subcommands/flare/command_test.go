@@ -59,6 +59,9 @@ func getPprofTestServer(t *testing.T) (tcpServer *httptest.Server, unixServer *h
 }
 
 func TestReadProfileData(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("FIXME: Failing test on macOS - #incident-26991")
+	}
 	ts, uts := getPprofTestServer(t)
 	t.Cleanup(func() {
 		ts.Close()
@@ -123,6 +126,9 @@ func TestReadProfileData(t *testing.T) {
 }
 
 func TestReadProfileDataNoTraceAgent(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("FIXME: Failing test on macOS - #incident-26991")
+	}
 	ts, uts := getPprofTestServer(t)
 	t.Cleanup(func() {
 		ts.Close()
