@@ -2,8 +2,6 @@ module github.com/DataDog/datadog-agent/pkg/util/fxutil
 
 go 1.21.0
 
-replace github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
-
 require (
 	github.com/DataDog/datadog-agent/comp/def v0.0.0-00010101000000-000000000000
 	github.com/spf13/cobra v1.7.0
