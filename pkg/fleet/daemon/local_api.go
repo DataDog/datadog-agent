@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -57,17 +58,23 @@ type localAPIImpl struct {
 
 // NewLocalAPI returns a new LocalAPI.
 func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
-	socketPath := defaultSocketPath
-	err := os.RemoveAll(socketPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not remove socket: %w", err)
-	}
-	listener, err := net.Listen("unix", socketPath)
-	if err != nil {
-		return nil, err
-	}
-	if err := os.Chmod(socketPath, 0700); err != nil {
-		return nil, fmt.Errorf("error setting socket permissions: %v", err)
+	var listener net.Listener
+	var err error
+	if runtime.GOOS != "windows" {
+		socketPath := defaultSocketPath
+		err = os.RemoveAll(socketPath)
+		if err != nil {
+			return nil, fmt.Errorf("could not remove socket: %w", err)
+		}
+		listener, err = net.Listen("unix", socketPath)
+		if err != nil {
+			return nil, err
+		}
+		if err = os.Chmod(socketPath, 0700); err != nil {
+			return nil, fmt.Errorf("error setting socket permissions: %v", err)
+		}
+	} else {
+		listener, err = net.Listen("tcp", ":5008")
 	}
 	return &localAPIImpl{
 		server:   &http.Server{},
@@ -238,15 +245,28 @@ type localAPIClientImpl struct {
 
 // NewLocalAPIClient returns a new LocalAPIClient.
 func NewLocalAPIClient() LocalAPIClient {
-	return &localAPIClientImpl{
-		addr: "daemon", // this has no meaning when using a unix socket
-		client: &http.Client{
-			Transport: &http.Transport{
-				Dial: func(_, _ string) (net.Conn, error) {
-					return net.Dial("unix", defaultSocketPath)
+	if runtime.GOOS != "windows" {
+		return &localAPIClientImpl{
+			addr: "daemon", // this has no meaning when using a unix socket
+			client: &http.Client{
+				Transport: &http.Transport{
+					Dial: func(_, _ string) (net.Conn, error) {
+						return net.Dial("unix", defaultSocketPath)
+					},
 				},
 			},
-		},
+		}
+	} else {
+		return &localAPIClientImpl{
+			addr: "127.0.0.1:5008",
+			client: &http.Client{
+				Transport: &http.Transport{
+					Dial: func(_, _ string) (net.Conn, error) {
+						return net.Dial("tcp", ":5008")
+					},
+				},
+			},
+		}
 	}
 }
 
