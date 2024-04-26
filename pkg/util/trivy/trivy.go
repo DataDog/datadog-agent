@@ -256,10 +256,6 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 }
 
 func (c *Collector) scanOverlayFS(ctx context.Context, fanalImage *image, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	if !c.config.overlayFSSupport || fanalImage.inspect.GraphDriver.Name != "overlay2" {
-		return nil, fmt.Errorf("failed to scan overlayfs for %s", fanalImage.inspect.ID)
-	}
-
 	var layers []string
 	if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["LowerDir"]; ok {
 		layers = append(layers, strings.Split(layerDirs, ":")...)
