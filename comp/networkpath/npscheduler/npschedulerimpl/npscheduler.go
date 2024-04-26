@@ -41,12 +41,14 @@ type npSchedulerImpl struct {
 }
 
 func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Component) *npSchedulerImpl {
+	// TODO: MAKE pathtestInputChannelSize CONFIGURABLE
+	pathtestInputChannelSize := 100
 	return &npSchedulerImpl{
 		epForwarder: epForwarder,
 		logger:      logger,
 
 		pathtestStore: newPathtestStore(DefaultFlushTickerInterval, DefaultPathtestRunDurationFromDiscovery, DefaultPathtestRunInterval, logger),
-		pathtestIn:    make(chan *pathtest),
+		pathtestIn:    make(chan *pathtest, pathtestInputChannelSize),
 		workers:       3, // TODO: Make it a configurable
 
 		receivedPathtestConfigCount: atomic.NewUint64(0),
