@@ -812,6 +812,50 @@ def kmt_sysprobe_prepare(
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
+def images_matching_ci(ctx, domains):
+    platforms = get_platforms()
+    arch = full_arch("local")
+    kmt_os = get_kmt_os()
+
+    not_matches = list()
+    for tag in platforms[arch]:
+        platinfo = platforms[arch][tag]
+        vmid = f"{platinfo['os_id']}_{platinfo['os_version']}"
+
+        check_tag = False
+        for d in domains:
+            if vmid in d.name:
+                check_tag = True
+
+        if not check_tag:
+            continue
+
+
+        manifest_file = '.'.join(platinfo["image"].split('.')[:-2]) + ".manifest"
+
+        if not os.path.exists(f"{kmt_os.rootfs_dir / manifest_file}"):
+            not_matches.append(platinfo["image"])
+            continue
+
+        with open(f"{kmt_os.rootfs_dir / manifest_file}", 'r') as f:
+            for line in f:
+                key, value = line.strip().split('=',1)
+                if key != "COMMIT":
+                    continue
+
+                value = value.replace('"', '')
+                if value[:8] != platinfo["image_version"].split("_")[1]:
+                    not_matches.append(platinfo["image"])
+
+    for name in not_matches:
+        warn(f"[-] {name} does not match version in CI")
+
+    if len(not_matches) > 0:
+        return False
+
+    return True
+
+
 @task(
     help={
         "vms": "Comma seperated list of vms to target when running tests. If None, run against all vms",
@@ -848,10 +892,15 @@ def test(
     if vms is None:
         vms = ",".join(stacks.get_all_vms_in_stack(stack))
         info(f"[+] Running tests on all VMs in stack {stack}: vms={vms}")
+
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
     infra = build_infrastructure(stack, ssh_key_obj)
     domains = filter_target_domains(vms, infra)
     used_archs = get_archs_in_domains(domains)
+
+    if not images_matching_ci(ctx, domains):
+        if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
+            return
 
     assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
@@ -950,6 +999,10 @@ def build(
     infra = build_infrastructure(stack, ssh_key_obj)
     domains = filter_target_domains(vms, infra, arch)
     cc = get_compiler(ctx, arch)
+
+    if not images_matching_ci(ctx, domains):
+        if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
+            return
 
     assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
