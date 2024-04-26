@@ -104,7 +104,6 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 	rateStats := make(map[string]*ContainerRateMetrics)
 	pidToCid := make(map[int]string)
 	for _, container := range containersMetadata {
-		log.Infof("processContainers: start processing container: %s", container.String(false))
 		var annotations map[string]string
 		if pod, err := p.metadataStore.GetKubernetesPodForContainer(container.ID); err == nil {
 			annotations = pod.Annotations
