@@ -17,7 +17,7 @@ func chunkProcessesBySizeAndWeight(procs []*model.Process, ctr *model.Container,
 		// can happen in three scenarios, and we still need to report the container
 		// a) if a process is skipped (e.g. disallowlisted)
 		// b) if process <=> container mapping cannot be established (e.g. Docker on Windows).
-		// c) No non-containerized process detected (e.g. ECS Fargate)
+		// c) if no processes were collected from the container (e.g. pidMode not set to "task" on ECS Fargate)
 		appendContainerWithoutProcesses(ctr, chunker)
 		return
 	}
