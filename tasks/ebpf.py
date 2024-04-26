@@ -129,7 +129,7 @@ def collect_verification_stats(
     env = {"DD_SYSTEM_PROBE_BPF_DIR": "./pkg/ebpf/bytecode/build"}
 
     # ensure all files are object files
-    for f in filter_file:
+    for f in filter_file or []:
         _, ext = os.path.splitext(f)
         if ext != ".o":
             raise Exit(f"File {f} does not have the valid '.o' extension")
@@ -140,8 +140,8 @@ def collect_verification_stats(
             "-summary-output",
             os.fspath(VERIFIER_STATS),
         ]
-        + [f"-filter-file {f}" for f in filter_file]
-        + [f"-filter-prog {p}" for p in grep]
+        + [f"-filter-file {f}" for f in filter_file or []]
+        + [f"-filter-prog {p}" for p in grep or []]
     )
 
     if save_verifier_logs:
