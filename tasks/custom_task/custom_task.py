@@ -79,12 +79,18 @@ def custom__call__(self, *args, **kwargs):
     Custom __call__ method for the Task class.
     The code was adapted from the invoke 2.2.0 library's Task class.
     """
+
+    ## LEGACY INVOKE LIB CODE ##
     # Guard against calling tasks with no context.
     if not isinstance(args[0], Context):
         err = "Task expected a Context as its first arg, got {} instead!"
         # TODO: raise a custom subclass _of_ TypeError instead
         raise TypeError(err.format(type(args[0])))
+
+    ## DATADOG INVOKE LOGGER CODE ##
     with InvokeLogger(self):
         result = self.body(*args, **kwargs)
+
+    ## LEGACY INVOKE LIB CODE ##
     self.times_called += 1  # noqa
     return result
