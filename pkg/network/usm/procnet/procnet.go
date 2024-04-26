@@ -26,10 +26,10 @@ import (
 )
 
 // TCPConnection encapsulates information for a TCP connection.
-// This information is obtained from the /proc/net/{tcp,tcp6} files
+// This information is obtained from the /proc/<PID>/net/{tcp,tcp6} files
 // along with /proc/<PID>/fds directories.
 type TCPConnection struct {
-	// Sourced from /proc/net/{tcp,tcp6}
+	// Sourced from /proc/<PID>/net/{tcp,tcp6}
 	Laddr netip.Addr
 	Raddr netip.Addr
 	Lport uint16
@@ -45,30 +45,25 @@ type TCPConnection struct {
 
 // GetTCPConnections returns a list of all existing TCP connections
 func GetTCPConnections() []TCPConnection {
-	procRoot := kernel.ProcFSRoot()
+	var (
+		procRoot    = kernel.ProcFSRoot()
+		seenNS      = make(map[uint32]struct{})
+		connByInode = make(map[int]TCPConnection, 100)
+		result      = make([]TCPConnection, 100)
+	)
 
-	connByInode := make(map[int]TCPConnection)
-	namespaces, err := kernel.GetNetNamespaces(procRoot)
-	if err != nil {
-		return nil
-	}
-
-	for _, netNS := range namespaces {
-		_ = kernel.WithNS(netNS, func() error {
-			ino, err := kernel.GetInoForNs(netNS)
-			if err != nil {
-				return nil
-			}
-
-			populateIndex(connByInode, ino, filepath.Join(procRoot, "net", "tcp"))
-			populateIndex(connByInode, ino, filepath.Join(procRoot, "net", "tcp6"))
-			return nil
-		})
-		netNS.Close()
-	}
-
-	result := make([]TCPConnection, 0, len(connByInode))
 	_ = kernel.WithAllProcs(procRoot, func(pid int) error {
+		ino, err := kernel.GetNetNsInoFromPid(procRoot, pid)
+		if err != nil {
+			return nil
+		}
+
+		if _, ok := seenNS[ino]; !ok {
+			populateIndex(connByInode, ino, filepath.Join(procRoot, fmt.Sprintf("%d", pid), "net", "tcp"))
+			populateIndex(connByInode, ino, filepath.Join(procRoot, fmt.Sprintf("%d", pid), "net", "tcp6"))
+		}
+		seenNS[ino] = struct{}{}
+
 		result = matchFDWithSocket(procRoot, pid, connByInode, result)
 		return nil
 	})
