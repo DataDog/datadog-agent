@@ -153,7 +153,7 @@ def collect_verification_stats(
         args += ["-line-complexity", "-complexity-data-dir", os.fspath(COMPLEXITY_DATA_DIR)]
 
     ctx.run(f"{sudo} ./main {' '.join(args)}", env=env)
-    ctx.run(f"{sudo} chmod a+wr -R {COMPLEXITY_DATA_DIR}")
+    ctx.run(f"{sudo} chmod a+wr -R {VERIFIER_DATA_DIR}")
 
     with open(VERIFIER_STATS) as f:
         verifier_stats = json.load(f)
