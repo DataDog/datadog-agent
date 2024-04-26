@@ -161,6 +161,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		// TODO: once the agent is represented as a component, and not a function (run),
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
 		return fxutil.OneShot(run,
+			fx.Invoke(func(_ log.Component) {
+				ddruntime.SetMaxProcs()
+			}),
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath),
 				SecretParams:         secrets.NewEnabledParams(),
@@ -304,15 +307,6 @@ func run(log log.Component,
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
-		fx.Invoke(func(lc fx.Lifecycle) {
-			lc.Append(fx.Hook{
-				OnStart: func(_ context.Context) error {
-					// prepare go runtime
-					ddruntime.SetMaxProcs()
-					return nil
-				},
-			})
-		}),
 		fx.Supply(flare.NewParams(
 			path.GetDistPath(),
 			path.PyChecksPath,
