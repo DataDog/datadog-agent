@@ -8,6 +8,7 @@
 package traceroute
 
 import (
+	"context"
 	"encoding/json"
 
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
@@ -28,14 +29,14 @@ type WindowsTraceroute struct {
 
 // New creates a new instance of WindowsTraceroute
 // based on an input configuration
-func New(cfg Config) *WindowsTraceroute {
+func New(cfg Config) (*WindowsTraceroute, error) {
 	return &WindowsTraceroute{
 		cfg: cfg,
-	}
+	}, nil
 }
 
 // Run executes a traceroute
-func (w *WindowsTraceroute) Run() (NetworkPath, error) {
+func (w *WindowsTraceroute) Run(_ context.Context) (NetworkPath, error) {
 	tu, err := net.GetRemoteSystemProbeUtil(
 		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {

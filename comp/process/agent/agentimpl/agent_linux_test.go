@@ -15,7 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
@@ -112,7 +112,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				runnerimpl.Module(),
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
-				tagger.MockModule(),
+				taggerimpl.MockModule(),
 				Module(),
 
 				fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
@@ -138,6 +138,61 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 
 			agentComponent := fxutil.Test[agent.Component](t, fx.Options(opts...))
 			assert.Equal(t, tc.expected, agentComponent.Enabled())
+		})
+	}
+}
+
+func TestStatusProvider(t *testing.T) {
+	tests := []struct {
+		name        string
+		agentFlavor string
+		expected    interface{}
+	}{
+		{
+			"process agent",
+			flavor.ProcessAgent,
+			nil,
+		},
+		{
+			"core agent",
+			flavor.DefaultAgent,
+			&agent.StatusProvider{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(*testing.T) {
+			originalFlavor := flavor.GetFlavor()
+			flavor.SetFlavor(tc.agentFlavor)
+			defer func() {
+				flavor.SetFlavor(originalFlavor)
+			}()
+
+			deps := fxutil.Test[dependencies](t, fx.Options(
+				runnerimpl.Module(),
+				hostinfoimpl.MockModule(),
+				submitterimpl.MockModule(),
+				taggerimpl.MockModule(),
+				Module(),
+				fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
+					"process_config.run_in_core_agent.enabled": true,
+				}}),
+				processcheckimpl.MockModule(),
+				fx.Provide(func() func(c *checkMocks.Check) {
+					return func(c *checkMocks.Check) {
+						c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
+						c.On("Name").Return(checks.ProcessCheckName).Maybe()
+						c.On("SupportsRunOptions").Return(false).Maybe()
+						c.On("Realtime").Return(false).Maybe()
+						c.On("Cleanup").Maybe()
+						c.On("Run", mock.Anything, mock.Anything).Return(&checks.StandardRunResult{}, nil).Maybe()
+						c.On("ShouldSaveLastRun").Return(false).Maybe()
+						c.On("IsEnabled").Return(true).Maybe()
+					}
+				}),
+			))
+			provides := newProcessAgent(deps)
+			assert.IsType(t, tc.expected, provides.StatusProvider.Provider)
 		})
 	}
 }

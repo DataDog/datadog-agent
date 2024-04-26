@@ -37,4 +37,7 @@ if ENV["S3_OMNIBUS_CACHE_BUCKET"]
     s3_instance_profile true
   end
 end
+
+# This setting can be overriden per-project (which is the case for the agent builds)
 use_git_caching false
+

@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/status/statusimpl
 
-go 1.21.9
+go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../../cmd/agent/common/path
@@ -9,6 +9,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../.
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
@@ -45,6 +46,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2 // indirect
@@ -58,7 +60,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2 // indirect
-	github.com/DataDog/viper v1.13.0 // indirect
+	github.com/DataDog/viper v1.13.2 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -75,6 +77,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
+	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/pelletier/go-toml v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect

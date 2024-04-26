@@ -211,6 +211,8 @@ type RuntimeSecurityConfig struct {
 	HashResolverEventTypes []model.EventType
 	// HashResolverCacheSize defines the number of hashes to keep in cache
 	HashResolverCacheSize int
+	// HashResolverReplace is used to apply specific hash to specific file path
+	HashResolverReplace map[string]string
 
 	// UserSessionsCacheSize defines the size of the User Sessions cache size
 	UserSessionsCacheSize int
@@ -343,6 +345,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		HashResolverMaxHashBurst:   coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.max_hash_burst"),
 		HashResolverMaxHashRate:    coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.max_hash_rate"),
 		HashResolverCacheSize:      coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.cache_size"),
+		HashResolverReplace:        coreconfig.SystemProbe.GetStringMapString("runtime_security_config.hash_resolver.replace"),
 
 		// security profiles
 		SecurityProfileEnabled:          coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.enabled"),

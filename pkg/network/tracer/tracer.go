@@ -22,7 +22,7 @@ import (
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -92,7 +92,7 @@ type Tracer struct {
 	sourceExcludes []*network.ConnectionFilter
 	destExcludes   []*network.ConnectionFilter
 
-	gwLookup *gatewayLookup
+	gwLookup network.GatewayLookup
 
 	sysctlUDPConnTimeout       *sysctl.Int
 	sysctlUDPConnStreamTimeout *sysctl.Int
@@ -162,7 +162,6 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 
 	if tr.bpfErrorsCollector = ebpftelemetry.NewEBPFErrorsCollector(); tr.bpfErrorsCollector != nil {
 		coretelemetry.GetCompatComponent().RegisterCollector(tr.bpfErrorsCollector)
-
 	} else {
 		log.Debug("eBPF telemetry not supported")
 	}
@@ -179,7 +178,9 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	}
 	coretelemetry.GetCompatComponent().RegisterCollector(tr.conntracker)
 
-	tr.gwLookup = newGatewayLookup(cfg)
+	if cfg.EnableGatewayLookup {
+		tr.gwLookup = network.NewGatewayLookup(cfg.GetRootNetNs, cfg.MaxTrackedConnections)
+	}
 	if tr.gwLookup != nil {
 		log.Info("gateway lookup enabled")
 	}

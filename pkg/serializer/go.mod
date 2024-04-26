@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/serializer
 
-go 1.21.9
+go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../cmd/agent/common/path
@@ -10,6 +10,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../../comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ../../comp/serializer/compression
@@ -53,7 +54,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.106
+	github.com/DataDog/agent-payload/v5 v5.0.114
 	github.com/DataDog/datadog-agent/comp/core/config v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.53.0-rc.2
@@ -70,7 +71,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.14.0
-	github.com/benbjohnson/clock v1.3.5
 	github.com/gogo/protobuf v1.3.2
 	github.com/json-iterator/go v1.1.12
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
@@ -84,6 +84,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.53.0-rc.2 // indirect
@@ -106,10 +107,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.4 // indirect
-	github.com/DataDog/viper v1.13.0 // indirect
+	github.com/DataDog/viper v1.13.2 // indirect
 	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
+	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
@@ -134,6 +136,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect

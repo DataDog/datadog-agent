@@ -6,7 +6,6 @@ Conflicts=datadog-installer-exp.service
 [Service]
 Type=simple
 PIDFile=<%= installer_dir %>/run/installer.pid
-User=dd-installer
 Restart=on-failure
 EnvironmentFile=-<%= etc_dir %>/environment
 ExecStart=<%= installer_dir %>/bin/installer/installer run -p <%= installer_dir %>/run/installer.pid

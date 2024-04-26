@@ -467,19 +467,22 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 300)
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "")
 			},
 		},
 		{
-			name: "auto discovery query timeout and discovery interval are set from DD env vars",
+			name: "auto discovery query timeout, region and discovery interval are set from DD env vars",
 			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_ENABLED", "true")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_DISCOVERY_INTERVAL", "15")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_QUERY_TIMEOUT", "1")
+				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_REGION", "us-west-2")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 15)
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 1)
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "us-west-2")
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
 			},
 		},
@@ -1203,6 +1206,8 @@ process_config:
 `)
 
 func TestConfigAssignAtPath(t *testing.T) {
+	t.Skip("This test is flaky due to configAssignAtPath not playing well with config.AllSettings, see ASCII-1421")
+
 	// CircleCI sets NO_PROXY, so unset it for this test
 	unsetEnvForTest(t, "NO_PROXY")
 

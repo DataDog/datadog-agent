@@ -35,6 +35,24 @@
   - *get_artifactory_token_win
   - if (($Env:USE_CACHING_PROXY_PYTHON -eq "true") -and ($Env:ARTIFACTORY_BYPASS -eq "false")) { $PIP_INDEX_URL="https://${Env:ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${Env:ARTIFACTORY_URL}/${Env:ARTIFACTORY_PYPI_PATH}" }
 
+# Sets up a cache for gems used by Omnibus
+# Usage:
+# !reference [.cache_omnibus_ruby_deps, setup] somewhere ahead of invoking bundle
+# !reference [.cache_omnibus_ruby_deps, cache] under `cache` for the same job
+.cache_omnibus_ruby_deps:
+  setup:
+    - pushd omnibus && bundle config set --local path 'vendor/bundle' && popd
+  cache:
+    key:
+      files:
+        - omnibus/Gemfile
+        # This is coarser than needed, but there's no more convenient way
+        # to get a hold of OMNIBUS_RUBY_VERSION and OMNIBUS_SOFTWARE version
+        - release.json
+      prefix: omnibus-deps-$CI_JOB_NAME
+    paths:
+      - omnibus/vendor/bundle
+
 .setup_deb_signing_key: &setup_deb_signing_key
   - set +x
   - DEB_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME)
@@ -56,3 +74,8 @@
       export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_INSTALLATION_ID_2_SSM_NAME)
       echo "Using GitHub App instance 2"
     fi
+
+# Install `dd-pkg` and lint packages produced by Omnibus, supports only deb and rpm packages
+.lint_linux_packages:
+  - curl -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg
+  - find $OMNIBUS_PACKAGE_DIR -iregex '.*\.\(deb\|rpm\)' | xargs dd-pkg lint

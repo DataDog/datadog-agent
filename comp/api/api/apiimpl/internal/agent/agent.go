@@ -38,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -92,17 +91,21 @@ func SetupHandlers(
 	providers []api.EndpointProvider,
 ) *mux.Router {
 
-	// TODO: move these to a component that is registerable
+	// Register the handlers from the component providers
 	for _, p := range providers {
-		r.Handle(p.Route, p.Handler).Methods(p.Methods...)
+		r.HandleFunc(p.Route, p.HandlerFunc).Methods(p.Methods...)
 	}
+
+	// TODO: move these to a component that is registerable
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("GET")
+	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		getStatus(w, r, statusComponent, "")
+	}).Methods("GET")
 	r.HandleFunc("/stream-event-platform", streamEventPlatform(eventPlatformReceiver)).Methods("POST")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
-	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
+	r.HandleFunc("/{component}/status", func(w http.ResponseWriter, r *http.Request) { componentStatusGetterHandler(w, r, statusComponent) }).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", func(w http.ResponseWriter, _ *http.Request) { getCSRFToken(w, gui) }).Methods("GET")
@@ -186,14 +189,14 @@ func componentConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func componentStatusGetterHandler(w http.ResponseWriter, r *http.Request) {
+func componentStatusGetterHandler(w http.ResponseWriter, r *http.Request, status status.Component) {
 	vars := mux.Vars(r)
 	component := vars["component"]
 	switch component {
 	case "py":
 		getPythonStatus(w, r)
 	default:
-		http.Error(w, log.Errorf("bad url or resource does not exist").Error(), 404)
+		getStatus(w, r, status, component)
 	}
 }
 
@@ -208,11 +211,12 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {
+func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component, section string) {
 	log.Info("Got a request for the status. Making status.")
 	verbose := r.URL.Query().Get("verbose") == "true"
 	format := r.URL.Query().Get("format")
 	var contentType string
+	var s []byte
 
 	contentType, ok := mimeTypeMap[format]
 
@@ -223,7 +227,12 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	}
 	w.Header().Set("Content-Type", contentType)
 
-	s, err := statusComponent.GetStatus(format, verbose)
+	var err error
+	if len(section) > 0 {
+		s, err = statusComponent.GetStatusBySections([]string{section}, format, verbose)
+	} else {
+		s, err = statusComponent.GetStatus(format, verbose)
+	}
 
 	if err != nil {
 		if format == "text" {
@@ -410,9 +419,7 @@ func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Com
 }
 
 func getTaggerList(w http.ResponseWriter, _ *http.Request) {
-	// query at the highest cardinality between checks and dogstatsd cardinalities
-	cardinality := collectors.TagCardinality(max(int(tagger.ChecksCardinality), int(tagger.DogstatsdCardinality)))
-	response := tagger.List(cardinality)
+	response := tagger.List()
 
 	jsonTags, err := json.Marshal(response)
 	if err != nil {
@@ -563,14 +570,6 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	if err != nil {
 		setJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
 	}
-}
-
-// max returns the maximum value between a and b.
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // GetConnection returns the connection for the request

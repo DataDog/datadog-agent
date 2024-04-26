@@ -13,8 +13,25 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
+
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/remotecommand"
+	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,19 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/runtime"
-	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/dynamic/dynamicinformer"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 )
 
 var (
@@ -275,7 +279,6 @@ func (c *APIClient) GetInformerWithOptions(resyncPeriod *time.Duration, options 
 
 func (c *APIClient) connect() error {
 	var err error
-
 	// Clients
 	c.Cl, err = GetKubeClient(c.defaultClientTimeout)
 	if err != nil {
@@ -600,4 +603,32 @@ func (c *APIClient) GetARandomNodeName(ctx context.Context) (string, error) {
 	}
 
 	return nodeList.Items[0].Name, nil
+}
+
+// RESTClient returns a new REST client
+func (c *APIClient) RESTClient(apiPath string, groupVersion *schema.GroupVersion, negotiatedSerializer runtime.NegotiatedSerializer) (*rest.RESTClient, error) {
+	clientConfig, err := getClientConfig(c.defaultClientTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	clientConfig.APIPath = apiPath
+	clientConfig.GroupVersion = groupVersion
+	clientConfig.NegotiatedSerializer = negotiatedSerializer
+
+	return rest.RESTClientFor(clientConfig)
+}
+
+// NewSPDYExecutor returns a new SPDY executor for the provided method and URL
+func (c *APIClient) NewSPDYExecutor(apiPath string, groupVersion *schema.GroupVersion, negotiatedSerializer runtime.NegotiatedSerializer, method string, url *url.URL) (remotecommand.Executor, error) {
+	clientConfig, err := getClientConfig(c.defaultClientTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	clientConfig.APIPath = apiPath
+	clientConfig.GroupVersion = groupVersion
+	clientConfig.NegotiatedSerializer = negotiatedSerializer
+
+	return remotecommand.NewSPDYExecutor(clientConfig, method, url)
 }
