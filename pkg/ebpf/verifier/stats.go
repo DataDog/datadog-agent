@@ -92,13 +92,17 @@ type ComplexityInfo struct {
 }
 
 var (
-	stackUsage       = regexp.MustCompile(`stack depth\s+(?P<usage>\d+).*\n`)
-	verificationTime = regexp.MustCompile(`verification time\s+(?P<time>\d+).*\n`)
-	insnProcessed    = regexp.MustCompile(`processed (?P<processed>\d+) insns`)
-	insnLimit        = regexp.MustCompile(`\(limit (?P<limit>\d+)\)`)
-	maxStates        = regexp.MustCompile(`max_states_per_insn (?P<max_states>\d+)`)
-	totalStates      = regexp.MustCompile(`total_states (?P<total_states>\d+)`)
-	peakStates       = regexp.MustCompile(`peak_states (?P<peak_states>\d+)`)
+	stackUsage          = regexp.MustCompile(`stack depth\s+(?P<usage>\d+).*\n`)
+	verificationTime    = regexp.MustCompile(`verification time\s+(?P<time>\d+).*\n`)
+	insnProcessed       = regexp.MustCompile(`processed (?P<processed>\d+) insns`)
+	insnLimit           = regexp.MustCompile(`\(limit (?P<limit>\d+)\)`)
+	maxStates           = regexp.MustCompile(`max_states_per_insn (?P<max_states>\d+)`)
+	totalStates         = regexp.MustCompile(`total_states (?P<total_states>\d+)`)
+	peakStates          = regexp.MustCompile(`peak_states (?P<peak_states>\d+)`)
+	insnRegex           = regexp.MustCompile(`^([0-9]+): \([0-9a-f]+\) (.*)`)
+	regStateRegex       = regexp.MustCompile(`^([0-9]+): (R[0-9]+.*)`)
+	singleRegStateRegex = regexp.MustCompile(`R([0-9]+)(_[^=]+)?=([^ ]+)`)
+	regInfoRegex        = regexp.MustCompile(`^([a-z_]+)(P)?(-?[0-9]+|\((.*)\))`)
 )
 
 func isCOREAsset(path string) bool {
@@ -432,16 +436,91 @@ func unmarshalStatistics(output string, hostVersion kernel.Version) (*Statistics
 	return &v, nil
 }
 
+func parseRegisterState(regMatch []string) (*RegisterState, error) {
+	if len(regMatch) != 4 {
+		return nil, fmt.Errorf("failed to parse register state: %v, should have a full match and 3 groups", regMatch)
+	}
+
+	regNum, err := strconv.Atoi(regMatch[1])
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse register number %v: %w", regMatch[1], err)
+	}
+
+	livenessCode := regMatch[2]
+	var liveness string
+
+	switch livenessCode {
+	case "_w":
+		liveness = "written"
+	case "_r":
+		liveness = "read"
+	case "_D":
+		liveness = "done"
+	default:
+		liveness = ""
+	}
+
+	regValue := regMatch[3]
+	infoMatches := regInfoRegex.FindStringSubmatch(regValue)
+	if len(infoMatches) == 0 {
+		return nil, fmt.Errorf("Cannot parse register value %v", regValue)
+	}
+
+	regType := infoMatches[1]
+	if regType == "inv" {
+		regType = "scalar" // for some reason the verifier logs scalars as "inv", which is confusing
+	}
+
+	if regType == "scalar" {
+		// Parse scalar values a bit better
+		if infoMatches[4] == "" {
+			regValue = infoMatches[3] // Parsed the direct scalar value
+		} else {
+			// Parse the interval
+			minValue := int64(0)
+			maxValue := int64(0)
+			hasRange := false
+
+			for _, kv := range strings.Split(infoMatches[4], ",") {
+				kvParts := strings.Split(kv, "=")
+				if strings.Contains(kvParts[0], "min") {
+					// Ignore errors here, mostly due to sizes (can't parse UINT_MAX in INT64) and for now we don't care
+					// about
+					v, _ := strconv.ParseInt(kvParts[1], 10, 64)
+					minValue = min(v, minValue)
+					hasRange = true
+				} else if strings.Contains(kvParts[0], "max") {
+					v, _ := strconv.ParseInt(kvParts[1], 10, 64)
+					maxValue = max(v, maxValue)
+					hasRange = true
+				}
+			}
+
+			if hasRange {
+				regValue = fmt.Sprintf("[%s, %s]", tryPowerOfTwoRepresentation(minValue), tryPowerOfTwoRepresentation(maxValue))
+			} else {
+				regValue = "?"
+			}
+		}
+	} else {
+		regValue = strings.Replace(regValue, regType, "", 1) // Remove the type from the value
+		regValue = strings.Trim(regValue, "()")              // Remove the parentheses
+	}
+
+	return &RegisterState{
+		Register: regNum,
+		Live:     liveness,
+		Type:     regType,
+		Value:    regValue,
+		Precise:  infoMatches[2] == "P",
+	}, nil
+}
+
 func unmarshalComplexity(output string, progSourceMap map[int]*SourceLine) (*ComplexityInfo, error) {
 	complexity := &ComplexityInfo{
 		InsnMap:   make(map[int]*InstructionInfo),
 		SourceMap: make(map[string]*SourceLineStats),
 	}
-
-	insnRegex := regexp.MustCompile(`^([0-9]+): \([0-9a-f]+\) (.*)`)
-	regStateRegex := regexp.MustCompile(`^([0-9]+): (R[0-9]+.*)`)
-	singleRegStateRegex := regexp.MustCompile(`R([0-9]+)(_[^=]+)?=([^ ]+)`)
-	regInfoRegex := regexp.MustCompile(`^([a-z_]+)(P)?(-?[0-9]+|\((.*)\))`)
 
 	var regStateMatch []string // Matched groups from the last regStateRegex match
 
@@ -479,85 +558,16 @@ func unmarshalComplexity(output string, progSourceMap map[int]*SourceLine) (*Com
 
 			regMatches := singleRegStateRegex.FindAllStringSubmatch(regData, -1)
 			regState := make(map[int]*RegisterState)
-
 			for _, regMatch := range regMatches {
-				regNum, err := strconv.Atoi(regMatch[1])
+				data, err := parseRegisterState(regMatch)
 				if err != nil {
-					return nil, fmt.Errorf("failed to parse register number (line is '%s', register is '%s'): %w", line, regData, err)
+					return nil, fmt.Errorf("failed to parse register state (line is '%s', register is '%s'): %w", line, regData, err)
 				}
-
-				livenessCode := regMatch[2]
-				var liveness string
-
-				switch livenessCode {
-				case "_w":
-					liveness = "written"
-				case "_r":
-					liveness = "read"
-				case "_D":
-					liveness = "done"
-				default:
-					liveness = ""
-				}
-
-				regValue := regMatch[3]
-				infoMatches := regInfoRegex.FindStringSubmatch(regValue)
-				if len(infoMatches) == 0 {
-					return nil, fmt.Errorf("failed to parse register info (line is '%s', register is '%s')", line, regData)
-				}
-
-				regType := infoMatches[1]
-				if regType == "inv" {
-					regType = "scalar" // for some reason the verifier logs scalars as "inv", which is confusing
-				}
-
-				if regType == "scalar" {
-					// Parse scalar values a bit better
-					if infoMatches[4] == "" {
-						regValue = infoMatches[3] // Parsed the direct scalar value
-					} else {
-						// Parse the interval
-						minValue := int64(-9223372036854775808)
-						maxValue := int64(9223372036854775807)
-						hasRange := false
-
-						for _, kv := range strings.Split(infoMatches[4], ",") {
-							kvParts := strings.Split(kv, "=")
-							if strings.Contains(kvParts[0], "min") {
-								// Ignore errors here, mostly due to sizes (can't parse UINT_MAX in INT64) and for now we don't care
-								// about
-								v, _ := strconv.ParseInt(kvParts[1], 10, 64)
-								minValue = max(v, minValue)
-								hasRange = true
-							} else if strings.Contains(kvParts[0], "max") {
-								v, _ := strconv.ParseInt(kvParts[1], 10, 64)
-								maxValue = min(v, maxValue)
-								hasRange = true
-							}
-						}
-
-						if hasRange {
-							regValue = fmt.Sprintf("[%s, %s]", tryPowerOfTwoRepresentation(minValue), tryPowerOfTwoRepresentation(maxValue))
-						} else {
-							regValue = "?"
-						}
-					}
-				} else {
-					regValue = strings.Replace(regValue, regType, "", 1) // Remove the type from the value
-					regValue = strings.Trim(regValue, "()")              // Remove the parentheses
-				}
-
-				regState[regNum] = &RegisterState{
-					Register: regNum,
-					Live:     liveness,
-					Type:     regType,
-					Value:    regValue,
-					Precise:  infoMatches[2] == "P",
-				}
+				regState[data.Register] = data
 			}
+
 			complexity.InsnMap[insIdx].RegisterState = regState
 			complexity.InsnMap[insIdx].RegisterStateRaw = regStateMatch[0]
-
 		} else {
 			log.Printf("WARN: No register state found for instruction %d\n", insIdx)
 		}

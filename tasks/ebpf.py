@@ -257,6 +257,7 @@ class ComplexityAssemblyInsn(TypedDict):
     index: int  # noqa: F841
     times_processed: int  # noqa: F841
     register_state: dict[str, ComplexityRegisterState]  # noqa: F841
+    register_state_raw: str  # noqa: F841
 
 
 class ComplexityData(TypedDict):
@@ -339,6 +340,7 @@ def annotate_complexity(
     show_assembly=False,
     show_register_state=False,
     assembly_instruction_limit=20,
+    show_raw_register_state=False,
 ):
     complexity_data = get_complexity_for_function(program, function, debug)
     all_files = {x.split(":")[0] for x in complexity_data["source_map"].keys()}
@@ -406,7 +408,13 @@ def annotate_complexity(
                                 # Also, JSON map indices are strings so we need to convert the asm_idx to a string
                                 next_insn = str(asm_idx + 1)
                                 if next_insn in complexity_data["insn_map"]:
-                                    reg_state = complexity_data["insn_map"][next_insn]["register_state"]
+                                    next_insn_data = complexity_data["insn_map"][next_insn]
+                                    reg_state = next_insn_data["register_state"]
+
+                                    if show_raw_register_state:
+                                        total_indent = 4 + 3 + get_total_complexity_stats_len(compinfo_widths)
+                                        raw_state = next_insn_data['register_state_raw'].split(':', 1)[1].strip()
+                                        print(f"{' ' * total_indent} | {colored(raw_state, 'blue', attrs=['dark'])}")
 
                                     for reg in registers:
                                         reg_idx = reg[1:]  # Remove the 'r' prefix
