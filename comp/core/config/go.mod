@@ -7,6 +7,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../secrets/
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../telemetry/
+	github.com/DataDog/datadog-agent/comp/def => ../../def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model/
@@ -35,7 +36,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2
-	github.com/DataDog/viper v1.13.0
+	github.com/DataDog/viper v1.13.2
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
 )
@@ -43,6 +44,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.53.0-rc.2 // indirect

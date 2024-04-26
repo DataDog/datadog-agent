@@ -72,6 +72,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -382,7 +383,7 @@ func getSharedFxOption() fx.Option {
 		rcservicemrfimpl.Module(),
 		remoteconfig.Bundle(),
 		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
-		tagger.Module(),
+		taggerimpl.Module(),
 		autodiscoveryimpl.Module(),
 		fx.Provide(func(ac autodiscovery.Component) optional.Option[autodiscovery.Component] {
 			return optional.NewOption[autodiscovery.Component](ac)

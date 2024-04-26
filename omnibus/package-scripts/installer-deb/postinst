@@ -4,4 +4,19 @@
 #
 # .deb: STEP 5 of 5
 
+INSTALL_DIR=/opt/datadog-installer
+
+set -e
+case "$1" in
+    configure)
+        # Create a symlink to the bootstrap binary
+        ln -sf $INSTALL_DIR/bin/installer/installer /usr/bin/datadog-bootstrap
+    ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+    ;;
+esac
+
 exit 0
