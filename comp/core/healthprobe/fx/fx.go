@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package healthprobefx provides fx access for the healthprobe component
-package healthprobefx
+// Package fx provides the fx module for the healthprobe component
+package fx
 
 import (
 	healthprobeimpl "github.com/DataDog/datadog-agent/comp/core/healthprobe/impl"

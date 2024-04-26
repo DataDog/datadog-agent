@@ -16,6 +16,7 @@ import (
 	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +24,7 @@ import (
 
 func TestServer(t *testing.T) {
 
-	lc := fxutil.NewTestLifecycle(t)
+	lc := compdef.NewTestLifecycle()
 	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
 
 	requires := Requires{
@@ -47,7 +48,7 @@ func TestServer(t *testing.T) {
 }
 
 func TestServerNoHealthPort(t *testing.T) {
-	lc := fxutil.NewTestLifecycle(t)
+	lc := compdef.NewTestLifecycle()
 	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
 
 	requires := Requires{

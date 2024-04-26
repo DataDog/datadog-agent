@@ -29,7 +29,7 @@ import (
 
 	//nolint:revive // TODO(AML) Fix revive linter
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
-	healthprobeimpl "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
@@ -179,7 +179,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
 			}
 		}),
-		healthprobeimpl.Module(),
+		healthprobefx.Module(),
 	)
 }
 

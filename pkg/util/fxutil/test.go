@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"testing"
 
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -306,32 +305,4 @@ func createFxInvokeOption(componentTypes []reflect.Type) fx.Option {
 		})
 
 	return fx.Invoke(captureArgs.Interface())
-}
-
-// TestLifecycle is a testing spy for fx.Lifecycle
-type TestLifecycle struct {
-	lc *fxtest.Lifecycle
-}
-
-// NewTestLifecycle returns a lifecycle for testing
-func NewTestLifecycle(t *testing.T) *TestLifecycle {
-	return &TestLifecycle{lc: fxtest.NewLifecycle(t)}
-}
-
-// Append adds a hook to the lifecycle
-func (t *TestLifecycle) Append(h compdef.Hook) {
-	t.lc.Append(fx.Hook{
-		OnStart: h.OnStart,
-		OnStop:  h.OnStop,
-	})
-}
-
-// Start executes all registered OnStart hooks in order, halting at the first
-func (t *TestLifecycle) Start(ctx context.Context) error {
-	return t.lc.Start(ctx)
-}
-
-// Stop executes all registered OnStop hooks in reverse order, halting at the first
-func (t *TestLifecycle) Stop(ctx context.Context) error {
-	return t.lc.Stop(ctx)
 }
