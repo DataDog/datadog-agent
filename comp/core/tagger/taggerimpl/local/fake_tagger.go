@@ -10,10 +10,9 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -22,6 +21,7 @@ type FakeTagger struct {
 	errors map[string]error
 	store  *tagstore.TagStore
 	sync.RWMutex
+	empty.Tagger
 }
 
 // NewFakeTagger returns a new fake Tagger
@@ -126,30 +126,3 @@ func (f *FakeTagger) Unsubscribe(ch chan []types.EntityEvent) {
 func (f *FakeTagger) getKey(entity string, cardinality types.TagCardinality) string {
 	return entity + strconv.FormatInt(int64(cardinality), 10)
 }
-
-// GetEntityHash returns the hash for the tags associated with the given entity
-// Returns an empty string if the tags lookup fails
-func (f *FakeTagger) GetEntityHash(string, types.TagCardinality) string {
-	return ""
-}
-
-// AgentTags returns the agent tags
-// It relies on the container provider utils to get the Agent container ID
-func (f *FakeTagger) AgentTags(types.TagCardinality) ([]string, error) {
-	return []string{}, nil
-}
-
-// GlobalTags queries global tags that should apply to all data coming from the
-// agent.
-func (f *FakeTagger) GlobalTags(types.TagCardinality) ([]string, error) {
-	return []string{}, nil
-}
-
-// SetNewCaptureTagger sets the tagger to be used when replaying a capture
-func (f *FakeTagger) SetNewCaptureTagger(tagger.Component) {}
-
-// ResetCaptureTagger resets the capture tagger to nil
-func (f *FakeTagger) ResetCaptureTagger() {}
-
-// EnrichTags extends a tag list with origin detection tags
-func (f *FakeTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) {}

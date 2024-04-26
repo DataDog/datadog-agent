@@ -10,12 +10,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pbutils "github.com/DataDog/datadog-agent/pkg/util/proto"
@@ -29,6 +28,7 @@ type Tagger struct {
 	cancel context.CancelFunc
 
 	telemetryTicker *time.Ticker
+	empty.Tagger
 }
 
 // NewTagger returns an allocated tagger. You still have to run Init()
@@ -139,30 +139,3 @@ func (t *Tagger) LoadState(state map[string]*pb.Entity) {
 func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
 	return t.store.GetEntity(entityID)
 }
-
-// GetEntityHash returns the hash for the tags associated with the given entity
-// Returns an empty string if the tags lookup fails
-func (t *Tagger) GetEntityHash(string, types.TagCardinality) string {
-	return ""
-}
-
-// AgentTags returns the agent tags
-// It relies on the container provider utils to get the Agent container ID
-func (t *Tagger) AgentTags(types.TagCardinality) ([]string, error) {
-	return []string{}, nil
-}
-
-// GlobalTags queries global tags that should apply to all data coming from the
-// agent.
-func (t *Tagger) GlobalTags(types.TagCardinality) ([]string, error) {
-	return []string{}, nil
-}
-
-// SetNewCaptureTagger sets the tagger to be used when replaying a capture
-func (t *Tagger) SetNewCaptureTagger(tagger.Component) {}
-
-// ResetCaptureTagger resets the capture tagger to nil
-func (t *Tagger) ResetCaptureTagger() {}
-
-// EnrichTags extends a tag list with origin detection tags
-func (t *Tagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) {}
