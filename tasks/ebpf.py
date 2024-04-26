@@ -264,16 +264,25 @@ class ComplexityData(TypedDict):
     insn_map: dict[str, ComplexityAssemblyInsn]  # noqa: F841
 
 
-def source_line_to_str(lineno: int, line: str, compl: ComplexitySourceLine | None):
+def get_total_complexity_stats_len(compinfo_widths: tuple[int, int, int]):
+    return sum(compinfo_widths) + 7  # 7 = 2 brackets + 2 pipes + 3 letters
+
+
+def source_line_to_str(
+    lineno: int,
+    line: str,
+    compl: ComplexitySourceLine | None,
+    compinfo_widths: tuple[int, int, int],
+):
     color = None
     line = line.rstrip("\n")
 
-    compinfo_len = 13
+    compinfo_len = get_total_complexity_stats_len(compinfo_widths)
     if compl is not None:
         insn = compl["num_instructions"]
         passes = compl["max_passes"]
         total = compl["total_instructions_processed"]
-        compinfo = f"[{insn:2d}i|{passes:2d}p|{total:2d}t]"
+        compinfo = f"[{insn:{compinfo_widths[0]}d}i|{passes:{compinfo_widths[1]}d}p|{total:{compinfo_widths[2]}d}t]"
 
         if total <= 5:
             color = "green"
@@ -292,17 +301,19 @@ def source_line_to_str(lineno: int, line: str, compl: ComplexitySourceLine | Non
         return f"{lineno:4d} | {compinfo} | {colored(line, color)}"
 
 
-def assembly_line_to_str(asm_line: ComplexityAssemblyInsn):
+def assembly_line_to_str(asm_line: ComplexityAssemblyInsn, compinfo_width: tuple[int, int, int]):
     asm_code = asm_line["code"]
     processed = asm_line["times_processed"]
     asm_idx = asm_line["index"]
 
-    return f"{asm_idx:4d} | [   |{processed:2d}p|   ] | {asm_code}"
+    return f"{asm_idx:4d} | [{' '*compinfo_width[0]} |{processed:{compinfo_width[1]}d}p|{' '*compinfo_width[2]} ] | {asm_code}"
 
 
-def register_state_to_str(reg: ComplexityRegisterState):
+def register_state_to_str(reg: ComplexityRegisterState, compinfo_widths: tuple[int, int, int]):
     reg_liveness = f" [{reg['live']}]" if reg["live"] != "" else ""
-    return f"R{reg['register']} ({reg['type']}){reg_liveness}: {reg['value']}"
+    compinfo_len = get_total_complexity_stats_len(compinfo_widths)
+    total_indent = 4 + 3 + compinfo_len  # Line number, pipe, complexity info
+    return f"{' ' * total_indent} |    R{reg['register']} ({reg['type']}){reg_liveness}: {reg['value']}"
 
 
 def get_complexity_for_function(program: str, function: str, debug=False) -> ComplexityData:
@@ -327,6 +338,7 @@ def annotate_complexity(
     debug=False,
     show_assembly=False,
     show_register_state=False,
+    assembly_instruction_limit=20,
 ):
     complexity_data = get_complexity_for_function(program, function, debug)
     all_files = {x.split(":")[0] for x in complexity_data["source_map"].keys()}
@@ -338,6 +350,15 @@ def annotate_complexity(
         raise Exit("Register state can only be shown when assembly is also shown")
 
     print_complexity_legend()
+
+    # Find out the width required to print the complexity stats
+    max_insn = max_passes = max_total = 0
+    for compl in complexity_data["source_map"].values():
+        max_insn = max(max_insn, compl["num_instructions"])
+        max_passes = max(max_passes, compl["max_passes"])
+        max_total = max(max_total, compl["total_instructions_processed"])
+
+    compinfo_widths = (len(str(max_insn)), len(str(max_passes)), len(str(max_total)))
 
     for f in sorted(all_files):
         if not os.path.exists(f):
@@ -351,7 +372,7 @@ def annotate_complexity(
                 lineno += 1
                 lineid = f"{f}:{lineno}"
                 compl = complexity_data["source_map"].get(lineid)
-                statusline = source_line_to_str(lineno, line, compl)
+                statusline = source_line_to_str(lineno, line, compl, compinfo_widths)
                 buffer.append(statusline)
 
                 if compl is not None:
@@ -364,12 +385,15 @@ def annotate_complexity(
                         # Print the assembly code for this line
                         asm_insn_indexes = sorted(compl["assembly_insns"])
 
+                        if assembly_instruction_limit > 0:
+                            asm_insn_indexes = asm_insn_indexes[:assembly_instruction_limit]
+
                         for asm_idx in asm_insn_indexes:
                             asm_line = complexity_data["insn_map"][str(asm_idx)]
                             asm_code = asm_line["code"]
                             print(
                                 colored(
-                                    assembly_line_to_str(asm_line),
+                                    assembly_line_to_str(asm_line, compinfo_widths),
                                     attrs=["dark"],
                                 )
                             )
@@ -388,7 +412,7 @@ def annotate_complexity(
                                         reg_idx = reg[1:]  # Remove the 'r' prefix
                                         if reg_idx in reg_state:
                                             reg_data = reg_state[reg_idx]
-                                            reg_info = register_state_to_str(reg_data)
+                                            reg_info = register_state_to_str(reg_data, compinfo_widths)
                                             print(
                                                 colored(
                                                     reg_info,
@@ -433,12 +457,21 @@ def show_top_complexity_lines(
     )[:n]
 
     print_complexity_legend()
+    compinfo_widths = None
 
     for lineid, compl in top_complexity_lines:
         f, lineno = lineid.split(":")
+        if compinfo_widths is None:
+            # Find out the widths, the first has the largest values so we go with that
+            # Set a minimum just in case
+            compinfo_widths = (
+                max(2, len(str(compl["num_instructions"]))),
+                max(2, len(str(compl["max_passes"]))),
+                max(2, len(str(compl["total_instructions_processed"]))),
+            )
+
         with open(f) as src:
             line = next(l for i, l in enumerate(src) if i + 1 == int(lineno))
-
             print(lineid)
-            print(source_line_to_str(int(lineno), line, compl))
+            print(source_line_to_str(int(lineno), line, compl, compinfo_widths))
             print()
