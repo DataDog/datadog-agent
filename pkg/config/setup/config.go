@@ -1230,7 +1230,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("sbom.container_image.analyzers", []string{"os"})
 	config.BindEnvAndSetDefault("sbom.container_image.check_disk_usage", true)
 	config.BindEnvAndSetDefault("sbom.container_image.min_available_disk", "1Gb")
-	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_direct_scan", true)
+	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_direct_scan", false)
 
 	// Host SBOM configuration
 	config.BindEnvAndSetDefault("sbom.host.enabled", false)
