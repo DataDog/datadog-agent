@@ -1,9 +1,9 @@
 ---
 features:
   - |
-    CWS: Add support ``write`` event on Windows.
+    CWS: Add support ``write`` events on Windows.
   - |
-    CWS: Add support for ``rename`` event on Windows.
+    CWS: Add support for ``delete`` event on Windows.
   - |
     CWS: Add ``chdir``, ``mount`` and ``umount`` in ``ptracer`` mode.
   - |
@@ -16,9 +16,7 @@ enhancements:
   - |
     CWS: Normalize Windows filenames before going through glob matching.
   - |
-    CWS: Add ``pattern -> glob`` conversion on Windows paths.
-  - |
     CWS: Support non seccomp mode in ``ptracer`` mode.
 other:
   - |
-    CWS: Allow ``fim_enabled`` to explicitly be set to false to enable process monitoring only.
+    CWS: Allow ``fim_enabled`` to explicitly be set to false on Windows to enable process monitoring only.
