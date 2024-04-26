@@ -209,6 +209,8 @@ func (e *ebpfProgram) Init() error {
 
 // Start starts the ebpf program and the enabled protocols.
 func (e *ebpfProgram) Start() error {
+	initializeTupleMaps(e.Manager)
+
 	// Mainly for tests, but possible for other cases as well, we might have a nil (not shared) connection protocol map
 	// between NPM and USM. In such a case we just create our own instance, but we don't modify the
 	// `e.connectionProtocolMap` field.

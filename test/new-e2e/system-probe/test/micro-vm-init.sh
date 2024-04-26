@@ -6,7 +6,7 @@ docker_dir=/kmt-dockers
 
 # Add provisioning steps here !
 ## Start docker if available, some images (e.g. SUSE arm64 for CWS) do not have it installed
-if systemctl list-unit-files | grep -q docker.service; then
+if command -v docker ; then
     systemctl start docker
 
     ## Load docker images
@@ -20,7 +20,8 @@ fi
 
 # Start tests
 code=0
-/test-runner $runner_config || code=$?
+
+/opt/testing-tools/test-runner $runner_config || code=$?
 
 if [[ -f "/job_env.txt" ]]; then
     cp /job_env.txt /ci-visibility/junit/

@@ -20,9 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"go.opentelemetry.io/collector/component/componenttest"
-
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
@@ -41,6 +38,8 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"go.opentelemetry.io/collector/component/componenttest"
 )
 
 // team: agent-apm
