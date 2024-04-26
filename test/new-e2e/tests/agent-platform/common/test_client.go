@@ -8,6 +8,7 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -184,7 +185,7 @@ func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
 		if err == nil {
 			ok = true
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(time.Duration(math.Pow(2, float64(try))) * time.Second)
 	}
 
 	return output, err
