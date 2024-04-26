@@ -639,6 +639,59 @@ func TestOldConnectionRegression(t *testing.T) {
 	})
 }
 
+func TestLimitListenerRegression(t *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+		if !gotlstestutil.GoTLSSupported(t, config.New()) {
+			t.Skip("GoTLS not supported for this setup")
+		}
+
+		// Spin up HTTP server
+		const serverAddr = "127.0.0.1:8081"
+		const httpPath = "/200/foobar"
+		closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
+			EnableTLS:           true,
+			EnableLimitListener: true,
+		})
+		t.Cleanup(closeServer)
+
+		// Start USM monitor
+		cfg := config.New()
+		cfg.EnableHTTPMonitoring = true
+		cfg.EnableGoTLSSupport = true
+		cfg.GoTLSExcludeSelf = false
+		// This one is particularly important for this test so we ensure we
+		// don't accidentally report a false positive based on client (`curl`)
+		// data as opposed to the GoTLS server with `netutils.LimitListener`
+		cfg.EnableNativeTLSMonitoring = false
+		usmMonitor := setupUSMTLSMonitor(t, cfg)
+
+		// Ensure this test program is being traced
+		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid())
+
+		// Issue multiple HTTP requests
+		for i := 0; i < 10; i++ {
+			cmd := exec.Command("curl", "-k", "--http1.1", fmt.Sprintf("https://%s%s", serverAddr, httpPath))
+			err := cmd.Run()
+			assert.NoError(t, err)
+		}
+
+		// Ensure we have captured a request
+		stats, ok := usmMonitor.GetProtocolStats()[protocols.HTTP]
+		require.True(t, ok)
+		httpStats, ok := stats.(map[http.Key]*http.RequestStats)
+		require.True(t, ok)
+		assert.Condition(t, func() bool {
+			for key := range httpStats {
+				if key.Path.Content.Get() == httpPath {
+					return true
+				}
+			}
+			return false
+		})
+	})
+}
+
 // Test that we can capture HTTPS traffic from Go processes started after the
 // tracer.
 func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config, isHTTP2 bool) {
