@@ -56,40 +56,32 @@ func DiagnosePortSuite(_ diagnosis.Config, _ sender.DiagnoseSenderManager) []dia
 			continue
 		}
 
-		var found bool
-
-		for portNumber, port := range portMap {
-			// if the port is used for several protocols, add a diagnose for each
-			if portNumber != uint16(value) {
-				continue
-			}
-
-			found = true
-
-			//TODO: check process user/group
-			if processName, ok := isAgentProcess(port.Process); ok {
-				diagnoses = append(diagnoses, diagnosis.Diagnosis{
-					Name:      key,
-					Result:    diagnosis.DiagnosisSuccess,
-					Diagnosis: fmt.Sprintf("Required port %d is used by '%s' process (PID=%d) for %s", value, processName, port.Pid, port.Proto),
-				})
-				continue
-			}
-
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
-				Name:      key,
-				Result:    diagnosis.DiagnosisFail,
-				Diagnosis: fmt.Sprintf("Required port %d is already used by '%s' process (PID=%d) for %s.", value, port.Process, port.Pid, port.Proto),
-			})
-		}
-
-		if !found {
+		port, ok := portMap[uint16(value)]
+		// if the port is used for several protocols, add a diagnose for each
+		if !ok {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
 				Name:      key,
 				Result:    diagnosis.DiagnosisSuccess,
 				Diagnosis: fmt.Sprintf("Required port %d is not used", value),
 			})
+			continue
 		}
+
+		// TODO: check process user/group
+		if processName, ok := isAgentProcess(port.Process); ok {
+			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+				Name:      key,
+				Result:    diagnosis.DiagnosisSuccess,
+				Diagnosis: fmt.Sprintf("Required port %d is used by '%s' process (PID=%d) for %s", value, processName, port.Pid, port.Proto),
+			})
+			continue
+		}
+
+		diagnoses = append(diagnoses, diagnosis.Diagnosis{
+			Name:      key,
+			Result:    diagnosis.DiagnosisFail,
+			Diagnosis: fmt.Sprintf("Required port %d is already used by '%s' process (PID=%d) for %s.", value, port.Process, port.Pid, port.Proto),
+		})
 	}
 
 	return diagnoses
