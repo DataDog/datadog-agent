@@ -8,6 +8,7 @@ package model
 
 import (
 	"bytes"
+	"encoding/binary"
 )
 
 // SliceToArray copy src bytes to dst. Destination should have enough space
@@ -29,7 +30,7 @@ func UnmarshalStringArray(data []byte) ([]string, error) {
 			return result, ErrStringArrayOverflow
 		}
 		// size of arg
-		n := ByteOrder.Uint32(data[i : i+4])
+		n := binary.NativeEndian.Uint32(data[i : i+4])
 		if n == 0 {
 			return result, nil
 		}

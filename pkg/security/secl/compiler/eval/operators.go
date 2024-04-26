@@ -306,7 +306,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEv
 	}
 
 	if a.Field != "" && b.Field != "" {
-		if a.StringCmpOpts.ScalarCaseInsensitive || b.StringCmpOpts.ScalarCaseInsensitive {
+		if a.StringCmpOpts.CaseInsensitive || b.StringCmpOpts.CaseInsensitive {
 			op = strings.EqualFold
 		}
 	} else if a.Field != "" {
@@ -470,10 +470,10 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, state *Sta
 	}
 
 	if a.Field != "" && b.Field != "" {
-		if a.StringCmpOpts.ScalarCaseInsensitive || b.StringCmpOpts.ScalarCaseInsensitive {
+		if a.StringCmpOpts.CaseInsensitive || b.StringCmpOpts.CaseInsensitive {
 			cmp = strings.EqualFold
 		}
-	} else if a.Field != "" && a.StringCmpOpts.ScalarCaseInsensitive {
+	} else if a.Field != "" && a.StringCmpOpts.CaseInsensitive {
 		cmp = strings.EqualFold
 	} else if b.Field != "" {
 		matcher, err := a.ToStringMatcher(b.StringCmpOpts)

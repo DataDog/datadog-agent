@@ -79,7 +79,7 @@ func TestMonitorProtocolFail(t *testing.T) {
 
 			cfg := config.New()
 			cfg.EnableHTTPMonitoring = true
-			monitor, err := NewMonitor(cfg, nil, nil, nil)
+			monitor, err := NewMonitor(cfg, nil)
 			skipIfNotSupported(t, err)
 			require.NoError(t, err)
 			t.Cleanup(monitor.Stop)
@@ -415,7 +415,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
-	checkRequestIncluded(t, stats, &nethttp.Request{URL: url}, true)
+	checkRequestIncluded(t, stats, &nethttp.Request{URL: url, Method: nethttp.MethodGet}, true)
 }
 
 // TestKeepAliveWithIncompleteResponseRegression checks that USM captures a request, although we initially saw a
@@ -525,7 +525,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 }
 
 var (
-	httpMethods         = []string{nethttp.MethodGet, nethttp.MethodHead, nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete, nethttp.MethodOptions}
+	httpMethods         = []string{nethttp.MethodGet, nethttp.MethodHead, nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete, nethttp.MethodOptions, nethttp.MethodTrace}
 	httpMethodsWithBody = []string{nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete}
 	statusCodes         = []int{nethttp.StatusOK, nethttp.StatusMultipleChoices, nethttp.StatusBadRequest, nethttp.StatusInternalServerError}
 )
@@ -620,6 +620,9 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	occurrences := 0
 	for key, stats := range allStats {
+		if key.Method.String() != req.Method {
+			continue
+		}
 		if key.Path.Content.Get() != req.URL.Path {
 			continue
 		}
@@ -634,7 +637,7 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 func newHTTPMonitorWithCfg(t *testing.T, cfg *config.Config) *Monitor {
 	cfg.EnableHTTPMonitoring = true
 
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	monitor, err := NewMonitor(cfg, nil)
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
 	t.Cleanup(func() {

@@ -178,7 +178,7 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = util.SetAuthToken(config.Datadog)
 	if e != nil {
 		return
 	}

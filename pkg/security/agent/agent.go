@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
 	"time"
 
@@ -28,7 +29,6 @@ import (
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
 type RuntimeSecurityAgent struct {
-	//nolint:unused // TODO(SEC) Fix unused linter
 	hostname             string
 	reporter             common.RawReporter
 	client               *RuntimeSecurityClient
@@ -62,8 +62,11 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 	rsa.running.Store(true)
 	// Start the system-probe events listener
 	go rsa.StartEventListener()
-	// Start activity dumps listener
-	go rsa.StartActivityDumpListener()
+
+	if runtime.GOOS == "linux" {
+		// Start activity dumps listener
+		go rsa.StartActivityDumpListener()
+	}
 
 	if rsa.telemetry != nil {
 		// Send Runtime Security Agent telemetry
@@ -194,48 +197,6 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 			}
 		}
 	}
-}
-
-// GetStatus returns the current status on the agent
-func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
-	base := map[string]interface{}{
-		"connected":            rsa.connected.Load(),
-		"eventReceived":        rsa.eventReceived.Load(),
-		"activityDumpReceived": rsa.activityDumpReceived.Load(),
-	}
-
-	if rsa.endpoints != nil {
-		base["endpoints"] = rsa.endpoints.GetStatus()
-	}
-
-	if rsa.client != nil {
-		cfStatus, err := rsa.client.GetStatus()
-		if err == nil {
-			if cfStatus.Environment != nil {
-				environment := map[string]interface{}{
-					"warnings":       cfStatus.Environment.Warnings,
-					"kernelLockdown": cfStatus.Environment.KernelLockdown,
-					"mmapableMaps":   cfStatus.Environment.UseMmapableMaps,
-					"ringBuffer":     cfStatus.Environment.UseRingBuffer,
-				}
-				if cfStatus.Environment.Constants != nil {
-					environment["constantFetchers"] = cfStatus.Environment.Constants
-				}
-				base["environment"] = environment
-			}
-			if cfStatus.SelfTests != nil {
-				selfTests := map[string]interface{}{
-					"LastTimestamp": cfStatus.SelfTests.LastTimestamp,
-					"Success":       cfStatus.SelfTests.Success,
-					"Fails":         cfStatus.SelfTests.Fails,
-				}
-				base["selfTests"] = selfTests
-			}
-			base["policiesStatus"] = cfStatus.PoliciesStatus
-		}
-	}
-
-	return base
 }
 
 // newLogBackoffTicker returns a ticker based on an exponential backoff, used to trigger connect error logs

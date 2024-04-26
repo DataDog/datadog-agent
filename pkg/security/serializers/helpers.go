@@ -6,12 +6,6 @@
 // Package serializers defines functions aiming to serialize events
 package serializers
 
-import (
-	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
-)
-
 // nolint: deadcode, unused
 func getUint64Pointer(i *uint64) *uint64 {
 	if *i == 0 {
@@ -26,13 +20,4 @@ func getUint32Pointer(i *uint32) *uint32 {
 		return nil
 	}
 	return i
-}
-
-// nolint: deadcode, unused
-func getTimeIfNotZero(t time.Time) *utils.EasyjsonTime {
-	if t.IsZero() {
-		return nil
-	}
-	tt := utils.NewEasyjsonTime(t)
-	return &tt
 }

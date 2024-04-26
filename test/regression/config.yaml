@@ -1,0 +1,6 @@
+lading:
+  version: 0.20.10
+
+target:
+  cpu_allotment: 8
+  memory_allotment: 30g

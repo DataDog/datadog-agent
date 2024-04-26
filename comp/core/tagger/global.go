@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/replay"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -95,9 +96,9 @@ func GlobalTags(cardinality collectors.TagCardinality) ([]string, error) {
 }
 
 // List the content of the defaulTagger
-func List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
+func List() tagger_api.TaggerListResponse {
 	if globalTagger != nil {
-		return globalTagger.List(cardinality)
+		return globalTagger.List()
 	}
 	return tagger_api.TaggerListResponse{}
 }
@@ -107,7 +108,7 @@ func GetTaggerInstance() Component {
 	return globalTagger
 }
 
-// SetNewCaptureTagger will set capture tagger in global tagger instance by using prvoided capturetagger
+// SetNewCaptureTagger will set capture tagger in global tagger instance by using provided capture tagger
 func SetNewCaptureTagger(newCaptureTagger *replay.Tagger) {
 	if globalTagger != nil {
 		globalTagger.SetNewCaptureTagger(newCaptureTagger)
@@ -122,8 +123,8 @@ func ResetCaptureTagger() {
 }
 
 // EnrichTags is an interface function that queries taggerclient singleton
-func EnrichTags(tb tagset.TagsAccumulator, udsOrigin string, clientOrigin string, cardinalityName string) {
+func EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
 	if globalTagger != nil {
-		globalTagger.EnrichTags(tb, udsOrigin, clientOrigin, cardinalityName)
+		globalTagger.EnrichTags(tb, originInfo)
 	}
 }

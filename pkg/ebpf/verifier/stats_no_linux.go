@@ -9,7 +9,10 @@
 // for any loaded eBPF program
 package verifier
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+)
 
 // Statistics represent that statistics exposed via
 // the eBPF verifier when  LogLevelStats is enabled
@@ -25,6 +28,6 @@ type Statistics struct {
 
 // BuildVerifierStats accepts a list of eBPF object files and generates a
 // map of all programs and their Statistics
-func BuildVerifierStats(_ []string) (map[string]*Statistics, error) {
+func BuildVerifierStats(_ []string, _ []*regexp.Regexp) (map[string]*Statistics, error) {
 	return nil, fmt.Errorf("not implemented")
 }

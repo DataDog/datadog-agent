@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	infraURLPrefix = "https://app."
+	// InfraURLPrefix is the default infra URL prefix for datadog
+	InfraURLPrefix = "https://app."
 )
 
 func getResolvedDDUrl(c pkgconfigmodel.Reader, urlKey string) string {
@@ -97,7 +98,21 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]string, error) 
 	}
 
 	additionalEndpoints := c.GetStringMapStringSlice("additional_endpoints")
+
+	// populate with MRF endpoints too
+	if c.GetBool("multi_region_failover.enabled") {
+		haURL, err := GetMRFInfraEndpoint(c)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse MRF endpoint: %s", err)
+		}
+		additionalEndpoints[haURL] = []string{c.GetString("multi_region_failover.api_key")}
+	}
 	return mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
+}
+
+// BuildURLWithPrefix will return an HTTP(s) URL for a site given a certain prefix
+func BuildURLWithPrefix(prefix, site string) string {
+	return prefix + strings.TrimSpace(site)
 }
 
 // GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
@@ -106,14 +121,38 @@ func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) st
 	if c.IsSet(ddURLKey) && c.GetString(ddURLKey) != "" {
 		return getResolvedDDUrl(c, ddURLKey)
 	} else if c.GetString("site") != "" {
-		return prefix + strings.TrimSpace(c.GetString("site"))
+		return BuildURLWithPrefix(prefix, c.GetString("site"))
 	}
-	return prefix + pkgconfigsetup.DefaultSite
+	return BuildURLWithPrefix(prefix, pkgconfigsetup.DefaultSite)
+}
+
+// GetMRFEndpoint returns the MRF DD URL defined in the config, based on `multi_region_failover.site` and the prefix, or ddMRFURLKey
+func GetMRFEndpoint(c pkgconfigmodel.Reader, prefix, ddMRFURLKey string) (string, error) {
+	// value under ddURLKey takes precedence over 'multi_region_failover.site'
+	if c.IsSet(ddMRFURLKey) && c.GetString(ddMRFURLKey) != "" {
+		return getResolvedMRFDDURL(c, ddMRFURLKey), nil
+	} else if c.GetString("multi_region_failover.site") != "" {
+		return BuildURLWithPrefix(prefix, c.GetString("multi_region_failover.site")), nil
+	}
+	return "", fmt.Errorf("`multi_region_failover.site` or `multi_region_failover.dd_url` must be set when Multi-Region Failover is enabled")
+}
+
+func getResolvedMRFDDURL(c pkgconfigmodel.Reader, mrfURLKey string) string {
+	resolvedMRFDDURL := c.GetString(mrfURLKey)
+	if c.IsSet("multi_region_failover.site") {
+		log.Infof("'multi_region_failover.site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", mrfURLKey, mrfURLKey, resolvedMRFDDURL)
+	}
+	return resolvedMRFDDURL
 }
 
 // GetInfraEndpoint returns the main DD Infra URL defined in config, based on the value of `site` and `dd_url`
 func GetInfraEndpoint(c pkgconfigmodel.Reader) string {
-	return GetMainEndpoint(c, infraURLPrefix, "dd_url")
+	return GetMainEndpoint(c, InfraURLPrefix, "dd_url")
+}
+
+// GetMRFInfraEndpoint returns the MRF DD Infra URL defined in config, based on the value of `multi_region_failover.site` and `multi_region_failover.dd_url`
+func GetMRFInfraEndpoint(c pkgconfigmodel.Reader) (string, error) {
+	return GetMRFEndpoint(c, InfraURLPrefix, "multi_region_failover.dd_url")
 }
 
 // ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent

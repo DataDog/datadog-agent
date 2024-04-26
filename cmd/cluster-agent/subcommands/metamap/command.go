@@ -78,7 +78,7 @@ func getMetadataMap(nodeName string) error {
 	}
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = util.SetAuthToken(pkgconfig.Datadog)
 	if e != nil {
 		return e
 	}

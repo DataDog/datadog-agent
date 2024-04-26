@@ -5,7 +5,6 @@
 
 //go:build orchestrator
 
-//nolint:revive // TODO(CAPP) Fix revive linter
 package k8s
 
 import (

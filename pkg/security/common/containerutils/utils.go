@@ -13,9 +13,9 @@ import (
 
 // ContainerIDPatternStr defines the regexp used to match container IDs
 // ([0-9a-fA-F]{64}) is standard container id used pretty much everywhere, length: 64
-// ([0-9a-fA-F]{32}-[0-9]{10}) is container id used by AWS ECS, length: 43
+// ([0-9a-fA-F]{32}-\d+) is container id used by AWS ECS, length: 43
 // ([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4}) is container id used by Garden, length: 28
-var ContainerIDPatternStr = "([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-[0-9]{10})|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4})"
+var ContainerIDPatternStr = "([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-\\d+)|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4})"
 var containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
 
 var containerIDCoreChars = "0123456789abcdefABCDEF"

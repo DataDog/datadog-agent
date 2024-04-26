@@ -177,7 +177,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			f := NewFactory(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
 			})
-			cfg := f.CreateDefaultConfig().(*exporterConfig)
+			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
 			exp, err := f.CreateMetricsExporter(
 				ctx,

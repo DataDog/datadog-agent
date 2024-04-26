@@ -137,6 +137,13 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 				EBPFFuncName: "tail_call_target_dr_selinux_callback",
 			},
 		},
+		{
+			ProgArrayName: dentryCallbackProgs,
+			Key:           DentryResolverChdirCallbackKprobeKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tail_call_target_dr_chdir_callback",
+			},
+		},
 	}...)
 
 	routes = append(routes, []manager.TailCallRoute{
@@ -181,6 +188,13 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 			Key:           DentryResolverRenameCallbackTracepointKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "tracepoint_dr_rename_callback",
+			},
+		},
+		{
+			ProgArrayName: "dentry_resolver_tracepoint_callbacks",
+			Key:           DentryResolverChdirCallbackTracepointKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint_dr_chdir_callback",
 			},
 		},
 	}...)

@@ -10,10 +10,7 @@ package webhook
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
+	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,34 +20,110 @@ import (
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Controller is an interface implemeted by ControllerV1 and ControllerV1beta1.
+// Controller is an interface implemented by ControllerV1 and ControllerV1beta1.
 type Controller interface {
 	Run(stopCh <-chan struct{})
+	EnabledWebhooks() []MutatingWebhook
 }
 
 // NewController returns the adequate implementation of the Controller interface.
-func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, admissionInterface admissionregistration.Interface, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config) Controller {
+func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, admissionInterface admissionregistration.Interface, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config, wmeta workloadmeta.Component) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, admissionInterface.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config)
+		return NewControllerV1(client, secretInformer, admissionInterface.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta)
 	}
 
-	return NewControllerV1beta1(client, secretInformer, admissionInterface.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config)
+	return NewControllerV1beta1(client, secretInformer, admissionInterface.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta)
+}
+
+// MutatingWebhook represents a mutating webhook
+type MutatingWebhook interface {
+	// Name returns the name of the webhook
+	Name() string
+	// IsEnabled returns whether the webhook is enabled
+	IsEnabled() bool
+	// Endpoint returns the endpoint of the webhook
+	Endpoint() string
+	// Resources returns the kubernetes resources for which the webhook should
+	// be invoked
+	Resources() []string
+	// Operations returns the operations on the resources specified for which
+	// the webhook should be invoked
+	Operations() []admiv1.OperationType
+	// LabelSelectors returns the label selectors that specify when the webhook
+	// should be invoked
+	LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector)
+	// MutateFunc returns the function that mutates the resources
+	MutateFunc() admission.WebhookFunc
+}
+
+// mutatingWebhooks returns the list of mutating webhooks. Notice that the order
+// of the webhooks returned is the order in which they will be executed. For
+// now, the only restriction is that the agent sidecar webhook needs to go after
+// the config one. The reason is that the volume mount for the APM socket added
+// by the config webhook doesn't always work on Fargate (one of the envs where
+// we use an agent sidecar), and the agent sidecar webhook needs to remove it.
+func mutatingWebhooks(wmeta workloadmeta.Component) []MutatingWebhook {
+	webhooks := []MutatingWebhook{
+		config.NewWebhook(wmeta),
+		tagsfromlabels.NewWebhook(wmeta),
+		agentsidecar.NewWebhook(),
+	}
+
+	apm, err := autoinstrumentation.GetWebhook(wmeta)
+	if err == nil {
+		webhooks = append(webhooks, apm)
+	} else {
+		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
+	}
+
+	cws, err := cwsinstrumentation.NewCWSInstrumentation()
+	if err == nil {
+		webhooks = append(webhooks, cws.WebhookForPods(), cws.WebhookForCommands())
+	} else {
+		log.Errorf("failed to register CWS Instrumentation webhook: %v", err)
+	}
+
+	return webhooks
 }
 
 // controllerBase acts as a base class for ControllerV1 and ControllerV1beta1.
 // It contains the shared fields and provides shared methods.
 // For the nolint:structcheck see https://github.com/golangci/golangci-lint/issues/537
 type controllerBase struct {
-	clientSet      kubernetes.Interface //nolint:structcheck
-	config         Config
-	secretsLister  corelisters.SecretLister
-	secretsSynced  cache.InformerSynced //nolint:structcheck
-	webhooksSynced cache.InformerSynced //nolint:structcheck
-	queue          workqueue.RateLimitingInterface
-	isLeaderFunc   func() bool
-	isLeaderNotif  <-chan struct{}
+	clientSet        kubernetes.Interface //nolint:structcheck
+	config           Config
+	secretsLister    corelisters.SecretLister
+	secretsSynced    cache.InformerSynced //nolint:structcheck
+	webhooksSynced   cache.InformerSynced //nolint:structcheck
+	queue            workqueue.RateLimitingInterface
+	isLeaderFunc     func() bool
+	isLeaderNotif    <-chan struct{}
+	mutatingWebhooks []MutatingWebhook
+}
+
+// EnabledWebhooks returns the list of enabled webhooks.
+func (c *controllerBase) EnabledWebhooks() []MutatingWebhook {
+	var res []MutatingWebhook
+
+	for _, webhook := range c.mutatingWebhooks {
+		if webhook.IsEnabled() {
+			res = append(res, webhook)
+		}
+	}
+
+	return res
 }
 
 // enqueueOnLeaderNotif watches leader notifications and triggers a

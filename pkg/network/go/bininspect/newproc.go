@@ -13,8 +13,8 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/goid"
+	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
-	"github.com/go-delve/delve/pkg/goversion"
 )
 
 type newProcessBinaryInspector struct {
@@ -77,7 +77,7 @@ func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionCon
 
 	structOffsets := make(map[FieldIdentifier]uint64, len(structs))
 	for structID, lookupFunc := range structs {
-		structOffset, err := lookupFunc(goVersion, string(arch))
+		structOffset, err := lookupFunc(goVersion.GoVersion, string(arch))
 		if err != nil {
 			return nil, err
 		}
@@ -119,7 +119,7 @@ func (i *newProcessBinaryInspector) findFunctions(functions map[string]FunctionC
 			returnLocations = locations
 		}
 
-		parameters, err := funcConfig.ParamLookupFunction(i.goVersion, string(i.elf.arch))
+		parameters, err := funcConfig.ParamLookupFunction(i.goVersion.GoVersion, string(i.elf.arch))
 		if err != nil {
 			return nil, fmt.Errorf("failed finding parameters of function %q: %w", funcName, err)
 		}
@@ -207,7 +207,7 @@ func (i *newProcessBinaryInspector) getRuntimeGAddrTLSOffset() (uint64, error) {
 // - https://github.com/golang/go/blob/61011de1af0bc6ab286c4722632719d3da2cf746/src/runtime/runtime2.go#L403
 // - https://github.com/golang/go/blob/61011de1af0bc6ab286c4722632719d3da2cf746/src/runtime/runtime2.go#L436
 func (i *newProcessBinaryInspector) getGoroutineIDMetadata(abi GoABI) (GoroutineIDMetadata, error) {
-	goroutineIDOffset, err := goid.GetGoroutineIDOffset(i.goVersion, string(i.elf.arch))
+	goroutineIDOffset, err := goid.GetGoroutineIDOffset(i.goVersion.GoVersion, string(i.elf.arch))
 	if err != nil {
 		return GoroutineIDMetadata{}, fmt.Errorf("could not find goroutine ID offset in goroutine context struct: %w", err)
 	}

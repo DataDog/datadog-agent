@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -22,5 +23,5 @@ func TestGetCommonPayload(t *testing.T) {
 	assert.Equal(t, "foo", p.APIKey)
 	assert.Equal(t, version.AgentVersion, p.AgentVersion)
 	assert.Equal(t, "hostname", p.InternalHostname)
-	assert.Equal(t, getUUID(), p.UUID)
+	assert.Equal(t, uuid.GetUUID(), p.UUID)
 }

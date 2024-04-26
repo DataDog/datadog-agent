@@ -16,3 +16,8 @@ func MockModule() fxutil.Module {
 		fx.Provide(newMock),
 	)
 }
+
+func newMock(deps dependencies) provides {
+  // Mock initialization
+	return provides{}
+}

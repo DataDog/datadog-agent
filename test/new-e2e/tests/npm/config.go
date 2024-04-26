@@ -8,9 +8,19 @@ package npm
 
 import (
 	_ "embed"
+
+	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 // systemProbeConfigNPM define the embedded minimal configuration for NPM
 //
 //go:embed config/npm.yaml
 var systemProbeConfigNPM string
+
+// systemProbeConfigNPMEnv equivalent of config/npm.yaml
+func systemProbeConfigNPMEnv() []dockeragentparams.Option {
+	return []dockeragentparams.Option{
+		dockeragentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", pulumi.StringPtr("true")),
+	}
+}

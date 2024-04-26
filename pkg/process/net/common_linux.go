@@ -16,10 +16,12 @@ import (
 
 const (
 	pingURL              = "http://unix/" + string(sysconfig.PingModule) + "/ping/"
+	tracerouteURL        = "http://unix/" + string(sysconfig.TracerouteModule) + "/traceroute/"
 	connectionsURL       = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/connections"
 	procStatsURL         = "http://unix/" + string(sysconfig.ProcessModule) + "/stats"
 	registerURL          = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/register"
 	statsURL             = "http://unix/debug/stats"
+	pprofURL             = "http://unix/debug/pprof"
 	languageDetectionURL = "http://unix/" + string(sysconfig.LanguageDetectionModule) + "/detect"
 	netType              = "unix"
 )

@@ -8,6 +8,7 @@
 package eventplatformimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -21,6 +22,6 @@ func MockModule() fxutil.Module {
 	)
 }
 
-func newMockComponent() eventplatform.Component {
-	return optional.NewOptionPtr[eventplatform.Forwarder](NewNoopEventPlatformForwarder())
+func newMockComponent(hostname hostname.Component) eventplatform.Component {
+	return optional.NewOptionPtr[eventplatform.Forwarder](NewNoopEventPlatformForwarder(hostname))
 }

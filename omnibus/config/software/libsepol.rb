@@ -34,8 +34,6 @@ build do
 
   patch source: "ln_no_relative.patch", env: env # don't use relative symlink on installed libraries
 
-  env["CC"] = "/opt/gcc-#{ENV['GCC_VERSION']}/bin/gcc"
-
   make "-j #{workers} PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env
   make "-j #{workers} install PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env
 

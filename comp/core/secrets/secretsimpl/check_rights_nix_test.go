@@ -30,7 +30,7 @@ func TestWrongPath(t *testing.T) {
 
 func TestGroupOtherRights(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "agent-collector-test")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
 	allowGroupExec := false

@@ -16,6 +16,7 @@ int tracepoint_syscalls_sys_enter_mmap(struct tracepoint_syscalls_sys_enter_mmap
 
     struct syscall_cache_t syscall = {
         .type = EVENT_MMAP,
+        .policy = policy,
         .mmap = {
             .offset = args->offset,
             .len = (u32)args->len,
@@ -40,7 +41,7 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
     }
 
     if (filter_syscall(syscall, mmap_approvers)) {
-        return 0;
+        return mark_as_discarded(syscall);
     }
 
     if (retval != -1) {

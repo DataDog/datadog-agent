@@ -3,10 +3,11 @@ schema-version: v1
 kind: mergequeue
 enable: true
 merge_method: squash
-workflow_type: speculative
-speculative_max_depth: 3
+workflow_type: speculative_parallel_impact
+speculative_max_depth: 5
 wait_for_check_timeout_in_minutes: 240
 gitlab_jobs_retry_enable: true
+skip_labels: true
 ---
 schema-version: v1
 kind: buildimpactanalysis
@@ -14,3 +15,13 @@ team: ci-interfaces
 preprocess: true
 enabled_strategies:
   - go_strategy
+---
+schema-version: v1
+kind: stale-branches
+max_age: 4380h  # 6 months
+excludes:
+  - main
+  - 7\.[0-9]+\.x
+  - 6\.[0-9]+\.x
+  - gh-pages
+  - .*DO-NOT-DELETE

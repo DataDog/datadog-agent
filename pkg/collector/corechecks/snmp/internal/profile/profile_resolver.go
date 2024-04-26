@@ -13,8 +13,8 @@ import (
 	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 )
 
@@ -22,7 +22,7 @@ func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileCon
 	rawProfiles := mergeProfiles(defaultProfiles, userProfiles)
 	userExpandedProfiles, err := loadResolveProfiles(rawProfiles, defaultProfiles)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load profiles: %s", err)
+		return nil, fmt.Errorf("failed to load profiles: %w", err)
 	}
 	return userExpandedProfiles, nil
 }
@@ -39,7 +39,7 @@ func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfig
 		newProfileConfig := deepcopy.Copy(pConfig[name]).(ProfileConfig)
 		err := recursivelyExpandBaseProfiles(name, &newProfileConfig.Definition, newProfileConfig.Definition.Extends, []string{}, pConfig, defaultProfiles)
 		if err != nil {
-			log.Warnf("failed to expand profile `%s`: %s", name, err)
+			log.Warnf("failed to expand profile %q: %v", name, err)
 			continue
 		}
 		profiledefinition.NormalizeMetrics(newProfileConfig.Definition.Metrics)
@@ -47,7 +47,7 @@ func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfig
 		errors = append(errors, configvalidation.ValidateEnrichMetrics(newProfileConfig.Definition.Metrics)...)
 		errors = append(errors, configvalidation.ValidateEnrichMetricTags(newProfileConfig.Definition.MetricTags)...)
 		if len(errors) > 0 {
-			log.Warnf("validation errors: %s", strings.Join(errors, "\n"))
+			log.Warnf("validation errors in profile %q: %s", name, strings.Join(errors, "\n"))
 			continue
 		}
 		profiles[name] = newProfileConfig
@@ -87,7 +87,7 @@ func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefin
 
 		mergeProfileDefinition(definition, baseDefinition)
 
-		newExtendsHistory := append(common.CopyStrings(extendsHistory), extendEntry)
+		newExtendsHistory := append(utils.CopyStrings(extendsHistory), extendEntry)
 		err := recursivelyExpandBaseProfiles(extendEntry, definition, baseDefinition.Extends, newExtendsHistory, profiles, defaultProfiles)
 		if err != nil {
 			return err

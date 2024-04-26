@@ -15,8 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -37,7 +37,7 @@ type DemultiplexerWithAggregator interface {
 	// AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
 	AggregateCheckSample(sample metrics.MetricSample)
 	Options() AgentDemultiplexerOptions
-	GetEventPlatformForwarder() (eventplatformimpl.EventPlatformForwarder, error)
+	GetEventPlatformForwarder() (eventplatform.Forwarder, error)
 	GetEventsAndServiceChecksChannels() (chan []*event.Event, chan []*servicecheck.ServiceCheck)
 	DumpDogstatsdContexts(io.Writer) error
 }
@@ -104,9 +104,6 @@ type statsd struct {
 }
 
 type forwarders struct {
-	shared             forwarder.Forwarder
-	orchestrator       orchestratorforwarder.Component
-	eventPlatform      eventplatform.Component
 	containerLifecycle *forwarder.DefaultForwarder
 }
 
@@ -125,8 +122,9 @@ func InitAndStartAgentDemultiplexer(
 	orchestratorForwarder orchestratorforwarder.Component,
 	options AgentDemultiplexerOptions,
 	eventPlatformForwarder eventplatform.Component,
+	compressor compression.Component,
 	hostname string) *AgentDemultiplexer {
-	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, hostname)
+	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, compressor, hostname)
 	go demux.run()
 	return demux
 }
@@ -137,6 +135,7 @@ func initAgentDemultiplexer(
 	orchestratorForwarder orchestratorforwarder.Component,
 	options AgentDemultiplexerOptions,
 	eventPlatformForwarder eventplatform.Component,
+	compressor compression.Component,
 	hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
@@ -148,7 +147,7 @@ func initAgentDemultiplexer(
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, config.Datadog, hostname)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, config.Datadog, hostname)
 
 	// prepare the embedded aggregator
 	// --
@@ -181,7 +180,7 @@ func initAgentDemultiplexer(
 	var noAggWorker *noAggregationStreamWorker
 	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
-		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, config.Datadog, hostname)
+		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, config.Datadog, hostname)
 		noAggWorker = newNoAggregationStreamWorker(
 			config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 			metricSamplePool,
@@ -203,11 +202,7 @@ func initAgentDemultiplexer(
 
 		// Output
 		dataOutputs: dataOutputs{
-			forwarders: forwarders{
-				shared:        sharedForwarder,
-				orchestrator:  orchestratorForwarder,
-				eventPlatform: eventPlatformForwarder,
-			},
+			forwarders: forwarders{},
 
 			sharedSerializer: sharedSerializer,
 			noAggSerializer:  noAggSerializer,
@@ -263,23 +258,6 @@ func (d *AgentDemultiplexer) run() {
 	if !d.options.DontStartForwarders {
 		d.log.Debugf("Starting forwarders")
 
-		// orchestrator forwarder
-		orchestratorforwarder, found := d.forwarders.orchestrator.Get()
-
-		if found {
-			orchestratorforwarder.Start() //nolint:errcheck
-		} else {
-			d.log.Debug("not starting the orchestrator forwarder")
-		}
-
-		// event platform forwarder
-		eventPlatform, found := d.forwarders.eventPlatform.Get()
-		if found {
-			eventPlatform.Start()
-		} else {
-			d.log.Debug("not starting the event platform forwarder")
-		}
-
 		// container lifecycle forwarder
 		if d.forwarders.containerLifecycle != nil {
 			if err := d.forwarders.containerLifecycle.Start(); err != nil {
@@ -289,12 +267,6 @@ func (d *AgentDemultiplexer) run() {
 			d.log.Debug("not starting the container lifecycle forwarder")
 		}
 
-		// shared forwarder
-		if d.forwarders.shared != nil {
-			d.forwarders.shared.Start() //nolint:errcheck
-		} else {
-			d.log.Debug("not starting the shared forwarder")
-		}
 		d.log.Debug("Forwarders started")
 	}
 
@@ -381,24 +353,9 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 	// forwarders
 
 	if !d.options.DontStartForwarders {
-		orchestratorforwarder, found := d.dataOutputs.forwarders.orchestrator.Get()
-		if found {
-			orchestratorforwarder.Stop()
-			d.dataOutputs.forwarders.orchestrator.Reset()
-		}
-		eventPlatform, found := d.dataOutputs.forwarders.eventPlatform.Get()
-
-		if found {
-			eventPlatform.Stop()
-			d.dataOutputs.forwarders.eventPlatform.Reset()
-		}
 		if d.dataOutputs.forwarders.containerLifecycle != nil {
 			d.dataOutputs.forwarders.containerLifecycle.Stop()
 			d.dataOutputs.forwarders.containerLifecycle = nil
-		}
-		if d.dataOutputs.forwarders.shared != nil {
-			d.dataOutputs.forwarders.shared.Stop()
-			d.dataOutputs.forwarders.shared = nil
 		}
 	}
 
@@ -508,7 +465,7 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*event.
 }
 
 // GetEventPlatformForwarder returns underlying events and service checks channels.
-func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatformimpl.EventPlatformForwarder, error) {
+func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarder, error) {
 	return d.aggregator.GetEventPlatformForwarder()
 }
 

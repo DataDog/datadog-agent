@@ -1062,7 +1062,7 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers10(
 		case "is_kworker":
 			out.IsKworker = bool(in.Bool())
 		case "is_exec_child":
-			out.IsExecChild = bool(in.Bool())
+			out.IsExecExec = bool(in.Bool())
 		case "source":
 			out.Source = string(in.String())
 		default:
@@ -1238,10 +1238,10 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers10(
 		out.RawString(prefix)
 		out.Bool(bool(in.IsKworker))
 	}
-	if in.IsExecChild {
+	if in.IsExecExec {
 		const prefix string = ",\"is_exec_child\":"
 		out.RawString(prefix)
-		out.Bool(bool(in.IsExecChild))
+		out.Bool(bool(in.IsExecExec))
 	}
 	if in.Source != "" {
 		const prefix string = ",\"source\":"
@@ -3406,6 +3406,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(
 				}
 				in.Delim(']')
 			}
+		case "event_in_profile":
+			out.EventInProfile = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -3445,6 +3447,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(
 			}
 			out.RawByte(']')
 		}
+	}
+	{
+		const prefix string = ",\"event_in_profile\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.EventInProfile))
 	}
 	out.RawByte('}')
 }

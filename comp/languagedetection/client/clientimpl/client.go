@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -29,9 +30,6 @@ import (
 const (
 	// subscriber is the workloadmeta subscriber name
 	subscriber = "language_detection_client"
-
-	// periodicalFlushPeriod parametrizes when the current batch needs to be entirely sent
-	periodicalFlushPeriod = 100 * time.Minute
 
 	// defaultProcessWithoutPodTTL defines the TTL before a process event is expired in the ProcessWithoutPod map
 	// if the associated pod is not found
@@ -105,7 +103,7 @@ type client struct {
 func newClient(
 	deps dependencies,
 ) clientComp.Component {
-	if !deps.Config.GetBool("language_detection.enabled") || !deps.Config.GetBool("cluster_agent.enabled") {
+	if !deps.Config.GetBool("language_detection.reporting.enabled") || !deps.Config.GetBool("language_detection.enabled") || !deps.Config.GetBool("cluster_agent.enabled") {
 		return optional.NewNoneOption[clientComp.Component]()
 	}
 
@@ -117,7 +115,7 @@ func newClient(
 		cancel:                           cancel,
 		logger:                           deps.Log,
 		store:                            deps.Workloadmeta,
-		freshDataPeriod:                  deps.Config.GetDuration("language_detection.client_period"),
+		freshDataPeriod:                  deps.Config.GetDuration("language_detection.reporting.buffer_period"),
 		mutex:                            sync.Mutex{},
 		telemetry:                        newComponentTelemetry(deps.Telemetry),
 		currentBatch:                     make(batch),
@@ -125,7 +123,7 @@ func newClient(
 		processesWithoutPodTTL:           defaultProcessWithoutPodTTL,
 		processesWithoutPodCleanupPeriod: defaultprocessesWithoutPodCleanupPeriod,
 		freshlyUpdatedPods:               make(map[string]struct{}),
-		periodicalFlushPeriod:            periodicalFlushPeriod,
+		periodicalFlushPeriod:            deps.Config.GetDuration("language_detection.reporting.refresh_period"),
 	}
 	deps.Lc.Append(fx.Hook{
 		OnStart: cl.start,
@@ -348,12 +346,12 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 
 	podInfo := c.currentBatch.getOrAddPodInfo(pod.Name, pod.Namespace, &pod.Owners[0])
 	containerInfo := podInfo.getOrAddContainerInfo(containerName, isInitcontainer)
-	added := containerInfo.Add(string(process.Language.Name))
+	added := containerInfo.Add(langUtil.Language(process.Language.Name))
 	if added {
 		c.freshlyUpdatedPods[pod.Name] = struct{}{}
 		delete(c.processesWithoutPod, process.ContainerID)
 	}
-	c.telemetry.ProcessedEvents.Inc(pod.Name, containerName, string(process.Language.Name))
+	c.telemetry.ProcessedEvents.Inc(pod.Namespace, pod.Name, containerName, string(process.Language.Name))
 }
 
 // handlePodEvent removes delete pods from the current batch

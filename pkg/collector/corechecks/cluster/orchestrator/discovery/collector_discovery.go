@@ -30,7 +30,7 @@ const (
 // APIServerDiscoveryProvider is a discovery provider that uses the Kubernetes
 // API Server as its data source.
 type APIServerDiscoveryProvider struct {
-	result []collectors.Collector
+	result []collectors.K8sCollector
 	seen   map[string]struct{}
 }
 
@@ -43,7 +43,7 @@ func NewAPIServerDiscoveryProvider() *APIServerDiscoveryProvider {
 }
 
 // Discover returns collectors to enable based on information exposed by the API server.
-func (p *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInventory) ([]collectors.Collector, error) {
+func (p *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInventory) ([]collectors.K8sCollector, error) {
 	groups, resources, err := GetServerGroupsAndResources()
 	if err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func GetServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error
 	return groups, resources, nil
 }
 
-func (p *APIServerDiscoveryProvider) addCollector(collector collectors.Collector) {
+func (p *APIServerDiscoveryProvider) addCollector(collector collectors.K8sCollector) {
 	// Make sure resource collectors are added at most once
 	if _, found := p.seen[collector.Metadata().Name]; found {
 		return

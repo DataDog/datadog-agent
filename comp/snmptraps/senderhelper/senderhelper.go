@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -25,7 +25,7 @@ import (
 var Opts = fx.Options(
 	defaultforwarder.MockModule(),
 	demultiplexerimpl.MockModule(),
-	config.MockModule(),
+	core.MockBundle(),
 	fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
 		mockSender := mocksender.NewMockSender("mock-sender")
 		mockSender.SetupAcceptAll()

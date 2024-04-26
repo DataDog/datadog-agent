@@ -21,32 +21,32 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 )
 
-var _ component.Config = (*exporterConfig)(nil)
+var _ component.Config = (*ExporterConfig)(nil)
 
 func newDefaultConfig() component.Config {
-	return &exporterConfig{
+	return &ExporterConfig{
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
 		TimeoutSettings: exporterhelper.TimeoutSettings{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
 		QueueSettings: exporterhelper.NewDefaultQueueSettings(),
 
-		Metrics: metricsConfig{
+		Metrics: MetricsConfig{
 			DeltaTTL: 3600,
-			ExporterConfig: metricsExporterConfig{
+			ExporterConfig: MetricsExporterConfig{
 				ResourceAttributesAsTags:             false,
 				InstrumentationLibraryMetadataAsTags: false,
 				InstrumentationScopeMetadataAsTags:   false,
 			},
 			TagCardinality: "low",
-			HistConfig: histogramConfig{
+			HistConfig: HistogramConfig{
 				Mode:             "distributions",
 				SendAggregations: false,
 			},
-			SumConfig: sumConfig{
+			SumConfig: SumConfig{
 				CumulativeMonotonicMode:        CumulativeMonotonicSumModeToDelta,
 				InitialCumulativeMonotonicMode: InitialValueModeAuto,
 			},
-			SummaryConfig: summaryConfig{
+			SummaryConfig: SummaryConfig{
 				Mode: SummaryModeGauges,
 			},
 			APMStatsReceiverAddr: "http://localhost:8126/v0.6/stats",
@@ -70,9 +70,9 @@ func (f sourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 	return source.Source{Kind: source.HostnameKind, Identifier: hostnameIdentifier}, nil
 }
 
-// exporter translate OTLP metrics into the Datadog format and sends
+// Exporter translate OTLP metrics into the Datadog format and sends
 // them to the agent serializer.
-type exporter struct {
+type Exporter struct {
 	tr              *metrics.Translator
 	s               serializer.MetricSerializer
 	hostGetter      sourceProviderFunc
@@ -81,7 +81,7 @@ type exporter struct {
 	apmReceiverAddr string
 }
 
-func translatorFromConfig(set component.TelemetrySettings, attributesTranslator *attributes.Translator, cfg *exporterConfig, hostGetter sourceProviderFunc) (*metrics.Translator, error) {
+func translatorFromConfig(set component.TelemetrySettings, attributesTranslator *attributes.Translator, cfg *ExporterConfig, hostGetter sourceProviderFunc) (*metrics.Translator, error) {
 	histogramMode := metrics.HistogramMode(cfg.Metrics.HistConfig.Mode)
 	switch histogramMode {
 	case metrics.HistogramModeCounters, metrics.HistogramModeNoBuckets, metrics.HistogramModeDistributions:
@@ -131,7 +131,8 @@ func translatorFromConfig(set component.TelemetrySettings, attributesTranslator 
 	return metrics.NewTranslator(set, attributesTranslator, options...)
 }
 
-func newExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *exporterConfig, enricher tagenricher, hostGetter sourceProviderFunc) (*exporter, error) {
+// NewExporter creates a new exporter that translates OTLP metrics into the Datadog format and sends
+func NewExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *ExporterConfig, enricher tagenricher, hostGetter sourceProviderFunc) (*Exporter, error) {
 	// Log any warnings from unmarshaling.
 	for _, warning := range cfg.warnings {
 		set.Logger.Warn(warning)
@@ -150,7 +151,7 @@ func newExporter(set component.TelemetrySettings, attributesTranslator *attribut
 	if cfg.Metrics.Tags != "" {
 		extraTags = strings.Split(cfg.Metrics.Tags, ",")
 	}
-	return &exporter{
+	return &Exporter{
 		tr:              tr,
 		s:               s,
 		hostGetter:      hostGetter,
@@ -160,7 +161,8 @@ func newExporter(set component.TelemetrySettings, attributesTranslator *attribut
 	}, nil
 }
 
-func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
+// ConsumeMetrics translates OTLP metrics into the Datadog format and sends
+func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
 	consumer := &serializerConsumer{enricher: e.enricher, extraTags: e.extraTags, apmReceiverAddr: e.apmReceiverAddr}
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {

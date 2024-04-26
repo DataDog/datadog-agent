@@ -37,14 +37,14 @@ relative_path "xmlsec1-#{version}"
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
-  env["CC"] = "/opt/gcc-#{ENV['GCC_VERSION']}/bin/gcc"
   env["CFLAGS"] << " -fPIC"
   env["CFLAGS"] << " -std=c99"
 
   update_config_guess
   configure_options = [
-    " --enable-docs",
-    " --disable-static"
+    "--enable-docs",
+    "--disable-static",
+    "--disable-pedantic",
   ]
   configure(*configure_options, env: env)
   make "-j #{workers}", env: env

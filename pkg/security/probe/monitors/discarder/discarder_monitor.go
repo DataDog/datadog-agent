@@ -44,7 +44,7 @@ func (d *Monitor) SendStats() error {
 	buffer := d.stats[1-d.activeStatsBuffer]
 	iterator := buffer.Iterate()
 	stats := make([]Stats, d.numCPU)
-	globalStats := make([]Stats, model.LastDiscarderEventType)
+	globalStats := make([]Stats, model.LastDiscarderEventType+1)
 
 	var eventType uint32
 	for iterator.Next(&eventType, &stats) {
@@ -79,7 +79,7 @@ func (d *Monitor) SendStats() error {
 		_ = d.statsdClient.Count(metrics.MetricEventDiscarded, int64(stats.EventDiscarded), tags, 1.0)
 
 	}
-	for i := uint32(0); i != uint32(model.LastDiscarderEventType); i++ {
+	for i := uint32(0); i != uint32(model.LastDiscarderEventType+1); i++ {
 		_ = buffer.Put(i, d.statsZero)
 	}
 

@@ -7,25 +7,8 @@
 
 package util
 
-import "github.com/DataDog/datadog-agent/pkg/logs/sources"
-
-// ConsumeSources ensures that another component is consuming the channel to prevent
-// the producer to get stuck.
-func consumeSources(sources *sources.LogSources) {
-	go func() {
-		sources := sources.GetAddedForType("foo")
-		//nolint:revive // TODO(AML) Fix revive linter
-		for range sources {
-		}
-	}()
-}
+import "github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 
 // CreateSources creates sources
-func CreateSources(sourcesArray []*sources.LogSource) *sources.LogSources {
-	logSources := sources.NewLogSources()
-	for _, source := range sourcesArray {
-		logSources.AddSource(source)
-	}
-	consumeSources(logSources)
-	return logSources
-}
+// TODO: This alias will be removed once logs agent module refactor is complete.
+var CreateSources = testutils.CreateSources

@@ -217,7 +217,6 @@ var (
 )
 
 var testOptions = fx.Options(
-	logimpl.MockModule(),
 	senderhelper.Opts,
 	oidresolverimpl.MockModule(),
 	Module(),

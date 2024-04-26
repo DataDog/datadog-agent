@@ -10,6 +10,8 @@ package docker
 import (
 	"fmt"
 
+	"github.com/docker/docker/api/types/events"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -54,11 +56,6 @@ func getImageTags(imageName string) ([]string, error) {
 	}, nil
 }
 
-const (
-	eventActionOOM  = "oom"
-	eventActionKill = "kill"
-)
-
-func isAlertTypeError(action string) bool {
-	return action == eventActionOOM || action == eventActionKill
+func isAlertTypeError(action events.Action) bool {
+	return action == events.ActionOOM || action == events.ActionKill
 }

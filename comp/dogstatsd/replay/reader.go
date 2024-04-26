@@ -12,14 +12,10 @@ import (
 	"sync" // might be unnecessary
 	"time"
 
-	"github.com/DataDog/zstd"
-
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	proto "github.com/golang/protobuf/proto"
-	"github.com/h2non/filetype"
 )
 
 // TrafficCaptureReader allows reading back a traffic capture and its contents
@@ -34,50 +30,6 @@ type TrafficCaptureReader struct {
 	mmap        bool
 
 	sync.Mutex
-}
-
-// NewTrafficCaptureReader creates a TrafficCaptureReader instance
-func NewTrafficCaptureReader(path string, depth int, mmap bool) (*TrafficCaptureReader, error) {
-
-	c, err := getFileContent(path, mmap)
-	if err != nil {
-		fmt.Printf("Unable to map file: %v\n", err)
-		return nil, err
-	}
-
-	// datadog capture file should be already registered with filetype via the init hooks
-	kind, _ := filetype.Match(c)
-	if kind == filetype.Unknown {
-		return nil, fmt.Errorf("unknown capture file provided: %v", kind.MIME)
-	}
-
-	decompress := false
-	if kind.MIME.Subtype == "zstd" {
-		decompress = true
-		log.Debug("capture file compressed with zstd")
-	}
-
-	var contents []byte
-	if decompress {
-		if contents, err = zstd.Decompress(nil, c); err != nil {
-			return nil, err
-		}
-	} else {
-		contents = c
-	}
-
-	ver, err := fileVersion(contents)
-	if err != nil {
-		return nil, err
-	}
-
-	return &TrafficCaptureReader{
-		rawContents: c,
-		Contents:    contents,
-		Version:     ver,
-		Traffic:     make(chan *pb.UnixDogstatsdMsg, depth),
-		mmap:        mmap,
-	}, nil
 }
 
 // Read reads the contents of the traffic capture and writes each packet to a channel
@@ -100,10 +52,11 @@ func (tc *TrafficCaptureReader) Read(ready chan struct{}) {
 	}
 	tc.Unlock()
 
-	last := int64(0)
+	first := int64(0)
 
 	// we are all ready to go - let the caller know
 	ready <- struct{}{}
+	start := time.Now()
 
 	// The state must be read out of band, it makes zero sense in the context
 	// of the replaying process, it must be pushed to the agent. We just read
@@ -118,13 +71,13 @@ func (tc *TrafficCaptureReader) Read(ready chan struct{}) {
 			break
 		}
 
-		if last != 0 {
-			if msg.Timestamp > last {
-				util.Wait(tsResolution * time.Duration(msg.Timestamp-last))
-			}
+		if first == 0 {
+			first = msg.Timestamp
 		}
 
-		last = msg.Timestamp
+		t := time.Duration(msg.Timestamp-first) * tsResolution
+		time.Sleep(t - time.Since(start))
+
 		tc.Traffic <- msg
 
 		select {

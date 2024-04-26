@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/hostname/validate
 
-go 1.21
+go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../log/
@@ -8,12 +8,12 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.2
-	github.com/stretchr/testify v1.8.4
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
+	github.com/stretchr/testify v1.9.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.51.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

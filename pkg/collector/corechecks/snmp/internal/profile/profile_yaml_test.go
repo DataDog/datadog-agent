@@ -138,7 +138,7 @@ func Test_loadYamlProfiles_invalidExtendProfile(t *testing.T) {
 	logs := b.String()
 	assert.Nil(t, err)
 
-	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadResolveProfiles: failed to expand profile `f5-big-ip"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadResolveProfiles: failed to expand profile \"f5-big-ip\""), logs)
 	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
 }
 
@@ -159,8 +159,8 @@ func Test_loadYamlProfiles_userAndDefaultProfileFolderDoesNotExist(t *testing.T)
 	logs := b.String()
 	assert.Nil(t, err)
 
-	assert.Equal(t, 1, strings.Count(logs, "[WARN] getYamlUserProfiles: failed to get user profile definitions"), logs)
-	assert.Equal(t, 1, strings.Count(logs, "[WARN] getYamlDefaultProfiles: failed to get default profile definitions"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "[WARN] getYamlUserProfiles: failed to load user profile definitions"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "[WARN] getYamlDefaultProfiles: failed to load default profile definitions"), logs)
 	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
 }
 

@@ -76,6 +76,7 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		Synthetics:     a.Synthetics,
 		SpanKind:       a.SpanKind,
 		PeerTags:       s.peerTags,
+		IsTraceRoot:    a.IsTraceRoot,
 	}, nil
 }
 
@@ -129,10 +130,12 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 			continue
 		}
 		key := PayloadAggregationKey{
-			Hostname:    k.Hostname,
-			Version:     k.Version,
-			Env:         k.Env,
-			ContainerID: k.ContainerID,
+			Hostname:     k.Hostname,
+			Version:      k.Version,
+			Env:          k.Env,
+			ContainerID:  k.ContainerID,
+			GitCommitSha: k.GitCommitSha,
+			ImageTag:     k.ImageTag,
 		}
 		s, ok := m[key]
 		if !ok {

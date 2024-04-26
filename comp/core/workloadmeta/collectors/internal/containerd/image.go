@@ -149,6 +149,23 @@ func (images *knownImages) getRepoDigests(imageID string) []string {
 	return res
 }
 
+// getPreferredName will return a user-friendly image name if it exists, otherwise
+// for example the name not including the digest.
+func (images *knownImages) getPreferredName(imageID string) string {
+	var res = ""
+	for ref := range images.namesByID[imageID] {
+		if res == "" && isAnImageID(ref) {
+			res = ref
+		} else if isARepoDigest(ref) {
+			res = ref // Prefer the repo digest
+			break
+		} else {
+			res = ref // Then repo tag
+		}
+	}
+	return res
+}
+
 // returns any of the existing references for the imageID. Returns empty if the
 // ID is not referenced.
 func (images *knownImages) getAReference(imageID string) string {
@@ -169,6 +186,30 @@ func isAnImageID(imageName string) bool {
 
 func isARepoDigest(imageName string) bool {
 	return strings.Contains(imageName, "@sha256:")
+}
+
+// pullImageReferences pulls all references from containerd for a given DIGEST
+// Note: the DIGEST here is the same as digest (repo digest) field returned from "ctr -n NAMESPACE ls"
+// rather than config.digest (imageID), which is the digest of the image config blob.
+// In general, 3 reference names are returned for a given DIGEST: repo tag, repo digest, and imageID.
+func (c *collector) pullImageReferences(namespace string, img containerd.Image) []string {
+	var refs []string
+	digest := img.Target().Digest.String()
+	if !strings.HasPrefix(digest, "sha256") {
+		return refs // not a valid digest
+	}
+
+	// Get all references for the imageID
+	referenceImages, err := c.containerdClient.ListImagesWithDigest(namespace, digest)
+	if err == nil {
+		for _, image := range referenceImages {
+			imageName := image.Name()
+			refs = append(refs, imageName)
+		}
+	} else {
+		log.Debugf("failed to get reference images for image: %s, repo digests will be missing: %v", img.Name(), err)
+	}
+	return refs
 }
 
 func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) error {
@@ -244,7 +285,13 @@ func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace str
 	return c.notifyEventForImage(ctx, namespace, img, bom)
 }
 
-func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, sbom *workloadmeta.SBOM) error {
+// createOrUpdateImageMetadata: Create image metadata from containerd image and manifest if not already present
+// Update image metadata by adding references when existing entity is found
+// return nil when it fails to get image manifest
+func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
+	namespace string,
+	img containerd.Image,
+	sbom *workloadmeta.SBOM) (*workloadmeta.ContainerImageMetadata, error) {
 	c.handleImagesMut.Lock()
 	defer c.handleImagesMut.Unlock()
 
@@ -253,7 +300,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	// Build initial workloadmeta.ContainerImageMetadata from manifest and image
 	manifest, err := images.Manifest(ctxWithNamespace, img.ContentStore(), img.Target(), img.Platform())
 	if err != nil {
-		return fmt.Errorf("error getting image manifest: %w", err)
+		return nil, fmt.Errorf("error getting image manifest: %w", err)
 	}
 
 	totalSizeBytes := manifest.Config.Size
@@ -274,6 +321,14 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		SBOM:      sbom,
 		SizeBytes: totalSizeBytes,
 	}
+	// Only pull all image references if not already present
+	if _, found := c.knownImages.getImageID(wlmImage.Name); !found {
+		references := c.pullImageReferences(namespace, img)
+		for _, ref := range references {
+			c.knownImages.addReference(ref, wlmImage.ID)
+		}
+	}
+	// update knownImages with current reference name
 	c.knownImages.addReference(wlmImage.Name, wlmImage.ID)
 
 	// Fill image based on manifest and config, we are not failing if this step fails
@@ -297,6 +352,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	// of the name that includes a digest. This is just to show names that are
 	// more user-friendly (the digests are already present in other attributes
 	// like ID, and repo digest).
+	wlmImage.Name = c.knownImages.getPreferredName(wlmImage.ID)
 	existingImg, err := c.store.GetImage(wlmImage.ID)
 	if err == nil {
 		if strings.Contains(wlmImage.Name, "sha256:") && !strings.Contains(existingImg.Name, "sha256:") {
@@ -315,15 +371,21 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	// if the `imgMeta` object does not contain all the metadata when it is sent.
 	// We add them here to make sure they are present.
 	wlmImage.SBOM = util.UpdateSBOMRepoMetadata(wlmImage.SBOM, wlmImage.RepoTags, wlmImage.RepoDigests)
+	return &wlmImage, nil
+}
 
+func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, sbom *workloadmeta.SBOM) error {
+	wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, img, sbom)
+	if err != nil {
+		return err
+	}
 	c.store.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceRuntime,
-			Entity: &wlmImage,
+			Entity: wlmImage,
 		},
 	})
-
 	return nil
 }
 

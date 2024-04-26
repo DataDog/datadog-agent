@@ -6,8 +6,6 @@
 package dynamicinstrumentation
 
 import (
-	"google.golang.org/grpc"
-
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,11 +21,6 @@ func NewModule(config *Config) (*Module, error) {
 //nolint:revive // TODO(DEBUG) Fix revive linter
 func (m *Module) Close() {
 	log.Info("Closing user tracer module")
-}
-
-// RegisterGRPC register to system probe gRPC server
-func (m *Module) RegisterGRPC(_ grpc.ServiceRegistrar) error {
-	return nil
 }
 
 //nolint:revive // TODO(DEBUG) Fix revive linter

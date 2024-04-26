@@ -18,13 +18,17 @@ var (
 	defaultAdditionalChecksPath = "c:\\programdata\\datadog\\checks.d"
 	defaultRunPath              = "c:\\programdata\\datadog\\run"
 	defaultGuiPort              = 5002
+	// DefaultUpdaterLogFile is the default updater log file
+	DefaultUpdaterLogFile = "c:\\programdata\\datadog\\logs\\updater.log"
 	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	DefaultSecurityAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
 	// DefaultProcessAgentLogFile is the default process-agent log file
 	DefaultProcessAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\process-agent.log"
 
 	// defaultSystemProbeAddress is the default address to be used for connecting to the system probe
-	defaultSystemProbeAddress     = "localhost:3333"
+	defaultSystemProbeAddress = "localhost:3333"
+	// defaultEventMonitorAddress is the default address to be used for connecting to the event monitor
+	defaultEventMonitorAddress    = "localhost:3335"
 	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"

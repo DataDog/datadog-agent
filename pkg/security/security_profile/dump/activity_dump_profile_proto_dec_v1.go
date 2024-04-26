@@ -23,8 +23,11 @@ func securityProfileProtoToActivityDump(dest *ActivityDump, pathsReducer *activi
 
 	dest.Metadata = mtdt.ProtoMetadataToMetadata(ad.Metadata)
 
-	dest.Tags = make([]string, len(ad.Tags))
-	copy(dest.Tags, ad.Tags)
+	for _, ctx := range ad.ProfileContexts {
+		dest.Tags = make([]string, len(ctx.Tags))
+		copy(dest.Tags, ctx.Tags)
+		break
+	}
 	dest.StorageRequests = make(map[config.StorageFormat][]config.StorageRequest)
 
 	dest.ActivityTree = activity_tree.NewActivityTree(dest, pathsReducer, "activity_dump")

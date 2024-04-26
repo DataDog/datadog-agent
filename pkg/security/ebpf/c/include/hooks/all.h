@@ -32,6 +32,7 @@
 #include "umount.h"
 #include "unlink.h"
 #include "utimes.h"
+#include "chdir.h"
 
 #include "network/bind.h"
 

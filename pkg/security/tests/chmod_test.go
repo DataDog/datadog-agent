@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -76,6 +77,32 @@ func TestChmod(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall6(syscall.SYS_FCHMODAT, 0, uintptr(testFilePtr), uintptr(0o757), 0, 0, 0); errno != 0 {
+				return error(errno)
+			}
+			return nil
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
+			assertRights(t, uint16(event.Chmod.Mode), 0o757)
+			assertInode(t, getInode(t, testFile), event.Chmod.File.Inode)
+			assertRights(t, event.Chmod.File.Mode, expectedMode)
+			assertNearTime(t, event.Chmod.File.MTime)
+			assertNearTime(t, event.Chmod.File.CTime)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			test.validateChmodSchema(t, event)
+		})
+	})
+
+	t.Run("fchmodat2", func(t *testing.T) {
+		defer func() { expectedMode = 0o757 }()
+
+		test.WaitSignal(t, func() error {
+			if _, _, errno := syscall.Syscall6(unix.SYS_FCHMODAT2, 0, uintptr(testFilePtr), uintptr(0o757), 0, 0, 0); errno != 0 {
+				if errno == unix.ENOSYS {
+					return ErrSkipTest{"openat2 is not supported"}
+				}
 				return error(errno)
 			}
 			return nil

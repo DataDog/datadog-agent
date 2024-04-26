@@ -7,11 +7,10 @@ package command
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMakeCommand(t *testing.T) {
@@ -19,7 +18,7 @@ func TestMakeCommand(t *testing.T) {
 	cmd := MakeCommand(subcommandFactories)
 
 	// The pflags package stringifies string arrays as CSVs, then adds back the square brackets
-	require.Equal(t, strings.ReplaceAll(fmt.Sprint(defaultSecurityAgentConfigFilePaths), " ", ","), cmd.Flag(flags.CfgPath).Value.String(), "cfgpath values not matching")
+	require.Equal(t, strings.ReplaceAll(fmt.Sprint(defaultSecurityAgentConfigFilePaths), " ", ","), cmd.Flag("cfgpath").Value.String(), "cfgpath values not matching")
 
 	//TODO: add test to ensure setting of no-color
 }

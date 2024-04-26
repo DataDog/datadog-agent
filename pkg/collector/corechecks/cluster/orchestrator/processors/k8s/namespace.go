@@ -8,8 +8,10 @@
 package k8s
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
 	corev1 "k8s.io/api/core/v1"
+
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -20,13 +22,13 @@ import (
 
 // NamespaceHandlers implements the Handlers interface for Kubernetes Namespace.
 type NamespaceHandlers struct {
-	BaseHandlers
+	common.BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NamespaceHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
+func (h *NamespaceHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.Namespace)
 	m.Yaml = yaml
 	return
@@ -34,7 +36,8 @@ func (h *NamespaceHandlers) AfterMarshalling(ctx *processors.ProcessorContext, r
 
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
-func (h *NamespaceHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+func (h *NamespaceHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	models := make([]*model.Namespace, 0, len(resourceModels))
 
 	for _, m := range resourceModels {
@@ -42,19 +45,19 @@ func (h *NamespaceHandlers) BuildMessageBody(ctx *processors.ProcessorContext, r
 	}
 
 	return &model.CollectorNamespace{
-		ClusterName: ctx.Cfg.KubeClusterName,
-		ClusterId:   ctx.ClusterID,
-		GroupId:     ctx.MsgGroupID,
+		ClusterName: pctx.Cfg.KubeClusterName,
+		ClusterId:   pctx.ClusterID,
+		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Namespaces:  models,
-		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
+		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
 	}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NamespaceHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (namespaceModel interface{}) {
+func (h *NamespaceHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (namespaceModel interface{}) {
 	r := resource.(*corev1.Namespace)
 	return k8sTransformers.ExtractNamespace(r)
 }
@@ -63,7 +66,7 @@ func (h *NamespaceHandlers) ExtractResource(ctx *processors.ProcessorContext, re
 // interface to a list of generic interfaces.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NamespaceHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
+func (h *NamespaceHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*corev1.Namespace)
 	resources = make([]interface{}, 0, len(resourceList))
 
@@ -77,14 +80,14 @@ func (h *NamespaceHandlers) ResourceList(ctx *processors.ProcessorContext, list 
 // ResourceUID is a handler called to retrieve the resource UID.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NamespaceHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
+func (h *NamespaceHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*corev1.Namespace).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NamespaceHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+func (h *NamespaceHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*corev1.Namespace).ResourceVersion
 }
 
@@ -92,7 +95,7 @@ func (h *NamespaceHandlers) ResourceVersion(ctx *processors.ProcessorContext, re
 // it is extracted as an internal resource model.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NamespaceHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
+func (h *NamespaceHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.Namespace)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
 }

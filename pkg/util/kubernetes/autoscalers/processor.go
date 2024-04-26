@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

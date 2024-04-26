@@ -116,8 +116,8 @@ func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 }
 
 // ScrubBytes scrubs credentials from slice of bytes
-func (c *Scrubber) ScrubBytes(file []byte) ([]byte, error) {
-	r := bytes.NewReader(file)
+func (c *Scrubber) ScrubBytes(data []byte) ([]byte, error) {
+	r := bytes.NewReader(data)
 	return c.scrubReader(r, r.Len())
 }
 

@@ -26,8 +26,9 @@ var (
 
 // PolicyLoaderOpts options used during the loading
 type PolicyLoaderOpts struct {
-	MacroFilters []MacroFilter
-	RuleFilters  []RuleFilter
+	MacroFilters       []MacroFilter
+	RuleFilters        []RuleFilter
+	DisableEnforcement bool
 }
 
 // PolicyLoader defines a policy loader

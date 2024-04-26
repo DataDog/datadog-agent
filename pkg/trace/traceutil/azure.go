@@ -40,8 +40,6 @@ const (
 
 // GetAppServicesTags returns the env vars pulled from the Azure App Service instance.
 // In some cases we will need to add extra tags for function apps.
-//
-//nolint:revive // TODO(APM) Fix revive linter
 func GetAppServicesTags() map[string]string {
 	siteName := os.Getenv("WEBSITE_SITE_NAME")
 	ownerName := os.Getenv("WEBSITE_OWNER_NAME")

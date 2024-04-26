@@ -37,14 +37,6 @@ var mmapCapabilities = Capabilities{
 }
 
 func mmapOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
-	intValues := func(fvs rules.FilterValues) []int {
-		var values []int
-		for _, v := range fvs {
-			values = append(values, v.Value.(int))
-		}
-		return values
-	}
-
 	mmapApprovers, err := onNewBasenameApprovers(model.MMapEventType, "file", approvers)
 	if err != nil {
 		return nil, err
@@ -55,14 +47,14 @@ func mmapOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
 		case "mmap.file.name", "mmap.file.path": // already handled by onNewBasenameApprovers
 		case "mmap.flags":
 			var approver activeApprover
-			approver, err = approveFlags("mmap_flags_approvers", intValues(values)...)
+			approver, err = approveFlags("mmap_flags_approvers", intValues[int32](values)...)
 			if err != nil {
 				return nil, err
 			}
 			mmapApprovers = append(mmapApprovers, approver)
 		case "mmap.protection":
 			var approver activeApprover
-			approver, err = approveFlags("mmap_protection_approvers", intValues(values)...)
+			approver, err = approveFlags("mmap_protection_approvers", intValues[int32](values)...)
 			if err != nil {
 				return nil, err
 			}

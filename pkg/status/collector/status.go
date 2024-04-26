@@ -32,10 +32,12 @@ func PopulateStatus(stats map[string]interface{}) {
 	json.Unmarshal(runnerStatsJSON, &runnerStats) //nolint:errcheck
 	stats["runnerStats"] = runnerStats
 
-	autoConfigStatsJSON := []byte(expvar.Get("autoconfig").String())
-	autoConfigStats := make(map[string]interface{})
-	json.Unmarshal(autoConfigStatsJSON, &autoConfigStats) //nolint:errcheck
-	stats["autoConfigStats"] = autoConfigStats
+	if expvar.Get("autoconfig") != nil {
+		autoConfigStatsJSON := []byte(expvar.Get("autoconfig").String())
+		autoConfigStats := make(map[string]interface{})
+		json.Unmarshal(autoConfigStatsJSON, &autoConfigStats) //nolint:errcheck
+		stats["autoConfigStats"] = autoConfigStats
+	}
 
 	checkSchedulerStatsJSON := []byte(expvar.Get("CheckScheduler").String())
 	checkSchedulerStats := make(map[string]interface{})

@@ -1,85 +1,78 @@
 <div class="stat">
-    <span class="stat_title">Logs Agent</span>
-    <span class="stat_data">
-    {{- with .logsStats -}}
-      {{- if eq .IsRunning false }}
-
-        Logs Agent is not running </br>
+  <span class="stat_title">Logs Agent</span>
+  <span class="stat_data">
+  {{- with .logsStats -}}
+    {{- if eq .IsRunning false }}
+      Logs Agent is not running </br>
+    {{- end }}
+    {{- if .Endpoints }}
+      {{- range $endpoint := .Endpoints }}
+        {{ $endpoint }}<br>
       {{- end }}
-      {{- if .Endpoints }}
-
-        {{- range $endpoint := .Endpoints }}
-          {{ $endpoint }}<br>
-        {{- end }}
+    {{- end }}
+    {{- if and (eq .UseHTTP false) (.IsRunning) }}
+      You are currently sending Logs to Datadog through TCP (either because logs_config.force_use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed). To benefit from increased reliability and better network performances, we strongly encourage switching over to compressed HTTPS which is now the default protocol.</br>
+    {{- end }}
+    {{- if .StatusMetrics }}
+      {{- range $metric_name, $metric_value := .StatusMetrics }}
+        {{$metric_name}}: {{$metric_value}}<br>
       {{- end }}
-      {{- if and (eq .UseHTTP false) (.IsRunning) }}
-
-        You are currently sending Logs to Datadog through TCP (either because logs_config.force_use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed). To benefit from increased reliability and better network performances, we strongly encourage switching over to compressed HTTPS which is now the default protocol.</br>
+    {{- end }}
+    {{- if .Errors }}
+      <span class="error stat_subtitle">Errors</span>
+      <span class="stat_subdata">
+      {{- range $error := .Errors }}
+        {{ $error }}</br>
       {{- end }}
-      {{- if .StatusMetrics }}
-
-        {{- range $metric_name, $metric_value := .StatusMetrics }}
-          {{$metric_name}}: {{$metric_value}}<br>
-        {{- end }}
+      </span>
+    {{- end}}
+    {{- if .Warnings }}
+      <span class="warning stat_subtitle">Warnings</span>
+      <span class="stat_subdata">
+      {{- range $warning := .Warnings }}
+        {{ $warning }}</br>
       {{- end }}
-      {{- if .Errors }}
-
-        <span class="error stat_subtitle">Errors</span>
-        <span class="stat_subdata">
-        {{- range $error := .Errors }}
-          {{ $error }}</br>
-        {{- end }}
-        </span>
-      {{- end}}
-      {{- if .Warnings }}
-
-        <span class="warning stat_subtitle">Warnings</span>
-        <span class="stat_subdata">
-        {{- range $warning := .Warnings }}
-          {{ $warning }}</br>
-        {{- end }}
-        </span>
-      {{- end}}
-      {{- range .Integrations }}
-
-        <span class="stat_subtitle">{{ .Name }}</span>
-        <span class="stat_subdata">
-          {{- range .Sources }}
+      </span>
+    {{- end}}
+    {{- range .Integrations }}
+      <span class="stat_subtitle">{{ .Name }}</span>
+      <span class="stat_subdata">
+        {{- range .Sources }}
+          <span class="stat_subdata">
+          Type: {{ .Type }}</br>
+          {{- range $key, $value := .Configuration }}
+          {{$key}}: {{$value}}</br>
+          {{- end }}
+          {{- if .Status }}
+          Status: {{ .Status }}</br>
+          {{- range $message := .Messages }}
+            {{ $message }}</br>
+          {{- end }}
+          {{- end }}
+          {{- if .Inputs }}
+          Inputs:
+          <ul>
+            {{- range $input := .Inputs }}
+              <li>{{$input}}
+            {{- end }}
+          </ul>
+          {{- end }}
+          {{- if .Info }}
+          {{- range $key, $value := .Info }} {{ $len := len $value }} {{ if eq $len 1 }}
+          {{$key}}: {{index $value 0}}</br> {{ else }}
+          {{$key}}:</br>
             <span class="stat_subdata">
-            Type: {{ .Type }}</br>
-            {{- range $key, $value := .Configuration }}
-            {{$key}}: {{$value}}</br>
-            {{- end }}
-            {{- if .Status }}
-            Status: {{ .Status }}</br>
-            {{- range $message := .Messages }}
-              {{ $message }}</br>
-            {{- end }}
-            {{- end }}
-            {{- if .Inputs }}
-            Inputs:
-            <ul>
-              {{- range $input := .Inputs }}
-                <li>{{$input}}
+              {{- range $inf := $value }}
+                {{ $inf }}</br>
               {{- end }}
-            </ul>
-            {{- end }}
-            {{- if .Info }}
-            {{- range $key, $value := .Info }} {{ $len := len $value }} {{ if eq $len 1 }}
-            {{$key}}: {{index $value 0}}</br> {{ else }}
-            {{$key}}:</br>
-              <span class="stat_subdata">
-                {{- range $inf := $value }}
-                  {{ $inf }}</br>
-                {{- end }}
-              </span>
-            {{- end }}
-            {{- end }}
-            {{- end }}
             </span>
           {{- end }}
-        </span>
-      {{- end }}
-    {{- end -}}
-    </span>
-  </div>
+          {{- end }}
+          {{- end }}
+          </span>
+        {{- end }}
+      </span>
+    {{- end }}
+  {{- end -}}
+  </span>
+</div>

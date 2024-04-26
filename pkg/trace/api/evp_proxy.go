@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -57,7 +57,7 @@ func (r *HTTPReceiver) evpProxyHandler(apiVersion int) http.Handler {
 	if !r.conf.EVPProxy.Enabled {
 		return evpProxyErrorHandler("Has been disabled in config")
 	}
-	handler := evpProxyForwarder(r.conf)
+	handler := evpProxyForwarder(r.conf, r.statsd)
 	return http.StripPrefix(fmt.Sprintf("/evp_proxy/v%d", apiVersion), handler)
 }
 
@@ -74,7 +74,7 @@ func evpProxyErrorHandler(message string) http.Handler {
 // one or more endpoints, based on the request received and the Agent configuration.
 // Headers are not proxied, instead we add our own known set of headers.
 // See also evpProxyTransport below.
-func evpProxyForwarder(conf *config.AgentConfig) http.Handler {
+func evpProxyForwarder(conf *config.AgentConfig, statsd statsd.ClientInterface) http.Handler {
 	endpoints := evpProxyEndpointsFromConfig(conf)
 	logger := stdlog.New(log.NewThrottled(5, 10*time.Second), "EVPProxy: ", 0) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
@@ -84,7 +84,7 @@ func evpProxyForwarder(conf *config.AgentConfig) http.Handler {
 			req.Header["X-Forwarded-For"] = nil
 		},
 		ErrorLog:  logger,
-		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewIDProvider(conf.ContainerProcRoot)},
+		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewIDProvider(conf.ContainerProcRoot), statsd},
 	}
 }
 
@@ -98,6 +98,7 @@ type evpProxyTransport struct {
 	endpoints           []config.Endpoint
 	conf                *config.AgentConfig
 	containerIDProvider IDProvider
+	statsd              statsd.ClientInterface
 }
 
 func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
@@ -110,11 +111,11 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		tags = append(tags, "content_type:"+ct)
 	}
 	defer func() {
-		metrics.Count("datadog.trace_agent.evp_proxy.request", 1, tags, 1)
-		metrics.Count("datadog.trace_agent.evp_proxy.request_bytes", req.ContentLength, tags, 1)
-		metrics.Timing("datadog.trace_agent.evp_proxy.request_duration_ms", time.Since(start), tags, 1)
+		_ = t.statsd.Count("datadog.trace_agent.evp_proxy.request", 1, tags, 1)
+		_ = t.statsd.Count("datadog.trace_agent.evp_proxy.request_bytes", req.ContentLength, tags, 1)
+		_ = t.statsd.Timing("datadog.trace_agent.evp_proxy.request_duration_ms", time.Since(start), tags, 1)
 		if rerr != nil {
-			metrics.Count("datadog.trace_agent.evp_proxy.request_error", 1, tags, 1)
+			_ = t.statsd.Count("datadog.trace_agent.evp_proxy.request_error", 1, tags, 1)
 		}
 	}()
 

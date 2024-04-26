@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -63,7 +63,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func debugRuntime(sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
 	cfg := sysprobeconfig.SysProbeObject()
-	client := api.GetClient(cfg.SocketAddress)
+	client := client.Get(cfg.SocketAddress)
 
 	var path string
 	if len(cliParams.args) == 1 {

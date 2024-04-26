@@ -3,7 +3,7 @@
 # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
-#   - /.gitlab/kitchen_common/testing.yml
+#   - .gitlab/kitchen_testing/testing.yml
 
 .kitchen_test_system_probe:
   extends:
@@ -12,6 +12,18 @@
   rules:
     !reference [.on_system_probe_or_e2e_changes_or_manual]
   timeout: 3h
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
+    CHEF_VERSION: 14.15.6
+
+.kitchen_test_security_agent:
+  extends:
+    - .kitchen_common
+    - .kitchen_datadog_agent_flavor
+  rules:
+    !reference [.manual]
+  stage: functional_test
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct

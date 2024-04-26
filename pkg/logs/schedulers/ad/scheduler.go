@@ -12,10 +12,10 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
@@ -37,7 +37,7 @@ type Scheduler struct {
 var _ schedulers.Scheduler = &Scheduler{}
 
 // New creates a new scheduler.
-func New(ac *autodiscovery.AutoConfig) schedulers.Scheduler {
+func New(ac autodiscovery.Component) schedulers.Scheduler {
 	sch := &Scheduler{}
 	sch.listener = adlistener.NewADListener("logs-agent AD scheduler", ac, sch.Schedule, sch.Unschedule)
 	return sch
@@ -71,7 +71,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 		switch {
 		case s.newSources(config):
 			log.Infof("Received a new logs config: %v", s.configName(config))
-			sources, err := s.toSources(config)
+			sources, err := s.createSources(config)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
@@ -139,9 +139,9 @@ func (s *Scheduler) configName(config integration.Config) string {
 	return config.Provider
 }
 
-// toSources creates new sources from an integration config,
+// createsSources creates new sources from an integration config,
 // returns an error if the parsing failed.
-func (s *Scheduler) toSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
+func (s *Scheduler) createSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	var configs []*logsConfig.LogsConfig
 	var err error
 

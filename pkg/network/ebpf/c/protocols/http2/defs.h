@@ -46,21 +46,6 @@ typedef struct {
 
 /* Header parsing helper structs */
 
-// field_index represents the different way a header index can be formatted
-// according to the HPACK specification (RFC 7541: 6. Binary format)
-// We not handling the case of non-indexed field.
-typedef union {
-    struct {
-        __u8 index : 7;
-        __u8 reserved : 1;
-    } __attribute__((packed)) indexed;
-    struct {
-        __u8 index : 6;
-        __u8 reserved : 2;
-    } __attribute__((packed)) literal;
-    __u8 raw;
-} __attribute__((packed)) field_index_t;
-
 // string_literal_header represents the length of a string as represented in HPACK
 // (see RFC 7541: 5.2 String Literal Representation).
 typedef struct {

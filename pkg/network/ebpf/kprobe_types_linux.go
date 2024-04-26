@@ -23,14 +23,15 @@ type TCPStats struct {
 type ConnStats struct {
 	Sent_bytes     uint64
 	Recv_bytes     uint64
+	Sent_packets   uint32
+	Recv_packets   uint32
 	Timestamp      uint64
-	Flags          uint32
+	Duration       uint64
 	Cookie         uint32
-	Sent_packets   uint64
-	Recv_packets   uint64
-	Direction      uint8
 	Protocol_stack ProtocolStack
-	Pad_cgo_0      [3]byte
+	Flags          uint8
+	Direction      uint8
+	Pad_cgo_0      [6]byte
 }
 type Conn struct {
 	Tup             ConnTuple
@@ -39,12 +40,14 @@ type Conn struct {
 	Tcp_retransmits uint32
 }
 type Batch struct {
-	C0  Conn
-	C1  Conn
-	C2  Conn
-	C3  Conn
-	Len uint16
-	Id  uint64
+	C0        Conn
+	C1        Conn
+	C2        Conn
+	C3        Conn
+	Id        uint64
+	Cpu       uint32
+	Len       uint16
+	Pad_cgo_0 [2]byte
 }
 type Telemetry struct {
 	Tcp_failed_connect  uint64

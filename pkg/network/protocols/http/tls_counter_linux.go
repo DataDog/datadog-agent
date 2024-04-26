@@ -18,6 +18,10 @@ func (t *TLSCounter) Add(tx Transaction) {
 		t.counterJavaTLS.Add(1)
 	case Go:
 		t.counterGoTLS.Add(1)
+	case Istio:
+		t.counterIstioTLS.Add(1)
+	case NodeJS:
+		t.counterNodeJSTLS.Add(1)
 	default:
 		t.counterPlain.Add(1)
 	}

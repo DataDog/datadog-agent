@@ -10,7 +10,8 @@ import (
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const shortErrMsgLen = 17 // 20 char max with tailing "..."
@@ -27,7 +28,7 @@ func shortErrMsg(msg string) string {
 // LogOnPanic catches panics and logs them on the fly. It also flushes
 // the log file, ensuring the message appears. Then it propagates the panic
 // so that the program flow remains unchanged.
-func LogOnPanic() {
+func LogOnPanic(statsd statsd.ClientInterface) {
 	if err := recover(); err != nil {
 		// Full print of the trace in the logs
 		buf := make([]byte, 4096)
@@ -36,7 +37,7 @@ func LogOnPanic() {
 		errMsg := fmt.Sprintf("%v", err)
 		logMsg := "Unexpected panic: " + errMsg + "\n" + stacktrace
 
-		metrics.Gauge("datadog.trace_agent.panic", 1, []string{
+		_ = statsd.Gauge("datadog.trace_agent.panic", 1, []string{
 			"err:" + shortErrMsg(errMsg),
 		}, 1)
 

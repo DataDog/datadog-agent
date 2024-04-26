@@ -252,14 +252,14 @@ func TestDNSFailedResponseCount(t *testing.T) {
 		"failedserver.com",
 		"failedservertoo.com",
 	}
-	queryIP, queryPort, reps = testdns.SendDNSQueriesAndCheckError(t, domains, net.ParseIP(localhost), "udp")
+	queryIP, queryPort, reps = testdns.SendDNSQueriesAndCheckError(t, domains, testdns.GetServerIP(t), "udp")
 	for _, rep := range reps {
 		require.NotNil(t, rep)
 		require.Equal(t, rep.Rcode, mdns.RcodeServerFailure) // All the queries should have failed
 	}
 
 	// Next check the one sent over UDP. Expected error type: ServFail
-	key2 := getKey(queryIP, queryPort, localhost, syscall.IPPROTO_UDP)
+	key2 := getKey(queryIP, queryPort, testdns.GetServerIP(t).String(), syscall.IPPROTO_UDP)
 	require.Eventually(t, func() bool {
 		allStats = statKeeper.Snapshot()
 		return hasDomains(allStats[key2], domains...)

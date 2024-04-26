@@ -61,15 +61,6 @@ func (c *Client) CreateTopic(topicName string) error {
 	adminClient := kadm.NewClient(c.Client)
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
-	_, err := adminClient.CreateTopics(ctxTimeout, 1, 1, nil, topicName)
-	return err
-}
-
-// DeleteTopic removes a topic named topicName.
-func (c *Client) DeleteTopic(topicName string) error {
-	adminClient := kadm.NewClient(c.Client)
-	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-	_, err := adminClient.DeleteTopics(ctxTimeout, topicName)
+	_, err := adminClient.CreateTopics(ctxTimeout, 2, 1, nil, topicName)
 	return err
 }

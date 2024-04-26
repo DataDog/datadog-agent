@@ -57,6 +57,7 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
 	}
 
 	tagsMap["datadog_init_version"] = tags.GetExtensionVersion()
+	tagsMap[tags.ComputeStatsKey] = tags.ComputeStatsValue
 
 	return tagsMap
 }

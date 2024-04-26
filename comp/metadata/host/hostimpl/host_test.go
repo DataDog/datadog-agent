@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
+	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -130,7 +131,12 @@ func TestStatusHeaderProvider(t *testing.T) {
 			stats := make(map[string]interface{})
 			headerStatusProvider.JSON(false, stats)
 
-			assert.NotEmpty(t, stats)
+			keys := maps.Keys(stats)
+
+			assert.Contains(t, keys, "hostnameStats")
+			assert.Contains(t, keys, "hostTags")
+			assert.Contains(t, keys, "hostinfo")
+			assert.Contains(t, keys, "metadata")
 		}},
 		{"Text", func(t *testing.T) {
 			b := new(bytes.Buffer)

@@ -7,10 +7,14 @@ package vm
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 
 	"code.cloudfoundry.org/garden"
 	"code.cloudfoundry.org/garden/gardenfakes"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
@@ -18,9 +22,6 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
-	"golang.org/x/exp/slices"
 )
 
 var activeContainerWithoutProperties = gardenfakes.FakeContainer{

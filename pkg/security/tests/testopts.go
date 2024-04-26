@@ -10,6 +10,7 @@ package tests
 
 import (
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
@@ -28,13 +29,20 @@ type testOpts struct {
 	activityDumpCleanupPeriod                  time.Duration
 	activityDumpLoadControllerTimeout          time.Duration
 	activityDumpTracedCgroupsCount             int
+	activityDumpCgroupDifferentiateArgs        bool
+	activityDumpAutoSuppressionEnabled         bool
 	activityDumpTracedEventTypes               []string
 	activityDumpLocalStorageDirectory          string
 	activityDumpLocalStorageCompression        bool
 	activityDumpLocalStorageFormats            []string
 	enableSecurityProfile                      bool
+	securityProfileMaxImageTags                int
 	securityProfileDir                         string
 	securityProfileWatchDir                    bool
+	enableAutoSuppression                      bool
+	autoSuppressionEventTypes                  []string
+	enableAnomalyDetection                     bool
+	anomalyDetectionEventTypes                 []string
 	anomalyDetectionDefaultMinimumStablePeriod time.Duration
 	anomalyDetectionMinimumStablePeriodExec    time.Duration
 	anomalyDetectionMinimumStablePeriodDNS     time.Duration
@@ -48,6 +56,7 @@ type testOpts struct {
 	preStartCallback                           func(test *testModule)
 	tagsResolver                               tags.Resolver
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
+	enableFIM                                  bool // only valid on windows
 }
 
 type dynamicTestOpts struct {
@@ -81,14 +90,21 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.activityDumpDuration == opts.activityDumpDuration &&
 		to.activityDumpLoadControllerPeriod == opts.activityDumpLoadControllerPeriod &&
 		to.activityDumpTracedCgroupsCount == opts.activityDumpTracedCgroupsCount &&
+		to.activityDumpCgroupDifferentiateArgs == opts.activityDumpCgroupDifferentiateArgs &&
+		to.activityDumpAutoSuppressionEnabled == opts.activityDumpAutoSuppressionEnabled &&
 		to.activityDumpLoadControllerTimeout == opts.activityDumpLoadControllerTimeout &&
 		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
 		to.activityDumpLocalStorageDirectory == opts.activityDumpLocalStorageDirectory &&
 		to.activityDumpLocalStorageCompression == opts.activityDumpLocalStorageCompression &&
 		reflect.DeepEqual(to.activityDumpLocalStorageFormats, opts.activityDumpLocalStorageFormats) &&
 		to.enableSecurityProfile == opts.enableSecurityProfile &&
+		to.securityProfileMaxImageTags == opts.securityProfileMaxImageTags &&
 		to.securityProfileDir == opts.securityProfileDir &&
 		to.securityProfileWatchDir == opts.securityProfileWatchDir &&
+		to.enableAutoSuppression == opts.enableAutoSuppression &&
+		slices.Equal(to.autoSuppressionEventTypes, opts.autoSuppressionEventTypes) &&
+		to.enableAnomalyDetection == opts.enableAnomalyDetection &&
+		slices.Equal(to.anomalyDetectionEventTypes, opts.anomalyDetectionEventTypes) &&
 		to.anomalyDetectionDefaultMinimumStablePeriod == opts.anomalyDetectionDefaultMinimumStablePeriod &&
 		to.anomalyDetectionMinimumStablePeriodExec == opts.anomalyDetectionMinimumStablePeriodExec &&
 		to.anomalyDetectionMinimumStablePeriodDNS == opts.anomalyDetectionMinimumStablePeriodDNS &&

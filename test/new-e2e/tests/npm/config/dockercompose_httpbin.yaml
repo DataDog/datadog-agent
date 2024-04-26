@@ -5,7 +5,7 @@ services:
     privileged: true
     ports:
     - 80:8080/tcp
-    image: mccutchen/go-httpbin
+    image: ghcr.io/datadog/apps-go-httpbin:main
     container_name: httpbin
     volumes: []
     environment: {}

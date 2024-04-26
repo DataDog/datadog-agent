@@ -39,9 +39,8 @@ func IPToInt(ip net.IP) (*big.Int, int, error) {
 		return val, 32, nil
 	} else if len(ip) == net.IPv6len {
 		return val, 128, nil
-	} else {
-		return nil, 0, fmt.Errorf("unsupported address length %d", len(ip))
 	}
+	return nil, 0, fmt.Errorf("unsupported address length %d", len(ip))
 }
 
 // IntToIP transforms a big Int to an IP
@@ -54,4 +53,13 @@ func IntToIP(ipInt *big.Int, bits int) net.IP {
 		ret[len(ret)-i] = ipBytes[len(ipBytes)-i]
 	}
 	return ret
+}
+
+// KeysOfMap returns a slice of the keys contained in the given map
+func KeysOfMap[M ~map[K]V, K comparable, V any](m M) []K {
+	r := make([]K, 0, len(m))
+	for k := range m {
+		r = append(r, k)
+	}
+	return r
 }

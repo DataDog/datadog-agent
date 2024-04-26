@@ -8,6 +8,7 @@ package module
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -47,18 +49,22 @@ type CWSConsumer struct {
 	ruleEngine    *rulesmodule.RuleEngine
 	selfTester    *selftests.SelfTester
 	reloader      ReloaderInterface
-
-	eventSuppressionsLock  sync.Mutex
-	eventSuppressionsStats map[string]*int64
 }
 
 // NewCWSConsumer initializes the module with options
 func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	selfTester, err := selftests.NewSelfTester(cfg, evm.Probe)
-	if err != nil {
-		seclog.Errorf("unable to instantiate self tests: %s", err)
+	var (
+		selfTester *selftests.SelfTester
+		err        error
+	)
+
+	if cfg.SelfTestEnabled {
+		selfTester, err = selftests.NewSelfTester(cfg, evm.Probe)
+		if err != nil {
+			seclog.Errorf("unable to instantiate self tests: %s", err)
+		}
 	}
 
 	family, address := config.GetFamilyAddress(cfg.SocketPath)
@@ -68,15 +74,14 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		probe:        evm.Probe,
 		statsdClient: evm.StatsdClient,
 		// internals
-		ctx:                    ctx,
-		cancelFnc:              cancelFnc,
-		apiServer:              NewAPIServer(cfg, evm.Probe, evm.StatsdClient, selfTester),
-		rateLimiter:            events.NewRateLimiter(cfg, evm.StatsdClient),
-		sendStatsChan:          make(chan chan bool, 1),
-		grpcServer:             NewGRPCServer(family, address),
-		selfTester:             selfTester,
-		reloader:               NewReloader(),
-		eventSuppressionsStats: make(map[string]*int64),
+		ctx:           ctx,
+		cancelFnc:     cancelFnc,
+		apiServer:     NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester),
+		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
+		sendStatsChan: make(chan chan bool, 1),
+		grpcServer:    NewGRPCServer(family, address),
+		selfTester:    selfTester,
+		reloader:      NewReloader(),
 	}
 
 	// set sender
@@ -148,12 +153,24 @@ func (c *CWSConsumer) Start() error {
 
 	seclog.Infof("runtime security started")
 
+	// we can now wait for self test events
+	cb := func(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
+		if c.config.SelfTestSendReport {
+			ReportSelfTest(c.eventSender, c.statsdClient, success, fails, testEvents)
+		}
+
+		seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
+	}
+	if c.selfTester != nil {
+		go c.selfTester.WaitForResult(cb)
+	}
+
 	return nil
 }
 
 // PostProbeStart is called after the event stream is started
 func (c *CWSConsumer) PostProbeStart() error {
-	if c.selfTester != nil && c.config.SelfTestEnabled {
+	if c.selfTester != nil {
 		c.wg.Add(1)
 		go func() {
 			defer c.wg.Done()
@@ -162,7 +179,7 @@ func (c *CWSConsumer) PostProbeStart() error {
 			case <-c.ctx.Done():
 
 			case <-time.After(15 * time.Second):
-				if _, err := c.RunSelfTest(c.config.SelfTestSendReport); err != nil {
+				if _, err := c.RunSelfTest(false); err != nil {
 					seclog.Warnf("failed to run self test: %s", err)
 				}
 			}
@@ -173,28 +190,24 @@ func (c *CWSConsumer) PostProbeStart() error {
 }
 
 // RunSelfTest runs the self tests
-func (c *CWSConsumer) RunSelfTest(sendLoadedReport bool) (bool, error) {
+func (c *CWSConsumer) RunSelfTest(gRPC bool) (bool, error) {
+	if c.config.EBPFLessEnabled && gRPC {
+		return false, errors.New("self-tests through gRPC are not supported with eBPF less")
+	}
+
 	if c.selfTester == nil {
 		return false, nil
 	}
 
-	success, fails, testEvents, err := c.selfTester.RunSelfTest()
-	if err != nil {
+	if err := c.selfTester.RunSelfTest(selftests.DefaultTimeout); err != nil {
 		return true, err
-	}
-
-	seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
-
-	// send the report
-	if sendLoadedReport {
-		ReportSelfTest(c.eventSender, c.statsdClient, success, fails, testEvents)
 	}
 
 	return true, nil
 }
 
 // ReportSelfTest reports to Datadog that a self test was performed
-func ReportSelfTest(sender events.EventSender, statsdClient statsd.ClientInterface, success []string, fails []string, testEvents map[string]*serializers.EventSerializer) {
+func ReportSelfTest(sender events.EventSender, statsdClient statsd.ClientInterface, success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
 	// send metric with number of success and fails
 	tags := []string{
 		fmt.Sprintf("success:%d", len(success)),
@@ -217,10 +230,6 @@ func (c *CWSConsumer) Stop() {
 		c.apiServer.Stop()
 	}
 
-	if c.selfTester != nil {
-		_ = c.selfTester.Close()
-	}
-
 	c.ruleEngine.Stop()
 
 	c.cancelFnc()
@@ -236,15 +245,16 @@ func (c *CWSConsumer) HandleCustomEvent(rule *rules.Rule, event *events.CustomEv
 
 // SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
 func (c *CWSConsumer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
-	if event.IsSuppressed() {
-		c.countEventSuppression(rule.ID)
-	}
-
 	if c.rateLimiter.Allow(rule.ID, event) {
 		c.apiServer.SendEvent(rule, event, extTagsCb, service)
 	} else {
 		seclog.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
+}
+
+// APIServer returns the api server
+func (c *CWSConsumer) APIServer() *APIServer {
+	return c.apiServer
 }
 
 // HandleActivityDump sends an activity dump to the backend
@@ -266,16 +276,15 @@ func (c *CWSConsumer) sendStats() {
 	if err := c.apiServer.SendStats(); err != nil {
 		seclog.Debugf("failed to send api server stats: %s", err)
 	}
-
-	c.eventSuppressionsLock.Lock()
-	for ruleID, counter := range c.eventSuppressionsStats {
-		value := *counter
-		if value > 0 {
-			*counter = 0
-			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, value, []string{fmt.Sprintf("rule_id:%s", ruleID)}, 1.0)
+	for statsTags, counter := range c.ruleEngine.AutoSuppression.GetStats() {
+		if counter > 0 {
+			tags := []string{
+				fmt.Sprintf("rule_id:%s", statsTags.RuleID),
+				fmt.Sprintf("tree_type:%s", statsTags.TreeType),
+			}
+			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, counter, tags, 1.0)
 		}
 	}
-	c.eventSuppressionsLock.Unlock()
 }
 
 func (c *CWSConsumer) statsSender() {
@@ -300,13 +309,4 @@ func (c *CWSConsumer) statsSender() {
 // GetRuleEngine returns new current rule engine
 func (c *CWSConsumer) GetRuleEngine() *rulesmodule.RuleEngine {
 	return c.ruleEngine
-}
-
-func (c *CWSConsumer) countEventSuppression(ruleID string) {
-	c.eventSuppressionsLock.Lock()
-	defer c.eventSuppressionsLock.Unlock()
-	if _, ok := c.eventSuppressionsStats[ruleID]; !ok {
-		c.eventSuppressionsStats[ruleID] = new(int64)
-	}
-	*(c.eventSuppressionsStats[ruleID])++
 }

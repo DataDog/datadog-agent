@@ -1,2 +1,0 @@
-system_probe_config:
-    collect_dns_stats: true

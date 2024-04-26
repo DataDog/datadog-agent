@@ -8,6 +8,7 @@ package writer
 import (
 	"compress/gzip"
 	"errors"
+	"io"
 	"runtime"
 	"strings"
 	"sync"
@@ -17,9 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/DataDog/zstd"
 )
 
 // pathTraces is the target host API path for delivering traces.
@@ -68,7 +71,7 @@ type TraceWriter struct {
 	senders      []*sender
 	stop         chan struct{}
 	stats        *info.TraceWriterInfo
-	wg           sync.WaitGroup // waits for gzippers
+	wg           sync.WaitGroup // waits for compressors
 	tick         time.Duration  // flush frequency
 	agentVersion string
 
@@ -82,11 +85,21 @@ type TraceWriter struct {
 	telemetryCollector telemetry.TelemetryCollector
 
 	easylog *log.ThrottledLogger
+	statsd  statsd.ClientInterface
+	timing  timing.Reporter
+	useZstd bool
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
 // will accept incoming spans via the in channel.
-func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, errorsSampler samplerTPSReader, rareSampler samplerEnabledReader, telemetryCollector telemetry.TelemetryCollector) *TraceWriter {
+func NewTraceWriter(
+	cfg *config.AgentConfig,
+	prioritySampler samplerTPSReader,
+	errorsSampler samplerTPSReader,
+	rareSampler samplerEnabledReader,
+	telemetryCollector telemetry.TelemetryCollector,
+	statsd statsd.ClientInterface,
+	timing timing.Reporter) *TraceWriter {
 	tw := &TraceWriter{
 		In:                 make(chan *SampledChunks, 1),
 		Serialize:          make(chan *pb.AgentPayload, 1),
@@ -103,6 +116,9 @@ func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, e
 		agentVersion:       cfg.AgentVersion,
 		easylog:            log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 		telemetryCollector: telemetryCollector,
+		statsd:             statsd,
+		timing:             timing,
+		useZstd:            cfg.HasFeature("zstd-encoding"),
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -117,7 +133,7 @@ func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, e
 	}
 	qsize := 1
 	log.Warnf("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
-	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize, telemetryCollector)
+	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize, telemetryCollector, statsd)
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
 		tw.wg.Add(1)
 		go tw.serializer()
@@ -239,7 +255,7 @@ func (w *TraceWriter) flush() {
 		return
 	}
 
-	defer timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
+	defer w.timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
 	defer w.resetBuffer()
 
 	log.Debugf("Serializing %d tracer payloads.", len(w.tracerPayloads))
@@ -270,39 +286,57 @@ func (w *TraceWriter) serializer() {
 			}
 
 			w.stats.BytesUncompressed.Add(int64(len(b)))
-			p := newPayload(map[string]string{
-				"Content-Type":     "application/x-protobuf",
-				"Content-Encoding": "gzip",
-				headerLanguages:    strings.Join(info.Languages(), "|"),
-			})
-			p.body.Grow(len(b) / 2)
-			gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
-			if err != nil {
-				// it will never happen, unless an invalid compression is chosen;
-				// we know gzip.BestSpeed is valid.
-				log.Errorf("gzip.NewWriterLevel: %d", err)
-				return
+			var p *payload
+			var writer io.WriteCloser
+
+			if w.useZstd {
+				p = newPayload(map[string]string{
+					"Content-Type":     "application/x-protobuf",
+					"Content-Encoding": "zstd",
+					headerLanguages:    strings.Join(info.Languages(), "|"),
+				})
+
+				p.body.Grow(len(b) / 2)
+				writer = zstd.NewWriterLevel(p.body, zstd.BestSpeed)
+
+			} else {
+				p = newPayload(map[string]string{
+					"Content-Type":     "application/x-protobuf",
+					"Content-Encoding": "gzip",
+					headerLanguages:    strings.Join(info.Languages(), "|"),
+				})
+				p.body.Grow(len(b) / 2)
+
+				writer, err = gzip.NewWriterLevel(p.body, gzip.BestSpeed)
+				if err != nil {
+					// it will never happen, unless an invalid compression is chosen;
+					// we know gzip.BestSpeed is valid.
+					log.Errorf("Failed to compress trace paylod: %s", err)
+					return
+				}
 			}
-			if _, err := gzipw.Write(b); err != nil {
-				log.Errorf("Error gzipping trace payload: %v", err)
+
+			if _, err := writer.Write(b); err != nil {
+				log.Errorf("Error compressing trace payload: %v", err)
 			}
-			if err := gzipw.Close(); err != nil {
-				log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
+			if err := writer.Close(); err != nil {
+				log.Errorf("Error closing compressed stream when writing trace payload: %v", err)
 			}
+
 			sendPayloads(w.senders, p, w.syncMode)
 		}()
 	}
 }
 
 func (w *TraceWriter) report() {
-	metrics.Count("datadog.trace_agent.trace_writer.payloads", w.stats.Payloads.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.bytes_uncompressed", w.stats.BytesUncompressed.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.retries", w.stats.Retries.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.bytes", w.stats.Bytes.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.errors", w.stats.Errors.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.traces", w.stats.Traces.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.events", w.stats.Events.Swap(0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_writer.spans", w.stats.Spans.Swap(0), nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.payloads", w.stats.Payloads.Swap(0), nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.bytes_uncompressed", w.stats.BytesUncompressed.Swap(0), nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.retries", w.stats.Retries.Swap(0), nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.bytes", w.stats.Bytes.Swap(0), nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.errors", w.stats.Errors.Swap(0), nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.traces", w.stats.Traces.Swap(0), nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.events", w.stats.Events.Swap(0), nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.spans", w.stats.Spans.Swap(0), nil, 1)
 }
 
 var _ eventRecorder = (*TraceWriter)(nil)
@@ -310,8 +344,8 @@ var _ eventRecorder = (*TraceWriter)(nil)
 // recordEvent implements eventRecorder.
 func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 	if data != nil {
-		metrics.Histogram("datadog.trace_agent.trace_writer.connection_fill", data.connectionFill, nil, 1)
-		metrics.Histogram("datadog.trace_agent.trace_writer.queue_fill", data.queueFill, nil, 1)
+		_ = w.statsd.Histogram("datadog.trace_agent.trace_writer.connection_fill", data.connectionFill, nil, 1)
+		_ = w.statsd.Histogram("datadog.trace_agent.trace_writer.queue_fill", data.queueFill, nil, 1)
 	}
 	switch t {
 	case eventTypeRetry:
@@ -320,7 +354,7 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 
 	case eventTypeSent:
 		log.Debugf("Flushed traces to the API; time: %s, bytes: %d", data.duration, data.bytes)
-		timing.Since("datadog.trace_agent.trace_writer.flush_duration", time.Now().Add(-data.duration))
+		w.timing.Since("datadog.trace_agent.trace_writer.flush_duration", time.Now().Add(-data.duration))
 		w.stats.Bytes.Add(int64(data.bytes))
 		w.stats.Payloads.Inc()
 		if !w.telemetryCollector.SentFirstTrace() {
@@ -333,7 +367,7 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 
 	case eventTypeDropped:
 		w.easylog.Warn("Trace Payload dropped (%.2fKB).", float64(data.bytes)/1024)
-		metrics.Count("datadog.trace_agent.trace_writer.dropped", 1, nil, 1)
-		metrics.Count("datadog.trace_agent.trace_writer.dropped_bytes", int64(data.bytes), nil, 1)
+		_ = w.statsd.Count("datadog.trace_agent.trace_writer.dropped", 1, nil, 1)
+		_ = w.statsd.Count("datadog.trace_agent.trace_writer.dropped_bytes", int64(data.bytes), nil, 1)
 	}
 }

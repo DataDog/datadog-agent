@@ -13,9 +13,9 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -27,20 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var testRootNs uint32
-
 func TestMain(m *testing.M) {
-	rootNs, err := kernel.GetRootNetNamespace("/proc")
-	if err != nil {
-		log.Critical(err)
-		os.Exit(1)
-	}
-	testRootNs, err = kernel.GetInoForNs(rootNs)
-	if err != nil {
-		log.Critical(err)
-		os.Exit(1)
-	}
-
 	logLevel := os.Getenv("DD_LOG_LEVEL")
 	if logLevel == "" {
 		logLevel = "warn"
@@ -59,7 +46,7 @@ var (
 //
 // `proto` can be "tcp4", "tcp6", "udp4", or "udp6"
 // `port` can be `0` in which case the os assigned port is returned
-func runServerProcess(t *testing.T, proto string, port uint16, ns netns.NsHandle) uint16 {
+func runServerProcess(t *testing.T, proto string, port uint16, ns netns.NsHandle) (uint16, *os.Process) {
 	var re *regexp.Regexp
 	address := fmt.Sprintf("%s-listen:%d", proto, port)
 	switch proto {
@@ -71,12 +58,13 @@ func runServerProcess(t *testing.T, proto string, port uint16, ns netns.NsHandle
 		require.FailNow(t, "unrecognized protocol")
 	}
 
+	var proc *os.Process
 	kernel.WithNS(ns, func() error {
 		cmd := exec.Command("socat", "-d", "-d", "STDIO", address)
 		stderr, err := cmd.StderrPipe()
 		require.NoError(t, err, "error getting stderr pipe for command %s", cmd)
 		require.NoError(t, cmd.Start())
-		t.Cleanup(func() { cmd.Process.Kill() })
+		proc = cmd.Process
 		if port != 0 {
 			return nil
 		}
@@ -98,7 +86,7 @@ func runServerProcess(t *testing.T, proto string, port uint16, ns netns.NsHandle
 		return nil
 	})
 
-	return port
+	return port, proc
 }
 
 func TestReadInitialState(t *testing.T) {
@@ -131,11 +119,33 @@ func testReadInitialState(t *testing.T, proto string) {
 
 	var ports []uint16
 	for _, proto := range protos {
-		ports = append(ports, runServerProcess(t, proto, 0, rootNs))
+		i := 0
+		for ; i < 5; i++ {
+			port, proc := runServerProcess(t, proto, 0, rootNs)
+			if !slices.Contains(ports, port) {
+				t.Cleanup(func() { proc.Kill() })
+				ports = append(ports, port)
+				break
+			}
+
+			require.NoError(t, proc.Kill())
+		}
+		require.Less(t, i, 5, "failed to find unique port for proto %s", proto)
 	}
 
 	for _, proto := range protos {
-		ports = append(ports, runServerProcess(t, proto, 0, ns))
+		i := 0
+		for ; i < 5; i++ {
+			port, proc := runServerProcess(t, proto, 0, ns)
+			if !slices.Contains(ports, port) {
+				t.Cleanup(func() { proc.Kill() })
+				ports = append(ports, port)
+				break
+			}
+
+			require.NoError(t, proc.Kill())
+		}
+		require.Less(t, i, 5, "failed to find unique port for proto %s", proto)
 	}
 
 	rootNsIno, err := kernel.GetInoForNs(rootNs)
@@ -149,37 +159,32 @@ func testReadInitialState(t *testing.T, proto string) {
 		connType, otherConnType = otherConnType, connType
 	}
 
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		initialPorts, err := ReadInitialState("/proc", connType, true)
-		if !assert.NoError(collect, err) {
-			return
-		}
+	initialPorts, err := ReadInitialState("/proc", connType, true)
+	if !assert.NoError(t, err) {
+		return
+	}
 
-		// check ports corresponding to proto in root ns
-		for _, p := range ports[:2] {
-			assert.Containsf(collect, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should exist for %s port %d in root ns", connType, p)
-			assert.NotContainsf(collect, initialPorts, PortMapping{nsIno, p}, "PortMapping should not exist for %s port %d in test ns", connType, p)
-		}
+	// check ports corresponding to proto in root ns
+	for _, p := range ports[:2] {
+		assert.Containsf(t, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should exist for %s port %d in root ns", connType, p)
+		assert.NotContainsf(t, initialPorts, PortMapping{nsIno, p}, "PortMapping should not exist for %s port %d in test ns", connType, p)
+	}
 
-		// check ports not corresponding to proto in root ns
-		for _, p := range ports[2:4] {
-			assert.NotContainsf(collect, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should not exist for %s port %d in root ns", otherConnType, p)
-			assert.NotContainsf(collect, initialPorts, PortMapping{nsIno, p}, "PortMapping should not exist for %s port %d in root ns", otherConnType, p)
-		}
+	// check ports not corresponding to proto in root ns
+	for _, p := range ports[2:4] {
+		assert.NotContainsf(t, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should not exist for %s port %d in root ns", otherConnType, p)
+		assert.NotContainsf(t, initialPorts, PortMapping{nsIno, p}, "PortMapping should not exist for %s port %d in test ns", otherConnType, p)
+	}
 
-		// check ports corresponding to proto in test ns
-		for _, p := range ports[4:6] {
-			assert.Containsf(collect, initialPorts, PortMapping{nsIno, p}, "PortMapping should exist for %s port %d in root ns", connType, p)
-			assert.NotContainsf(collect, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should not exist for %s port %d in test ns", connType, p)
-		}
+	// check ports corresponding to proto in test ns
+	for _, p := range ports[4:6] {
+		assert.Containsf(t, initialPorts, PortMapping{nsIno, p}, "PortMapping should exist for %s port %d in test ns", connType, p)
+		assert.NotContainsf(t, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should not exist for %s port %d in root ns", connType, p)
+	}
 
-		// check ports not corresponding to proto in test ns
-		for _, p := range ports[6:8] {
-			assert.NotContainsf(collect, initialPorts, PortMapping{nsIno, p}, "PortMapping should not exist for %s port %d in root ns", otherConnType, p)
-			assert.NotContainsf(collect, initialPorts, PortMapping{testRootNs, p}, "PortMapping should not exist for %s port %d in root ns", otherConnType, p)
-		}
-
-		assert.NotContainsf(collect, initialPorts, PortMapping{testRootNs, 999}, "expected PortMapping(testRootNs, 999) to not be in the map for root ns, but it was")
-		assert.NotContainsf(collect, initialPorts, PortMapping{testRootNs, 999}, "expected PortMapping(nsIno, 999) to not be in the map for test ns, but it was")
-	}, 3*time.Second, time.Second, "tcp/tcp6 ports are listening")
+	// check ports not corresponding to proto in test ns
+	for _, p := range ports[6:8] {
+		assert.NotContainsf(t, initialPorts, PortMapping{nsIno, p}, "PortMapping should not exist for %s port %d in test ns", otherConnType, p)
+		assert.NotContainsf(t, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should not exist for %s port %d in root ns", otherConnType, p)
+	}
 }

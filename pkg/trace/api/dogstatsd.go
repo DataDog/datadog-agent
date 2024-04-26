@@ -16,8 +16,9 @@ import (
 )
 
 // dogstatsdProxyHandler returns a new HTTP handler which will proxy requests to
-// the DogStatsD endpoint in the Core Agent over UDP or UDS (defaulting to UDS
-// if StatsdSocket is set in the *AgentConfig).
+// the DogStatsD endpoint in the Core Agent over UDP. Communication between the
+// proxy and the agent does not support UDS (see #13628), and so does not guarantee delivery of
+// all statsd payloads.
 func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 	if !r.conf.StatsdEnabled {
 		log.Info("DogstatsD disabled in the Agent configuration. The DogstatsD proxy endpoint will be non-functional.")

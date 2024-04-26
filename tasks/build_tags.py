@@ -1,12 +1,13 @@
 """
 Utilities to manage build tags
 """
+
 # TODO: check if we really need the typing import.
 # Recent versions of Python should be able to use dict and list directly in type hints,
 # so we only need to check that we don't run this code with old Python versions.
+from __future__ import annotations
 
 import sys
-from typing import List
 
 from invoke import task
 
@@ -21,6 +22,7 @@ ALL_TAGS = {
     "containerd",
     "cri",
     "docker",
+    "datadog.no_waf",
     "ec2",
     "etcd",
     "fargateprocess",
@@ -38,11 +40,13 @@ ALL_TAGS = {
     "podman",
     "process",
     "python",
+    "sds",
     "serverless",
     "systemd",
     "trivy",
     "zk",
     "zlib",
+    "zstd",
     "test",  # used for unit-tests
 }
 
@@ -54,6 +58,7 @@ AGENT_TAGS = {
     "consul",
     "containerd",
     "cri",
+    "datadog.no_waf",
     "docker",
     "ec2",
     "etcd",
@@ -73,6 +78,7 @@ AGENT_TAGS = {
     "trivy",
     "zk",
     "zlib",
+    "zstd",
 }
 
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build
@@ -93,20 +99,23 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     }
 )
 
+# AGENTLESS_SCANNER_TAGS lists the tags needed when building the agentless-scanner
+AGENTLESS_SCANNER_TAGS = {""}
+
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
-CLUSTER_AGENT_TAGS = {"clusterchecks", "kubeapiserver", "orchestrator", "zlib", "ec2", "gce"}
+CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2", "gce"}
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks"}
 
 # DOGSTATSD_TAGS lists the tags needed when building dogstatsd
-DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib"}
+DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"}
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib"}
+IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
-PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess", "orchestrator"}).difference({"otlp", "python", "trivy"})
+PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "python", "trivy"})
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
 PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
@@ -114,7 +123,18 @@ PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
 )
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
-SECURITY_AGENT_TAGS = {"netcgo", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib", "ec2"}
+SECURITY_AGENT_TAGS = {
+    "netcgo",
+    "datadog.no_waf",
+    "docker",
+    "containerd",
+    "kubeapiserver",
+    "kubelet",
+    "podman",
+    "zlib",
+    "zstd",
+    "ec2",
+}
 
 # SERVERLESS_TAGS lists the tags necessary to build serverless
 SERVERLESS_TAGS = {"serverless", "otlp"}
@@ -123,7 +143,7 @@ SERVERLESS_TAGS = {"serverless", "otlp"}
 SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm"}).difference({"python", "systemd"})
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
-TRACE_AGENT_TAGS = {"docker", "containerd", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman"}
+TRACE_AGENT_TAGS = {"docker", "containerd", "datadog.no_waf", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman"}
 
 # TRACE_AGENT_HEROKU_TAGS lists the tags necessary to build the trace-agent for Heroku
 TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
@@ -157,6 +177,9 @@ WINDOWS_32BIT_EXCLUDE_TAGS = {"docker", "kubeapiserver", "kubelet", "orchestrato
 # Unit test build tags
 UNIT_TEST_TAGS = {"test"}
 
+# List of tags to always remove when running unit tests
+UNIT_TEST_EXCLUDE_TAGS = {"datadog.no_waf"}
+
 # Build type: maps flavor to build tags map
 build_tags = {
     AgentFlavor.base: {
@@ -169,30 +192,38 @@ build_tags = {
         "security-agent": SECURITY_AGENT_TAGS,
         "serverless": SERVERLESS_TAGS,
         "system-probe": SYSTEM_PROBE_TAGS,
-        "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS),
+        "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "trace-agent": TRACE_AGENT_TAGS,
         # Test setups
-        "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS),
-        "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS),
-        "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS),
+        "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
+        .union(UNIT_TEST_TAGS)
+        .difference(UNIT_TEST_EXCLUDE_TAGS),
     },
     AgentFlavor.heroku: {
         "agent": AGENT_HEROKU_TAGS,
         "process-agent": PROCESS_AGENT_HEROKU_TAGS,
         "trace-agent": TRACE_AGENT_HEROKU_TAGS,
-        "lint": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS),
-        "unit-tests": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS),
+        "lint": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
     AgentFlavor.iot: {
         "agent": IOT_AGENT_TAGS,
-        "lint": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS),
-        "unit-tests": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS),
+        "lint": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
     AgentFlavor.dogstatsd: {
         "dogstatsd": DOGSTATSD_TAGS,
         "system-tests": AGENT_TAGS,
-        "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS),
-        "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS),
+        "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+    },
+    AgentFlavor.agentless_scanner: {
+        "dogstatsd": AGENTLESS_SCANNER_TAGS,
+        "system-tests": AGENT_TAGS,
+        "lint": AGENTLESS_SCANNER_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": AGENTLESS_SCANNER_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
 }
 
@@ -200,14 +231,14 @@ build_tags = {
 def compute_build_tags_for_flavor(
     build: str,
     arch: str,
-    build_include: List[str],
-    build_exclude: List[str],
+    build_include: list[str],
+    build_exclude: list[str],
     flavor: AgentFlavor = AgentFlavor.base,
+    include_sds: bool = False,
 ):
     """
     Given a flavor, an architecture, a list of tags to include and exclude, get the final list
     of tags that should be applied.
-
     If the list of build tags to include is empty, take the default list of build tags for
     the flavor or arch. Otherwise, use the list of build tags to include, minus incompatible tags
     for the given architecture.
@@ -219,8 +250,15 @@ def compute_build_tags_for_flavor(
         if build_include is None
         else filter_incompatible_tags(build_include.split(","), arch=arch)
     )
+
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    return get_build_tags(build_include, build_exclude)
+
+    list = get_build_tags(build_include, build_exclude)
+
+    if include_sds:
+        list.append("sds")
+
+    return list
 
 
 @task

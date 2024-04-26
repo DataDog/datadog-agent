@@ -100,8 +100,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func showRuntimeConfiguration(_ log.Component, _ config.Component, cliParams *cliParams) error {
-	err := util.SetAuthToken()
+func showRuntimeConfiguration(_ log.Component, config config.Component, cliParams *cliParams) error {
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}
@@ -121,8 +121,8 @@ func showRuntimeConfiguration(_ log.Component, _ config.Component, cliParams *cl
 	return nil
 }
 
-func listRuntimeConfigurableValue(_ log.Component, _ config.Component, cliParams *cliParams) error {
-	err := util.SetAuthToken()
+func listRuntimeConfigurableValue(_ log.Component, config config.Component, cliParams *cliParams) error {
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}
@@ -147,12 +147,12 @@ func listRuntimeConfigurableValue(_ log.Component, _ config.Component, cliParams
 	return nil
 }
 
-func setConfigValue(_ log.Component, _ config.Component, cliParams *cliParams) error {
+func setConfigValue(_ log.Component, config config.Component, cliParams *cliParams) error {
 	if len(cliParams.args) != 2 {
 		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
 	}
 
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}
@@ -176,12 +176,12 @@ func setConfigValue(_ log.Component, _ config.Component, cliParams *cliParams) e
 	return nil
 }
 
-func getConfigValue(_ log.Component, _ config.Component, cliParams *cliParams) error {
+func getConfigValue(_ log.Component, config config.Component, cliParams *cliParams) error {
 	if len(cliParams.args) != 1 {
 		return fmt.Errorf("a single setting name must be specified")
 	}
 
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}

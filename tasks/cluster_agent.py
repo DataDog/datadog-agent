@@ -157,7 +157,14 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
 
 
 @task
-def hacky_dev_image_build(ctx, base_image=None, target_image="cluster-agent", push=False, signed_pull=False):
+def hacky_dev_image_build(
+    ctx,
+    base_image=None,
+    target_image="cluster-agent",
+    target_tag="latest",
+    push=False,
+    signed_pull=False,
+):
     os.environ["DELVE"] = "1"
     build(ctx)
 
@@ -210,14 +217,14 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 '''
         )
         dockerfile.flush()
-
+        target_image_name = f'{target_image}:{target_tag}'
         pull_env = {}
         if signed_pull:
             pull_env['DOCKER_CONTENT_TRUST'] = '1'
-        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
+        ctx.run(f'docker build -t {target_image_name} -f {dockerfile.name} .', env=pull_env)
 
         if push:
-            ctx.run(f'docker push {target_image}')
+            ctx.run(f'docker push {target_image_name}')
 
 
 @task
@@ -235,7 +242,7 @@ def version(ctx, url_safe=False, git_sha_length=7):
 @task
 def update_generated_code(ctx):
     """
-    Re-generate 'pkg/clusteragent/custommetrics/api/generated/openapi/zz_generated.openapi.go'.
+    Re-generate 'pkg/clusteragent/autoscaling/custommetrics/api/generated/openapi/zz_generated.openapi.go'.
     """
     ctx.run("go install -mod=readonly k8s.io/kube-openapi/cmd/openapi-gen")
     ctx.run(
@@ -243,7 +250,7 @@ def update_generated_code(ctx):
 --logtostderr \
 -i k8s.io/metrics/pkg/apis/custom_metrics,k8s.io/metrics/pkg/apis/custom_metrics/v1beta1,k8s.io/metrics/pkg/apis/custom_metrics/v1beta2,k8s.io/metrics/pkg/apis/external_metrics,k8s.io/metrics/pkg/apis/external_metrics/v1beta1,k8s.io/metrics/pkg/apis/metrics,k8s.io/metrics/pkg/apis/metrics/v1beta1,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/version,k8s.io/api/core/v1 \
 -h ./tools/boilerplate.go.txt \
--p ./pkg/clusteragent/custommetrics/api/generated/openapi \
+-p ./pkg/clusteragent/autoscaling/custommetrics/api/generated/openapi \
 -O zz_generated.openapi \
 -o ./ \
 -r /dev/null"

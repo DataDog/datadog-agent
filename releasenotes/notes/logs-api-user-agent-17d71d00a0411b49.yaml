@@ -1,0 +1,5 @@
+fixes:
+  - |
+    The `User-Agent` header is now set to `datadog-agent/<version>` for logs
+    forwarding requests to `/api/v2/logs`. Previously it was set to
+    `Go-http-client/1.1`.

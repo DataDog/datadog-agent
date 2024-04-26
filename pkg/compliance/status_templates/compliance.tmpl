@@ -1,7 +1,7 @@
-{{ if not .}}
+{{ if not .complianceStatus}}
   Not enabled
 {{- else}}
-  {{- with .}}
+  {{- with .complianceStatus}}
   {{ if .endpoints }}
   {{- range $endpoint := .endpoints }}
   {{ $endpoint }}

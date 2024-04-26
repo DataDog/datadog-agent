@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // defaultBufferLen represents the default buffer length; the number of bucket size
@@ -50,6 +52,7 @@ type Concentrator struct {
 	peerTagsAggregation    bool     // flag to enable aggregation of peer tags
 	computeStatsBySpanKind bool     // flag to enable computation of stats through checking the span.kind field
 	peerTagKeys            []string // keys for supplementary tags that describe peer.service entities
+	statsd                 statsd.ClientInterface
 }
 
 var defaultPeerTags = []string{
@@ -101,7 +104,7 @@ func preparePeerTags(tags ...string) []string {
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
-func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now time.Time) *Concentrator {
+func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now time.Time, statsd statsd.ClientInterface) *Concentrator {
 	bsize := conf.BucketInterval.Nanoseconds()
 	c := Concentrator{
 		bsize:   bsize,
@@ -117,11 +120,11 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		agentEnv:               conf.DefaultEnv,
 		agentHostname:          conf.Hostname,
 		agentVersion:           conf.AgentVersion,
-		peerTagsAggregation:    conf.PeerServiceAggregation || conf.PeerTagsAggregation,
+		peerTagsAggregation:    conf.PeerTagsAggregation,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
+		statsd:                 statsd,
 	}
-	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
-	if conf.PeerServiceAggregation || conf.PeerTagsAggregation {
+	if conf.PeerTagsAggregation {
 		c.peerTagKeys = preparePeerTags(append(defaultPeerTags, conf.PeerTags...)...)
 	}
 	return &c
@@ -131,7 +134,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 func (c *Concentrator) Start() {
 	c.exitWG.Add(1)
 	go func() {
-		defer watchdog.LogOnPanic()
+		defer watchdog.LogOnPanic(c.statsd)
 		defer c.exitWG.Done()
 		c.Run()
 	}()
@@ -225,10 +228,12 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 	}
 	weight := weight(pt.Root)
 	aggKey := PayloadAggregationKey{
-		Env:         env,
-		Hostname:    hostname,
-		Version:     pt.AppVersion,
-		ContainerID: containerID,
+		Env:          env,
+		Hostname:     hostname,
+		Version:      pt.AppVersion,
+		ContainerID:  containerID,
+		GitCommitSha: pt.GitCommitSha,
+		ImageTag:     pt.ImageTag,
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		isTop := traceutil.HasTopLevel(s)
@@ -295,11 +300,13 @@ func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
 	sb := make([]*pb.ClientStatsPayload, 0, len(m))
 	for k, s := range m {
 		p := &pb.ClientStatsPayload{
-			Env:         k.Env,
-			Hostname:    k.Hostname,
-			ContainerID: k.ContainerID,
-			Version:     k.Version,
-			Stats:       s,
+			Env:          k.Env,
+			Hostname:     k.Hostname,
+			ContainerID:  k.ContainerID,
+			Version:      k.Version,
+			GitCommitSha: k.GitCommitSha,
+			ImageTag:     k.ImageTag,
+			Stats:        s,
 		}
 		sb = append(sb, p)
 	}

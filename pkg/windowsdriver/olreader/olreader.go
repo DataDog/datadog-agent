@@ -164,8 +164,14 @@ func (olr *OverlappedReader) Read() error {
 
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (olr *OverlappedReader) Stop() {
-	_ = windows.CloseHandle(olr.iocp)
-	_ = windows.CloseHandle(olr.h)
+	if olr.iocp != windows.Handle(0) {
+		_ = windows.CloseHandle(olr.iocp)
+		olr.iocp = windows.Handle(0)
+	}
+	if olr.h != windows.Handle(0) {
+		_ = windows.CloseHandle(olr.h)
+		olr.h = windows.Handle(0)
+	}
 	olr.wg.Wait()
 	olr.cleanBuffers()
 }

@@ -32,6 +32,7 @@
 .on_rc:
   - if: $FORCE_MANUAL == "true" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
     when: manual
+    allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
@@ -80,6 +81,7 @@
 .on_internal_rc:
   - if: $FORCE_MANUAL == "true" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
     when: manual
+    allow_failure: true
     variables:
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release

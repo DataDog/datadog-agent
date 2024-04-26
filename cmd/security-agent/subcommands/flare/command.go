@@ -15,7 +15,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -63,8 +62,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 
-	flareCmd.Flags().StringVarP(&cliParams.customerEmail, flags.Email, "e", "", "Your email")
-	flareCmd.Flags().BoolVarP(&cliParams.autoconfirm, flags.Send, "s", false, "Automatically send flare (don't prompt for confirmation)")
+	flareCmd.Flags().StringVarP(&cliParams.customerEmail, "email", "e", "", "Your email")
+	flareCmd.Flags().BoolVarP(&cliParams.autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.SetArgs([]string{"caseID"})
 
 	return []*cobra.Command{flareCmd}
@@ -92,7 +91,7 @@ func requestFlare(_ log.Component, config config.Component, _ secrets.Component,
 	logFile := config.GetString("security_agent.log_file")
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = util.SetAuthToken(config)
 	if e != nil {
 		return e
 	}
@@ -107,7 +106,7 @@ func requestFlare(_ log.Component, config config.Component, _ secrets.Component,
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		filePath, e = flare.CreateSecurityAgentArchive(true, logFile, nil, nil)
+		filePath, e = flare.CreateSecurityAgentArchive(true, logFile, nil)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e
@@ -125,7 +124,7 @@ func requestFlare(_ log.Component, config config.Component, _ secrets.Component,
 		}
 	}
 
-	response, e := flare.SendFlare(filePath, params.caseID, params.customerEmail, helpers.NewLocalFlareSource())
+	response, e := flare.SendFlare(config, filePath, params.caseID, params.customerEmail, helpers.NewLocalFlareSource())
 	fmt.Println(response)
 	if e != nil {
 		return e

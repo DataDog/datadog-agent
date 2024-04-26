@@ -52,7 +52,7 @@ var defaultFlags = []string{
 }
 
 // compileToObjectFile compiles the input ebpf program & returns the compiled output
-func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalFlags, kernelHeaders []string) (CompiledOutput, CompilationResult, error) {
+func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalFlags, llcFlags, kernelHeaders []string) (CompiledOutput, CompilationResult, error) {
 	flags, flagHash := computeFlagsAndHash(additionalFlags)
 
 	outputFile, err := getOutputFilePath(outputDir, filename, inHash, flagHash)
@@ -86,7 +86,7 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 			flags = append(flags, fmt.Sprintf("-include%s", helperPath))
 		}
 
-		if err := compiler.CompileToObjectFile(inFile, outputFile, flags, kernelHeaders); err != nil {
+		if err := compiler.CompileToObjectFile(inFile, outputFile, flags, llcFlags, kernelHeaders); err != nil {
 			return nil, compilationErr, fmt.Errorf("failed to compile runtime version of %s: %s", filename, err)
 		}
 

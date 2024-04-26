@@ -129,7 +129,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(pkgconfig.Datadog)
 	if err != nil {
 		return nil, err
 	}
@@ -137,11 +137,11 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 	c := util.GetClient(false)
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", pkgconfig.Datadog.GetInt("security_agent.cmd_port"))
 
-	return settingshttp.NewClient(c, apiConfigURL, "security-agent"), nil
+	return settingshttp.NewClient(c, apiConfigURL, "security-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }
 
 func showRuntimeConfiguration(_ log.Component, cfg config.Component, _ secrets.Component, _ *cliParams) error {
-	runtimeConfig, err := fetcher.FetchSecurityAgentConfig(cfg)
+	runtimeConfig, err := fetcher.SecurityAgentConfig(cfg)
 	if err != nil {
 		return err
 	}

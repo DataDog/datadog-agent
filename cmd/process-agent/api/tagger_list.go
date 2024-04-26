@@ -10,13 +10,11 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 )
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func getTaggerList(deps APIServerDeps, w http.ResponseWriter, r *http.Request) {
-	cardinality := collectors.TagCardinality(tagger.ChecksCardinality)
-	response := tagger.List(cardinality)
+	response := tagger.List()
 
 	jsonTags, err := json.Marshal(response)
 	if err != nil {

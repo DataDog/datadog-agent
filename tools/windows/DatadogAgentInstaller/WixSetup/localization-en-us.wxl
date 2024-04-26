@@ -65,11 +65,11 @@
   <String Id ="ErrorModalDialog_Title" Overridable="yes" Localizable="yes">[ProductName] Setup</String>
 
 	<!-- these strings for the license agreement dialog -->
-  <String Id="LicenseAgreementDlgLicenseAcceptedCheckBox">I &amp;agree.</String>
+  <String Id="LicenseAgreementDlgLicenseAcceptedCheckBox">I &amp;accept the terms in the license agreement.</String>
   <String Id="LicenseAgreementDlgTitle">{\WixUI_Font_Title_White}Software Licensing</String>
-  <String Id="LicenseAgreementDlgDescription">{\WixUI_Font_Normal_White}Please read the following license agreement carefully</String>
+  <String Id="LicenseAgreementDlgDescription">{\WixUI_Font_Normal_White}Please read the provided license agreement carefully</String>
 
-  <String Id="LicenseAgreementSubHeader">The <![CDATA[<a href="https://github.com/DataDog/datadog-agent/">Datadog Agent</a>]]> includes open source software and is packaged with a closed source Datadog device driver, which is required for the NPM and USM products.  The driver is licensed under the following End User License Agreement.</String>
+  <String Id="LicenseAgreementSubHeader">Use and operation of this software is governed by the End User License Agreement (EULA) located at <![CDATA[<a href="https://www.datadoghq.com/legal/eula/">https://www.datadoghq.com/legal/eula/</a>]]>. </String>
 
 	<String Id="MsiRMFilesInUse_Title" Overridable="yes">[ProductName] Setup</String>
 	<String Id="MsiRMFilesInUseExit" Overridable="yes">E&amp;xit</String>

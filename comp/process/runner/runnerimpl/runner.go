@@ -12,7 +12,9 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
@@ -21,6 +23,9 @@ import (
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// for testing
+var agentEnabled = agent.Enabled
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
@@ -36,7 +41,8 @@ type runnerImpl struct {
 
 type dependencies struct {
 	fx.In
-	Lc fx.Lifecycle
+	Lc  fx.Lifecycle
+	Log log.Component
 
 	Submitter  submitter.Component
 	RTNotifier <-chan types.RTResponse `optional:"true"`
@@ -48,30 +54,33 @@ type dependencies struct {
 }
 
 func newRunner(deps dependencies) (runner.Component, error) {
-	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(deps.Checks), deps.RTNotifier)
+	checks := fxutil.GetAndFilterGroup(deps.Checks)
+	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(checks), deps.RTNotifier)
 	if err != nil {
 		return nil, err
 	}
 	c.Submitter = deps.Submitter
 
-	runner := &runnerImpl{
+	runnerComponent := &runnerImpl{
 		checkRunner:    c,
-		providedChecks: deps.Checks,
+		providedChecks: checks,
 	}
 
-	deps.Lc.Append(fx.Hook{
-		OnStart: runner.Run,
-		OnStop:  runner.Stop,
-	})
+	if agentEnabled(deps.Config, deps.Checks, deps.Log) {
+		deps.Lc.Append(fx.Hook{
+			OnStart: runnerComponent.Run,
+			OnStop:  runnerComponent.stop,
+		})
+	}
 
-	return runner, nil
+	return runnerComponent, nil
 }
 
 func (r *runnerImpl) Run(context.Context) error {
 	return r.checkRunner.Run()
 }
 
-func (r *runnerImpl) Stop(context.Context) error {
+func (r *runnerImpl) stop(context.Context) error {
 	r.checkRunner.Stop()
 	return nil
 }

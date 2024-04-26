@@ -24,9 +24,10 @@ import (
 	"github.com/twmb/murmur3"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -35,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
@@ -118,8 +120,8 @@ type Resolver struct {
 }
 
 // NewSBOMResolver returns a new instance of Resolver
-func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	sbomScanner, err := sbomscanner.CreateGlobalScanner(coreconfig.SystemProbe)
+func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface, wmeta optional.Option[workloadmeta.Component]) (*Resolver, error) {
+	sbomScanner, err := sbomscanner.CreateGlobalScanner(coreconfig.SystemProbe, wmeta)
 	if err != nil {
 		return nil, err
 	}
@@ -216,14 +218,20 @@ func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
-	scanRequest := &host.ScanRequest{Path: root}
-	ch := make(chan sbompkg.ScanResult, 1)
-	if err := r.sbomScanner.Scan(scanRequest, sbompkg.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}, Fast: true}, ch); err != nil {
+	scanRequest := host.NewScanRequest(root)
+	ch := collectors.GetHostScanner().Channel()
+	if ch == nil {
+		return fmt.Errorf("couldn't retrieve global host scanner result channel")
+	}
+	if err := r.sbomScanner.Scan(scanRequest); err != nil {
 		r.failedSBOMGenerations.Inc()
 		return fmt.Errorf("failed to trigger SBOM generation for %s: %w", root, err)
 	}
 
-	result := <-ch
+	result, more := <-ch
+	if !more {
+		return fmt.Errorf("failed to generate SBOM for %s: result channel is closed", root)
+	}
 
 	if result.Error != nil {
 		// TODO: add a retry mechanism for retryable errors
@@ -316,7 +324,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 				Version:    resultPkg.Version,
 				SrcVersion: resultPkg.SrcVersion,
 			}
-			for _, file := range resultPkg.SystemInstalledFiles {
+			for _, file := range resultPkg.InstalledFiles {
 				seclog.Tracef("indexing %s as %+v", file, pkg)
 				sbom.files[murmur3.StringSum64(file)] = pkg
 			}
@@ -426,8 +434,6 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(cgroup *cgroupModel.CacheEntr
 		}
 		r.queueWorkload(sbom)
 	}
-	//nolint:gosimple // TODO(SEC) Fix gosimple linter
-	return
 }
 
 // GetWorkload returns the sbom of a provided ID

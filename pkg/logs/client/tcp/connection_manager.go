@@ -21,7 +21,7 @@ import (
 	"golang.org/x/net/proxy"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,12 +36,14 @@ type ConnectionManager struct {
 	endpoint  config.Endpoint
 	mutex     sync.Mutex
 	firstConn sync.Once
+	status    statusinterface.Status
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(endpoint config.Endpoint) *ConnectionManager {
+func NewConnectionManager(endpoint config.Endpoint, status statusinterface.Status) *ConnectionManager {
 	return &ConnectionManager{
 		endpoint: endpoint,
+		status:   status,
 	}
 }
 
@@ -59,9 +61,9 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 
 	cm.firstConn.Do(func() {
 		if cm.endpoint.ProxyAddress != "" {
-			log.Infof("Connecting to the backend: %v, via socks5: %v, with SSL: %v", cm.address(), cm.endpoint.ProxyAddress, cm.endpoint.UseSSL)
+			log.Infof("Connecting to the backend: %v, via socks5: %v, with SSL: %v", cm.address(), cm.endpoint.ProxyAddress, cm.endpoint.UseSSL())
 		} else {
-			log.Infof("Connecting to the backend: %v, with SSL: %v", cm.address(), cm.endpoint.UseSSL)
+			log.Infof("Connecting to the backend: %v, with SSL: %v", cm.address(), cm.endpoint.UseSSL())
 		}
 	})
 
@@ -69,7 +71,7 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 	var err error
 	for {
 		if err != nil {
-			status.AddGlobalWarning(statusConnectionError, fmt.Sprintf("Connection to the log intake cannot be established: %v", err))
+			cm.status.AddGlobalWarning(statusConnectionError, fmt.Sprintf("Connection to the log intake cannot be established: %v", err))
 		}
 		if retries > 0 {
 			log.Debugf("Connect attempt #%d", retries)
@@ -108,7 +110,7 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 		}
 		log.Debugf("connected to %v", cm.address())
 
-		if cm.endpoint.GetUseSSL() {
+		if cm.endpoint.UseSSL() {
 			sslConn := tls.Client(conn, &tls.Config{
 				ServerName: cm.endpoint.Host,
 			})
@@ -122,7 +124,7 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 		}
 
 		go cm.handleServerClose(conn)
-		status.RemoveGlobalWarning(statusConnectionError)
+		cm.status.RemoveGlobalWarning(statusConnectionError)
 		return conn, nil
 	}
 }

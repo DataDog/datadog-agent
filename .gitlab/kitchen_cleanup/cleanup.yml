@@ -1,0 +1,28 @@
+---
+.kitchen_cleanup_s3_common:
+  allow_failure: true
+  stage: kitchen_cleanup
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  script:
+    - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$DD_PIPELINE_ID --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/testing/pipeline-$DD_PIPELINE_ID --recursive
+    - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/testing/suse/pipeline-$DD_PIPELINE_ID --recursive
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
+    - aws s3 rm s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET --recursive
+    - cd $OMNIBUS_PACKAGE_DIR
+    # Remove all deb packages for the pipeline in the pool
+    - for deb in $(ls *amd64.deb); do aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/$deb --recursive; done
+    # Remove the datadog-signing-keys package for the pipeline in the pool
+    - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+
+.kitchen_cleanup_azure_common:
+  allow_failure: true
+  stage: kitchen_cleanup
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/dd-agent-testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  dependencies: []
+  before_script:
+  script:
+    - cd $DD_AGENT_TESTING_DIR
+    - tasks/clean.sh

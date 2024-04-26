@@ -13,6 +13,7 @@ import (
 
 // Aliases to setup package
 var (
+	DefaultUpdaterLogFile       = pkgconfigsetup.DefaultUpdaterLogFile
 	DefaultSecurityAgentLogFile = pkgconfigsetup.DefaultSecurityAgentLogFile
 	DefaultProcessAgentLogFile  = pkgconfigsetup.DefaultProcessAgentLogFile
 	DefaultDDAgentBin           = pkgconfigsetup.DefaultDDAgentBin

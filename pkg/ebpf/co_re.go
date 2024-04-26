@@ -49,11 +49,11 @@ func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.A
 		c.reportTelemetry(base, result)
 	}()
 
-	btfData, result, err := c.btfLoader.Get()
+	ret, result, err := c.btfLoader.Get()
 	if err != nil {
 		return fmt.Errorf("BTF load: %w", err)
 	}
-	if btfData == nil {
+	if ret == nil {
 		return fmt.Errorf("no BTF data")
 	}
 
@@ -65,9 +65,10 @@ func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.A
 	defer buf.Close()
 
 	opts := manager.Options{
+		KernelModuleBTFLoadFunc: ret.moduleLoadFunc,
 		VerifierOptions: bpflib.CollectionOptions{
 			Programs: bpflib.ProgramOptions{
-				KernelTypes: btfData,
+				KernelTypes: ret.vmlinux,
 				LogSize:     10 * 1024 * 1024,
 			},
 		},
@@ -108,7 +109,7 @@ func (c *coreAssetLoader) reportTelemetry(assetName string, result ebpftelemetry
 
 	// capacity should match number of tags
 	tags := make([]string, 0, 6)
-	tags = append(tags, platform, platformVersion, kernelVersion, arch, assetName)
+	tags = append(tags, platform.String(), platformVersion, kernelVersion, arch, assetName)
 	if ebpftelemetry.BTFResult(result) < ebpftelemetry.BtfNotFound {
 		switch ebpftelemetry.BTFResult(result) {
 		case ebpftelemetry.SuccessCustomBTF:

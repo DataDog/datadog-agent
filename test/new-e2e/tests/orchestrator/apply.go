@@ -9,7 +9,7 @@ import (
 	_ "embed"
 	"fmt"
 
-	"github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes"
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/test-infra-definitions/common/utils"
@@ -62,7 +62,12 @@ func createCluster(ctx *pulumi.Context) (*resAws.Environment, *localKubernetes.C
 		return nil, nil, nil, err
 	}
 
-	kindCluster, err := localKubernetes.NewKindCluster(*awsEnv.CommonEnvironment, vm, awsEnv.CommonNamer.ResourceName("kind"), "kind", awsEnv.KubernetesVersion())
+	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, vm)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	kindCluster, err := localKubernetes.NewKindCluster(*awsEnv.CommonEnvironment, vm, awsEnv.CommonNamer.ResourceName("kind"), "kind", awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	if err != nil {
 		return nil, nil, nil, err
 	}

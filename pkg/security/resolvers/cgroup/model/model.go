@@ -60,6 +60,14 @@ func (ws WorkloadSelector) String() string {
 	return fmt.Sprintf("[image_name:%s image_tag:%s]", ws.Image, ws.Tag)
 }
 
+// ToTags returns a string array representation of a workload selector
+func (ws WorkloadSelector) ToTags() []string {
+	return []string{
+		"image_name:" + ws.Image,
+		"image_tag:" + ws.Tag,
+	}
+}
+
 // CacheEntry cgroup resolver cache entry
 type CacheEntry struct {
 	model.ContainerContext

@@ -17,6 +17,7 @@ The `Set` method from the component allows the rest of the codebase to add any i
 The payload is a JSON dict with the following fields
 
 - `hostname` - **string**: the hostname of the agent as shown on the status page.
+- `uuid` - **string**: a unique identifier of the agent, used in case the hostname is empty.
 - `timestamp` - **int**: the timestamp when the payload was created.
 - `host_metadata` - **dict of string to JSON type**:
   - `cpu_cores` - **int**: the number of core for the host.

@@ -52,6 +52,7 @@ func tracegenUDSCommands(service string) (string, string) {
 		" -v /var/run/datadog/:/var/run/datadog/ " +
 		" -e DD_TRACE_AGENT_URL=unix:///var/run/datadog/apm.socket " +
 		" -e DD_SERVICE=" + service +
+		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
 		" ghcr.io/datadog/apps-tracegen:main"
 	rm := "docker rm -f " + service
 	return run, rm
@@ -61,6 +62,7 @@ func tracegenTCPCommands(service string) (string, string) {
 	// TODO: use a proper docker-compose definition for tracegen
 	run := "docker run -d --network host --rm --name " + service +
 		" -e DD_SERVICE=" + service +
+		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
 		" ghcr.io/datadog/apps-tracegen:main"
 	rm := "docker rm -f " + service
 	return run, rm

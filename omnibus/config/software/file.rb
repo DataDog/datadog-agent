@@ -34,8 +34,6 @@ relative_path "file-#{version}"
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
-  env["CC"] = "/opt/gcc-#{ENV['GCC_VERSION']}/bin/gcc"
-
   configure_options = []
   configure(*configure_options, env: env)
 

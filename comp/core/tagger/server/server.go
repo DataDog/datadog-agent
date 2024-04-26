@@ -60,7 +60,12 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 	defer ticker.Stop()
 	for {
 		select {
-		case events := <-eventCh:
+		case events, ok := <-eventCh:
+			if !ok {
+				log.Warnf("subscriber channel closed, client will reconnect")
+				return fmt.Errorf("subscriber channel closed")
+			}
+
 			ticker.Reset(streamKeepAliveInterval)
 
 			responseEvents := make([]*pb.StreamTagsEvent, 0, len(events))
