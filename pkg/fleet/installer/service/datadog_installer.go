@@ -9,6 +9,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -92,7 +93,9 @@ func SetupInstaller(ctx context.Context) (err error) {
 
 	// Create installer path symlink
 	err = os.Symlink("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "/usr/bin/datadog-installer")
-	if err != nil {
+	if err != nil && errors.Is(err, os.ErrExist) {
+		log.Info("Installer symlink already exists, skipping")
+	} else if err != nil {
 		return fmt.Errorf("error creating symlink to /usr/bin/datadog-installer: %w", err)
 	}
 
