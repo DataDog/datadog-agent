@@ -23,11 +23,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
-	"github.com/DataDog/datadog-agent/comp/logs"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
+	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
@@ -105,7 +105,7 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 			// TODO configure the log level from collector config
 			return corelogimpl.ForOneShot(params.LoggerName, "debug", true)
 		}),
-		logs.Bundle(),
+		logsagentpipelineimpl.Module(),
 		// We create strategy.ZlibStrategy directly to avoid build tags
 		fx.Provide(strategy.NewZlibStrategy),
 		fx.Provide(func(s *strategy.ZlibStrategy) compression.Component {
@@ -126,7 +126,7 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 			return defaultforwarder.Forwarder(c), nil
 		}),
 		fx.Provide(newOrchestratorinterfaceimpl),
-		fx.Invoke(func(_ collector.Component, _ defaultforwarder.Forwarder, _ optional.Option[logsAgent.Component]) {
+		fx.Invoke(func(_ collector.Component, _ defaultforwarder.Forwarder, _ optional.Option[logsagentpipeline.Component]) {
 		}),
 	)
 	if err != nil {

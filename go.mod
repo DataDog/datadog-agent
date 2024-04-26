@@ -39,6 +39,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ./comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ./comp/otelcol/collector-contrib/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ./comp/otelcol/collector-contrib/impl
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ./comp/otelcol/logsagentpipeline
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ./comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ./comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ./comp/otelcol/otlp/components/exporter/serializerexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
@@ -616,6 +618,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.53.0-rc.2
@@ -844,7 +848,7 @@ require (
 	github.com/grobie/gomemcache v0.0.0-20230213081705-239240bbc445 // indirect
 	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
 	github.com/hashicorp/cronexpr v1.1.2 // indirect
-	github.com/hashicorp/go-getter v1.7.3 // indirect
+	github.com/hashicorp/go-getter v1.7.4 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.5 // indirect
 	github.com/hashicorp/go-safetemp v1.0.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect

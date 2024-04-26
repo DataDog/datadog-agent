@@ -85,6 +85,9 @@ shared_examples "passes" do |bundle, env|
       elsif bundle == "ebpfless"
         testsuite_args.concat(["-trace"])
         output_line_tag = "el"
+      elsif bundle == "ebpfless-no-seccomp"
+        testsuite_args.concat(["-trace", "-disable-seccomp"])
+        output_line_tag = "el"
       else
         output_line_tag = "h"
       end
@@ -155,6 +158,11 @@ describe "security-agent" do
     context 'ebpfless functional tests' do
       env = {}
       include_examples "passes", "ebpfless", env
+    end
+  when "ebpfless-no-seccomp"
+    context 'ebpfless functional tests without seccomp' do
+      env = {}
+      include_examples "passes", "ebpfless-no-seccomp", env
     end
   else
     raise "no CWS platform provided"

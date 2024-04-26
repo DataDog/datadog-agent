@@ -346,11 +346,17 @@ into the agent components.
 
 Package collector implements the OpenTelemetry Collector component.
 
+<<<<<<< HEAD
 ### [comp/otelcol/collector-contrib](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib)
 
 *Datadog Team*: opentelemetry
 
 Package collectorcontrib defines the OTel collector-contrib component
+=======
+### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
+
+Package logsagentpipeline contains logs agent pipeline component
+>>>>>>> stanley.liu/logsagentpipeline
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 
@@ -433,9 +439,9 @@ Package remoteconfig defines the fx options for the Bundle
 
 Package rcservice is a remote config service that can run within the agent to receive remote config updates from the DD backend.
 
-### [comp/remote-config/rcserviceha](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha)
+### [comp/remote-config/rcservicemrf](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf)
 
-Package rcserviceha is a remote config service that can run in the Agent to receive remote config updates from the DD failover DC backend.
+Package rcservicemrf is a remote config service that can run in the Agent to receive remote config updates from the DD failover DC backend.
 
 ### [comp/remote-config/rcstatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcstatus)
 

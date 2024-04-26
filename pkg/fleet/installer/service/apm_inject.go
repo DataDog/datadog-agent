@@ -50,15 +50,13 @@ func SetupAPMInjector(ctx context.Context) error {
 }
 
 // RemoveAPMInjector removes the APM injector
-func RemoveAPMInjector(ctx context.Context) error {
+func RemoveAPMInjector(ctx context.Context) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "remove_injector")
-	var err error
-	defer span.Finish(tracer.WithError(err))
+	defer span.Finish()
 	installer := &apmInjectorInstaller{
 		installPath: "/opt/datadog-packages/datadog-apm-inject/stable",
 	}
-	err = installer.Remove(ctx)
-	return err
+	installer.Remove(ctx)
 }
 
 type apmInjectorInstaller struct {
@@ -70,10 +68,7 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	var err error
 	defer func() {
 		if err != nil {
-			removeErr := a.Remove(ctx)
-			if removeErr != nil {
-				log.Warnf("Failed to remove APM injector: %v", removeErr)
-			}
+			a.Remove(ctx)
 		}
 	}()
 	if err := a.setAgentConfig(ctx); err != nil {
@@ -91,17 +86,16 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	return nil
 }
 
-func (a *apmInjectorInstaller) Remove(ctx context.Context) error {
+func (a *apmInjectorInstaller) Remove(ctx context.Context) {
 	if err := a.deleteAgentConfig(ctx); err != nil {
-		return err
+		log.Warnf("Failed to remove agent config: %v", err)
 	}
 	if err := a.deleteLDPreloadConfig(ctx); err != nil {
-		return err
+		log.Warnf("Failed to remove ld preload config: %v", err)
 	}
 	if err := a.deleteDockerConfig(ctx); err != nil {
-		return err
+		log.Warnf("Failed to remove docker config: %v", err)
 	}
-	return nil
 }
 
 func (a *apmInjectorInstaller) setRunPermissions() error {

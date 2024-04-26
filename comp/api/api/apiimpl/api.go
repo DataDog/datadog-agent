@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -61,7 +61,7 @@ type apiServer struct {
 	statusComponent       status.Component
 	eventPlatformReceiver eventplatformreceiver.Component
 	rcService             optional.Option[rcservice.Component]
-	rcServiceHA           optional.Option[rcserviceha.Component]
+	rcServiceMRF          optional.Option[rcservicemrf.Component]
 	authToken             authtoken.Component
 	gui                   optional.Option[gui.Component]
 	settings              settings.Component
@@ -85,7 +85,7 @@ type dependencies struct {
 	StatusComponent       status.Component
 	EventPlatformReceiver eventplatformreceiver.Component
 	RcService             optional.Option[rcservice.Component]
-	RcServiceHA           optional.Option[rcserviceha.Component]
+	RcServiceMRF          optional.Option[rcservicemrf.Component]
 	AuthToken             authtoken.Component
 	Gui                   optional.Option[gui.Component]
 	Settings              settings.Component
@@ -110,7 +110,7 @@ func newAPIServer(deps dependencies) api.Component {
 		statusComponent:       deps.StatusComponent,
 		eventPlatformReceiver: deps.EventPlatformReceiver,
 		rcService:             deps.RcService,
-		rcServiceHA:           deps.RcServiceHA,
+		rcServiceMRF:          deps.RcServiceMRF,
 		authToken:             deps.AuthToken,
 		gui:                   deps.Gui,
 		settings:              deps.Settings,
@@ -128,7 +128,7 @@ func (server *apiServer) StartServer(
 	collector optional.Option[collector.Component],
 ) error {
 	return StartServers(server.rcService,
-		server.rcServiceHA,
+		server.rcServiceMRF,
 		server.dogstatsdServer,
 		server.capture,
 		server.pidMap,
