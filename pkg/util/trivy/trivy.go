@@ -249,13 +249,13 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 	}
 
 	if c.config.overlayFSSupport && fanalImage.inspect.GraphDriver.Name == "overlay2" {
-		return c.scanOverlayFS(ctx, fanalImage, scanOptions)
+		return c.scanOverlayFS(ctx, fanalImage, imgMeta, scanOptions)
 	}
 
 	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
 }
 
-func (c *Collector) scanOverlayFS(ctx context.Context, fanalImage *image, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+func (c *Collector) scanOverlayFS(ctx context.Context, fanalImage *image, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	var layers []string
 	if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["LowerDir"]; ok {
 		layers = append(layers, strings.Split(layerDirs, ":")...)
@@ -266,7 +266,7 @@ func (c *Collector) scanOverlayFS(ctx context.Context, fanalImage *image, scanOp
 	}
 
 	fs := NewFS(layers)
-	report, err := c.scanFilesystem(ctx, fs, ".", nil, scanOptions)
+	report, err := c.scanFilesystem(ctx, fs, ".", imgMeta, scanOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +285,7 @@ func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 	}
 
 	if c.config.overlayFSSupport && fanalImage.inspect.GraphDriver.Name == "overlay2" {
-		return c.scanOverlayFS(ctx, fanalImage, scanOptions)
+		return c.scanOverlayFS(ctx, fanalImage, imgMeta, scanOptions)
 	}
 
 	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
