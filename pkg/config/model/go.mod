@@ -9,8 +9,8 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0-rc.1
-	github.com/DataDog/viper v1.13.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
+	github.com/DataDog/viper v1.13.3-0.20240426134232-ad820bb7e16d
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/spf13/afero v1.1.2
 	github.com/spf13/pflag v1.0.3

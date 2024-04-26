@@ -59,26 +59,26 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.54.0-rc.1 // indirect
-	github.com/DataDog/viper v1.13.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2 // indirect
+	github.com/DataDog/viper v1.13.3-0.20240426134232-ad820bb7e16d // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect

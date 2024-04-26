@@ -44,16 +44,16 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.54.0-rc.1 // indirect
-	github.com/DataDog/viper v1.13.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
+	github.com/DataDog/viper v1.13.3-0.20240426134232-ad820bb7e16d // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
