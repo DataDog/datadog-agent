@@ -12,7 +12,7 @@ from tasks.libs.common.omnibus import (
     send_cache_miss_event,
     should_retry_bundle_install,
 )
-from tasks.libs.common.utils import get_version, load_release_versions, timed
+from tasks.libs.common.utils import get_version, load_release_versions, timed, collapsed_section
 from tasks.ssm import get_pfx_pass, get_signing_cert
 
 
@@ -64,13 +64,14 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
         if gem_path:
             cmd += f" --path {gem_path}"
 
-        for trial in range(max_try):
-            res = ctx.run(cmd, env=env, warn=True)
-            if res.ok:
-                return
-            if not should_retry_bundle_install(res):
-                return
-            print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
+        with collapsed_section("Bundle install omnibus"):
+            for trial in range(max_try):
+                res = ctx.run(cmd, env=env, warn=True, err_stream=sys.stdout)
+                if res.ok:
+                    return
+                if not should_retry_bundle_install(res):
+                    return
+                print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
 
 
 def get_omnibus_env(
