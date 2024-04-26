@@ -42,6 +42,8 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/leases"
 	"github.com/docker/docker/client"
 
 	// This is required to load sqlite based RPM databases
@@ -285,7 +287,30 @@ func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 	}
 
 	if c.config.overlayFSSupport && fanalImage.inspect.GraphDriver.Name == "overlay2" {
-		return c.scanOverlayFS(ctx, fanalImage, imgMeta, scanOptions)
+		// Computing duration of containerd lease
+		deadline, _ := ctx.Deadline()
+		expiration := deadline.Sub(time.Now().Add(cleanupTimeout))
+
+		clClient := client.RawClient()
+
+		imageID := imgMeta.ID
+
+		// Adding a lease to cleanup dandling snaphots at expiration
+		ctx, done, err := clClient.WithLease(ctx,
+			leases.WithID(imageID),
+			leases.WithExpiration(expiration),
+		)
+		if err != nil && !errdefs.IsAlreadyExists(err) {
+			return nil, fmt.Errorf("unable to get a lease, err: %w", err)
+		}
+
+		report, err := c.scanOverlayFS(ctx, fanalImage, imgMeta, scanOptions)
+
+		if err := done(ctx); err != nil {
+			log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
+		}
+
+		return report, err
 	}
 
 	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
