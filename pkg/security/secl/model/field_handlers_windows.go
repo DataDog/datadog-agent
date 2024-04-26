@@ -93,6 +93,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.RenameFile.New)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.RenameFile.New)
 	case "set_key_value":
+	case "write":
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.WriteFile.File)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.WriteFile.File)
 	}
 }
 

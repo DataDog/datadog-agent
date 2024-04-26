@@ -23,6 +23,10 @@ func init() {
 					Field:     "delete.file.path",
 					EventType: "delete",
 				},
+				{
+					Field:     "write.file.path",
+					EventType: "write",
+				},
 			},
 			FinalField:     "create.file.path",
 			FinalEventType: "create",
@@ -40,6 +44,10 @@ func init() {
 				{
 					Field:     "delete.file.name",
 					EventType: "delete",
+				},
+				{
+					Field:     "write.file.name",
+					EventType: "write",
 				},
 			},
 			FinalField:     "create.file.name",

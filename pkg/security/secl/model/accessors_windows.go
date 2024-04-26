@@ -31,6 +31,7 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("open_key"),
 		eval.EventType("rename"),
 		eval.EventType("set_key_value"),
+		eval.EventType("write"),
 	}
 }
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
@@ -1429,6 +1430,46 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "write.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.WriteFile.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "write.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.WriteFile.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "write.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.WriteFile.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "write.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.WriteFile.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	}
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
@@ -1562,6 +1603,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"set_key_value.registry.value_name",
 		"set_key_value.registry.value_name.length",
 		"set_key_value.value_name",
+		"write.file.name",
+		"write.file.name.length",
+		"write.file.path",
+		"write.file.path.length",
 	}
 }
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
@@ -1985,6 +2030,14 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return len(ev.SetRegistryKeyValue.ValueName), nil
 	case "set_key_value.value_name":
 		return ev.SetRegistryKeyValue.ValueName, nil
+	case "write.file.name":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.WriteFile.File), nil
+	case "write.file.name.length":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.WriteFile.File), nil
+	case "write.file.path":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.WriteFile.File), nil
+	case "write.file.path.length":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.WriteFile.File), nil
 	}
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
@@ -2246,6 +2299,14 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "set_key_value", nil
 	case "set_key_value.value_name":
 		return "set_key_value", nil
+	case "write.file.name":
+		return "write", nil
+	case "write.file.name.length":
+		return "write", nil
+	case "write.file.path":
+		return "write", nil
+	case "write.file.path.length":
+		return "write", nil
 	}
 	return "", &eval.ErrFieldNotFound{Field: field}
 }
@@ -2507,6 +2568,14 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "set_key_value.value_name":
 		return reflect.String, nil
+	case "write.file.name":
+		return reflect.String, nil
+	case "write.file.name.length":
+		return reflect.Int, nil
+	case "write.file.path":
+		return reflect.String, nil
+	case "write.file.path.length":
+		return reflect.Int, nil
 	}
 	return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
 }
@@ -3543,6 +3612,24 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.SetRegistryKeyValue.ValueName = rv
 		return nil
+	case "write.file.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "WriteFile.File.BasenameStr"}
+		}
+		ev.WriteFile.File.BasenameStr = rv
+		return nil
+	case "write.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "write.file.name.length"}
+	case "write.file.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "WriteFile.File.PathnameStr"}
+		}
+		ev.WriteFile.File.PathnameStr = rv
+		return nil
+	case "write.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "write.file.path.length"}
 	}
 	return &eval.ErrFieldNotFound{Field: field}
 }

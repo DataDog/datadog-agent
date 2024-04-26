@@ -591,6 +591,15 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 				BasenameStr: filepath.Base(arg.fileName),
 			},
 		}
+	case *writeArgs:
+		ev.Type = uint32(model.WriteFileEventType)
+		ev.WriteFile = model.WriteFileEvent{
+			File: model.FileEvent{
+				FileObject:  uint64(arg.fileObject),
+				PathnameStr: arg.fileName,
+				BasenameStr: filepath.Base(arg.fileName),
+			},
+		}
 
 	case *createKeyArgs:
 		ev.Type = uint32(model.CreateRegistryKeyEventType)
