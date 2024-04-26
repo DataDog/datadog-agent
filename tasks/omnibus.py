@@ -262,13 +262,26 @@ def build(
             with timed(quiet=True) as restore_cache:
                 # Allow failure in case the cache was evicted
                 if ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
-                    print(f'Successfully restored cache {cache_key}')
-                    ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}")
-                    cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
+                    if ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}", warn=True):
+                        print(f'Successfully restored cache {cache_key}')
+                        cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
+                    else:
+                        print(f'Cache {cache_key} appears to be corrupted. Discarding and rebuilding.')
+                        send_cache_miss_event(
+                            ctx,
+                            os.environ.get('CI_PIPELINE_ID'),
+                            remote_cache_name,
+                            os.environ.get('CI_JOB_ID'),
+                            "corrupted",
+                        )
                 else:
                     print(f'Failed to restore cache from key {cache_key}')
                     send_cache_miss_event(
-                        ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
+                        ctx,
+                        os.environ.get('CI_PIPELINE_ID'),
+                        remote_cache_name,
+                        os.environ.get('CI_JOB_ID'),
+                        "not-found",
                     )
 
     with timed(quiet=True) as omnibus_elapsed:
