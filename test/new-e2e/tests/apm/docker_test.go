@@ -173,6 +173,7 @@ func (s *DockerFakeintakeSuite) TestBasicTrace() {
 }
 
 func (s *DockerFakeintakeSuite) TestProbabilitySampler() {
+	s.T().Skip("Flaky because of a weird error on docker-compose up")
 	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithAgentOptions(
 		append(dockerAgentOptions(s.transport),
 			dockeragentparams.WithAgentServiceEnvVariable(
