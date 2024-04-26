@@ -272,13 +272,13 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 
 	for domain, resolver := range options.DomainResolvers {
-		isHA := false
-		if config.GetBool("ha.enabled") && config.GetString("ha.site") != "" {
-			log.Infof("HA is enabled, checking site: %v ", config.GetString("ha.site"))
-			siteURL := utils.BuildURLWithPrefix(utils.InfraURLPrefix, config.GetString("ha.site"))
+		isMRF := false
+		if config.GetBool("multi_region_failover.enabled") && config.GetString("multi_region_failover.site") != "" {
+			log.Infof("MRF is enabled, checking site: %v ", config.GetString("multi_region_failover.site"))
+			siteURL := utils.BuildURLWithPrefix(utils.InfraURLPrefix, config.GetString("multi_region_failover.site"))
 			if domain == siteURL {
-				log.Infof("HA domain '%s', configured ", domain)
-				isHA = true
+				log.Infof("MRF domain '%s', configured ", domain)
+				isMRF = true
 			}
 
 		}
@@ -311,7 +311,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				config,
 				log,
 				domain,
-				isHA,
+				isMRF,
 				transactionContainer,
 				options.NumberOfWorkers,
 				options.ConnectionResetInterval,

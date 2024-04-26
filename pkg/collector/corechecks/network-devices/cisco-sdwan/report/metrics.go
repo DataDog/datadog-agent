@@ -106,8 +106,8 @@ func (ms *SDWanSender) SendInterfaceMetrics(interfaceStats []client.InterfaceSta
 
 		ms.countWithTimestamp(ciscoSDWANMetricPrefix+"interface.tx_bits", entry.TxOctets*8, tags, ts)
 		ms.countWithTimestamp(ciscoSDWANMetricPrefix+"interface.rx_bits", entry.RxOctets*8, tags, ts)
-		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"interface.rx_kbps", entry.RxKbps, tags, ts)
-		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"interface.tx_kbps", entry.TxKbps, tags, ts)
+		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"interface.rx_bps", entry.RxKbps*1000, tags, ts)
+		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"interface.tx_bps", entry.TxKbps*1000, tags, ts)
 		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"interface.rx_bandwidth_usage", entry.DownCapacityPercentage, tags, ts)
 		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"interface.tx_bandwidth_usage", entry.UpCapacityPercentage, tags, ts)
 		ms.countWithTimestamp(ciscoSDWANMetricPrefix+"interface.rx_errors", entry.RxErrors, tags, ts)

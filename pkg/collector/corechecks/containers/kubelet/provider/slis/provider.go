@@ -21,7 +21,7 @@ import (
 	"github.com/samber/lo"
 )
 
-// Provider provides the metrics related to data collected from the `/metrics/probes` Kubelet endpoint
+// Provider provides the metrics related to data collected from the `/metrics/slis` Kubelet endpoint
 type Provider struct {
 	filter *containers.Filter
 	store  workloadmeta.Component
@@ -39,7 +39,7 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 		"kubernetes_healthchecks_total": provider.sliHealthCheck,
 	}
 
-	scraperConfig := &prometheus.ScraperConfig{AllowNotFound: true}
+	scraperConfig := &prometheus.ScraperConfig{AllowNotFound: true, ShouldDisable: true}
 	if config.SlisMetricsEndpoint == nil || *config.SlisMetricsEndpoint != "" {
 		scraperConfig.Path = "/metrics/slis"
 	}

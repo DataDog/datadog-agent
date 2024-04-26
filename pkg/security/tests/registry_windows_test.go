@@ -30,11 +30,11 @@ import (
 func TestBasicRegistryTestPowershell(t *testing.T) {
 	openDef := &rules.RuleDefinition{
 		ID:         "test_open_rule",
-		Expression: `open.registry.key_path == "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`,
+		Expression: `open.registry.key_path == "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"`,
 	}
 	createDef := &rules.RuleDefinition{
 		ID:         "test_create_rule",
-		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`,
+		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"`,
 	}
 
 	opts := testOpts{
@@ -69,7 +69,6 @@ func TestBasicRegistryTestPowershell(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, test.validateRegistryEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
-			t.Logf("event: %v", event)
 			assertFieldEqualCaseInsensitve(t, event, "open.registry.key_path", `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, "wrong registry key path")
 		}))
 	})
@@ -78,11 +77,11 @@ func TestBasicRegistryTestPowershell(t *testing.T) {
 func TestBasicRegistryTestRegExe(t *testing.T) {
 	openDef := &rules.RuleDefinition{
 		ID:         "test_open_rule",
-		Expression: `open.registry.key_path == "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`,
+		Expression: `open.registry.key_path == "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"`,
 	}
 	createDef := &rules.RuleDefinition{
 		ID:         "test_create_rule",
-		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`,
+		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"`,
 	}
 
 	opts := testOpts{
@@ -118,21 +117,6 @@ func TestBasicRegistryTestRegExe(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, test.validateRegistryEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
-			s := test.debugEvent(event)
-			t.Logf("event: %s", s)
-			assertFieldEqualCaseInsensitve(t, event, "create.registry.key_path", `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, "wrong registry key path")
-		}))
-	})
-	test.Run(t, "Test registry with API", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
-			key, _, err := registry.CreateKey(windows.HKEY_LOCAL_MACHINE, `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, windows.KEY_READ|windows.KEY_WRITE)
-			if err == nil {
-				defer key.Close()
-			}
-			return nil
-
-		}, test.validateRegistryEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
-			t.Logf("event: %v", event)
 			assertFieldEqualCaseInsensitve(t, event, "create.registry.key_path", `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, "wrong registry key path")
 		}))
 	})
@@ -141,11 +125,11 @@ func TestBasicRegistryTestRegExe(t *testing.T) {
 func TestBasicRegistryTestAPI(t *testing.T) {
 	openDef := &rules.RuleDefinition{
 		ID:         "test_open_rule",
-		Expression: `open.registry.key_path == "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`,
+		Expression: `open.registry.key_path == "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"`,
 	}
 	createDef := &rules.RuleDefinition{
 		ID:         "test_create_rule",
-		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`,
+		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run"`,
 	}
 
 	opts := testOpts{
@@ -171,7 +155,6 @@ func TestBasicRegistryTestAPI(t *testing.T) {
 			return nil
 
 		}, test.validateRegistryEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
-			t.Logf("event: %v", event)
 			assertFieldEqualCaseInsensitve(t, event, "create.registry.key_path", `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, "wrong registry key path")
 		}))
 	})

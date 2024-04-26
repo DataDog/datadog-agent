@@ -227,8 +227,8 @@ func TestLogsExporter(t *testing.T) {
 			params := exportertest.NewNopCreateSettings()
 			f := NewFactory(testChannel)
 			cfg := &Config{
-				otelSource:    tt.args.otelSource,
-				logSourceName: tt.args.logSourceName,
+				OtelSource:    tt.args.otelSource,
+				LogSourceName: tt.args.logSourceName,
 			}
 			ctx := context.Background()
 			exp, err := f.CreateLogsExporter(ctx, params, cfg)
