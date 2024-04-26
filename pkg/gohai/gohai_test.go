@@ -14,7 +14,7 @@ import (
 func TestGetPayload(t *testing.T) {
 	gohai := GetPayload(false)
 
-	assert.Nil(t, gohai.Gohai.CPU)
+	assert.NotNil(t, gohai.Gohai.CPU)
 	assert.NotNil(t, gohai.Gohai.FileSystem)
 	assert.NotNil(t, gohai.Gohai.Memory)
 	assert.NotNil(t, gohai.Gohai.Network)
