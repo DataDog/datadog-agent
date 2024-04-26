@@ -225,6 +225,7 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data["config_process_dd_url"] = scrub(ia.conf.GetString("process_config.process_dd_url"))
 	ia.data["config_proxy_http"] = scrub(ia.conf.GetString("proxy.http"))
 	ia.data["config_proxy_https"] = scrub(ia.conf.GetString("proxy.https"))
+	ia.data["config_eks_fargate"] = ia.conf.GetBool("eks_fargate")
 	ia.data["feature_fips_enabled"] = ia.conf.GetBool("fips.enabled")
 	ia.data["feature_logs_enabled"] = ia.conf.GetBool("logs_enabled")
 	ia.data["feature_imdsv2_enabled"] = ia.conf.GetBool("ec2_prefer_imdsv2")
