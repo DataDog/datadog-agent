@@ -833,7 +833,7 @@ def images_matching_ci(ctx, domains):
 
         manifest_file = '.'.join(platinfo["image"].split('.')[:-2]) + ".manifest"
 
-        if not os.path.exists(f"{kmt_os.rootfs_dir / manifest_file}"):
+        if not (kmt_os.rootfs_dir / manifest_file).exists():
             not_matches.append(platinfo["image"])
             continue
 
