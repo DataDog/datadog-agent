@@ -837,7 +837,7 @@ def images_matching_ci(ctx, domains):
             not_matches.append(platinfo["image"])
             continue
 
-        with open(f"{kmt_os.rootfs_dir / manifest_file}", 'r') as f:
+        with open(f"{kmt_os.rootfs_dir / manifest_file}") as f:
             for line in f:
                 key, value = line.strip().split('=',1)
                 if key != "COMMIT":

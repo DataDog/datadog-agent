@@ -4,7 +4,6 @@ import os
 import platform
 import tempfile
 from typing import TYPE_CHECKING
-from pathlib import Path
 
 from invoke.context import Context
 
