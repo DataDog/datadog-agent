@@ -266,7 +266,7 @@ def assign_team_label(_, pr_id=-1):
 
 def _assign_pr_team_labels(gh, pr_id, teams):
     """
-    Assign team labels (team/team-name) for each team (@dataog/team-name)
+    Assign team labels (team/team-name) for each team (@datadog/team-name)
     """
     import github
 
