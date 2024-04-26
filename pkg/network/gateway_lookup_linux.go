@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux || linux_bpf
 
-package tracer
+package network
 
 import (
 	"context"
@@ -18,8 +18,7 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -27,9 +26,9 @@ import (
 )
 
 const (
-	maxRouteCacheSize       = uint32(math.MaxUint32)
-	maxSubnetCacheSize      = 1024
-	gatewayLookupModuleName = "network_tracer__gateway_lookup"
+	defaultMaxRouteCacheSize  = uint32(math.MaxUint32)
+	defaultMaxSubnetCacheSize = 1024
+	gatewayLookupModuleName   = "network__gateway_lookup"
 )
 
 // Telemetry
@@ -47,71 +46,83 @@ var gatewayLookupTelemetry = struct {
 	telemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_lookup_errors", []string{"reason"}, "Counter measuring the number of subnet lookup errors"),
 }
 
+// gatewayLookup implements a gateway lookup
+// functionality for linux
 type gatewayLookup struct {
-	procRoot            string
-	rootNetNs           netns.NsHandle
-	routeCache          network.RouteCache
-	subnetCache         *simplelru.LRU[int, interface{}] // interface index to subnet cache
-	subnetForHwAddrFunc func(net.HardwareAddr) (network.Subnet, error)
+	rootNetNs   netns.NsHandle
+	routeCache  RouteCache
+	subnetCache *simplelru.LRU[int, interface{}] // interface index to subnet cache
 }
 
 type cloudProvider interface {
 	IsAWS() bool
 }
 
-var cloud cloudProvider
+// SubnetForHwAddrFunc is exported for tracer testing purposes
+var SubnetForHwAddrFunc func(net.HardwareAddr) (Subnet, error)
+
+// Cloud is exported for tracer testing purposes
+var Cloud cloudProvider
 
 func init() {
-	cloud = &cloudProviderImpl{}
+	Cloud = &cloudProviderImpl{}
+	SubnetForHwAddrFunc = ec2SubnetForHardwareAddr
 }
 
-func gwLookupEnabled(config *config.Config) bool {
+func gwLookupEnabled() bool {
 	// only enabled on AWS currently
-	return config.EnableGatewayLookup && cloud.IsAWS() && ddconfig.IsCloudProviderEnabled(ec2.CloudProviderName)
+	return Cloud.IsAWS() && ddconfig.IsCloudProviderEnabled(ec2.CloudProviderName)
 }
 
-func newGatewayLookup(config *config.Config) *gatewayLookup {
-	if !gwLookupEnabled(config) {
+// NewGatewayLookup creates a new instance of a gateway lookup using
+// a given root network namespace and a size for the route cache
+func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32) GatewayLookup {
+	if !gwLookupEnabled() {
 		return nil
 	}
 
-	ns, err := config.GetRootNetNs()
+	rootNetNs, err := rootNsLookup()
 	if err != nil {
 		log.Errorf("could not create gateway lookup: %s", err)
 		return nil
 	}
 
 	gl := &gatewayLookup{
-		procRoot:            config.ProcRoot,
-		rootNetNs:           ns,
-		subnetForHwAddrFunc: ec2SubnetForHardwareAddr,
+		rootNetNs: rootNetNs,
 	}
 
-	router, err := network.NewNetlinkRouter(config)
+	router, err := NewNetlinkRouter(rootNetNs)
 	if err != nil {
 		log.Errorf("could not create gateway lookup: %s", err)
 		return nil
 	}
 
-	routeCacheSize := maxRouteCacheSize
-	if config.MaxTrackedConnections <= maxRouteCacheSize {
-		routeCacheSize = config.MaxTrackedConnections
+	routeCacheSize := defaultMaxRouteCacheSize
+	if maxRouteCacheSize <= routeCacheSize {
+		routeCacheSize = maxRouteCacheSize
 	} else {
-		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, config.MaxTrackedConnections)
+		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, defaultMaxRouteCacheSize)
 	}
 
-	gl.subnetCache, _ = simplelru.NewLRU[int, interface{}](maxSubnetCacheSize, nil)
-	gl.routeCache = network.NewRouteCache(int(routeCacheSize), router)
+	gl.subnetCache, _ = simplelru.NewLRU[int, interface{}](int(routeCacheSize), nil)
+	gl.routeCache = NewRouteCache(int(routeCacheSize), router)
 	return gl
 }
 
-func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
+// Lookup performs a gateway lookup for connection stats
+func (g *gatewayLookup) Lookup(cs *ConnectionStats) *Via {
 	dest := cs.Dest
 	if cs.IPTranslation != nil {
 		dest = cs.IPTranslation.ReplSrcIP
 	}
 
-	r, ok := g.routeCache.Get(cs.Source, dest, cs.NetNS)
+	return g.LookupWithIPs(cs.Source, dest, cs.NetNS)
+}
+
+// LookupWithIPs performs a gateway lookup given the
+// source, destination, and namespace
+func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, netns uint32) *Via {
+	r, ok := g.routeCache.Get(source, dest, netns)
 	if !ok {
 		return nil
 	}
@@ -127,7 +138,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 	if !ok {
 		gatewayLookupTelemetry.subnetCacheMisses.Inc()
 
-		var s network.Subnet
+		var s Subnet
 		var err error
 		err = kernel.WithNS(g.rootNetNs, func() error {
 			var ifi *net.Interface
@@ -148,7 +159,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 			}
 
 			gatewayLookupTelemetry.subnetLookups.Inc()
-			if s, err = g.subnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
+			if s, err = SubnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
 				log.Debugf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
 
 				// cache an empty result so that we don't keep hitting the
@@ -172,7 +183,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 			return nil
 		}
 
-		via := &network.Via{Subnet: s}
+		via := &Via{Subnet: s}
 		g.subnetCache.Add(r.IfIndex, via)
 		gatewayLookupTelemetry.subnetCacheSize.Inc()
 		v = via
@@ -187,13 +198,15 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 			gatewayLookupTelemetry.subnetCacheSize.Dec()
 		}
 		return nil
-	case *network.Via:
+	case *Via:
 		return cv
 	default:
 		return nil
 	}
 }
 
+// Close cleans up resources allocated
+// by this struct
 func (g *gatewayLookup) Close() {
 	g.rootNetNs.Close()
 	g.routeCache.Close()
@@ -205,13 +218,13 @@ func (g *gatewayLookup) purge() {
 	gatewayLookupTelemetry.subnetCacheSize.Set(0)
 }
 
-func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {
+func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (Subnet, error) {
 	snet, err := ec2.GetSubnetForHardwareAddr(context.TODO(), hwAddr)
 	if err != nil {
-		return network.Subnet{}, err
+		return Subnet{}, err
 	}
 
-	return network.Subnet{Alias: snet.ID}, nil
+	return Subnet{Alias: snet.ID}, nil
 }
 
 type cloudProviderImpl struct{}

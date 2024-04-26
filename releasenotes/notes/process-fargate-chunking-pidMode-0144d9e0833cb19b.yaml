@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+fixes:
   - |
-    Add ``serializer_compressor_kind`` config which supports zstd and zlib (default)
+    The Process Agent no longer crashes when pidMode is misconfigured on ECS Fargate. A warning is logged instead.
