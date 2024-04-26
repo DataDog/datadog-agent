@@ -44,8 +44,9 @@ type npSchedulerImpl struct {
 	epForwarder eventplatform.Component
 }
 
-func (s *npSchedulerImpl) Schedule(_ string, _ uint16) {
+func (s *npSchedulerImpl) Schedule(_ string, _ uint16) error {
 	// TODO: IMPLEMENTATION IN SEPARATE PR (to make PRs easier to review)
+	return nil
 }
 
 func newNpSchedulerImpl(epForwarder eventplatform.Component) *npSchedulerImpl {
