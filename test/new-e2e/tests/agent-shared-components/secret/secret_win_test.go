@@ -7,10 +7,10 @@
 package secret
 
 import (
-	_ "embed"
 	"testing"
 	"time"
 
+	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -26,33 +26,28 @@ type windowsRuntimeSecretSuite struct {
 }
 
 func TestWindowsRuntimeSecretSuite(t *testing.T) {
-	e2e.Run(t, &windowsRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &windowsRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-	)))
+	)), e2e.WithDevMode())
 }
 
-//go:embed fixtures/setup_secret.ps1
-var secretSetupScript []byte
-
 func (v *windowsRuntimeSecretSuite) TestSecretRuntimeAPIKey() {
-	config := `secret_backend_command: C:\TestFolder\secret.bat
+	config := `secret_backend_command: C:\TestFolder\wrapper.bat
 hostname: ENC[hostname]`
 
+	agentParams := []func(*agentparams.Params) error{
+		agentparams.WithAgentConfig(config),
+	}
+	agentParams = append(agentParams, secrets.WithWindowsSecretSetupScript("C:/TestFolder/wrapper.bat", false)...)
+
+	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, "C:/TestFolder")
+	secretClient.SetSecret("hostname", "e2e.test")
+
 	v.UpdateEnv(
-		awshost.Provisioner(
+		awshost.ProvisionerNoFakeIntake(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-			awshost.WithAgentOptions(
-				agentparams.WithFile(`C:/TestFolder/setup_secret.ps1`, string(secretSetupScript), true),
-			),
+			awshost.WithAgentOptions(agentParams...),
 		),
-	)
-
-	v.Env().RemoteHost.MustExecute(`C:/TestFolder/setup_secret.ps1 -FilePath "C:/TestFolder/secret.bat" -FileContent '@echo {"hostname": {"value": "e2e.test"}}'`)
-
-	v.UpdateEnv(
-		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-			awshost.WithAgentOptions(agentparams.WithAgentConfig(config))),
 	)
 
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {

@@ -7,7 +7,12 @@
 package secretsutils
 
 import (
+	"bytes"
 	_ "embed"
+	"fmt"
+	"html/template"
+	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -15,11 +20,11 @@ import (
 )
 
 //go:embed fixtures/secret-resolver.py
-var secretResolverScript []byte
+var secretResolverScript string
 
 // WithUnixSecretSetupScript returns an agent param that setups a secret resolver script with correct permissions.
 func WithUnixSecretSetupScript(path string, allowGroupExec bool) func(*agentparams.Params) error {
-	return agentparams.WithFileWithPermissions(path, string(secretResolverScript), true, WithUnixSecretPermissions(allowGroupExec))
+	return agentparams.WithFileWithPermissions(path, secretResolverScript, true, WithUnixSecretPermissions(allowGroupExec))
 }
 
 // WithUnixSecretPermissions returns an UnixPermissions object containing correct permissions for a secret backend script.
@@ -31,6 +36,32 @@ func WithUnixSecretPermissions(allowGroupExec bool) optional.Option[perms.FilePe
 	return perms.NewUnixPermissions(perms.WithPermissions("0700"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
 }
 
+//go:embed fixtures/secret_wrapper.bat
+var secretWrapperScript string
+
+// WithWindowsSecretSetupScript returns a list of agent params that setups a secret resolver script with correct permissions.
+func WithWindowsSecretSetupScript(wrapperPath string, allowGroupExec bool) []func(*agentparams.Params) error {
+	// On Windows we're using a wrapper around the python script because we can't execute python scripts directly
+	// (this would require modifying permissins of the python binary)
+	// Basically the setup looks like this:
+	// <path>/
+	// ├── secret.py
+	// └── secret_wrapper.bat (specific permissions)
+	if strings.Contains(wrapperPath, `\`) {
+		wrapperPath = strings.ReplaceAll(wrapperPath, `\`, `/`)
+	}
+
+	dir, _ := filepath.Split(wrapperPath)
+	pythonScriptPath := filepath.Join(dir, "secret.py")
+	secretWrapperContent := fillSecretWrapperTemplate(strings.ReplaceAll(pythonScriptPath, "/", "\\"))
+
+	fmt.Printf("Secret wrapper content: %s\n", secretWrapperContent)
+	return []func(*agentparams.Params) error{
+		agentparams.WithFileWithPermissions(wrapperPath, secretWrapperContent, true, WithWindowsSecretPermissions(allowGroupExec)),
+		agentparams.WithFile(pythonScriptPath, secretResolverScript, true),
+	}
+}
+
 // WithWindowsSecretPermissions returns a WindowsPermissions object containing correct permissions for a secret backend script.
 func WithWindowsSecretPermissions(allowGroupExec bool) optional.Option[perms.FilePermissions] {
 	icaclsCmd := `/grant "ddagentuser:(RX)"`
@@ -39,4 +70,24 @@ func WithWindowsSecretPermissions(allowGroupExec bool) optional.Option[perms.Fil
 	}
 
 	return perms.NewWindowsPermissions(perms.WithIcaclsCommand(icaclsCmd), perms.WithDisableInheritance())
+}
+
+// fillSecretWrapperTemplate fills the secret wrapper template with the correct path to the python script.
+func fillSecretWrapperTemplate(pythonScriptPath string) string {
+	var buffer bytes.Buffer
+	var templateVars = map[string]string{
+		"PythonScriptPath": pythonScriptPath,
+	}
+
+	tmpl, err := template.New("").Parse(secretWrapperScript)
+	if err != nil {
+		panic("Could not parse secret wrapper template")
+	}
+
+	err = tmpl.Execute(&buffer, templateVars)
+	if err != nil {
+		panic("Could not fill variables in secret wrapper template")
+	}
+
+	return buffer.String()
 }

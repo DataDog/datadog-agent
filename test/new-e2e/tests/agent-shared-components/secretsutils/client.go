@@ -31,6 +31,10 @@ func NewSecretClient(t *testing.T, host *components.RemoteHost, rootDir string) 
 
 // SetSecret creates a new file containing the secret value
 func (c *SecretClient) SetSecret(name string, value string) int64 {
+	// Create the root directory if it doesn't exist
+	err := c.host.MkdirAll(c.rootDir)
+	require.NoError(c.t, err)
+
 	fullpath := path.Join(c.rootDir, name)
 	b, err := c.host.WriteFile(fullpath, []byte(value))
 	require.NoError(c.t, err)
