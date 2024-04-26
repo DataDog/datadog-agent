@@ -38,6 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -47,10 +49,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -79,6 +83,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(),
 				forwarder.Bundle(),
 				fx.Provide(defaultforwarder.NewParamsWithResolvers),
+				compressionimpl.Module(),
 				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
@@ -95,9 +100,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(tagger.NewTaggerParams),
 				tagger.Module(),
 				collectorimpl.Module(),
+				fx.Provide(func() optional.Option[serializer.MetricSerializer] {
+					return optional.NewNoneOption[serializer.MetricSerializer]()
+				}),
 				// The cluster-agent-cloudfoundry agent do not have a status command
 				// so there is no need to initialize the status component
 				fx.Provide(func() status.Component { return nil }),
+				// The cluster-agent-cloudfoundry agent do not have settings that change are runtime
+				// still, we need to pass it to ensure the API server is proprely initialized
+				settingsimpl.Module(),
+				fx.Supply(settings.Params{}),
 				autodiscoveryimpl.Module(),
 				fx.Provide(func(config config.Component) healthprobe.Options {
 					return healthprobe.Options{
@@ -113,7 +125,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func run(log log.Component,
+func run(
+	config config.Component,
+	log log.Component,
 	taggerComp tagger.Component,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
@@ -122,6 +136,7 @@ func run(log log.Component,
 	collector collector.Component,
 	statusComponent status.Component,
 	_ healthprobe.Component,
+	settings settings.Component,
 ) error {
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
@@ -164,7 +179,7 @@ func run(log log.Component,
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver); err != nil {
+	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver, settings, config); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

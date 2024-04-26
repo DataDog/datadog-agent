@@ -21,10 +21,8 @@
     - echo -n "${CI_JOB_URL}" > $CI_PROJECT_DIR/test/kitchen/job_url.txt
     - kitchen_files=$(find $CI_PROJECT_DIR -name "kitchen-rspec-*.xml" -exec basename {} \;)
     - find $CI_PROJECT_DIR -name "kitchen-rspec-*.xml" -exec $CI_PROJECT_DIR/test/kitchen/tasks/kitchen_rspec_xml_update.sh {} "${CI_JOB_NAME}" \;
-    - tar -czvf kitchen-rspec-common-${CI_JOB_NAME}.tar.gz -C $CI_PROJECT_DIR/test/kitchen/ ./job_url.txt ./tags.txt $kitchen_files
-    # Upload generated junit files
-    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
-    - find . -maxdepth 1 -type f -name "kitchen-rspec-common-*.tar.gz" -exec inv -e junit-upload --tgz-path {} \;
+    - tar -czvf junit-${CI_JOB_NAME}.tgz -C $CI_PROJECT_DIR/test/kitchen/ ./job_url.txt ./tags.txt $kitchen_files
+    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
 
   artifacts:
     expire_in: 2 weeks
@@ -80,7 +78,7 @@
 .kitchen_agent_a6:
   extends: .kitchen_common_with_junit
   rules:
-    !reference [.on_kitchen_tests_a6]
+    !reference [.on_kitchen_tests]
   variables:
     AGENT_MAJOR_VERSION: 6
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -88,7 +86,7 @@
 .kitchen_agent_a7:
   extends: .kitchen_common_with_junit
   rules:
-    !reference [.on_kitchen_tests_a7]
+    !reference [.on_kitchen_tests]
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -114,10 +112,6 @@
   script:
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::7")
     - tasks/run-test-kitchen.sh upgrade7-test $AGENT_MAJOR_VERSION
-
-.kitchen_test_process_agent:
-  script:
-    - tasks/run-test-kitchen.sh process-agent-test $AGENT_MAJOR_VERSION
 
 # Kitchen: Agent flavor
 # -------------------------------

@@ -4,7 +4,7 @@
 
 # http://redsymbol.net/articles/unofficial-bash-strict-mode/
 IFS=$'\n\t'
-set -euxo pipefail
+set -euo pipefail
 
 # Ensure that the ssh key is never reused between tests
 if [ -f "$(pwd)/ssh-key" ]; then
@@ -86,7 +86,6 @@ if [ "$KITCHEN_PROVIDER" == "azure" ]; then
   # Create the Azure credentials file as requried by the kitchen-azurerm driver
   mkdir -p ~/.azure/
   (echo "<% subscription_id=\"$AZURE_SUBSCRIPTION_ID\"; client_id=\"$AZURE_CLIENT_ID\"; client_secret=\"$AZURE_CLIENT_SECRET\"; tenant_id=\"$AZURE_TENANT_ID\"; %>" && cat azure-creds.erb) | erb > ~/.azure/credentials
-  set -x
 
 elif [ "$KITCHEN_PROVIDER" == "ec2" ]; then
   echo "using ec2 kitchen provider"
@@ -104,7 +103,6 @@ elif [ "$KITCHEN_PROVIDER" == "ec2" ]; then
     touch $KITCHEN_EC2_SSH_KEY_PATH && chmod 600 $KITCHEN_EC2_SSH_KEY_PATH
     $PARENT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_EC2_SSH_KEY_SSM_NAME > $KITCHEN_EC2_SSH_KEY_PATH
   fi
-  set -x
 fi
 
 # Generate a password to use for the windows servers

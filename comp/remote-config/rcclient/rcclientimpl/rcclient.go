@@ -8,6 +8,8 @@
 package rcclientimpl
 
 import (
+	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -22,12 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Module defines the fx options for this component.
@@ -46,22 +47,26 @@ const (
 
 type rcClient struct {
 	client        *client.Client
-	clientHA      *client.Client
+	clientMRF     *client.Client
 	m             *sync.Mutex
 	taskProcessed map[string]bool
 
 	listeners []types.RCListener
 	// Tasks are separated from the other products, because they must be executed once
-	taskListeners []types.RCAgentTaskListener
+	taskListeners     []types.RCAgentTaskListener
+	settingsComponent settings.Component
 }
 
 type dependencies struct {
 	fx.In
 
 	Log log.Component
+	Lc  fx.Lifecycle
 
-	Listeners     []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
-	TaskListeners []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
+	Params            rcclient.Params             `optional:"true"`
+	Listeners         []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
+	TaskListeners     []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
+	SettingsComponent settings.Component
 }
 
 // newRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by
@@ -74,26 +79,34 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		return nil, err
 	}
 
+	if deps.Params.AgentName == "" || deps.Params.AgentVersion == "" {
+		return nil, fmt.Errorf("Remote config client is missing agent name or version parameter")
+	}
+
+	// Append client options
+	optsWithDefault := []func(*client.Options){
+		client.WithPollInterval(5 * time.Second),
+		client.WithAgent(deps.Params.AgentName, deps.Params.AgentVersion),
+	}
+
 	// We have to create the client in the constructor and set its name later
 	c, err := client.NewUnverifiedGRPCClient(
 		ipcAddress,
 		config.GetIPCPort(),
 		func() (string, error) { return security.FetchAuthToken(config.Datadog) },
-		client.WithAgent("unknown", version.AgentVersion),
-		client.WithPollInterval(5*time.Second),
+		optsWithDefault...,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	var clientHA *client.Client
-	if config.Datadog.GetBool("ha.enabled") {
-		clientHA, err = client.NewUnverifiedHAGRPCClient(
+	var clientMRF *client.Client
+	if config.Datadog.GetBool("multi_region_failover.enabled") {
+		clientMRF, err = client.NewUnverifiedMRFGRPCClient(
 			ipcAddress,
 			config.GetIPCPort(),
 			func() (string, error) { return security.FetchAuthToken(config.Datadog) },
-			client.WithAgent("unknown", version.AgentVersion), // We have to create the client in the constructor and set its name later
-			client.WithPollInterval(5*time.Second),
+			optsWithDefault...,
 		)
 		if err != nil {
 			return nil, err
@@ -101,20 +114,35 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	}
 
 	rc := rcClient{
-		listeners:     fxutil.GetAndFilterGroup(deps.Listeners),
-		taskListeners: fxutil.GetAndFilterGroup(deps.TaskListeners),
-		m:             &sync.Mutex{},
-		client:        c,
-		clientHA:      clientHA,
+		listeners:         fxutil.GetAndFilterGroup(deps.Listeners),
+		taskListeners:     fxutil.GetAndFilterGroup(deps.TaskListeners),
+		m:                 &sync.Mutex{},
+		client:            c,
+		clientMRF:         clientMRF,
+		settingsComponent: deps.SettingsComponent,
 	}
+
+	if config.IsRemoteConfigEnabled(config.Datadog) {
+		deps.Lc.Append(fx.Hook{
+			OnStart: func(context.Context) error {
+				rc.start()
+				return nil
+			},
+		})
+	}
+
+	deps.Lc.Append(fx.Hook{
+		OnStop: func(context.Context) error {
+			rc.client.Close()
+			return nil
+		},
+	})
 
 	return rc, nil
 }
 
 // Start subscribes to AGENT_CONFIG configurations and start the remote config client
-func (rc rcClient) Start(agentName string) error {
-	rc.client.SetAgentName(agentName)
-
+func (rc rcClient) start() {
 	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
 
 	// Register every product for every listener
@@ -126,58 +154,94 @@ func (rc rcClient) Start(agentName string) error {
 
 	rc.client.Start()
 
-	if rc.clientHA != nil {
-		rc.clientHA.SetAgentName(agentName)
-		rc.clientHA.Subscribe(state.ProductAgentFailover, rc.haUpdateCallback)
-		rc.clientHA.Start()
+	if rc.clientMRF != nil {
+		rc.clientMRF.Subscribe(state.ProductAgentFailover, rc.mrfUpdateCallback)
+		rc.clientMRF.Start()
 	}
-
-	return nil
 }
 
-func (rc rcClient) haUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	var failover *bool
+func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	// If the updates map is empty, we should unset the failover settings if they were set via RC previously
+	if len(updates) == 0 {
+		mrfFailoverMetricsSource := config.Datadog.GetSource("multi_region_failover.failover_metrics")
+		mrfFailoverLogsSource := config.Datadog.GetSource("multi_region_failover.failover_logs")
+
+		// Unset the RC-sourced failover values regardless of what they are
+		config.Datadog.UnsetForSource("multi_region_failover.failover_metrics", model.SourceRC)
+		config.Datadog.UnsetForSource("multi_region_failover.failover_logs", model.SourceRC)
+
+		// If either of the values were previously set via RC, log the current values now that we've unset them
+		if mrfFailoverMetricsSource == model.SourceRC {
+			pkglog.Infof("Falling back to `multi_region_failover.failover_metrics: %t`", config.Datadog.GetBool("multi_region_failover.failover_metrics"))
+		}
+		if mrfFailoverLogsSource == model.SourceRC {
+			pkglog.Infof("Falling back to `multi_region_failover.failover_logs: %t`", config.Datadog.GetBool("multi_region_failover.failover_logs"))
+		}
+		return
+	}
+
 	applied := false
 	for cfgPath, update := range updates {
-		haUpdate, err := parseHighAvailabilityConfig(update.Config)
+		mrfUpdate, err := parseMultiRegionFailoverConfig(update.Config)
 		if err != nil {
-			pkglog.Errorf("HA update unmarshal failed: %s", err)
+			pkglog.Errorf("Multi-Region Failover update unmarshal failed: %s", err)
+			applyStateCallback(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
 			continue
 		}
-		if haUpdate != nil && haUpdate.Failover != nil {
+
+		if mrfUpdate != nil && (mrfUpdate.FailoverMetrics != nil || mrfUpdate.FailoverLogs != nil) {
+			// If we've received multiple config files updating the failover settings, we should disregard all but the first update and log it, as this is unexpected
 			if applied {
-				pkglog.Infof("Multiple HA updates received, disregarding update of `ha.failover` to %t", *haUpdate.Failover)
-				continue
-			}
-			failover = haUpdate.Failover
-			pkglog.Infof("Setting `ha.failover: %t` through remote config", *failover)
-			err = settings.SetRuntimeSetting("ha.failover", *failover, model.SourceRC)
-			if err != nil {
-				pkglog.Errorf("HA failover update failed: %s", err)
+				pkglog.Warnf("Multiple Multi-Region Failover updates received, disregarding update of `multi_region_failover.failover_metrics` to %v and `multi_region_failover.failover_logs` to %v", mrfUpdate.FailoverMetrics, mrfUpdate.FailoverLogs)
 				applyStateCallback(cfgPath, state.ApplyStatus{
 					State: state.ApplyStateError,
-					Error: err.Error(),
+					Error: "Multiple Multi-Region Failover updates received. Only the first was applied.",
 				})
-			} else {
-				applied = true
-				applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+				continue
 			}
+
+			if mrfUpdate.FailoverMetrics != nil {
+				err = rc.applyMRFRuntimeSetting("multi_region_failover.failover_metrics", *mrfUpdate.FailoverMetrics, cfgPath, applyStateCallback)
+				if err != nil {
+					continue
+				}
+				change := "disabled"
+				if *mrfUpdate.FailoverMetrics {
+					change = "enabled"
+				}
+				pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for metrics", change)
+			}
+			if mrfUpdate.FailoverLogs != nil {
+				err = rc.applyMRFRuntimeSetting("multi_region_failover.failover_logs", *mrfUpdate.FailoverLogs, cfgPath, applyStateCallback)
+				if err != nil {
+					continue
+				}
+				change := "disabled"
+				if *mrfUpdate.FailoverLogs {
+					change = "enabled"
+				}
+				pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for logs", change)
+			}
+			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+			applied = true
 		}
 	}
+}
 
-	// Config update is nil, so we should unset the failover value if it was set via RC previously
-	if failover == nil {
-		// Determine the current source of the ha.failover cfg value
-		haCfgSource := config.Datadog.GetSource("ha.failover")
-
-		// Unset the RC-sourced ha.failover value regardless of what it is
-		config.Datadog.UnsetForSource("ha.failover", model.SourceRC)
-
-		// If the ha.failover value was previously set via RC, log the current value now that we've unset it
-		if haCfgSource == model.SourceRC {
-			pkglog.Infof("Falling back to `ha.failover: %t`", config.Datadog.GetBool("ha.failover"))
-		}
+func (rc rcClient) applyMRFRuntimeSetting(setting string, value bool, cfgPath string, applyStateCallback func(string, state.ApplyStatus)) error {
+	pkglog.Debugf("Setting `%s: %t` through remote config", setting, value)
+	err := rc.settingsComponent.SetRuntimeSetting(setting, value, model.SourceRC)
+	if err != nil {
+		pkglog.Errorf("Failed to set %s runtime setting to %t: %s", setting, value, err)
+		applyStateCallback(cfgPath, state.ApplyStatus{
+			State: state.ApplyStateError,
+			Error: err.Error(),
+		})
 	}
+	return err
 }
 
 func (rc rcClient) SubscribeAgentTask() {
@@ -213,7 +277,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		} else {
 			newLevel := mergedConfig.LogLevel
 			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
-			err = settings.SetRuntimeSetting("log_level", newLevel, model.SourceRC)
+			err = rc.settingsComponent.SetRuntimeSetting("log_level", newLevel, model.SourceRC)
 		}
 
 	case model.SourceCLI:
@@ -230,7 +294,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 
 		// Need to update the log level even if the level stays the same because we need to update the source
 		// Might be possible to add a check in deeper functions to avoid unnecessary work
-		err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC)
+		err = rc.settingsComponent.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC)
 	}
 
 	// Apply the new status to all configs

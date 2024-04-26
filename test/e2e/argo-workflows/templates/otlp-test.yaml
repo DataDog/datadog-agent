@@ -190,7 +190,7 @@ spec:
               parameters:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
-  
+
     - name: test
       inputs:
         parameters:
@@ -223,7 +223,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=otlp-sender -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} logs $po -c sender || true

@@ -304,7 +304,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           # Verify the DCA has written in the configmap
           until [[ -n $(kubectl --namespace {{inputs.parameters.namespace}} get cm datadog-custom-metrics -o jsonpath='{.data}') ]]; do
@@ -403,7 +402,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} describe hpa nginxext
 

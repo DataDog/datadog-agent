@@ -312,7 +312,6 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
-			originOptOutEnabled:       cfg.GetBool("dogstatsd_origin_optout_enabled"),
 		},
 		wmeta: wmeta,
 	}
@@ -479,7 +478,7 @@ func (s *server) stop(context.Context) error {
 		s.Statistics.Stop()
 	}
 	if s.tCapture != nil {
-		s.tCapture.Stop()
+		s.tCapture.StopCapture()
 	}
 	s.health.Deregister() //nolint:errcheck
 	s.Started = false

@@ -10,11 +10,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient"
-	"github.com/DataDog/datadog-agent/pkg/updater"
+	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module is the fx module for the updater local api client.
+// Module is the fx module for the installer local api client.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newLocalAPIClientComponent),
@@ -22,5 +22,5 @@ func Module() fxutil.Module {
 }
 
 func newLocalAPIClientComponent() localapiclient.Component {
-	return updater.NewLocalAPIClient()
+	return daemon.NewLocalAPIClient()
 }

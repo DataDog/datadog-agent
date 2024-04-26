@@ -106,11 +106,11 @@ func TestLowerCaseEquals(t *testing.T) {
 
 		e, err := CaseInsensitiveCmp.StringEquals(a, b, state)
 		assert.Empty(t, err)
-		assert.False(t, e.Eval(&ctx).(bool))
+		assert.True(t, e.Eval(&ctx).(bool))
 
 		e, err = CaseInsensitiveCmp.StringEquals(b, a, state)
 		assert.Empty(t, err)
-		assert.False(t, e.Eval(&ctx).(bool))
+		assert.True(t, e.Eval(&ctx).(bool))
 	})
 }
 
@@ -208,7 +208,7 @@ func TestLowerCaseContains(t *testing.T) {
 
 		e, err := CaseInsensitiveCmp.StringValuesContains(a, b, state)
 		assert.Empty(t, err)
-		assert.False(t, e.Eval(&ctx).(bool))
+		assert.True(t, e.Eval(&ctx).(bool))
 
 		values.AppendFieldValue(FieldValue{Value: "[Ff][Oo].*", Type: RegexpValueType})
 
@@ -234,8 +234,7 @@ func TestLowerCaseContains(t *testing.T) {
 		values.AppendFieldValue(FieldValue{Value: "fo*", Type: PatternValueType})
 
 		opts := StringCmpOpts{
-			ScalarCaseInsensitive:  true,
-			PatternCaseInsensitive: true,
+			CaseInsensitive: true,
 		}
 
 		if err := values.Compile(opts); err != nil {

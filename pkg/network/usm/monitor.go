@@ -139,7 +139,7 @@ func (m *Monitor) Start() error {
 	}
 
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
-	if m.cfg.EnableNativeTLSMonitoring || m.cfg.EnableGoTLSSupport || m.cfg.EnableJavaTLSSupport || m.cfg.EnableIstioMonitoring {
+	if m.cfg.EnableNativeTLSMonitoring || m.cfg.EnableGoTLSSupport || m.cfg.EnableJavaTLSSupport || m.cfg.EnableIstioMonitoring || m.cfg.EnableNodeJSMonitoring {
 		err = m.processMonitor.Initialize()
 	}
 

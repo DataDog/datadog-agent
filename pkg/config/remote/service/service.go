@@ -12,7 +12,6 @@ package service
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -36,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
@@ -157,6 +155,7 @@ func init() {
 }
 
 type options struct {
+	site                           string
 	rcKey                          string
 	apiKey                         string
 	traceAgentEnv                  string
@@ -198,13 +197,19 @@ func WithDatabaseFileName(fileName string) func(s *options) {
 }
 
 // WithConfigRootOverride sets the service config root override
-func WithConfigRootOverride(override string) func(s *options) {
-	return func(s *options) { s.configRootOverride = override }
+func WithConfigRootOverride(site string, override string) func(s *options) {
+	return func(opts *options) {
+		opts.site = site
+		opts.configRootOverride = override
+	}
 }
 
 // WithDirectorRootOverride sets the service director root override
-func WithDirectorRootOverride(override string) func(s *options) {
-	return func(s *options) { s.directorRootOverride = override }
+func WithDirectorRootOverride(site string, override string) func(s *options) {
+	return func(opts *options) {
+		opts.site = site
+		opts.directorRootOverride = override
+	}
 }
 
 // WithRefreshInterval validates and sets the service refresh interval
@@ -319,27 +324,22 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tags []st
 	}
 
 	dbPath := path.Join(cfg.GetString("run_path"), options.databaseFileName)
-	db, err := openCacheDB(dbPath, agentVersion)
+	db, err := openCacheDB(dbPath, agentVersion, authKeys.apiKey)
 	if err != nil {
 		return nil, err
 	}
 	site := cfg.GetString("site")
 	configRoot := options.configRootOverride
 	directorRoot := options.directorRootOverride
-	cacheKey := generateCacheKey(options.apiKey, site, configRoot)
-	opt := []uptane.ClientOption{}
+	opt := []uptane.ClientOption{
+		uptane.WithConfigRootOverride(site, configRoot),
+		uptane.WithDirectorRootOverride(site, directorRoot),
+	}
 	if authKeys.rcKeySet {
 		opt = append(opt, uptane.WithOrgIDCheck(authKeys.rcKey.OrgID))
 	}
-	if configRoot != "" {
-		opt = append(opt, uptane.WithConfigRootOverride(site, configRoot))
-	}
-	if directorRoot != "" {
-		opt = append(opt, uptane.WithDirectorRootOverride(site, directorRoot))
-	}
 	uptaneClient, err := uptane.NewClient(
 		db,
-		cacheKey,
 		newRCBackendOrgUUIDProvider(http),
 		opt...,
 	)
@@ -925,21 +925,4 @@ func enforceCanonicalJSON(raw []byte) ([]byte, error) {
 	}
 
 	return canonical, nil
-}
-
-func generateCacheKey(apiKey, site, configRootOverride string) string {
-	h := sha256.New()
-	h.Write([]byte(apiKey))
-
-	// Hash the API Key with the initial root. This prevents the agent from being locked
-	// to a root chain if a developer accidentally forgets to use the development roots
-	// in a testing environment
-	embeddedRoots := meta.RootsConfig(site, configRootOverride)
-	if r, ok := embeddedRoots[1]; ok {
-		h.Write(r)
-	}
-
-	hash := h.Sum(nil)
-
-	return fmt.Sprintf("%x/", hash)
 }

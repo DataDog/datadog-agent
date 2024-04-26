@@ -47,7 +47,7 @@ class TestUpdateGitlabCI(unittest.TestCase):
 
     def test_nominal(self):
         pipeline.update_gitlab_config(self.gitlabci_file, "1mageV3rsi0n", test_version=True)
-        with open(self.gitlabci_file, "r") as gl:
+        with open(self.gitlabci_file) as gl:
             gitlab_ci = yaml.safe_load(gl)
         for variable, value in gitlab_ci["variables"].items():
             # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
@@ -56,7 +56,7 @@ class TestUpdateGitlabCI(unittest.TestCase):
 
     def test_update_no_test(self):
         pipeline.update_gitlab_config(self.gitlabci_file, "1mageV3rsi0n", test_version=False)
-        with open(self.gitlabci_file, "r") as gl:
+        with open(self.gitlabci_file) as gl:
             gitlab_ci = yaml.safe_load(gl)
         for variable, value in gitlab_ci["variables"].items():
             if variable.endswith("_SUFFIX"):
@@ -77,7 +77,7 @@ class TestUpdateCircleCI(unittest.TestCase):
 
     def test_nominal(self):
         pipeline.update_circleci_config(self.circleci_file, "1m4g3", test_version=True)
-        with open(self.circleci_file, "r") as gl:
+        with open(self.circleci_file) as gl:
             circle_ci = yaml.safe_load(gl)
         full_image = circle_ci['templates']['job_template']['docker'][0]['image']
         image, version = full_image.split(":")
@@ -86,7 +86,7 @@ class TestUpdateCircleCI(unittest.TestCase):
 
     def test_update_no_test(self):
         pipeline.update_circleci_config(self.circleci_file, "1m4g3", test_version=False)
-        with open(self.circleci_file, "r") as gl:
+        with open(self.circleci_file) as gl:
             circle_ci = yaml.safe_load(gl)
         full_image = circle_ci['templates']['job_template']['docker'][0]['image']
         image, version = full_image.split(":")

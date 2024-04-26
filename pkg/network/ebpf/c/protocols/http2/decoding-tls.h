@@ -501,6 +501,9 @@ static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info
         if (info->data_off == info->data_end) {
             return false;
         }
+        if (info->data_off + HTTP2_FRAME_HEADER_SIZE > info->data_end) {
+            return false;
+        }
         reset_frame(current_frame);
         read_into_user_buffer_http2_frame_header((char *)current_frame, info->buffer_ptr + info->data_off);
         if (format_http2_frame_header(current_frame)) {
@@ -634,6 +637,18 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
         bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
     }
     if (!has_valid_first_frame) {
+        // Handling the case where we have a frame header remainder, and we couldn't read the frame header.
+        if (dispatcher_args_copy.data_off < dispatcher_args_copy.data_end && dispatcher_args_copy.data_off + HTTP2_FRAME_HEADER_SIZE > dispatcher_args_copy.data_end) {
+            frame_header_remainder_t new_frame_state = { 0 };
+            new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (dispatcher_args_copy.data_end - dispatcher_args_copy.data_off);
+            bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
+        #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
+            for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
+                bpf_probe_read_user(new_frame_state.buf + iteration, 1, dispatcher_args_copy.buffer_ptr + dispatcher_args_copy.data_off + iteration);
+            }
+            new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
+            bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        }
         return 0;
     }
 

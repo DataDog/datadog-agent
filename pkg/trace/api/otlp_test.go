@@ -557,7 +557,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 		}}
 
 		t.Run("default", testAndExpect(testSpans, http.Header{}, func(p *Payload) {
-			require.True(p.ClientComputedTopLevel)
+			require.False(p.ClientComputedTopLevel)
 		}))
 
 		t.Run("header", testAndExpect(testSpans, http.Header{
@@ -566,10 +566,10 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			require.True(p.ClientComputedTopLevel)
 		}))
 
-		cfg.Features["disable_otlp_compute_top_level_by_span_kind"] = struct{}{}
+		cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
 
 		t.Run("withFeatureFlag", testAndExpect(testSpans, http.Header{}, func(p *Payload) {
-			require.False(p.ClientComputedTopLevel)
+			require.True(p.ClientComputedTopLevel)
 		}))
 
 		t.Run("headerWithFeatureFlag", testAndExpect(testSpans, http.Header{
@@ -1011,12 +1011,13 @@ func TestOTLPConvertSpan(t *testing.T) {
 	cfg := NewTestConfig(t)
 	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
-		rattr   map[string]string
-		libname string
-		libver  string
-		in      ptrace.Span
-		out     *pb.Span
-		outTags map[string]string
+		rattr              map[string]string
+		libname            string
+		libver             string
+		in                 ptrace.Span
+		out                *pb.Span
+		outTags            map[string]string
+		topLevelOutMetrics map[string]float64
 	}{
 		{
 			rattr: map[string]string{
@@ -1056,11 +1057,15 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"span.kind":               "server",
 				},
 				Metrics: map[string]float64{
-					"_top_level": 1,
-					"approx":     1.2,
-					"count":      2,
+					"approx": 1.2,
+					"count":  2,
 				},
 				Type: "web",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+				"approx":     1.2,
+				"count":      2,
 			},
 		}, {
 			rattr: map[string]string{
@@ -1181,11 +1186,15 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"span.kind":               "server",
 				},
 				Metrics: map[string]float64{
-					"_top_level": 1,
-					"approx":     1.2,
-					"count":      2,
+					"approx": 1.2,
+					"count":  2,
 				},
 				Type: "web",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+				"approx":     1.2,
+				"count":      2,
 			},
 		}, {
 			rattr: map[string]string{
@@ -1303,12 +1312,17 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"span.kind":               "server",
 				},
 				Metrics: map[string]float64{
-					"_top_level":                           1,
 					"approx":                               1.2,
 					"count":                                2,
 					sampler.KeySamplingRateEventExtraction: 0,
 				},
 				Type: "web",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level":                           1,
+				"approx":                               1.2,
+				"count":                                2,
+				sampler.KeySamplingRateEventExtraction: 0,
 			},
 		}, {
 			rattr: map[string]string{
@@ -1358,12 +1372,17 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"span.kind":                       "unspecified",
 				},
 				Metrics: map[string]float64{
-					"_top_level":                           1,
 					"approx":                               1.2,
 					"count":                                2,
 					sampler.KeySamplingRateEventExtraction: 1,
 				},
 				Type: "db",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level":                           1,
+				"approx":                               1.2,
+				"count":                                2,
+				sampler.KeySamplingRateEventExtraction: 1,
 			},
 		},
 	} {
@@ -1416,6 +1435,18 @@ func TestOTLPConvertSpan(t *testing.T) {
 			got.Meta = nil
 			got.Metrics = nil
 			assert.Equal(want, got, i)
+
+			// test new top-level identification feature flag
+			o.conf.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
+			got = o.convertSpan(tt.rattr, lib, tt.in)
+			wantMetrics := tt.topLevelOutMetrics
+			if len(wantMetrics) != len(got.Metrics) {
+				t.Fatalf("(%d) Metrics count mismatch:\n\n%v\n\n%v", i, wantMetrics, got.Metrics)
+			}
+			for k, v := range wantMetrics {
+				assert.Equal(v, got.Metrics[k], fmt.Sprintf("(%d) Metric %v:%v", i, k, v))
+			}
+			delete(o.conf.Features, "enable_otlp_compute_top_level_by_span_kind")
 		})
 	}
 }
@@ -1492,10 +1523,8 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"peer.service":           "userbase",
 					"span.kind":              "server",
 				},
-				Type: "web",
-				Metrics: map[string]float64{
-					"_top_level": 1,
-				},
+				Type:    "web",
+				Metrics: map[string]float64{},
 			},
 		},
 		{
@@ -1540,10 +1569,8 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"peer.service":           "userbase",
 					"span.kind":              "server",
 				},
-				Type: "web",
-				Metrics: map[string]float64{
-					"_top_level": 1,
-				},
+				Type:    "web",
+				Metrics: map[string]float64{},
 			},
 		},
 		{
@@ -1588,11 +1615,8 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"net.peer.name":          "remotehost",
 					"span.kind":              "client",
 				},
-				Type: "db",
-				Metrics: map[string]float64{
-					"_top_level":   1,
-					"_dd.measured": 1,
-				},
+				Type:    "db",
+				Metrics: map[string]float64{},
 			},
 		},
 		{
@@ -1637,11 +1661,8 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"net.peer.name":          "remotehost",
 					"span.kind":              "client",
 				},
-				Type: "http",
-				Metrics: map[string]float64{
-					"_top_level":   1,
-					"_dd.measured": 1,
-				},
+				Type:    "http",
+				Metrics: map[string]float64{},
 			},
 		},
 		{
@@ -1684,10 +1705,8 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"net.peer.name":          "remotehost",
 					"span.kind":              "server",
 				},
-				Type: "web",
-				Metrics: map[string]float64{
-					"_top_level": 1,
-				},
+				Type:    "web",
+				Metrics: map[string]float64{},
 			},
 		},
 		{
@@ -1730,10 +1749,8 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"aws.dynamodb.table_names": "my-table",
 					"span.kind":                "server",
 				},
-				Type: "web",
-				Metrics: map[string]float64{
-					"_top_level": 1,
-				},
+				Type:    "web",
+				Metrics: map[string]float64{},
 			},
 		},
 		{
@@ -1776,10 +1793,8 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"faas.document.collection": "my-s3-bucket",
 					"span.kind":                "server",
 				},
-				Type: "web",
-				Metrics: map[string]float64{
-					"_top_level": 1,
-				},
+				Type:    "web",
+				Metrics: map[string]float64{},
 			},
 		},
 	} {
@@ -2226,6 +2241,40 @@ func BenchmarkProcessRequest(b *testing.B) {
 
 	cfg := NewBenchmarkTestConfig(b)
 	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.processRequest(context.Background(), metadata, largeTraces)
+	}
+	b.StopTimer()
+	end <- struct{}{}
+	<-end
+}
+
+func BenchmarkProcessRequestTopLevel(b *testing.B) {
+	largeTraces := generateTraceRequest(10, 100, 100, 100)
+	metadata := http.Header(map[string][]string{
+		header.Lang:        {"go"},
+		header.ContainerID: {"containerdID"},
+	})
+	out := make(chan *Payload, 100)
+	end := make(chan struct{})
+	go func() {
+		defer close(end)
+		for {
+			select {
+			case <-out:
+				// drain
+			case <-end:
+				return
+			}
+		}
+	}()
+
+	cfg := NewBenchmarkTestConfig(b)
+	cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
+	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

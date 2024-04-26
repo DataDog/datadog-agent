@@ -79,7 +79,7 @@ end:
 // that are relevant for us, to be processed later on.
 // The return value is the number of relevant headers that were found and inserted
 // in the `headers_to_process` table.
-static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
+static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *restrict skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
     __u8 current_ch;
     __u8 interesting_headers = 0;
     http2_header_t *current_header;
@@ -272,7 +272,7 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
     }
 }
 
-static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel) {
+static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *restrict skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel) {
     const __u32 zero = 0;
 
     // Allocating an array of headers, to hold all interesting headers from the frame.
@@ -389,6 +389,9 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
         if (skb_info->data_off == skb_info->data_end) {
             return false;
         }
+        if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb_info->data_end) {
+            return false;
+        }
         reset_frame(current_frame);
         bpf_skb_load_bytes(skb, skb_info->data_off, (char *)current_frame, HTTP2_FRAME_HEADER_SIZE);
         if (format_http2_frame_header(current_frame)) {
@@ -411,7 +414,7 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 // - HEADERS frames
 // - RST_STREAM frames
 // - DATA frames with the END_STREAM flag set
-static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info_t *skb_info, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel) {
+static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info_t *restrict skb_info, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     http2_frame_t current_frame = {};
 
@@ -539,6 +542,18 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     }
 
     if (!has_valid_first_frame) {
+        // Handling the case where we have a frame header remainder, and we couldn't read the frame header.
+        if (dispatcher_args_copy.skb_info.data_off < dispatcher_args_copy.skb_info.data_end && dispatcher_args_copy.skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > dispatcher_args_copy.skb_info.data_end) {
+            frame_header_remainder_t new_frame_state = { 0 };
+            new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (dispatcher_args_copy.skb_info.data_end - dispatcher_args_copy.skb_info.data_off);
+            bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
+        #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
+            for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
+                bpf_skb_load_bytes(skb, dispatcher_args_copy.skb_info.data_off + iteration, new_frame_state.buf + iteration, 1);
+            }
+            new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
+            bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        }
         return 0;
     }
 

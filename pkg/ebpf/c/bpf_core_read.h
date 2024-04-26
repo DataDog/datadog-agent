@@ -251,7 +251,7 @@ enum bpf_enum_value_kind {
 #define bpf_core_read_user(dst, sz, src)				    \
 	bpf_probe_read_user(dst, sz, (const void *)__builtin_preserve_access_index(src))
 /*
- * bpf_core_read_str() is a thin wrapper around bpf_probe_read_str()
+ * bpf_core_read_str() is a thin wrapper around bpf_probe_read_kernel_str()
  * additionally emitting BPF CO-RE field relocation for specified source
  * argument.
  */
@@ -366,7 +366,7 @@ enum bpf_enum_value_kind {
 
 /* Non-CO-RE variant of BPF_CORE_READ_INTO() */
 #define BPF_PROBE_READ_INTO(dst, src, a, ...) ({			    \
-	___core_read(bpf_probe_read, bpf_probe_read,			    \
+	___core_read(bpf_probe_read_kernel, bpf_probe_read_kernel,	    \
 		     dst, (src), a, ##__VA_ARGS__)			    \
 })
 
@@ -402,7 +402,7 @@ enum bpf_enum_value_kind {
 
 /* Non-CO-RE variant of BPF_CORE_READ_STR_INTO() */
 #define BPF_PROBE_READ_STR_INTO(dst, src, a, ...) ({			    \
-	___core_read(bpf_probe_read_str, bpf_probe_read,		    \
+	___core_read(bpf_probe_read_kernel_str, bpf_probe_read_kernel,		    \
 		     dst, (src), a, ##__VA_ARGS__)			    \
 })
 

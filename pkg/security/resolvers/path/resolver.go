@@ -18,58 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// ResolverInterface defines the resolver interface
-type ResolverInterface interface {
-	ResolveBasename(e *model.FileFields) string
-	ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error)
-	SetMountRoot(ev *model.Event, e *model.Mount) error
-	ResolveMountRoot(ev *model.Event, e *model.Mount) (string, error)
-	SetMountPoint(ev *model.Event, e *model.Mount) error
-	ResolveMountPoint(ev *model.Event, e *model.Mount) (string, error)
-}
-
-// NoResolver returns an empty resolver
-type NoResolver struct {
-}
-
-// ResolveBasename resolves an inode/mount ID pair to a file basename
-func (n *NoResolver) ResolveBasename(_ *model.FileFields) string {
-	return ""
-}
-
-// ResolveFileFieldsPath resolves an inode/mount ID pair to a full path
-func (n *NoResolver) ResolveFileFieldsPath(_ *model.FileFields, _ *model.PIDContext, _ *model.ContainerContext) (string, error) {
-	return "", nil
-}
-
-// SetMountRoot set the mount point information
-func (n *NoResolver) SetMountRoot(_ *model.Event, _ *model.Mount) error {
-	return nil
-}
-
-// ResolveMountRoot resolves the mountpoint to a full path
-func (n *NoResolver) ResolveMountRoot(_ *model.Event, _ *model.Mount) (string, error) {
-	return "", nil
-}
-
-// SetMountPoint set the mount point information
-func (n *NoResolver) SetMountPoint(_ *model.Event, _ *model.Mount) error {
-	return nil
-}
-
-// ResolveMountPoint resolves the mountpoint to a full path
-func (n *NoResolver) ResolveMountPoint(_ *model.Event, _ *model.Mount) (string, error) {
-	return "", nil
-}
-
 // Resolver describes a resolvers for path and file names
 type Resolver struct {
 	dentryResolver *dentry.Resolver
-	mountResolver  *mount.Resolver
+	mountResolver  mount.ResolverInterface
 }
 
 // NewResolver returns a new path resolver
-func NewResolver(dentryResolver *dentry.Resolver, mountResolver *mount.Resolver) *Resolver {
+func NewResolver(dentryResolver *dentry.Resolver, mountResolver mount.ResolverInterface) *Resolver {
 	return &Resolver{dentryResolver: dentryResolver, mountResolver: mountResolver}
 }
 

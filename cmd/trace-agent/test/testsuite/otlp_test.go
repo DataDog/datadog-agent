@@ -246,6 +246,7 @@ otlp_config:
       endpoint: 0.0.0.0:5111
 apm_config:
   env: my-env
+  features: ["enable_otlp_compute_top_level_by_span_kind"]
 `, port)
 		if err := r.RunAgent([]byte(c)); err != nil {
 			t.Fatal(err)
@@ -312,7 +313,6 @@ otlp_config:
       endpoint: 0.0.0.0:5111
 apm_config:
   env: my-env
-  features: ["disable_otlp_compute_top_level_by_span_kind"]
 `, port)
 		if err := r.RunAgent([]byte(c)); err != nil {
 			t.Fatal(err)

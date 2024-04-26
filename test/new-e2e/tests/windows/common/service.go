@@ -8,15 +8,39 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
+// Service API constants
+// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-query_service_configa
+const (
+	//revive:disable:var-naming match windows API names
+
+	// dwServiceType
+	SERVICE_KERNEL_DRIVER       = 0x00000001
+	SERVICE_FILE_SYSTEM_DRIVER  = 0x00000002
+	SERVICE_WIN32_OWN_PROCESS   = 0x00000010
+	SERVICE_WIN32_SHARE_PROCESS = 0x00000020
+
+	// dwStartType
+	SERVICE_SYSTEM_START = 1
+	SERVICE_AUTO_START   = 2
+	SERVICE_DEMAND_START = 3
+	SERVICE_DISABLED     = 4
+
+	//revive:enable:var-naming
+)
+
 // ServiceConfig contains information about a Windows service
 type ServiceConfig struct {
 	ServiceName        string
+	DisplayName        string
+	ImagePath          string
 	StartType          int
+	ServiceType        int
 	Status             int
 	UserName           string
 	UserSID            string
@@ -116,18 +140,28 @@ func GetServiceConfig(host *components.RemoteHost, service string) (*ServiceConf
 		return nil, err
 	}
 
-	// UserName was not added to Get-Service until PowerShell 6.0
-	if result.UserName == "" {
-		result.UserName, err = GetServiceAccountName(host, service)
+	// if it's a usermode service, get the username and SID
+	if IsUserModeServiceType(result.ServiceType) {
+		// UserName was not added to Get-Service until PowerShell 6.0
+		if result.UserName == "" {
+			result.UserName, err = GetServiceAccountName(host, service)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		err = result.FetchUserSID(host)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	err = result.FetchUserSID(host)
+	// Get-Service does not return the command line for the service
+	imagePath, err := GetServiceImagePath(host, service)
 	if err != nil {
 		return nil, err
 	}
+	result.ImagePath = imagePath
 
 	return &result, nil
 }
@@ -176,4 +210,30 @@ func GetServiceAccountName(host *components.RemoteHost, service string) (string,
 	cmd := fmt.Sprintf("(Get-WmiObject Win32_Service -Filter \"Name=`'%s`'\").StartName", service)
 	out, err := host.Execute(cmd)
 	return strings.TrimSpace(out), err
+}
+
+// GetServicePID returns the PID of the service
+func GetServicePID(host *components.RemoteHost, service string) (int, error) {
+	cmd := fmt.Sprintf("(Get-WmiObject Win32_Service -Filter \"Name=`'%s`'\").ProcessId", service)
+	out, err := host.Execute(cmd)
+	if err != nil {
+		return 0, err
+	}
+	out = strings.TrimSpace(out)
+	return strconv.Atoi(out)
+}
+
+// GetServiceImagePath returns the image path (command line) of the service
+func GetServiceImagePath(host *components.RemoteHost, service string) (string, error) {
+	return GetRegistryValue(host, fmt.Sprintf("HKLM:\\SYSTEM\\CurrentControlSet\\Services\\%s", service), "ImagePath")
+}
+
+// IsUserModeServiceType returns true if the service is a user mode service
+func IsUserModeServiceType(serviceType int) bool {
+	return serviceType == SERVICE_WIN32_OWN_PROCESS || serviceType == SERVICE_WIN32_SHARE_PROCESS
+}
+
+// IsKernelModeServiceType returns true if the service is a kernel mode service
+func IsKernelModeServiceType(serviceType int) bool {
+	return serviceType == SERVICE_KERNEL_DRIVER || serviceType == SERVICE_FILE_SYSTEM_DRIVER
 }

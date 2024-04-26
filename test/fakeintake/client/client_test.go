@@ -53,6 +53,9 @@ var apiV02APMStats []byte
 //go:embed fixtures/api_v1_metadata_response
 var apiV1Metadata []byte
 
+//go:embed fixtures/api_v2_ndmflow_response
+var apiV2NDMFlow []byte
+
 func TestClient(t *testing.T) {
 	t.Run("getFakePayloads should properly format the request", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -496,5 +499,61 @@ func TestClient(t *testing.T) {
 		for _, p := range payloads {
 			assert.Equal(t, expectedHostname, p.Hostname)
 		}
+	})
+
+	t.Run("getNDMFlows", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV2NDMFlow)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getNDMFlows()
+		require.NoError(t, err)
+		assert.True(t, client.ndmflowAggregator.ContainsPayloadName("i-028cd2a4530c36887"))
+	})
+
+	t.Run("GetNDMFlows", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV2NDMFlow)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		ndmflows, err := client.GetNDMFlows()
+		require.NoError(t, err)
+		assert.Equal(t, len(ndmflows), 992)
+		const expectedHostname = "i-028cd2a4530c36887"
+		for _, n := range ndmflows {
+			assert.Equal(t, expectedHostname, n.Host)
+		}
+
+		t.Logf("%+v", ndmflows[0])
+		assert.Equal(t, int64(1710375648197), ndmflows[0].FlushTimestamp)
+		assert.Equal(t, "netflow5", ndmflows[0].FlowType)
+		assert.Equal(t, uint64(0), ndmflows[0].SamplingRate)
+		assert.Equal(t, "ingress", ndmflows[0].Direction)
+		assert.Equal(t, uint64(1710375646), ndmflows[0].Start)
+		assert.Equal(t, uint64(1710375648), ndmflows[0].End)
+		assert.Equal(t, uint64(2070), ndmflows[0].Bytes)
+		assert.Equal(t, uint64(1884), ndmflows[0].Packets)
+		assert.Equal(t, "IPv4", ndmflows[0].EtherType)
+		assert.Equal(t, "TCP", ndmflows[0].IPProtocol)
+		assert.Equal(t, "default", ndmflows[0].Device.Namespace)
+		assert.Equal(t, "172.18.0.3", ndmflows[0].Exporter.IP)
+		assert.Equal(t, "192.168.20.10", ndmflows[0].Source.IP)
+		assert.Equal(t, "40", ndmflows[0].Source.Port)
+		assert.Equal(t, "00:00:00:00:00:00", ndmflows[0].Source.Mac)
+		assert.Equal(t, "192.0.0.0/5", ndmflows[0].Source.Mask)
+		assert.Equal(t, "202.12.190.10", ndmflows[0].Destination.IP)
+		assert.Equal(t, "443", ndmflows[0].Destination.Port)
+		assert.Equal(t, "00:00:00:00:00:00", ndmflows[0].Destination.Mac)
+		assert.Equal(t, "202.12.188.0/22", ndmflows[0].Destination.Mask)
+		assert.Equal(t, uint32(0), ndmflows[0].Ingress.Interface.Index)
+		assert.Equal(t, uint32(0), ndmflows[0].Egress.Interface.Index)
+		assert.Equal(t, "i-028cd2a4530c36887", ndmflows[0].Host)
+		assert.Empty(t, ndmflows[0].TCPFlags)
+		assert.Equal(t, "172.199.15.1", ndmflows[0].NextHop.IP)
+		assert.Empty(t, ndmflows[0].AdditionalFields)
 	})
 }

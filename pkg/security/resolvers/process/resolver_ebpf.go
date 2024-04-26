@@ -68,7 +68,7 @@ type EBPFResolver struct {
 	scrubber     *procutil.DataScrubber
 
 	containerResolver *container.Resolver
-	mountResolver     *mount.Resolver
+	mountResolver     mount.ResolverInterface
 	cgroupResolver    *cgroup.Resolver
 	userGroupResolver *usergroup.Resolver
 	timeResolver      *stime.Resolver
@@ -601,15 +601,6 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *m
 	return nil
 }
 
-func setPathname(fileEvent *model.FileEvent, pathnameStr string) {
-	if fileEvent.FileFields.IsFileless() {
-		fileEvent.SetPathnameStr("")
-	} else {
-		fileEvent.SetPathnameStr(pathnameStr)
-	}
-	fileEvent.SetBasenameStr(path.Base(pathnameStr))
-}
-
 func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (string, error) {
 	var (
 		pathnameStr   string
@@ -656,11 +647,6 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	setPathname(fileEvent, pathnameStr)
 
 	return fileEvent.PathnameStr, nil
-}
-
-// IsBusybox returns true if the pathname matches busybox
-func IsBusybox(pathname string) bool {
-	return pathname == "/bin/busybox" || pathname == "/usr/bin/busybox"
 }
 
 // SetProcessSymlink resolves process file symlink path
@@ -828,11 +814,6 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 	return entry
 }
 
-// IsKThread returns whether given pids are from kthreads
-func IsKThread(ppid, pid uint32) bool {
-	return ppid == 2 || pid == 2
-}
-
 // ResolveFromProcfs resolves the entry from procfs
 func (p *EBPFResolver) ResolveFromProcfs(pid uint32) *model.ProcessCacheEntry {
 	p.Lock()
@@ -906,35 +887,6 @@ func (p *EBPFResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 		// no need to keep it in LRU now as attached to a process
 		p.argsEnvsCache.Remove(pce.ArgsID)
 	}
-}
-
-// GetProcessArgv returns the unscrubbed args of the event as an array. Use with caution.
-func GetProcessArgv(pr *model.Process) ([]string, bool) {
-	if pr.ArgsEntry == nil {
-		return pr.Argv, pr.ArgsTruncated
-	}
-
-	argv := pr.ArgsEntry.Values
-	if len(argv) > 0 {
-		argv = argv[1:]
-	}
-	pr.Argv = argv
-	pr.ArgsTruncated = pr.ArgsTruncated || pr.ArgsEntry.Truncated
-	return pr.Argv, pr.ArgsTruncated
-}
-
-// GetProcessArgv0 returns the first arg of the event and whether the process arguments are truncated
-func GetProcessArgv0(pr *model.Process) (string, bool) {
-	if pr.ArgsEntry == nil {
-		return pr.Argv0, pr.ArgsTruncated
-	}
-
-	argv := pr.ArgsEntry.Values
-	if len(argv) > 0 {
-		pr.Argv0 = argv[0]
-	}
-	pr.ArgsTruncated = pr.ArgsTruncated || pr.ArgsEntry.Truncated
-	return pr.Argv0, pr.ArgsTruncated
 }
 
 // GetProcessArgvScrubbed returns the scrubbed args of the event as an array
@@ -1304,7 +1256,7 @@ func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 
 // NewEBPFResolver returns a new process resolver
 func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
-	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver *mount.Resolver,
+	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver mount.ResolverInterface,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
 	pathResolver spath.ResolverInterface, opts *ResolverOpts) (*EBPFResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)

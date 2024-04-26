@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -122,6 +124,7 @@ func setup() (workloadmeta.Component, error) {
 		fx.Supply(compcfg.NewAgentParams(
 			"", compcfg.WithConfigMissingOK(true))),
 		compcfg.Module(),
+		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		fx.Supply(logimpl.ForOneShot("TEST", "info", false)),
 		logimpl.Module(),
 		fx.Supply(workloadmeta.NewParams()),

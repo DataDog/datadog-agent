@@ -4,7 +4,7 @@ extra packages that might not be available in runtime.
 """
 
 import os
-from typing import Dict, List, Tuple, TypeVar, Union
+from typing import Dict, List, Optional, Tuple, TypeVar, Union
 
 from typing_extensions import Literal, Protocol, TypedDict
 
@@ -14,22 +14,26 @@ PathOrStr = Union[os.PathLike, str]
 Component = Literal['system-probe', 'security-agent']
 
 
-class DependencyBuild(TypedDict):  # We cannot do 'TypedDict' as a string import as it's a base class here
-    directory: str
-    command: str
-    artifact: str
-
-
 class DependenciesLayout(TypedDict):  # noqa: F841
     layout: List[str]  # noqa: F841
     copy: Dict[str, str]
-    build: Dict[str, DependencyBuild]
+    run: List[str]
+
+
+class PlatformInfo(TypedDict, total=False):
+    os_name: str  # Official OS name  # noqa: F841
+    os_version: str  # Version  # noqa: F841
+    image_version: str  # Image version  # noqa: F841
+    kernel: str  # Kernel version
+    os_id: str  # Short ID for the OS (e.g., "centos" for CentOS)  # noqa: F841
+    image: str  # Name of the image file
+    alt_version_names: List[str]  # Alternative version names (e.g., "jammy" for Ubuntu 22)  # noqa: F841
 
 
 class Platforms(TypedDict):  # noqa: F841
     url_base: str
-    x86_64: Dict[str, str]  # noqa: F841
-    arm64: Dict[str, str]  # noqa: F841
+    x86_64: Dict[str, PlatformInfo]  # noqa: F841
+    arm64: Dict[str, PlatformInfo]  # noqa: F841
 
 
 class Disk(TypedDict):
@@ -76,8 +80,33 @@ VMDef = Tuple[Recipe, str, ArchOrLocal]
 
 
 class HasName(Protocol):
-    def name(self) -> str:
+    def name(self) -> str:  # noqa: U100
         ...
 
 
 TNamed = TypeVar('TNamed', bound=HasName)
+
+
+class SSHKey(TypedDict):
+    path: Optional[
+        str
+    ]  # Path to the key in the local filesystem. Note that some keys (like 1Password ones) might not be found locally
+    aws_key_name: str  # Name of the key in AWS
+    name: str  # Name of the public key (identification for the agent, based on the public key comment)
+
+
+class KMTConfig(TypedDict, total=False):
+    ssh: SSHKey  # noqa: F841
+
+
+StackOutputMicroVM = TypedDict(
+    'StackOutputMicroVM', {'id': str, 'ip': 'str', 'ssh-key-path': str, 'tag': str, 'vmset-tags': List[str]}
+)
+
+
+class StackOutputArchData(TypedDict):
+    ip: str
+    microvms: List[StackOutputMicroVM]
+
+
+StackOutput = Dict[Arch, StackOutputArchData]

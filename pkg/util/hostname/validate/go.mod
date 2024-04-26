@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/hostname/validate
 
-go 1.21.8
+go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../log/

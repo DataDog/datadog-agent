@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"time"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -22,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
 	"github.com/DataDog/datadog-agent/pkg/gohai/network"
@@ -35,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
@@ -84,7 +82,6 @@ type hostMetadata struct {
 
 	// from the agent itself
 	AgentVersion           string `json:"agent_version"`
-	AgentStartupTime       int64  `json:"agent_startup_time_ns"`
 	CloudProvider          string `json:"cloud_provider"`
 	CloudProviderSource    string `json:"cloud_provider_source"`
 	CloudProviderAccountID string `json:"cloud_provider_account_id"`
@@ -230,7 +227,6 @@ func (ih *invHost) fillData() {
 	}
 
 	ih.data.AgentVersion = version.AgentVersion
-	ih.data.AgentStartupTime = pkgconfigsetup.StartTime.UnixNano()
 	ih.data.HypervisorGuestUUID = dmi.GetHypervisorUUID()
 	ih.data.DmiProductUUID = dmi.GetProductUUID()
 	ih.data.DmiBoardAssetTag = dmi.GetBoardAssetTag()

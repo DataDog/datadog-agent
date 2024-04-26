@@ -1,18 +1,24 @@
 optimization_goal: memory
 erratic: false
 
-environment:
-  DD_TELEMETRY_ENABLED: true
-  DD_PROCESS_CONFIG_PROCESS_DD_URL: http://127.0.0.1:9092
-  # For regression detection we only care about the processes generated inside the container
-  # so this disables checking of the processes of the host the container is running on
-  HOST_PROC: /tmp/procfs
-  DD_SYSTEM_PROBE_PROCESS_ENABLED: true
-  DD_API_KEY: 00000001
+target:
+  name: datadog-agent
+  command: /bin/entrypoint.sh
 
-profiling_environment:
-  DD_INTERNAL_PROFILING_ENABLED: true
-  DD_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
-  DD_INTERNAL_PROFILING_DELTA_PROFILES: true
-  DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
-  HOST_PROC: /tmp/procfs
+  environment:
+    DD_TELEMETRY_ENABLED: true
+    DD_PROCESS_CONFIG_PROCESS_DD_URL: http://127.0.0.1:9092
+    # For regression detection we only care about the processes generated inside the container
+    # so this disables checking of the processes of the host the container is running on
+    HOST_PROC: /tmp/procfs
+    DD_SYSTEM_PROBE_PROCESS_ENABLED: true
+    DD_API_KEY: 00000001
+    DD_HOSTNAME: smp-regression
+    DD_DD_URL: http://127.0.0.1:9092
+
+  profiling_environment:
+    DD_INTERNAL_PROFILING_ENABLED: true
+    DD_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
+    DD_INTERNAL_PROFILING_DELTA_PROFILES: true
+    DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
+    HOST_PROC: /tmp/procfs

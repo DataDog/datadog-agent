@@ -8,9 +8,7 @@ package winawshost
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+
 	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -19,6 +17,12 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
 )
 
 const (
@@ -32,8 +36,10 @@ type ProvisionerParams struct {
 
 	instanceOptions        []ec2.VMOption
 	agentOptions           []agentparams.Option
+	agentClientOptions     []agentclientparams.Option
 	fakeintakeOptions      []fakeintake.Option
 	activeDirectoryOptions []activedirectory.Option
+	defenderoptions        []defender.Option
 }
 
 // ProvisionerOption is a provisioner option.
@@ -71,6 +77,14 @@ func WithoutAgent() ProvisionerOption {
 	}
 }
 
+// WithAgentClientOptions adds options to the Agent client.
+func WithAgentClientOptions(opts ...agentclientparams.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.agentClientOptions = append(params.agentClientOptions, opts...)
+		return nil
+	}
+}
+
 // WithFakeIntakeOptions adds options to the FakeIntake.
 func WithFakeIntakeOptions(opts ...fakeintake.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
@@ -95,6 +109,14 @@ func WithActiveDirectoryOptions(opts ...activedirectory.Option) ProvisionerOptio
 	}
 }
 
+// WithDefenderOptions configures Windows Defender on an EC2 VM.
+func WithDefenderOptions(opts ...defender.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.defenderoptions = append(params.defenderoptions, opts...)
+		return nil
+	}
+}
+
 // Run deploys a Windows environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *ProvisionerParams) error {
 	awsEnv, err := aws.NewEnvironment(ctx)
@@ -113,6 +135,17 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 	err = host.Export(ctx, &env.RemoteHost.HostOutput)
 	if err != nil {
 		return err
+	}
+
+	if params.defenderoptions != nil {
+		defender, err := defender.NewDefender(awsEnv.CommonEnvironment, host, params.defenderoptions...)
+		if err != nil {
+			return err
+		}
+		// Active Directory setup needs to happen after Windows Defender setup
+		params.activeDirectoryOptions = append(params.activeDirectoryOptions,
+			activedirectory.WithPulumiResourceOptions(
+				pulumi.DependsOn(defender.Resources)))
 	}
 
 	if params.activeDirectoryOptions != nil {
@@ -169,15 +202,20 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		env.Agent = nil
 	}
 
+	env.AgentClientOptions = params.agentClientOptions
+
 	return nil
 }
 
 func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	params := &ProvisionerParams{
-		name:              "",
-		instanceOptions:   []ec2.VMOption{},
-		agentOptions:      []agentparams.Option{},
-		fakeintakeOptions: []fakeintake.Option{},
+		name:               "",
+		instanceOptions:    []ec2.VMOption{},
+		agentOptions:       []agentparams.Option{},
+		agentClientOptions: []agentclientparams.Option{},
+		fakeintakeOptions:  []fakeintake.Option{},
+		// Disable Windows Defender on VMs by default
+		defenderoptions: []defender.Option{defender.WithDefenderDisabled()},
 	}
 	err := optional.ApplyOptions(params, opts)
 	if err != nil {

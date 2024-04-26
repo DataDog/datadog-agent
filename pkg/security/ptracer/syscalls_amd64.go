@@ -71,6 +71,9 @@ const (
 	InitModuleNr     = unix.SYS_INIT_MODULE       // InitModuleNr defines the syscall ID for amd64
 	FInitModuleNr    = unix.SYS_FINIT_MODULE      // FInitModuleNr defines the syscall ID for amd64
 	DeleteModuleNr   = unix.SYS_DELETE_MODULE     // DeleteModuleNr defines the syscall ID for amd64
+	IoctlNr          = unix.SYS_IOCTL             // IoctlNr defines the syscall ID for amd64
+	MountNr          = unix.SYS_MOUNT             // MountNr defines the syscall ID for amd64
+	Umount2Nr        = unix.SYS_UMOUNT2           // Umount2Nr defines the syscall ID for amd64
 )
 
 // https://github.com/torvalds/linux/blob/v5.0/arch/x86/entry/entry_64.S#L126

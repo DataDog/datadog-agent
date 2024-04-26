@@ -32,7 +32,7 @@ func (p *protoEncoder) Encode(msg *message.Message, hostname string) error {
 		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
-		Tags:      msg.Origin.Tags(),
+		Tags:      msg.Tags(),
 	}
 	encoded, err := log.Marshal()
 

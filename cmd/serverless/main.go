@@ -269,6 +269,7 @@ func runAgent() {
 		TraceAgent:           serverlessDaemon.TraceAgent,
 		StopChan:             make(chan struct{}),
 		ColdStartSpanId:      coldStartSpanId,
+		ColdStartRequestID:   serverlessDaemon.ExecutionContext.GetCurrentState().ColdstartRequestID,
 	}
 
 	log.Debug("Starting ColdStartSpanCreator")
@@ -287,7 +288,7 @@ func runAgent() {
 		ExtraTags:            serverlessDaemon.ExtraTags,
 		Demux:                serverlessDaemon.MetricAgent.Demux,
 		ProcessTrace:         ta.Process,
-		DetectLambdaLibrary:  func() bool { return serverlessDaemon.LambdaLibraryDetected },
+		DetectLambdaLibrary:  serverlessDaemon.IsLambdaLibraryDetected,
 		InferredSpansEnabled: inferredspan.IsInferredSpansEnabled(),
 	}
 

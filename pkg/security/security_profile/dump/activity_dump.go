@@ -68,7 +68,7 @@ const (
 // is used to generate the activity dump metadata sent to the event platform.
 // easyjson:json
 type ActivityDump struct {
-	*sync.Mutex
+	sync.Mutex
 	state    ActivityDumpStatus
 	adm      *ActivityDumpManager
 	selector *cgroupModel.WorkloadSelector
@@ -116,7 +116,6 @@ func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, wai
 // NewEmptyActivityDump returns a new zero-like instance of an ActivityDump
 func NewEmptyActivityDump(pathsReducer *activity_tree.PathsReducer) *ActivityDump {
 	ad := &ActivityDump{
-		Mutex:           &sync.Mutex{},
 		StorageRequests: make(map[config.StorageFormat][]config.StorageRequest),
 		DNSNames:        utils.NewStringKeys(nil),
 	}
@@ -524,9 +523,6 @@ func (ad *ActivityDump) Insert(event *model.Event) {
 		// check dump size
 		ad.checkInMemorySize()
 	}
-
-	//nolint:gosimple // TODO(SEC) Fix gosimple linter
-	return
 }
 
 // FindMatchingRootNodes return the matching nodes of requested comm
