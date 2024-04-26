@@ -245,6 +245,8 @@ func processResults(r *results.Results, hname string, destHostname string, desti
 }
 
 func getHostname(ipAddr string) string {
+	// TODO: should we strip the trialing `.` in the domains returned by net.LookupAddr?
+
 	// TODO: this reverse lookup appears to have some standard timeout that is relatively
 	// high. Consider switching to something where there is greater control.
 	currHost := ""
