@@ -219,6 +219,7 @@ func (d *Destination) sendConcurrent(payload *message.Payload, output chan *mess
 
 // Send sends a payload over HTTP,
 func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
+	// FIXME: this function prevents the program from stopping on SIGTERM when there are failed requests being retried.
 	for {
 
 		d.retryLock.Lock()

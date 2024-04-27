@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,6 +28,8 @@ func (c *Check) discoverServices() error {
 
 	log.Infof("alive: %d | services: %d | ignore: %d", len(processes), len(c.services.m), len(c.ignore.m))
 	aliveProcesses := make(map[int]struct{})
+
+	var wg sync.WaitGroup
 
 	for _, p := range processes {
 		aliveProcesses[p.PID] = struct{}{}
@@ -53,14 +56,18 @@ func (c *Check) discoverServices() error {
 
 		if !ignore {
 			// process is a potential service
-			c.potentialServicesChan <- p.PID
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				c.scanProcess(p.PID)
+			}()
 		}
 	}
 
 	for pid, pInfo := range c.services.m {
 		_, ok := aliveProcesses[pid]
 		if !ok {
-			c.stopServiceEvent(pInfo)
+			c.sendEndServiceEvent(pInfo)
 			c.services.delete(pid)
 		}
 	}
@@ -73,6 +80,7 @@ func (c *Check) discoverServices() error {
 		}
 	}
 
+	wg.Wait()
 	return nil
 }
 
@@ -85,7 +93,7 @@ func (c *Check) scanProcess(pid int) {
 
 	if pInfo, ok := c.services.get(pid); ok {
 		if time.Since(pInfo.LastHeatBeatTime) >= heartbeatTime {
-			c.heartbeatServiceEvent(pInfo)
+			c.sendHeartbeatServiceEvent(pInfo)
 			pInfo.LastHeatBeatTime = time.Now()
 		}
 		return
@@ -104,7 +112,7 @@ func (c *Check) scanProcess(pid int) {
 	}
 
 	c.services.set(pid, pInfo)
-	c.startServiceEvent(pInfo)
+	c.sendStartServiceEvent(pInfo)
 }
 
 /*

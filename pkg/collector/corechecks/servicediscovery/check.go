@@ -6,34 +6,36 @@
 package servicediscovery
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/prometheus/procfs"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
-	"github.com/prometheus/procfs"
 )
 
 const (
 	// CheckName is the name of the check.
-	CheckName              = "service_discovery"
-	defaultRefreshInterval = 10
-	heartbeatTime          = 15 * time.Minute
+	CheckName = "service_discovery"
+	// refreshInterval = 1 * time.Minute
+	// heartbeatTime   = 15 * time.Minute
+
+	refreshInterval = 10 * time.Second
+	heartbeatTime   = 1 * time.Minute
 )
 
 // Config holds the check configuration.
 type config struct {
-	RefreshIntervalSeconds int    `yaml:"refresh_interval_seconds"`
-	IgnoreProcesses        string `yaml:"ignore_processes"`
+	IgnoreProcesses string `yaml:"ignore_processes"`
 }
 
 type processInfo struct {
@@ -55,9 +57,6 @@ type processInfo struct {
 func (c *config) Parse(data []byte) error {
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err
-	}
-	if c.RefreshIntervalSeconds <= 0 {
-		c.RefreshIntervalSeconds = defaultRefreshInterval
 	}
 	return nil
 }
@@ -112,16 +111,11 @@ func (i *ignoreProcesses) delete(pid int) {
 
 type Check struct {
 	corechecks.CheckBase
-	stopCh chan struct{}
 	cfg    *config
-
 	sender sender.Sender
 
 	// set of process names that should always be ignored
 	alwaysIgnore map[string]struct{}
-
-	// potential services to scan
-	potentialServicesChan chan int
 
 	// PID -> process name
 	// pids will be added here because the name was ignored in the config, or because
@@ -137,11 +131,9 @@ func Factory() optional.Option[func() check.Check] {
 
 func newCheck() check.Check {
 	return &Check{
-		CheckBase:             corechecks.NewCheckBase(CheckName),
-		stopCh:                make(chan struct{}),
-		cfg:                   &config{},
-		alwaysIgnore:          make(map[string]struct{}),
-		potentialServicesChan: make(chan int),
+		CheckBase:    corechecks.NewCheckBase(CheckName),
+		cfg:          &config{},
+		alwaysIgnore: make(map[string]struct{}),
 		ignore: &ignoreProcesses{
 			m: make(map[int]string),
 		},
@@ -153,26 +145,18 @@ func newCheck() check.Check {
 
 // Configure parses the check configuration and initializes the check
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	if !pkgconfig.Datadog.GetBool("service_discovery.enabled") {
+		return errors.New("service discovery is disabled")
+	}
 	if err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source); err != nil {
 		return err
 	}
-
-	//if !agentconfig.Datadog.GetBool("service_discovery.enabled") {
-	//	// return errors.New("service discovery is disabled")
-	//}
-
 	if err := c.cfg.Parse(data); err != nil {
 		return fmt.Errorf("failed to parse config: %w", err)
 	}
 	for _, pName := range strings.Split(c.cfg.IgnoreProcesses, ",") {
 		c.alwaysIgnore[pName] = struct{}{}
 	}
-	return nil
-}
-
-func (c *Check) Run() error {
-	log.Infof("Starting long-running check %q", c.ID())
-	defer log.Infof("Shutting down long-running check %q", c.ID())
 
 	s, err := c.GetSender()
 	if err != nil {
@@ -180,57 +164,15 @@ func (c *Check) Run() error {
 	}
 	c.sender = s
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		ticker := time.NewTicker(time.Duration(c.cfg.RefreshIntervalSeconds) * time.Second)
-		defer ticker.Stop()
-		defer wg.Done()
-
-		for {
-			if err := c.discoverServices(); err != nil {
-				log.Errorf("failed to discover services: %v", err)
-			}
-
-			select {
-			case <-c.stopCh:
-				return
-
-			case <-ticker.C:
-				continue
-			}
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-
-		for {
-			select {
-			case <-c.stopCh:
-				return
-
-			case pid := <-c.potentialServicesChan:
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					c.scanProcess(pid)
-				}()
-			}
-		}
-	}()
-
-	wg.Wait()
 	return nil
 }
 
-// Stop stops the check.
-func (c *Check) Stop() {
-	close(c.stopCh)
+// Run executes the check.
+func (c *Check) Run() error {
+	return c.discoverServices()
 }
 
-// Interval returns 0. It makes it a long-running check.
+// Interval returns how often the check should run.
 func (c *Check) Interval() time.Duration {
-	return 0
+	return refreshInterval
 }
