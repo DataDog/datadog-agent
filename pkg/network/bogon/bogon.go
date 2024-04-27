@@ -4,6 +4,7 @@
 // Copyright 2024-present Datadog, Inc.
 
 // CREDIT https://github.com/lrstanley/go-bogon
+
 // Copyright (c) Liam Stanley <me@liamstanley.io>. All rights reserved. Use
 // of this source code is governed by the MIT license that can be found in
 // the LICENSE file.
