@@ -94,16 +94,20 @@ func NewRunner() (*Runner, error) {
 // complete implementation.
 func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (NetworkPath, error) {
 	rawDest := cfg.DestHostname
-	dests, err := net.DefaultResolver.LookupIP(ctx, "ip4", rawDest)
-	if err != nil || len(dests) == 0 {
-		return NetworkPath{}, fmt.Errorf("cannot resolve %s: %v", rawDest, err)
-	}
+	dest := net.ParseIP(rawDest)
+	isIpV4 := dest != nil && dest.To4() != nil
+	if !isIpV4 { // try convert to ipv4
+		dests, err := net.DefaultResolver.LookupIP(ctx, "ip4", rawDest)
+		if err != nil || len(dests) == 0 {
+			return NetworkPath{}, fmt.Errorf("cannot resolve %s: %v", rawDest, err)
+		}
 
-	//TODO: should we get smarter about IP address resolution?
-	// if it's a hostname, perhaps we could run multiple traces
-	// for each of the different IPs it resolves to up to a threshold?
-	// use first resolved IP for now
-	dest := dests[0]
+		//TODO: should we get smarter about IP address resolution?
+		// if it's a hostname, perhaps we could run multiple traces
+		// for each of the different IPs it resolves to up to a threshold?
+		// use first resolved IP for now
+		dest = dests[0]
+	}
 
 	destPort, srcPort, useSourcePort := getPorts(cfg.DestPort)
 
