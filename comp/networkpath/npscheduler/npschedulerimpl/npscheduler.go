@@ -52,7 +52,7 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d exclude_cidr=%v)", workers, pathtestInputChanSize, excludeCIDR)
 
 	var excludeIPManager *bogon.Bogon
-	if len(excludeCIDR) < 1 {
+	if len(excludeCIDR) >= 1 {
 		newExcludeIPManager, err := bogon.New(excludeCIDR)
 		if err != nil {
 			logger.Errorf("Invalid network_path.exclude_cidr: %s", err)
