@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/network/bogon"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -30,6 +31,8 @@ type npSchedulerImpl struct {
 	logger      log.Component
 
 	workers int
+
+	excludeIPManager *bogon.Bogon
 
 	receivedPathtestConfigCount *atomic.Uint64
 	pathtestStore               *pathtestStore
@@ -44,16 +47,25 @@ type npSchedulerImpl struct {
 func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Component, sysprobeYamlConfig config.Reader) *npSchedulerImpl {
 	workers := sysprobeYamlConfig.GetInt("network_path.workers")
 	pathtestInputChanSize := sysprobeYamlConfig.GetInt("network_path.input_chan_size")
+	excludeCIDR := sysprobeYamlConfig.GetStringSlice("network_path.exclude_cidr")
 
 	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d)", workers, pathtestInputChanSize)
+
+	excludeIPManager, err := bogon.New(excludeCIDR)
+	if err != nil {
+		logger.Errorf("New NpScheduler (workers=%d input_chan_size=%d)", workers, pathtestInputChanSize)
+	} else {
+		excludeIPManager = &bogon.Bogon{}
+	}
 
 	return &npSchedulerImpl{
 		epForwarder: epForwarder,
 		logger:      logger,
 
-		pathtestStore: newPathtestStore(DefaultFlushTickerInterval, DefaultPathtestRunDurationFromDiscovery, DefaultPathtestRunInterval, logger),
-		pathtestIn:    make(chan *pathtest, pathtestInputChanSize),
-		workers:       workers,
+		pathtestStore:    newPathtestStore(DefaultFlushTickerInterval, DefaultPathtestRunDurationFromDiscovery, DefaultPathtestRunInterval, logger),
+		pathtestIn:       make(chan *pathtest, pathtestInputChanSize),
+		workers:          workers,
+		excludeIPManager: excludeIPManager,
 
 		receivedPathtestConfigCount: atomic.NewUint64(0),
 		TimeNowFunction:             time.Now,
@@ -91,6 +103,15 @@ func (s *npSchedulerImpl) Schedule(hostname string, port uint16) error {
 		s.logger.Debugf("Only IPv4 is currently supported. Address not supported: %s", hostname)
 		return nil
 	}
+
+	if s.excludeIPManager != nil {
+		isExcluded, _ := s.excludeIPManager.Is(hostname)
+		if isExcluded {
+			s.logger.Debugf("Excluded IP hostname=%s", hostname)
+			return nil
+		}
+	}
+
 	ptest := &pathtest{
 		hostname: hostname,
 		port:     port,

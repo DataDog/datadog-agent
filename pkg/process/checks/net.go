@@ -14,7 +14,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/bogon"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/benbjohnson/clock"
 
@@ -562,9 +561,5 @@ func (c *ConnectionsCheck) shouldScheduleNetworkPathForConn(conn *model.Connecti
 	if conn.Raddr.Ip == "169.254.169.254" {
 		return false
 	}
-
-	// TODO: ALLOW USER TO EXCLUDE SPECIFIC CIDR?
-	// TODO: TESTME
-	isBogon, _ := bogon.Is(conn.Raddr.Ip)
-	return !isBogon
+	return true
 }
