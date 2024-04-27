@@ -207,7 +207,7 @@ func (s *npSchedulerImpl) sendTelemetry(path traceroute.NetworkPath, startTime t
 	// TODO: Factor Network Path telemetry from Network Path Integration and use the code
 
 	// TODO: Add collector type tag (np_scheduler | network_path_integration)
-	tags := s.getTelemetryTags(path)
+	tags := s.getTelemetryTags(path, ptest)
 	tags = append(tags, "pathtest_source:connections_check")
 
 	checkDuration := time.Since(startTime)
@@ -228,7 +228,7 @@ func (s *npSchedulerImpl) sendTelemetry(path traceroute.NetworkPath, startTime t
 	}
 }
 
-func (s *npSchedulerImpl) getTelemetryTags(path traceroute.NetworkPath) []string {
+func (s *npSchedulerImpl) getTelemetryTags(path traceroute.NetworkPath, ptest *pathtestContext) []string {
 	var tags []string
 	agentHost, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -239,8 +239,8 @@ func (s *npSchedulerImpl) getTelemetryTags(path traceroute.NetworkPath) []string
 	tags = append(tags, utils.GetAgentVersionTag())
 
 	destPortTag := "unspecified"
-	if path.Destination.Port > 0 {
-		destPortTag = strconv.Itoa(int(path.Destination.Port))
+	if ptest.pathtest.port > 0 {
+		destPortTag = strconv.Itoa(int(ptest.pathtest.port))
 	}
 	tags = append(tags, []string{
 		"protocol:udp", // TODO: Update to protocol from config when we support tcp/icmp

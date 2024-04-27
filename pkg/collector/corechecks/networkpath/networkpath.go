@@ -72,7 +72,7 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to send network path metadata: %w", err)
 	}
 
-	metricTags := c.getCommonTagsForMetrics()
+	var metricTags []string
 	metricTags = append(metricTags, commonTags...)
 	c.submitTelemetryMetrics(senderInstance, path, startTime, metricTags)
 
@@ -95,19 +95,6 @@ func (c *Check) getCommonTags() []string {
 	return tags
 }
 
-func (c *Check) getCommonTagsForMetrics() []string {
-	destPortTag := "unspecified"
-	if c.config.DestPort > 0 {
-		destPortTag = strconv.Itoa(int(c.config.DestPort))
-	}
-	tags := []string{
-		"protocol:udp", // TODO: Update to protocol from config when we support tcp/icmp
-		"destination_hostname:" + c.config.DestHostname,
-		"destination_port:" + destPortTag,
-	}
-	return tags
-}
-
 // SendNetPathMDToEP sends a traced network path to EP
 func (c *Check) SendNetPathMDToEP(sender sender.Sender, path traceroute.NetworkPath) error {
 	payloadBytes, err := json.Marshal(path)
@@ -120,7 +107,16 @@ func (c *Check) SendNetPathMDToEP(sender sender.Sender, path traceroute.NetworkP
 }
 
 func (c *Check) submitTelemetryMetrics(senderInstance sender.Sender, path traceroute.NetworkPath, startTime time.Time, tags []string) {
-	newTags := utils.CopyStrings(tags)
+	destPortTag := "unspecified"
+	if c.config.DestPort > 0 {
+		destPortTag = strconv.Itoa(int(c.config.DestPort))
+	}
+	newTags := append(utils.CopyStrings(tags), []string{
+		"protocol:udp", // TODO: Update to protocol from config when we support tcp/icmp
+		"destination_hostname:" + path.Destination.Hostname,
+		"destination_ip:" + path.Destination.IPAddress,
+		"destination_port:" + destPortTag,
+	}...)
 
 	checkDuration := time.Since(startTime)
 	senderInstance.Gauge("datadog.network_path.check_duration", checkDuration.Seconds(), "", newTags)
