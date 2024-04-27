@@ -529,6 +529,11 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
 	startTime := time.Now()
 	// TODO: TESTME
 	for _, conn := range conns {
+		// Only process outgoing traffic
+		if conn.Direction != model.ConnectionDirection_outgoing {
+			// TODO: TESTME
+			continue
+		}
 		remoteAddr := conn.Raddr
 		if stdnet.ParseIP(remoteAddr.Ip).IsLoopback() {
 			log.Debugf("Skip loopback IP: %s", remoteAddr.Ip)
