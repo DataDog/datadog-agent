@@ -12,28 +12,41 @@ import (
 	"text/template"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient/localapiclientimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 )
 
-func statusCommand(_ *command.GlobalParams) *cobra.Command {
+func statusCommand(global *command.GlobalParams) *cobra.Command {
 	statusCmd := &cobra.Command{
 		Use:     "status",
 		Short:   "Print the installer status",
 		GroupID: "daemon",
 		Long:    ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return statusFxWrapper()
+			return statusFxWrapper(global)
 		},
 	}
 	return statusCmd
 }
 
-func statusFxWrapper() error {
+func statusFxWrapper(global *command.GlobalParams) error {
 	return fxutil.OneShot(status,
+		fx.Supply(core.BundleParams{
+			ConfigParams:         config.NewAgentParams(global.ConfFilePath),
+			SecretParams:         secrets.NewEnabledParams(),
+			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
+			LogParams:            logimpl.ForOneShot("INSTALLER", "off", true),
+		}),
+		core.Bundle(),
 		localapiclientimpl.Module(),
 	)
 }

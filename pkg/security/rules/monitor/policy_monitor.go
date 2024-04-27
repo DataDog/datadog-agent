@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -122,7 +122,7 @@ func (pm *PolicyMonitor) Start(ctx context.Context) {
 						tags := []string{
 							"rule_id:" + id,
 							fmt.Sprintf("status:%v", status),
-							constants.CardinalityTagPrefix + collectors.LowCardinalityString,
+							constants.CardinalityTagPrefix + types.LowCardinalityString,
 						}
 
 						if err := pm.statsdClient.Gauge(metrics.MetricRulesStatus, 1, tags, 1.0); err != nil {

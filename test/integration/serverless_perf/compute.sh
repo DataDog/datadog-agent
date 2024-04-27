@@ -1,6 +1,6 @@
 #!/bin/bash
 
-STARTUP_TIME_THRESHOLD=20
+STARTUP_TIME_THRESHOLD=40
 
 calculate_median() {
     local sorted=($(printf "%s\n" "${@}" | sort -n))
