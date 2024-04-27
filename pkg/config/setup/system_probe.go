@@ -286,7 +286,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_connection_rollup"), false)
 
 	// network_config network path config
-	cfg.BindEnvAndSetDefault(join(netNS, "network_path", "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_network_path"), false)
 	cfg.BindEnvAndSetDefault(join(npNS, "input_chan_size"), 1000)
 	cfg.BindEnvAndSetDefault(join(npNS, "workers"), 10)
 
