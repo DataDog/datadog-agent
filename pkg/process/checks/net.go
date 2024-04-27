@@ -14,6 +14,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/bogon"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/benbjohnson/clock"
 
@@ -562,5 +563,10 @@ func (c *ConnectionsCheck) shouldScheduleNetworkPathForConn(conn *model.Connecti
 		return false
 	}
 
+	// TODO: TESTME
+	isBogon, _ := bogon.Is(conn.Raddr.Ip)
+	if isBogon {
+		return false
+	}
 	return true
 }
