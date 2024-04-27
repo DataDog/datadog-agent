@@ -9,11 +9,9 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -117,16 +115,4 @@ echo '{"credHelpers":{"669783387624.dkr.ecr.us-east-1.amazonaws.com": "ecr-login
 	host.MustExecute(`/tmp/authz-docker.sh`)
 	err = host.Remove("/tmp/authz-docker.sh")
 	require.Nil(t, err)
-}
-
-// launchJavaDockerContainer launches a small Java HTTP server in a docker container
-// and make a call to it
-func launchJavaDockerContainer(t *testing.T, host *components.RemoteHost) {
-	host.MustExecute(`sudo PATH="$PATH:$(/usr/local/go/bin/go env GOPATH)/bin" docker run -d -p8887:8888 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/baptistefoy702/message-server:latest`)
-	assert.Eventually(t,
-		func() bool {
-			_, err := host.Execute(`curl -m 1 localhost:8887/messages`)
-			return err == nil
-		}, 30*time.Second, 100*time.Millisecond,
-	)
 }
