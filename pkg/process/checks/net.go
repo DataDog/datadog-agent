@@ -535,11 +535,12 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
 			continue
 		}
 		remoteAddr := conn.Raddr
+		remotePort := uint16(conn.Raddr.Port)
 		if stdnet.ParseIP(remoteAddr.Ip).IsLoopback() {
 			log.Debugf("Skip loopback IP: %s", remoteAddr.Ip)
 			continue
 		}
-		err := c.npScheduler.Schedule(remoteAddr.Ip, uint16(conn.Raddr.Port))
+		err := c.npScheduler.Schedule(remoteAddr.Ip, remotePort)
 		if err != nil {
 			log.Errorf("Error scheduling pathtests: %s", err)
 		}
