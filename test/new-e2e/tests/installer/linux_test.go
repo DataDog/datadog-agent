@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package updater contains tests for the updater package
-package updater
+// Package installer contains tests for the datadog installer
+package installer
 
 import (
 	"fmt"
