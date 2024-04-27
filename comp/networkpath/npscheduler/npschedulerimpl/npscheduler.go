@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -40,18 +41,18 @@ type npSchedulerImpl struct {
 	TimeNowFunction func() time.Time // Allows to mock time in tests
 }
 
-func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Component) *npSchedulerImpl {
-	// TODO: MAKE pathtestInputChannelSize CONFIGURABLE
-	pathtestInputChannelSize := 1000
+func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Component, sysprobeYamlConfig config.Reader) *npSchedulerImpl {
+	workers := sysprobeYamlConfig.GetInt("network_path.workers")
+	pathtestInputChanSize := sysprobeYamlConfig.GetInt("network_path.input_chan_size")
 
-	// TODO: MAKE workers CONFIGURABLE
-	workers := 3
+	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d)", workers, pathtestInputChanSize)
+
 	return &npSchedulerImpl{
 		epForwarder: epForwarder,
 		logger:      logger,
 
 		pathtestStore: newPathtestStore(DefaultFlushTickerInterval, DefaultPathtestRunDurationFromDiscovery, DefaultPathtestRunInterval, logger),
-		pathtestIn:    make(chan *pathtest, pathtestInputChannelSize),
+		pathtestIn:    make(chan *pathtest, pathtestInputChanSize),
 		workers:       workers,
 
 		receivedPathtestConfigCount: atomic.NewUint64(0),

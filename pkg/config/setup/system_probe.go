@@ -22,6 +22,7 @@ type transformerFunction func(string) interface{}
 const (
 	spNS                         = "system_probe_config"
 	netNS                        = "network_config"
+	npNS                         = "network_path"
 	smNS                         = "service_monitoring_config"
 	evNS                         = "event_monitoring_config"
 	smjtNS                       = smNS + ".tls.java"
@@ -286,6 +287,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// network_config network path config
 	cfg.BindEnvAndSetDefault(join(netNS, "network_path", "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(npNS, "input_chan_size"), 1000)
+	cfg.BindEnvAndSetDefault(join(npNS, "workers"), 10)
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
