@@ -117,6 +117,7 @@ func (c *Check) submitTelemetryMetrics(senderInstance sender.Sender, path tracer
 		"destination_ip:" + path.Destination.IPAddress,
 		"destination_port:" + destPortTag,
 	}...)
+	newTags = append(newTags, "pathtest_source:network_path_integration")
 
 	checkDuration := time.Since(startTime)
 	senderInstance.Gauge("datadog.network_path.check_duration", checkDuration.Seconds(), "", newTags)
