@@ -289,6 +289,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_network_path"), false)
 	cfg.BindEnvAndSetDefault(join(npNS, "workers"), 10)
 	cfg.BindEnvAndSetDefault(join(npNS, "input_chan_size"), 1000)
+	cfg.BindEnvAndSetDefault(join(npNS, "exclude_cidr"), 1000)
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
