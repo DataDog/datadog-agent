@@ -149,7 +149,6 @@ func (s *npSchedulerImpl) pathForConn(ptest *pathtestContext) {
 }
 
 func (s *npSchedulerImpl) Start() {
-	// TODO: START ONLY IF network_config.network_path.enabled IS ENABLED?
 	s.logger.Info("Start NpScheduler")
 	go s.listenPathtestConfigs()
 	go s.flushLoop()
