@@ -95,8 +95,8 @@ func NewRunner() (*Runner, error) {
 func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (NetworkPath, error) {
 	rawDest := cfg.DestHostname
 	dest := net.ParseIP(rawDest)
-	isIpV4 := dest != nil && dest.To4() != nil
-	if !isIpV4 { // try convert to ipv4
+	isIPV4 := dest != nil && dest.To4() != nil
+	if !isIPV4 { // try convert to ipv4
 		dests, err := net.DefaultResolver.LookupIP(ctx, "ip4", rawDest)
 		if err != nil || len(dests) == 0 {
 			return NetworkPath{}, fmt.Errorf("cannot resolve %s: %v", rawDest, err)

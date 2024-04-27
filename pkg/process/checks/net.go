@@ -566,8 +566,5 @@ func (c *ConnectionsCheck) shouldScheduleNetworkPathForConn(conn *model.Connecti
 	// TODO: ALLOW USER TO EXCLUDE SPECIFIC CIDR?
 	// TODO: TESTME
 	isBogon, _ := bogon.Is(conn.Raddr.Ip)
-	if isBogon {
-		return false
-	}
-	return true
+	return !isBogon
 }
