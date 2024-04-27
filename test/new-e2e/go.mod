@@ -17,7 +17,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.106
+	github.com/DataDog/agent-payload/v5 v5.0.114
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2
@@ -29,7 +29,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240425161628-c757089e5a23
+	github.com/DataDog/test-infra-definitions v0.0.0-20240426114741-84916f885355
 	github.com/aws/aws-sdk-go-v2 v1.26.1
 	github.com/aws/aws-sdk-go-v2/config v1.27.11
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
