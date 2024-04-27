@@ -208,6 +208,7 @@ func (s *npSchedulerImpl) sendTelemetry(path traceroute.NetworkPath, startTime t
 
 	// TODO: Add collector type tag (np_scheduler | network_path_integration)
 	tags := s.getTelemetryTags(path)
+	tags = append(tags, "pathtest_source:connections_check")
 
 	checkDuration := time.Since(startTime)
 	statsd.Client.Gauge("datadog.network_path.check_duration", checkDuration.Seconds(), tags, 1) //nolint:errcheck
