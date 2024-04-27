@@ -49,7 +49,7 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 	pathtestInputChanSize := sysprobeYamlConfig.GetInt("network_path.input_chan_size")
 	excludeCIDR := sysprobeYamlConfig.GetStringSlice("network_path.exclude_cidr")
 
-	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d)", workers, pathtestInputChanSize)
+	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d exclude_cidr=%v)", workers, pathtestInputChanSize, excludeCIDR)
 
 	excludeIPManager, err := bogon.New(excludeCIDR)
 	if err != nil {
