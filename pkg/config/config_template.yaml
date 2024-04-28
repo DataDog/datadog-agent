@@ -2285,6 +2285,11 @@ api_key:
 #
 # jmx_telemetry_enabled: false
 
+## @param jmxfetch_status_path - string - optional - default: ""
+## @env DD_JMXFETCH_STATUS_PATH - string - optional - default: ""
+## Specifies the path to write jmxfetch status.
+#
+# jmxfetch_status_path: ""
 {{ end -}}
 {{- if .Logging }}
 
@@ -3537,7 +3542,7 @@ api_key:
   ## This field is used by NDM features (SNMP check, SNMP Traps listener, etc).
   #
   # namespace: default
-  
+
   ## @param autodiscovery - custom object - optional
   ## Creates and schedules a listener to automatically discover your SNMP devices.
   ## Discovered devices can then be monitored with the SNMP integration by using
