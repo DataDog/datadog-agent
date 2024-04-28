@@ -118,6 +118,15 @@ func RunInsertQuery(t *testing.T, id int64, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
+// RunInsertQueryWithString a
+func RunInsertQueryWithString(t *testing.T, val string, extras map[string]interface{}) {
+	t.Helper()
+	db, ctx := getCtx(extras)
+
+	_, err := db.NewInsert().Model(&DummyTable{Foo: val}).Exec(ctx)
+	require.NoError(t, err)
+}
+
 // RunSelectQuery runs a SELECT query on the test DB.
 func RunSelectQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
