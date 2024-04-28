@@ -33,7 +33,7 @@ var (
 		e2eos.Suse15,
 	}
 	packagesTests = []packageTests{
-		testAPMInject,
+		testInstaller,
 	}
 )
 

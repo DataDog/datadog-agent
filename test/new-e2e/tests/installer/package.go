@@ -42,10 +42,18 @@ func newPackageSuite(pkg string, os e2eos.Descriptor, arch e2eos.Architecture, o
 }
 
 func (s *packageBaseSuite) Name() string {
-	return regexp.MustCompile("[^a-zA-Z0-9]+").ReplaceAllString(fmt.Sprintf("%s/%s/%s", s.pkg, s.os, s.arch), "_")
+	return regexp.MustCompile("[^a-zA-Z0-9]+").ReplaceAllString(fmt.Sprintf("%s/%s", s.pkg, s.os), "_")
 }
 
 func (s *packageBaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch, s.opts...)
+}
+
+func (s *packageBaseSuite) Bootstrap() {
+	s.Env().RemoteHost.MustExecute("sudo datadog-bootstrap bootstrap")
+}
+
+func (s *packageBaseSuite) Purge() {
+	s.Env().RemoteHost.MustExecute("sudo datadog-installer purge")
 }
