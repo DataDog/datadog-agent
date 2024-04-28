@@ -7,7 +7,10 @@
 package command
 
 import (
+	"errors"
+	"flag"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -15,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"go.opentelemetry.io/collector/featuregate"
 )
 
 const (
@@ -55,7 +59,33 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 		otelAgentCmd.AddCommand(cmd)
 	}
 
-	otelAgentCmd.PersistentFlags().StringSliceVarP(&globalParams.ConfPaths, "config", "c", []string{defaultConfigPath}, "path to the configuration file")
+	flagSet := flags(featuregate.GlobalRegistry(), globalParams)
+	otelAgentCmd.PersistentFlags().AddGoFlagSet(flagSet)
 
 	return &otelAgentCmd
+}
+
+const configFlag = "config"
+
+func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.FlagSet {
+	flagSet := new(flag.FlagSet)
+
+	flagSet.Var(cfgs, configFlag, "Locations to the config file(s), note that only a"+
+		" single location can be set per flag entry e.g. `--config=file:/path/to/first --config=file:path/to/second`.")
+
+	flagSet.Func("set",
+		"Set arbitrary component config property. The component has to be defined in the config file and the flag"+
+			" has a higher precedence. Array config properties are overridden and maps are joined. Example --set=processors.batch.timeout=2s",
+		func(s string) error {
+			idx := strings.Index(s, "=")
+			if idx == -1 {
+				// No need for more context, see TestSetFlag/invalid_set.
+				return errors.New("missing equal sign")
+			}
+			cfgs.Sets = append(cfgs.Sets, "yaml:"+strings.TrimSpace(strings.ReplaceAll(s[:idx], ".", "::"))+": "+strings.TrimSpace(s[idx+1:]))
+			return nil
+		})
+
+	reg.RegisterFlags(flagSet)
+	return flagSet
 }

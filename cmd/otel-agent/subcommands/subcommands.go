@@ -6,13 +6,24 @@
 // Package subcommands contains the subcommands of the otel-agent.
 package subcommands
 
+import "strings"
+
 // GlobalParams contains the values of agent-global Cobra flags.
 //
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
-	ConfPaths    []string
-	FeatureGates []string
-	ConfigName   string
-	LoggerName   string
+	ConfPaths  []string
+	Sets       []string
+	ConfigName string
+	LoggerName string
+}
+
+func (s *GlobalParams) Set(val string) error {
+	s.ConfPaths = append(s.ConfPaths, val)
+	return nil
+}
+
+func (s *GlobalParams) String() string {
+	return "[" + strings.Join(s.ConfPaths, ", ") + "]"
 }
