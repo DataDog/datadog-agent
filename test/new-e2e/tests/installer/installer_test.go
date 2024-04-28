@@ -56,7 +56,7 @@ func TestPackages(t *testing.T) {
 					e2e.WithProvisioner(
 						awshost.ProvisionerNoFakeIntake(awshost.WithUpdater(), awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture))),
 					),
-					e2e.WithStackName(t.Name()),
+					e2e.WithStackName(suite.Name()),
 				)
 			})
 		}

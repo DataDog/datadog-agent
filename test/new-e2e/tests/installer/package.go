@@ -8,6 +8,7 @@ package installer
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -41,7 +42,7 @@ func newPackageSuite(pkg string, os e2eos.Descriptor, arch e2eos.Architecture, o
 }
 
 func (s *packageBaseSuite) Name() string {
-	return fmt.Sprintf("package/%s/%s/%s", s.pkg, s.os, s.arch)
+	return regexp.MustCompile("[^a-zA-Z0-9]+").ReplaceAllString(fmt.Sprintf("%s/%s/%s", s.pkg, s.os, s.arch), "_")
 }
 
 func (s *packageBaseSuite) SetupSuite() {
