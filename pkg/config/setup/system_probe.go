@@ -287,8 +287,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// network_config network path config
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_network_path"), false)
-	cfg.BindEnvAndSetDefault(join(npNS, "workers"), 10)
+	cfg.BindEnvAndSetDefault(join(npNS, "workers"), 4)
 	cfg.BindEnvAndSetDefault(join(npNS, "input_chan_size"), 1000)
+	cfg.BindEnvAndSetDefault(join(npNS, "process_chan_size"), 1000)
 	cfg.BindEnv(join(npNS, "exclude_cidr"))
 
 	// windows config

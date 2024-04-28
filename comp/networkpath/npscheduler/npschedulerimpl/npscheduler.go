@@ -36,7 +36,8 @@ type npSchedulerImpl struct {
 
 	receivedPathtestConfigCount *atomic.Uint64
 	pathtestStore               *pathtestStore
-	pathtestIn                  chan *pathtest
+	pathtestInputChan           chan *pathtest
+	pathtestProcessChan         chan *pathtestContext
 	stopChan                    chan struct{}
 	flushLoopDone               chan struct{}
 	runDone                     chan struct{}
@@ -47,6 +48,7 @@ type npSchedulerImpl struct {
 func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Component, sysprobeYamlConfig config.Reader) *npSchedulerImpl {
 	workers := sysprobeYamlConfig.GetInt("network_path.workers")
 	pathtestInputChanSize := sysprobeYamlConfig.GetInt("network_path.input_chan_size")
+	pathtestProcessChanSize := sysprobeYamlConfig.GetInt("network_path.process_chan_size")
 	excludeCIDR := sysprobeYamlConfig.GetStringSlice("network_path.exclude_cidr")
 
 	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d exclude_cidr=%v)", workers, pathtestInputChanSize, excludeCIDR)
@@ -69,10 +71,11 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 		epForwarder: epForwarder,
 		logger:      logger,
 
-		pathtestStore:    newPathtestStore(DefaultFlushTickerInterval, DefaultPathtestRunDurationFromDiscovery, DefaultPathtestRunInterval, logger),
-		pathtestIn:       make(chan *pathtest, pathtestInputChanSize),
-		workers:          workers,
-		excludeIPManager: excludeIPManager,
+		pathtestStore:       newPathtestStore(DefaultFlushTickerInterval, DefaultPathtestRunDurationFromDiscovery, DefaultPathtestRunInterval, logger),
+		pathtestInputChan:   make(chan *pathtest, pathtestInputChanSize),
+		pathtestProcessChan: make(chan *pathtestContext, pathtestProcessChanSize),
+		workers:             workers,
+		excludeIPManager:    excludeIPManager,
 
 		receivedPathtestConfigCount: atomic.NewUint64(0),
 		TimeNowFunction:             time.Now,
@@ -91,7 +94,7 @@ func (s *npSchedulerImpl) listenPathtestConfigs() {
 			s.logger.Info("Stop listening to traceroute commands")
 			s.runDone <- struct{}{}
 			return
-		case ptest := <-s.pathtestIn:
+		case ptest := <-s.pathtestInputChan:
 			// TODO: TESTME
 			s.logger.Debugf("Pathtest received: %+v", ptest)
 			s.receivedPathtestConfigCount.Inc()
@@ -124,10 +127,10 @@ func (s *npSchedulerImpl) Schedule(hostname string, port uint16) error {
 		port:     port,
 	}
 	select {
-	case s.pathtestIn <- ptest:
+	case s.pathtestInputChan <- ptest:
 		return nil
 	default:
-		return fmt.Errorf("scheduler input channel is full (channel capacity is %d)", cap(s.pathtestIn))
+		return fmt.Errorf("scheduler input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
 	}
 }
 
@@ -180,6 +183,7 @@ func (s *npSchedulerImpl) Start() {
 	s.logger.Info("Start NpScheduler")
 	go s.listenPathtestConfigs()
 	go s.flushLoop()
+	s.startWorkers()
 }
 
 func (s *npSchedulerImpl) Stop() {
@@ -225,7 +229,8 @@ func (s *npSchedulerImpl) flush() {
 
 	for _, ptConf := range flowsToFlush {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.pathtest.hostname, ptConf.pathtest.port)
-		s.runTraceroute(ptConf)
+		// TODO: FLUSH TO CHANNEL + WORKERS EXECUTE
+		s.pathtestProcessChan <- ptConf
 	}
 }
 
@@ -278,4 +283,26 @@ func (s *npSchedulerImpl) getTelemetryTags(path traceroute.NetworkPath, ptest *p
 		"destination_port:" + destPortTag,
 	}...)
 	return tags
+}
+
+func (s *npSchedulerImpl) startWorkers() {
+	// TODO: TESTME
+	for w := 0; w < s.workers; w++ {
+		go s.startWorker(w)
+	}
+}
+
+func (s *npSchedulerImpl) startWorker(workerId int) {
+	// TODO: TESTME
+	s.logger.Debugf("Starting worker #%d", workerId)
+	for {
+		select {
+		case <-s.stopChan:
+			s.logger.Debugf("[worker%d] Stopping worker", workerId)
+			return
+		case pathtestCtx := <-s.pathtestProcessChan:
+			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerId, pathtestCtx.pathtest.hostname, pathtestCtx.pathtest.port)
+			s.runTraceroute(pathtestCtx)
+		}
+	}
 }
