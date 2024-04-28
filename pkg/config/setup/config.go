@@ -215,6 +215,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("hostname_file", "")
 	config.BindEnvAndSetDefault("tags", []string{})
 	config.BindEnvAndSetDefault("extra_tags", []string{})
+	// If enabled, all origin detection mechanisms will be unified to use the same logic.
+	// Will override all other origin detection settings in favor of the unified one.
+	config.BindEnvAndSetDefault("origin_detection_unified", false)
 	config.BindEnv("env")
 	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
 	config.BindEnvAndSetDefault("conf_path", ".")
@@ -1230,6 +1233,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("sbom.container_image.analyzers", []string{"os"})
 	config.BindEnvAndSetDefault("sbom.container_image.check_disk_usage", true)
 	config.BindEnvAndSetDefault("sbom.container_image.min_available_disk", "1Gb")
+	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_direct_scan", false)
 
 	// Host SBOM configuration
 	config.BindEnvAndSetDefault("sbom.host.enabled", false)

@@ -9,6 +9,7 @@ package flare
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -35,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
@@ -115,7 +117,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				workloadmeta.Module(),
-				tagger.OptionalModule(),
+				taggerimpl.OptionalModule(),
 				autodiscoveryimpl.OptionalModule(), // if forceLocal is true, we will start autodiscovery (loadComponents) later
 				flare.Module(),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
@@ -162,17 +164,6 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 		pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog.GetInt(portConfig))
 		return func(path string) ([]byte, error) {
 			return util.DoGet(c, pprofURL+path, util.LeaveConnectionOpen)
-		}
-	}
-
-	probeUtil, probeUtilErr := net.GetRemoteSystemProbeUtil(pkgconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
-	sysProbeGet := func() pprofGetter {
-		return func(path string) ([]byte, error) {
-			if probeUtilErr != nil {
-				return nil, probeUtilErr
-			}
-
-			return probeUtil.GetPprof(path)
 		}
 	}
 
@@ -242,7 +233,21 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	}
 
 	if pkgconfig.SystemProbe.GetBool("system_probe_config.enabled") {
-		agentCollectors["system-probe"] = serviceProfileCollector(sysProbeGet(), seconds)
+		probeUtil, probeUtilErr := net.GetRemoteSystemProbeUtil(pkgconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+
+		if !errors.Is(probeUtilErr, net.ErrNotImplemented) {
+			sysProbeGet := func() pprofGetter {
+				return func(path string) ([]byte, error) {
+					if probeUtilErr != nil {
+						return nil, probeUtilErr
+					}
+
+					return probeUtil.GetPprof(path)
+				}
+			}
+
+			agentCollectors["system-probe"] = serviceProfileCollector(sysProbeGet(), seconds)
+		}
 	}
 
 	var errs error
@@ -266,6 +271,9 @@ func makeFlare(flareComp flare.Component,
 		profile flare.ProfileData
 		err     error
 	)
+
+	fmt.Fprintln(color.Output, color.BlueString("NEW: You can now generate a flare from the comfort of your Datadog UI!"))
+	fmt.Fprintln(color.Output, color.BlueString("See https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/?tab=agentv6v7#send-a-flare-from-the-datadog-site for more info."))
 
 	warnings := config.Warnings()
 	if warnings != nil && warnings.Err != nil {

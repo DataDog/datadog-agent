@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
-	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
@@ -94,7 +94,7 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 		sysprobeconfig.NoneModule(),
 		fetchonlyimpl.Module(),
 		collectorcontribFx.Module(),
-
+		collector.ContribModule(),
 		fx.Provide(func() workloadmeta.Params {
 			return workloadmeta.NewParams()
 		}),
@@ -105,7 +105,10 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 			// TODO configure the log level from collector config
 			return corelogimpl.ForOneShot(params.LoggerName, "debug", true)
 		}),
-		logsagentpipelineimpl.Module(),
+		fx.Provide(logsagentpipelineimpl.NewLogsAgent),
+		fx.Provide(func(l logsagentpipeline.LogsAgent) optional.Option[logsagentpipeline.Component] {
+			return optional.NewOption[logsagentpipeline.Component](l)
+		}),
 		// We create strategy.ZlibStrategy directly to avoid build tags
 		fx.Provide(strategy.NewZlibStrategy),
 		fx.Provide(func(s *strategy.ZlibStrategy) compression.Component {

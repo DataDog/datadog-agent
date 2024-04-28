@@ -72,6 +72,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -162,6 +163,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		// TODO: once the agent is represented as a component, and not a function (run),
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
 		return fxutil.OneShot(run,
+			fx.Invoke(func(_ log.Component) {
+				ddruntime.SetMaxProcs()
+			}),
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath),
 				SecretParams:         secrets.NewEnabledParams(),
@@ -305,15 +309,6 @@ func run(log log.Component,
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
-		fx.Invoke(func(lc fx.Lifecycle) {
-			lc.Append(fx.Hook{
-				OnStart: func(_ context.Context) error {
-					// prepare go runtime
-					ddruntime.SetMaxProcs()
-					return nil
-				},
-			})
-		}),
 		fx.Supply(flare.NewParams(
 			path.GetDistPath(),
 			path.PyChecksPath,
@@ -382,7 +377,7 @@ func getSharedFxOption() fx.Option {
 		rcservicemrfimpl.Module(),
 		remoteconfig.Bundle(),
 		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
-		tagger.Module(),
+		taggerimpl.Module(),
 		autodiscoveryimpl.Module(),
 		fx.Provide(func(ac autodiscovery.Component) optional.Option[autodiscovery.Component] {
 			return optional.NewOption[autodiscovery.Component](ac)

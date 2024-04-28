@@ -432,7 +432,6 @@ require (
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
 	github.com/huandu/xstrings v1.4.0 // indirect
-	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20221208003206-eaf69f594683
 	github.com/ianlancetaylor/demangle v0.0.0-20230524184225-eabc099b10ab // indirect
 	github.com/in-toto/in-toto-golang v0.9.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -603,7 +602,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.113
+	github.com/DataDog/agent-payload/v5 v5.0.114
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/config v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.53.0-rc.2
@@ -619,7 +618,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.53.0-rc.2
@@ -1141,7 +1140,8 @@ replace k8s.io/cri-api => k8s.io/cri-api v0.25.5
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 replace (
-	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20240327150525-a3045a95060a
+	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/lebauce/use-fs-main-dd/
+	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20240426155824-6c986dae34c1
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 	// testcontainers-go has a bug with versions v0.25.0 and v0.26.0
 	// ref: https://github.com/testcontainers/testcontainers-go/issues/1782

@@ -10,9 +10,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
-	logsagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
+	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -30,7 +30,7 @@ type dependencies struct {
 	Provider         otelcol.ConfigProvider
 	CollectorContrib collectorcontrib.Component
 	Serializer       serializer.MetricSerializer
-	LogsAgent        optional.Option[logsagent.Component]
+	LogsAgent        optional.Option[logsagentpipeline.Component]
 	HostName         hostname.Component
 }
 

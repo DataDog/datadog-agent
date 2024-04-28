@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	logsagent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -34,7 +34,7 @@ type factory struct {
 
 	registry  *featuregate.Registry
 	s         serializer.MetricSerializer
-	logsAgent logsagent.Component
+	logsAgent logsagentpipeline.Component
 	h         hostname.Component
 }
 
@@ -45,7 +45,7 @@ func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attrib
 	return f.attributesTranslator, f.attributesErr
 }
 
-func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricSerializer, logsagent logsagent.Component, h hostname.Component) exporter.Factory {
+func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricSerializer, logsagent logsagentpipeline.Component, h hostname.Component) exporter.Factory {
 	f := &factory{
 		registry:  registry,
 		s:         s,
@@ -77,7 +77,7 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 }
 
 // NewFactory creates a Datadog exporter factory
-func NewFactory(s serializer.MetricSerializer, logsAgent logsagent.Component, h hostname.Component) exporter.Factory {
+func NewFactory(s serializer.MetricSerializer, logsAgent logsagentpipeline.Component, h hostname.Component) exporter.Factory {
 	return newFactoryWithRegistry(featuregate.GlobalRegistry(), s, logsAgent, h)
 }
 
