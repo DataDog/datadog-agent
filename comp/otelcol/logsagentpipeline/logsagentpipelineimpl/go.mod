@@ -10,6 +10,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/log => ../../../core/log
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../def
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../logs/agent/config
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../logsagentpipeline
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
@@ -82,6 +83,7 @@ require (
 	github.com/DataDog/agent-payload/v5 v5.0.106 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/logs v0.53.0-rc.2 // indirect
@@ -105,7 +107,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240419161837-f1b2f553edfe // indirect
-	github.com/DataDog/viper v1.13.0 // indirect
+	github.com/DataDog/viper v1.13.2 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -134,7 +136,7 @@ require (
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.11.1 // indirect
-	github.com/shirou/gopsutil/v3 v3.24.1 // indirect
+	github.com/shirou/gopsutil/v3 v3.24.2 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/spf13/afero v1.9.5 // indirect
 	github.com/spf13/cast v1.5.1 // indirect
@@ -143,7 +145,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
-	github.com/yusufpapurcu/wmi v1.2.3 // indirect
+	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/otel v1.24.0 // indirect
 	go.opentelemetry.io/otel/exporters/prometheus v0.42.0 // indirect
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
