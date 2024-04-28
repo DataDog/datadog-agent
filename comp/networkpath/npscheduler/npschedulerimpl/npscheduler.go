@@ -218,6 +218,7 @@ func (s *npSchedulerImpl) flushLoop() {
 
 func (s *npSchedulerImpl) flush() {
 	flowsContexts := s.pathtestStore.getPathtestContextCount()
+	statsd.Client.Gauge("datadog.network_path.scheduler.store_count", float64(flowsContexts), []string{}, 1) //nolint:errcheck
 	flushTime := s.TimeNowFunction()
 	flowsToFlush := s.pathtestStore.flush()
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
