@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// TODO: this isn't hooked up and needs to be migrated to the handlefunc
 type EndpointProvider struct {
 	tagger *TaggerClient
 }

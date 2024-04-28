@@ -8,6 +8,9 @@ package autodiscoveryimpl
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -15,6 +18,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
@@ -98,12 +103,11 @@ func Module() fxutil.Module {
 
 func newProvides(deps dependencies) provides {
 	c := newAutoConfig(deps)
-	endpoint := EndpointProvider{ac: c.(*AutoConfig)}
 	return provides{
 		Comp:           c,
 		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c)),
 
-		Endpoint: api.NewAgentEndpointProvider(endpoint, "/config-check", "GET"),
+		Endpoint: api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
 	}
 }
 
@@ -206,6 +210,28 @@ func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 		ac.processDelService(ctx, service)
 		ac.processNewService(ctx, service)
 	}
+}
+
+func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
+	var response response.ConfigCheckResponse
+
+	configSlice := ac.LoadedConfigs()
+	sort.Slice(configSlice, func(i, j int) bool {
+		return configSlice[i].Name < configSlice[j].Name
+	})
+	response.Configs = configSlice
+	response.ResolveWarnings = GetResolveWarnings()
+	response.ConfigErrors = GetConfigErrors()
+	response.Unresolved = ac.GetUnresolvedTemplates()
+
+	jsonConfig, err := json.Marshal(response)
+	if err != nil {
+		utils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
+		return
+	}
+
+	w.Write(jsonConfig)
+
 }
 
 // Start will listen to the service channels before anything is sent to them

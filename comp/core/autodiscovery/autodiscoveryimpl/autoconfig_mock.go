@@ -25,12 +25,8 @@ type MockParams struct {
 	Scheduler *scheduler.MetaScheduler
 }
 
-type MockEndpoint struct {
-	Comp *AutoConfig
-}
-
-// ServeHTTP is a simple mocked http.Handler function
-func (e MockEndpoint) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+// mockHandleRequest is a simple mocked http.Handler function to test the route registers with the api component correctly
+func (ac *AutoConfig) mockHandleRequest(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("OK"))
 }
 
@@ -49,10 +45,9 @@ type mockprovides struct {
 
 func newMockAutoConfig(deps mockdependencies) mockprovides {
 	ac := createNewAutoConfig(deps.Params.Scheduler, nil, deps.WMeta)
-	endpoint := api.NewAgentEndpointProvider(MockEndpoint{Comp: ac}, "/config-check", "GET")
 	return mockprovides{
 		Comp:     ac,
-		Endpoint: endpoint,
+		Endpoint: api.NewAgentEndpointProvider(ac.mockHandleRequest, "/config-check", "GET"),
 	}
 }
 

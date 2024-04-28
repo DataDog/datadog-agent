@@ -7,12 +7,15 @@ package workloadmeta
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"sync"
 	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -119,12 +122,10 @@ func newWorkloadMeta(deps dependencies) provider {
 		return nil
 	}})
 
-	endpoint := EndpointProvider{wmeta: wm}
-
 	return provider{
 		Comp:          wm,
 		FlareProvider: flaretypes.NewProvider(wm.sbomFlareProvider),
-		Endpoint:      api.NewAgentEndpointProvider(endpoint, "/workload-list", "GET"),
+		Endpoint:      api.NewAgentEndpointProvider(wm.writeResponse, "/workload-list", "GET"),
 	}
 }
 
@@ -141,4 +142,23 @@ func newWorkloadMetaOptional(deps dependencies) optionalProvider {
 		FlareProvider: c.FlareProvider,
 		Endpoint:      c.Endpoint,
 	}
+}
+
+func (wm *workloadmeta) writeResponse(w http.ResponseWriter, r *http.Request) {
+	verbose := false
+	params := r.URL.Query()
+	if v, ok := params["verbose"]; ok {
+		if len(v) >= 1 && v[0] == "true" {
+			verbose = true
+		}
+	}
+
+	response := wm.Dump(verbose)
+	jsonDump, err := json.Marshal(response)
+	if err != nil {
+		utils.SetJSONError(w, wm.log.Errorf("Unable to marshal workload list response: %v", err), 500)
+		return
+	}
+
+	w.Write(jsonDump)
 }

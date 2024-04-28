@@ -29,23 +29,11 @@ type MockSecretResolver struct {
 	*secretResolver
 }
 
-type MockInfoEndpoint struct {
-	Comp *MockSecretResolver
-}
-
-func (e MockInfoEndpoint) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	w.Write([]byte("OK"))
-}
-
-type MockRefreshEndpoint struct {
-	Comp *MockSecretResolver
-}
-
-func (e MockRefreshEndpoint) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	w.Write([]byte("OK"))
-}
-
 var _ secrets.Component = (*MockSecretResolver)(nil)
+
+func (r *MockSecretResolver) mockHandleRequest(w http.ResponseWriter, _ *http.Request) {
+	w.Write([]byte("OK"))
+}
 
 // SetBackendCommand sets the backend command for the mock
 func (m *MockSecretResolver) SetBackendCommand(command string) {
@@ -64,8 +52,8 @@ func NewMock() MockProvides {
 	}
 	return MockProvides{
 		Comp:            r,
-		InfoEndpoint:    api.NewAgentEndpointProvider(MockInfoEndpoint{Comp: r}, "/secrets", "GET"),
-		RefreshEndpoint: api.NewAgentEndpointProvider(MockRefreshEndpoint{Comp: r}, "/secret/refresh", "GET"),
+		InfoEndpoint:    api.NewAgentEndpointProvider(r.mockHandleRequest, "/secrets", "GET"),
+		RefreshEndpoint: api.NewAgentEndpointProvider(r.mockHandleRequest, "/secret/refresh", "GET"),
 	}
 }
 

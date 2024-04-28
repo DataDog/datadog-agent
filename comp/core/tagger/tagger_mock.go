@@ -27,12 +27,8 @@ type MockTaggerClient struct {
 	*TaggerClient
 }
 
-type MockEndpoint struct {
-	Comp *TaggerClient
-}
-
-// ServeHTTP is a simple mocked http.Handler function
-func (e MockEndpoint) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+// mockHandleRequest is a simple mocked http.Handler function to test the route is registered correctly on the api component
+func (t *MockTaggerClient) mockHandleRequest(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("OK"))
 }
 
@@ -51,10 +47,9 @@ func NewMock(deps dependencies) MockProvides {
 	c := &MockTaggerClient{
 		TaggerClient: taggerClient.(*TaggerClient),
 	}
-	endpoint := MockEndpoint{Comp: c.TaggerClient}
 	return MockProvides{
 		Comp:     c,
-		Endpoint: api.NewAgentEndpointProvider(endpoint, "/tagger-list", "GET"),
+		Endpoint: api.NewAgentEndpointProvider(c.mockHandleRequest, "/tagger-list", "GET"),
 	}
 }
 
