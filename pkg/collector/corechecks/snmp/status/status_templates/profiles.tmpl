@@ -1,0 +1,7 @@
+{{- if eq (len .profiles) 0}}
+  No error found in profiles
+{{- else}}
+{{- range $key, $value := .profiles}}
+  {{$key}}: {{$value}}
+{{- end }}
+{{end}}

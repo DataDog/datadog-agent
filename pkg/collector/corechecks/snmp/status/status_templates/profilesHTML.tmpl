@@ -1,0 +1,12 @@
+<div class="stat">
+  <span class="stat_title">Profiles</span>
+  <span class="stat_data">
+    {{- if eq (len .profiles) 0}}
+    No error found in profiles
+    {{- else}}
+    {{- range $key, $value := .profiles}}
+    {{$key}}: {{$value}}
+    {{- end }}
+    {{end}}
+  </span>
+</div>
