@@ -248,7 +248,9 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)
-	httpMux.HandleFunc("/debug/usm_traced_programs", usm.TracedProgramsEndpoint)
+	httpMux.HandleFunc("/debug/usm/traced_programs", usm.TracedProgramsEndpoint)
+	httpMux.HandleFunc("/debug/usm/attach-pid", usm.AttachPIDEndpoint)
+	httpMux.HandleFunc("/debug/usm/detach-pid", usm.DetachPIDEndpoint)
 
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
 	// This should be helpful for customers + support to debug the underlying issue.
