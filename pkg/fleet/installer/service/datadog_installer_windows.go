@@ -15,7 +15,7 @@ func SetupInstaller(_ context.Context) error {
 }
 
 // PreSetupInstaller noop
-func PreSetupInstaller() error {
+func PreSetupInstaller(_ string) error {
 	return nil
 }
 
