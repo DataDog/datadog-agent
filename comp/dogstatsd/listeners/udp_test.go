@@ -47,9 +47,6 @@ func newPacketPoolManagerUDP(cfg config.Component) *packets.PoolManager {
 func TestNewUDPListener(t *testing.T) {
 	deps := fulfillDepsWithConfig(t, map[string]interface{}{})
 	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
 	assert.NotNil(t, s)
 	assert.Nil(t, err)
 
