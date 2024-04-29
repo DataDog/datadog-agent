@@ -1,0 +1,12 @@
+---
+otel_agent_binary_build:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  stage: binary_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  script:
+    - !reference [.retrieve_linux_go_deps]
+    - inv -e otel-agent.build
+  needs: ["go_deps"]
