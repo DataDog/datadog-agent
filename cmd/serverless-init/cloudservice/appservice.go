@@ -21,7 +21,7 @@ const (
 	//nolint:revive // TODO(SERV) Fix revive linter
 	RegionName = "REGION_NAME"
 	//nolint:revive // TODO(SERV) Fix revive linter
-	RunZip = "APPSVC_RUN_ZIP"
+	FxVersion = "LINUX_FX_VERSION"
 	//nolint:revive // TODO(SERV) Fix revive linter
 	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 )
@@ -63,6 +63,6 @@ func (a *AppService) Init() error {
 }
 
 func isAppService() bool {
-	_, exists := os.LookupEnv(RunZip)
+	_, exists := os.LookupEnv(FxVersion)
 	return exists
 }
