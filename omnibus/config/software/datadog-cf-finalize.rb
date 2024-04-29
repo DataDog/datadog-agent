@@ -12,6 +12,8 @@ name "datadog-cf-finalize"
 description "steps required to finalize the CF build"
 default_version "1.0.0"
 
+always_build true
+
 skip_transitive_dependency_licensing true
 
 build do

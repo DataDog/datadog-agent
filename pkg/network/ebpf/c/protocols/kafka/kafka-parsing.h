@@ -9,8 +9,9 @@
 
 // forward declaration
 static __always_inline bool kafka_allow_packet(skb_info_t *skb_info);
-static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, u32 offset);
+static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, u32 offset, kafka_telemetry_t *kafka_tel);
 static __always_inline bool kafka_process_response(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
+static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size);
 
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
 // The iterations reads up to MIN(max_buffer_size, real_size).
@@ -61,6 +62,11 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
+    kafka_telemetry_t *kafka_tel = bpf_map_lookup_elem(&kafka_telemetry, &zero);
+    if (kafka_tel == NULL) {
+        return 0;
+    }
+
     if (is_tcp_termination(&skb_info)) {
         bpf_map_delete_elem(&kafka_response, &tup);
         // Delete the opposite direction also like HTTP/2 does since the termination
@@ -74,7 +80,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    (void)kafka_process(&tup, kafka, skb, skb_info.data_off);
+    (void)kafka_process(&tup, kafka, skb, skb_info.data_off, kafka_tel);
     return 0;
 }
 
@@ -655,7 +661,7 @@ static __always_inline bool kafka_process_response(conn_tuple_t *tup, kafka_info
     return kafka_process_new_response(tup, kafka, skb, skb_info);
 }
 
-static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, u32 offset) {
+static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, struct __sk_buff* skb, u32 offset, kafka_telemetry_t *kafka_tel) {
     /*
         We perform Kafka request validation as we can get kafka traffic that is not relevant for parsing (unsupported requests, responses, etc)
     */
@@ -710,8 +716,10 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     offset += sizeof(s32);
     READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, skb, offset);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+        // Since topic_name_size doesn't adhere to the protocol, there's no need to update our telemetry, as it's not a valid Kafka field
         return false;
     }
+    update_topic_name_size_telemetry(kafka_tel, topic_name_size);
     bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
     read_into_buffer_topic_name_parser((char *)kafka_transaction->topic_name, skb, offset);
     offset += topic_name_size;
@@ -801,6 +809,18 @@ static __always_inline bool kafka_allow_packet(skb_info_t *skb_info) {
     }
 
     return true;
+}
+
+// update_path_size_telemetry updates the topic name size telemetry.
+static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size) {
+    // We have 10 buckets in the ranges of: 1 - 10, 11 - 20, ... , 71 - 80, 81 - 90, 91 - 100, 101 - 255
+    __u8 bucket_idx = (size - 1) / KAFKA_TELEMETRY_TOPIC_NAME_BUCKET_SIZE;
+
+    // Ensure that the bucket index falls within the valid range.
+    bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
+    bucket_idx = bucket_idx > (KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS - 1) ? (KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS - 1) : bucket_idx;
+
+    __sync_fetch_and_add(&kafka_tel->topic_name_size_buckets[bucket_idx], 1);
 }
 
 #endif
