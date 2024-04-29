@@ -60,7 +60,9 @@ if "%OMNIBUS_TARGET%" == "main" (
     inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" --release-version %RELEASE_VERSION% || exit /b 106
 )
 
-REM Build the OCI package
-Powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1"
+REM Build the OCI package for the Agent 7 only.
+if %MAJOR_VERSION% == 7 (
+    Powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1"
+)
 
 popd
