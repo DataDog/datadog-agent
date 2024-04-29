@@ -327,7 +327,6 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 	}
 
 	t.closeConsumer.Start(callback)
-	log.Info("starting failed connection consumer")
 	t.failedConnConsumer.Start()
 	return nil
 }

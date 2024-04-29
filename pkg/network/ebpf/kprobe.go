@@ -63,7 +63,7 @@ func (t *ConnTuple) SetFamily(family ConnFamily) {
 	if family == IPv6 {
 		t.Metadata |= uint32(IPv6) // Set the IPv6 bit
 	} else {
-		t.Metadata &^= uint32(IPv6) // Clear the IPv6 bit, assuming IPv4 is default
+		t.Metadata &^= uint32(IPv6) // Clear the IPv6 bit
 	}
 }
 
@@ -72,7 +72,7 @@ func (t *ConnTuple) SetType(connType ConnType) {
 	if connType == TCP {
 		t.Metadata |= uint32(TCP) // Set the TCP bit
 	} else {
-		t.Metadata &^= uint32(TCP) // Clear the TCP bit, assuming UDP is default
+		t.Metadata &^= uint32(TCP) // Clear the TCP bit
 	}
 }
 

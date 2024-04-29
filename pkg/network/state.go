@@ -626,8 +626,6 @@ func matchFailedConn(conn *ConnectionStats, failedConnMap *FailedConns) {
 	connTuple := connStatsToTuple(conn)
 	failedConnMap.RLock()
 	defer failedConnMap.RUnlock()
-	log.Errorf("FailedConnMap: %+v", len(failedConnMap.FailedConnMap))
-	log.Errorf("ConnTuple: %+v", connTuple)
 	if failedConn, ok := failedConnMap.FailedConnMap[connTuple]; ok {
 		conn.TCPFailures = make(map[TCPFailure]uint32)
 		for errCode, count := range failedConn.CountByErrCode {
@@ -644,7 +642,6 @@ func matchFailedConn(conn *ConnectionStats, failedConnMap *FailedConns) {
 			default:
 				log.Infof("Incrementing TCP Failed Default counter for connection: %+v", conn)
 				conn.TCPFailures[TCPFailureUnknown] += count
-				// add some prometheus telemetry here
 			}
 		}
 	}

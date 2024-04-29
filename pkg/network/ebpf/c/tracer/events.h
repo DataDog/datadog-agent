@@ -142,30 +142,10 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
 // This function is used to flush the conn_close_batch to the perf or ring buffer.
 static __always_inline void flush_tcp_failure(void *ctx, conn_tuple_t *tup, int failure_reason) {
     // Will hold the full connection data to send through the ring buffer
-    log_debug("adamk flushing TCP failure for connection: %d", tup->pid);
+    log_debug("flushing TCP failure for connection: %d", tup->pid);
     conn_failed_t failure = {};
     failure.tup = *tup;
     failure.failure_reason = failure_reason;
-    // switch (failure_reason) {
-    // case ECONNREFUSED:
-    //     // increment_telemetry_count(tcp_failed_connect);
-    //     failure.failure_reason = CONNREFUSED;
-    //     break;
-    // case ECONNRESET:
-    //     // increment_telemetry_count(tcp_failed_reset);
-    //     failure.failure_reason = CONNRESET;
-    //     break;
-    // case ECONNABORTED:
-    //     // increment_telemetry_count(tcp_failed_abort);
-    //     break;
-    // case EHOSTUNREACH:
-    //     // increment_telemetry_count(tcp_failed_unreach);
-    //     break;
-    // case ETIMEDOUT:
-    //     // increment_telemetry_count(tcp_failed_timeout);
-    //     failure.failure_reason = TIMEOUT;
-    //     break;
-    // }
 
     __u64 ringbuffers_enabled = 0;
     LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
