@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/api/api"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -128,7 +129,7 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Reset the `server_timeout` deadline for this connection as creating a flare can take some time
-	conn := getConnection(r)
+	conn := apiutils.GetConnection(r)
 	_ = conn.SetDeadline(time.Time{})
 
 	var filePath string

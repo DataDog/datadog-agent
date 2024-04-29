@@ -44,7 +44,7 @@ var _ tagger.Component = (*MockTaggerClient)(nil)
 
 // NewMock returns a MockTagger
 func NewMock(deps dependencies) MockProvides {
-	taggerClient := newTaggerClient(deps)
+	taggerClient := newTaggerClient(deps).Comp
 	c := &MockTaggerClient{
 		TaggerClient: taggerClient.(*TaggerClient),
 	}
