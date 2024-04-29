@@ -36,7 +36,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2
-	github.com/DataDog/viper v1.13.3-0.20240429100011-21ba0b3675ac
+	github.com/DataDog/viper v1.13.3-0.20240429123956-163dcbf55ffc
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
 )
