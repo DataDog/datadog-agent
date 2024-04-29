@@ -5,7 +5,7 @@ go 1.21.0
 replace github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../def
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.54.0-rc.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.98.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.98.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector v0.98.0
