@@ -515,14 +515,14 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	// undocumented writers
-	for key, cfg := range map[string]*config.WriterConfig{
-		"apm_config.trace_writer": c.TraceWriter,
-		"apm_config.stats_writer": c.StatsWriter,
-	} {
-		if err := coreconfig.Datadog.UnmarshalKey(key, cfg); err != nil {
-			log.Errorf("Error reading writer config %q: %v", key, err)
-		}
-	}
+	//for key, cfg := range map[string]*config.WriterConfig{
+	//	"apm_config.trace_writer": c.TraceWriter,
+	//	"apm_config.stats_writer": c.StatsWriter,
+	//} {
+	//	if err := coreconfig.Datadog.UnmarshalKey(key, cfg); err != nil {
+	//		log.Errorf("Error reading writer config %q: %v", key, err)
+	//	}
+	//}
 	if core.IsSet("apm_config.connection_reset_interval") {
 		c.ConnectionResetInterval = getDuration(core.GetInt("apm_config.connection_reset_interval"))
 	}
