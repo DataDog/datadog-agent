@@ -52,8 +52,8 @@ int sk_skb__kafka_stream_parser(struct __sk_buff* skb) {
 }
 
 SEC("sk_skb/stream_verdict/verdict")
-int sk_skb__kafka_stream_verdict(struct __sk_buff* skb) {
-    log_debug("sk_skb__kafka_stream_verdict: sockops stream verdict skb %p skb->sk %p len %u", skb, skb->sk, skb->len);
+int sk_skb__protocol_dispatcher(struct __sk_buff* skb) {
+    log_debug("sk_skb__protocol_dispatcher: sockops stream verdict skb %p skb->sk %p len %u", skb, skb->sk, skb->len);
     // u32 val  = 0xdead;
     // long ret = bpf_skb_load_bytes(skb, skb->len - sizeof(val), &val, sizeof(val));
     // if (ret != 1000) {

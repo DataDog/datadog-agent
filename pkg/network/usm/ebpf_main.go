@@ -66,7 +66,7 @@ const (
 	sockopsFunction                        = "sockops__sockops"
 	sockhash                               = "sockhash"
 	kafkaStreamParser                      = "sk_skb__kafka_stream_parser"
-	kafkaStreamVerdict                     = "sk_skb__kafka_stream_verdict"
+	skSKBProtocolDispatcher                = "sk_skb__protocol_dispatcher"
 
 	sockFDLookup    = "kprobe__sockfd_lookup_light"
 	sockFDLookupRet = "kretprobe__sockfd_lookup_light"
@@ -121,7 +121,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 			// },
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: kafkaStreamVerdict,
+					EBPFFuncName: skSKBProtocolDispatcher,
 					UID:          probeUID,
 				},
 			},
