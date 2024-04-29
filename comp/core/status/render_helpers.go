@@ -62,6 +62,7 @@ func HTMLFmap() htemplate.FuncMap {
 			"lastErrorMessage":   lastErrorMessageHTML,
 			"pythonLoaderError":  pythonLoaderErrorHTML,
 			"status":             statusHTML,
+			"test":               func() { fmt.Println("hello") },
 		})
 	})
 	return htmlFuncMap
@@ -146,8 +147,6 @@ func castValue(value interface{}, targetType reflect.Type) (reflect.Value, error
 	var err = errors.New("")
 
 	switch targetType.Kind() {
-	case reflect.Bool:
-		o, err = cast.ToBoolE(value)
 	case reflect.Int:
 		o, err = cast.ToIntE(value)
 	case reflect.Int8:
@@ -172,12 +171,8 @@ func castValue(value interface{}, targetType reflect.Type) (reflect.Value, error
 		o, err = cast.ToFloat32E(value)
 	case reflect.Float64:
 		o, err = cast.ToFloat64E(value)
-	case reflect.Slice:
-		o, err = cast.ToSliceE(value)
 	case reflect.String:
 		o, err = cast.ToStringE(value)
-	case reflect.Interface:
-		o, err = reflect.ValueOf(o).Interface(), nil
 	}
 
 	if err != nil {
@@ -244,7 +239,7 @@ func lastErrorMessage(value string) string {
 }
 
 // formatUnixTime formats the unix time to make it more readable
-func formatUnixTime(unixTime any) string {
+func formatUnixTime(unixTime int64) string {
 	// Initially treat given unixTime is in nanoseconds
 	parseFunction := func(value int64) string {
 		t := time.Unix(0, value)
@@ -263,15 +258,16 @@ func formatUnixTime(unixTime any) string {
 
 		return result
 	}
+	return parseFunction(unixTime)
 
-	switch v := unixTime.(type) {
-	case int64:
-		return parseFunction(v)
-	case float64:
-		return parseFunction(int64(v))
-	default:
-		return fmt.Sprintf("Invalid time parameter %T", v)
-	}
+	// switch v := unixTime.(type) {
+	// case int64:
+	// 	return parseFunction(v)
+	// case float64:
+	// 	return parseFunction(int64(v))
+	// default:
+	// 	return fmt.Sprintf("Invalid time parameter %T", v)
+	// }
 }
 
 // PrintDashes repeats the pattern (dash) for the length of s

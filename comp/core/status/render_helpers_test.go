@@ -40,6 +40,8 @@ func TestUntypeFuncMap(t *testing.T) {
 	{{ lastError .LastErrorValue }}
 	{{ configError .ConfigErrorValue }}
 	{{ printDashes .PrintDashesValue .PrintDashesValue2 }}
+	{{ .PrintDashesValue }}
+	{{ printDashes .PrintDashesValue .PrintDashesValue2 }}
 	{{ formatUnixTime .FormatUnixTimeValue }}
 	{{ humanize .HumanizeValue }}
 	{{ humanizeDuration .HumanizeDurationValue .HumanizeDurationValue2 }}
@@ -63,7 +65,7 @@ func TestUntypeFuncMap(t *testing.T) {
 		ConfigErrorValue        string
 		PrintDashesValue        string
 		PrintDashesValue2       string
-		FormatUnixTimeValue     int64
+		FormatUnixTimeValue     string
 		HumanizeValue           string
 		HumanizeDurationValue   time.Duration
 		HumanizeDurationValue2  string
@@ -83,12 +85,12 @@ func TestUntypeFuncMap(t *testing.T) {
 		PythonLoaderErrorValue  string
 		StatusValue             string
 	}{
-		DoNotEscapeValue:        "mockDoNotEscape",
+		DoNotEscapeValue:        "<>&",
 		LastErrorValue:          "mockLastError",
 		ConfigErrorValue:        "mockConfigError",
-		PrintDashesValue:        "mockPrintDashes1",
-		PrintDashesValue2:       "mockPrintDashes2",
-		FormatUnixTimeValue:     1617459250, // example Unix timestamp
+		PrintDashesValue:        "<>&",
+		PrintDashesValue2:       "=",
+		FormatUnixTimeValue:     "aab1617459250", // example Unix timestamp
 		HumanizeValue:           "mockHumanize",
 		HumanizeDurationValue:   1 * time.Hour,
 		HumanizeDurationValue2:  "",
