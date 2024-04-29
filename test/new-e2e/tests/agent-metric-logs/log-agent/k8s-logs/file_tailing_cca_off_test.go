@@ -7,7 +7,6 @@ package k8sfiletailing
 
 import (
 	"context"
-	"slices"
 	"testing"
 	"time"
 
@@ -69,9 +68,8 @@ func (v *k8sCCAOffSuite) TestADAnnotations() {
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		logsServiceNames, err := v.Env().FakeIntake.Client().GetLogServiceNames()
 		assert.NoError(c, err, "Error starting job")
-		assert.Contains(c, logsServiceNames, "ubuntu", "Ubuntu service not found")
 
-		if slices.Contains(logsServiceNames, "ubuntu") {
+		if assert.Contains(c, logsServiceNames, "ubuntu", "Ubuntu service not found") {
 			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("ubuntu")
 			assert.NoError(c, err, "Error filtering logs")
 			assert.Equal(c, testLogMessage, filteredLogs[0].Message, "Test log doesn't match")
