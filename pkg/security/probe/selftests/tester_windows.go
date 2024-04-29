@@ -8,6 +8,7 @@ package selftests
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"go.uber.org/atomic"
@@ -39,7 +40,7 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 		return nil, err
 	}
 	selfTests = []SelfTest{
-		&WindowsCreateFileSelfTest{filename: fmt.Sprintf("%s/%s", dir, fileToCreate)},
+		&WindowsCreateFileSelfTest{filename: filepath.Join(dir, fileToCreate)},
 		&WindowsOpenRegistryKeyTest{keyPath: keyPath},
 	}
 

@@ -28,10 +28,16 @@ func (o *WindowsCreateFileSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 	o.ruleID = fmt.Sprintf("%s_windows_create_file", ruleIDPrefix)
 
 	basename := filepath.Base(o.filename)
+	devicePath := o.filename
+	volumeName := filepath.VolumeName(o.filename)
+	// replace volume name with glob matching the device name
+	if volumeName != "" {
+		devicePath = "/Device/*" + o.filename[len(volumeName):]
+	}
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
-		Expression: fmt.Sprintf(`create.file.name == "%s" && create.file.device_path == "%s"`, basename, o.filename),
+		Expression: fmt.Sprintf(`create.file.name == "%s" && create.file.device_path =~ "%s" && process.pid == %d`, basename, filepath.ToSlash(devicePath), os.Getpid()),
 	}
 }
 
