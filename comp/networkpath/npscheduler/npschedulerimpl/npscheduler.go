@@ -292,16 +292,16 @@ func (s *npSchedulerImpl) startWorkers() {
 	}
 }
 
-func (s *npSchedulerImpl) startWorker(workerId int) {
+func (s *npSchedulerImpl) startWorker(workerID int) {
 	// TODO: TESTME
-	s.logger.Debugf("Starting worker #%d", workerId)
+	s.logger.Debugf("Starting worker #%d", workerID)
 	for {
 		select {
 		case <-s.stopChan:
-			s.logger.Debugf("[worker%d] Stopping worker", workerId)
+			s.logger.Debugf("[worker%d] Stopping worker", workerID)
 			return
 		case pathtestCtx := <-s.pathtestProcessChan:
-			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerId, pathtestCtx.pathtest.hostname, pathtestCtx.pathtest.port)
+			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.pathtest.hostname, pathtestCtx.pathtest.port)
 			s.runTraceroute(pathtestCtx)
 		}
 	}
