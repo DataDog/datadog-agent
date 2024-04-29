@@ -1,5 +1,4 @@
 ---
-
 .setup_system_probe_artifacts: &setup_system_probe_artifacts
   - tar -xf $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
   - mkdir -p /tmp/system-probe
