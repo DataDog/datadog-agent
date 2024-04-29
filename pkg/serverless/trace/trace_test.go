@@ -195,7 +195,7 @@ func TestFilterServerlessSpanFromTracer(t *testing.T) {
 func TestGetDDOriginCloudServices(t *testing.T) {
 	serviceToEnvVar := map[string]string{
 		"cloudrun":     cloudservice.ServiceNameEnvVar,
-		"appservice":   cloudservice.RunZip,
+		"appservice":   cloudservice.FxVersion,
 		"containerapp": cloudservice.ContainerAppNameEnvVar,
 		"lambda":       functionNameEnvVar,
 	}
