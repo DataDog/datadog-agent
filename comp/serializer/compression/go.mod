@@ -52,7 +52,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2 // indirect
-	github.com/DataDog/viper v1.13.3-0.20240426154822-ee42f58c545e // indirect
+	github.com/DataDog/viper v1.13.3-0.20240429091617-a3402cd855a0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
