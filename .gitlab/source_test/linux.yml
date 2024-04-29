@@ -242,6 +242,10 @@ new-e2e-unit-tests:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   before_script:
+      # Setup AWS Credentials
+    - mkdir -p ~/.aws
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
+    - export AWS_PROFILE=agent-qa-ci
     # init pulumi state locally
     - pulumi login --local
   script:
@@ -252,4 +256,5 @@ new-e2e-unit-tests:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
-    PULUMI_CONFIG_PASSPHRASE: 1234
+    E2E_PIPELINE_ID: $CI_PIPELINE_ID
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
