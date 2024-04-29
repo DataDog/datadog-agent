@@ -289,12 +289,12 @@ type ConnectionStats struct {
 
 // Via has info about the routing decision for a flow
 type Via struct {
-	Subnet Subnet
+	Subnet Subnet `json:"subnet,omitempty"`
 }
 
 // Subnet stores info about a subnet
 type Subnet struct {
-	Alias string
+	Alias string `json:"alias,omitempty"`
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd

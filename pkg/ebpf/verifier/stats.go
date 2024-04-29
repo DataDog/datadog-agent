@@ -44,7 +44,6 @@ type Statistics struct {
 	StackDepth                 stat `json:"stack_usage" kernel:"4.15"`
 	InstructionsProcessed      stat `json:"instruction_processed" kernel:"4.15"`
 	InstructionsProcessedLimit stat `json:"limit" kernel:"4.15"`
-	VerificationTime           stat `json:"verification_time" kernel:"5.2"`
 	MaxStatesPerInstruction    stat `json:"max_states_per_insn" kernel:"5.2"`
 	TotalStates                stat `json:"total_states" kernel:"5.2"`
 	PeakStates                 stat `json:"peak_states" kernel:"5.2"`
@@ -93,7 +92,6 @@ type ComplexityInfo struct {
 
 var (
 	stackUsage          = regexp.MustCompile(`stack depth\s+(?P<usage>\d+).*\n`)
-	verificationTime    = regexp.MustCompile(`verification time\s+(?P<time>\d+).*\n`)
 	insnProcessed       = regexp.MustCompile(`processed (?P<processed>\d+) insns`)
 	insnLimit           = regexp.MustCompile(`\(limit (?P<limit>\d+)\)`)
 	maxStates           = regexp.MustCompile(`max_states_per_insn (?P<max_states>\d+)`)
@@ -397,7 +395,6 @@ type structField struct {
 
 func unmarshalStatistics(output string, hostVersion kernel.Version) (*Statistics, error) {
 	v := Statistics{
-		VerificationTime:           stat{parse: verificationTime},
 		StackDepth:                 stat{parse: stackUsage},
 		InstructionsProcessed:      stat{parse: insnProcessed},
 		InstructionsProcessedLimit: stat{parse: insnLimit},
