@@ -6,6 +6,7 @@
 package installtest
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
@@ -117,27 +118,75 @@ func RequireAgentRunningWithNoErrors(t *testing.T, client *common.TestClient) {
 // getExpectedSignedFilesForAgentMajorVersion returns the list of files that should be signed for the given agent major version
 // as relative paths from the agent install directory.
 func getExpectedSignedFilesForAgentMajorVersion(majorVersion string) []string {
+	// all executables should be signed
+	return getExpectedExecutablesForAgentMajorVersion(majorVersion)
+}
+
+// getExpectedConfigFiles returns the list of config files that should be present in the agent config directory,
+// as relative paths from the agent config directory.
+func getExpectedConfigFiles() []string {
+	return []string{
+		`datadog.yaml`,
+		`system-probe.yaml`,
+		`security-agent.yaml`,
+		`runtime-security.d\default.policy`,
+	}
+}
+
+// getExpectedBinFilesForAgentMajorVersion returns the list of files that should be present in the agent install directory,
+// as relative paths from the agent install directory.
+func getExpectedBinFilesForAgentMajorVersion(majorVersion string) []string {
+	py3 := shortPythonVersion(common.ExpectedPythonVersion3)
 	paths := []string{
 		// user binaries
 		`bin\agent.exe`,
-		`bin\libdatadog-agent-three.dll`,
+		`bin\agent\ddtray.exe`,
 		`bin\agent\trace-agent.exe`,
 		`bin\agent\process-agent.exe`,
+		`bin\agent\security-agent.exe`,
 		`bin\agent\system-probe.exe`,
 		// drivers
 		`bin\agent\driver\ddnpm.sys`,
+		`bin\agent\driver\ddnpm.inf`,
+		`bin\agent\driver\ddnpm.cat`,
+		`bin\agent\driver\ddprocmon.sys`,
+		`bin\agent\driver\ddprocmon.inf`,
+		`bin\agent\driver\ddprocmon.cat`,
+		// python3
+		`bin\libdatadog-agent-three.dll`,
+		`embedded3\python.exe`,
+		`embedded3\pythonw.exe`,
+		fmt.Sprintf(`embedded3\python%s.dll`, py3),
 	}
-	// As of 7.5?, the embedded Python3 should be signed by Python, not Datadog
-	// We still build our own Python2, so we need to check that
 	if ExpectPython2Installed(majorVersion) {
+		py2 := shortPythonVersion(common.ExpectedPythonVersion2)
 		paths = append(paths, []string{
-			`bin\libdatadog-agent-three.dll`,
+			`bin\libdatadog-agent-two.dll`,
 			`embedded2\python.exe`,
 			`embedded2\pythonw.exe`,
-			`embedded2\python27.dll`,
+			fmt.Sprintf(`embedded2\python%s.dll`, py2),
 		}...)
 	}
 	return paths
+}
+
+// getExpectedExecutablesForAgentMajorVersion returns the list of executables that should be present in the agent install directory,
+// as relative paths from the agent install directory.
+func getExpectedExecutablesForAgentMajorVersion(majorVersion string) []string {
+	r := getExpectedBinFilesForAgentMajorVersion(majorVersion)
+	// keep only items ending in dll, exe, or sys
+	var executables []string
+	for _, f := range r {
+		if strings.HasSuffix(f, ".dll") || strings.HasSuffix(f, ".exe") || strings.HasSuffix(f, ".sys") {
+			executables = append(executables, f)
+		}
+	}
+	return executables
+}
+
+// shortPythonVersion returns the short version of the provided Python version. (e.g. 3.7.3 -> 37)
+func shortPythonVersion(version string) string {
+	return strings.Join(strings.Split(version, ".")[0:2], "")
 }
 
 // ExpectPython2Installed returns true if the provided agent major version is expected

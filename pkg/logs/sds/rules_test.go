@@ -18,22 +18,28 @@ func testdataStandardRules() map[string]StandardRuleConfig {
 			ID:          "0",
 			Name:        "Zero",
 			Description: "Zero desc",
-			Pattern:     "zero",
 			Tags:        []string{"tag:zero"},
+			Definitions: []StandardRuleDefinition{{
+				Pattern: "zero",
+			}},
 		},
 		"1": {
 			ID:          "1",
 			Name:        "One",
 			Description: "One desc",
-			Pattern:     "one",
 			Tags:        []string{"tag:one"},
+			Definitions: []StandardRuleDefinition{{
+				Pattern: "one",
+			}},
 		},
 		"2": {
 			ID:          "2",
 			Name:        "Two",
 			Description: "Two desc",
-			Pattern:     "two",
 			Tags:        []string{"tag:two"},
+			Definitions: []StandardRuleDefinition{{
+				Pattern: "two",
+			}},
 		},
 	}
 }
@@ -48,7 +54,7 @@ func TestGetByID(t *testing.T) {
 	require.Equal(two.ID, "2", "not the good rule")
 	require.Equal(two.Name, "Two", "not the good rule")
 	require.Equal(two.Description, "Two desc", "not the good rule")
-	require.Equal(two.Pattern, "two", "not the good rule")
+	require.Equal(two.Definitions[0].Pattern, "two", "not the good rule")
 
 	require.Contains(rules, "0", "rule zero exists, should be returned")
 	zero := rules["0"]

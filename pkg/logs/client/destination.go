@@ -10,8 +10,8 @@ import "github.com/DataDog/datadog-agent/pkg/logs/message"
 
 // Destination sends a payload to a specific endpoint over a given network protocol.
 type Destination interface {
-	// Whether or not destination is used for High Availability mode
-	IsHA() bool
+	// Whether or not destination is used for Multi-Region Failover mode
+	IsMRF() bool
 
 	// Destination target (e.g. https://agent-intake.logs.datadoghq.com)
 	Target() string

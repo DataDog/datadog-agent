@@ -209,11 +209,7 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 	_, err = t.host.Lstat(t.expectedConfigRoot)
 	assert.NoError(tt, err, "uninstall should not remove config root")
 
-	configPaths := []string{
-		"datadog.yaml",
-		"system-probe.yaml",
-	}
-	for _, configPath := range configPaths {
+	for _, configPath := range getExpectedConfigFiles() {
 		configPath := filepath.Join(t.expectedConfigRoot, configPath)
 		_, err = t.host.Lstat(configPath)
 		assert.NoError(tt, err, "uninstall should not remove %s config file", configPath)
@@ -281,17 +277,22 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	})
 
 	tt.Run("creates config files", func(tt *testing.T) {
-		configPaths := []string{
-			"datadog.yaml",
-			"system-probe.yaml",
-		}
-		for _, configPath := range configPaths {
+		for _, configPath := range getExpectedConfigFiles() {
 			configPath := filepath.Join(t.expectedConfigRoot, configPath)
 			_, err := t.host.Lstat(configPath)
 			assert.NoError(tt, err, "install should create %s config file", configPath)
 			examplePath := configPath + ".example"
 			_, err = t.host.Lstat(examplePath)
 			assert.NoError(tt, err, "install should create %s example config files", examplePath)
+		}
+	})
+
+	tt.Run("creates bin files", func(tt *testing.T) {
+		expected := getExpectedBinFilesForAgentMajorVersion(t.expectedAgentMajorVersion)
+		for _, binPath := range expected {
+			binPath = filepath.Join(t.expectedInstallPath, binPath)
+			_, err := t.host.Lstat(binPath)
+			assert.NoError(tt, err, "install should create %s bin file", binPath)
 		}
 	})
 
