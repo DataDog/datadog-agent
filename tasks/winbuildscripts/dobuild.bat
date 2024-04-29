@@ -51,8 +51,8 @@ if "%GO_VERSION_CHECK%" == "true" (
     inv -e check-go-version || exit /b 104
 )
 
-@echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION%"
-inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 105
+@echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% --gem-path omnibus\vendor\bundle"
+inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% --gem-path omnibus\vendor\bundle" || exit /b 105
 
 REM only build MSI for main targets for now.
 if "%OMNIBUS_TARGET%" == "main" (
