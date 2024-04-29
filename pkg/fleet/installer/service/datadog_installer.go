@@ -9,6 +9,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -89,8 +90,20 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error changing owner of /var/log/datadog: %w", err)
 	}
+	err = os.Chown("/opt/datadog-packages/datadog-installer/stable/run", ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("error changing owner of /opt/datadog-packages/datadog-installer/stable/run: %w", err)
+	}
 
-	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the agent
+	// Create installer path symlink
+	err = os.Symlink("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "/usr/bin/datadog-installer")
+	if err != nil && errors.Is(err, os.ErrExist) {
+		log.Info("Installer symlink already exists, skipping")
+	} else if err != nil {
+		return fmt.Errorf("error creating symlink to /usr/bin/datadog-installer: %w", err)
+	}
+
+	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the system probe
 	if os.Getenv("DD_REMOTE_UPDATES") != "true" {
 		return nil
 	}
@@ -122,6 +135,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	return startInstallerStable(ctx)
 }
 
+// getAgentIDs returns the UID and GID of the dd-agent user and group.
 func getAgentIDs() (uid, gid int, err error) {
 	ddAgentUser, err := user.Lookup("dd-agent")
 	if err != nil {
@@ -159,6 +173,11 @@ func RemoveInstaller(ctx context.Context) {
 		if err := removeUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
+	}
+
+	// Remove symlink
+	if err := os.Remove("/usr/bin/datadog-installer"); err != nil {
+		log.Warnf("Failed to remove /usr/bin/datadog-installer: %s", err)
 	}
 }
 

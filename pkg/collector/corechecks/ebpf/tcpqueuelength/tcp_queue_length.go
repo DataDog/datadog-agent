@@ -18,7 +18,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -114,7 +114,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 		entityID := containers.BuildTaggerEntityName(containerID)
 		var tags []string
 		if entityID != "" {
-			tags, err = tagger.Tag(entityID, collectors.HighCardinality)
+			tags, err = tagger.Tag(entityID, types.HighCardinality)
 			if err != nil {
 				log.Errorf("Error collecting tags for container %s: %s", k, err)
 			}
