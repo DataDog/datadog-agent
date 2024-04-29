@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"path/filepath"
 	"reflect"
@@ -34,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -146,11 +144,6 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
-}
-
-// getConnection returns the connection for the request
-func getConnection(r *http.Request) net.Conn {
-	return r.Context().Value(grpc.ConnContextKey).(net.Conn)
 }
 
 // Send sends a flare archive to Datadog
