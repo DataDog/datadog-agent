@@ -48,6 +48,10 @@ jobs:
     working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
+      - run:
+          name: Debug checkout
+          command: |
+            echo "Running checkout"
       - save_cache:
           <<: *save_source
           paths:
