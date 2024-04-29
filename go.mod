@@ -552,7 +552,7 @@ require (
 	go.etcd.io/etcd/client/v3 v3.6.0-alpha.0 // indirect
 	go.etcd.io/etcd/server/v3 v3.6.0-alpha.0.0.20220522111935-c3bc4116dcd1 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	go.opentelemetry.io/collector/consumer v0.99.0 // indirect
+	go.opentelemetry.io/collector/consumer v0.99.0
 	go.opentelemetry.io/collector/featuregate v1.6.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.99.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.49.0 // indirect
@@ -562,10 +562,10 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.25.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.25.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.47.0 // indirect
-	go.opentelemetry.io/otel/metric v1.25.0 // indirect
+	go.opentelemetry.io/otel/metric v1.25.0
 	go.opentelemetry.io/otel/sdk v1.25.0
 	go.opentelemetry.io/otel/sdk/metric v1.25.0 // indirect
-	go.opentelemetry.io/otel/trace v1.25.0 // indirect
+	go.opentelemetry.io/otel/trace v1.25.0
 	go.opentelemetry.io/proto/otlp v1.2.0 // indirect
 	golang.org/x/crypto v0.22.0 // indirect
 	golang.org/x/mod v0.17.0
@@ -707,6 +707,7 @@ require (
 	go.opentelemetry.io/collector/extension v0.99.0
 	go.opentelemetry.io/collector/otelcol v0.99.0
 	go.opentelemetry.io/collector/processor v0.99.0
+	go.uber.org/goleak v1.3.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	gotest.tools v2.2.0+incompatible
 	k8s.io/cli-runtime v0.29.0
@@ -1104,6 +1105,7 @@ require (
 	go.opentelemetry.io/collector/extension/auth v0.98.0 // indirect
 	go.opentelemetry.io/collector/extension/ballastextension v0.98.0 // indirect
 	go.opentelemetry.io/collector/extension/zpagesextension v0.99.0 // indirect
+	go.opentelemetry.io/collector/pdata/testdata v0.99.0 // indirect
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.98.0 // indirect
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.98.0 // indirect
 	go.opentelemetry.io/collector/service v0.99.0 // indirect
