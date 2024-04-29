@@ -45,13 +45,14 @@ type cmd struct {
 }
 
 func newCmd(operation string) *cmd {
+	t := newTelemetry()
 	span, ctx := newSpan(operation)
 	registry := os.Getenv(envRegistry)
 	registryAuth := os.Getenv(envRegistryAuth)
 	apiKey := os.Getenv(envAPIKey)
 	site := os.Getenv(envSite)
 	return &cmd{
-		t:            newTelemetry(),
+		t:            t,
 		ctx:          ctx,
 		span:         span,
 		registry:     registry,
@@ -109,6 +110,9 @@ func newBootstraperCmd(operation string) *bootstraperCmd {
 	if cmd.apiKey != "" {
 		opts = append(opts, bootstraper.WithAPIKey(cmd.apiKey))
 	}
+	if cmd.site != "" {
+		opts = append(opts, bootstraper.WithSite(cmd.site))
+	}
 	if os.Getenv(envBootstrapInstallerVersion) != "" {
 		opts = append(opts, bootstraper.WithInstallerVersion(os.Getenv(envBootstrapInstallerVersion)))
 	}
@@ -128,6 +132,11 @@ func newTelemetry() *telemetry.Telemetry {
 	t, err := telemetry.NewTelemetry(apiKey, site, "datadog-installer")
 	if err != nil {
 		fmt.Printf("failed to initialize telemetry: %v\n", err)
+		return nil
+	}
+	err = t.Start(context.Background())
+	if err != nil {
+		fmt.Printf("failed to start telemetry: %v\n", err)
 		return nil
 	}
 	return t
@@ -199,7 +208,7 @@ func installExperimentCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newInstallerCmd("install-experiment")
+			i := newInstallerCmd("install_experiment")
 			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.url", args[0])
 			return i.InstallExperiment(i.ctx, args[0])
@@ -215,7 +224,7 @@ func removeExperimentCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newInstallerCmd("remove-experiment")
+			i := newInstallerCmd("remove_experiment")
 			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.RemoveExperiment(i.ctx, args[0])
@@ -231,7 +240,7 @@ func promoteExperimentCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newInstallerCmd("promote-experiment")
+			i := newInstallerCmd("promote_experiment")
 			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.PromoteExperiment(i.ctx, args[0])
@@ -247,7 +256,7 @@ func garbageCollectCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			i := newInstallerCmd("garbage-collect")
+			i := newInstallerCmd("garbage_collect")
 			defer func() { i.Stop(err) }()
 			return i.GarbageCollect(i.ctx)
 		},

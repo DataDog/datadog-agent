@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -26,7 +26,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	imageName := "foo:latest"
 	hostname := "test-host"
 
-	fakeTagger := tagger.SetupFakeTagger(t)
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
 
 	fakeTagger.SetTags(

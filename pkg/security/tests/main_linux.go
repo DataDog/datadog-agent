@@ -71,6 +71,10 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestUnloadModule",
 			"~TestOsOrigin",
 			"~TestSpan",
+			"~TestChdir",
+			"TestMountEvent",
+			"TestMount",
+			"TestMountPropagated",
 		}
 
 		exclude := []string{
@@ -91,6 +95,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestLink/io_uring",
 			"TestLoadModule/load_module_with_truncated_params",
 			"~TestChown32",
+			"TestMountEvent/mount-in-container-root",
 		}
 
 		if disableSeccomp {
@@ -129,8 +134,8 @@ func preTestsHook() {
 		envs := os.Environ()
 
 		opts := ptracer.Opts{
-			Async:          true,
-			DisableSeccomp: disableSeccomp,
+			Async:           true,
+			SeccompDisabled: disableSeccomp,
 		}
 
 		err := ptracer.StartCWSPtracer(args, envs, constants.DefaultEBPFLessProbeAddr, opts)

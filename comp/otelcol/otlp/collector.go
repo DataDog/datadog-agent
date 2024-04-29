@@ -28,7 +28,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/tagenrichmentprocessor"
@@ -45,11 +45,11 @@ import (
 var pipelineError = atomic.NewError(nil)
 
 type tagEnricher struct {
-	cardinality collectors.TagCardinality
+	cardinality types.TagCardinality
 }
 
 func (t *tagEnricher) SetCardinality(cardinality string) (err error) {
-	t.cardinality, err = collectors.StringToTagCardinality(cardinality)
+	t.cardinality, err = types.StringToTagCardinality(cardinality)
 	if err != nil {
 		return err
 	}
@@ -101,7 +101,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
-		serializerexporter.NewFactory(s, &tagEnricher{cardinality: collectors.LowCardinality}, hostname.Get),
+		serializerexporter.NewFactory(s, &tagEnricher{cardinality: types.LowCardinality}, hostname.Get),
 		loggingexporter.NewFactory(),
 	}
 

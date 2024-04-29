@@ -44,6 +44,7 @@ type checkCfg struct {
 	CAFile                    string `yaml:"ca_file"`
 	SendNDMMetadata           *bool  `yaml:"send_ndm_metadata"`
 	MinCollectionInterval     int    `yaml:"min_collection_interval"`
+	CollectBFDSessionStatus   bool   `yaml:"collect_bfd_session_status"`
 }
 
 // CiscoSdwanCheck contains the field for the CiscoSdwanCheck
@@ -99,10 +100,6 @@ func (c *CiscoSdwanCheck) Run() error {
 	if err != nil {
 		log.Warnf("Error getting OMP peer states from Cisco SD-WAN API: %s", err)
 	}
-	bfdSessionsState, err := client.GetBFDSessionsState()
-	if err != nil {
-		log.Warnf("Error getting BFD session states from Cisco SD-WAN API: %s", err)
-	}
 	deviceCounters, err := client.GetDevicesCounters()
 	if err != nil {
 		log.Warnf("Error getting device counters from Cisco SD-WAN API: %s", err)
@@ -128,9 +125,17 @@ func (c *CiscoSdwanCheck) Run() error {
 	c.metricsSender.SendAppRouteMetrics(appRouteStats)
 	c.metricsSender.SendControlConnectionMetrics(controlConnectionsState)
 	c.metricsSender.SendOMPPeerMetrics(ompPeersState)
-	c.metricsSender.SendBFDSessionMetrics(bfdSessionsState)
 	c.metricsSender.SendDeviceCountersMetrics(deviceCounters)
 	c.metricsSender.SendDeviceStatusMetrics(deviceStatus)
+
+	// Configurable metrics
+	if c.config.CollectBFDSessionStatus {
+		bfdSessionsState, err := client.GetBFDSessionsState()
+		if err != nil {
+			log.Warnf("Error getting BFD session states from Cisco SD-WAN API: %s", err)
+		}
+		c.metricsSender.SendBFDSessionMetrics(bfdSessionsState)
+	}
 
 	// Commit
 	c.metricsSender.Commit()
