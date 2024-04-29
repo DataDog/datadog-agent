@@ -1,0 +1,57 @@
+{{- with .aggregatorStats -}}
+  <div class="stat">
+    <span class="stat_title">Aggregator</span>
+    <span class="stat_data">
+      {{- if .ChecksMetricSample}}
+        Checks Metric Sample: {{humanize .ChecksMetricSample}}<br>
+      {{- end -}}
+      {{- if .DogstatsdMetricSample}}
+        Dogstatsd Metric Sample: {{.DogstatsdMetricSample}}<br>
+      {{- end}}
+      {{- if .Event}}
+        Event: {{humanize .Event}}<br>
+      {{- end -}}
+      {{- if .EventsFlushed}}
+        Events Flushed: {{humanize .EventsFlushed}}<br>
+      {{- end -}}
+      {{- if .EventsFlushErrors}}
+        Events Flush Errors: {{.EventsFlushErrors}}<br>
+      {{- end -}}
+      {{- if .NumberOfFlush}}
+        Number Of Flushes: {{humanize .NumberOfFlush}}<br>
+      {{- end -}}
+      {{- if .SeriesFlushed}}
+        Series Flushed: {{humanize .SeriesFlushed}}<br>
+      {{- end -}}
+      {{- if .SeriesFlushErrors}}
+        Series Flush Errors: {{.SeriesFlushErrors}}<br>
+      {{- end -}}
+      {{- if .ServiceCheck}}
+        Service Check: {{humanize .ServiceCheck}}<br>
+      {{- end -}}
+      {{- if .ServiceCheckFlushed}}
+        Service Checks Flushed: {{humanize .ServiceCheckFlushed}}<br>
+      {{- end -}}
+      {{- if .ServiceCheckFlushErrors}}
+        Service Checks Flush Errors: {{.ServiceCheckFlushErrors}}<br>
+      {{- end -}}
+      {{- if .SketchesFlushed}}
+        Sketches Flushed: {{humanize .SketchesFlushed}}<br>
+      {{- end -}}
+      {{- if .SketchesFlushErrors}}
+        Sketches Flush Errors: {{.SketchesFlushErrors}}<br>
+      {{- end -}}
+      {{- if .ChecksHistogramBucketMetricSample}}
+        Checks Histogram Bucket Metric Sample: {{.ChecksHistogramBucketMetricSample}}<br>
+      {{- end -}}
+      {{- if .EventPlatformEvents }}
+      {{- range $k, $v := .EventPlatformEvents }}
+        {{ $k }}: {{humanize $v}}
+      {{- end }}
+      {{- end }}
+      {{- if .HostnameUpdate}}
+        Hostname Update: {{humanize .HostnameUpdate}}<br>
+      {{- end }}
+    </span>
+  </div>
+{{- end -}}

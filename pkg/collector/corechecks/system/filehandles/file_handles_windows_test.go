@@ -9,8 +9,8 @@ package filehandles
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 )
 

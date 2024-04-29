@@ -13,11 +13,13 @@ import (
 // team: agent-metrics-logs
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	agent.Module,
-)
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		agent.Module())
+}
 
 // MockBundle defines the mock fx options for this bundle.
-var MockBundle = fxutil.Bundle(
-	agent.MockModule,
-)
+func MockBundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		agent.MockModule())
+}

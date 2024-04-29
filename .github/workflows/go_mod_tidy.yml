@@ -3,9 +3,6 @@ on:
   pull_request:
     types:
       - labeled
-  push:
-    branches:
-      - mq-working-branch-*
   workflow_dispatch:
     inputs:
       pr_number:
@@ -19,7 +16,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.actor == 'dependabot[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go')) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
       - name: Checkout PR
@@ -29,11 +26,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: ".go-version"
       - name: Install python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.9.12"
           cache: "pip"
@@ -49,7 +46,7 @@ jobs:
       - name: Update mocks
         if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
         run: inv -e security-agent.gen-mocks # generate both security agent and process mocks
-      - uses: stefanzweifel/git-auto-commit-action@v4
+      - uses: stefanzweifel/git-auto-commit-action@v5
         id: autocommit
         with:
           commit_message: Auto-generate go.sum and LICENSE-3rdparty.csv changes

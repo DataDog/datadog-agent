@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,7 +40,7 @@ func TestLogOnPanicMain(t *testing.T) {
 			"github.com/DataDog/datadog-agent/pkg/trace/watchdog.TestLogOnPanicMain",
 			"log should contain a reference to this test func name as it displays the stack trace")
 	}()
-	defer LogOnPanic()
+	defer LogOnPanic(&statsd.NoOpClient{})
 	zero := 0
 	_ = 1 / zero
 }
@@ -66,7 +67,7 @@ func TestLogOnPanicGoroutine(t *testing.T) {
 				"log should contain a reference to this test func name as it displays the stack trace")
 			wg.Done()
 		}()
-		defer LogOnPanic()
+		defer LogOnPanic(&statsd.NoOpClient{})
 		panic("what could possibly go wrong?")
 	}()
 	defer func() {

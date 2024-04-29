@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // LegacyConfigConverter is used in the legacy package
@@ -27,6 +28,6 @@ func NewConfigConverter() *LegacyConfigConverter {
 	// Configure Datadog global configuration
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
-	InitConfig(Datadog)
+	pkgconfigsetup.InitConfig(Datadog)
 	return &LegacyConfigConverter{Datadog}
 }

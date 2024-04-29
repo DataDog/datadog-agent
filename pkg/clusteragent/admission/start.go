@@ -11,6 +11,7 @@ package admission
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -18,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -31,15 +31,14 @@ type ControllerContext struct {
 	SecretInformers     informers.SharedInformerFactory
 	WebhookInformers    informers.SharedInformerFactory
 	Client              kubernetes.Interface
-	DiscoveryClient     discovery.DiscoveryInterface
 	StopCh              chan struct{}
 }
 
 // StartControllers starts the secret and webhook controllers
-func StartControllers(ctx ControllerContext) error {
+func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component) ([]webhook.MutatingWebhook, error) {
 	if !config.Datadog.GetBool("admission_controller.enabled") {
 		log.Info("Admission controller is disabled")
-		return nil
+		return nil, nil
 	}
 
 	certConfig := secret.NewCertConfig(
@@ -58,14 +57,14 @@ func StartControllers(ctx ControllerContext) error {
 		secretConfig,
 	)
 
-	nsSelectorEnabled, err := useNamespaceSelector(ctx.DiscoveryClient)
+	nsSelectorEnabled, err := useNamespaceSelector(ctx.Client.Discovery())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	v1Enabled, err := UseAdmissionV1(ctx.DiscoveryClient)
+	v1Enabled, err := UseAdmissionV1(ctx.Client.Discovery())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	webhookConfig := webhook.NewConfig(v1Enabled, nsSelectorEnabled)
@@ -76,6 +75,7 @@ func StartControllers(ctx ControllerContext) error {
 		ctx.IsLeaderFunc,
 		ctx.LeaderSubscribeFunc(),
 		webhookConfig,
+		wmeta,
 	)
 
 	go secretController.Run(ctx.StopCh)
@@ -96,5 +96,5 @@ func StartControllers(ctx ControllerContext) error {
 		getWebhookStatus = getWebhookStatusV1beta1
 	}
 
-	return apiserver.SyncInformers(informers, 0)
+	return webhookController.EnabledWebhooks(), apiserver.SyncInformers(informers, 0)
 }

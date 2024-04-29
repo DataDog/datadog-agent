@@ -11,33 +11,33 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/model/otlp"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	collectorreceiver "go.opentelemetry.io/collector/receiver"
+
 	"go.uber.org/zap"
 )
 
 const typeStr = "file"
 
 // NewFactory creates a new OTLP receiver factory.
-func NewFactory() component.ReceiverFactory {
-	return component.NewReceiverFactory(
-		typeStr,
+func NewFactory() collectorreceiver.Factory {
+	cfgType, _ := component.NewType(typeStr)
+	return collectorreceiver.NewFactory(
+		cfgType,
 		createDefaultConfig,
-		component.WithMetricsReceiver(createMetricsReceiver),
+		collectorreceiver.WithMetrics(createMetricsReceiver, component.StabilityLevelAlpha),
 	)
 }
 
-var _ config.Receiver = (*Config)(nil)
-
 // Config of filereceiver.
 type Config struct {
-	config.ReceiverSettings `mapstructure:",squash"`
+	collectorreceiver.CreateSettings `mapstructure:",squash"`
 	// Path of metrics data.
 	Path string `mapstructure:"path"`
 	// LoopConfig is the loop configuration.
@@ -60,14 +60,17 @@ func (cfg *Config) Validate() error {
 	return nil
 }
 
-func createDefaultConfig() config.Receiver {
+func createDefaultConfig() component.Config {
+	cfgType, _ := component.NewType(typeStr)
 	return &Config{
-		ReceiverSettings: config.NewReceiverSettings(config.NewComponentID(typeStr)),
-		Loop:             LoopConfig{Enabled: false, Period: 10 * time.Second},
+		CreateSettings: collectorreceiver.CreateSettings{
+			ID: component.NewID(cfgType),
+		},
+		Loop: LoopConfig{Enabled: false, Period: 10 * time.Second},
 	}
 }
 
-var _ component.MetricsReceiver = (*receiver)(nil)
+var _ collectorreceiver.Metrics = (*receiver)(nil)
 
 type receiver struct {
 	config       *Config
@@ -88,10 +91,10 @@ func (r *receiver) Start(_ context.Context, host component.Host) error {
 	return nil
 }
 
-func (r *receiver) unmarshalAndSend(host component.Host) {
+func (r *receiver) unmarshalAndSend(_ component.Host) {
 	file, err := os.Open(r.config.Path)
 	if err != nil {
-		host.ReportFatalError(fmt.Errorf("failed to open %q: %w", r.config.Path, err))
+		log.Fatal(fmt.Errorf("failed to open %q: %w", r.config.Path, err))
 		return
 	}
 
@@ -100,24 +103,24 @@ func (r *receiver) unmarshalAndSend(host component.Host) {
 	for scanner.Scan() {
 		metrics, err := r.unmarshaler.UnmarshalMetrics(scanner.Bytes())
 		if err != nil {
-			host.ReportFatalError(fmt.Errorf("failed to unmarshal %q: %w", r.config.Path, err))
+			log.Fatal(fmt.Errorf("failed to unmarshal %q: %w", r.config.Path, err))
 			return
 		}
 
 		err = r.nextConsumer.ConsumeMetrics(context.Background(), metrics)
 		if err != nil {
-			host.ReportFatalError(fmt.Errorf("failed to send %q: %w", r.config.Path, err))
+			log.Fatal(fmt.Errorf("failed to send %q: %w", r.config.Path, err))
 			return
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		host.ReportFatalError(fmt.Errorf("failed to scan %q: %w", r.config.Path, err))
+		log.Fatal(fmt.Errorf("failed to scan %q: %w", r.config.Path, err))
 		return
 	}
 
 	if err := file.Close(); err != nil {
-		host.ReportFatalError(fmt.Errorf("failed to close %q: %w", r.config.Path, err))
+		log.Fatal(fmt.Errorf("failed to close %q: %w", r.config.Path, err))
 		return
 	}
 }
@@ -140,14 +143,14 @@ func (r *receiver) Shutdown(context.Context) error {
 
 func createMetricsReceiver(
 	_ context.Context,
-	set component.ReceiverCreateSettings,
-	cfg config.Receiver,
+	set collectorreceiver.CreateSettings,
+	cfg component.Config,
 	consumer consumer.Metrics,
-) (component.MetricsReceiver, error) {
+) (collectorreceiver.Metrics, error) {
 	return &receiver{
 		config:       cfg.(*Config),
 		logger:       set.Logger,
-		unmarshaler:  otlp.NewJSONMetricsUnmarshaler(),
+		unmarshaler:  &pmetric.JSONUnmarshaler{},
 		nextConsumer: consumer,
 		stopCh:       make(chan struct{}),
 	}, nil

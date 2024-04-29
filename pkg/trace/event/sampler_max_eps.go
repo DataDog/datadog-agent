@@ -10,9 +10,10 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const maxEPSReportFrequency = 10 * time.Second
@@ -27,21 +28,23 @@ type maxEPSSampler struct {
 	rateCounter rateCounter
 
 	reportDone chan bool
+	statsd     statsd.ClientInterface
 }
 
 // NewMaxEPSSampler creates a new instance of a maxEPSSampler with the provided maximum amount of events per second.
-func newMaxEPSSampler(maxEPS float64) *maxEPSSampler {
+func newMaxEPSSampler(maxEPS float64, statsd statsd.ClientInterface) *maxEPSSampler {
 	return &maxEPSSampler{
 		maxEPS:      maxEPS,
 		rateCounter: newSamplerBackendRateCounter(),
 
 		reportDone: make(chan bool),
+		statsd:     statsd,
 	}
 }
 
 // Start starts the underlying rate counter.
 func (s *maxEPSSampler) Start() {
-	s.rateCounter.Start()
+	s.rateCounter.Start(s.statsd)
 
 	go func() {
 		ticker := time.NewTicker(maxEPSReportFrequency)
@@ -93,13 +96,13 @@ func (s *maxEPSSampler) getSampleRate() float64 {
 
 func (s *maxEPSSampler) report() {
 	maxRate := s.maxEPS
-	metrics.Gauge("datadog.trace_agent.events.max_eps.max_rate", maxRate, nil, 1)
+	_ = s.statsd.Gauge("datadog.trace_agent.events.max_eps.max_rate", maxRate, nil, 1)
 
 	currentRate := s.rateCounter.GetRate()
-	metrics.Gauge("datadog.trace_agent.events.max_eps.current_rate", currentRate, nil, 1)
+	_ = s.statsd.Gauge("datadog.trace_agent.events.max_eps.current_rate", currentRate, nil, 1)
 
 	sampleRate := s.getSampleRate()
-	metrics.Gauge("datadog.trace_agent.events.max_eps.sample_rate", sampleRate, nil, 1)
+	_ = s.statsd.Gauge("datadog.trace_agent.events.max_eps.sample_rate", sampleRate, nil, 1)
 
 	reachedMaxGaugeV := 0.
 	if sampleRate < 1 {
@@ -108,12 +111,12 @@ func (s *maxEPSSampler) report() {
 			"Some events are now being dropped (sample rate=%.2f). Consider adjusting event sampling rates.",
 			currentRate, maxRate, sampleRate)
 	}
-	metrics.Gauge("datadog.trace_agent.events.max_eps.reached_max", reachedMaxGaugeV, nil, 1)
+	_ = s.statsd.Gauge("datadog.trace_agent.events.max_eps.reached_max", reachedMaxGaugeV, nil, 1)
 }
 
 // rateCounter keeps track of different event rates.
 type rateCounter interface {
-	Start()
+	Start(statsd statsd.ClientInterface)
 	Count()
 	GetRate() float64
 	Stop()
@@ -136,9 +139,9 @@ func newSamplerBackendRateCounter() *samplerBackendRateCounter {
 }
 
 // Start starts the decaying of the backend rate counter.
-func (s *samplerBackendRateCounter) Start() {
+func (s *samplerBackendRateCounter) Start(statsd statsd.ClientInterface) {
 	go func() {
-		defer watchdog.LogOnPanic()
+		defer watchdog.LogOnPanic(statsd)
 		decayTicker := time.NewTicker(s.backend.decayPeriod)
 		defer decayTicker.Stop()
 		for {

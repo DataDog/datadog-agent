@@ -121,7 +121,7 @@ func TestSetFieldValue(t *testing.T) {
 	var readOnlyError *eval.ErrFieldReadOnly
 	var fieldNotSupportedError *eval.ErrNotSupported
 
-	event := NewDefaultEvent()
+	event := NewFakeEvent()
 	for _, field := range event.GetFields() {
 		kind, err := event.GetFieldType(field)
 		if err != nil {

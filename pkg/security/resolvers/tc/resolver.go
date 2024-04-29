@@ -116,7 +116,8 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 			_ = multierror.Append(&combinedErr, fmt.Errorf("couldn't clone %s: %v", tcProbe.ProbeIdentificationPair, err))
 		} else {
 			tcr.programs[deviceKey] = newProbe
-			ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, device.GetKey()), "cws")
+			// do not use dynamic program name here, it explodes cardinality
+			ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "cws")
 		}
 	}
 	return combinedErr.ErrorOrNil()

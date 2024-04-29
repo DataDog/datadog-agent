@@ -22,6 +22,7 @@ var spanCopiedFields = map[string]struct{}{
 	"Metrics":    {},
 	"Type":       {},
 	"MetaStruct": {},
+	"SpanLinks":  {},
 }
 
 // ShallowCopy returns a shallow copy of the copy-able portion of a Span. These are the
@@ -47,5 +48,6 @@ func (s *Span) ShallowCopy() *Span {
 		Metrics:    s.Metrics,
 		Type:       s.Type,
 		MetaStruct: s.MetaStruct,
+		SpanLinks:  s.SpanLinks,
 	}
 }

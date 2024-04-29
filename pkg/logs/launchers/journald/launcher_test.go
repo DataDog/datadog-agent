@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -59,7 +60,7 @@ func (s *MockJournalFactory) NewJournalFromPath(path string) (tailer.Journal, er
 }
 
 func newTestLauncher() *Launcher {
-	launcher := NewLauncherWithFactory(&MockJournalFactory{})
+	launcher := NewLauncherWithFactory(&MockJournalFactory{}, flare.NewFlareController())
 	launcher.Start(launchers.NewMockSourceProvider(), pipeline.NewMockProvider(), auditor.New("", "registry.json", time.Hour, health.RegisterLiveness("fake")), tailers.NewTailerTracker())
 	return launcher
 }

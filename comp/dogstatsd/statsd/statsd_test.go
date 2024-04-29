@@ -15,7 +15,7 @@ import (
 )
 
 func TestCreate(t *testing.T) {
-	s := fxutil.Test[Component](t, Module)
+	s := fxutil.Test[Component](t, Module())
 	c, err := s.CreateForHostPort("127.0.0.1", 8125, ddgostatsd.WithoutTelemetry())
 	assert.NoError(t, err)
 	assert.NotNilf(t, c, "statsd client should not be nil")
@@ -24,7 +24,7 @@ func TestCreate(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	s := fxutil.Test[Component](t, Module)
+	s := fxutil.Test[Component](t, Module())
 	c, err := s.Get()
 	assert.NoError(t, err)
 	assert.NotNilf(t, c, "statsd client should not be nil")

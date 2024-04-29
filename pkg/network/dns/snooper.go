@@ -14,8 +14,8 @@ import (
 	"github.com/google/gopacket"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -56,6 +56,10 @@ type socketFilterSnooper struct {
 
 	// cache translation object to avoid allocations
 	translation *translation
+}
+
+func (s *socketFilterSnooper) WaitForDomain(domain string) error {
+	return s.statKeeper.WaitForDomain(domain)
 }
 
 // packetSource reads raw packet data

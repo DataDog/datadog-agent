@@ -43,7 +43,10 @@ func NewWindowsMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
 	if err != nil {
 		return nil, err
 	}
-	hei := http.NewEtwInterface(c)
+	hei, err := http.NewEtwInterface(c)
+	if err != nil {
+		return nil, err
+	}
 
 	hei.SetMaxFlows(uint64(c.MaxTrackedConnections))
 	hei.SetMaxRequestBytes(uint64(c.HTTPMaxRequestFragment))
@@ -55,7 +58,7 @@ func NewWindowsMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
 		di:         di,
 		hei:        hei,
 		telemetry:  telemetry,
-		statkeeper: http.NewStatkeeper(c, telemetry),
+		statkeeper: http.NewStatkeeper(c, telemetry, http.NewIncompleteBuffer(c, telemetry)),
 	}, nil
 }
 

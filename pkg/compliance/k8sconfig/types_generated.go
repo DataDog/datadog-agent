@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // !!!
-// This is a generated file: regenerate with go run ./pkg/compliance/tools/k8s_types_generator.go
+// This is a generated file: regenerate with go run ./pkg/compliance/tools/k8s_types_generator/main.go
 // !!!
 //
 //revive:disable
@@ -16,47 +16,48 @@ import (
 )
 
 type K8sKubeApiserverConfig struct {
-	AdmissionControlConfigFile      *K8sAdmissionConfigFileMeta          `json:"admission-control-config-file"`      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AllowPrivileged                 bool                                 `json:"allow-privileged"`                   // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AnonymousAuth                   bool                                 `json:"anonymous-auth"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AuditLogMaxage                  int                                  `json:"audit-log-maxage"`                   // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AuditLogMaxbackup               int                                  `json:"audit-log-maxbackup"`                // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AuditLogMaxsize                 int                                  `json:"audit-log-maxsize"`                  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AuditLogPath                    string                               `json:"audit-log-path"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AuditPolicyFile                 *K8sConfigFileMeta                   `json:"audit-policy-file"`                  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AuthorizationMode               []string                             `json:"authorization-mode"`                 // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	BindAddress                     string                               `json:"bind-address"`                       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ClientCaFile                    *K8sCertFileMeta                     `json:"client-ca-file"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	DisableAdmissionPlugins         []string                             `json:"disable-admission-plugins"`          // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	EnableAdmissionPlugins          []string                             `json:"enable-admission-plugins"`           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	EnableBootstrapTokenAuth        bool                                 `json:"enable-bootstrap-token-auth"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	EncryptionProviderConfig        *K8sEncryptionProviderConfigFileMeta `json:"encryption-provider-config"`         // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	EtcdCafile                      *K8sCertFileMeta                     `json:"etcd-cafile"`                        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	EtcdCertfile                    *K8sCertFileMeta                     `json:"etcd-certfile"`                      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	EtcdKeyfile                     *K8sKeyFileMeta                      `json:"etcd-keyfile"`                       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	FeatureGates                    string                               `json:"feature-gates"`                      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	KubeletCertificateAuthority     *K8sCertFileMeta                     `json:"kubelet-certificate-authority"`      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	KubeletClientCertificate        *K8sCertFileMeta                     `json:"kubelet-client-certificate"`         // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	KubeletClientKey                *K8sKeyFileMeta                      `json:"kubelet-client-key"`                 // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Profiling                       bool                                 `json:"profiling"`                          // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ProxyClientCertFile             *K8sCertFileMeta                     `json:"proxy-client-cert-file"`             // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ProxyClientKeyFile              *K8sKeyFileMeta                      `json:"proxy-client-key-file"`              // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestTimeout                  time.Duration                        `json:"request-timeout"`                    // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestheaderAllowedNames       []string                             `json:"requestheader-allowed-names"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestheaderClientCaFile       *K8sCertFileMeta                     `json:"requestheader-client-ca-file"`       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestheaderExtraHeadersPrefix []string                             `json:"requestheader-extra-headers-prefix"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestheaderGroupHeaders       []string                             `json:"requestheader-group-headers"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestheaderUsernameHeaders    []string                             `json:"requestheader-username-headers"`     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	SecurePort                      int                                  `json:"secure-port"`                        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ServiceAccountIssuer            string                               `json:"service-account-issuer"`             // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ServiceAccountKeyFile           *K8sKeyFileMeta                      `json:"service-account-key-file"`           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ServiceAccountLookup            bool                                 `json:"service-account-lookup"`             // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ServiceAccountSigningKeyFile    *K8sKeyFileMeta                      `json:"service-account-signing-key-file"`   // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ServiceClusterIpRange           string                               `json:"service-cluster-ip-range"`           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TlsCertFile                     *K8sCertFileMeta                     `json:"tls-cert-file"`                      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TlsCipherSuites                 []string                             `json:"tls-cipher-suites"`                  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TlsPrivateKeyFile               *K8sKeyFileMeta                      `json:"tls-private-key-file"`               // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TokenAuthFile                   *K8sTokenFileMeta                    `json:"token-auth-file"`                    // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	AdmissionControlConfigFile      *K8sAdmissionConfigFileMeta          `json:"admission-control-config-file,omitempty"`      // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	AllowPrivileged                 *bool                                `json:"allow-privileged,omitempty"`                   // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	AnonymousAuth                   *bool                                `json:"anonymous-auth,omitempty"`                     // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	AuditLogMaxage                  *int                                 `json:"audit-log-maxage,omitempty"`                   // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	AuditLogMaxbackup               *int                                 `json:"audit-log-maxbackup,omitempty"`                // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	AuditLogMaxsize                 *int                                 `json:"audit-log-maxsize,omitempty"`                  // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	AuditLogPath                    *string                              `json:"audit-log-path,omitempty"`                     // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	AuditPolicyFile                 *K8sConfigFileMeta                   `json:"audit-policy-file,omitempty"`                  // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	AuthorizationMode               []string                             `json:"authorization-mode,omitempty"`                 // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	BindAddress                     *string                              `json:"bind-address,omitempty"`                       // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ClientCaFile                    *K8sCertFileMeta                     `json:"client-ca-file,omitempty"`                     // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	DisableAdmissionPlugins         []string                             `json:"disable-admission-plugins,omitempty"`          // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	EnableAdmissionPlugins          []string                             `json:"enable-admission-plugins,omitempty"`           // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	EnableBootstrapTokenAuth        *bool                                `json:"enable-bootstrap-token-auth,omitempty"`        // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	EncryptionProviderConfig        *K8sEncryptionProviderConfigFileMeta `json:"encryption-provider-config,omitempty"`         // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	EtcdCafile                      *K8sCertFileMeta                     `json:"etcd-cafile,omitempty"`                        // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	EtcdCertfile                    *K8sCertFileMeta                     `json:"etcd-certfile,omitempty"`                      // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	EtcdKeyfile                     *K8sKeyFileMeta                      `json:"etcd-keyfile,omitempty"`                       // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	FeatureGates                    *string                              `json:"feature-gates,omitempty"`                      // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	KubeletCertificateAuthority     *K8sCertFileMeta                     `json:"kubelet-certificate-authority,omitempty"`      // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	KubeletClientCertificate        *K8sCertFileMeta                     `json:"kubelet-client-certificate,omitempty"`         // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	KubeletClientKey                *K8sKeyFileMeta                      `json:"kubelet-client-key,omitempty"`                 // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	Profiling                       *bool                                `json:"profiling,omitempty"`                          // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ProxyClientCertFile             *K8sCertFileMeta                     `json:"proxy-client-cert-file,omitempty"`             // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ProxyClientKeyFile              *K8sKeyFileMeta                      `json:"proxy-client-key-file,omitempty"`              // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestTimeout                  *time.Duration                       `json:"request-timeout,omitempty"`                    // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestheaderAllowedNames       []string                             `json:"requestheader-allowed-names,omitempty"`        // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestheaderClientCaFile       *K8sCertFileMeta                     `json:"requestheader-client-ca-file,omitempty"`       // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestheaderExtraHeadersPrefix []string                             `json:"requestheader-extra-headers-prefix,omitempty"` // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestheaderGroupHeaders       []string                             `json:"requestheader-group-headers,omitempty"`        // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestheaderUsernameHeaders    []string                             `json:"requestheader-username-headers,omitempty"`     // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	SecurePort                      *int                                 `json:"secure-port,omitempty"`                        // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ServiceAccountIssuer            *string                              `json:"service-account-issuer,omitempty"`             // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ServiceAccountKeyFile           *K8sKeyFileMeta                      `json:"service-account-key-file,omitempty"`           // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ServiceAccountLookup            *bool                                `json:"service-account-lookup,omitempty"`             // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ServiceAccountSigningKeyFile    *K8sKeyFileMeta                      `json:"service-account-signing-key-file,omitempty"`   // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ServiceClusterIpRange           *string                              `json:"service-cluster-ip-range,omitempty"`           // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsCertFile                     *K8sCertFileMeta                     `json:"tls-cert-file,omitempty"`                      // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsCipherSuites                 []string                             `json:"tls-cipher-suites,omitempty"`                  // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsMinVersion                   *string                              `json:"tls-min-version,omitempty"`                    // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsPrivateKeyFile               *K8sKeyFileMeta                      `json:"tls-private-key-file,omitempty"`               // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TokenAuthFile                   *K8sTokenFileMeta                    `json:"token-auth-file,omitempty"`                    // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
 	SkippedFlags                    map[string]string                    `json:"skippedFlags,omitempty"`
 }
 
@@ -72,50 +73,53 @@ func (l *loader) newK8sKubeApiserverConfig(flags map[string]string) *K8sKubeApis
 	if v, ok := flags["--allow-privileged"]; ok {
 		delete(flags, "--allow-privileged")
 		res.AllowPrivileged = l.parseBool(v)
+
+	} else {
+		res.AllowPrivileged = l.parseBool("false")
 	}
 	if v, ok := flags["--anonymous-auth"]; ok {
 		delete(flags, "--anonymous-auth")
 		res.AnonymousAuth = l.parseBool(v)
+
 	} else {
 		res.AnonymousAuth = l.parseBool("true")
 	}
 	if v, ok := flags["--audit-log-maxage"]; ok {
 		delete(flags, "--audit-log-maxage")
 		res.AuditLogMaxage = l.parseInt(v)
-	} else {
-		res.AuditLogMaxage = l.parseInt("0")
 	}
 	if v, ok := flags["--audit-log-maxbackup"]; ok {
 		delete(flags, "--audit-log-maxbackup")
 		res.AuditLogMaxbackup = l.parseInt(v)
-	} else {
-		res.AuditLogMaxbackup = l.parseInt("0")
 	}
 	if v, ok := flags["--audit-log-maxsize"]; ok {
 		delete(flags, "--audit-log-maxsize")
 		res.AuditLogMaxsize = l.parseInt(v)
-	} else {
-		res.AuditLogMaxsize = l.parseInt("0")
 	}
 	if v, ok := flags["--audit-log-path"]; ok {
 		delete(flags, "--audit-log-path")
-		res.AuditLogPath = v
+		v := v
+		res.AuditLogPath = &v
 	}
 	if v, ok := flags["--audit-policy-file"]; ok {
 		delete(flags, "--audit-policy-file")
-		res.AuditPolicyFile = l.loadConfigFileMeta(v)
+		res.AuditPolicyFile, _ = l.loadConfigFileMeta(v)
 	}
 	if v, ok := flags["--authorization-mode"]; ok {
 		delete(flags, "--authorization-mode")
 		res.AuthorizationMode = strings.Split(v, ",")
+
 	} else {
 		res.AuthorizationMode = strings.Split("AlwaysAllow", ",")
 	}
 	if v, ok := flags["--bind-address"]; ok {
 		delete(flags, "--bind-address")
-		res.BindAddress = v
+		v := v
+		res.BindAddress = &v
+
 	} else {
-		res.BindAddress = "0.0.0.0"
+		v := "0.0.0.0"
+		res.BindAddress = &v
 	}
 	if v, ok := flags["--client-ca-file"]; ok {
 		delete(flags, "--client-ca-file")
@@ -151,7 +155,8 @@ func (l *loader) newK8sKubeApiserverConfig(flags map[string]string) *K8sKubeApis
 	}
 	if v, ok := flags["--feature-gates"]; ok {
 		delete(flags, "--feature-gates")
-		res.FeatureGates = v
+		v := v
+		res.FeatureGates = &v
 	}
 	if v, ok := flags["--kubelet-certificate-authority"]; ok {
 		delete(flags, "--kubelet-certificate-authority")
@@ -168,6 +173,7 @@ func (l *loader) newK8sKubeApiserverConfig(flags map[string]string) *K8sKubeApis
 	if v, ok := flags["--profiling"]; ok {
 		delete(flags, "--profiling")
 		res.Profiling = l.parseBool(v)
+
 	} else {
 		res.Profiling = l.parseBool("true")
 	}
@@ -182,6 +188,7 @@ func (l *loader) newK8sKubeApiserverConfig(flags map[string]string) *K8sKubeApis
 	if v, ok := flags["--request-timeout"]; ok {
 		delete(flags, "--request-timeout")
 		res.RequestTimeout = l.parseDuration(v)
+
 	} else {
 		res.RequestTimeout = l.parseDuration("1m0s")
 	}
@@ -208,12 +215,14 @@ func (l *loader) newK8sKubeApiserverConfig(flags map[string]string) *K8sKubeApis
 	if v, ok := flags["--secure-port"]; ok {
 		delete(flags, "--secure-port")
 		res.SecurePort = l.parseInt(v)
+
 	} else {
 		res.SecurePort = l.parseInt("6443")
 	}
 	if v, ok := flags["--service-account-issuer"]; ok {
 		delete(flags, "--service-account-issuer")
-		res.ServiceAccountIssuer = v
+		v := v
+		res.ServiceAccountIssuer = &v
 	}
 	if v, ok := flags["--service-account-key-file"]; ok {
 		delete(flags, "--service-account-key-file")
@@ -222,6 +231,7 @@ func (l *loader) newK8sKubeApiserverConfig(flags map[string]string) *K8sKubeApis
 	if v, ok := flags["--service-account-lookup"]; ok {
 		delete(flags, "--service-account-lookup")
 		res.ServiceAccountLookup = l.parseBool(v)
+
 	} else {
 		res.ServiceAccountLookup = l.parseBool("true")
 	}
@@ -231,7 +241,8 @@ func (l *loader) newK8sKubeApiserverConfig(flags map[string]string) *K8sKubeApis
 	}
 	if v, ok := flags["--service-cluster-ip-range"]; ok {
 		delete(flags, "--service-cluster-ip-range")
-		res.ServiceClusterIpRange = v
+		v := v
+		res.ServiceClusterIpRange = &v
 	}
 	if v, ok := flags["--tls-cert-file"]; ok {
 		delete(flags, "--tls-cert-file")
@@ -240,6 +251,11 @@ func (l *loader) newK8sKubeApiserverConfig(flags map[string]string) *K8sKubeApis
 	if v, ok := flags["--tls-cipher-suites"]; ok {
 		delete(flags, "--tls-cipher-suites")
 		res.TlsCipherSuites = strings.Split(v, ",")
+	}
+	if v, ok := flags["--tls-min-version"]; ok {
+		delete(flags, "--tls-min-version")
+		v := v
+		res.TlsMinVersion = &v
 	}
 	if v, ok := flags["--tls-private-key-file"]; ok {
 		delete(flags, "--tls-private-key-file")
@@ -256,23 +272,24 @@ func (l *loader) newK8sKubeApiserverConfig(flags map[string]string) *K8sKubeApis
 }
 
 type K8sKubeSchedulerConfig struct {
-	AuthenticationKubeconfig        *K8sKubeconfigMeta `json:"authentication-kubeconfig"`          // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AuthorizationKubeconfig         string             `json:"authorization-kubeconfig"`           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	BindAddress                     string             `json:"bind-address"`                       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ClientCaFile                    *K8sCertFileMeta   `json:"client-ca-file"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Config                          *K8sConfigFileMeta `json:"config"`                             // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	FeatureGates                    string             `json:"feature-gates"`                      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Kubeconfig                      *K8sKubeconfigMeta `json:"kubeconfig"`                         // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Profiling                       bool               `json:"profiling"`                          // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestheaderAllowedNames       []string           `json:"requestheader-allowed-names"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestheaderClientCaFile       *K8sCertFileMeta   `json:"requestheader-client-ca-file"`       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestheaderExtraHeadersPrefix []string           `json:"requestheader-extra-headers-prefix"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestheaderGroupHeaders       []string           `json:"requestheader-group-headers"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestheaderUsernameHeaders    []string           `json:"requestheader-username-headers"`     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	SecurePort                      int                `json:"secure-port"`                        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TlsCertFile                     *K8sCertFileMeta   `json:"tls-cert-file"`                      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TlsCipherSuites                 []string           `json:"tls-cipher-suites"`                  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TlsPrivateKeyFile               *K8sKeyFileMeta    `json:"tls-private-key-file"`               // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	Config                          *K8sConfigFileMeta `json:"config,omitempty"`                             // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	AuthenticationKubeconfig        *K8sKubeconfigMeta `json:"authentication-kubeconfig,omitempty"`          // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	AuthorizationKubeconfig         *string            `json:"authorization-kubeconfig,omitempty"`           // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	BindAddress                     *string            `json:"bind-address,omitempty"`                       // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ClientCaFile                    *K8sCertFileMeta   `json:"client-ca-file,omitempty"`                     // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	FeatureGates                    *string            `json:"feature-gates,omitempty"`                      // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	Kubeconfig                      *K8sKubeconfigMeta `json:"kubeconfig,omitempty"`                         // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	Profiling                       *bool              `json:"profiling,omitempty"`                          // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestheaderAllowedNames       []string           `json:"requestheader-allowed-names,omitempty"`        // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestheaderClientCaFile       *K8sCertFileMeta   `json:"requestheader-client-ca-file,omitempty"`       // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestheaderExtraHeadersPrefix []string           `json:"requestheader-extra-headers-prefix,omitempty"` // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestheaderGroupHeaders       []string           `json:"requestheader-group-headers,omitempty"`        // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestheaderUsernameHeaders    []string           `json:"requestheader-username-headers,omitempty"`     // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	SecurePort                      *int               `json:"secure-port,omitempty"`                        // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsCertFile                     *K8sCertFileMeta   `json:"tls-cert-file,omitempty"`                      // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsCipherSuites                 []string           `json:"tls-cipher-suites,omitempty"`                  // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsMinVersion                   *string            `json:"tls-min-version,omitempty"`                    // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsPrivateKeyFile               *K8sKeyFileMeta    `json:"tls-private-key-file,omitempty"`               // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
 	SkippedFlags                    map[string]string  `json:"skippedFlags,omitempty"`
 }
 
@@ -281,40 +298,46 @@ func (l *loader) newK8sKubeSchedulerConfig(flags map[string]string) *K8sKubeSche
 		return nil
 	}
 	var res K8sKubeSchedulerConfig
+	if v, ok := flags["--config"]; ok {
+		delete(flags, "--config")
+		res.Config, _ = l.loadConfigFileMeta(v)
+	}
 	if v, ok := flags["--authentication-kubeconfig"]; ok {
 		delete(flags, "--authentication-kubeconfig")
-		res.AuthenticationKubeconfig = l.loadKubeconfigMeta(v)
+		res.AuthenticationKubeconfig, _ = l.loadKubeconfigMeta(v)
 	}
 	if v, ok := flags["--authorization-kubeconfig"]; ok {
 		delete(flags, "--authorization-kubeconfig")
-		res.AuthorizationKubeconfig = v
+		v := v
+		res.AuthorizationKubeconfig = &v
 	}
 	if v, ok := flags["--bind-address"]; ok {
 		delete(flags, "--bind-address")
-		res.BindAddress = v
+		v := v
+		res.BindAddress = &v
+
 	} else {
-		res.BindAddress = "0.0.0.0"
+		v := "0.0.0.0"
+		res.BindAddress = &v
 	}
 	if v, ok := flags["--client-ca-file"]; ok {
 		delete(flags, "--client-ca-file")
 		res.ClientCaFile = l.loadCertFileMeta(v)
 	}
-	if v, ok := flags["--config"]; ok {
-		delete(flags, "--config")
-		res.Config = l.loadConfigFileMeta(v)
-	}
 	if v, ok := flags["--feature-gates"]; ok {
 		delete(flags, "--feature-gates")
-		res.FeatureGates = v
+		v := v
+		res.FeatureGates = &v
 	}
 	if v, ok := flags["--kubeconfig"]; ok {
 		delete(flags, "--kubeconfig")
-		res.Kubeconfig = l.loadKubeconfigMeta(v)
+		res.Kubeconfig, _ = l.loadKubeconfigMeta(v)
 	}
 	if v, ok := flags["--profiling"]; ok {
 		delete(flags, "--profiling")
 		res.Profiling = l.parseBool(v)
-	} else {
+
+	} else if !l.configFileMetaHasField(res.Config, "enableProfiling") {
 		res.Profiling = l.parseBool("true")
 	}
 	if v, ok := flags["--requestheader-allowed-names"]; ok {
@@ -328,24 +351,28 @@ func (l *loader) newK8sKubeSchedulerConfig(flags map[string]string) *K8sKubeSche
 	if v, ok := flags["--requestheader-extra-headers-prefix"]; ok {
 		delete(flags, "--requestheader-extra-headers-prefix")
 		res.RequestheaderExtraHeadersPrefix = strings.Split(v, ",")
+
 	} else {
 		res.RequestheaderExtraHeadersPrefix = strings.Split("x-remote-extra-", ",")
 	}
 	if v, ok := flags["--requestheader-group-headers"]; ok {
 		delete(flags, "--requestheader-group-headers")
 		res.RequestheaderGroupHeaders = strings.Split(v, ",")
+
 	} else {
 		res.RequestheaderGroupHeaders = strings.Split("x-remote-group", ",")
 	}
 	if v, ok := flags["--requestheader-username-headers"]; ok {
 		delete(flags, "--requestheader-username-headers")
 		res.RequestheaderUsernameHeaders = strings.Split(v, ",")
+
 	} else {
 		res.RequestheaderUsernameHeaders = strings.Split("x-remote-user", ",")
 	}
 	if v, ok := flags["--secure-port"]; ok {
 		delete(flags, "--secure-port")
 		res.SecurePort = l.parseInt(v)
+
 	} else {
 		res.SecurePort = l.parseInt("10259")
 	}
@@ -356,6 +383,11 @@ func (l *loader) newK8sKubeSchedulerConfig(flags map[string]string) *K8sKubeSche
 	if v, ok := flags["--tls-cipher-suites"]; ok {
 		delete(flags, "--tls-cipher-suites")
 		res.TlsCipherSuites = strings.Split(v, ",")
+	}
+	if v, ok := flags["--tls-min-version"]; ok {
+		delete(flags, "--tls-min-version")
+		v := v
+		res.TlsMinVersion = &v
 	}
 	if v, ok := flags["--tls-private-key-file"]; ok {
 		delete(flags, "--tls-private-key-file")
@@ -368,29 +400,30 @@ func (l *loader) newK8sKubeSchedulerConfig(flags map[string]string) *K8sKubeSche
 }
 
 type K8sKubeControllerManagerConfig struct {
-	AuthenticationKubeconfig        *K8sKubeconfigMeta `json:"authentication-kubeconfig"`          // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AuthorizationKubeconfig         string             `json:"authorization-kubeconfig"`           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	BindAddress                     string             `json:"bind-address"`                       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ClientCaFile                    *K8sCertFileMeta   `json:"client-ca-file"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ClusterSigningCertFile          *K8sCertFileMeta   `json:"cluster-signing-cert-file"`          // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ClusterSigningKeyFile           *K8sKeyFileMeta    `json:"cluster-signing-key-file"`           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	FeatureGates                    string             `json:"feature-gates"`                      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Kubeconfig                      *K8sKubeconfigMeta `json:"kubeconfig"`                         // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Profiling                       bool               `json:"profiling"`                          // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestheaderAllowedNames       []string           `json:"requestheader-allowed-names"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestheaderClientCaFile       *K8sCertFileMeta   `json:"requestheader-client-ca-file"`       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestheaderExtraHeadersPrefix []string           `json:"requestheader-extra-headers-prefix"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestheaderGroupHeaders       []string           `json:"requestheader-group-headers"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RequestheaderUsernameHeaders    []string           `json:"requestheader-username-headers"`     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RootCaFile                      *K8sCertFileMeta   `json:"root-ca-file"`                       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	SecurePort                      int                `json:"secure-port"`                        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ServiceAccountPrivateKeyFile    *K8sKeyFileMeta    `json:"service-account-private-key-file"`   // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ServiceClusterIpRange           string             `json:"service-cluster-ip-range"`           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TerminatedPodGcThreshold        int                `json:"terminated-pod-gc-threshold"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TlsCertFile                     *K8sCertFileMeta   `json:"tls-cert-file"`                      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TlsCipherSuites                 []string           `json:"tls-cipher-suites"`                  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TlsPrivateKeyFile               *K8sKeyFileMeta    `json:"tls-private-key-file"`               // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	UseServiceAccountCredentials    bool               `json:"use-service-account-credentials"`    // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	AuthenticationKubeconfig        *K8sKubeconfigMeta `json:"authentication-kubeconfig,omitempty"`          // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	AuthorizationKubeconfig         *string            `json:"authorization-kubeconfig,omitempty"`           // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	BindAddress                     *string            `json:"bind-address,omitempty"`                       // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ClientCaFile                    *K8sCertFileMeta   `json:"client-ca-file,omitempty"`                     // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ClusterSigningCertFile          *K8sCertFileMeta   `json:"cluster-signing-cert-file,omitempty"`          // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ClusterSigningKeyFile           *K8sKeyFileMeta    `json:"cluster-signing-key-file,omitempty"`           // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	FeatureGates                    *string            `json:"feature-gates,omitempty"`                      // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	Kubeconfig                      *K8sKubeconfigMeta `json:"kubeconfig,omitempty"`                         // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	Profiling                       *bool              `json:"profiling,omitempty"`                          // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestheaderAllowedNames       []string           `json:"requestheader-allowed-names,omitempty"`        // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestheaderClientCaFile       *K8sCertFileMeta   `json:"requestheader-client-ca-file,omitempty"`       // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestheaderExtraHeadersPrefix []string           `json:"requestheader-extra-headers-prefix,omitempty"` // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestheaderGroupHeaders       []string           `json:"requestheader-group-headers,omitempty"`        // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RequestheaderUsernameHeaders    []string           `json:"requestheader-username-headers,omitempty"`     // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RootCaFile                      *K8sCertFileMeta   `json:"root-ca-file,omitempty"`                       // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	SecurePort                      *int               `json:"secure-port,omitempty"`                        // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ServiceAccountPrivateKeyFile    *K8sKeyFileMeta    `json:"service-account-private-key-file,omitempty"`   // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ServiceClusterIpRange           *string            `json:"service-cluster-ip-range,omitempty"`           // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TerminatedPodGcThreshold        *int               `json:"terminated-pod-gc-threshold,omitempty"`        // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsCertFile                     *K8sCertFileMeta   `json:"tls-cert-file,omitempty"`                      // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsCipherSuites                 []string           `json:"tls-cipher-suites,omitempty"`                  // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsMinVersion                   *string            `json:"tls-min-version,omitempty"`                    // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsPrivateKeyFile               *K8sKeyFileMeta    `json:"tls-private-key-file,omitempty"`               // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	UseServiceAccountCredentials    *bool              `json:"use-service-account-credentials,omitempty"`    // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
 	SkippedFlags                    map[string]string  `json:"skippedFlags,omitempty"`
 }
 
@@ -401,17 +434,21 @@ func (l *loader) newK8sKubeControllerManagerConfig(flags map[string]string) *K8s
 	var res K8sKubeControllerManagerConfig
 	if v, ok := flags["--authentication-kubeconfig"]; ok {
 		delete(flags, "--authentication-kubeconfig")
-		res.AuthenticationKubeconfig = l.loadKubeconfigMeta(v)
+		res.AuthenticationKubeconfig, _ = l.loadKubeconfigMeta(v)
 	}
 	if v, ok := flags["--authorization-kubeconfig"]; ok {
 		delete(flags, "--authorization-kubeconfig")
-		res.AuthorizationKubeconfig = v
+		v := v
+		res.AuthorizationKubeconfig = &v
 	}
 	if v, ok := flags["--bind-address"]; ok {
 		delete(flags, "--bind-address")
-		res.BindAddress = v
+		v := v
+		res.BindAddress = &v
+
 	} else {
-		res.BindAddress = "0.0.0.0"
+		v := "0.0.0.0"
+		res.BindAddress = &v
 	}
 	if v, ok := flags["--client-ca-file"]; ok {
 		delete(flags, "--client-ca-file")
@@ -427,15 +464,17 @@ func (l *loader) newK8sKubeControllerManagerConfig(flags map[string]string) *K8s
 	}
 	if v, ok := flags["--feature-gates"]; ok {
 		delete(flags, "--feature-gates")
-		res.FeatureGates = v
+		v := v
+		res.FeatureGates = &v
 	}
 	if v, ok := flags["--kubeconfig"]; ok {
 		delete(flags, "--kubeconfig")
-		res.Kubeconfig = l.loadKubeconfigMeta(v)
+		res.Kubeconfig, _ = l.loadKubeconfigMeta(v)
 	}
 	if v, ok := flags["--profiling"]; ok {
 		delete(flags, "--profiling")
 		res.Profiling = l.parseBool(v)
+
 	} else {
 		res.Profiling = l.parseBool("true")
 	}
@@ -450,18 +489,21 @@ func (l *loader) newK8sKubeControllerManagerConfig(flags map[string]string) *K8s
 	if v, ok := flags["--requestheader-extra-headers-prefix"]; ok {
 		delete(flags, "--requestheader-extra-headers-prefix")
 		res.RequestheaderExtraHeadersPrefix = strings.Split(v, ",")
+
 	} else {
 		res.RequestheaderExtraHeadersPrefix = strings.Split("x-remote-extra-", ",")
 	}
 	if v, ok := flags["--requestheader-group-headers"]; ok {
 		delete(flags, "--requestheader-group-headers")
 		res.RequestheaderGroupHeaders = strings.Split(v, ",")
+
 	} else {
 		res.RequestheaderGroupHeaders = strings.Split("x-remote-group", ",")
 	}
 	if v, ok := flags["--requestheader-username-headers"]; ok {
 		delete(flags, "--requestheader-username-headers")
 		res.RequestheaderUsernameHeaders = strings.Split(v, ",")
+
 	} else {
 		res.RequestheaderUsernameHeaders = strings.Split("x-remote-user", ",")
 	}
@@ -472,6 +514,7 @@ func (l *loader) newK8sKubeControllerManagerConfig(flags map[string]string) *K8s
 	if v, ok := flags["--secure-port"]; ok {
 		delete(flags, "--secure-port")
 		res.SecurePort = l.parseInt(v)
+
 	} else {
 		res.SecurePort = l.parseInt("10257")
 	}
@@ -481,11 +524,13 @@ func (l *loader) newK8sKubeControllerManagerConfig(flags map[string]string) *K8s
 	}
 	if v, ok := flags["--service-cluster-ip-range"]; ok {
 		delete(flags, "--service-cluster-ip-range")
-		res.ServiceClusterIpRange = v
+		v := v
+		res.ServiceClusterIpRange = &v
 	}
 	if v, ok := flags["--terminated-pod-gc-threshold"]; ok {
 		delete(flags, "--terminated-pod-gc-threshold")
 		res.TerminatedPodGcThreshold = l.parseInt(v)
+
 	} else {
 		res.TerminatedPodGcThreshold = l.parseInt("12500")
 	}
@@ -496,6 +541,11 @@ func (l *loader) newK8sKubeControllerManagerConfig(flags map[string]string) *K8s
 	if v, ok := flags["--tls-cipher-suites"]; ok {
 		delete(flags, "--tls-cipher-suites")
 		res.TlsCipherSuites = strings.Split(v, ",")
+	}
+	if v, ok := flags["--tls-min-version"]; ok {
+		delete(flags, "--tls-min-version")
+		v := v
+		res.TlsMinVersion = &v
 	}
 	if v, ok := flags["--tls-private-key-file"]; ok {
 		delete(flags, "--tls-private-key-file")
@@ -512,12 +562,12 @@ func (l *loader) newK8sKubeControllerManagerConfig(flags map[string]string) *K8s
 }
 
 type K8sKubeProxyConfig struct {
-	BindAddress      string             `json:"bind-address"`      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Config           *K8sConfigFileMeta `json:"config"`            // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	FeatureGates     string             `json:"feature-gates"`     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	HostnameOverride string             `json:"hostname-override"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Kubeconfig       *K8sKubeconfigMeta `json:"kubeconfig"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Profiling        bool               `json:"profiling"`         // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	Config           *K8sConfigFileMeta `json:"config,omitempty"`            // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	BindAddress      *string            `json:"bind-address,omitempty"`      // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	FeatureGates     *string            `json:"feature-gates,omitempty"`     // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	HostnameOverride *string            `json:"hostname-override,omitempty"` // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	Kubeconfig       *K8sKubeconfigMeta `json:"kubeconfig,omitempty"`        // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	Profiling        *bool              `json:"profiling,omitempty"`         // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
 	SkippedFlags     map[string]string  `json:"skippedFlags,omitempty"`
 }
 
@@ -526,27 +576,32 @@ func (l *loader) newK8sKubeProxyConfig(flags map[string]string) *K8sKubeProxyCon
 		return nil
 	}
 	var res K8sKubeProxyConfig
-	if v, ok := flags["--bind-address"]; ok {
-		delete(flags, "--bind-address")
-		res.BindAddress = v
-	} else {
-		res.BindAddress = "0.0.0.0"
-	}
 	if v, ok := flags["--config"]; ok {
 		delete(flags, "--config")
-		res.Config = l.loadConfigFileMeta(v)
+		res.Config, _ = l.loadConfigFileMeta(v)
+	}
+	if v, ok := flags["--bind-address"]; ok {
+		delete(flags, "--bind-address")
+		v := v
+		res.BindAddress = &v
+
+	} else {
+		v := "0.0.0.0"
+		res.BindAddress = &v
 	}
 	if v, ok := flags["--feature-gates"]; ok {
 		delete(flags, "--feature-gates")
-		res.FeatureGates = v
+		v := v
+		res.FeatureGates = &v
 	}
 	if v, ok := flags["--hostname-override"]; ok {
 		delete(flags, "--hostname-override")
-		res.HostnameOverride = v
+		v := v
+		res.HostnameOverride = &v
 	}
 	if v, ok := flags["--kubeconfig"]; ok {
 		delete(flags, "--kubeconfig")
-		res.Kubeconfig = l.loadKubeconfigMeta(v)
+		res.Kubeconfig, _ = l.loadKubeconfigMeta(v)
 	}
 	if v, ok := flags["--profiling"]; ok {
 		delete(flags, "--profiling")
@@ -559,29 +614,30 @@ func (l *loader) newK8sKubeProxyConfig(flags map[string]string) *K8sKubeProxyCon
 }
 
 type K8sKubeletConfig struct {
-	Address                        string             `json:"address"`                           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AnonymousAuth                  bool               `json:"anonymous-auth"`                    // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AuthorizationMode              string             `json:"authorization-mode"`                // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ClientCaFile                   *K8sCertFileMeta   `json:"client-ca-file"`                    // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Config                         *K8sConfigFileMeta `json:"config"`                            // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	EventBurst                     int                `json:"event-burst"`                       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	EventQps                       int                `json:"event-qps"`                         // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	FeatureGates                   string             `json:"feature-gates"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	HostnameOverride               string             `json:"hostname-override"`                 // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ImageCredentialProviderBinDir  *K8sDirMeta        `json:"image-credential-provider-bin-dir"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ImageCredentialProviderConfig  *K8sConfigFileMeta `json:"image-credential-provider-config"`  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Kubeconfig                     *K8sKubeconfigMeta `json:"kubeconfig"`                        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	MakeIptablesUtilChains         bool               `json:"make-iptables-util-chains"`         // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	MaxPods                        int                `json:"max-pods"`                          // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	PodMaxPids                     int                `json:"pod-max-pids"`                      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ProtectKernelDefaults          bool               `json:"protect-kernel-defaults"`           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ReadOnlyPort                   int                `json:"read-only-port"`                    // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RotateCertificates             bool               `json:"rotate-certificates"`               // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	RotateServerCertificates       bool               `json:"rotate-server-certificates"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	StreamingConnectionIdleTimeout time.Duration      `json:"streaming-connection-idle-timeout"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TlsCertFile                    *K8sCertFileMeta   `json:"tls-cert-file"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TlsCipherSuites                []string           `json:"tls-cipher-suites"`                 // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TlsPrivateKeyFile              *K8sKeyFileMeta    `json:"tls-private-key-file"`              // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	Config                         *K8sConfigFileMeta `json:"config,omitempty"`                            // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	Address                        *string            `json:"address,omitempty"`                           // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	AnonymousAuth                  *bool              `json:"anonymous-auth,omitempty"`                    // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	AuthorizationMode              *string            `json:"authorization-mode,omitempty"`                // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ClientCaFile                   *K8sCertFileMeta   `json:"client-ca-file,omitempty"`                    // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	EventBurst                     *int               `json:"event-burst,omitempty"`                       // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	EventQps                       *int               `json:"event-qps,omitempty"`                         // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	FeatureGates                   *string            `json:"feature-gates,omitempty"`                     // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	HostnameOverride               *string            `json:"hostname-override,omitempty"`                 // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ImageCredentialProviderBinDir  *K8sDirMeta        `json:"image-credential-provider-bin-dir,omitempty"` // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ImageCredentialProviderConfig  *K8sConfigFileMeta `json:"image-credential-provider-config,omitempty"`  // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	Kubeconfig                     *K8sKubeconfigMeta `json:"kubeconfig,omitempty"`                        // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	MakeIptablesUtilChains         *bool              `json:"make-iptables-util-chains,omitempty"`         // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	MaxPods                        *int               `json:"max-pods,omitempty"`                          // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	PodMaxPids                     *int               `json:"pod-max-pids,omitempty"`                      // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ProtectKernelDefaults          *bool              `json:"protect-kernel-defaults,omitempty"`           // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ReadOnlyPort                   *int               `json:"read-only-port,omitempty"`                    // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RotateCertificates             *bool              `json:"rotate-certificates,omitempty"`               // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	RotateServerCertificates       *bool              `json:"rotate-server-certificates,omitempty"`        // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	StreamingConnectionIdleTimeout *time.Duration     `json:"streaming-connection-idle-timeout,omitempty"` // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsCertFile                    *K8sCertFileMeta   `json:"tls-cert-file,omitempty"`                     // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsCipherSuites                []string           `json:"tls-cipher-suites,omitempty"`                 // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsMinVersion                  *string            `json:"tls-min-version,omitempty"`                   // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	TlsPrivateKeyFile              *K8sKeyFileMeta    `json:"tls-private-key-file,omitempty"`              // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
 	SkippedFlags                   map[string]string  `json:"skippedFlags,omitempty"`
 }
 
@@ -590,51 +646,62 @@ func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig 
 		return nil
 	}
 	var res K8sKubeletConfig
+	if v, ok := flags["--config"]; ok {
+		delete(flags, "--config")
+		res.Config = l.loadKubeletConfigFileMeta(v)
+	}
 	if v, ok := flags["--address"]; ok {
 		delete(flags, "--address")
-		res.Address = v
-	} else {
-		res.Address = "0.0.0.0"
+		v := v
+		res.Address = &v
+
+	} else if !l.configFileMetaHasField(res.Config, "address") {
+		v := "0.0.0.0"
+		res.Address = &v
 	}
 	if v, ok := flags["--anonymous-auth"]; ok {
 		delete(flags, "--anonymous-auth")
 		res.AnonymousAuth = l.parseBool(v)
-	} else {
+
+	} else if !l.configFileMetaHasField(res.Config, "authentication.anonymous.enabled") {
 		res.AnonymousAuth = l.parseBool("true")
 	}
 	if v, ok := flags["--authorization-mode"]; ok {
 		delete(flags, "--authorization-mode")
-		res.AuthorizationMode = v
-	} else {
-		res.AuthorizationMode = "AlwaysAllow"
+		v := v
+		res.AuthorizationMode = &v
+
+	} else if !l.configFileMetaHasField(res.Config, "authorization.mode") {
+		v := "AlwaysAllow"
+		res.AuthorizationMode = &v
 	}
 	if v, ok := flags["--client-ca-file"]; ok {
 		delete(flags, "--client-ca-file")
 		res.ClientCaFile = l.loadCertFileMeta(v)
 	}
-	if v, ok := flags["--config"]; ok {
-		delete(flags, "--config")
-		res.Config = l.loadKubeletConfigFileMeta(v)
-	}
 	if v, ok := flags["--event-burst"]; ok {
 		delete(flags, "--event-burst")
 		res.EventBurst = l.parseInt(v)
-	} else {
+
+	} else if !l.configFileMetaHasField(res.Config, "eventBurst") {
 		res.EventBurst = l.parseInt("100")
 	}
 	if v, ok := flags["--event-qps"]; ok {
 		delete(flags, "--event-qps")
 		res.EventQps = l.parseInt(v)
-	} else {
+
+	} else if !l.configFileMetaHasField(res.Config, "eventRecordQPS") {
 		res.EventQps = l.parseInt("50")
 	}
 	if v, ok := flags["--feature-gates"]; ok {
 		delete(flags, "--feature-gates")
-		res.FeatureGates = v
+		v := v
+		res.FeatureGates = &v
 	}
 	if v, ok := flags["--hostname-override"]; ok {
 		delete(flags, "--hostname-override")
-		res.HostnameOverride = v
+		v := v
+		res.HostnameOverride = &v
 	}
 	if v, ok := flags["--image-credential-provider-bin-dir"]; ok {
 		delete(flags, "--image-credential-provider-bin-dir")
@@ -642,28 +709,31 @@ func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig 
 	}
 	if v, ok := flags["--image-credential-provider-config"]; ok {
 		delete(flags, "--image-credential-provider-config")
-		res.ImageCredentialProviderConfig = l.loadConfigFileMeta(v)
+		res.ImageCredentialProviderConfig, _ = l.loadConfigFileMeta(v)
 	}
 	if v, ok := flags["--kubeconfig"]; ok {
 		delete(flags, "--kubeconfig")
-		res.Kubeconfig = l.loadKubeconfigMeta(v)
+		res.Kubeconfig, _ = l.loadKubeconfigMeta(v)
 	}
 	if v, ok := flags["--make-iptables-util-chains"]; ok {
 		delete(flags, "--make-iptables-util-chains")
 		res.MakeIptablesUtilChains = l.parseBool(v)
-	} else {
+
+	} else if !l.configFileMetaHasField(res.Config, "makeIPTablesUtilChains") {
 		res.MakeIptablesUtilChains = l.parseBool("true")
 	}
 	if v, ok := flags["--max-pods"]; ok {
 		delete(flags, "--max-pods")
 		res.MaxPods = l.parseInt(v)
-	} else {
+
+	} else if !l.configFileMetaHasField(res.Config, "maxPods") {
 		res.MaxPods = l.parseInt("110")
 	}
 	if v, ok := flags["--pod-max-pids"]; ok {
 		delete(flags, "--pod-max-pids")
 		res.PodMaxPids = l.parseInt(v)
-	} else {
+
+	} else if !l.configFileMetaHasField(res.Config, "podPidsLimit") {
 		res.PodMaxPids = l.parseInt("-1")
 	}
 	if v, ok := flags["--protect-kernel-defaults"]; ok {
@@ -673,7 +743,8 @@ func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig 
 	if v, ok := flags["--read-only-port"]; ok {
 		delete(flags, "--read-only-port")
 		res.ReadOnlyPort = l.parseInt(v)
-	} else {
+
+	} else if !l.configFileMetaHasField(res.Config, "readOnlyPort") {
 		res.ReadOnlyPort = l.parseInt("10255")
 	}
 	if v, ok := flags["--rotate-certificates"]; ok {
@@ -687,7 +758,8 @@ func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig 
 	if v, ok := flags["--streaming-connection-idle-timeout"]; ok {
 		delete(flags, "--streaming-connection-idle-timeout")
 		res.StreamingConnectionIdleTimeout = l.parseDuration(v)
-	} else {
+
+	} else if !l.configFileMetaHasField(res.Config, "streamingConnectionIdleTimeout") {
 		res.StreamingConnectionIdleTimeout = l.parseDuration("4h0m0s")
 	}
 	if v, ok := flags["--tls-cert-file"]; ok {
@@ -697,6 +769,11 @@ func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig 
 	if v, ok := flags["--tls-cipher-suites"]; ok {
 		delete(flags, "--tls-cipher-suites")
 		res.TlsCipherSuites = strings.Split(v, ",")
+	}
+	if v, ok := flags["--tls-min-version"]; ok {
+		delete(flags, "--tls-min-version")
+		v := v
+		res.TlsMinVersion = &v
 	}
 	if v, ok := flags["--tls-private-key-file"]; ok {
 		delete(flags, "--tls-private-key-file")
@@ -709,17 +786,18 @@ func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig 
 }
 
 type K8sEtcdConfig struct {
-	AutoTls            bool              `json:"auto-tls"`              // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
-	CertFile           *K8sCertFileMeta  `json:"cert-file"`             // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
-	ClientCertAuth     bool              `json:"client-cert-auth"`      // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
-	DataDir            *K8sDirMeta       `json:"data-dir"`              // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
-	KeyFile            *K8sKeyFileMeta   `json:"key-file"`              // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
-	PeerAutoTls        bool              `json:"peer-auto-tls"`         // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
-	PeerCertFile       *K8sCertFileMeta  `json:"peer-cert-file"`        // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
-	PeerClientCertAuth bool              `json:"peer-client-cert-auth"` // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
-	PeerKeyFile        *K8sKeyFileMeta   `json:"peer-key-file"`         // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
-	PeerTrustedCaFile  *K8sCertFileMeta  `json:"peer-trusted-ca-file"`  // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
-	TrustedCaFile      *K8sCertFileMeta  `json:"trusted-ca-file"`       // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
+	AutoTls            *bool             `json:"auto-tls,omitempty"`              // versions: v3.5.10, v3.4.28, v3.3.17, v3.2.32
+	CertFile           *K8sCertFileMeta  `json:"cert-file,omitempty"`             // versions: v3.5.10, v3.4.28, v3.3.17, v3.2.32
+	ClientCertAuth     *bool             `json:"client-cert-auth,omitempty"`      // versions: v3.5.10, v3.4.28, v3.3.17, v3.2.32
+	DataDir            *K8sDirMeta       `json:"data-dir,omitempty"`              // versions: v3.5.10, v3.4.28, v3.3.17, v3.2.32
+	KeyFile            *K8sKeyFileMeta   `json:"key-file,omitempty"`              // versions: v3.5.10, v3.4.28, v3.3.17, v3.2.32
+	PeerAutoTls        *bool             `json:"peer-auto-tls,omitempty"`         // versions: v3.5.10, v3.4.28, v3.3.17, v3.2.32
+	PeerCertFile       *K8sCertFileMeta  `json:"peer-cert-file,omitempty"`        // versions: v3.5.10, v3.4.28, v3.3.17, v3.2.32
+	PeerClientCertAuth *bool             `json:"peer-client-cert-auth,omitempty"` // versions: v3.5.10, v3.4.28, v3.3.17, v3.2.32
+	PeerKeyFile        *K8sKeyFileMeta   `json:"peer-key-file,omitempty"`         // versions: v3.5.10, v3.4.28, v3.3.17, v3.2.32
+	PeerTrustedCaFile  *K8sCertFileMeta  `json:"peer-trusted-ca-file,omitempty"`  // versions: v3.5.10, v3.4.28, v3.3.17, v3.2.32
+	TlsMinVersion      *string           `json:"tls-min-version,omitempty"`       // versions: v3.5.10, v3.4.28
+	TrustedCaFile      *K8sCertFileMeta  `json:"trusted-ca-file,omitempty"`       // versions: v3.5.10, v3.4.28, v3.3.17, v3.2.32
 	SkippedFlags       map[string]string `json:"skippedFlags,omitempty"`
 }
 
@@ -731,6 +809,9 @@ func (l *loader) newK8sEtcdConfig(flags map[string]string) *K8sEtcdConfig {
 	if v, ok := flags["--auto-tls"]; ok {
 		delete(flags, "--auto-tls")
 		res.AutoTls = l.parseBool(v)
+
+	} else {
+		res.AutoTls = l.parseBool("false")
 	}
 	if v, ok := flags["--cert-file"]; ok {
 		delete(flags, "--cert-file")
@@ -739,6 +820,9 @@ func (l *loader) newK8sEtcdConfig(flags map[string]string) *K8sEtcdConfig {
 	if v, ok := flags["--client-cert-auth"]; ok {
 		delete(flags, "--client-cert-auth")
 		res.ClientCertAuth = l.parseBool(v)
+
+	} else {
+		res.ClientCertAuth = l.parseBool("false")
 	}
 	if v, ok := flags["--data-dir"]; ok {
 		delete(flags, "--data-dir")
@@ -751,6 +835,9 @@ func (l *loader) newK8sEtcdConfig(flags map[string]string) *K8sEtcdConfig {
 	if v, ok := flags["--peer-auto-tls"]; ok {
 		delete(flags, "--peer-auto-tls")
 		res.PeerAutoTls = l.parseBool(v)
+
+	} else {
+		res.PeerAutoTls = l.parseBool("false")
 	}
 	if v, ok := flags["--peer-cert-file"]; ok {
 		delete(flags, "--peer-cert-file")
@@ -759,6 +846,9 @@ func (l *loader) newK8sEtcdConfig(flags map[string]string) *K8sEtcdConfig {
 	if v, ok := flags["--peer-client-cert-auth"]; ok {
 		delete(flags, "--peer-client-cert-auth")
 		res.PeerClientCertAuth = l.parseBool(v)
+
+	} else {
+		res.PeerClientCertAuth = l.parseBool("false")
 	}
 	if v, ok := flags["--peer-key-file"]; ok {
 		delete(flags, "--peer-key-file")
@@ -767,6 +857,15 @@ func (l *loader) newK8sEtcdConfig(flags map[string]string) *K8sEtcdConfig {
 	if v, ok := flags["--peer-trusted-ca-file"]; ok {
 		delete(flags, "--peer-trusted-ca-file")
 		res.PeerTrustedCaFile = l.loadCertFileMeta(v)
+	}
+	if v, ok := flags["--tls-min-version"]; ok {
+		delete(flags, "--tls-min-version")
+		v := v
+		res.TlsMinVersion = &v
+
+	} else {
+		v := "TLS1.2"
+		res.TlsMinVersion = &v
 	}
 	if v, ok := flags["--trusted-ca-file"]; ok {
 		delete(flags, "--trusted-ca-file")

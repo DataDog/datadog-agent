@@ -11,6 +11,7 @@ otlp_config:
     resource_attributes_as_tags: true
     instrumentation_library_metadata_as_tags: true
     instrumentation_scope_metadata_as_tags: true
+    tags: "tag1:value1,tag2:value2"
     histograms:
       mode: counters
       send_count_sum_metrics: true

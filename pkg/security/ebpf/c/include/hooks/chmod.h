@@ -37,6 +37,10 @@ HOOK_SYSCALL_ENTRY3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) 
     return trace__sys_chmod(mode);
 }
 
+HOOK_SYSCALL_ENTRY4(fchmodat2, int, dirfd, const char*, filename, umode_t, mode, int, flag) {
+    return trace__sys_chmod(mode);
+}
+
 int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_CHMOD);
     if (!syscall) {
@@ -75,6 +79,11 @@ HOOK_SYSCALL_EXIT(fchmod) {
 }
 
 HOOK_SYSCALL_EXIT(fchmodat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_chmod_ret(ctx, retval);
+}
+
+HOOK_SYSCALL_EXIT(fchmodat2) {
     int retval = SYSCALL_PARMRET(ctx);
     return sys_chmod_ret(ctx, retval);
 }

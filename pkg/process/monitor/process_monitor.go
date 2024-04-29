@@ -36,6 +36,7 @@ var (
 		// Must initialize the sets, as we can register callbacks prior to calling Initialize.
 		processExecCallbacks: make(map[*ProcessCallback]struct{}, 0),
 		processExitCallbacks: make(map[*ProcessCallback]struct{}, 0),
+		oversizedLogLimit:    log.NewLogLimit(10, 10*time.Minute),
 	}
 )
 
@@ -121,6 +122,8 @@ type ProcessMonitor struct {
 	callbackRunner chan func()
 
 	tel processMonitorTelemetry
+
+	oversizedLogLimit *log.Limit
 }
 
 // ProcessCallback is a callback function that is called on a given pid that represents a new process.
@@ -170,7 +173,7 @@ func (pm *ProcessMonitor) handleProcessExec(pid uint32) {
 			continue
 		default:
 			pm.tel.processExecChannelIsFull.Add(1)
-			if log.ShouldLog(seelog.DebugLvl) {
+			if log.ShouldLog(seelog.DebugLvl) && pm.oversizedLogLimit.ShouldLog() {
 				log.Debug("can't send exec callback to callbackRunner, channel is full")
 			}
 		}
@@ -190,7 +193,7 @@ func (pm *ProcessMonitor) handleProcessExit(pid uint32) {
 			continue
 		default:
 			pm.tel.processExitChannelIsFull.Add(1)
-			if log.ShouldLog(seelog.DebugLvl) {
+			if log.ShouldLog(seelog.DebugLvl) && pm.oversizedLogLimit.ShouldLog() {
 				log.Debug("can't send exit callback to callbackRunner, channel is full")
 			}
 		}

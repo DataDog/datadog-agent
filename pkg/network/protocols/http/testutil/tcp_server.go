@@ -5,28 +5,51 @@
 
 package testutil
 
-import "net"
+import (
+	"crypto/tls"
+	"net"
+)
 
 // TCPServer represents a basic TCP server configuration.
 type TCPServer struct {
 	address   string
 	onMessage func(c net.Conn)
+	isTLS     bool
 }
 
 // NewTCPServer creates and initializes a new TCPServer instance with the provided address
 // and callback function to handle incoming messages.
-func NewTCPServer(addr string, onMessage func(c net.Conn)) *TCPServer {
+func NewTCPServer(addr string, onMessage func(c net.Conn), isTLS bool) *TCPServer {
 	return &TCPServer{
 		address:   addr,
 		onMessage: onMessage,
+		isTLS:     isTLS,
 	}
 }
 
 // Run starts the TCPServer to listen on its configured address.
 func (s *TCPServer) Run(done chan struct{}) error {
-	ln, err := net.Listen("tcp", s.address)
-	if err != nil {
-		return err
+	var ln net.Listener
+	var lnErr error
+
+	if s.isTLS {
+		crtPath, keyPath, err := GetCertsPaths()
+		if err != nil {
+			return err
+		}
+		cert, err := tls.LoadX509KeyPair(crtPath, keyPath)
+		if err != nil {
+			return err
+		}
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		}
+		ln, lnErr = tls.Listen("tcp", s.address, tlsConfig)
+	} else {
+		ln, lnErr = net.Listen("tcp", s.address)
+	}
+	if lnErr != nil {
+		return lnErr
 	}
 	s.address = ln.Addr().String()
 

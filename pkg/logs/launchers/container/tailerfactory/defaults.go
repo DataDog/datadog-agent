@@ -8,6 +8,8 @@
 package tailerfactory
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
@@ -21,7 +23,11 @@ import (
 // encounters along the way
 func (tf *factory) defaultSourceAndService(source *sources.LogSource, logWhat containersorpods.LogWhat) (sourceName, serviceName string) {
 	getContainer := func(containerID string) (*workloadmeta.Container, error) {
-		return tf.workloadmetaStore.GetContainer(containerID)
+		wmeta, ok := tf.workloadmetaStore.Get()
+		if !ok {
+			return nil, errors.New("workloadmeta store is not initialized")
+		}
+		return wmeta.GetContainer(containerID)
 	}
 
 	getServiceNameFromTags := func(containerID, containerName string) string {

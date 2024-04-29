@@ -14,6 +14,7 @@ HOOK_SYSCALL_ENTRY0(mprotect) {
 
     struct syscall_cache_t syscall = {
         .type = EVENT_MPROTECT,
+        .policy = policy,
     };
 
     cache_syscall(&syscall);
@@ -46,7 +47,7 @@ int __attribute__((always_inline)) sys_mprotect_ret(void *ctx, int retval) {
     }
 
     if (filter_syscall(syscall, mprotect_approvers)) {
-        return 0;
+        return mark_as_discarded(syscall);
     }
 
     struct mprotect_event_t event = {

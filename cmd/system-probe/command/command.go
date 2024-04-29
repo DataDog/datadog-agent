@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package command contains utilities for creating system-probe commands
 package command
 
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -63,4 +64,34 @@ Runtime Security Monitoring, Universal Service Monitoring, and others.`,
 	}
 
 	return sysprobeCmd
+}
+
+// SetDefaultCommandIfNonePresent sets the "run" subcommand as root command
+// to support the legacy (without any command) invocation.
+func SetDefaultCommandIfNonePresent(rootCmd *cobra.Command) {
+	var subCommandNames []string
+	for _, command := range rootCmd.Commands() {
+		subCommandNames = append(subCommandNames, append(command.Aliases, command.Name())...)
+	}
+
+	args := []string{os.Args[0], "run"}
+	if len(os.Args) > 1 {
+		potentialCommand := os.Args[1]
+		if potentialCommand == "help" || potentialCommand == "completion" {
+			return
+		}
+
+		for _, command := range subCommandNames {
+			if command == potentialCommand {
+				return
+			}
+		}
+		if !strings.HasPrefix(potentialCommand, "-") {
+			// run command takes no positional arguments, so if one is passed
+			// fallback to default cobra handling for good errors
+			return
+		}
+		args = append(args, os.Args[1:]...)
+	}
+	os.Args = args
 }

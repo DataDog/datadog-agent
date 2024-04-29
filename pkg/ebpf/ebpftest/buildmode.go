@@ -24,7 +24,7 @@ func init() {
 	Fentry = fentry{}
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// BuildMode is an eBPF build mode
 type BuildMode interface {
 	fmt.Stringer
 	Env() map[string]string

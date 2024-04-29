@@ -9,6 +9,8 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // Processor is responsible for all the logic surrounding extraction and sampling of APM events from processed traces.
@@ -28,8 +30,8 @@ type Processor struct {
 //     discarded.
 //   - A max events per second maxEPSSampler is applied to all non-PriorityUserKeep events that survived the first step
 //     and will ensure that, in average, the total rate of events returned by the processor is not bigger than maxEPS.
-func NewProcessor(extractors []Extractor, maxEPS float64) *Processor {
-	return newProcessor(extractors, newMaxEPSSampler(maxEPS))
+func NewProcessor(extractors []Extractor, maxEPS float64, statsd statsd.ClientInterface) *Processor {
+	return newProcessor(extractors, newMaxEPSSampler(maxEPS, statsd))
 }
 
 func newProcessor(extractors []Extractor, maxEPSSampler eventSampler) *Processor {

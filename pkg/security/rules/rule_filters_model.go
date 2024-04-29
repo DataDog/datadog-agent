@@ -31,7 +31,7 @@ func (e *RuleFilterEvent) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "kernel.version.major", "kernel.version.minor", "kernel.version.patch", "kernel.version.abi":
 		return reflect.Int, nil
 	case "kernel.version.flavor",
-		"os", "os.id", "os.platform_id", "os.version_id":
+		"os", "os.id", "os.platform_id", "os.version_id", "envs":
 		return reflect.String, nil
 	case "os.is_amazon_linux", "os.is_cos", "os.is_debian", "os.is_oracle", "os.is_rhel", "os.is_rhel7",
 		"os.is_rhel8", "os.is_sles", "os.is_sles12", "os.is_sles15":

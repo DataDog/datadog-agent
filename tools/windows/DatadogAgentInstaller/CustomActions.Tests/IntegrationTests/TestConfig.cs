@@ -14,7 +14,7 @@ namespace CustomActions.Tests.IntegrationTests
     /// </summary>
     /// These tests expects a valid config to be found in the same folder as where the unit
     /// tests run. The CI takes care of generating a valid configuration that will be placed
-    /// at the right location using the generate-config invoke task.
+    /// at the right location using the agent.generate-config invoke task.
     public class TestConfig
     {
         /// <summary>

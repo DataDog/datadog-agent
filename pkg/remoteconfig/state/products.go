@@ -6,23 +6,41 @@
 package state
 
 var validProducts = map[string]struct{}{
+	ProductUpdaterCatalogDD:  {},
+	ProductUpdaterAgent:      {},
+	ProductUpdaterTask:       {},
 	ProductAgentConfig:       {},
+	ProductAgentFailover:     {},
 	ProductAgentTask:         {},
 	ProductAgentIntegrations: {},
 	ProductAPMSampling:       {},
 	ProductCWSDD:             {},
 	ProductCWSCustom:         {},
 	ProductCWSProfiles:       {},
+	ProductCSMSideScanning:   {},
 	ProductASM:               {},
 	ProductASMFeatures:       {},
 	ProductASMDD:             {},
 	ProductASMData:           {},
 	ProductAPMTracing:        {},
+	ProductSDSRules:          {},
+	ProductSDSAgentConfig:    {},
+	ProductLiveDebugging:     {},
+	ProductTesting1:          {},
+	ProductTesting2:          {},
 }
 
 const (
+	// ProductUpdaterCatalogDD is the product used to receive the package catalog from datadog
+	ProductUpdaterCatalogDD = "UPDATER_CATALOG_DD"
+	// ProductUpdaterAgent is the product used to receive defaults versions to install
+	ProductUpdaterAgent = "UPDATER_AGENT"
+	// ProductUpdaterTask is the product used to receive tasks to execute
+	ProductUpdaterTask = "UPDATER_TASK"
 	// ProductAgentConfig is to receive agent configurations, like the log level
 	ProductAgentConfig = "AGENT_CONFIG"
+	// ProductAgentFailover is to receive the multi-region failover configuration
+	ProductAgentFailover = "AGENT_FAILOVER"
 	// ProductAgentIntegrations is to receive integrations to schedule
 	ProductAgentIntegrations = "AGENT_INTEGRATIONS"
 	// ProductAgentTask is to receive agent task instruction, like a flare
@@ -35,6 +53,8 @@ const (
 	ProductCWSCustom = "CWS_CUSTOM"
 	// ProductCWSProfiles is the cloud workload security profile product
 	ProductCWSProfiles = "CWS_SECURITY_PROFILES"
+	// ProductCSMSideScanning is the side scanning product
+	ProductCSMSideScanning = "CSM_SIDE_SCANNING"
 	// ProductASM is the ASM product used by customers to issue rules configurations
 	ProductASM = "ASM"
 	// ProductASMFeatures is the ASM product used form ASM activation through remote config
@@ -45,4 +65,14 @@ const (
 	ProductASMData = "ASM_DATA"
 	// ProductAPMTracing is the apm tracing product
 	ProductAPMTracing = "APM_TRACING"
+	// ProductSDSRules is the SDS definitions product
+	ProductSDSRules = "SDS_RULES_DD"
+	// ProductSDSAgentConfig is the user SDS configurations product.
+	ProductSDSAgentConfig = "SDS_AGENT_CONFIG"
+	// ProductLiveDebugging is the dynamic instrumentation product
+	ProductLiveDebugging = "LIVE_DEBUGGING"
+	// ProductTesting1 is a product used for testing remote config
+	ProductTesting1 = "TESTING1"
+	// ProductTesting2 is a product used for testing remote config
+	ProductTesting2 = "TESTING2"
 )

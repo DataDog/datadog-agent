@@ -1,0 +1,60 @@
+name: Create RC PR
+
+on:
+  workflow_dispatch:
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+    create_rc_pr:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                fetch-depth: 0
+
+            - name: Install python
+              uses: actions/setup-python@v5
+              with:
+                python-version: 3.11
+                cache: "pip"
+
+            - name: Install Python dependencies
+              run: |
+                python -m pip install --upgrade pip
+                pip install -r requirements.txt
+                pip install -r tasks/libs/requirements-github.txt
+
+            - name: Determine the release active branch
+              run: |
+                echo "RELEASE_BRANCH=$(inv -e release.get-active-release-branch)" >> $GITHUB_ENV
+            
+            - name: Checkout release branch
+              uses: actions/checkout@v4
+              with:
+                ref: ${{ env.RELEASE_BRANCH }}
+                fetch-depth: 0
+
+            - name: Check for changes since last RC
+              id: check_for_changes
+              run: |
+                last_rc_commit=$(git log -1 --format=%H --grep="Update release.json and Go modules")
+                count=$(git rev-list --count HEAD ^"$last_rc_commit")
+                echo COUNT=$count >> $GITHUB_OUTPUT
+                  
+                if [ $count -eq '0' ]; then
+                    echo "No changes since last RC. Quitting workflow."
+                else
+                    echo "$count new commits found since last RC. Proceeding with the RC PR creation."
+                fi
+                  
+            - name: Create RC PR
+              if: ${{ steps.check_for_changes.outputs.COUNT != '0'}}
+              run: |
+                git config user.name "github-actions[bot]"
+                git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                git fetch
+                inv -e release.create-rc --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }}

@@ -10,6 +10,7 @@ package usm
 import (
 	"errors"
 	"fmt"
+	"io"
 	"syscall"
 	"time"
 
@@ -23,7 +24,6 @@ import (
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -59,7 +59,7 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (m *Monitor, err error) {
+func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, err error) {
 	defer func() {
 		// capture error and wrap it
 		if err != nil {
@@ -69,7 +69,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		}
 	}()
 
-	mgr, err := newEBPFProgram(c, sockFD, connectionProtocolMap, bpfTelemetry)
+	mgr, err := newEBPFProgram(c, connectionProtocolMap)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up ebpf program: %w", err)
 	}
@@ -139,7 +139,7 @@ func (m *Monitor) Start() error {
 	}
 
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
-	if m.cfg.EnableNativeTLSMonitoring || m.cfg.EnableGoTLSSupport || m.cfg.EnableJavaTLSSupport || m.cfg.EnableIstioMonitoring {
+	if m.cfg.EnableNativeTLSMonitoring || m.cfg.EnableGoTLSSupport || m.cfg.EnableJavaTLSSupport || m.cfg.EnableIstioMonitoring || m.cfg.EnableNodeJSMonitoring {
 		err = m.processMonitor.Initialize()
 	}
 
@@ -193,6 +193,6 @@ func (m *Monitor) Stop() {
 }
 
 // DumpMaps dumps the maps associated with the monitor
-func (m *Monitor) DumpMaps(maps ...string) (string, error) {
-	return m.ebpfProgram.DumpMaps(maps...)
+func (m *Monitor) DumpMaps(w io.Writer, maps ...string) error {
+	return m.ebpfProgram.DumpMaps(w, maps...)
 }

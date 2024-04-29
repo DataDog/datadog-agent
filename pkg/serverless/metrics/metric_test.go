@@ -70,7 +70,7 @@ func TestStartInvalidConfig(t *testing.T) {
 type MetricDogStatsDMocked struct{}
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (dogstatsdServer.Component, error) {
+func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error) {
 	return nil, fmt.Errorf("error")
 }
 
@@ -205,8 +205,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 
 	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
 
-	s := dogstatsdServer.NewServerlessServer()
-	err = s.Start(demux)
+	s, err := dogstatsdServer.NewServerlessServer(demux)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 

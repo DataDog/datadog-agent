@@ -12,56 +12,140 @@ import (
 	"bytes"
 	_ "embed"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/benbjohnson/clock"
-	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 func TestServer(t *testing.T) {
-	t.Run("should accept payloads on any route", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
+	for _, driver := range []string{"memory", "sql"} {
+		testServer(t, WithStoreDriver(driver))
+	}
+}
 
-		request, err := http.NewRequest(http.MethodPost, "/totoro", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
-		assert.NoError(t, err, "Error creating POST request")
-		response := httptest.NewRecorder()
-
-		fi.handleDatadogRequest(response, request)
-
-		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
+func testServer(t *testing.T, opts ...Option) {
+	t.Run("should not run before start", func(t *testing.T) {
+		newOpts := append(opts, WithClock(clock.NewMock()))
+		fi := NewServer(newOpts...)
+		assert.False(t, fi.IsRunning())
+		assert.Empty(t, fi.URL())
 	})
 
-	t.Run("should accept GET requests on any other route", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
+	t.Run("should return error when calling stop on a non-started server", func(t *testing.T) {
+		fi := NewServer(opts...)
+		err := fi.Stop()
+		assert.Error(t, err)
+		assert.Equal(t, "server not running", err.Error())
+	})
 
-		request, err := http.NewRequest(http.MethodGet, "/kiki", nil)
-		assert.NoError(t, err, "Error creating GET request")
-		response := httptest.NewRecorder()
+	for _, tt := range []struct {
+		name         string
+		opt          Option
+		expectedAddr string
+	}{
+		{
+			name:         "Make sure WithPort sets the port correctly",
+			opt:          WithPort(1234),
+			expectedAddr: "0.0.0.0:1234",
+		},
+		{
+			name:         "Make sure WithAddress sets the port correctly",
+			opt:          WithAddress("127.0.0.1:3456"),
+			expectedAddr: "127.0.0.1:3456",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			newOpts := append(opts, tt.opt)
+			fi := NewServer(newOpts...)
+			assert.Equal(t, tt.expectedAddr, fi.server.Addr)
+			fi.Start()
+			assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+				assert.True(collect, fi.IsRunning())
+				resp, err := http.Get(fmt.Sprintf("http://%s/fakeintake/health", tt.expectedAddr))
+				assert.NoError(collect, err)
+				if err != nil {
+					return
+				}
+				defer resp.Body.Close()
+				assert.Equal(collect, http.StatusOK, resp.StatusCode)
+			}, 500*time.Millisecond, 10*time.Millisecond)
+			err := fi.Stop()
+			assert.NoError(t, err)
+		})
+	}
 
-		fi.handleDatadogRequest(response, request)
+	t.Run("should run after start", func(t *testing.T) {
+		newOpts := append(opts, WithClock(clock.NewMock()), WithAddress("127.0.0.1:0"))
+		fi := NewServer(newOpts...)
+		fi.Start()
+		defer fi.Stop()
+		assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+			assert.True(collect, fi.IsRunning())
+			assert.NotEmpty(collect, fi.URL())
+			resp, err := http.Get(fi.URL() + "/fakeintake/health")
+			assert.NoError(collect, err)
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+			assert.Equal(collect, http.StatusOK, resp.StatusCode)
+		}, 500*time.Millisecond, 10*time.Millisecond)
+	})
 
-		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
+	t.Run("should correctly notify when a server is ready", func(t *testing.T) {
+		ready := make(chan bool, 1)
+		newOpts := append(opts, WithClock(clock.NewMock()), WithReadyChannel(ready), WithAddress("127.0.0.1:0"))
+		fi := NewServer(newOpts...)
+		fi.Start()
+		defer fi.Stop()
+		ok := <-ready
+		assert.True(t, ok)
+		assert.NotEmpty(t, fi.URL())
+		resp, err := http.Get(fi.URL() + "/fakeintake/health")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("should accept payloads on any route", func(t *testing.T) {
+		fi, _ := InitialiseForTests(t, opts...)
+		defer fi.Stop()
+
+		response, err := http.Post(fi.URL()+"/totoro", "text/plain", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
+		require.NoError(t, err, "Error posting payload")
+		defer response.Body.Close()
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
+	})
+
+	t.Run("should accept GET requests on any route", func(t *testing.T) {
+		fi, _ := InitialiseForTests(t, opts...)
+		defer fi.Stop()
+
+		response, err := http.Get(fi.URL() + "/kiki")
+		require.NoError(t, err, "Error on GET request")
+		defer response.Body.Close()
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 	})
 
 	t.Run("should accept GET requests on /fakeintake/payloads route", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
+		fi, _ := InitialiseForTests(t, opts...)
+		defer fi.Stop()
 
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/foo", nil)
+		response, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/foo")
+		require.NoError(t, err, "Error on GET request")
+		defer response.Body.Close()
 
-		assert.NoError(t, err, "Error creating GET request")
-		response := httptest.NewRecorder()
-
-		fi.handleGetPayloads(response, request)
-		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 
 		expectedResponse := api.APIFakeIntakePayloadsRawGETResponse{
 			Payloads: []api.Payload{},
@@ -69,37 +153,47 @@ func TestServer(t *testing.T) {
 		actualResponse := api.APIFakeIntakePayloadsRawGETResponse{}
 		body, err := io.ReadAll(response.Body)
 		assert.NoError(t, err, "Error reading response")
-		assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
+		assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
 		json.Unmarshal(body, &actualResponse)
 
 		assert.Equal(t, expectedResponse, actualResponse, "unexpected response")
 	})
 
 	t.Run("should not accept GET requests on /fakeintake/payloads route without endpoint query parameter", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
+		fi, _ := InitialiseForTests(t, opts...)
+		defer fi.Stop()
 
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads", nil)
-
-		assert.NoError(t, err, "Error creating GET request")
-		response := httptest.NewRecorder()
-
-		fi.handleGetPayloads(response, request)
-		assert.Equal(t, http.StatusBadRequest, response.Code, "unexpected code")
-		assert.Equal(t, "text/plain", response.Header().Get("Content-Type"))
+		response, err := http.Get(fi.URL() + "/fakeintake/payloads")
+		require.NoError(t, err, "Error on GET request")
+		defer response.Body.Close()
+		assert.Equal(t, http.StatusBadRequest, response.StatusCode, "unexpected code")
+		assert.Equal(t, "text/plain", response.Header.Get("Content-Type"))
 	})
 
 	t.Run("should store multiple payloads on any route and return them", func(t *testing.T) {
-		clock := clock.NewMock()
-		fi := NewServer(WithClock(clock))
+		fi, clock := InitialiseForTests(t, opts...)
+		defer fi.Stop()
 
-		postSomeFakePayloads(t, fi)
+		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|7|tag:valid,owner:pducolin",
+			},
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|5|tag:valid,owner:kiki",
+			},
+			{
+				Endpoint: "/kiki",
+				Data:     "I am just a poor raw log",
+			},
+		})
 
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/totoro", nil)
-		assert.NoError(t, err, "Error creating GET request")
-		getResponse := httptest.NewRecorder()
-		fi.handleGetPayloads(getResponse, request)
-		assert.Equal(t, http.StatusOK, getResponse.Code)
-		assert.Equal(t, "application/json", getResponse.Header().Get("Content-Type"))
+		getResponse, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
+		require.NoError(t, err, "Error on GET request")
+		defer getResponse.Body.Close()
+		assert.Equal(t, http.StatusOK, getResponse.StatusCode, "unexpected code")
+		assert.Equal(t, "application/json", getResponse.Header.Get("Content-Type"))
 		actualGETResponse := api.APIFakeIntakePayloadsRawGETResponse{}
 		body, err := io.ReadAll(getResponse.Body)
 		assert.NoError(t, err, "Error reading GET response")
@@ -109,32 +203,33 @@ func TestServer(t *testing.T) {
 			Payloads: []api.Payload{
 				{
 					Timestamp: clock.Now().UTC(),
-					Encoding:  "",
+					Encoding:  "text/plain",
 					Data:      []byte("totoro|7|tag:valid,owner:pducolin"),
 				},
 				{
 					Timestamp: clock.Now().UTC(),
-					Encoding:  "",
+					Encoding:  "text/plain",
 					Data:      []byte("totoro|5|tag:valid,owner:kiki"),
 				},
 			},
+		}
+		for i := range actualGETResponse.Payloads {
+			actualGETResponse.Payloads[i].Timestamp = actualGETResponse.Payloads[i].Timestamp.UTC()
 		}
 		assert.Equal(t, expectedResponse, actualGETResponse)
 	})
 
 	t.Run("should store multiple payloads on any route and return them in json", func(t *testing.T) {
-		clock := clock.NewMock()
-		fi := NewServer(WithClock(clock))
+		fi, clock := InitialiseForTests(t, opts...)
+		defer fi.Stop()
 
-		postSomeRealisticPayloads(t, fi)
+		PostSomeRealisticLogs(t, fi.URL())
 
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/api/v2/logs&format=json", nil)
-		assert.NoError(t, err, "Error creating GET request")
-		getResponse := httptest.NewRecorder()
+		response, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/api/v2/logs&format=json")
+		require.NoError(t, err, "Error creating GET request")
+		defer response.Body.Close()
 
-		fi.handleGetPayloads(getResponse, request)
-
-		assert.Equal(t, http.StatusOK, getResponse.Code)
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 		expectedGETResponse := api.APIFakeIntakePayloadsJsonGETResponse{
 			Payloads: []api.ParsedPayload{
 				{
@@ -146,98 +241,46 @@ func TestServer(t *testing.T) {
 						"ddsource":  "Adele",
 						"status":    "Info",
 						"ddtags":    "singer:adele",
-						"timestamp": float64(0)}},
+						"timestamp": float64(0)},
+					},
 					Encoding: "gzip",
 				},
 			},
 		}
 		actualGETResponse := api.APIFakeIntakePayloadsJsonGETResponse{}
-		body, err := io.ReadAll(getResponse.Body)
+		body, err := io.ReadAll(response.Body)
 		assert.NoError(t, err, "Error reading GET response")
 		json.Unmarshal(body, &actualGETResponse)
+		for i := range actualGETResponse.Payloads {
+			actualGETResponse.Payloads[i].Timestamp = actualGETResponse.Payloads[i].Timestamp.UTC()
+		}
 		assert.Equal(t, expectedGETResponse, actualGETResponse, "unexpected GET response")
-
 	})
 
-	t.Run("should accept GET requests on /fakeintake/health route", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
-
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/health", nil)
-
-		assert.NoError(t, err, "Error creating GET request")
-		response := httptest.NewRecorder()
-
-		fi.handleFakeHealth(response, request)
-		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
-	})
-
-	t.Run("should return error when calling stop on a non-started server", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
-
-		err := fi.Stop()
-		assert.Error(t, err)
-		assert.Equal(t, "server not running", err.Error())
-	})
-
-	t.Run("should correctly start a server with no ready channel defined", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
-
-		fi.Start()
-
-		err := backoff.Retry(func() error {
-			url := fi.URL()
-			if url == "" {
-				return errors.New("server not ready")
-			}
-			resp, err := http.Get(url + "/fakeintake/health")
-			if err != nil {
-				return err
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				return errors.New("server not ready")
-			}
-			return nil
-		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Millisecond), 25))
-		require.NoError(t, err)
-		err = fi.Stop()
-		assert.NoError(t, err)
-	})
-
-	t.Run("should correctly notify when a server is ready", func(t *testing.T) {
-		ready := make(chan bool, 1)
-		fi := NewServer(WithClock(clock.NewMock()), WithReadyChannel(ready))
-		fi.Start()
-		ok := <-ready
-		assert.True(t, ok)
-		assert.NotEmpty(t, fi.URL())
-		err := backoff.Retry(func() error {
-			resp, err := http.Get(fi.URL() + "/fakeintake/health")
-			if err != nil {
-				return err
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				return errors.New("server not ready")
-			}
-			return nil
-		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Millisecond), 25))
-		require.NoError(t, err)
-		err = fi.Stop()
-		assert.NoError(t, err)
-	})
 	t.Run("should store multiple payloads on any route and return the list of routes", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
+		fi, _ := InitialiseForTests(t, opts...)
+		defer fi.Stop()
 
-		postSomeFakePayloads(t, fi)
+		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|7|tag:valid,owner:pducolin",
+			},
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|5|tag:valid,owner:kiki",
+			},
+			{
+				Endpoint: "/kiki",
+				Data:     "I am just a poor raw log",
+			},
+		})
 
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/routestats", nil)
-		assert.NoError(t, err, "Error creating GET request")
-		getResponse := httptest.NewRecorder()
+		response, err := http.Get(fi.URL() + "/fakeintake/routestats")
+		require.NoError(t, err, "Error on GET request")
+		defer response.Body.Close()
 
-		fi.handleGetRouteStats(getResponse, request)
-
-		assert.Equal(t, http.StatusOK, getResponse.Code)
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 
 		expectedGETResponse := api.APIFakeIntakeRouteStatsGETResponse{
 			Routes: map[string]api.RouteStat{
@@ -252,7 +295,7 @@ func TestServer(t *testing.T) {
 			},
 		}
 		actualGETResponse := api.APIFakeIntakeRouteStatsGETResponse{}
-		body, err := io.ReadAll(getResponse.Body)
+		body, err := io.ReadAll(response.Body)
 		assert.NoError(t, err, "Error reading GET response")
 		json.Unmarshal(body, &actualGETResponse)
 
@@ -260,146 +303,331 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should handle flush requests", func(t *testing.T) {
-		clock := clock.NewMock()
-		fi := NewServer(WithClock(clock))
+		fi, _ := InitialiseForTests(t, opts...)
+		defer fi.Stop()
 
-		postSomeFakePayloads(t, fi)
-
-		request, err := http.NewRequest(http.MethodDelete, "/fakeintake/flushPayloads", nil)
-		assert.NoError(t, err, "Error creating flush request")
-		response := httptest.NewRecorder()
-
-		fi.handleFlushPayloads(response, request)
-		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
+		httpClient := http.Client{}
+		request, err := http.NewRequest(http.MethodDelete, fi.URL()+"/fakeintake/flushPayloads", nil)
+		require.NoError(t, err, "Error creating flush request")
+		response, err := httpClient.Do(request)
+		require.NoError(t, err, "Error on flush request")
+		defer response.Body.Close()
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 	})
 
 	t.Run("should clean payloads older than 15 minutes", func(t *testing.T) {
-		clock := clock.NewMock()
-		fi := NewServer(WithClock(clock))
-		fi.Start()
+		fi, clock := InitialiseForTests(t, opts...)
+		defer fi.Stop()
 
-		postSomeFakePayloads(t, fi)
-
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/totoro", nil)
-		assert.NoError(t, err, "Error creating GET request")
+		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|7|tag:valid,owner:pducolin",
+			},
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|5|tag:valid,owner:kiki",
+			},
+			{
+				Endpoint: "/kiki",
+				Data:     "I am just a poor raw log",
+			},
+		})
 
 		clock.Add(10 * time.Minute)
 
-		response10Min := httptest.NewRecorder()
+		response10Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
+		require.NoError(t, err, "Error on GET request")
+		defer response10Min.Body.Close()
+
 		var getResponse10Min api.APIFakeIntakePayloadsRawGETResponse
-
-		fi.handleGetPayloads(response10Min, request)
 		json.NewDecoder(response10Min.Body).Decode(&getResponse10Min)
-
 		assert.Len(t, getResponse10Min.Payloads, 2, "should contain two elements before cleanup %+v", getResponse10Min)
 
 		clock.Add(10 * time.Minute)
 
-		response20Min := httptest.NewRecorder()
-		var getResponse20Min api.APIFakeIntakePayloadsRawGETResponse
-
-		fi.handleGetPayloads(response20Min, request)
-		json.NewDecoder(response20Min.Body).Decode(&getResponse10Min)
-
-		assert.Empty(t, getResponse20Min.Payloads, "should be empty after cleanup")
-		fi.Stop()
+		// With SQL driver, the cleanup is triggered in its own goroutine before the GET request but
+		// we can't control the order of execution of the goroutines so it could complete after the GET
+		assert.Eventuallyf(t, func() bool {
+			response20Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
+			require.NoError(t, err, "Error on GET request")
+			defer response20Min.Body.Close()
+			var getResponse20Min api.APIFakeIntakePayloadsRawGETResponse
+			json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
+			return len(getResponse20Min.Payloads) == 0
+		}, 5*time.Second, 100*time.Millisecond, "should contain no elements after cleanup")
 	})
 
-	t.Run("should clean payloads older than 15 minutes and keep recent payloads", func(t *testing.T) {
-		clock := clock.NewMock()
-		fi := NewServer(WithClock(clock))
-		fi.Start()
+	for _, tt := range []struct {
+		name              string
+		opts              []Option
+		expectedRetention time.Duration
+	}{
+		{
+			name:              "should clean payloads older than 5 minutes and keep recent payloads",
+			opts:              []Option{WithRetention(5 * time.Minute)},
+			expectedRetention: 5 * time.Minute,
+		},
+		{
+			name:              "default: should clean payloads older than 15 minutes and keep recent payloads",
+			expectedRetention: 15 * time.Minute,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			newOpts := append(opts, tt.opts...)
+			fi, clock := InitialiseForTests(t, newOpts...)
+			defer fi.Stop()
 
-		postSomeFakePayloads(t, fi)
+			PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
+				{
+					Endpoint: "/totoro",
+					Data:     "totoro|7|tag:valid,owner:pducolin",
+				},
+				{
+					Endpoint: "/totoro",
+					Data:     "totoro|5|tag:valid,owner:kiki",
+				},
+				{
+					Endpoint: "/kiki",
+					Data:     "I am just a poor raw log",
+				},
+			})
 
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/totoro", nil)
-		assert.NoError(t, err, "Error creating GET request")
+			clock.Add(tt.expectedRetention - 1*time.Minute)
+
+			PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
+				{
+					Endpoint: "/totoro",
+					Data:     "totoro|7|tag:valid,owner:ponyo",
+				},
+				{
+					Endpoint: "/totoro",
+					Data:     "totoro|5|tag:valid,owner:mei",
+				},
+			})
+
+			completeResponse, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
+			require.NoError(t, err, "Error on GET request")
+			defer completeResponse.Body.Close()
+			var getCompleteResponse api.APIFakeIntakePayloadsRawGETResponse
+			json.NewDecoder(completeResponse.Body).Decode(&getCompleteResponse)
+			assert.Len(t, getCompleteResponse.Payloads, 4, "should contain 4 elements before cleanup")
+
+			clock.Add(tt.expectedRetention)
+
+			// With SQL driver, the cleanup is triggered in its own goroutine before the GET request but
+			// we can't control the order of execution of the goroutines so it could complete after the GET
+			assert.Eventuallyf(t, func() bool {
+				cleanedResponse, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
+				require.NoError(t, err, "Error on GET request")
+				defer cleanedResponse.Body.Close()
+				var getCleanedResponse api.APIFakeIntakePayloadsRawGETResponse
+				json.NewDecoder(cleanedResponse.Body).Decode(&getCleanedResponse)
+				return len(getCleanedResponse.Payloads) == 2
+			}, 5*time.Second, 100*time.Millisecond, "should contain 2 elements after cleanup of only older elements")
+			fi.Stop()
+		})
+	}
+
+	t.Run("should clean json parsed payloads", func(t *testing.T) {
+		fi, clock := InitialiseForTests(t, opts...)
+		defer fi.Stop()
+
+		PostSomeRealisticLogs(t, fi.URL())
 
 		clock.Add(10 * time.Minute)
 
-		postSomeFakePayloads(t, fi)
+		PostSomeRealisticLogs(t, fi.URL())
 
-		response10Min := httptest.NewRecorder()
-		var getResponse10Min api.APIFakeIntakePayloadsRawGETResponse
-
-		fi.handleGetPayloads(response10Min, request)
-		json.NewDecoder(response10Min.Body).Decode(&getResponse10Min)
-
-		assert.Len(t, getResponse10Min.Payloads, 4, "should contain 4 elements before cleanup")
-
-		clock.Add(10 * time.Minute)
-
-		response20Min := httptest.NewRecorder()
-		var getResponse20Min api.APIFakeIntakePayloadsRawGETResponse
-
-		fi.handleGetPayloads(response20Min, request)
-		json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
-
-		assert.Len(t, getResponse20Min.Payloads, 2, "should contain 2 elements after cleanup of only older elements")
-
-		fi.Stop()
-	})
-
-	t.Run("should clean parsed payloads", func(t *testing.T) {
-		clock := clock.NewMock()
-		fi := NewServer(WithClock(clock))
-		fi.Start()
-
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/api/v2/logs&format=json", nil)
-		assert.NoError(t, err, "Error creating GET request")
-
-		postSomeRealisticPayloads(t, fi)
-
-		clock.Add(10 * time.Minute)
-
-		postSomeRealisticPayloads(t, fi)
-
-		response10Min := httptest.NewRecorder()
+		response10Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/api/v2/logs&format=json")
+		require.NoError(t, err, "Error on GET request")
+		defer response10Min.Body.Close()
 		var getResponse10Min api.APIFakeIntakePayloadsJsonGETResponse
-
-		fi.handleGetPayloads(response10Min, request)
 		json.NewDecoder(response10Min.Body).Decode(&getResponse10Min)
-
 		assert.Len(t, getResponse10Min.Payloads, 2, "should contain 2 elements before cleanup")
 
 		clock.Add(10 * time.Minute)
 
-		response20Min := httptest.NewRecorder()
-		var getResponse20Min api.APIFakeIntakePayloadsJsonGETResponse
+		// With SQL driver, the cleanup is triggered in its own goroutine before the GET request but
+		// we can't control the order of execution of the goroutines so it could complete after the GET
+		assert.Eventuallyf(t, func() bool {
+			response20Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/api/v2/logs&format=json")
+			require.NoError(t, err, "Error on GET request")
+			defer response20Min.Body.Close()
+			var getResponse20Min api.APIFakeIntakePayloadsJsonGETResponse
+			json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
+			return len(getResponse20Min.Payloads) == 1
+		}, 5*time.Second, 100*time.Millisecond, "should contain 1 elements after cleanup of only older elements")
+	})
 
-		fi.handleGetPayloads(response20Min, request)
-		json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
+	t.Run("should respond with custom response to /support/flare", func(t *testing.T) {
+		fi, _ := InitialiseForTests(t, opts...)
+		defer fi.Stop()
 
-		assert.Len(t, getResponse20Min.Payloads, 1, "should contain 1 elements after cleanup of only older elements")
+		response, err := http.Head(fi.URL() + "/support/flare")
+		require.NoError(t, err, "Error on HEAD request")
+		defer response.Body.Close()
 
-		fi.Stop()
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
+		assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+		contentLength, err := strconv.Atoi(response.Header.Get("Content-Length"))
+		require.NoError(t, err, "Error parsing Content-Length header")
+		assert.Equal(t, 2, contentLength, "unexpected Content-Length")
+		data, err := io.ReadAll(response.Body)
+		require.NoError(t, err, "Error reading response body")
+		assert.Empty(t, data, "unexpected HEAD response body")
+	})
+
+	t.Run("should accept POST response overrides", func(t *testing.T) {
+		fi, _ := InitialiseForTests(t, opts...)
+		defer fi.Stop()
+
+		body := api.ResponseOverride{
+			Method:      http.MethodPost,
+			Endpoint:    "/totoro",
+			StatusCode:  200,
+			ContentType: "text/plain",
+			Body:        []byte("catbus"),
+		}
+		data := new(bytes.Buffer)
+		err := json.NewEncoder(data).Encode(body)
+		require.NoError(t, err, "Error encoding request body")
+
+		response, err := http.Post(fi.URL()+"/fakeintake/configure/override", "application/json", data)
+		require.NoError(t, err, "Error creating POST request")
+		defer response.Body.Close()
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
+	})
+
+	t.Run("should accept GET response overrides", func(t *testing.T) {
+		fi, _ := InitialiseForTests(t, opts...)
+		defer fi.Stop()
+
+		body := api.ResponseOverride{
+			Method:      http.MethodGet,
+			Endpoint:    "/totoro",
+			StatusCode:  200,
+			ContentType: "text/plain",
+			Body:        []byte("catbus"),
+		}
+		data := new(bytes.Buffer)
+		err := json.NewEncoder(data).Encode(body)
+		require.NoError(t, err, "Error encoding request body")
+		response, err := http.Post(fi.URL()+"/fakeintake/configure/override", "application/json", data)
+		require.NoError(t, err, "Error creating POST request")
+		defer response.Body.Close()
+
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
+	})
+
+	t.Run("should respond with overridden response for matching endpoint", func(t *testing.T) {
+		fi, _ := InitialiseForTests(t, opts...)
+		defer fi.Stop()
+
+		body := api.ResponseOverride{
+			Method:      http.MethodGet,
+			Endpoint:    "/totoro",
+			StatusCode:  200,
+			ContentType: "text/plain",
+			Body:        []byte("catbus"),
+		}
+		data := new(bytes.Buffer)
+		err := json.NewEncoder(data).Encode(body)
+		require.NoError(t, err, "Error encoding request body")
+		response, err := http.Post(fi.URL()+"/fakeintake/configure/override", "application/json", data)
+		require.NoError(t, err, "Error creating POST request")
+		defer response.Body.Close()
+
+		response, err = http.Get(fi.URL() + "/totoro")
+		require.NoError(t, err, "Error on POST request")
+		defer response.Body.Close()
+		assert.Equal(t, http.StatusOK, response.StatusCode)
+		assert.Equal(t, "text/plain", response.Header.Get("Content-Type"))
+		responseBody, err := io.ReadAll(response.Body)
+		require.NoError(t, err, "Error reading response body")
+		assert.Equal(t, "catbus", string(responseBody))
+	})
+
+	t.Run("should respond with overridden response for matching endpoint", func(t *testing.T) {
+		fi, _ := InitialiseForTests(t, opts...)
+		defer fi.Stop()
+
+		body := api.ResponseOverride{
+			Method:      http.MethodPost,
+			Endpoint:    "/totoro",
+			StatusCode:  200,
+			ContentType: "text/plain",
+			Body:        []byte("catbus"),
+		}
+		data := new(bytes.Buffer)
+		err := json.NewEncoder(data).Encode(body)
+		require.NoError(t, err, "Error encoding request body")
+		response, err := http.Post(fi.URL()+"/fakeintake/configure/override", "application/json", data)
+		require.NoError(t, err, "Error creating POST request")
+		defer response.Body.Close()
+
+		response, err = http.Post(fi.URL()+"/totoro", "text/plain", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
+		require.NoError(t, err, "Error on POST request")
+		defer response.Body.Close()
+		assert.Equal(t, http.StatusOK, response.StatusCode)
+		assert.Equal(t, "text/plain", response.Header.Get("Content-Type"))
+		responseBody, err := io.ReadAll(response.Body)
+		require.NoError(t, err, "Error reading response body")
+		assert.Equal(t, "catbus", string(responseBody))
+	})
+
+	t.Run("should respond with default response for non-matching endpoint", func(t *testing.T) {
+		fi, _ := InitialiseForTests(t, opts...)
+		defer fi.Stop()
+
+		body := api.ResponseOverride{
+			Method:      http.MethodPost,
+			Endpoint:    "/totoro",
+			StatusCode:  200,
+			ContentType: "text/plain",
+			Body:        []byte("catbus"),
+		}
+		data := new(bytes.Buffer)
+		err := json.NewEncoder(data).Encode(body)
+		require.NoError(t, err, "Error encoding request body")
+		response, err := http.Post(fi.URL()+"/fakeintake/configure/override", "application/json", data)
+		require.NoError(t, err, "Error creating POST request")
+		defer response.Body.Close()
+
+		response, err = http.Post(fi.URL()+"/kiki", "text/plain", strings.NewReader("kiki|4|tag:valid,owner:jiji"))
+		require.NoError(t, err, "Error on POST request")
+		defer response.Body.Close()
+
+		assert.Equal(t, http.StatusOK, response.StatusCode)
+		assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+		responseBody, err := io.ReadAll(response.Body)
+		require.NoError(t, err, "Error reading response body")
+		assert.Equal(t, []byte(`{"errors":[]}`), responseBody)
 	})
 }
 
-func postSomeFakePayloads(t *testing.T, fi *Server) {
-	request, err := http.NewRequest(http.MethodPost, "/totoro", strings.NewReader("totoro|7|tag:valid,owner:pducolin"))
-	require.NoError(t, err, "Error creating POST request")
-	postResponse := httptest.NewRecorder()
-	fi.handleDatadogRequest(postResponse, request)
+type TestTextPayload struct {
+	Endpoint string
+	Data     string
+}
 
-	request, err = http.NewRequest(http.MethodPost, "/totoro", strings.NewReader("totoro|5|tag:valid,owner:kiki"))
-	require.NoError(t, err, "Error creating POST request")
-	postResponse = httptest.NewRecorder()
-	fi.handleDatadogRequest(postResponse, request)
-
-	request, err = http.NewRequest(http.MethodPost, "/kiki", strings.NewReader("I am just a poor raw log"))
-	require.NoError(t, err, "Error creating POST request")
-	postResponse = httptest.NewRecorder()
-	fi.handleDatadogRequest(postResponse, request)
+// PostSomeFakePayloads posts some fake payloads to the given url
+func PostSomeFakePayloads(t *testing.T, url string, payloads []TestTextPayload) {
+	t.Helper()
+	for _, payload := range payloads {
+		url := url + payload.Endpoint
+		response, err := http.Post(url, "text/plain", strings.NewReader(payload.Data))
+		require.NoError(t, err, fmt.Sprintf("Error on POST request to url %s with data: %s", url, payload.Data))
+		defer response.Body.Close()
+	}
 }
 
 //go:embed fixtures/log_bytes
 var logBytes []byte
 
-func postSomeRealisticPayloads(t *testing.T, fi *Server) {
-	request, err := http.NewRequest(http.MethodPost, "/api/v2/logs", bytes.NewBuffer(logBytes))
-	require.NoError(t, err, "Error creating POST request")
-	request.Header.Set("Content-Encoding", "gzip")
-	postResponse := httptest.NewRecorder()
-	fi.handleDatadogRequest(postResponse, request)
+func PostSomeRealisticLogs(t *testing.T, url string) {
+	t.Helper()
+	response, err := http.Post(url+"/api/v2/logs", "gzip", bytes.NewBuffer(logBytes))
+	require.NoError(t, err, "Error on POST request")
+	defer response.Body.Close()
 }

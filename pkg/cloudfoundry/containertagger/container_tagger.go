@@ -14,10 +14,10 @@ import (
 
 	"code.cloudfoundry.org/garden"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -41,7 +41,7 @@ type ContainerTagger struct {
 
 // NewContainerTagger creates a new container tagger.
 // Call Start to start the container tagger.
-func NewContainerTagger() (*ContainerTagger, error) {
+func NewContainerTagger(wmeta workloadmeta.Component) (*ContainerTagger, error) {
 	gu, err := cloudfoundry.GetGardenUtil()
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func NewContainerTagger() (*ContainerTagger, error) {
 	return &ContainerTagger{
 		gardenUtil: gu,
 		// TODO)components): stop using global and rely instead on injected workloadmeta component.
-		store:                 workloadmeta.GetGlobalStore(),
+		store:                 wmeta,
 		seen:                  make(map[string]struct{}),
 		tagsHashByContainerID: make(map[string]string),
 		retryCount:            retryCount,
@@ -76,9 +76,13 @@ func (c *ContainerTagger) Start(ctx context.Context) {
 		defer c.store.Unsubscribe(ch)
 		for {
 			select {
-			case bundle := <-ch:
-				// close Ch to indicate that the Store can proceed to the next subscriber
-				close(bundle.Ch)
+			case bundle, ok := <-ch:
+				if !ok {
+					return
+				}
+
+				// Acknowledge the evBundle to indicate that the Store can proceed to the next subscriber
+				bundle.Acknowledge()
 
 				for _, evt := range bundle.Events {
 					err := c.processEvent(ctx, evt)
@@ -104,7 +108,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 		log.Debugf("Processing Event (id %s): %+v", eventID, storeContainer)
 
 		// extract tags
-		hostTags := hostMetadataUtils.GetHostTags(ctx, true, config.Datadog)
+		hostTags := hostMetadataUtils.Get(ctx, true, config.Datadog)
 		tags := storeContainer.CollectorTags
 		tags = append(tags, hostTags.System...)
 		tags = append(tags, hostTags.GoogleCloudPlatform...)

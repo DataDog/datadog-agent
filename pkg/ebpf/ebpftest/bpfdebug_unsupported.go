@@ -5,7 +5,7 @@
 
 //go:build !linux
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package ebpftest is utilities for tests against eBPF
 package ebpftest
 
 import "testing"
@@ -19,7 +19,7 @@ func LogTracePipeSelf(*testing.T) {
 }
 
 // LogTracePipeProcess is unsupported
-func LogTracePipeProcess(_ *testing.T, pid uint32) { //nolint:revive // TODO fix revive unused-parameter
+func LogTracePipeProcess(_ *testing.T, _ uint32) {
 }
 
 // LogTracePipeFilter is unsupported

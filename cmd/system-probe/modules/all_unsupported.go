@@ -5,7 +5,7 @@
 
 //go:build !linux && !windows
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package modules is all the module definitions for system-probe
 package modules
 
 import "github.com/DataDog/datadog-agent/cmd/system-probe/api/module"

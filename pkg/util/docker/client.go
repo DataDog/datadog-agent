@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -21,9 +23,9 @@ import (
 // Client defines the interface of our custom Docker client (e.g. DockerUtil)
 type Client interface {
 	RawClient() *client.Client
-	RawContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error)
+	RawContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error)
 	ResolveImageName(ctx context.Context, image string) (string, error)
-	Images(ctx context.Context, includeIntermediate bool) ([]types.ImageSummary, error)
+	Images(ctx context.Context, includeIntermediate bool) ([]image.Summary, error)
 	GetPreferredImageName(imageID string, repoTags []string, repoDigests []string) string
 	GetStorageStats(ctx context.Context) ([]*StorageStats, error)
 	CountVolumes(ctx context.Context) (int, int, error)

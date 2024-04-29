@@ -18,7 +18,8 @@ import (
 type Component interface {
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
-var Module = fxutil.Component(
-	fx.Provide(newApiServer),
-)
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newApiServer))
+}

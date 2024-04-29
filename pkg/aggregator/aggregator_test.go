@@ -17,23 +17,26 @@ import (
 	"time"
 
 	// 3p
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -495,8 +498,8 @@ func TestTags(t *testing.T) {
 		name                    string
 		hostname                string
 		tlmContainerTagsEnabled bool
-		agentTags               func(collectors.TagCardinality) ([]string, error)
-		globalTags              func(collectors.TagCardinality) ([]string, error)
+		agentTags               func(types.TagCardinality) ([]string, error)
+		globalTags              func(types.TagCardinality) ([]string, error)
 		withVersion             bool
 		want                    []string
 	}{
@@ -504,8 +507,8 @@ func TestTags(t *testing.T) {
 			name:                    "tags disabled, with version",
 			hostname:                "hostname",
 			tlmContainerTagsEnabled: false,
-			agentTags:               func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
-			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			agentTags:               func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
 			want:                    []string{"version:" + version.AgentVersion},
 		},
@@ -513,8 +516,8 @@ func TestTags(t *testing.T) {
 			name:                    "tags disabled, without version",
 			hostname:                "hostname",
 			tlmContainerTagsEnabled: false,
-			agentTags:               func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
-			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			agentTags:               func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             false,
 			want:                    []string{},
 		},
@@ -522,8 +525,8 @@ func TestTags(t *testing.T) {
 			name:                    "tags enabled, with version",
 			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
-			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
-			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
 			want:                    []string{"container_name:agent", "version:" + version.AgentVersion},
 		},
@@ -531,8 +534,8 @@ func TestTags(t *testing.T) {
 			name:                    "tags enabled, without version",
 			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
-			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
-			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             false,
 			want:                    []string{"container_name:agent"},
 		},
@@ -540,8 +543,8 @@ func TestTags(t *testing.T) {
 			name:                    "tags enabled, with version, tagger error",
 			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
-			agentTags:               func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("no tags") },
-			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			agentTags:               func(types.TagCardinality) ([]string, error) { return nil, errors.New("no tags") },
+			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
 			want:                    []string{"version:" + version.AgentVersion},
 		},
@@ -549,8 +552,8 @@ func TestTags(t *testing.T) {
 			name:                    "tags enabled, with version, with global tags (no hostname)",
 			hostname:                "",
 			tlmContainerTagsEnabled: true,
-			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
-			globalTags:              func(collectors.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
+			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(types.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
 			withVersion:             true,
 			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo"},
 		},
@@ -558,8 +561,8 @@ func TestTags(t *testing.T) {
 			name:                    "tags enabled, with version, with global tags (hostname present)",
 			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
-			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
-			globalTags:              func(collectors.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
+			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(types.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
 			withVersion:             true,
 			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo"},
 		},
@@ -681,11 +684,13 @@ func assertSeriesEqual(t *testing.T, series []*metrics.Serie, expectedSeries map
 
 type aggregatorDeps struct {
 	TestDeps
-	Demultiplexer *AgentDemultiplexer
+	Demultiplexer    *AgentDemultiplexer
+	OrchestratorFwd  orchestratorforwarder.Component
+	EventPlatformFwd eventplatform.Component
 }
 
 func createAggrDeps(t *testing.T) aggregatorDeps {
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionimpl.MockModule())
 
 	opts := demuxTestOptions()
 	return aggregatorDeps{

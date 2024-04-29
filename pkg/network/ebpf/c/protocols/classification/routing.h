@@ -39,11 +39,11 @@ static __always_inline classification_prog_t __get_next_program(usm_context_t *u
 static __always_inline void classification_next_program(struct __sk_buff *skb, usm_context_t *usm_ctx) {
     classification_prog_t next_program = __get_next_program(usm_ctx);
     if (next_program == CLASSIFICATION_PROG_UNKNOWN || next_program == CLASSIFICATION_PROG_MAX) {
-        log_debug("classification tail-call: skb=%llu tail-end\n", skb);
+        log_debug("classification tail-call: skb=%p tail-end", skb);
         return;
     }
 
-    log_debug("classification tail-call: skb=%llu from=%d to=%d\n", skb, usm_ctx->routing_current_program, next_program);
+    log_debug("classification tail-call: skb=%p from=%d to=%d", skb, usm_ctx->routing_current_program, next_program);
     usm_ctx->routing_current_program = next_program;
     bpf_tail_call_compat(skb, &classification_progs, next_program);
 }

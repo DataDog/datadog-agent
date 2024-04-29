@@ -10,8 +10,10 @@ package java
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	// needs NsPid from fork
 	"github.com/DataDog/gopsutil/process"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // minJavaAgeToAttachMS is the minimum age of a java process to be able to attach it

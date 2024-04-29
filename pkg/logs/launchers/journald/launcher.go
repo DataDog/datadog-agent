@@ -9,7 +9,10 @@
 package journald
 
 import (
+	"os"
+
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -42,19 +45,21 @@ type Launcher struct {
 	tailers          map[string]*tailer.Tailer
 	stop             chan struct{}
 	journalFactory   tailer.JournalFactory
+	fc               *flareController.FlareController
 }
 
 // NewLauncher returns a new Launcher.
-func NewLauncher() *Launcher {
-	return NewLauncherWithFactory(&SDJournalFactory{})
+func NewLauncher(fc *flareController.FlareController) *Launcher {
+	return NewLauncherWithFactory(&SDJournalFactory{}, fc)
 }
 
 // NewLauncherWithFactory returns a new Launcher.
-func NewLauncherWithFactory(journalFactory tailer.JournalFactory) *Launcher {
+func NewLauncherWithFactory(journalFactory tailer.JournalFactory, fc *flareController.FlareController) *Launcher {
 	return &Launcher{
 		tailers:        make(map[string]*tailer.Tailer),
 		stop:           make(chan struct{}),
 		journalFactory: journalFactory,
+		fc:             fc,
 	}
 }
 
@@ -70,6 +75,8 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 
 // run starts new tailers.
 func (l *Launcher) run() {
+	var allJournalSources []string
+
 	for {
 		select {
 		case source := <-l.sources:
@@ -78,12 +85,27 @@ func (l *Launcher) run() {
 				log.Warn(identifier, " is already tailed. Use config_id to tail the same journal more than once")
 				continue
 			}
+
+			if source.Config.Path != "" {
+				// Add path to flare if specified in configuration
+				allJournalSources = append(allJournalSources, source.Config.Path)
+			} else {
+				// Check default locations otherwise
+				if _, err := os.Stat("/var/log/journal"); err == nil {
+					allJournalSources = append(allJournalSources, "/var/log/journal")
+				} else if _, err := os.Stat("/run/log/journal"); err == nil {
+					allJournalSources = append(allJournalSources, "/run/log/journal")
+				}
+			}
+
 			tailer, err := l.setupTailer(source)
 			if err != nil {
 				log.Warn("Could not set up journald tailer: ", err)
 			} else {
 				l.tailers[identifier] = tailer
 			}
+
+			l.fc.AddToJournalFiles(allJournalSources)
 		case <-l.stop:
 			return
 		}

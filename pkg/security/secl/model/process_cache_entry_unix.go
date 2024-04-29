@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build unix
-// +build unix
 
 // Package model holds model related files
 package model
@@ -94,7 +93,7 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 
 	// use exec time as exit time
 	pc.Exit(entry.ExecTime)
-	entry.Process.IsExecChild = !pc.IsThread
+	entry.Process.IsExecExec = !pc.IsThread
 
 	// keep some context
 	copyProcessContext(pc, entry)

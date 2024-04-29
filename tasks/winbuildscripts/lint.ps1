@@ -22,7 +22,7 @@ if($err -ne 0){
 }
 
 & inv -e install-tools
-& inv -e lint-go
+& inv -e linter.go
 
 $err = $LASTEXITCODE
 Write-Host Lint result is $err

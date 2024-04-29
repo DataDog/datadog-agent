@@ -1,5 +1,8 @@
 # Development Environments
 
+## Windows
+To build the agent on Windows, see [datadog-agent-buildimages](https://github.com/DataDog/datadog-agent-buildimages/tree/main/windows).
+
 ## Linux and MacOS
 
 ### Python
@@ -29,15 +32,6 @@ sudo apt-get install python3.9-dev
 ```
 
 On Windows, install Python 2.7 and/or 3.9 via the [official installer](https://www.python.org/downloads/).
-
-#### Additional Windows Tools
-You will also need the Visual Studio for [Visual Studio for Python installer](http://aka.ms/vcpython27)
-
-Download the [gcc toolchain](http://win-builds.org/).
-- From the graphical package manager, select and install the needed libraries, leave the default (select all) if you're unsure.
-- Make sure to select `x86_64`.
-- Add installation folder to the `%PATH%`.
-
 
 #### Python Dependencies
 
@@ -92,12 +86,12 @@ It will also pull other handy development tools/deps (`reno`, or `docker`).
 
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.20.11` or
+You must [install Golang](https://golang.org/doc/install) version `1.21.9` or
 higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 
 **Please note that versions of Golang that aren't an exact match to the version
-specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent/blob/main/.circleci/images/builder/Dockerfile#L1))
+specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent-buildimages/blob/main/circleci/Dockerfile#L42))
 may not be able to build the agent and/or the [rtloader](https://github.com/DataDog/datadog-agent/tree/main/rtloader)
 binary properly.**
 

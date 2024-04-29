@@ -9,6 +9,7 @@
 package profile
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -39,7 +40,7 @@ type testIteration struct {
 }
 
 func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) *model.Event {
-	event := model.NewDefaultEvent()
+	event := model.NewFakeEvent()
 	event.Type = uint32(ti.eventType)
 	event.ContainerContext.CreatedAt = uint64(t0.Add(ti.containerCreatedAt).UnixNano())
 	event.TimestampRaw = uint64(t0.Add(ti.eventTimestampRaw).UnixNano())
@@ -55,16 +56,12 @@ func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) 
 	switch ti.eventType {
 	case model.ExecEventType:
 		event.Exec.Process = &event.ProcessCacheEntry.ProcessContext.Process
-		//nolint:gosimple // TODO(SEC) Fix gosimple linter
-		break
 	case model.DNSEventType:
 		event.DNS.Name = ti.eventDNSReq
 		event.DNS.Type = 1  // A
 		event.DNS.Class = 1 // INET
 		event.DNS.Size = uint16(len(ti.eventDNSReq))
 		event.DNS.Count = 1
-		//nolint:gosimple // TODO(SEC) Fix gosimple linter
-		break
 	}
 
 	// setting process ancestor
@@ -841,7 +838,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 	for _, ti := range tests {
 		t.Run(ti.name, func(t *testing.T) {
 			if ti.newProfile || profile == nil {
-				profile = NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType})
+				profile = NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType}, nil)
 				profile.ActivityTree = activity_tree.NewActivityTree(profile, nil, "security_profile")
 				profile.Instances = append(profile.Instances, &cgroupModel.CacheEntry{
 					ContainerContext: model.ContainerContext{
@@ -852,6 +849,11 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 				profile.loadedNano = uint64(t0.UnixNano())
 			}
 			profile.ActivityTree.Stats.ProcessNodes += ti.addFakeProcessNodes
+			ctx := profile.GetVersionContextIndex(0)
+			if ctx == nil {
+				t.Fatal(errors.New("profile should have one ctx"))
+			}
+			ctx.firstSeenNano = uint64(t0.Add(ti.containerCreatedAt).UnixNano())
 
 			if ti.loopUntil != 0 {
 				currentIncrement := time.Duration(0)
@@ -865,12 +867,12 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 					}
 					ti.eventTimestampRaw = currentIncrement
 					event := craftFakeEvent(t0, &ti, defaultContainerID)
-					assert.Equal(t, ti.result, spm.tryAutolearn(profile, event))
+					assert.Equal(t, ti.result, spm.tryAutolearn(profile, ctx, event, "tag"))
 					currentIncrement += ti.loopIncrement
 				}
 			} else { // only run once
 				event := craftFakeEvent(t0, &ti, defaultContainerID)
-				assert.Equal(t, ti.result, spm.tryAutolearn(profile, event))
+				assert.Equal(t, ti.result, spm.tryAutolearn(profile, ctx, event, "tag"))
 			}
 
 			// TODO: also check profile stats and global metrics

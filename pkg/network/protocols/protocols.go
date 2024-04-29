@@ -8,7 +8,7 @@
 package protocols
 
 import (
-	"strings"
+	"io"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -50,7 +50,7 @@ type Protocol interface {
 
 	// DumpMaps dumps the content of the map represented by mapName &
 	// currentMap, if it used by the eBPF program, to output.
-	DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map)
+	DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 
 	// Name returns the protocol name.
 	Name() string

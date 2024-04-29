@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
+
 //go:build windows
 
 // Package eventlog_test provides helpers for testing code that uses the eventlog package
@@ -34,6 +35,8 @@ type APITester interface {
 	InstallSource(channel string, source string) error
 	RemoveSource(channel string, name string) error
 	GenerateEvents(channelName string, numEvents uint) error
+	StartEventLogService(t *testing.T)
+	KillEventLogService(t *testing.T)
 }
 
 // GetEnabledAPITesters returns the APIs that are available to test as specified by enabledAPIsFlag

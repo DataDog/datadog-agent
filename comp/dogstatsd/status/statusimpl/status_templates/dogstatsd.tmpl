@@ -1,0 +1,7 @@
+{{- with .dogstatsdStats -}}
+{{- range $key, $value := .}}
+  {{formatTitle $key}}: {{humanize $value}}
+{{- end }}
+{{- end }}
+
+Tip: For troubleshooting, enable 'dogstatsd_metrics_stats_enable' in the main datadog.yaml file to generate Dogstatsd logs. Once 'dogstatsd_metrics_stats_enable' is enabled, users can also use 'dogstatsd-stats' command to get visibility of the latest collected metrics.

@@ -4,6 +4,6 @@
 #include "protocols/kafka/types.h"
 #include "protocols/events.h"
 
-USM_EVENTS_INIT(kafka, kafka_transaction_batch_entry_t, KAFKA_BATCH_SIZE);
+USM_EVENTS_INIT(kafka, kafka_event_t, KAFKA_BATCH_SIZE);
 
 #endif

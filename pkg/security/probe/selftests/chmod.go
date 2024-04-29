@@ -12,32 +12,49 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ChmodSelfTest defines a chmod self test
-type ChmodSelfTest struct{}
+type ChmodSelfTest struct {
+	ruleID    eval.RuleID
+	filename  string
+	isSuccess bool
+}
 
 // GetRuleDefinition returns the rule
-func (o *ChmodSelfTest) GetRuleDefinition(filename string) *rules.RuleDefinition {
+func (o *ChmodSelfTest) GetRuleDefinition() *rules.RuleDefinition {
+	o.ruleID = fmt.Sprintf("%s_chmod", ruleIDPrefix)
+
 	return &rules.RuleDefinition{
-		ID:         fmt.Sprintf("%s_chmod", ruleIDPrefix),
-		Expression: fmt.Sprintf(`chmod.file.path == "%s"`, filename),
+		ID:         o.ruleID,
+		Expression: fmt.Sprintf(`chmod.file.path == "%s"`, o.filename),
 	}
 }
 
 // GenerateEvent generate an event
-func (o *ChmodSelfTest) GenerateEvent(filename string) (EventPredicate, error) {
+func (o *ChmodSelfTest) GenerateEvent() error {
+	o.isSuccess = false
+
 	// we need to use chmod (or any other external program) as our PID is discarded by probes
 	// so the events would not be generated
-	cmd := exec.Command("chmod", "777", filename)
+	cmd := exec.Command("chmod", "777", o.filename)
 	if err := cmd.Run(); err != nil {
 		log.Debugf("error running chmod: %v", err)
-		return nil, err
+		return err
 	}
 
-	return func(event selfTestEvent) bool {
-		return event.Type == "chmod" && event.Filepath == filename
-	}, nil
+	return nil
+}
+
+// HandleEvent handles self test events
+func (o *ChmodSelfTest) HandleEvent(event selfTestEvent) {
+	o.isSuccess = event.RuleID == o.ruleID
+}
+
+// IsSuccess return the state of the test
+func (o *ChmodSelfTest) IsSuccess() bool {
+	return o.isSuccess
 }

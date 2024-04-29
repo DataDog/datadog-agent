@@ -17,12 +17,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 )
 
 // ComplianceModule is a system-probe module that exposes an HTTP api to
@@ -34,8 +36,11 @@ import (
 var ComplianceModule = module.Factory{
 	Name:             config.ComplianceModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *config.Config) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component]) (module.Module, error) {
 		return &complianceModule{}, nil
+	},
+	NeedsEBPF: func() bool {
+		return false
 	},
 }
 
@@ -54,11 +59,6 @@ func (m *complianceModule) GetStats() map[string]interface{} {
 	}
 }
 
-// RegisterGRPC is a noop (implements module.Module)
-func (*complianceModule) RegisterGRPC(grpc.ServiceRegistrar) error {
-	return nil
-}
-
 // Register implements module.Module.
 func (m *complianceModule) Register(router *module.Router) error {
 	router.HandleFunc("/dbconfig", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, m.handleScanDBConfig))
@@ -67,7 +67,9 @@ func (m *complianceModule) Register(router *module.Router) error {
 
 func (m *complianceModule) handleError(writer http.ResponseWriter, request *http.Request, status int, err error) {
 	_ = log.Errorf("module compliance: failed to properly handle %s request: %s", request.URL.Path, err)
+	writer.Header().Set("Content-Type", "text/plain")
 	writer.WriteHeader(status)
+	writer.Write([]byte(err.Error()))
 }
 
 func (m *complianceModule) handleScanDBConfig(writer http.ResponseWriter, request *http.Request) {
@@ -78,7 +80,7 @@ func (m *complianceModule) handleScanDBConfig(writer http.ResponseWriter, reques
 	qs := request.URL.Query()
 	pid, err := strconv.ParseInt(qs.Get("pid"), 10, 32)
 	if err != nil {
-		m.handleError(writer, request, http.StatusBadRequest, fmt.Errorf("pid query paramater is not an integer: %w", err))
+		m.handleError(writer, request, http.StatusBadRequest, fmt.Errorf("pid query parameter is not an integer: %w", err))
 		return
 	}
 

@@ -10,6 +10,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -17,9 +19,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newCheck),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newCheck))
+}
 
 var _ types.CheckComponent = (*check)(nil)
 
@@ -30,7 +33,9 @@ type check struct {
 type dependencies struct {
 	fx.In
 
-	Config config.Component
+	Config    config.Component
+	Sysconfig sysprobeconfig.Component
+	WMmeta    workloadmeta.Component
 }
 
 type result struct {
@@ -42,7 +47,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		processCheck: checks.NewProcessCheck(deps.Config),
+		processCheck: checks.NewProcessCheck(deps.Config, deps.Sysconfig, deps.WMmeta),
 	}
 	return result{
 		Check: types.ProvidesCheck{

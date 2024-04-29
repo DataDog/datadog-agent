@@ -58,14 +58,6 @@ func IsRetriable(err error) bool {
 	return reasonForError(err) == retriableError
 }
 
-// NewPartial returns a new error which indicates that the object passed in parameter couldn't be fetched completely and that the query should be retried.
-func NewPartial(partialObj interface{}) *AgentError {
-	return &AgentError{
-		message:     fmt.Sprintf("partially fetched %q, please retry", partialObj),
-		errorReason: partialError,
-	}
-}
-
 // IsPartial returns true if the specified error was created by NewPartial.
 func IsPartial(err error) bool {
 	return reasonForError(err) == partialError

@@ -102,9 +102,8 @@ func Exec(expression []byte, totalSize int64, pointerSize int) ([]LocationPiece,
 			return offset - fakeFrameBase
 		} else if offset > (fakeCFA / 2) {
 			return offset - fakeCFA
-		} else {
-			return offset
 		}
+		return offset
 	}
 
 	if len(opPieces) == 0 {

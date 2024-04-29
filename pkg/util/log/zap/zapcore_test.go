@@ -37,8 +37,7 @@ func createExtraTextContext(string) seelog.FormatterFunc {
 	}
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func parseShortFilePath(params string) seelog.FormatterFunc {
+func parseShortFilePath(_ string) seelog.FormatterFunc {
 	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return extractShortPathFromFullPath(context.FullPath())
 	}
@@ -144,7 +143,7 @@ func TestZapBasicLogging(t *testing.T) {
 			seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
 			seelog.RegisterCustomFormatter("ShortFilePath", parseShortFilePath)
 			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] | %ShortFilePath | %ExtraTextContext%Msg")
-			require.Nil(t, err)
+			require.NoError(t, err)
 			log.SetupLogger(l, testInstance.level)
 			require.NotNil(t, logger)
 

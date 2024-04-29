@@ -1,0 +1,46 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux || freebsd || netbsd || openbsd || solaris || dragonfly || aix
+
+package setup
+
+import "path/filepath"
+
+// Variables to initialize at build time
+var (
+	// InstallPath is the default install path for the agent
+	// It might be overridden at build time
+	InstallPath = "/opt/datadog-agent"
+)
+
+var (
+	defaultRunPath = filepath.Join(InstallPath, "run")
+	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
+	defaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
+	// defaultEventMonitorAddress is the default unix socket path to be used for connecting to the event monitor
+	defaultEventMonitorAddress = filepath.Join(InstallPath, "run/event-monitor.sock")
+	// DefaultDDAgentBin the process agent's binary
+	DefaultDDAgentBin = filepath.Join(InstallPath, "bin/agent/agent")
+)
+
+const (
+	defaultConfdPath            = "/etc/datadog-agent/conf.d"
+	defaultAdditionalChecksPath = "/etc/datadog-agent/checks.d"
+	defaultGuiPort              = -1
+	// DefaultUpdaterLogFile is the default updater log file
+	DefaultUpdaterLogFile = "/var/log/datadog/updater.log"
+	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
+	DefaultSecurityAgentLogFile = "/var/log/datadog/security-agent.log"
+	// DefaultProcessAgentLogFile is the default process-agent log file
+	DefaultProcessAgentLogFile = "/var/log/datadog/process-agent.log"
+	// defaultSystemProbeLogFilePath is the default system-probe log file
+	defaultSystemProbeLogFilePath = "/var/log/datadog/system-probe.log"
+)
+
+// called by init in config.go, to ensure any os-specific config is done
+// in time
+func osinit() {
+}

@@ -7,13 +7,17 @@
 package remoteconfig
 
 import (
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcstatus/rcstatusimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: remote-config
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	rcclient.Module,
-)
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		rcclientimpl.Module(),
+		rcstatusimpl.Module(),
+	)
+}

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var (
@@ -32,6 +33,11 @@ func (c *MockConfig) Set(key string, value interface{}, source model.Source) {
 // SetWithoutSource is used for setting configuration in tests
 func (c *MockConfig) SetWithoutSource(key string, value interface{}) {
 	c.Config.SetWithoutSource(key, value)
+}
+
+// SetKnown is used for setting configuration in tests
+func (c *MockConfig) SetKnown(key string) {
+	c.Config.SetKnown(key)
 }
 
 // Mock is creating and returning a mock config
@@ -60,7 +66,7 @@ func Mock(t testing.TB) *MockConfig {
 	// Configure Datadog global configuration
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
-	InitConfig(Datadog)
+	pkgconfigsetup.InitConfig(Datadog)
 	return &MockConfig{Datadog}
 }
 
@@ -90,6 +96,6 @@ func MockSystemProbe(t testing.TB) *MockConfig {
 	// Configure Datadog global configuration
 	SystemProbe = NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
-	InitSystemProbeConfig(SystemProbe)
+	pkgconfigsetup.InitSystemProbeConfig(SystemProbe)
 	return &MockConfig{SystemProbe}
 }

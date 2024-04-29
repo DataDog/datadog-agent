@@ -23,11 +23,11 @@ import (
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 // Tailer tails a file, decodes the messages it contains, and passes them to a
@@ -256,8 +256,6 @@ func (t *Tailer) Stop() {
 
 // StopAfterFileRotation prepares the tailer to stop after a timeout
 // to finish reading its file that has been log-rotated
-//
-// This is only used on UNIX.
 func (t *Tailer) StopAfterFileRotation() {
 	t.didFileRotate.Store(true)
 	bytesReadAtRotationTime := t.bytesRead.Get()
@@ -313,9 +311,9 @@ func (t *Tailer) readForever() {
 
 // buildTailerTags groups the file tag, directory (if wildcard path) and user tags
 func (t *Tailer) buildTailerTags() []string {
-	tags := []string{fmt.Sprintf("filename:%s", filepath.Base(t.file.Path))}
-	if t.file.IsWildcardPath {
-		tags = append(tags, fmt.Sprintf("dirname:%s", filepath.Dir(t.file.Path)))
+	tags := []string{
+		fmt.Sprintf("filename:%s", filepath.Base(t.file.Path)),
+		fmt.Sprintf("dirname:%s", filepath.Dir(t.file.Path)),
 	}
 	return tags
 }

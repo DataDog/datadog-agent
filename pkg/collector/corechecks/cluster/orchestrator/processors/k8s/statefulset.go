@@ -9,6 +9,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -20,13 +21,13 @@ import (
 
 // StatefulSetHandlers implements the Handlers interface for Kubernetes StatefulSets.
 type StatefulSetHandlers struct {
-	BaseHandlers
+	common.BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *StatefulSetHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
+func (h *StatefulSetHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.StatefulSet)
 	m.Yaml = yaml
 	return
@@ -34,7 +35,8 @@ func (h *StatefulSetHandlers) AfterMarshalling(ctx *processors.ProcessorContext,
 
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
-func (h *StatefulSetHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+func (h *StatefulSetHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	models := make([]*model.StatefulSet, 0, len(resourceModels))
 
 	for _, m := range resourceModels {
@@ -42,18 +44,18 @@ func (h *StatefulSetHandlers) BuildMessageBody(ctx *processors.ProcessorContext,
 	}
 
 	return &model.CollectorStatefulSet{
-		ClusterName:  ctx.Cfg.KubeClusterName,
-		ClusterId:    ctx.ClusterID,
-		GroupId:      ctx.MsgGroupID,
+		ClusterName:  pctx.Cfg.KubeClusterName,
+		ClusterId:    pctx.ClusterID,
+		GroupId:      pctx.MsgGroupID,
 		GroupSize:    int32(groupSize),
 		StatefulSets: models,
-		Tags:         append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag)}
+		Tags:         append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag)}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *StatefulSetHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
+func (h *StatefulSetHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*appsv1.StatefulSet)
 	return k8sTransformers.ExtractStatefulSet(r)
 }
@@ -62,7 +64,7 @@ func (h *StatefulSetHandlers) ExtractResource(ctx *processors.ProcessorContext, 
 // interface to a list of generic interfaces.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *StatefulSetHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
+func (h *StatefulSetHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*appsv1.StatefulSet)
 	resources = make([]interface{}, 0, len(resourceList))
 
@@ -76,14 +78,14 @@ func (h *StatefulSetHandlers) ResourceList(ctx *processors.ProcessorContext, lis
 // ResourceUID is a handler called to retrieve the resource UID.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *StatefulSetHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
+func (h *StatefulSetHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*appsv1.StatefulSet).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *StatefulSetHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+func (h *StatefulSetHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*appsv1.StatefulSet).ResourceVersion
 }
 
@@ -91,16 +93,17 @@ func (h *StatefulSetHandlers) ResourceVersion(ctx *processors.ProcessorContext, 
 // it is extracted as an internal resource model.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *StatefulSetHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
+func (h *StatefulSetHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*appsv1.StatefulSet)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before
 // it is marshalled to generate a manifest.
-func (h *StatefulSetHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
+func (h *StatefulSetHandlers) ScrubBeforeMarshalling(ctx processors.ProcessorContext, resource interface{}) {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	r := resource.(*appsv1.StatefulSet)
-	if ctx.Cfg.IsScrubbingEnabled {
-		redact.ScrubPodTemplateSpec(&r.Spec.Template, ctx.Cfg.Scrubber)
+	if pctx.Cfg.IsScrubbingEnabled {
+		redact.ScrubPodTemplateSpec(&r.Spec.Template, pctx.Cfg.Scrubber)
 	}
 }

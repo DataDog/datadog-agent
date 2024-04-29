@@ -115,11 +115,6 @@ func (b *Builder) WithContext(ctx context.Context) {
 	b.ctx = ctx
 }
 
-// DefaultGenerateStoresFunc returns default buildStore function
-func (b *Builder) DefaultGenerateStoresFunc() ksmtypes.BuildStoresFunc {
-	return b.GenerateStores
-}
-
 // WithGenerateStoresFunc configures a constom generate store function
 func (b *Builder) WithGenerateStoresFunc(f ksmtypes.BuildStoresFunc) {
 	b.ksmBuilder.WithGenerateStoresFunc(f)

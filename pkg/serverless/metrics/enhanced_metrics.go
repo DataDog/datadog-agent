@@ -43,6 +43,7 @@ const (
 	// ErrorsMetric is the name of the errors enhanced Lambda metric
 	ErrorsMetric          = "aws.lambda.enhanced.errors"
 	invocationsMetric     = "aws.lambda.enhanced.invocations"
+	asmInvocationsMetric  = "aws.lambda.enhanced.asm.invocations"
 	enhancedMetricsEnvVar = "DD_ENHANCED_METRICS"
 )
 
@@ -215,28 +216,34 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 
 // SendOutOfMemoryEnhancedMetric sends an enhanced metric representing a function running out of memory at a given time
 func SendOutOfMemoryEnhancedMetric(tags []string, t time.Time, demux aggregator.Demultiplexer) {
-	incrementEnhancedMetric(OutOfMemoryMetric, tags, float64(t.UnixNano())/float64(time.Second), demux)
+	incrementEnhancedMetric(OutOfMemoryMetric, tags, float64(t.UnixNano())/float64(time.Second), demux, false)
 }
 
 // SendErrorsEnhancedMetric sends an enhanced metric representing an error at a given time
 func SendErrorsEnhancedMetric(tags []string, t time.Time, demux aggregator.Demultiplexer) {
-	incrementEnhancedMetric(ErrorsMetric, tags, float64(t.UnixNano())/float64(time.Second), demux)
+	incrementEnhancedMetric(ErrorsMetric, tags, float64(t.UnixNano())/float64(time.Second), demux, false)
 }
 
 // SendTimeoutEnhancedMetric sends an enhanced metric representing a timeout at the current time
 func SendTimeoutEnhancedMetric(tags []string, demux aggregator.Demultiplexer) {
-	incrementEnhancedMetric(timeoutsMetric, tags, float64(time.Now().UnixNano())/float64(time.Second), demux)
+	incrementEnhancedMetric(timeoutsMetric, tags, float64(time.Now().UnixNano())/float64(time.Second), demux, false)
 }
 
 // SendInvocationEnhancedMetric sends an enhanced metric representing an invocation at the current time
 func SendInvocationEnhancedMetric(tags []string, demux aggregator.Demultiplexer) {
-	incrementEnhancedMetric(invocationsMetric, tags, float64(time.Now().UnixNano())/float64(time.Second), demux)
+	incrementEnhancedMetric(invocationsMetric, tags, float64(time.Now().UnixNano())/float64(time.Second), demux, false)
+}
+
+// SendASMInvocationEnhancedMetric sends an enhanced metric representing an appsec supported invocation at the current time
+// Metric is sent even if enhanced metrics are disabled
+func SendASMInvocationEnhancedMetric(tags []string, demux aggregator.Demultiplexer) {
+	incrementEnhancedMetric(asmInvocationsMetric, tags, float64(time.Now().UnixNano())/float64(time.Second), demux, true)
 }
 
 // incrementEnhancedMetric sends an enhanced metric with a value of 1 to the metrics channel
-func incrementEnhancedMetric(name string, tags []string, timestamp float64, demux aggregator.Demultiplexer) {
+func incrementEnhancedMetric(name string, tags []string, timestamp float64, demux aggregator.Demultiplexer, force bool) {
 	// TODO - pass config here, instead of directly looking up var
-	if strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false" {
+	if !force && strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false" {
 		return
 	}
 	demux.AggregateSample(metrics.MetricSample{

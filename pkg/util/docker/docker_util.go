@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 
@@ -101,7 +102,7 @@ func ConnectToDocker(ctx context.Context) (*client.Client, error) {
 }
 
 // Images returns a slice of all images.
-func (d *DockerUtil) Images(ctx context.Context, includeIntermediate bool) ([]types.ImageSummary, error) {
+func (d *DockerUtil) Images(ctx context.Context, includeIntermediate bool) ([]image.Summary, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 	images, err := d.cli.ImageList(ctx, types.ImageListOptions{All: includeIntermediate})
@@ -137,14 +138,14 @@ func (d *DockerUtil) RawClient() *client.Client {
 
 // RawContainerList wraps around the docker client's ContainerList method.
 // Value validation and error handling are the caller's responsibility.
-func (d *DockerUtil) RawContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error) {
+func (d *DockerUtil) RawContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 	return d.cli.ContainerList(ctx, options)
 }
 
 // RawContainerListWithFilter is like RawContainerList but with a container filter.
-func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options types.ContainerListOptions, filter *containers.Filter) ([]types.Container, error) {
+func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options container.ListOptions, filter *containers.Filter, wmeta workloadmeta.Component) ([]types.Container, error) {
 	containers, err := d.RawContainerList(ctx, options)
 	if err != nil {
 		return nil, err
@@ -156,8 +157,7 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options typ
 
 	isExcluded := func(container types.Container) bool {
 		var annotations map[string]string
-		// TODO(components)L inject dependency and remove use of global
-		if pod, err := workloadmeta.GetGlobalStore().GetKubernetesPodForContainer(container.ID); err == nil {
+		if pod, err := wmeta.GetKubernetesPodForContainer(container.ID); err == nil {
 			annotations = pod.Annotations
 		}
 		for _, name := range container.Names {
@@ -361,7 +361,7 @@ func (d *DockerUtil) InspectNoCache(ctx context.Context, id string, withSize boo
 func (d *DockerUtil) AllContainerLabels(ctx context.Context) (map[string]map[string]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	containers, err := d.cli.ContainerList(ctx, types.ContainerListOptions{})
+	containers, err := d.cli.ContainerList(ctx, container.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error listing containers: %s", err)
 	}
@@ -395,7 +395,7 @@ func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) 
 }
 
 // ContainerLogs returns a container logs reader
-func (d *DockerUtil) ContainerLogs(ctx context.Context, container string, options types.ContainerLogsOptions) (io.ReadCloser, error) {
+func (d *DockerUtil) ContainerLogs(ctx context.Context, container string, options container.LogsOptions) (io.ReadCloser, error) {
 	return d.cli.ContainerLogs(ctx, container, options)
 }
 

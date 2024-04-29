@@ -18,7 +18,7 @@ import (
 	"github.com/karrick/godirwalk"
 )
 
-// IdentiferFromCgroupReferences returns cgroup identifier extracted from <proc>/<pid>/cgroup
+// IdentiferFromCgroupReferences returns cgroup identifier extracted from <proc>/<pid>/cgroup after applying the filter.
 func IdentiferFromCgroupReferences(procPath, pid, baseCgroupController string, filter ReaderFilter) (string, error) {
 	var identifier string
 
@@ -51,7 +51,7 @@ func IdentiferFromCgroupReferences(procPath, pid, baseCgroupController string, f
 }
 
 // Unfortunately, the reading of `<host_path>/sys/fs/cgroup/pids/.../cgroup.procs` is PID-namespace aware,
-// meaning that we cannot rely on it to find all PIDs belonging to a cgroupp, except if the Agent runs in host PID namespace.
+// meaning that we cannot rely on it to find all PIDs belonging to a cgroup, except if the Agent runs in host PID namespace.
 type pidMapper interface {
 	getPIDsForCgroup(identifier, relativeCgroupPath string, cacheValidity time.Duration) []int
 }

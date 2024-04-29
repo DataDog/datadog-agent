@@ -1,3 +1,3 @@
 # flake8: noqa
 
-from .show_linters_issues import show_linters_issues
+from tasks.show_linters_issues.show_linters_issues import show_linters_issues

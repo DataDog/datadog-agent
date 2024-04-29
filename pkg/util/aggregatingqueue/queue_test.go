@@ -14,19 +14,31 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newMockFlush[T any]() (callback func([]T), getAccumulator func() [][]T) {
+func newMockFlush[T any]() (callback func([]T), waitCallbackCalled func(int), getAccumulator func() [][]T) {
 	accumulator := [][]T{}
-	var mutex sync.RWMutex
+	nbCalled := 0
+	var mutex sync.Mutex
+	cond := sync.NewCond(&mutex)
 
 	callback = func(elems []T) {
 		mutex.Lock()
 		defer mutex.Unlock()
 		accumulator = append(accumulator, elems)
+		nbCalled++
+		cond.Signal()
+	}
+
+	waitCallbackCalled = func(nb int) {
+		mutex.Lock()
+		defer mutex.Unlock()
+		for nbCalled < nb {
+			cond.Wait()
+		}
 	}
 
 	getAccumulator = func() [][]T {
-		mutex.RLock()
-		defer mutex.RUnlock()
+		mutex.Lock()
+		defer mutex.Unlock()
 		return accumulator
 	}
 
@@ -34,7 +46,7 @@ func newMockFlush[T any]() (callback func([]T), getAccumulator func() [][]T) {
 }
 
 func TestQueue(t *testing.T) {
-	callback, accumulator := newMockFlush[int]()
+	callback, wait, accumulator := newMockFlush[int]()
 	cl := clock.NewMock()
 	queue := newQueue(3, 1*time.Minute, callback, cl)
 
@@ -42,27 +54,31 @@ func TestQueue(t *testing.T) {
 		queue <- i
 	}
 
+	wait(3) // wait callback to have been called 3 times
+
 	assert.Equal(
 		t,
-		accumulator(),
 		[][]int{
 			{0, 1, 2},
 			{3, 4, 5},
 			{6, 7, 8},
 		},
+		accumulator(),
 	)
 
 	cl.Add(2 * time.Minute)
 
+	wait(4) // wait callback to have been called one more time
+
 	assert.Equal(
 		t,
-		accumulator(),
 		[][]int{
 			{0, 1, 2},
 			{3, 4, 5},
 			{6, 7, 8},
 			{9, 10},
 		},
+		accumulator(),
 	)
 
 	close(queue)

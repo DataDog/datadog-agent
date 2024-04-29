@@ -6,6 +6,7 @@
 package appsec
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -26,7 +27,10 @@ func TestNew(t *testing.T) {
 		appsecEnabledStr := strconv.FormatBool(appsecEnabled)
 		t.Run(fmt.Sprintf("DD_SERVERLESS_APPSEC_ENABLED=%s", appsecEnabledStr), func(t *testing.T) {
 			t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", appsecEnabledStr)
-			lp, err := New()
+			lp, stop, err := NewWithShutdown(nil)
+			if stop != nil {
+				defer stop(context.Background())
+			}
 			if err := wafHealth(); err != nil {
 				if ok, _ := waf.SupportsTarget(); ok {
 					// host should be supported by appsec, error is unexpected

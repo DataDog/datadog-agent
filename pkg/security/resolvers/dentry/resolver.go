@@ -9,6 +9,8 @@
 package dentry
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -329,12 +331,14 @@ func computeFilenameFromParts(parts []string) string {
 		return "/"
 	}
 
-	var builder strings.Builder
-
 	// pre-allocation
+	prealloc := 0
 	for _, part := range parts {
-		builder.Grow(len(part) + 1)
+		prealloc += len(part) + 1
 	}
+
+	var builder strings.Builder
+	builder.Grow(prealloc)
 
 	// reverse iteration
 	for i := 0; i < len(parts); i++ {
@@ -448,11 +452,11 @@ func (dr *Resolver) requestResolve(op uint8, pathKey model.PathKey) (uint32, err
 
 	// create eRPC request
 	dr.erpcRequest.OP = op
-	model.ByteOrder.PutUint64(dr.erpcRequest.Data[0:8], pathKey.Inode)
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], pathKey.MountID)
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathKey.PathID)
+	binary.NativeEndian.PutUint64(dr.erpcRequest.Data[0:8], pathKey.Inode)
+	binary.NativeEndian.PutUint32(dr.erpcRequest.Data[8:12], pathKey.MountID)
+	binary.NativeEndian.PutUint32(dr.erpcRequest.Data[12:16], pathKey.PathID)
 	// 16-28 populated at start
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[28:32], challenge)
+	binary.NativeEndian.PutUint32(dr.erpcRequest.Data[28:32], challenge)
 
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
 	if dr.useBPFProgWriteUser {
@@ -481,9 +485,29 @@ func (dr *Resolver) cacheEntries(keys []model.PathKey, entries []PathEntry) erro
 	return nil
 }
 
+func (dr *Resolver) computeSegmentCount() int {
+	count := 0
+	i := 0
+	for i < dr.erpcSegmentSize {
+		i += 16 // skip the path key
+
+		if i < dr.erpcSegmentSize {
+			if dr.erpcSegment[i] == '/' {
+				break
+			}
+
+			// skip the segment
+			i += bytes.IndexByte(dr.erpcSegment[i:], 0)
+		}
+
+		i++ // skip the null terminator
+		count++
+	}
+	return count
+}
+
 // ResolveFromERPC resolves the path of the provided inode / mount id / path id
 func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, error) {
-	var segment string
 	var resolutionErr error
 	depth := int64(0)
 
@@ -499,22 +523,22 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 		return "", fmt.Errorf("unable to resolve the path of mountID `%d` and inode `%d` with eRPC: %w", pathKey.MountID, pathKey.Inode, err)
 	}
 
-	var keys []model.PathKey
-	var entries []PathEntry
-
-	filenameParts := make([]string, 0, 128)
+	segmentCount := dr.computeSegmentCount()
+	filenameParts := make([]string, 0, segmentCount)
+	keys := make([]model.PathKey, 0, segmentCount)
+	entries := make([]PathEntry, 0, segmentCount)
 
 	i := 0
-	// make sure that we keep room for at least one pathID + character + \0 => (sizeof(pathID) + 1 = 17)
+	// make sure that we keep room for at least one pathKey + character + \0 => (sizeof(pathID) + 1 = 17)
 	for i < dr.erpcSegmentSize-17 {
 		depth++
 
 		// parse the path_key_t structure
-		pathKey.Inode = model.ByteOrder.Uint64(dr.erpcSegment[i : i+8])
-		pathKey.MountID = model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12])
+		pathKey.Inode = binary.NativeEndian.Uint64(dr.erpcSegment[i : i+8])
+		pathKey.MountID = binary.NativeEndian.Uint32(dr.erpcSegment[i+8 : i+12])
 
 		// check challenge
-		if challenge != model.ByteOrder.Uint32(dr.erpcSegment[i+12:i+16]) {
+		if challenge != binary.NativeEndian.Uint32(dr.erpcSegment[i+12:i+16]) {
 			if depth >= model.MaxPathDepth {
 				resolutionErr = errTruncatedParentsERPC
 				break
@@ -535,13 +559,13 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 			break
 		}
 
-		if dr.erpcSegment[i] != '/' {
-			segment = model.NullTerminatedString(dr.erpcSegment[i:])
-			filenameParts = append(filenameParts, segment)
-			i += len(segment) + 1
-		} else {
+		if dr.erpcSegment[i] == '/' {
 			break
 		}
+
+		segment := model.NullTerminatedString(dr.erpcSegment[i:])
+		filenameParts = append(filenameParts, segment)
+		i += len(segment) + 1
 
 		if !IsFakeInode(pathKey.Inode) && cache {
 			keys = append(keys, pathKey)
@@ -680,11 +704,11 @@ func (dr *Resolver) Start(manager *manager.Manager) error {
 		dr.erpcSegment = make([]byte, 7*4096)
 		dr.useBPFProgWriteUser = true
 
-		model.ByteOrder.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
+		binary.NativeEndian.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
 	}
 
 	dr.erpcSegmentSize = len(dr.erpcSegment)
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
+	binary.NativeEndian.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
 
 	return nil
 }

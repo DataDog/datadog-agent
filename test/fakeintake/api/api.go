@@ -42,3 +42,12 @@ type RouteStat struct {
 type APIFakeIntakeRouteStatsGETResponse struct {
 	Routes map[string]RouteStat `json:"routes"`
 }
+
+// ResponseOverride is a hardcoded response for requests to the given endpoint
+type ResponseOverride struct {
+	Endpoint    string `json:"endpoint"`
+	StatusCode  int    `json:"status_code"`
+	ContentType string `json:"content_type"`
+	Method      string `json:"method"`
+	Body        []byte `json:"body"`
+}

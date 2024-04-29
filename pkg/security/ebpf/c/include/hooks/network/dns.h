@@ -106,8 +106,14 @@ int classifier_dns_request_parser(struct __sk_buff *skb) {
         return ACT_OK;
     }
 
+    // really should not happen, the loop in parse_dns_request only ever
+    // reads DNS_MAX_LENGTH bytes
+    if (qname_length > DNS_MAX_LENGTH) {
+        return ACT_OK;
+    }
+
     // send DNS event
-    send_event_with_size_ptr(skb, EVENT_DNS, evt, offsetof(struct dns_event_t, name) + (qname_length & (DNS_MAX_LENGTH - 1)));
+    send_event_with_size_ptr(skb, EVENT_DNS, evt, offsetof(struct dns_event_t, name) + qname_length);
 
     if (!is_dns_request_parsing_done(skb, pkt)) {
         tail_call_to_classifier(skb, DNS_REQUEST_PARSER);

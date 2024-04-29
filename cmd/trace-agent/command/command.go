@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(APM) Fix revive linter
+// Package command implements the top-level `trace-agent` binary, including its subcommands.
 package command
 
 import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/config"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/controlsvc"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/info"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/run"
@@ -45,6 +46,7 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 		run.MakeCommand(globalConfGetter),
 		info.MakeCommand(globalConfGetter),
 		version.MakeCommand("trace-agent"),
+		config.MakeCommand(globalConfGetter),
 	}
 
 	commands = append(commands, controlsvc.Commands(globalConfGetter)...)

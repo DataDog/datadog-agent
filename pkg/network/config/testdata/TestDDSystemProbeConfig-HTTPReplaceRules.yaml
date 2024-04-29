@@ -1,7 +1,0 @@
-service_monitoring_config:
-  http_replace_rules:
-    - pattern: "/users/(.*)"
-      repl: "/users/?"
-    - pattern: "foo"
-      repl: "bar"
-    - pattern: "payment_id"

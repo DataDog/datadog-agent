@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -61,7 +61,7 @@ func fetchRealisticEventSerializerInner(tb testing.TB) *serializers.EventSeriali
 		assert.Equal(tb, "open", event.GetType(), "wrong event type")
 	})
 
-	return serializers.NewEventSerializer(workingEvent)
+	return serializers.NewEventSerializer(workingEvent, nil)
 }
 
 func BenchmarkSerializersEasyJson(b *testing.B) {

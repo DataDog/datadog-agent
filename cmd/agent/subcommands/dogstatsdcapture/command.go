@@ -59,7 +59,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dogstatsdCapture,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -81,7 +81,7 @@ func dogstatsdCapture(log log.Component, config config.Component, cliParams *cli
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	token, err := security.FetchAuthToken()
+	token, err := security.FetchAuthToken(config)
 	if err != nil {
 		return fmt.Errorf("unable to fetch authentication token: %w", err)
 	}

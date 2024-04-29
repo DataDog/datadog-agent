@@ -13,55 +13,59 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
-
-	"github.com/containerd/containerd"
 )
 
-const (
-	collectorName = "containerd"
-)
+// resultChanSize defines the result channel size
+// 1000 is already a very large default value
+const resultChanSize = 1000
 
-// ScanRequest defines a scan request
-type ScanRequest struct {
-	ImageMeta        *workloadmeta.ContainerImageMetadata
-	Image            containerd.Image
-	ContainerdClient cutil.ContainerdItf
-	FromFilesystem   bool
+// scanRequest defines a scan request. This struct should be
+// hashable to be pushed in the work queue for processing.
+type scanRequest struct {
+	imageID string
 }
 
-// GetImgMetadata returns the image metadata
-func (r *ScanRequest) GetImgMetadata() *workloadmeta.ContainerImageMetadata {
-	return r.ImageMeta
+// NewScanRequest creates a new scan request
+func NewScanRequest(imageID string) sbom.ScanRequest {
+	return scanRequest{imageID: imageID}
 }
 
 // Collector returns the collector name
-func (r *ScanRequest) Collector() string {
-	return collectorName
+func (r scanRequest) Collector() string {
+	return collectors.ContainerdCollector
 }
 
 // Type returns the scan request type
-func (r *ScanRequest) Type() string {
-	if r.FromFilesystem {
+func (r scanRequest) Type(opts sbom.ScanOptions) string {
+	if opts.UseMount {
 		return sbom.ScanFilesystemType
 	}
 	return sbom.ScanDaemonType
 }
 
 // ID returns the scan request ID
-func (r *ScanRequest) ID() string {
-	return r.ImageMeta.ID
+func (r scanRequest) ID() string {
+	return r.imageID
 }
 
 // Collector defines a containerd collector
 type Collector struct {
-	trivyCollector *trivy.Collector
+	trivyCollector   *trivy.Collector
+	resChan          chan sbom.ScanResult
+	opts             sbom.ScanOptions
+	containerdClient cutil.ContainerdItf
+	wmeta            optional.Option[workloadmeta.Component]
+
+	fromFileSystem bool
+	closed         bool
 }
 
 // CleanCache cleans the cache
@@ -70,54 +74,100 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initializes the collector
-func (c *Collector) Init(cfg config.Config) error {
-	trivyCollector, err := trivy.GetGlobalCollector(cfg)
+func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) error {
+	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err
 	}
+	c.wmeta = wmeta
 	c.trivyCollector = trivyCollector
+	c.fromFileSystem = cfg.GetBool("sbom.container_image.use_mount")
+	c.opts = sbom.ScanOptionsFromConfig(cfg, true)
 	return nil
 }
 
 // Scan performs the scan
-func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
-	containerdScanRequest, ok := request.(*ScanRequest)
+func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
+	containerdScanRequest, ok := request.(scanRequest)
 	if !ok {
-		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)}
+		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectors.ContainerdCollector)}
 	}
 
-	if containerdScanRequest.ImageMeta != nil {
-		log.Infof("containerd scan request [%v]: scanning image %v", containerdScanRequest.ID(), containerdScanRequest.ImageMeta.Name)
+	if c.containerdClient == nil {
+		cl, err := cutil.NewContainerdUtil()
+		if err != nil {
+			return sbom.ScanResult{Error: fmt.Errorf("error creating containerd client: %s", err)}
+		}
+		c.containerdClient = cl
+	}
+
+	wmeta, ok := c.wmeta.Get()
+	if !ok {
+		return sbom.ScanResult{Error: fmt.Errorf("workloadmeta store is not initialized")}
+	}
+	imageMeta, err := wmeta.GetImage(containerdScanRequest.ID())
+	if err != nil {
+		return sbom.ScanResult{Error: fmt.Errorf("image metadata not found for image id %s: %s", containerdScanRequest.ID(), err)}
+	}
+	log.Infof("containerd scan request [%v]: scanning image %v", containerdScanRequest.ID(), imageMeta.Name)
+
+	image, err := c.containerdClient.Image(imageMeta.Namespace, imageMeta.Name)
+	if err != nil {
+		return sbom.ScanResult{Error: fmt.Errorf("error getting image %s/%s: %s", imageMeta.Namespace, imageMeta.Name, err)}
 	}
 
 	var report sbom.Report
-	var err error
-	if containerdScanRequest.FromFilesystem {
+	if c.fromFileSystem {
 		report, err = c.trivyCollector.ScanContainerdImageFromFilesystem(
 			ctx,
-			containerdScanRequest.ImageMeta,
-			containerdScanRequest.Image,
-			containerdScanRequest.ContainerdClient,
-			opts,
+			imageMeta,
+			image,
+			c.containerdClient,
+			c.opts,
 		)
 	} else {
 		report, err = c.trivyCollector.ScanContainerdImage(
 			ctx,
-			containerdScanRequest.ImageMeta,
-			containerdScanRequest.Image,
-			containerdScanRequest.ContainerdClient,
-			opts,
+			imageMeta,
+			image,
+			c.containerdClient,
+			c.opts,
 		)
 	}
 	scanResult := sbom.ScanResult{
 		Error:   err,
 		Report:  report,
-		ImgMeta: containerdScanRequest.ImageMeta,
+		ImgMeta: imageMeta,
 	}
 
 	return scanResult
 }
 
+// Type returns the container image scan type
+func (c *Collector) Type() collectors.ScanType {
+	return collectors.ContainerImageScanType
+}
+
+// Channel returns the channel to send scan results
+func (c *Collector) Channel() chan sbom.ScanResult {
+	return c.resChan
+}
+
+// Options returns the collector options
+func (c *Collector) Options() sbom.ScanOptions {
+	return c.opts
+}
+
+// Shutdown shuts down the collector
+func (c *Collector) Shutdown() {
+	if c.resChan != nil && !c.closed {
+		close(c.resChan)
+	}
+	c.closed = true
+}
+
 func init() {
-	collectors.RegisterCollector(collectorName, &Collector{})
+	collectors.RegisterCollector(collectors.ContainerdCollector, &Collector{
+		resChan: make(chan sbom.ScanResult, resultChanSize),
+	})
 }

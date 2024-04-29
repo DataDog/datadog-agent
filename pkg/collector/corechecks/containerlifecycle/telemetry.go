@@ -8,7 +8,7 @@ package containerlifecycle
 import "github.com/DataDog/datadog-agent/pkg/telemetry"
 
 var emittedEvents = telemetry.NewCounterWithOpts(
-	checkName,
+	CheckName,
 	"emitted_events",
 	[]string{"event_type", "object_kind"},
 	"Number of events emitted by the check",

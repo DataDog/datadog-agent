@@ -2,7 +2,6 @@
 Docker related tasks
 """
 
-
 import os
 import shutil
 import sys
@@ -11,7 +10,7 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from .dogstatsd import DOGSTATSD_TAG
+from tasks.dogstatsd import DOGSTATSD_TAG
 
 
 @task
@@ -121,7 +120,7 @@ def pull_base_images(ctx, dockerfile, signed_pull=True):
     images = set()
     stages = set()
 
-    with open(dockerfile, "r") as f:
+    with open(dockerfile) as f:
         for line in f:
             words = line.split()
             # Get source images

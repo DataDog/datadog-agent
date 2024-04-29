@@ -11,40 +11,14 @@ type SecretVal struct {
 	ErrorMsg string `json:"error,omitempty"`
 }
 
-// ResolveCallback is the callback type used by the ResolveWithCallback method to send notifications.
-//
-// ResolveCallback needs to acknowledge the notification by returning 'true' or refuse it and request another notification
-// on the parent by returning 'false'.
-//
-// When exploring a type the walker will emit notifications for each key being updated (when using
-// 'ResolveWithCallback'). Some notifier might not be able to handle all notifications in which case it returns 'false'.
-// The walker will then retry the notification from the parent key.
-//
-// This is needed when resolving yaml containing map[string]any. In the case of the datadog configuration the map key
-// might contain the character identified as the configuration delimiter.
-//
-// Example:
-// The following agent configuration:
-//
-//	process_config:
-//	  additional_endpoints:
-//	    https://app.datadoghq.com:
-//	      - some_api_key
-//
-// Calling 'Set("process_config.additional_endpoints.https://app.datadoghq.com", []string{"some_api_key"})'
-// will create the following invalid configuration:
-//
-//	process_config:
-//	  additional_endpoints:
-//	    https://app:
-//	      datadoghq:
-//	        com:
-//	          - some_api_key
-//
-// For this reason the notifier will refuse the notification for
-// "process_config.additional_endpoints.https://app.datadoghq.com" but accept the one for the parent
-// "process_config.additional_endpoints".
-type ResolveCallback func(key []string, value any) bool
+// SecretChangeCallback is the callback type used by SubscribeToChanges to send notifications
+// This callback will be called once for each time a handle at a particular path is resolved or refreshed
+// `handle`: the handle of the secret (example: `ENC[api_key]` the handle is `api_key`)
+// `origin`: origin file of the configuration
+// `path`: a path into the config file where the secret appears, each part is a level of nesting, arrays will use stringified indexes
+// `oldValue`: the value that the secret used to have, the empty string "" is it hasn't been resolved before
+// `newValue`: the new value that the secret has resolved to
+type SecretChangeCallback func(handle, origin string, path []string, oldValue, newValue any)
 
 // PayloadVersion defines the current payload version sent to a secret backend
 const PayloadVersion = "1.0"

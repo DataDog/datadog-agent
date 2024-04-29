@@ -19,9 +19,9 @@ import (
 const (
 	// ContainerRegexpStr defines the regexp used to match container IDs
 	// ([0-9a-f]{64}) is standard container id used pretty much everywhere
-	// ([0-9a-f]{32}-[0-9]{10}) is container id used by AWS ECS
+	// ([0-9a-f]{32}-\d+) is container id used by AWS ECS
 	// ([0-9a-f]{8}(-[0-9a-f]{4}){4}$) is container id used by Garden
-	ContainerRegexpStr = "([0-9a-f]{64})|([0-9a-f]{32}-[0-9]{10})|([0-9a-f]{8}(-[0-9a-f]{4}){4}$)"
+	ContainerRegexpStr = "([0-9a-f]{64})|([0-9a-f]{32}-\\d+)|([0-9a-f]{8}(-[0-9a-f]{4}){4}$)"
 )
 
 // Reader is the main interface to scrape data from cgroups
@@ -36,6 +36,7 @@ type Reader struct {
 	impl                   readerImpl
 
 	cgroups         map[string]Cgroup
+	cgroupByInode   map[uint64]Cgroup
 	cgroupsLock     sync.RWMutex
 	scrapeTimestmap time.Time
 }
@@ -188,6 +189,14 @@ func (r *Reader) GetCgroup(id string) Cgroup {
 	return r.cgroups[id]
 }
 
+// GetCgroupByInode returns the cgroup for the given inode.
+func (r *Reader) GetCgroupByInode(inode uint64) Cgroup {
+	r.cgroupsLock.RLock()
+	defer r.cgroupsLock.RUnlock()
+
+	return r.cgroupByInode[inode]
+}
+
 // RefreshCgroups triggers a refresh if data are older than cacheValidity. 0 to always refesh.
 func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 	r.cgroupsLock.Lock()
@@ -201,6 +210,13 @@ func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 	newCgroups, err := r.impl.parseCgroups()
 	if err != nil {
 		return err
+	}
+
+	r.cgroupByInode = make(map[uint64]Cgroup, len(newCgroups))
+	for _, cg := range newCgroups {
+		if inode := cg.Inode(); inode != unknownInode {
+			r.cgroupByInode[inode] = cg
+		}
 	}
 
 	r.scrapeTimestmap = time.Now()

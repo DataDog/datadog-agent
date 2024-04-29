@@ -13,9 +13,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 func benchmarkSingleLineHandler(b *testing.B, logs int) {
@@ -57,7 +57,7 @@ func benchmarkMultiLineHandler(b *testing.B, logs int, line string) {
 		messages[i] = getDummyMessageWithLF(fmt.Sprintf("%s %d", line, i))
 	}
 
-	h := NewMultiLineHandler(func(*message.Message) {}, regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`), 1000*time.Millisecond, 100, false)
+	h := NewMultiLineHandler(func(*message.Message) {}, regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`), 1000*time.Millisecond, 100, false, status.NewInfoRegistry())
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {

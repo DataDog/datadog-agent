@@ -110,7 +110,7 @@ func TestMountResolver(t *testing.T) {
 				},
 			},
 		},
-		/*{
+		{
 			"insert_device",
 			args{
 				[]event{
@@ -137,7 +137,7 @@ func TestMountResolver(t *testing.T) {
 					},
 				},
 			},
-		},*/
+		},
 		{
 			"remove_overlay",
 			args{
@@ -444,7 +444,7 @@ func TestMountResolver(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, evt := range tt.args.events {
 				if evt.mount != nil {
-					mr.insert(&evt.mount.Mount)
+					mr.insert(&evt.mount.Mount, pid)
 				}
 				if evt.umount != nil {
 					mount, err := mr.ResolveMount(evt.umount.MountID, 0, pid, "")
@@ -505,7 +505,7 @@ func TestMountGetParentPath(t *testing.T) {
 		},
 	}
 
-	parentPath, err := mr.getMountPath(4, 44, false)
+	parentPath, err := mr.getMountPath(4, 44, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, "/a/b/c", parentPath)
 }
@@ -541,7 +541,7 @@ func TestMountLoop(t *testing.T) {
 		},
 	}
 
-	parentPath, err := mr.getMountPath(3, 44, false)
+	parentPath, err := mr.getMountPath(3, 44, 1)
 	assert.Equal(t, ErrMountLoop, err)
 	assert.Equal(t, "", parentPath)
 }
@@ -568,6 +568,6 @@ func BenchmarkGetParentPath(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = mr.getMountPath(100, 44, false)
+		_, _ = mr.getMountPath(100, 44, 1)
 	}
 }

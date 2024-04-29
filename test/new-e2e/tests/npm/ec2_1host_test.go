@@ -6,149 +6,188 @@
 package npm
 
 import (
-	"math"
-	"os"
 	"testing"
-	"time"
 
-	agentmodel "github.com/DataDog/agent-payload/v5/process"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/DataDog/test-infra-definitions/components/docker"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
 
+type hostHttpbinEnv struct {
+	environments.Host
+	// Extra Components
+	HTTPBinHost *components.RemoteHost
+}
 type ec2VMSuite struct {
-	e2e.Suite[e2e.FakeIntakeEnv]
-	DevMode bool
+	e2e.BaseSuite[hostHttpbinEnv]
+}
+
+func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.PulumiEnvRunFunc[hostHttpbinEnv] {
+	return func(ctx *pulumi.Context, env *hostHttpbinEnv) error {
+		awsEnv, err := aws.NewEnvironment(ctx)
+		if err != nil {
+			return err
+		}
+		env.Host.AwsEnvironment = &awsEnv
+
+		opts := []awshost.ProvisionerOption{
+			awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
+		}
+		if len(opt) > 0 {
+			opts = append(opts, opt...)
+		}
+		params := awshost.GetProvisionerParams(opts...)
+		awshost.Run(ctx, &env.Host, params)
+
+		vmName := "httpbinvm"
+
+		nginxHost, err := ec2.NewVM(awsEnv, vmName)
+		if err != nil {
+			return err
+		}
+		err = nginxHost.Export(ctx, &env.HTTPBinHost.HostOutput)
+		if err != nil {
+			return err
+		}
+
+		// install docker.io
+		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost)
+		if err != nil {
+			return err
+		}
+
+		composeContents := []docker.ComposeInlineManifest{dockerHTTPBinCompose()}
+		_, err = manager.ComposeStrUp("httpbin", composeContents, pulumi.StringMap{})
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
 }
 
 // TestEC2VMSuite will validate running the agent on a single EC2 VM
 func TestEC2VMSuite(t *testing.T) {
 	s := &ec2VMSuite{}
-	e2eParams := []params.Option{}
-	// debug helper
-	if _, devmode := os.LookupEnv("TESTS_E2E_DEVMODE"); devmode {
-		e2eParams = []params.Option{params.WithDevMode(), params.WithSkipDeleteOnFailure()}
-		s.DevMode = true
-	}
+
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(), nil))}
 
 	// Source of our kitchen CI images test/kitchen/platforms.json
 	// Other VM image can be used, our kitchen CI images test/kitchen/platforms.json
 	// ec2params.WithImageName("ami-a4dc46db", os.AMD64Arch, ec2os.AmazonLinuxOS) // ubuntu-16-04-4.4
-	e2e.Run(t, s, e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentparams.WithSystemProbeConfig(systemProbeConfigNPM))), e2eParams...)
+	e2e.Run(t, s, e2eParams...)
 }
 
-// TestFakeIntakeNPM Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
+func (v *ec2VMSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+
+	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils docker.io")
+	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker ubuntu")
+	v.Env().RemoteHost.ReconnectSSH()
+
+	// prefetch docker image locally
+	v.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-npm-tools:main")
+}
+
+// BeforeTest will be called before each test
+func (v *ec2VMSuite) BeforeTest(suiteName, testName string) {
+	v.BaseSuite.BeforeTest(suiteName, testName)
+
+	// default is to reset the current state of the fakeintake aggregators
+	if !v.BaseSuite.IsDevMode() {
+		v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	}
+}
+
+// AfterTest will be called after each test
+func (v *ec2VMSuite) AfterTest(suiteName, testName string) {
+	test1HostFakeIntakeNPMDumpInfo(v.T(), v.Env().FakeIntake)
+
+	v.BaseSuite.AfterTest(suiteName, testName)
+}
+
+// TestFakeIntakeNPM_HostRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
+// 2 tests generate the request on the host and on docker
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
-func (v *ec2VMSuite) TestFakeIntakeNPM() {
-	t := v.T()
+//
+// The test start by 00 to validate the agent/system-probe is up and running
+func (v *ec2VMSuite) Test00FakeIntakeNPM_HostRequests() {
+	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
-	// default is to reset the current state of the fakeintake aggregators
-	if !v.DevMode {
-		v.Env().Fakeintake.FlushServerAndResetAggregators()
-	}
+	// generate a connection
+	v.Env().RemoteHost.MustExecute("curl " + testURL)
 
-	targetHostnameNetID := ""
-	// looking for 1 host to send CollectorConnections payload to the fakeintake
-	v.EventuallyWithT(func(c *assert.CollectT) {
-		// generate a connection
-		v.Env().VM.Execute("curl http://www.datadoghq.com")
-
-		hostnameNetID, err := v.Env().Fakeintake.GetConnectionsNames()
-		assert.NoError(c, err, "GetConnectionsNames() errors")
-		if !assert.NotZero(c, len(hostnameNetID), "no connections yet") {
-			return
-		}
-		targetHostnameNetID = hostnameNetID[0]
-
-		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
-	}, 60*time.Second, time.Second, "no connections received")
-
-	// looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
-	v.EventuallyWithT(func(c *assert.CollectT) {
-		cnx, err := v.Env().Fakeintake.GetConnections()
-		assert.NoError(t, err)
-
-		if !assert.Greater(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 2, "not enough payloads") {
-			return
-		}
-		var payloadsTimestamps []time.Time
-		for _, cc := range cnx.GetPayloadsByName(targetHostnameNetID) {
-			payloadsTimestamps = append(payloadsTimestamps, cc.GetCollectedTime())
-		}
-		dt := payloadsTimestamps[2].Sub(payloadsTimestamps[1]).Seconds()
-		t.Logf("hostname+networkID %v diff time %f seconds", targetHostnameNetID, dt)
-
-		// we want the test fail now, not retrying on the next payloads
-		require.Greater(t, 0.5, math.Abs(dt-30), "delta between collection is higher than 500ms")
-	}, 90*time.Second, time.Second, "not enough connections received")
+	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
 }
 
-// TestFakeIntakeNPM_TCP_UDP_DNS validate we received tcp, udp, and DNS connections
+// TestFakeIntakeNPM_DockerRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
+// 2 tests generate the request on the host and on docker
+//   - looking for 1 host to send CollectorConnections payload to the fakeintake
+//   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
+func (v *ec2VMSuite) TestFakeIntakeNPM_DockerRequests() {
+	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+
+	// generate a connection
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:main curl " + testURL)
+
+	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
+}
+
+// TestFakeIntakeNPM600cnxBucket_HostRequests Validate the agent can communicate with the (fake) backend and send connections
+// every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
+//   - looking for 1 host to send CollectorConnections payload to the fakeintake
+//   - looking for n payloads and check if the last 2 have a maximum span of 100ms
+func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
+	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+
+	// generate connections
+	v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 " + testURL)
+
+	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
+}
+
+// TestFakeIntakeNPM600cnxBucket_DockerRequests Validate the agent can communicate with the (fake) backend and send connections
+// every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
+//   - looking for 1 host to send CollectorConnections payload to the fakeintake
+//   - looking for n payloads and check if the last 2 have a maximum span of 100ms
+func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
+	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+
+	// generate connections
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:main ab -n 600 -c 600 " + testURL)
+
+	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
+}
+
+// TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
-func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
-	t := v.T()
+func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
+	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
-	// default is to reset the current state of the fakeintake aggregators
-	if !v.DevMode {
-		v.Env().Fakeintake.FlushServerAndResetAggregators()
-	}
+	// generate connections
+	v.Env().RemoteHost.MustExecute("curl " + testURL)
+	v.Env().RemoteHost.MustExecute("dig @8.8.8.8 www.google.ch")
 
-	v.EventuallyWithT(func(c *assert.CollectT) {
-		// generate connections
-		v.Env().VM.Execute("curl http://www.datadoghq.com")
-		v.Env().VM.Execute("dig @8.8.8.8 www.google.ch")
+	test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
+}
 
-		cnx, err := v.Env().Fakeintake.GetConnections()
-		require.NoError(c, err)
+// TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests validate we received tcp, udp, and DNS connections
+// with some basic checks, like IPs/Ports present, DNS query has been captured, ...
+func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests() {
+	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
-		foundDNS := false
-		cnx.ForeachConnection(func(c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
-			if len(c.DnsStatsByDomainOffsetByQueryType) > 0 {
-				foundDNS = true
-			}
-		})
-		if !assert.True(c, foundDNS, "DNS not found") {
-			return
-		}
+	// generate connections
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:main curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:main dig @8.8.8.8 www.google.ch")
 
-		type countCnx struct {
-			hit int
-			TCP int
-			UDP int
-		}
-		countConnections := make(map[string]*countCnx)
-
-		helperCleanup(t)
-		cnx.ForeachConnection(func(c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
-			var count *countCnx
-			var found bool
-			if count, found = countConnections[hostname]; !found {
-				countConnections[hostname] = &countCnx{}
-				count = countConnections[hostname]
-			}
-			count.hit++
-
-			switch c.Type {
-			case agentmodel.ConnectionType_tcp:
-				count.TCP++
-			case agentmodel.ConnectionType_udp:
-				count.UDP++
-			}
-			validateConnection(t, c, cc, hostname)
-		})
-
-		totalConnections := countCnx{}
-		for host, count := range countConnections {
-			t.Logf("connections %d tcp %d udp %d received by host/netID %s", count.hit, count.TCP, count.UDP, host)
-			totalConnections.hit += count.hit
-			totalConnections.TCP += count.TCP
-			totalConnections.UDP += count.UDP
-		}
-		t.Logf("sum connections %d tcp %d udp %d", totalConnections.hit, totalConnections.TCP, totalConnections.UDP)
-	}, 60*time.Second, time.Second)
+	test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
 }

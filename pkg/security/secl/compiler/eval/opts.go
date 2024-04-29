@@ -8,38 +8,41 @@ package eval
 
 // MacroStore represents a store of SECL Macros
 type MacroStore struct {
-	Macros map[MacroID]*Macro
+	macros []*Macro
 }
 
 // Add adds a macro
 func (s *MacroStore) Add(macro *Macro) *MacroStore {
-	if s.Macros == nil {
-		s.Macros = make(map[string]*Macro)
-	}
-	s.Macros[macro.ID] = macro
+	s.macros = append(s.macros, macro)
 	return s
 }
 
 // List lists macros
 func (s *MacroStore) List() []*Macro {
-	var macros []*Macro
-
-	if s == nil || s.Macros == nil {
-		return macros
+	if s == nil {
+		return nil
 	}
 
-	for _, macro := range s.Macros {
-		macros = append(macros, macro)
-	}
-	return macros
+	return s.macros
 }
 
 // Get returns the marcro
 func (s *MacroStore) Get(id string) *Macro {
-	if s == nil || s.Macros == nil {
+	if s == nil {
 		return nil
 	}
-	return s.Macros[id]
+
+	for _, m := range s.macros {
+		if m.ID == id {
+			return m
+		}
+	}
+	return nil
+}
+
+// Contains returns returns true is there is already a macro with this ID in the store
+func (s *MacroStore) Contains(id string) bool {
+	return s.Get(id) != nil
 }
 
 // VariableStore represents a store of SECL variables

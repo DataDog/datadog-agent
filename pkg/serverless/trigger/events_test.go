@@ -118,18 +118,22 @@ func TestGetEventType(t *testing.T) {
 	}
 
 	for testFile, expectedEventType := range testCases {
-		file, err := os.Open(fmt.Sprintf("%v/%v", testDir, testFile))
-		assert.NoError(t, err)
+		t.Run(testFile, func(t *testing.T) {
+			file, err := os.Open(fmt.Sprintf("%v/%v", testDir, testFile))
+			assert.NoError(t, err)
 
-		jsonData, err := io.ReadAll(file)
-		assert.NoError(t, err)
+			jsonData, err := io.ReadAll(file)
+			assert.NoError(t, err)
 
-		jsonPayload, err := Unmarshal(bytes.ToLower(jsonData))
-		assert.NoError(t, err)
+			jsonPayload, err := Unmarshal(bytes.ToLower(jsonData))
+			assert.NoError(t, err)
 
-		parsedEventType := GetEventType(jsonPayload)
+			parsedEventType := GetEventType(jsonPayload)
 
-		assert.Equal(t, expectedEventType, parsedEventType, fmt.Sprintf("%v\n", testFile))
+			assert.Equal(t, expectedEventType, parsedEventType)
+
+			lastEventChecker = unknownChecker // reset event check cache
+		})
 	}
 }
 

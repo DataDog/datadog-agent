@@ -45,17 +45,16 @@ type cliParams struct {
 func main() {
 	if len(os.Args) < 2 {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
-	} else {
+	}
 
-		cliParams := &cliParams{
-			args: os.Args[1:],
-		}
+	cliParams := &cliParams{
+		args: os.Args[1:],
+	}
 
-		err := fxutil.OneShot(run, fx.Supply(cliParams))
+	err := fxutil.OneShot(run, fx.Supply(cliParams))
 
-		if err != nil {
-			logger.Error(err)
-		}
+	if err != nil {
+		logger.Error(err)
 	}
 }
 

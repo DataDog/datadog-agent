@@ -15,9 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-shared-components
+// team: agent-metrics-logs
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	agentcrashdetectimpl.Module,
-)
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		agentcrashdetectimpl.Module())
+}

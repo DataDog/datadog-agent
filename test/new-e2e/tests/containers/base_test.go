@@ -57,12 +57,17 @@ type testMetricArgs struct {
 
 type testMetricFilterArgs struct {
 	Name string
+	// Tags are used to filter the metrics
+	// Regexes are supported
 	Tags []string
 }
 
 type testMetricExpectArgs struct {
-	Tags  *[]string
-	Value *testMetricExpectValueArgs
+	// Tags are the tags expected to be present
+	// Regexes are supported
+	Tags                 *[]string
+	Value                *testMetricExpectValueArgs
+	AcceptUnexpectedTags bool
 }
 
 type testMetricExpectValueArgs struct {
@@ -151,9 +156,13 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 				}
 			}()
 
+			regexTags := lo.Map(args.Filter.Tags, func(tag string, _ int) *regexp.Regexp {
+				return regexp.MustCompile(tag)
+			})
+
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				args.Filter.Name,
-				fakeintake.WithTags[*aggregator.MetricSeries](args.Filter.Tags),
+				fakeintake.WithMatchingTags[*aggregator.MetricSeries](regexTags),
 			)
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
@@ -166,7 +175,7 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				err := assertTags(metrics[len(metrics)-1].GetTags(), expectedTags)
+				err := assertTags(metrics[len(metrics)-1].GetTags(), expectedTags, args.Expect.AcceptUnexpectedTags)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyMetricQuery)
 			}
 
@@ -276,9 +285,13 @@ func (suite *baseSuite) testLog(args *testLogArgs) {
 				}
 			}()
 
+			regexTags := lo.Map(args.Filter.Tags, func(tag string, _ int) *regexp.Regexp {
+				return regexp.MustCompile(tag)
+			})
+
 			logs, err := suite.Fakeintake.FilterLogs(
 				args.Filter.Service,
-				fakeintake.WithTags[*aggregator.Log](args.Filter.Tags),
+				fakeintake.WithMatchingTags[*aggregator.Log](regexTags),
 			)
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
@@ -291,7 +304,7 @@ func (suite *baseSuite) testLog(args *testLogArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags)
+				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, false)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyLogQuery)
 			}
 

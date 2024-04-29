@@ -1,0 +1,38 @@
+{{- if .TransportWarnings }}
+  <div class="stat">
+    <span class="stat_title">Transport Proxy Warnings</span>
+    {{- if .NoProxyIgnoredWarningMap }}
+    <span class="stat_data">
+    The following hosts used a proxy - but will ignore the proxy in future Agent versions with the no_proxy setting.
+    Enable the new behavior now with no_proxy_nonexact_match: true
+      <span class="stat_data">
+      {{- range .NoProxyIgnoredWarningMap }}
+        {{ . }}<br>
+      {{- end }}
+      </span>
+    </span>
+    {{- end }}
+    {{- if .NoProxyUsedInFuture }}
+    <span class="stat_data">
+    The following hosts did not use a proxy - but will use the proxy in future Agent versions with the no_proxy setting.
+    Enable the new behavior now with no_proxy_nonexact_match: true
+      <span class="stat_data">
+      {{- range .NoProxyUsedInFuture }}
+        {{ . }}<br>
+      {{- end }}
+      </span>
+    </span>
+    {{- end }}
+    {{- if .NoProxyChanged }}
+    <span class="stat_data">
+    The following hosts' proxy behavior will change in a future Agent version. Please check the Agent logs for more details.
+    Enable the new behavior now with no_proxy_nonexact_match: true
+      <span class="stat_data">
+      {{- range .NoProxyChanged }}
+        {{ . }}<br>
+      {{- end }}
+      </span>
+    </span>
+    {{- end }}
+  </div>
+{{- end }}

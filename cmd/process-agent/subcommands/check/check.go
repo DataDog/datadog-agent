@@ -4,13 +4,14 @@
 // Copyright 2016-present Datadog, Inc.
 
 //nolint:revive // TODO(PROC) Fix revive linter
-package app
+package check
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -24,39 +25,43 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
-	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const defaultWaitInterval = time.Second
 
-type cliParams struct {
+type CliParams struct {
 	*command.GlobalParams
 	checkName       string
 	checkOutputJSON bool
 	waitInterval    time.Duration
 }
 
-type dependencies struct {
+type Dependencies struct {
 	fx.In
 
-	CliParams *cliParams
+	CliParams *CliParams
 
-	Config       config.Component
-	Syscfg       sysprobeconfig.Component
-	Log          log.Component
-	Hostinfo     hostinfo.Component
+	Config   config.Component
+	Syscfg   sysprobeconfig.Component
+	Log      log.Component
+	Hostinfo hostinfo.Component
+	// TODO: the tagger is used by the ContainerProvider, which is currently not a component so there is no direct
+	// dependency on it. The ContainerProvider needs to be componentized so it can be injected and have fx manage its
+	// lifecycle.
+	Tagger       tagger.Component
 	WorkloadMeta workloadmeta.Component
 	Checks       []types.CheckComponent `group:"check"`
 }
@@ -71,28 +76,39 @@ func nextGroupID() func() int32 {
 
 // Commands returns a slice of subcommands for the `check` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &cliParams{
+	checkAllowlist := []string{"process", "rtprocess", "container", "rtcontainer", "connections", "process_discovery", "process_events"}
+	return []*cobra.Command{MakeCommand(globalParams, "check", checkAllowlist)}
+}
+
+func MakeCommand(globalParams *command.GlobalParams, name string, allowlist []string) *cobra.Command {
+	cliParams := &CliParams{
 		GlobalParams: globalParams,
 	}
 
 	checkCmd := &cobra.Command{
-		Use:   "check",
-		Short: "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery, process_events",
+		Use:   name,
+		Short: "Run a specific check and print the results. Choose from: " + strings.Join(allowlist, ", "),
 
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.checkName = args[0]
 
+			if !slices.Contains(allowlist, cliParams.checkName) {
+				return fmt.Errorf("invalid check '%s'", cliParams.checkName)
+			}
+
 			bundleParams := command.GetCoreBundleParamsForOneShot(globalParams)
 
 			// Disable logging if `--json` is specified. This way the check command will output proper json.
 			if cliParams.checkOutputJSON {
-				bundleParams.LogParams = log.ForOneShot(string(command.LoggerName), "off", true)
+				bundleParams.LogParams = logimpl.ForOneShot(string(command.LoggerName), "off", true)
 			}
 
-			return fxutil.OneShot(runCheckCmd,
+			return fxutil.OneShot(RunCheckCmd,
 				fx.Supply(cliParams, bundleParams),
-				core.Bundle,
+				core.Bundle(),
+				// Provide workloadmeta module
+				workloadmeta.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
 				collectors.GetCatalog(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {
@@ -107,7 +123,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return workloadmeta.Params{AgentType: catalog}
 				}),
 
-				processComponent.Bundle,
+				// Provide tagger module
+				taggerimpl.Module(),
+				// Tagger must be initialized after agent config has been setup
+				fx.Provide(func(c config.Component) tagger.Params {
+					if c.GetBool("process_config.remote_tagger") {
+						return tagger.NewNodeRemoteTaggerParams()
+					}
+					return tagger.NewTaggerParams()
+				}),
+				processComponent.Bundle(),
 			)
 		},
 		SilenceUsage: true,
@@ -116,39 +141,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	checkCmd.Flags().BoolVar(&cliParams.checkOutputJSON, "json", false, "Output check results in JSON")
 	checkCmd.Flags().DurationVarP(&cliParams.waitInterval, "wait", "w", defaultWaitInterval, "How long to wait before running the check")
 
-	return []*cobra.Command{checkCmd}
+	return checkCmd
 }
 
-func runCheckCmd(deps dependencies) error {
+func RunCheckCmd(deps Dependencies) error {
 	command.SetHostMountEnv(deps.Log)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// Now that the logger is configured log host info
 	deps.Log.Infof("running on platform: %s", hostMetadataUtils.GetPlatformName())
 	agentVersion, _ := version.Agent()
 	deps.Log.Infof("running version: %s", agentVersion.GetNumberAndPre())
-
-	// Tagger must be initialized after agent config has been setup
-	// TODO: (Components) Add to dependencies once tagger is migrated to components
-	var t tagger.Tagger
-	if deps.Config.GetBool("process_config.remote_tagger") {
-		options, err := remote.NodeAgentOptions()
-		if err != nil {
-			_ = deps.Log.Errorf("unable to configure the remote tagger: %s", err)
-		} else {
-			t = remote.NewTagger(options)
-		}
-	} else {
-		t = local.NewTagger(deps.WorkloadMeta)
-	}
-
-	tagger.SetDefaultTagger(t)
-	err := tagger.Init(ctx)
-	if err != nil {
-		_ = deps.Log.Errorf("failed to start the tagger: %s", err)
-	}
-	defer tagger.Stop() //nolint:errcheck
 
 	cleanups := make([]func(), 0)
 	defer func() {
@@ -168,16 +170,16 @@ func runCheckCmd(deps dependencies) error {
 			MaxConnsPerMessage:   deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
 			SystemProbeAddress:   deps.Syscfg.SysProbeObject().SocketAddress,
 			ProcessModuleEnabled: processModuleEnabled,
-			GRPCServerEnabled:    deps.Syscfg.SysProbeObject().GRPCServerEnabled,
 		}
 
 		if !matchingCheck(deps.CliParams.checkName, ch) {
 			continue
 		}
 
-		if err = ch.Init(cfg, deps.Hostinfo.Object(), true); err != nil {
+		if err := ch.Init(cfg, deps.Hostinfo.Object(), true); err != nil {
 			return err
 		}
+
 		cleanups = append(cleanups, ch.Cleanup)
 		return runCheck(deps.Log, deps.CliParams, ch)
 	}
@@ -194,7 +196,7 @@ func matchingCheck(checkName string, ch checks.Check) bool {
 	return ch.Name() == checkName
 }
 
-func runCheck(log log.Component, cliParams *cliParams, ch checks.Check) error {
+func runCheck(log log.Component, cliParams *CliParams, ch checks.Check) error {
 	nextGroupID := nextGroupID()
 
 	options := &checks.RunOptions{

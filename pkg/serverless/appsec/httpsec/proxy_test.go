@@ -7,6 +7,7 @@ package httpsec_test
 
 import (
 	"bytes"
+	"context"
 	"math/rand"
 	"os"
 	"testing"
@@ -26,10 +27,12 @@ func init() {
 
 func TestProxyLifecycleProcessor(t *testing.T) {
 	t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
-	lp, err := appsec.New()
+	lp, shutdown, err := appsec.NewWithShutdown(nil)
 	if err != nil {
 		t.Skipf("appsec disabled: %v", err)
 	}
+	require.NotNil(t, shutdown)
+	defer func() { require.NoError(t, shutdown(context.Background())) }()
 	require.NotNil(t, lp)
 
 	execCtx := &executioncontext.ExecutionContext{}
@@ -110,6 +113,15 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 		require.Contains(t, span.Meta, "_dd.appsec.json")
 		require.Equal(t, int32(sampler.PriorityUserKeep), chunk.Priority)
 		require.Equal(t, 1.0, span.Metrics["_dd.appsec.enabled"])
+	})
+
+	t.Run("unsupported-event-type", func(t *testing.T) {
+		chunk := runAppSec("request", invocationlifecycle.InvocationStartDetails{
+			InvokeEventRawPayload: getEventFromFile("sqs.json"),
+			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		})
+		span := chunk.Spans[0]
+		require.Equal(t, 1.0, span.Metrics["_dd.appsec.unsupported_event_type"])
 	})
 }
 

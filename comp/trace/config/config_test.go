@@ -13,6 +13,7 @@ import (
 	"errors"
 	"html/template"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,11 +27,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+	"gopkg.in/yaml.v2"
 
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	//nolint:revive // TODO(APM) Fix revive linter
+
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,7 +43,7 @@ import (
 // TestParseReplaceRules tests the compileReplaceRules helper function.
 func TestParseRepaceRules(t *testing.T) {
 	assert := assert.New(t)
-	rules := []*config.ReplaceRule{
+	rules := []*traceconfig.ReplaceRule{
 		{Name: "http.url", Pattern: "(token/)([^/]*)", Repl: "${1}?"},
 		{Name: "http.url", Pattern: "guid", Repl: "[REDACTED]"},
 		{Name: "custom.tag", Pattern: "(/foo/bar/).*", Repl: "${1}extra"},
@@ -59,27 +61,27 @@ func TestParseRepaceRules(t *testing.T) {
 func TestSplitTag(t *testing.T) {
 	for _, tt := range []struct {
 		tag string
-		kv  *config.Tag
+		kv  *traceconfig.Tag
 	}{
 		{
 			tag: "",
-			kv:  &config.Tag{K: ""},
+			kv:  &traceconfig.Tag{K: ""},
 		},
 		{
 			tag: "key:value",
-			kv:  &config.Tag{K: "key", V: "value"},
+			kv:  &traceconfig.Tag{K: "key", V: "value"},
 		},
 		{
 			tag: "env:prod",
-			kv:  &config.Tag{K: "env", V: "prod"},
+			kv:  &traceconfig.Tag{K: "env", V: "prod"},
 		},
 		{
 			tag: "env:staging:east",
-			kv:  &config.Tag{K: "env", V: "staging:east"},
+			kv:  &traceconfig.Tag{K: "env", V: "staging:east"},
 		},
 		{
 			tag: "key",
-			kv:  &config.Tag{K: "key"},
+			kv:  &traceconfig.Tag{K: "key"},
 		},
 	} {
 		t.Run("", func(t *testing.T) {
@@ -91,27 +93,27 @@ func TestSplitTag(t *testing.T) {
 func TestSplitTagRegex(t *testing.T) {
 	for _, tt := range []struct {
 		tag string
-		kv  *config.TagRegex
+		kv  *traceconfig.TagRegex
 	}{
 		{
 			tag: "",
-			kv:  &config.TagRegex{K: ""},
+			kv:  &traceconfig.TagRegex{K: ""},
 		},
 		{
 			tag: "key:^value$",
-			kv:  &config.TagRegex{K: "key", V: regexp.MustCompile("^value$")},
+			kv:  &traceconfig.TagRegex{K: "key", V: regexp.MustCompile("^value$")},
 		},
 		{
 			tag: "env:^prod123$",
-			kv:  &config.TagRegex{K: "env", V: regexp.MustCompile("^prod123$")},
+			kv:  &traceconfig.TagRegex{K: "env", V: regexp.MustCompile("^prod123$")},
 		},
 		{
 			tag: "env:^staging:east.*$",
-			kv:  &config.TagRegex{K: "env", V: regexp.MustCompile("^staging:east.*$")},
+			kv:  &traceconfig.TagRegex{K: "env", V: regexp.MustCompile("^staging:east.*$")},
 		},
 		{
 			tag: "key",
-			kv:  &config.TagRegex{K: "key"},
+			kv:  &traceconfig.TagRegex{K: "key"},
 		},
 	} {
 		t.Run("normal", func(t *testing.T) {
@@ -120,7 +122,7 @@ func TestSplitTagRegex(t *testing.T) {
 	}
 	bad := struct {
 		tag string
-		kv  *config.Tag
+		kv  *traceconfig.Tag
 	}{
 
 		tag: "key:[value",
@@ -145,8 +147,8 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 
 	t.Run("default", func(t *testing.T) {
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
-			MockModule,
+			corecomp.MockModule(),
+			MockModule(),
 		))
 		// underlying config
 		cfg := config.Object()
@@ -164,9 +166,9 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		}
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{Overrides: overrides}),
-			MockModule,
+			MockModule(),
 		))
 		// underlying config
 		cfg := config.Object()
@@ -184,9 +186,9 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		}
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{Overrides: overrides}),
-			MockModule,
+			MockModule(),
 		))
 
 		// underlying config
@@ -205,9 +207,9 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		}
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{Overrides: overrides}),
-			MockModule,
+			MockModule(),
 		))
 		// underlying config
 		cfg := config.Object()
@@ -229,9 +231,9 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		}
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{Overrides: overrides}),
-			MockModule,
+			MockModule(),
 		))
 		// underlying config
 		cfg := config.Object()
@@ -258,9 +260,9 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		}
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{Overrides: overrides}),
-			MockModule,
+			MockModule(),
 		))
 		// underlying config
 		cfg := config.Object()
@@ -293,13 +295,13 @@ func TestConfigHostname(t *testing.T) {
 		}()
 
 		fxutil.TestStart(t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/site_override.yaml"},
 				SetupConfig: true,
 				Overrides:   overrides,
 			}),
-			MockModule,
+			MockModule(),
 		), func(t testing.TB, app *fx.App) {
 
 			require.NotNil(t, app)
@@ -325,12 +327,12 @@ func TestConfigHostname(t *testing.T) {
 		}
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/site_override.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -341,12 +343,12 @@ func TestConfigHostname(t *testing.T) {
 	t.Run("file", func(t *testing.T) {
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 
 		cfg := config.Object()
@@ -359,12 +361,12 @@ func TestConfigHostname(t *testing.T) {
 		t.Setenv("XXXX_HOSTNAME", "onlyenv")
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/site_override.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -376,12 +378,12 @@ func TestConfigHostname(t *testing.T) {
 		t.Setenv("XXXX_HOSTNAME", "envoverride")
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -395,13 +397,13 @@ func TestConfigHostname(t *testing.T) {
 		}
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/site_default.yaml"},
 				SetupConfig: true,
 				Overrides:   overrides,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -454,8 +456,8 @@ func TestConfigHostname(t *testing.T) {
 			defer os.Remove(bin)
 
 			config := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
-				MockModule,
+				corecomp.MockModule(),
+				MockModule(),
 			))
 			// underlying config
 			cfg := config.Object()
@@ -472,8 +474,8 @@ func TestConfigHostname(t *testing.T) {
 			defer os.Remove(bin)
 
 			config := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
-				MockModule,
+				corecomp.MockModule(),
+				MockModule(),
 			))
 			// underlying config
 			cfg := config.Object()
@@ -489,8 +491,8 @@ func TestConfigHostname(t *testing.T) {
 			defer os.Remove(bin)
 
 			config := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
-				MockModule,
+				corecomp.MockModule(),
+				MockModule(),
 			))
 
 			// underlying config
@@ -508,8 +510,8 @@ func TestConfigHostname(t *testing.T) {
 			defer os.Remove(bin)
 
 			config := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
-				MockModule,
+				corecomp.MockModule(),
+				MockModule(),
 			))
 			// underlying config
 			cfg := config.Object()
@@ -525,8 +527,8 @@ func TestConfigHostname(t *testing.T) {
 			defer os.Remove(bin)
 
 			config := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
-				MockModule,
+				corecomp.MockModule(),
+				MockModule(),
 			))
 			// underlying config
 			cfg := config.Object()
@@ -553,12 +555,12 @@ func TestSite(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 
 			config := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
+				corecomp.MockModule(),
 				fx.Replace(corecomp.MockParams{
 					Params:      corecomp.Params{ConfFilePath: tt.file},
 					SetupConfig: true,
 				}),
-				MockModule,
+				MockModule(),
 			))
 			cfg := config.Object()
 
@@ -571,8 +573,8 @@ func TestSite(t *testing.T) {
 func TestDefaultConfig(t *testing.T) {
 
 	config := fxutil.Test[Component](t, fx.Options(
-		corecomp.MockModule,
-		MockModule,
+		corecomp.MockModule(),
+		MockModule(),
 	))
 	cfg := config.Object()
 
@@ -594,12 +596,12 @@ func TestDefaultConfig(t *testing.T) {
 func TestNoAPMConfig(t *testing.T) {
 
 	config := fxutil.Test[Component](t, fx.Options(
-		corecomp.MockModule,
+		corecomp.MockModule(),
 		fx.Replace(corecomp.MockParams{
 			Params:      corecomp.Params{ConfFilePath: "./testdata/no_apm_config.yaml"},
 			SetupConfig: true,
 		}),
-		MockModule,
+		MockModule(),
 	))
 	cfg := config.Object()
 
@@ -614,12 +616,12 @@ func TestNoAPMConfig(t *testing.T) {
 func TestDisableLoggingConfig(t *testing.T) {
 
 	config := fxutil.Test[Component](t, fx.Options(
-		corecomp.MockModule,
+		corecomp.MockModule(),
 		fx.Replace(corecomp.MockParams{
 			Params:      corecomp.Params{ConfFilePath: "./testdata/disable_file_logging.yaml"},
 			SetupConfig: true,
 		}),
-		MockModule,
+		MockModule(),
 	))
 	cfg := config.Object()
 
@@ -631,12 +633,12 @@ func TestDisableLoggingConfig(t *testing.T) {
 func TestFullYamlConfig(t *testing.T) {
 
 	config := fxutil.Test[Component](t, fx.Options(
-		corecomp.MockModule,
+		corecomp.MockModule(),
 		fx.Replace(corecomp.MockParams{
 			Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 			SetupConfig: true,
 		}),
-		MockModule,
+		MockModule(),
 	))
 	cfg := config.Object()
 
@@ -664,7 +666,6 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal(t, 0.5, cfg.MaxCPU)
 	assert.EqualValues(t, 123.4, cfg.MaxMemory)
 	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
-	assert.True(t, cfg.LogThrottling)
 	assert.True(t, cfg.OTLPReceiver.SpanNameAsResourceName)
 	assert.Equal(t, map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, cfg.OTLPReceiver.SpanNameRemappings)
 
@@ -739,12 +740,12 @@ func TestFullYamlConfig(t *testing.T) {
 func TestFileLoggingDisabled(t *testing.T) {
 
 	config := fxutil.Test[Component](t, fx.Options(
-		corecomp.MockModule,
+		corecomp.MockModule(),
 		fx.Replace(corecomp.MockParams{
 			Params:      corecomp.Params{ConfFilePath: "./testdata/disable_file_logging.yaml"},
 			SetupConfig: true,
 		}),
-		MockModule,
+		MockModule(),
 	))
 	cfg := config.Object()
 
@@ -755,12 +756,12 @@ func TestFileLoggingDisabled(t *testing.T) {
 func TestUndocumentedYamlConfig(t *testing.T) {
 
 	config := fxutil.Test[Component](t, fx.Options(
-		corecomp.MockModule,
+		corecomp.MockModule(),
 		fx.Replace(corecomp.MockParams{
 			Params:      corecomp.Params{ConfFilePath: "./testdata/undocumented.yaml"},
 			SetupConfig: true,
 		}),
-		MockModule,
+		MockModule(),
 	))
 	cfg := config.Object()
 
@@ -801,7 +802,7 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 }
 
 func TestAcquireHostnameFallback(t *testing.T) {
-	c := config.New()
+	c := traceconfig.New()
 	err := acquireHostnameFallback(c)
 	assert.Nil(t, err)
 	host, _ := os.Hostname()
@@ -819,12 +820,12 @@ func TestNormalizeEnvFromDDEnv(t *testing.T) {
 			t.Setenv("XXXX_ENV", in)
 
 			config := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
+				corecomp.MockModule(),
 				fx.Replace(corecomp.MockParams{
 					Params:      corecomp.Params{ConfFilePath: "./testdata/no_apm_config.yaml"},
 					SetupConfig: true,
 				}),
-				MockModule,
+				MockModule(),
 			))
 			cfg := config.Object()
 
@@ -847,12 +848,12 @@ func TestNormalizeEnvFromDDTags(t *testing.T) {
 			t.Setenv("XXXX_TAGS", in)
 
 			config := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
+				corecomp.MockModule(),
 				fx.Replace(corecomp.MockParams{
 					Params:      corecomp.Params{ConfFilePath: "./testdata/no_apm_config.yaml"},
 					SetupConfig: true,
 				}),
-				MockModule,
+				MockModule(),
 			))
 			cfg := config.Object()
 
@@ -876,12 +877,12 @@ func TestNormalizeEnvFromConfig(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 
 			config := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
+				corecomp.MockModule(),
 				fx.Replace(corecomp.MockParams{
 					Params:      corecomp.Params{ConfFilePath: cfgFile},
 					SetupConfig: true,
 				}),
-				MockModule,
+				MockModule(),
 			))
 
 			cfg := config.Object()
@@ -909,12 +910,12 @@ func TestLoadEnv(t *testing.T) {
 			t.Setenv(tt.envNew, "4,5,6")
 
 			config := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
+				corecomp.MockModule(),
 				fx.Replace(corecomp.MockParams{
 					Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 					SetupConfig: true,
 				}),
-				MockModule,
+				MockModule(),
 			))
 
 			cfg := config.Object()
@@ -933,12 +934,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "123")
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -952,12 +953,12 @@ func TestLoadEnv(t *testing.T) {
 		defer os.Unsetenv(env)
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/site_default.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -969,12 +970,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -986,12 +987,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-site.com")
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -1003,12 +1004,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-proxy.url")
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -1020,12 +1021,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-proxy.url")
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -1037,12 +1038,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "local.host")
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -1054,12 +1055,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "bindhost.com")
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -1075,12 +1076,12 @@ func TestLoadEnv(t *testing.T) {
 			t.Setenv(envKey, "1234")
 
 			config := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
+				corecomp.MockModule(),
 				fx.Replace(corecomp.MockParams{
 					Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 					SetupConfig: true,
 				}),
-				MockModule,
+				MockModule(),
 			))
 			cfg := config.Object()
 
@@ -1094,12 +1095,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "4321")
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -1112,12 +1113,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "true")
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/undocumented.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -1130,12 +1131,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "12.3")
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/undocumented.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -1151,12 +1152,12 @@ func TestLoadEnv(t *testing.T) {
 			t.Setenv(envKey, "1,2,3")
 
 			config := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
+				corecomp.MockModule(),
 				fx.Replace(corecomp.MockParams{
 					Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 					SetupConfig: true,
 				}),
-				MockModule,
+				MockModule(),
 			))
 			cfg := config.Object()
 
@@ -1171,12 +1172,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "web|http.request=1,db|sql.query=0.5")
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 
 		cfg := config.Object()
@@ -1193,29 +1194,29 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `[{"name":"name1", "pattern":"pattern1"}, {"name":"name2","pattern":"pattern2","repl":"replace2"}]`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		rule1 := &config.ReplaceRule{
+		rule1 := &traceconfig.ReplaceRule{
 			Name:    "name1",
 			Pattern: "pattern1",
 			Repl:    "",
 		}
-		rule2 := &config.ReplaceRule{
+		rule2 := &traceconfig.ReplaceRule{
 			Name:    "name2",
 			Pattern: "pattern2",
 			Repl:    "replace2",
 		}
-		compileReplaceRules([]*config.ReplaceRule{rule1, rule2})
+		compileReplaceRules([]*traceconfig.ReplaceRule{rule1, rule2})
 		assert.Contains(t, cfg.ReplaceTags, rule1)
 		assert.Contains(t, cfg.ReplaceTags, rule2)
 	})
@@ -1225,37 +1226,37 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `important1 important2:value1`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1"}, {K: "important2", V: "value1"}})
+		assert.Equal(t, cfg.RequireTags, []*traceconfig.Tag{{K: "important1"}, {K: "important2", V: "value1"}})
 	})
 
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["important1:value with a space"]`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1", V: "value with a space"}})
+		assert.Equal(t, cfg.RequireTags, []*traceconfig.Tag{{K: "important1", V: "value with a space"}})
 	})
 
 	env = "DD_APM_FILTER_TAGS_REGEX_REQUIRE"
@@ -1263,38 +1264,38 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `important1 important2:^value1$`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RequireTagsRegex, []*config.TagRegex{{K: "important1"}, {K: "important2", V: regexp.MustCompile("^value1$")}})
+		assert.Equal(t, cfg.RequireTagsRegex, []*traceconfig.TagRegex{{K: "important1"}, {K: "important2", V: regexp.MustCompile("^value1$")}})
 	})
 
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["important1:^value with a space$"]`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RequireTagsRegex, []*config.TagRegex{{K: "important1", V: regexp.MustCompile("^value with a space$")}})
+		assert.Equal(t, cfg.RequireTagsRegex, []*traceconfig.TagRegex{{K: "important1", V: regexp.MustCompile("^value with a space$")}})
 	})
 
 	env = "DD_APM_FILTER_TAGS_REJECT"
@@ -1302,54 +1303,54 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `bad1:value1`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value1"}})
+		assert.Equal(t, cfg.RejectTags, []*traceconfig.Tag{{K: "bad1", V: "value1"}})
 	})
 
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["bad1:value with a space"]`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value with a space"}})
+		assert.Equal(t, cfg.RejectTags, []*traceconfig.Tag{{K: "bad1", V: "value with a space"}})
 	})
 
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["bad1:value with a space","bad2:value with spaces"]`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RejectTags, []*config.Tag{
+		assert.Equal(t, cfg.RejectTags, []*traceconfig.Tag{
 			{K: "bad1", V: "value with a space"},
 			{K: "bad2", V: "value with spaces"},
 		})
@@ -1359,35 +1360,35 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `bad1:^value1$`)
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RejectTagsRegex, []*config.TagRegex{{K: "bad1", V: regexp.MustCompile("^value1$")}})
+		assert.Equal(t, cfg.RejectTagsRegex, []*traceconfig.TagRegex{{K: "bad1", V: regexp.MustCompile("^value1$")}})
 	})
 
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["bad1:value with a space"]`)
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RejectTagsRegex, []*config.TagRegex{{K: "bad1", V: regexp.MustCompile("value with a space")}})
+		assert.Equal(t, cfg.RejectTagsRegex, []*traceconfig.TagRegex{{K: "bad1", V: regexp.MustCompile("value with a space")}})
 	})
 
 	for _, envKey := range []string{
@@ -1398,12 +1399,12 @@ func TestLoadEnv(t *testing.T) {
 			t.Setenv(envKey, "50")
 
 			c := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
+				corecomp.MockModule(),
 				fx.Replace(corecomp.MockParams{
 					Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 					SetupConfig: true,
 				}),
-				MockModule,
+				MockModule(),
 			))
 			cfg := c.Object()
 
@@ -1420,12 +1421,12 @@ func TestLoadEnv(t *testing.T) {
 			t.Setenv(envKey, "6")
 
 			c := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
+				corecomp.MockModule(),
 				fx.Replace(corecomp.MockParams{
 					Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 					SetupConfig: true,
 				}),
-				MockModule,
+				MockModule(),
 			))
 			cfg := c.Object()
 
@@ -1441,12 +1442,12 @@ func TestLoadEnv(t *testing.T) {
 			t.Setenv(envKey, "12")
 
 			c := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
+				corecomp.MockModule(),
 				fx.Replace(corecomp.MockParams{
 					Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 					SetupConfig: true,
 				}),
-				MockModule,
+				MockModule(),
 			))
 			cfg := c.Object()
 
@@ -1462,12 +1463,12 @@ func TestLoadEnv(t *testing.T) {
 			t.Setenv(envKey, "true")
 
 			c := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
+				corecomp.MockModule(),
 				fx.Replace(corecomp.MockParams{
 					Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 					SetupConfig: true,
 				}),
-				MockModule,
+				MockModule(),
 			))
 			cfg := c.Object()
 
@@ -1483,12 +1484,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Run(envKey, func(t *testing.T) {
 			t.Setenv(envKey, "7")
 			c := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
+				corecomp.MockModule(),
 				fx.Replace(corecomp.MockParams{
 					Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 					SetupConfig: true,
 				}),
-				MockModule,
+				MockModule(),
 			))
 			cfg := c.Object()
 
@@ -1502,12 +1503,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "337.41")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1520,20 +1521,20 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Contains(t, cfg.Endpoints, &config.Endpoint{APIKey: "key1", Host: "url1"})
-		assert.Contains(t, cfg.Endpoints, &config.Endpoint{APIKey: "key2", Host: "url1"})
-		assert.Contains(t, cfg.Endpoints, &config.Endpoint{APIKey: "key3", Host: "url2"})
+		assert.Contains(t, cfg.Endpoints, &traceconfig.Endpoint{APIKey: "key1", Host: "url1"})
+		assert.Contains(t, cfg.Endpoints, &traceconfig.Endpoint{APIKey: "key2", Host: "url1"})
+		assert.Contains(t, cfg.Endpoints, &traceconfig.Endpoint{APIKey: "key3", Host: "url2"})
 	})
 
 	env = "DD_APM_PROFILING_DD_URL"
@@ -1541,12 +1542,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "my-site.com")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1560,12 +1561,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "my-site.com")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1579,12 +1580,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "my-key")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1598,12 +1599,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1619,17 +1620,81 @@ func TestLoadEnv(t *testing.T) {
 		}
 	})
 
+	env = "DD_APM_DEBUGGER_DIAGNOSTICS_DD_URL"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "my-diagnostics-site.com")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule(),
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+
+		assert.Equal(t, "my-diagnostics-site.com", coreconfig.Datadog.GetString("apm_config.debugger_diagnostics_dd_url"))
+	})
+
+	env = "DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "my-diagnostics-key")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule(),
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+
+		assert.Equal(t, "my-diagnostics-key", coreconfig.Datadog.GetString("apm_config.debugger_diagnostics_api_key"))
+	})
+
+	env = "DD_APM_DEBUGGER_DIAGNOSTICS_ADDITIONAL_ENDPOINTS"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `{"diagnostics-url1": ["diagnostics-key1", "diagnostics-key2"], "diagnostics-url2": ["diagnostics-key3"]}`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule(),
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		expected := map[string][]string{
+			"diagnostics-url1": {"diagnostics-key1", "diagnostics-key2"},
+			"diagnostics-url2": {"diagnostics-key3"},
+		}
+
+		actual := coreconfig.Datadog.GetStringMapStringSlice("apm_config.debugger_diagnostics_additional_endpoints")
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
+		}
+	})
+
 	env = "DD_APM_SYMDB_DD_URL"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-site.com")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1642,12 +1707,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "my-key")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1660,12 +1725,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1686,12 +1751,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "false")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1706,12 +1771,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "false")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1724,12 +1789,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "true")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1743,12 +1808,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `["client_id", "product_id"]`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1765,12 +1830,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `["key1", "key2"]`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1787,12 +1852,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "true")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1806,12 +1871,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "true")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1825,12 +1890,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "true")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1844,12 +1909,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "true")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1865,12 +1930,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "true")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1884,12 +1949,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `["document_id", "template_id"]`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1906,12 +1971,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `["key1", "key2"]`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1928,12 +1993,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "true")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1947,12 +2012,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "true")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1966,12 +2031,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "true")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -1985,12 +2050,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "true")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -2004,12 +2069,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `["id1", "id2"]`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -2026,12 +2091,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `["key1", "key2"]`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -2048,12 +2113,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, "true")
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -2067,12 +2132,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `["id1", "id2"]`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -2089,12 +2154,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `["key1", "key2"]`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -2111,12 +2176,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 
@@ -2137,12 +2202,12 @@ func TestLoadEnv(t *testing.T) {
 		assert := func(in string, expected []string) {
 			t.Setenv(env, in)
 			c := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
+				corecomp.MockModule(),
 				fx.Replace(corecomp.MockParams{
 					Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 					SetupConfig: true,
 				}),
-				MockModule,
+				MockModule(),
 			))
 			cfg := c.Object()
 
@@ -2168,12 +2233,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `install_id_foo_bar`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 		assert.NotNil(t, cfg)
@@ -2187,12 +2252,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `host_injection`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 		assert.NotNil(t, cfg)
@@ -2206,12 +2271,12 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `1699621675`)
 
 		c := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 				SetupConfig: true,
 			}),
-			MockModule,
+			MockModule(),
 		))
 		cfg := c.Object()
 		assert.NotNil(t, cfg)
@@ -2224,32 +2289,32 @@ func TestLoadEnv(t *testing.T) {
 func TestFargateConfig(t *testing.T) {
 	type testData struct {
 		features             []coreconfig.Feature
-		expectedOrchestrator config.FargateOrchestratorName
+		expectedOrchestrator traceconfig.FargateOrchestratorName
 	}
 	for _, data := range []testData{
 		{
 			features:             []coreconfig.Feature{coreconfig.ECSFargate},
-			expectedOrchestrator: config.OrchestratorECS,
+			expectedOrchestrator: traceconfig.OrchestratorECS,
 		},
 		{
 			features:             []coreconfig.Feature{coreconfig.EKSFargate},
-			expectedOrchestrator: config.OrchestratorEKS,
+			expectedOrchestrator: traceconfig.OrchestratorEKS,
 		},
 		{
 			features:             []coreconfig.Feature{},
-			expectedOrchestrator: config.OrchestratorUnknown,
+			expectedOrchestrator: traceconfig.OrchestratorUnknown,
 		},
 	} {
 		t.Run("", func(t *testing.T) {
 
 			c := fxutil.Test[Component](t, fx.Options(
-				corecomp.MockModule,
+				corecomp.MockModule(),
 				fx.Replace(corecomp.MockParams{
 					Params:      corecomp.Params{ConfFilePath: "./testdata/no_apm_config.yaml"},
 					Features:    data.features,
 					SetupConfig: true,
 				}),
-				MockModule,
+				MockModule(),
 			))
 
 			cfg := c.Object()
@@ -2264,8 +2329,8 @@ func TestSetMaxMemCPU(t *testing.T) {
 	t.Run("default, non-containerized", func(t *testing.T) {
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
-			MockModule,
+			corecomp.MockModule(),
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -2279,8 +2344,8 @@ func TestSetMaxMemCPU(t *testing.T) {
 	t.Run("default, containerized", func(t *testing.T) {
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
-			MockModule,
+			corecomp.MockModule(),
+			MockModule(),
 		))
 		cfg := config.Object()
 
@@ -2299,9 +2364,9 @@ func TestSetMaxMemCPU(t *testing.T) {
 		}
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{Overrides: overrides}),
-			MockModule,
+			MockModule(),
 		))
 		// underlying config
 		cfg := config.Object()
@@ -2320,9 +2385,9 @@ func TestSetMaxMemCPU(t *testing.T) {
 		}
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{Overrides: overrides}),
-			MockModule,
+			MockModule(),
 		))
 		// underlying config
 		cfg := config.Object()
@@ -2334,42 +2399,11 @@ func TestSetMaxMemCPU(t *testing.T) {
 	})
 }
 
-func TestPeerServiceAggregation(t *testing.T) {
-	t.Run("disabled", func(t *testing.T) {
-		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
-			MockModule,
-		))
-		// underlying config
-		cfg := config.Object()
-
-		require.NotNil(t, cfg)
-		assert.False(t, cfg.PeerServiceAggregation)
-	})
-
-	t.Run("enabled", func(t *testing.T) {
-		overrides := map[string]interface{}{
-			"apm_config.peer_service_aggregation": true,
-		}
-
-		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
-			fx.Replace(corecomp.MockParams{Overrides: overrides}),
-			MockModule,
-		))
-		// underlying config
-		cfg := config.Object()
-
-		require.NotNil(t, cfg)
-		assert.True(t, cfg.PeerServiceAggregation)
-	})
-}
-
 func TestComputeStatsBySpanKind(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
-			MockModule,
+			corecomp.MockModule(),
+			MockModule(),
 		))
 		// underlying config
 		cfg := config.Object()
@@ -2384,9 +2418,9 @@ func TestComputeStatsBySpanKind(t *testing.T) {
 		}
 
 		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule,
+			corecomp.MockModule(),
 			fx.Replace(corecomp.MockParams{Overrides: overrides}),
-			MockModule,
+			MockModule(),
 		))
 		// underlying config
 		cfg := config.Object()
@@ -2408,12 +2442,12 @@ func TestGenerateInstallSignature(t *testing.T) {
 	assert.NoError(t, err)
 
 	c := fxutil.Test[Component](t, fx.Options(
-		corecomp.MockModule,
+		corecomp.MockModule(),
 		fx.Replace(corecomp.MockParams{
 			Params:      corecomp.Params{ConfFilePath: cfgFile},
 			SetupConfig: true,
 		}),
-		MockModule,
+		MockModule(),
 	))
 	cfg := c.Object()
 	assert.NotNil(t, cfg)
@@ -2429,7 +2463,7 @@ func TestGenerateInstallSignature(t *testing.T) {
 	installFileContent, err := os.ReadFile(installFilePath)
 	assert.NoError(t, err)
 
-	fileSignature := config.InstallSignatureConfig{}
+	fileSignature := traceconfig.InstallSignatureConfig{}
 	err = json.Unmarshal(installFileContent, &fileSignature)
 	assert.NoError(t, err)
 
@@ -2439,23 +2473,19 @@ func TestGenerateInstallSignature(t *testing.T) {
 }
 
 func TestMockConfig(t *testing.T) {
-	os.Setenv("DD_HOSTNAME", "foo")
-	defer func() { os.Unsetenv("DD_HOSTNAME") }()
-
 	os.Setenv("DD_SITE", "datadoghq.eu")
 	defer func() { os.Unsetenv("DD_SITE") }()
 
 	config := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(corecomp.Params{}),
-		corecomp.MockModule,
-		MockModule,
+		corecomp.MockModule(),
+		MockModule(),
 	))
 	// underlying config
 	cfg := config.Object()
 	require.NotNil(t, cfg)
 
 	// values aren't set from env..
-	assert.NotEqual(t, "foo", cfg.Hostname)
 	assert.NotEqual(t, "datadoghq.eu", cfg.Site)
 
 	// but defaults are set
@@ -2465,4 +2495,45 @@ func TestMockConfig(t *testing.T) {
 	// but can be set by the mock
 	// config.(Mock).Set("app_key", "newvalue")
 	// require.Equal(t, "newvalue", config.GetString("app_key"))
+}
+
+func TestGetCoreConfigHandler(t *testing.T) {
+	config := fxutil.Test[Component](t, fx.Options(
+		fx.Supply(corecomp.Params{}),
+		corecomp.MockModule(),
+		MockModule(),
+	))
+
+	handler := config.GetConfigHandler().(http.HandlerFunc)
+
+	// Refuse non Get query
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/config", nil)
+	handler(resp, req)
+	assert.Equal(t, http.StatusMethodNotAllowed, resp.Code)
+
+	// Refuse missing auth token
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/config", nil)
+	handler(resp, req)
+	assert.Equal(t, http.StatusUnauthorized, resp.Code)
+
+	// Refuse invalid auth token
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/config", nil)
+	req.Header.Set("Authorization", "Bearer ABCDE")
+	handler(resp, req)
+	assert.Equal(t, http.StatusForbidden, resp.Code)
+
+	// Accept valid auth token and returning a valid YAML conf
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/config", nil)
+	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+	handler(resp, req)
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	conf := map[string]interface{}{}
+	err := yaml.Unmarshal(resp.Body.Bytes(), &conf)
+	assert.NoError(t, err, "Error loading YAML configuration from the API")
+	assert.Contains(t, conf, "apm_config")
 }

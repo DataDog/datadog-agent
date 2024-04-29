@@ -6,13 +6,11 @@
 // Package api implements the "api" bundle,
 package api
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-)
+import "github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 // team: agent-shared-components
 
 // TODO(components): empty bundle for the linter. Might be removed later
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle()
+func Bundle() fxutil.BundleOptions { return fxutil.Bundle() }

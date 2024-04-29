@@ -17,12 +17,13 @@ func _() {
 	_ = x[FileOpenError-6]
 	_ = x[EventTypeNotConfigured-7]
 	_ = x[HashWasRateLimited-8]
-	_ = x[MaxHashState-9]
+	_ = x[HashFailed-9]
+	_ = x[MaxHashState-10]
 }
 
-const _HashState_name = "NoHashDoneFileNotFoundPathnameResolutionErrorFileTooBigFileEmptyFileOpenErrorEventTypeNotConfiguredHashWasRateLimitedMaxHashState"
+const _HashState_name = "NoHashDoneFileNotFoundPathnameResolutionErrorFileTooBigFileEmptyFileOpenErrorEventTypeNotConfiguredHashWasRateLimitedHashFailedMaxHashState"
 
-var _HashState_index = [...]uint8{0, 6, 10, 22, 45, 55, 64, 77, 99, 117, 129}
+var _HashState_index = [...]uint8{0, 6, 10, 22, 45, 55, 64, 77, 99, 117, 127, 139}
 
 func (i HashState) String() string {
 	if i < 0 || i >= HashState(len(_HashState_index)-1) {

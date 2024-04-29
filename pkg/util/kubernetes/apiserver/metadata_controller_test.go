@@ -450,7 +450,7 @@ func TestMetadataController(t *testing.T) {
 		return true
 	})
 
-	cl := &APIClient{Cl: client, timeoutSeconds: 5}
+	cl := &APIClient{Cl: client, defaultClientTimeout: 5}
 
 	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
 		fullmapper, errList := GetMetadataMapBundleOnAllNodes(cl)
@@ -465,7 +465,6 @@ func TestMetadataController(t *testing.T) {
 		assert.Contains(t, services, "nginx-1")
 		return true
 	})
-
 }
 
 func newFakeMetadataController(client kubernetes.Interface) (*MetadataController, informers.SharedInformerFactory) {

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
@@ -152,7 +153,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, "aes", config.PrivProtocol)
 	assert.Equal(t, "my-privKey", config.PrivKey)
 	assert.Equal(t, "my-contextName", config.ContextName)
-	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}, config.GetStaticTags())
 	expectedMetrics := []profiledefinition.MetricsConfig{
 		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "ifNumber"}},
 		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifNumber2"}, MetricTags: profiledefinition.MetricTagConfigList{
@@ -307,7 +308,7 @@ profiles:
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"device_namespace:default", "snmp_device:172.26.0.2"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:172.26.0.2", "device_ip:172.26.0.2", "device_id:default:172.26.0.2"}, config.GetStaticTags())
 	metrics := []profiledefinition.MetricsConfig{
 		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
 		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.7.1.0", Name: "IAmACounter32"}},
@@ -357,7 +358,7 @@ profiles:
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}, config.GetStaticTags())
 	metrics := []profiledefinition.MetricsConfig{
 		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
 		{MIB: "MY-PROFILE-MIB", Symbol: profiledefinition.SymbolConfig{OID: "1.4.5", Name: "myMetric"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
@@ -904,14 +905,14 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			profiles:        mockProfilesWithPatternError,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.5.11",
 			expectedProfile: "",
-			expectedError:   "failed to get most specific profile for sysObjectID `1.3.6.1.4.1.3375.2.1.3.4.5.11`, for matched oids [1.3.6.1.4.1.3375.2.1.3.***.*]: error parsing part `***` for pattern `1.3.6.1.4.1.3375.2.1.3.***.*`: strconv.Atoi: parsing \"***\": invalid syntax",
+			expectedError:   "failed to get most specific profile for sysObjectID \"1.3.6.1.4.1.3375.2.1.3.4.5.11\", for matched oids [1.3.6.1.4.1.3375.2.1.3.***.*]: error parsing part `***` for pattern `1.3.6.1.4.1.3375.2.1.3.***.*`: strconv.Atoi: parsing \"***\": invalid syntax",
 		},
 		{
 			name:            "invalid pattern", // profiles with invalid patterns are skipped, leading to: cannot get most specific oid from empty list of oids
 			profiles:        mockProfilesWithInvalidPatternError,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.5.11",
 			expectedProfile: "",
-			expectedError:   "failed to get most specific profile for sysObjectID `1.3.6.1.4.1.3375.2.1.3.4.5.11`, for matched oids []: cannot get most specific oid from empty list of oids",
+			expectedError:   "failed to get most specific profile for sysObjectID \"1.3.6.1.4.1.3375.2.1.3.4.5.11\", for matched oids []: cannot get most specific oid from empty list of oids",
 		},
 		{
 			name:            "duplicate sysobjectid",
@@ -1023,7 +1024,7 @@ community_string: abc
 `)
 	config, err := NewCheckConfig(rawInstanceConfig, []byte(``))
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}, config.GetStaticTags())
 
 	// language=yaml
 	rawInstanceConfigWithExtraTags := []byte(`
@@ -1033,7 +1034,7 @@ extra_tags: "extratag1:val1,extratag2:val2"
 `)
 	config, err = NewCheckConfig(rawInstanceConfigWithExtraTags, []byte(``))
 	assert.Nil(t, err)
-	assert.ElementsMatch(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
+	assert.ElementsMatch(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
 }
 
 func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
@@ -1935,6 +1936,127 @@ interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"o
 	}
 }
 
+func Test_buildConfig_PingConfig(t *testing.T) {
+	tests := []struct {
+		name                string
+		rawInstanceConfig   []byte
+		rawInitConfig       []byte
+		expectedPingEnabled bool
+		expectedPingConfig  pinger.Config
+		expectedErr         string
+	}{
+		{
+			name: "ping config as instance level yaml",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+ping:
+  enabled: true
+  linux:
+    use_raw_socket: true
+  timeout: 6
+  interval: 5
+  count: 4
+`),
+			// language=yaml
+			rawInitConfig:       []byte(``),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      6 * time.Millisecond,
+				Interval:     5 * time.Millisecond,
+				Count:        4,
+			},
+		},
+		{
+			name: "ping config as init config level yaml",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+ping:
+  enabled: true
+  linux:
+    use_raw_socket: true
+  timeout: 8
+  interval: 7
+  count: 2
+`),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      8 * time.Millisecond,
+				Interval:     7 * time.Millisecond,
+				Count:        2,
+			},
+		},
+		{
+			name: "ping config as instance level json string",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+ping: '{"linux":{"use_raw_socket":true},"enabled":true,"interval":443,"timeout":369,"count":679}'
+`),
+			// language=yaml
+			rawInitConfig:       []byte(``),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      369 * time.Millisecond,
+				Interval:     443 * time.Millisecond,
+				Count:        679,
+			},
+		},
+		{
+			name: "ping config as init level json string",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+ping: '{"linux":{"use_raw_socket":true},"enabled":true,"interval":344,"timeout":963,"count":976}'
+`),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      963 * time.Millisecond,
+				Interval:     344 * time.Millisecond,
+				Count:        976,
+			},
+		},
+		{
+			name: "no ping config passed",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+`),
+			// language=yaml
+			rawInitConfig:       []byte(``),
+			expectedPingEnabled: false,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: false,
+				Interval:     DefaultPingInterval,
+				Timeout:      DefaultPingTimeout,
+				Count:        DefaultPingCount,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig)
+			if tt.expectedErr != "" {
+				assert.EqualError(t, err, tt.expectedErr)
+			} else {
+				assert.Equal(t, tt.expectedPingEnabled, config.PingEnabled)
+				assert.Equal(t, tt.expectedPingConfig, config.PingConfig)
+			}
+		})
+	}
+}
+
 func TestCheckConfig_DiscoveryDigest(t *testing.T) {
 	baseCaseHash := DeviceDigest("a1d0f0237ee2fe8f")
 	tests := []struct {
@@ -2285,6 +2407,7 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 			expectedTags: []string{
 				"device_namespace:default",
 				"snmp_device:1.2.3.4",
+				"device_ip:1.2.3.4",
 			},
 		},
 		{
@@ -2302,6 +2425,7 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 				"extra_tag2:val2",
 				"device_namespace:default",
 				"snmp_device:1.2.3.4",
+				"device_ip:1.2.3.4",
 			},
 		},
 		{
@@ -2314,7 +2438,22 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 			expectedTags: []string{
 				"device_namespace:default",
 				"snmp_device:1.2.3.4",
+				"device_ip:1.2.3.4",
 				"agent_host:my-hostname",
+			},
+		},
+		{
+			name: "Device ID",
+			config: CheckConfig{
+				DeviceID:  "default:1.2.3.4",
+				Namespace: "default",
+				IPAddress: "1.2.3.4",
+			},
+			expectedTags: []string{
+				"device_id:default:1.2.3.4",
+				"device_namespace:default",
+				"snmp_device:1.2.3.4",
+				"device_ip:1.2.3.4",
 			},
 		},
 	}

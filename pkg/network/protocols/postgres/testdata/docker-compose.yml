@@ -1,5 +1,5 @@
 version: '3.1'
-
+name: postgres
 services:
   postgres:
    image: postgres:15-alpine
@@ -10,9 +10,3 @@ services:
      POSTGRES_USER: admin
      POSTGRES_PASSWORD: password
      POSTGRES_DB: testdb
-   networks:
-     - postgres
-
-networks:
-  postgres:
-    driver: bridge

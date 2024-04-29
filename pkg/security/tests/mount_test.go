@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -29,6 +29,8 @@ import (
 )
 
 func TestMount(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	dstMntBasename := "test-dest-mount"
 
 	ruleDefs := []*rules.RuleDefinition{{
@@ -131,7 +133,7 @@ func TestMount(t *testing.T) {
 				return false
 			}
 
-			return assert.Equal(t, mntID, event.Umount.MountID, "wrong mount id")
+			return ebpfLessEnabled || assert.Equal(t, mntID, event.Umount.MountID, "wrong mount id")
 		}, 3*time.Second, model.FileUmountEventType)
 		if err != nil {
 			t.Error(err)
@@ -149,6 +151,8 @@ func TestMount(t *testing.T) {
 }
 
 func TestMountPropagated(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// - testroot
 	// 		/ dir1
 	// 			/ test-drive (xfs mount)
@@ -158,7 +162,7 @@ func TestMountPropagated(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`chmod.file.path == "{{.Root}}/dir1-bind-mounted/test-drive/test-file"`),
+		Expression: `chmod.file.path == "{{.Root}}/dir1-bind-mounted/test-drive/test-file"`,
 	}}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -243,6 +247,8 @@ func TestMountPropagated(t *testing.T) {
 }
 
 func TestMountSnapshot(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	//      / testDrive
 	//        / rootA
 	//          / tmpfs-mount (tmpfs)
@@ -388,6 +394,8 @@ func TestMountSnapshot(t *testing.T) {
 }
 
 func TestMountEvent(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	executable, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -491,6 +499,7 @@ func TestMountEvent(t *testing.T) {
 	}
 
 	t.Run("mount-in-container-root", func(t *testing.T) {
+		SkipIfNotAvailable(t)
 		test.WaitSignal(t, func() error {
 			if _, err := wrapperTruePositive.start(); err != nil {
 				return err

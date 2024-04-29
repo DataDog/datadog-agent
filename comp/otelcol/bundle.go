@@ -15,6 +15,7 @@ import (
 // team: opentelemetry
 
 // Bundle specifies the bundle for the OTLP ingest pipeline.
-var Bundle = fxutil.Bundle(
-	collector.Module,
-)
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		collector.Module())
+}

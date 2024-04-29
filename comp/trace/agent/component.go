@@ -17,6 +17,7 @@ import (
 type Component interface{}
 
 // Module defines the fx options for the agent component.
-var Module = fxutil.Component(
-	fx.Provide(newAgent),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newAgent))
+}

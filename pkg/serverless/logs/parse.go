@@ -6,10 +6,11 @@
 package logs
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
+
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

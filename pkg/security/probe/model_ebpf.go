@@ -39,7 +39,7 @@ func NewEBPFModel(probe *EBPFProbe) *model.Model {
 
 // NewEBPFEvent returns a new event
 func NewEBPFEvent(fh *EBPFFieldHandlers) *model.Event {
-	event := model.NewDefaultEvent()
+	event := model.NewFakeEvent()
 	event.FieldHandlers = fh
 	return event
 }

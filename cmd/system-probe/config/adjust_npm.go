@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -77,4 +78,9 @@ func adjustNetwork(cfg config.Config) {
 		}
 		return nil
 	})
+
+	if cfg.GetBool(evNS("network_process", "enabled")) && !ProcessEventDataStreamSupported() {
+		log.Warn("disabling process event monitoring as it is not supported for this kernel version")
+		cfg.Set(evNS("network_process", "enabled"), false, model.SourceAgentRuntime)
+	}
 }

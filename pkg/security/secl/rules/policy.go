@@ -7,12 +7,14 @@
 package rules
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 )
 
 // PolicyDef represents a policy file definition
@@ -24,11 +26,12 @@ type PolicyDef struct {
 
 // Policy represents a policy file which is composed of a list of rules and macros
 type Policy struct {
-	Name    string
-	Source  string
-	Version string
-	Rules   []*RuleDefinition
-	Macros  []*MacroDefinition
+	Name       string
+	Source     string
+	Version    string
+	Rules      []*RuleDefinition
+	Macros     []*MacroDefinition
+	IsInternal bool
 }
 
 // AddMacro add a macro to the policy
@@ -118,7 +121,12 @@ RULES:
 			continue
 		}
 
-		if ruleDef.Expression == "" && !ruleDef.Disabled {
+		if ruleDef.GroupID != "" && !validators.CheckRuleID(ruleDef.GroupID) {
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleIDPattern})
+			continue
+		}
+
+		if ruleDef.Expression == "" && !ruleDef.Disabled && ruleDef.Combine == "" {
 			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleWithoutExpression})
 			continue
 		}
@@ -135,7 +143,10 @@ LOOP:
 			}
 		}
 
-		errs = multierror.Append(errs, &ErrRuleLoad{Definition: s.ruleDefinition, Err: s.err})
+		// do not report filtered rules
+		if !errors.Is(s.err, ErrRuleAgentFilter) {
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: s.ruleDefinition, Err: s.err})
+		}
 	}
 
 	return policy, errs.ErrorOrNil()

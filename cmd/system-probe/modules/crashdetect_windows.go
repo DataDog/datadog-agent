@@ -13,17 +13,19 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"google.golang.org/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // WinCrashProbe Factory
 var WinCrashProbe = module.Factory{
 	Name:             config.WindowsCrashDetectModule,
 	ConfigNamespaces: []string{"windows_crash_detection"},
-	Fn: func(cfg *config.Config) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component]) (module.Module, error) {
 		log.Infof("Starting the WinCrashProbe probe")
 		cp, err := probe.NewWinCrashProbe(cfg)
 		if err != nil {
@@ -49,10 +51,6 @@ func (wcdm *winCrashDetectModule) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, results)
 	}))
 
-	return nil
-}
-
-func (wcdm *winCrashDetectModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

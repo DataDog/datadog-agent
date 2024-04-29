@@ -17,11 +17,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unicode"
 
 	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -102,6 +104,15 @@ func WithPermission(elevatedPermissions bool) Option {
 	}
 }
 
+// WithIgnoreZombieProcesses configures if process collection should ignore zombie processes or not
+func WithIgnoreZombieProcesses(ignoreZombieProcesses bool) Option {
+	return func(p Probe) {
+		if linuxProbe, ok := p.(*probe); ok {
+			linuxProbe.ignoreZombieProcesses = ignoreZombieProcesses
+		}
+	}
+}
+
 // WithBootTimeRefreshInterval configures the boot time refresh interval
 func WithBootTimeRefreshInterval(bootTimeRefreshInterval time.Duration) Option {
 	return func(p Probe) {
@@ -125,6 +136,7 @@ type probe struct {
 	elevatedPermissions     bool
 	returnZeroPermStats     bool
 	bootTimeRefreshInterval time.Duration
+	ignoreZombieProcesses   bool
 }
 
 // NewProcessProbe initializes a new Probe object
@@ -249,6 +261,8 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 				// NOTE: The agent's process check currently skips all processes that are kernel threads which have
 				//       no cmdline and they have the PF_KTHREAD flag set in /proc/<pid>/stat
 				//       Moving this check down the stack saves us from a number of needless follow-up system calls.
+				continue
+			} else if p.ignoreZombieProcesses {
 				continue
 			}
 			log.Debugf("process with empty cmdline not skipped pid:%d", pid)
@@ -733,10 +747,12 @@ func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 	return str
 }
 
-// PROC_SUPER_MAGIC is the superblock magic value (its unique identifier) of procfs filesystem
-//
-//nolint:revive // TODO(PROC) Fix revive linter
-const PROC_SUPER_MAGIC = 0x9fa0
+var fdDirentPool = sync.Pool{
+	New: func() interface{} {
+		s := make([]byte, blockSize)
+		return &s
+	},
+}
 
 // getFDCount gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
 // this will skip the step of returning all file names(we don't need) in a dir which takes a lot of memory
@@ -757,7 +773,7 @@ func (p *probe) getFDCount(pidPath string) int32 {
 	if count := fi.Size(); count > 0 {
 		// ensure the FS type is `procfs`
 		buf := new(syscall.Statfs_t)
-		if err := syscall.Statfs(path, buf); err == nil && buf.Type == PROC_SUPER_MAGIC {
+		if err := syscall.Statfs(path, buf); err == nil && buf.Type == unix.PROC_SUPER_MAGIC {
 			return int32(count)
 		}
 	}
@@ -768,9 +784,11 @@ func (p *probe) getFDCount(pidPath string) int32 {
 	}
 	defer d.Close()
 
-	b := make([]byte, blockSize)
-	count := 0
+	ptr := fdDirentPool.Get().(*[]byte)
+	b := *ptr
+	defer fdDirentPool.Put(ptr)
 
+	count := 0
 	for i := 0; ; i++ {
 		n, err := syscall.ReadDirent(int(d.Fd()), b)
 		if err != nil {

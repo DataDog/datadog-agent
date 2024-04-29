@@ -8,16 +8,18 @@ name 'system-probe'
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
+always_build true
+
 build do
   license :project_license
 
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/runtime"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re"
+  # ensure previous agent version extracted BTFs are removed
+  delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
   mkdir "#{install_dir}/embedded/share/system-probe/java"
-
-  copy 'pkg/network/protocols/tls/java/agent-usm.jar', "#{install_dir}/embedded/share/system-probe/java/"
 
   if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
     copy "pkg/ebpf/bytecode/build/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/"

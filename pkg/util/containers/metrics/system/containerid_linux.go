@@ -17,7 +17,7 @@ import (
 const (
 	selfMountInfoPath       = "/proc/self/mountinfo"
 	containerdSandboxPrefix = "sandboxes"
-	cIDRegexp               = `([^\s/]+)/(` + cgroups.ContainerRegexpStr + `)/[\S]*hostname`
+	cIDRegexp               = `.*/([^\s/]+)/(` + cgroups.ContainerRegexpStr + `)/[\S]*hostname`
 )
 
 var cIDMountInfoRegexp = regexp.MustCompile(cIDRegexp)

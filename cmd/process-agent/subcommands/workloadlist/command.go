@@ -42,7 +42,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(workloadList,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetCoreBundleParamsForOneShot(globalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -51,11 +51,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{workloadListCommand}
 }
 
-func workloadList(_ log.Component, _ config.Component, cliParams *cliParams) error {
+func workloadList(_ log.Component, config config.Component, cliParams *cliParams) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}

@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,13 +51,13 @@ func newProcessor(sender sender.Sender, maxNbItem int, maxRetentionTime time.Dur
 				return
 			}
 
-			sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerImages)
+			sender.EventPlatformEvent(encoded, eventplatform.EventTypeContainerImages)
 		}),
 	}
 }
 
 func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
-	close(evBundle.Ch)
+	evBundle.Acknowledge()
 
 	log.Tracef("Processing %d events", len(evBundle.Events))
 
@@ -74,7 +74,7 @@ func (p *processor) processRefresh(allImages []*workloadmeta.ContainerImageMetad
 }
 
 func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
-	ddTags, err := tagger.Tag("container_image_metadata://"+img.ID, collectors.HighCardinality)
+	ddTags, err := tagger.Tag("container_image_metadata://"+img.ID, types.HighCardinality)
 	if err != nil {
 		log.Errorf("Could not retrieve tags for container image %s: %v", img.ID, err)
 	}

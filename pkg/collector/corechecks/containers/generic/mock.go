@@ -35,7 +35,7 @@ func CreateTestProcessor(listerContainers []*workloadmeta.Container,
 	mockProvider := mock.NewMetricsProvider()
 	mockCollector := mock.NewCollector("testCollector")
 	for _, runtime := range provider.AllLinuxRuntimes {
-		mockProvider.RegisterConcreteCollector(runtime, mockCollector)
+		mockProvider.RegisterConcreteCollector(provider.NewRuntimeMetadata(string(runtime), ""), mockCollector)
 	}
 	for cID, entry := range metricsContainers {
 		mockCollector.SetContainerEntry(cID, entry)

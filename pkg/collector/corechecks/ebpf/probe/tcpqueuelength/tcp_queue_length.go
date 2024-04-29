@@ -14,18 +14,17 @@ package tcpqueuelength
 import (
 	"fmt"
 	"math"
-	"unsafe"
 
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
-	bpflib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,7 +37,7 @@ const (
 // Tracer is the eBPF side of the TCP Queue Length check
 type Tracer struct {
 	m        *manager.Manager
-	statsMap *bpflib.Map
+	statsMap *ebpfmaps.GenericMap[StructStatsKey, []StructStatsValue]
 }
 
 // NewTracer creates a [Tracer]
@@ -90,11 +89,9 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 		return nil, fmt.Errorf("failed to start manager: %w", err)
 	}
 
-	statsMap, ok, err := m.GetMap(statsMapName)
+	statsMap, err := ebpfmaps.GetMap[StructStatsKey, []StructStatsValue](m, statsMapName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get map '%s': %w", statsMapName, err)
-	} else if !ok {
-		return nil, fmt.Errorf("failed to get map '%s'", statsMapName)
 	}
 	ebpfcheck.AddNameMappings(m, "tcp_queue_length")
 
@@ -126,7 +123,7 @@ func (t *Tracer) GetAndFlush() model.TCPQueueLengthStats {
 	var keys []StructStatsKey
 	statsValue := make([]StructStatsValue, nbCpus)
 	it := t.statsMap.Iterate()
-	for it.Next(unsafe.Pointer(&statsKey), &statsValue) {
+	for it.Next(&statsKey, &statsValue) {
 		cgroupName := string(statsKey.Cgroup[:])
 		max := model.TCPQueueLengthStatsValue{}
 		for cpu := 0; cpu < nbCpus; cpu++ {
@@ -144,7 +141,7 @@ func (t *Tracer) GetAndFlush() model.TCPQueueLengthStats {
 		log.Warnf("failed to iterate on TCP queue length stats while flushing: %s", err)
 	}
 	for _, k := range keys {
-		if err := t.statsMap.Delete(unsafe.Pointer(&k)); err != nil {
+		if err := t.statsMap.Delete(&k); err != nil {
 			log.Warnf("failed to delete stat: %s", err)
 		}
 	}
@@ -180,7 +177,7 @@ func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*Tracer, error) {
 }
 
 func loadTCPQueueLengthRuntimeCompiledProbe(cfg *ebpf.Config) (*Tracer, error) {
-	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
+	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, nil /* llc flags */, statsd.Client)
 	if err != nil {
 		return nil, err
 	}

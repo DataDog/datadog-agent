@@ -17,7 +17,6 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,8 +28,8 @@ var defaultBackoffConfig = backoff.Config{
 	MaxDelay:   2 * time.Second,
 }
 
-func getGRPCClientConn(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	if config.Datadog.GetString("cmd_port") == "-1" {
+func getGRPCClientConn(ctx context.Context, ipcAddress string, cmdPort string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	if cmdPort == "-1" {
 		return nil, errors.New("grpc client disabled via cmd_port: -1")
 	}
 
@@ -39,10 +38,7 @@ func getGRPCClientConn(ctx context.Context, opts ...grpc.DialOption) (*grpc.Clie
 
 	opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tlsConf)))
 
-	target, err := getIPCAddressPort()
-	if err != nil {
-		return nil, err
-	}
+	target := net.JoinHostPort(ipcAddress, cmdPort)
 
 	log.Debugf("attempting to create grpc agent client connection to: %s", target)
 	return grpc.DialContext(ctx, target, opts...)
@@ -56,11 +52,11 @@ var defaultAgentClientDialOpts = []grpc.DialOption{
 
 // GetDDAgentClient creates a pb.AgentClient for IPC with the main agent via gRPC. This call is blocking by default, so
 // it is up to the caller to supply a context with appropriate timeout/cancel options
-func GetDDAgentClient(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error) {
+func GetDDAgentClient(ctx context.Context, ipcAddress string, cmdPort string, opts ...grpc.DialOption) (pb.AgentClient, error) {
 	if len(opts) == 0 {
 		opts = defaultAgentClientDialOpts
 	}
-	conn, err := getGRPCClientConn(ctx, opts...)
+	conn, err := getGRPCClientConn(ctx, ipcAddress, cmdPort, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -71,22 +67,12 @@ func GetDDAgentClient(ctx context.Context, opts ...grpc.DialOption) (pb.AgentCli
 
 // GetDDAgentSecureClient creates a pb.AgentSecureClient for IPC with the main agent via gRPC. This call is blocking by default, so
 // it is up to the caller to supply a context with appropriate timeout/cancel options
-func GetDDAgentSecureClient(ctx context.Context, opts ...grpc.DialOption) (pb.AgentSecureClient, error) {
-	conn, err := getGRPCClientConn(ctx, opts...)
+func GetDDAgentSecureClient(ctx context.Context, ipcAddress string, cmdPort string, opts ...grpc.DialOption) (pb.AgentSecureClient, error) {
+	conn, err := getGRPCClientConn(ctx, ipcAddress, cmdPort, opts...)
 	if err != nil {
 		return nil, err
 	}
 
 	log.Debug("grpc agent secure client created")
 	return pb.NewAgentSecureClient(conn), nil
-}
-
-// getIPCAddressPort returns the host and port for connecting to the main agent
-func getIPCAddressPort() (string, error) {
-	ipcAddress, err := config.GetIPCAddress()
-	if err != nil {
-		return "", err
-	}
-
-	return net.JoinHostPort(ipcAddress, config.Datadog.GetString("cmd_port")), nil
 }

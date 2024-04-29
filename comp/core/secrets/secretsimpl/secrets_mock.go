@@ -20,7 +20,12 @@ type MockSecretResolver struct {
 
 var _ secrets.Component = (*MockSecretResolver)(nil)
 
-// SetFetchHookFunc set the fetchHookFunc for the mock
+// SetBackendCommand sets the backend command for the mock
+func (m *MockSecretResolver) SetBackendCommand(command string) {
+	m.backendCommand = command
+}
+
+// SetFetchHookFunc sets the fetchHookFunc for the mock
 func (m *MockSecretResolver) SetFetchHookFunc(f func([]string) (map[string]string, error)) {
 	m.fetchHookFunc = f
 }
@@ -33,6 +38,7 @@ func NewMock() secrets.Mock {
 }
 
 // MockModule is a module containing the mock, useful for testing
-var MockModule = fxutil.Component(
-	fx.Provide(NewMock),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(NewMock))
+}

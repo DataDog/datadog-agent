@@ -1,7 +1,7 @@
 [
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs14.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
     "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
     "message": {
       "lambda": {
@@ -16,7 +16,7 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs14.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
     "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
     "message": {
       "lambda": {
@@ -31,7 +31,7 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs14.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
     "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
     "message": {
       "lambda": {
@@ -46,7 +46,7 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs14.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
     "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
     "message": {
       "lambda": {
@@ -61,7 +61,7 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs14.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
     "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
     "message": {
       "lambda": {
@@ -76,7 +76,7 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs14.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
     "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
     "message": {
       "lambda": {
@@ -91,7 +91,7 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs14.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
     "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
     "message": {
       "lambda": {
@@ -106,7 +106,7 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs14.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
     "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
     "message": {
       "lambda": {
@@ -121,7 +121,7 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs14.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
     "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
     "message": {
       "lambda": {
@@ -136,7 +136,7 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs14.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
     "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
     "message": {
       "lambda": {
@@ -151,7 +151,7 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs14.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
     "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
     "message": {
       "lambda": {
@@ -166,7 +166,7 @@
   },
   {
     "ddsource": "lambda",
-    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs14.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
     "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
     "message": {
       "lambda": {
@@ -174,6 +174,96 @@
         "request_id": "XXX"
       },
       "message": "TIMESTAMP\tXXX\tERROR\tXXX LOG 2 XXX\n"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
+  },
+  {
+    "ddsource": "lambda",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
+        "request_id": "XXX"
+      },
+      "message": "{\"body\":\"testing request payload\"}\n"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
+  },
+  {
+    "ddsource": "lambda",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
+        "request_id": "XXX"
+      },
+      "message": "{\"body\":\"testing request payload\"}`\n"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
+  },
+  {
+    "ddsource": "lambda",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
+        "request_id": "XXX"
+      },
+      "message": "{\"statusCode\":200,\"body\":\"ok\"}`\n"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
+  },
+  {
+    "ddsource": "lambda",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
+        "request_id": "XXX"
+      },
+      "message": "{\"statusCode\":200,\"body\":\"ok\"}`\n"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
+  },
+  {
+    "ddsource": "lambda",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
+        "request_id": "XXX"
+      },
+      "message": "{}\n"
+    },
+    "service": "integration-tests-service",
+    "status": "info",
+    "timestamp": "XXX"
+  },
+  {
+    "ddsource": "lambda",
+    "ddtags": "account_id:############,architecture:XXX,aws_account:############,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy,functionname:integration-tests-extension-XXXXXX-log-proxy,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-proxy,runtime:nodejs18.x,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version",
+    "hostname": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
+    "message": {
+      "lambda": {
+        "arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-log-proxy",
+        "request_id": "XXX"
+      },
+      "message": "{}`\n"
     },
     "service": "integration-tests-service",
     "status": "info",

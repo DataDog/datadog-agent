@@ -41,6 +41,9 @@ type Config struct {
 	// event monitor/probe parameters
 	ebpf.Config
 
+	// EnableAllProbes defines if all probes should be activated regardless of loaded rules (while still respecting config, especially network disabled)
+	EnableAllProbes bool
+
 	// EnableKernelFilters defines if in-kernel filtering should be activated or not
 	EnableKernelFilters bool
 
@@ -141,6 +144,7 @@ func NewConfig() (*Config, error) {
 
 	c := &Config{
 		Config:                       *ebpf.NewConfig(),
+		EnableAllProbes:              getBool("enable_all_probes"),
 		EnableKernelFilters:          getBool("enable_kernel_filters"),
 		EnableApprovers:              getBool("enable_approvers"),
 		EnableDiscarders:             getBool("enable_discarders"),

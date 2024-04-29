@@ -11,4 +11,4 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
-func getWindowsData(fb flaretypes.FlareBuilder) {} //nolint:revive // TODO fix revive unused-parameter
+func getWindowsData(_ flaretypes.FlareBuilder) {}

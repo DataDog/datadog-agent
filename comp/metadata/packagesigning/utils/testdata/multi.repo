@@ -1,0 +1,30 @@
+[datadog]
+name = Datadog, Inc.
+baseurl = https://yum.datadoghq.com/stable/7/x86_64/
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+priority=1
+gpgkey=https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public
+       https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public
+       https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public
+[rhel-9-appstream-beta-rhui-debug-rpms]
+name=Red Hat Enterprise Linux 9 - AppStream Beta from RHUI (Debug RPMs)
+mirrorlist=https://rhui.REGION.aws.ce.redhat.com/pulp/mirror/content/beta/rhel9/rhui/9/$basearch/appstream/debug
+enabled=0
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release file:///etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-beta
+sslverify=1
+sslcacert=/etc/pki/rhui/cdn.redhat.com-chain.crt
+sslclientcert=/etc/pki/rhui/product/content-rhel9.crt
+sslclientkey=/etc/pki/rhui/content-rhel9.key
+[rhel-9-tweaked]
+name=Red Hat Enterprise Linux 9 - AppStream Beta from RHUI (Debug RPMs)
+mirrorlist=another
+enabled=0
+repo_gpgcheck=1
+gpgkey=https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public
+sslverify=1
+sslcacert=/etc/pki/rhui/cdn.redhat.com-chain.crt
+sslclientcert=/etc/pki/rhui/product/content-rhel9.crt
+sslclientkey=/etc/pki/rhui/content-rhel9.key

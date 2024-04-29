@@ -123,8 +123,10 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 	}
 
 	return &v1.ConfigFile{
-		Architecture:  img.inspect.Architecture,
-		Author:        img.inspect.Author,
+		Architecture: img.inspect.Architecture,
+		Author:       img.inspect.Author,
+		// Ignore deprecation warning
+		//nolint:staticcheck
 		Container:     img.inspect.Container,
 		Created:       v1.Time{Time: created},
 		DockerVersion: img.inspect.DockerVersion,
@@ -206,9 +208,11 @@ func (img *image) imageConfig(config *container.Config) v1.Config {
 		WorkingDir:      config.WorkingDir,
 		ArgsEscaped:     config.ArgsEscaped,
 		NetworkDisabled: config.NetworkDisabled,
-		MacAddress:      config.MacAddress,
-		StopSignal:      config.StopSignal,
-		Shell:           config.Shell,
+		// Ignore deprecation warning
+		//nolint:staticcheck
+		MacAddress: config.MacAddress,
+		StopSignal: config.StopSignal,
+		Shell:      config.Shell,
 	}
 
 	if config.Healthcheck != nil {

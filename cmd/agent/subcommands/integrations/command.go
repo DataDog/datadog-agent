@@ -112,7 +112,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(cliParams),
 			fx.Supply(core.BundleParams{
 				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigMissingOK(true))}),
-			core.Bundle,
+			core.Bundle(),
 		)
 	}
 
@@ -301,13 +301,13 @@ func validateArgs(args []string, local bool) error {
 		}
 	} else {
 		// Validate the wheel we try to install exists
-		if _, err := os.Stat(args[0]); err == nil {
+		var err error
+		if _, err = os.Stat(args[0]); err == nil {
 			return nil
 		} else if os.IsNotExist(err) {
 			return fmt.Errorf("local wheel %s does not exist", args[0])
-		} else {
-			return fmt.Errorf("cannot read local wheel %s: %v", args[0], err)
 		}
+		return fmt.Errorf("cannot read local wheel %s: %v", args[0], err)
 	}
 
 	return nil

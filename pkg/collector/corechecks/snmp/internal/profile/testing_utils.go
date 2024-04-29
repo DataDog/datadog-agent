@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+//go:build test
+
 package profile
 
 import (
-	"os"
 	"path/filepath"
 	"regexp"
 
@@ -33,12 +34,6 @@ func SetConfdPathAndCleanProfiles() {
 		file, _ = filepath.Abs(filepath.Join(".", "internal", "test", "conf.d"))
 	}
 	config.Datadog.SetWithoutSource("confd_path", file)
-}
-
-// pathExists returns true if the given path exists
-func pathExists(path string) bool {
-	_, err := os.Stat(path)
-	return !os.IsNotExist(err)
 }
 
 // FixtureProfileDefinitionMap returns a fixture of ProfileConfigMap with `f5-big-ip` profile
@@ -116,6 +111,9 @@ func FixtureProfileDefinitionMap() ProfileConfigMap {
 									OID:  "1.3.6.1.2.1.1.2.0",
 									Name: "sysObjectID",
 								},
+							},
+							"type": {
+								Value: "load_balancer",
 							},
 						},
 					},

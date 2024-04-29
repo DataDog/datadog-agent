@@ -176,15 +176,6 @@ func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error
 	return arnObject.Region, nil
 }
 
-// HasAPIKey returns true if an API key has been set in any of the supported ways.
-func HasAPIKey() bool {
-	return config.Datadog.IsSet("api_key") ||
-		len(os.Getenv(apiKeyKmsEncryptedEnvVar)) > 0 ||
-		len(os.Getenv(apiKeyKmsEnvVar)) > 0 ||
-		len(os.Getenv(apiKeySecretManagerEnvVar)) > 0 ||
-		len(os.Getenv(apiKeyEnvVar)) > 0
-}
-
 // checkForSingleAPIKey checks if an API key has been set in multiple places and logs a warning if so.
 func checkForSingleAPIKey() {
 	var apikeySetIn = []string{}

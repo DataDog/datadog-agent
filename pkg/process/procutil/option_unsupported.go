@@ -25,3 +25,7 @@ func WithPermission(elevatedPermissions bool) Option { //nolint:revive // TODO f
 func WithBootTimeRefreshInterval(bootTimeRefreshInterval time.Duration) Option { //nolint:revive // TODO fix revive unused-parameter
 	return func(p Probe) {}
 }
+
+func WithIgnoreZombieProcesses(ignoreZombieProcesses bool) Option { //nolint:revive // TODO fix revive unused-parameter
+	return func(p Probe) {}
+}

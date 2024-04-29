@@ -1,5 +1,5 @@
-version: "2"
-
+version: '3'
+name: kafka
 services:
   zookeeper:
     image: bitnami/zookeeper:3.8
@@ -7,8 +7,6 @@ services:
       - "2181:2181"
     environment:
       - ALLOW_ANONYMOUS_LOGIN=yes
-    networks:
-      - kafka
     tmpfs:
       - /bitnami/zookeeper/data
   kafka:
@@ -25,13 +23,8 @@ services:
       - ALLOW_PLAINTEXT_LISTENER=yes
       - KAFKA_CFG_DELETE_TOPIC_ENABLE=true
       - KAFKA_CFG_ZOOKEEPER_CONNECTION_TIMEOUT_MS=30000
+      - KAFKA_MESSAGE_MAX_BYTES=1048576
     depends_on:
       - zookeeper
-    networks:
-      - kafka
     tmpfs:
       - /bitnami/kafka/data
-
-networks:
-  kafka:
-    driver: bridge

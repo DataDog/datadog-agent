@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -36,8 +37,8 @@ func (p *testPayload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error)
 
 func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *InventoryPayload {
 	i := CreateInventoryPayload(
-		fxutil.Test[config.Component](t, config.MockModule, fx.Replace(config.MockParams{Overrides: confOverrides})),
-		fxutil.Test[log.Component](t, log.MockModule),
+		fxutil.Test[config.Component](t, config.MockModule(), fx.Replace(config.MockParams{Overrides: confOverrides})),
+		fxutil.Test[log.Component](t, logimpl.MockModule()),
 		&serializer.MockSerializer{},
 		func() marshaler.JSONMarshaler { return &testPayload{} },
 		"test.json",
@@ -82,12 +83,10 @@ func TestMetadataProvider(t *testing.T) {
 	i := getTestInventoryPayload(t, nil)
 
 	i.Enabled = true
-	cb := i.MetadataProvider().Callback
-	assert.True(t, cb.IsSet())
+	assert.NotNil(t, i.MetadataProvider().Callback)
 
 	i.Enabled = false
-	cb = i.MetadataProvider().Callback
-	assert.False(t, cb.IsSet())
+	assert.Nil(t, i.MetadataProvider().Callback)
 }
 
 func TestFlareProvider(t *testing.T) {
@@ -121,6 +120,8 @@ func TestFillFlare(t *testing.T) {
 
 func TestCollectRecentLastCollect(t *testing.T) {
 	i := getTestInventoryPayload(t, nil)
+	i.LastCollect = time.Now()
+	i.createdAt = time.Now().Add(-2 * time.Minute)
 
 	interval := i.collect(context.Background())
 	assert.Equal(t, defaultMinInterval, interval)
@@ -128,12 +129,53 @@ func TestCollectRecentLastCollect(t *testing.T) {
 	i.serializer.(*serializer.MockSerializer).AssertExpectations(t)
 }
 
+func TestCollectStartupTime(t *testing.T) {
+	i := getTestInventoryPayload(t, nil)
+
+	// testing collect do not send metadata if hasn't elapsed a minute from createdAt time
+	createdAt := time.Now().Add(2 * time.Minute)
+	i.createdAt = createdAt
+
+	serializerMock := i.serializer.(*serializer.MockSerializer)
+	duration := 1 * time.Minute
+
+	interval := i.collect(context.Background())
+	assert.Equal(t, duration-time.Since(createdAt).Round(duration), interval.Round(duration))
+	assert.Empty(t, serializerMock.Calls)
+
+	// testing with custom values from configuration
+	i = getTestInventoryPayload(t, map[string]any{
+		"inventories_first_run_delay": 0,
+	})
+
+	// reset serializer mock
+	serializerMock = &serializer.MockSerializer{}
+
+	serializerMock.On(
+		"SendMetadata",
+		mock.MatchedBy(func(m marshaler.JSONMarshaler) bool {
+			if _, ok := m.(*testPayload); !ok {
+				return false
+			}
+			return true
+		})).Return(nil)
+
+	i.serializer = serializerMock
+	interval = i.collect(context.Background())
+	assert.Equal(t, defaultMinInterval, interval)
+	serializerMock.AssertExpectations(t)
+}
+
 func TestCollect(t *testing.T) {
 	i := getTestInventoryPayload(t, nil)
 
-	// testing collect with LastCollect > MaxInterval
+	// Ensure calls to collect do not fail the check for createdAt
+	i.createdAt = time.Now().Add(-2 * time.Minute)
 
 	serializerMock := i.serializer.(*serializer.MockSerializer)
+
+	// testing collect with LastCollect > MaxInterval
+
 	serializerMock.On(
 		"SendMetadata",
 		mock.MatchedBy(func(m marshaler.JSONMarshaler) bool {
@@ -162,10 +204,10 @@ func TestCollect(t *testing.T) {
 	i.collect(context.Background())
 	i.serializer.(*serializer.MockSerializer).AssertExpectations(t)
 
-	// testing collect with LastCollect between MinInterval and MaxInterval with ForceRefresh being trigger
+	// testing collect with LastCollect between MinInterval and MaxInterval with forceRefresh being trigger
 
 	i.Refresh()
-	assert.True(t, i.ForceRefresh)
+	assert.True(t, i.forceRefresh.Load())
 
 	serializerMock.On(
 		"SendMetadata",
@@ -178,5 +220,5 @@ func TestCollect(t *testing.T) {
 
 	i.collect(context.Background())
 	i.serializer.(*serializer.MockSerializer).AssertExpectations(t)
-	assert.False(t, i.ForceRefresh)
+	assert.False(t, i.forceRefresh.Load())
 }

@@ -37,14 +37,6 @@ var spliceCapabilities = Capabilities{
 }
 
 func spliceOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
-	intValues := func(fvs rules.FilterValues) []int {
-		var values []int
-		for _, v := range fvs {
-			values = append(values, v.Value.(int))
-		}
-		return values
-	}
-
 	spliceApprovers, err := onNewBasenameApprovers(model.SpliceEventType, "file", approvers)
 	if err != nil {
 		return nil, err
@@ -55,14 +47,14 @@ func spliceOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
 		case "splice.file.name", "splice.file.path": // already handled by onNewBasenameApprovers
 		case "splice.pipe_entry_flag":
 			var approver activeApprover
-			approver, err = approveFlags("splice_entry_flags_approvers", intValues(values)...)
+			approver, err = approveFlags("splice_entry_flags_approvers", intValues[int32](values)...)
 			if err != nil {
 				return nil, err
 			}
 			spliceApprovers = append(spliceApprovers, approver)
 		case "splice.pipe_exit_flag":
 			var approver activeApprover
-			approver, err = approveFlags("splice_exit_flags_approvers", intValues(values)...)
+			approver, err = approveFlags("splice_exit_flags_approvers", intValues[int32](values)...)
 			if err != nil {
 				return nil, err
 			}

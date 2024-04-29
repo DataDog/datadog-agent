@@ -107,6 +107,7 @@ type ObfuscationMode string
 
 // ObfuscationMode valid values
 const (
+	NormalizeOnly         = ObfuscationMode("normalize_only")
 	ObfuscateOnly         = ObfuscationMode("obfuscate_only")
 	ObfuscateAndNormalize = ObfuscationMode("obfuscate_and_normalize")
 )
@@ -145,12 +146,12 @@ type SQLConfig struct {
 
 	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
 	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
-	// Valid values are "obfuscate_only", "obfuscate_and_normalize"
+	// Valid values are "normalize_only", "obfuscate_only", "obfuscate_and_normalize"
 	ObfuscationMode ObfuscationMode `json:"obfuscation_mode" yaml:"obfuscation_mode"`
 
 	// RemoveSpaceBetweenParentheses specifies whether to remove spaces between parentheses.
 	// By default, spaces are inserted between parentheses during normalization.
-	// This option is only valid when ObfuscationMode is "obfuscate_and_normalize".
+	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
 	RemoveSpaceBetweenParentheses bool `json:"remove_space_between_parentheses" yaml:"remove_space_between_parentheses"`
 
 	// KeepNull specifies whether to disable obfuscate NULL value with ?.
@@ -164,6 +165,16 @@ type SQLConfig struct {
 	// KeepPositionalParameter specifies whether to disable obfuscate positional parameter with ?.
 	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
 	KeepPositionalParameter bool `json:"keep_positional_parameter" yaml:"keep_positional_parameter"`
+
+	// KeepTrailingSemicolon specifies whether to keep trailing semicolon.
+	// By default, trailing semicolon is removed during normalization.
+	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
+	KeepTrailingSemicolon bool `json:"keep_trailing_semicolon" yaml:"keep_trailing_semicolon"`
+
+	// KeepIdentifierQuotation specifies whether to keep identifier quotation, e.g. "my_table" or [my_table].
+	// By default, identifier quotation is removed during normalization.
+	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
+	KeepIdentifierQuotation bool `json:"keep_identifier_quotation" yaml:"keep_identifier_quotation"`
 
 	// Cache reports whether the obfuscator should use a LRU look-up cache for SQL obfuscations.
 	Cache bool

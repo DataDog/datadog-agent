@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/api"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -34,7 +34,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(taggerList,
 				fx.Supply(command.GetCoreBundleParamsForOneShot(globalParams)),
 
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 		SilenceUsage: true,
@@ -58,7 +58,7 @@ func taggerList(deps dependencies) error {
 		return err
 	}
 
-	return tagger_api.GetTaggerList(color.Output, taggerURL)
+	return api.GetTaggerList(color.Output, taggerURL)
 }
 
 func getTaggerURL() (string, error) {

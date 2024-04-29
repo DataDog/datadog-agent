@@ -12,6 +12,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 )
@@ -27,7 +28,7 @@ func getTestPrioritySampler() *PrioritySampler {
 		TargetTPS:       0.0,
 	}
 
-	return NewPrioritySampler(conf, &DynamicConfig{})
+	return NewPrioritySampler(conf, &DynamicConfig{}, &statsd.NoOpClient{})
 }
 
 func getTestTraceWithService(service string, s *PrioritySampler) (*pb.TraceChunk, *pb.Span) {

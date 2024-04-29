@@ -12,7 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows/registry"
 )
@@ -22,7 +22,7 @@ type WinCrashProbe struct {
 }
 
 // NewWinCrashProbe returns an initialized WinCrashProbe
-func NewWinCrashProbe(_ *config.Config) (*WinCrashProbe, error) {
+func NewWinCrashProbe(_ *sysconfigtypes.Config) (*WinCrashProbe, error) {
 	return &WinCrashProbe{}, nil
 }
 

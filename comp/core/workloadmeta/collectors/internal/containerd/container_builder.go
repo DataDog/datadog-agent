@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/containerd/containerd"
@@ -19,13 +20,17 @@ import (
 	"github.com/containerd/containerd/namespaces"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// kataRuntimePrefix is the prefix used by Kata Containers runtime
+const kataRuntimePrefix = "io.containerd.kata"
+
 // buildWorkloadMetaContainer generates a workloadmeta.Container from a containerd.Container
-func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf) (workloadmeta.Container, error) {
+func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf, store workloadmeta.Component) (workloadmeta.Container, error) {
 	if container == nil {
 		return workloadmeta.Container{}, fmt.Errorf("cannot build workloadmeta container from nil containerd container")
 	}
@@ -34,6 +39,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 	if err != nil {
 		return workloadmeta.Container{}, err
 	}
+	runtimeFlavor := extractRuntimeFlavor(info.Runtime.Name)
 
 	// Prepare context
 	ctx := context.Background()
@@ -56,6 +62,17 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		log.Debugf("cannot split image name %q: %s", info.Image, err)
 	}
 
+	image.RepoDigest = util.ExtractRepoDigestFromImage(imageID, image.Registry, store) // "sha256:digest"
+	if image.RepoDigest == "" {
+		log.Debugf("cannot get repo digest for image %s from workloadmeta store", imageID)
+		contImage, err := containerdClient.ImageOfContainer(namespace, container)
+		if err == nil && contImage != nil {
+			// Get repo digest from containerd client.
+			// This is a fallback mechanism in case we cannot get the repo digest
+			// from workloadmeta store.
+			image.RepoDigest = contImage.Target().Digest.String()
+		}
+	}
 	status, err := containerdClient.Status(namespace, container)
 	if err != nil {
 		if !errdefs.IsNotFound(err) {
@@ -89,9 +106,10 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 			Name:   "", // Not available
 			Labels: info.Labels,
 		},
-		Image:   image,
-		Ports:   nil, // Not available
-		Runtime: workloadmeta.ContainerRuntimeContainerd,
+		Image:         image,
+		Ports:         nil, // Not available
+		Runtime:       workloadmeta.ContainerRuntimeContainerd,
+		RuntimeFlavor: runtimeFlavor,
 		State: workloadmeta.ContainerState{
 			Running:    status == containerd.Running,
 			Status:     extractStatus(status),
@@ -139,4 +157,12 @@ func extractStatus(status containerd.ProcessStatus) workloadmeta.ContainerStatus
 	}
 
 	return workloadmeta.ContainerStatusUnknown
+}
+
+// extractRuntimeFlavor extracts the runtime from a runtime string.
+func extractRuntimeFlavor(runtime string) workloadmeta.ContainerRuntimeFlavor {
+	if strings.HasPrefix(runtime, kataRuntimePrefix) {
+		return workloadmeta.ContainerRuntimeFlavorKata
+	}
+	return workloadmeta.ContainerRuntimeFlavorDefault
 }

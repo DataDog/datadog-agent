@@ -50,16 +50,17 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, hostnam
 		interval = bucketSize
 	}
 
-	log.Infof("Creating TimeSampler #%d", id)
+	idString := strconv.Itoa(int(id))
+	log.Infof("Creating TimeSampler #%s", idString)
 
 	s := &TimeSampler{
 		interval:                    interval,
-		contextResolver:             newTimestampContextResolver(cache),
+		contextResolver:             newTimestampContextResolver(cache, idString),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
 		id:                          id,
-		idString:                    strconv.Itoa(int(id)),
+		idString:                    idString,
 		hostname:                    hostname,
 	}
 
@@ -241,19 +242,26 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketche
 		})
 	s.lastCutOffTime = cutoffTime
 
+	s.updateMetrics()
+	s.sendTelemetry(timestamp, series)
+}
+
+// We do this here mostly because we want to avoid slow operations when we track/remove
+// contexts in the contextResolver. Keeping references to the metrics in the contextResolver
+// would probably be enough to avoid this.
+func (s *TimeSampler) updateMetrics() {
 	totalContexts := s.contextResolver.length()
 	aggregatorDogstatsdContexts.Set(int64(totalContexts))
 	tlmDogstatsdContexts.Set(float64(totalContexts), s.idString)
 	tlmDogstatsdTimeBuckets.Set(float64(len(s.metricsByTimestamp)), s.idString)
 
-	byMtype := s.contextResolver.countsByMtype()
-	for i, count := range byMtype {
-		mtype := metrics.MetricType(i).String()
-		aggregatorDogstatsdContextsByMtype[i].Set(int64(count))
-		tlmDogstatsdContextsByMtype.Set(float64(count), s.idString, mtype)
-	}
+	countByMtype := s.contextResolver.countsByMtype()
+	for i := 0; i < int(metrics.NumMetricTypes); i++ {
+		count := countByMtype[i]
 
-	s.sendTelemetry(timestamp, series)
+		aggregatorDogstatsdContextsByMtype[i].Set(int64(count))
+	}
+	s.contextResolver.updateMetrics(tlmDogstatsdContextsByMtype, tlmDogstatsdContextsBytesByMtype)
 }
 
 // flushContextMetrics flushes the contextMetrics inside contextMetricsFlusher, handles its errors,

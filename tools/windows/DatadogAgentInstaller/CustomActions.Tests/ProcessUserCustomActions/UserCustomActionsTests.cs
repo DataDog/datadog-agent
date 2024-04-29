@@ -120,5 +120,50 @@ namespace CustomActions.Tests.ProcessUserCustomActions
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "true");
         }
+
+        [Theory]
+        [AutoData]
+        public void ProcessDdAgentUserCredentials_With_Agent_User_Equal_Current_User(string userDomain, string userName)
+        {
+            var userSID = new SecurityIdentifier("S-1-0-5");
+            Test.WithLocalUser(userDomain, userName, SID_NAME_USE.SidTypeUser, userSID)
+                .WithCurrentUser(userName, userSID);
+
+            Test.Session
+                .Setup(session => session["DDAGENTUSER_NAME"]).Returns($"{userDomain}\\{userName}");
+
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Failure);
+
+            Test.Properties.Should()
+                .Contain("DDAGENTUSER_FOUND", "true").And
+                .Contain("DDAGENTUSER_SID", userSID.ToString());
+        }
+
+        [Theory]
+        [AutoData]
+        public void ProcessDdAgentUserCredentials_With_Local_System_And_Current_User_Local_System()
+        {
+            Test.Session
+                .Setup(session => session["DDAGENTUSER_NAME"]).Returns("LocalSystem");
+
+            Test.WithCurrentUser("SYSTEM", new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null));
+
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Success);
+
+            Test.Properties.Should()
+                .Contain("DDAGENTUSER_FOUND", "true").And
+                .Contain("DDAGENTUSER_SID", new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null).Value).And
+                .Contain("DDAGENTUSER_PROCESSED_NAME", "SYSTEM").And
+                .Contain("DDAGENTUSER_PROCESSED_DOMAIN", "NT AUTHORITY").And
+                .Contain("DDAGENTUSER_PROCESSED_FQ_NAME", "NT AUTHORITY\\SYSTEM").And
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_RESET_PASSWORD" && string.IsNullOrEmpty(kvp.Value)).And
+                .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" && string.IsNullOrEmpty(kvp.Value));
+        }
     }
 }

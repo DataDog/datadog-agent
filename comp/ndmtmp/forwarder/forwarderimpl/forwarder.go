@@ -14,9 +14,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(getForwarder),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(getForwarder))
+}
 
 func getForwarder(agg demultiplexer.Component) (forwarder.Component, error) {
 	return agg.GetEventPlatformForwarder()

@@ -15,8 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
 type kubernetesEventBundle struct {
@@ -73,7 +74,7 @@ func (b *kubernetesEventBundle) formatEvents() (event.Event, error) {
 		Priority:       event.EventPriorityNormal,
 		Host:           b.hostInfo.hostname,
 		SourceTypeName: "kubernetes",
-		EventType:      kubernetesAPIServerCheckName,
+		EventType:      CheckName,
 		Ts:             int64(b.lastTimestamp),
 		Tags:           tags,
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.involvedObject.UID),

@@ -12,7 +12,7 @@ import (
 )
 
 func (m *EventMonitor) getListener() (net.Listener, error) {
-	return net.Listen("tcp", ":3335")
+	return net.Listen("tcp", m.Config.SocketPath)
 }
 
 func (m *EventMonitor) init() error {

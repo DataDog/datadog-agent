@@ -9,18 +9,18 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.uber.org/fx"
 )
 
 type dependencies struct {
@@ -32,38 +32,19 @@ type dependencies struct {
 	Hostname      hostname.Component
 }
 
-// NetflowServerStatus represents the status of the server including details about
-// listeners which are working and those which have closed.
-type NetflowServerStatus struct {
-	TotalListeners         int
-	OpenListeners          int
-	ClosedListeners        int
-	WorkingListenerDetails []NetflowListenerStatus
-	ClosedListenerDetails  []NetflowListenerStatus
-}
+type provides struct {
+	fx.Out
 
-// NetflowListenerStatus handles logic related to pulling config information and associating it to an error.
-type NetflowListenerStatus struct {
-	Config    nfconfig.ListenerConfig
-	Error     string
-	FlowCount int64
+	Comp           Component
+	StatusProvider status.InformationProvider
 }
-
-// TODO: (components)
-// The Status command is not yet a component.
-// Therefore, the globalServer variable below is used as a temporary workaround.
-// globalServer is only used on getting the status of the server.
-var (
-	globalServer   = &Server{}
-	globalServerMu sync.Mutex
-)
 
 // newServer configures a netflow server.
-func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
+func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 	conf := deps.Config.Get()
 	sender, err := deps.Demultiplexer.GetDefaultSender()
 	if err != nil {
-		return nil, err
+		return provides{}, err
 	}
 	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger)
 
@@ -73,11 +54,13 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 		logger:  deps.Logger,
 	}
 
-	globalServerMu.Lock()
-	globalServer = server
-	globalServerMu.Unlock()
+	var statusProvider status.Provider
 
 	if conf.Enabled {
+		statusProvider = Provider{
+			server: server,
+		}
+
 		// netflow is enabled, so start the server
 		lc.Append(fx.Hook{
 			OnStart: func(ctx context.Context) error {
@@ -91,7 +74,10 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 			},
 		})
 	}
-	return server, nil
+	return provides{
+		Comp:           server,
+		StatusProvider: status.NewInformationProvider(statusProvider),
+	}, nil
 }
 
 // Server manages netflow listeners.
@@ -160,46 +146,4 @@ func (s *Server) Stop() {
 		}
 	}
 	s.running = false
-}
-
-// IsEnabled checks if the netflow functionality is enabled in the configuration.
-func IsEnabled() bool {
-	return config.Datadog.GetBool("network_devices.netflow.enabled")
-}
-
-// GetStatus retrieves the current status of the server with details about
-// all listeners and categorizes them into working and closed.
-func GetStatus() NetflowServerStatus {
-	globalServerMu.Lock()
-	defer globalServerMu.Unlock()
-
-	if globalServer == nil {
-		return NetflowServerStatus{}
-	}
-
-	workingListeners := []NetflowListenerStatus{}
-	closedListenersList := []NetflowListenerStatus{}
-
-	for _, listener := range globalServer.listeners {
-		errorString := listener.error.Load()
-		if errorString != "" {
-			closedListenersList = append(closedListenersList, NetflowListenerStatus{
-				Config: listener.config,
-				Error:  errorString,
-			})
-		} else {
-			workingListeners = append(workingListeners, NetflowListenerStatus{
-				Config:    listener.config,
-				FlowCount: listener.flowCount.Load(),
-			})
-		}
-	}
-
-	return NetflowServerStatus{
-		TotalListeners:         int(len(globalServer.listeners)),
-		OpenListeners:          int(len(workingListeners)),
-		ClosedListeners:        int(len(closedListenersList)),
-		WorkingListenerDetails: workingListeners,
-		ClosedListenerDetails:  closedListenersList,
-	}
 }

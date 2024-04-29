@@ -5,18 +5,20 @@ package events
 
 type batch struct {
 	Idx            uint64
+	Cpu            uint16
 	Len            uint16
 	Cap            uint16
 	Event_size     uint16
-	Dropped_events uint16
+	Dropped_events uint32
+	Failed_flushes uint32
 	Data           [4096]int8
 }
 type batchKey struct {
-	Cpu uint32
-	Num uint32
+	Cpu uint16
+	Num uint16
 }
 
 const (
-	batchPagesPerCPU = 0x3
+	batchPagesPerCPU = 0x8
 	batchBufferSize  = 0x1000
 )

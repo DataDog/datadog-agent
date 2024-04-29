@@ -24,8 +24,6 @@ const (
 	//nolint:revive // TODO(PROC) Fix revive linter
 	ConnectionsCheckDefaultInterval = 30 * time.Second
 	//nolint:revive // TODO(PROC) Fix revive linter
-	PodCheckDefaultInterval = 10 * time.Second
-	//nolint:revive // TODO(PROC) Fix revive linter
 	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 
 	discoveryMinInterval = 10 * time.Minute
@@ -49,7 +47,6 @@ var (
 		ContainerCheckName:     ContainerCheckDefaultInterval,
 		RTContainerCheckName:   RTContainerCheckDefaultInterval,
 		ConnectionsCheckName:   ConnectionsCheckDefaultInterval,
-		PodCheckName:           PodCheckDefaultInterval,
 		DiscoveryCheckName:     ProcessDiscoveryCheckDefaultInterval,
 		ProcessEventsCheckName: config.DefaultProcessEventsCheckInterval,
 	}

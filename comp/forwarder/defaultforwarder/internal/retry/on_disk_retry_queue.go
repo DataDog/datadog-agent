@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 const retryTransactionsExtension = ".retry"
@@ -200,7 +200,7 @@ func (s *onDiskRetryQueue) removeFileAt(index int) error {
 	// fail on the next call.
 	s.filenames = append(s.filenames[:index], s.filenames[index+1:]...)
 
-	size, err := util.GetFileSize(filename)
+	size, err := filesystem.GetFileSize(filename)
 	if err != nil {
 		return err
 	}

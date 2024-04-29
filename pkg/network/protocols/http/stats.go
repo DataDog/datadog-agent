@@ -42,6 +42,8 @@ const (
 	MethodOptions
 	// MethodPatch represents the PATCH request method
 	MethodPatch
+	// MethodTrace represents the TRACE request method
+	MethodTrace
 )
 
 // Method returns a string representing the HTTP method of the request
@@ -61,6 +63,8 @@ func (m Method) String() string {
 		return "OPTIONS"
 	case MethodPatch:
 		return "PATCH"
+	case MethodTrace:
+		return "TRACE"
 	default:
 		return "UNKNOWN"
 	}
@@ -78,6 +82,11 @@ type Key struct {
 	Path Path
 	types.ConnectionKey
 	Method Method
+}
+
+// String returns a string representation of the Key
+func (k Key) String() string {
+	return "{IP: " + k.ConnectionKey.String() + ", Method: " + k.Method.String() + ", Path: " + k.Path.Content.Get() + "}"
 }
 
 // NewKey generates a new Key

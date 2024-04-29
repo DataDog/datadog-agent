@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 package tests
 
@@ -21,6 +21,8 @@ import (
 )
 
 func TestK8SUserSession(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	executable := which(t, "touch")
 
 	ruleDefs := []*rules.RuleDefinition{

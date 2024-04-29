@@ -32,6 +32,11 @@ type Probe struct {
 	Config *config.Config
 }
 
+// Origin returns origin
+func (p *Probe) Origin() string {
+	return ""
+}
+
 // AddEventHandler set the probe event handler
 func (p *Probe) AddEventHandler(_ model.EventType, _ EventHandler) error {
 	return nil
@@ -97,5 +102,4 @@ func (p *Probe) RefreshUserCache(_ string) error {
 }
 
 // HandleActions executes the actions of a triggered rule
-func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {
-}
+func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}

@@ -27,26 +27,18 @@ var mprotectCapabilities = Capabilities{
 }
 
 func mprotectOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
-	intValues := func(fvs rules.FilterValues) []int {
-		var values []int
-		for _, v := range fvs {
-			values = append(values, v.Value.(int))
-		}
-		return values
-	}
-
 	var mprotectApprovers []activeApprover
 
 	for field, values := range approvers {
 		switch field {
 		case "mprotect.vm_protection":
-			approver, err := approveFlags("mprotect_vm_protection_approvers", intValues(values)...)
+			approver, err := approveFlags("mprotect_vm_protection_approvers", intValues[int32](values)...)
 			if err != nil {
 				return nil, err
 			}
 			mprotectApprovers = append(mprotectApprovers, approver)
 		case "mprotect.req_protection":
-			approver, err := approveFlags("mprotect_req_protection_approvers", intValues(values)...)
+			approver, err := approveFlags("mprotect_req_protection_approvers", intValues[int32](values)...)
 			if err != nil {
 				return nil, err
 			}

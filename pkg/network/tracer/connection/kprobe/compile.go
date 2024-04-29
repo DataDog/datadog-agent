@@ -18,7 +18,7 @@ import (
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/tracer.c pkg/ebpf/bytecode/runtime/tracer.go runtime
 
 func getRuntimeCompiledTracer(config *config.Config) (runtime.CompiledOutput, error) {
-	return runtime.Tracer.Compile(&config.Config, getCFlags(config), statsd.Client)
+	return runtime.Tracer.Compile(&config.Config, getCFlags(config), getLlcFlags(), statsd.Client)
 }
 
 func getCFlags(config *config.Config) []string {
@@ -33,5 +33,12 @@ func getCFlags(config *config.Config) []string {
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")
 	}
+	if config.EBPFInstrumentationEnabled {
+		cflags = append(cflags, "-pg")
+	}
 	return cflags
+}
+
+func getLlcFlags() []string {
+	return nil
 }
