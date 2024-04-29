@@ -1690,7 +1690,7 @@ func testAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, target
 	// Setting one instance of amqp server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, amqpPort)
 	targetAddress := net.JoinHostPort(targetHost, amqpPort)
-	require.NoError(t, amqp.RunServer(t, serverHost, amqpPort))
+	require.NoError(t, amqp.RunServer(t, serverHost, amqpPort, amqp.Plaintext))
 
 	tests := []protocolClassificationAttributes{
 		{
