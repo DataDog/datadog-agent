@@ -558,11 +558,11 @@ def kmt_secagent_prepare(
         bundle_ebpf=False,
         race=True,
         debug=True,
-        output=f"{kmt_paths.secagent_tests}/testsuite",
+        output=f"{kmt_paths.secagent_tests}/pkg/security-agent/testsuite",
         skip_linters=True,
         skip_object_files=True,
     )
-    build_stress_tests(ctx, output=f"{kmt_paths.secagent_tests}/stresssuite", skip_linters=True)
+    build_stress_tests(ctx, output=f"{kmt_paths.secagent_tests}/pkg/security-agent/stresssuite", skip_linters=True)
 
     go_path = "go"
     go_root = os.getenv("GOROOT")
