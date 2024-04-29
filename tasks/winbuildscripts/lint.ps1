@@ -8,8 +8,6 @@ $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
 $LINT_ROOT=(Get-Location).Path
 $Env:PATH="$LINT_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH;$Env:VSTUDIO_ROOT\VC\Tools\Llvm\bin"
 
-& $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3.1
-
 & inv -e deps
 & .\tasks\winbuildscripts\pre-go-build.ps1 -PythonRuntimes "$Env:PY_RUNTIMES"
 
