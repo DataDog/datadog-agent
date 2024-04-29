@@ -137,6 +137,14 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, 
 			probe.SockMap = sockmap
 		}
 
+		probe, found = mgr.GetProbe(manager.ProbeIdentificationPair{
+			EBPFFuncName: skMsgProtocolDispatcher,
+			UID:          probeUID,
+		})
+		if found {
+			probe.SockMap = sockmap
+		}
+
 		// probe, found := mgr.GetProbe(manager.ProbeIdentificationPair{
 		// 	EBPFFuncName: kafkaStreamParser,
 		// 	UID:          probeUID,

@@ -63,6 +63,28 @@ int sk_skb__protocol_dispatcher(struct __sk_buff* skb) {
     return SK_PASS;
 }
 
+SEC("sk_msg/protocol_dispatcher")
+int sk_msg__protocol_dispatcher(struct sk_msg_md *msg) {
+    log_debug("sk_msg__protocol_dispatcher: msg %p size %u", msg, msg->size);
+
+    long err = bpf_msg_pull_data(msg, 0, 4, 0);
+    if (err < 0) {
+        log_debug("sk_msg__protocol_dispatcher: pull fail %ld", err);
+        return SK_PASS;
+    }
+
+    void *data = msg->data;
+    void *data_end = msg->data_end;
+    log_debug("sk_msg__protocol_dispatcher: diff %ld", data_end - data);
+    if (data + 4 > data_end) {
+        log_debug("sk_msg__protocol_dispatcher: too short");
+        return SK_PASS;
+    }
+
+    log_debug("sk_msg__protocol_dispatcher: bytes %x", *(__u32*)data);
+
+    return SK_PASS;
+}
 
 SEC("sockops/sockops")
 int sockops__sockops(struct bpf_sock_ops *skops) {
