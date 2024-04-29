@@ -9,12 +9,9 @@ package installer
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -24,15 +21,7 @@ import (
 )
 
 const (
-	// PackagesPath is the path to the packages directory.
-	PackagesPath = "/opt/datadog-packages"
-	// TmpDirPath is the path to the temporary directory used for package installation.
-	TmpDirPath = "/opt/datadog-packages"
-	// LocksPack is the path to the locks directory.
-	LocksPack = "/var/run/datadog-packages"
-
 	datadogPackageMaxSize = 3 << 30 // 3GiB
-	defaultConfigsDir     = "/etc"
 
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
@@ -106,24 +95,13 @@ func NewInstaller(opts ...Option) Installer {
 	for _, opt := range opts {
 		opt(o)
 	}
-	if runtime.GOOS != "windows" {
-		return &installerImpl{
-			downloader:   oci.NewDownloader(http.DefaultClient, o.registry, o.registryAuth),
-			repositories: repository.NewRepositories(PackagesPath, LocksPack),
-			configsDir:   defaultConfigsDir,
-			tmpDirPath:   TmpDirPath,
-			packagesDir:  PackagesPath,
-		}
-	}
 
-	updaterPath, _ := internal.GetProgramDataDirForProduct("Datadog Installer")
-	agentConfigPath, _ := winutil.GetProgramDataDir()
 	return &installerImpl{
 		downloader:   oci.NewDownloader(http.DefaultClient, o.registry, o.registryAuth),
-		repositories: repository.NewRepositories(updaterPath, filepath.Join(updaterPath, "locks")),
-		configsDir:   agentConfigPath,
-		tmpDirPath:   updaterPath,
-		packagesDir:  updaterPath,
+		repositories: repository.NewRepositories(PackagesPath, LocksPack),
+		configsDir:   DefaultConfigsDir,
+		tmpDirPath:   TmpDirPath,
+		packagesDir:  PackagesPath,
 	}
 }
 

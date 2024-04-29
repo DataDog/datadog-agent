@@ -10,19 +10,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/mux"
-	"net"
-	"net/http"
-	"os"
-
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/gorilla/mux"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
 )
 
-const (
-	defaultSocketPath = installer.PackagesPath + "/daemon.sock"
+var (
+	defaultSocketPath = filepath.Join(installer.PackagesPath, "daemon.sock")
 )
 
 // StatusResponse is the response to the status endpoint.
