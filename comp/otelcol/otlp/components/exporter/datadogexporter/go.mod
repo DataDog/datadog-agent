@@ -6,6 +6,7 @@ replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../../../../cmd/agent/common/path
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../../core/config
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../core/flare/types
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../../core/hostname/hostnameinterface
 	github.com/DataDog/datadog-agent/comp/core/log => ../../../../../core/log
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../../core/secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../../../core/status
@@ -59,7 +60,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent v0.0.0-20240429084709-5c51df756fba
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.54.0-rc.1
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.54.0-rc.1
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.54.0-rc.1
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.54.0-rc.1
@@ -87,7 +88,6 @@ require (
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.114 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.54.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.54.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log v0.54.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.54.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.54.0-rc.1 // indirect
@@ -180,7 +180,8 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/klauspost/compress v1.17.8 // indirect
-	github.com/knadh/koanf v1.5.0 // indirect
+	github.com/knadh/koanf/maps v0.1.1 // indirect
+	github.com/knadh/koanf/providers/confmap v0.1.0 // indirect
 	github.com/knadh/koanf/v2 v2.1.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220913051719-115f729f3c8c // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
