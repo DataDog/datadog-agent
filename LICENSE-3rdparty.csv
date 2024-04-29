@@ -2872,7 +2872,6 @@ core,go.opentelemetry.io/collector/internal/memorylimiter,Apache-2.0,Copyright T
 core,go.opentelemetry.io/collector/internal/obsreportconfig,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/obsreportconfig/obsmetrics,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/sharedcomponent,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/internal/testdata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/otelcol,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/otelcol/internal/configunmarshaler,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/otelcol/internal/grpclog,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2895,6 +2894,7 @@ core,go.opentelemetry.io/collector/pdata/pmetric,Apache-2.0,Copyright The OpenTe
 core,go.opentelemetry.io/collector/pdata/pmetric/pmetricotlp,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/ptrace,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/pdata/testdata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/processor,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/processor/batchprocessor,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/processor/batchprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
