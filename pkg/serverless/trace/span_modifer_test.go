@@ -195,7 +195,7 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 	cloudServiceToEnvVar := map[string]string{
 		"cloudrun":     cloudservice.ServiceNameEnvVar,
 		"containerapp": cloudservice.ContainerAppNameEnvVar,
-		"appservice":   cloudservice.RunZip,
+		"appservice":   cloudservice.FxVersion,
 		"lambda":       functionNameEnvVar}
 	for origin, cloudServiceEnvVar := range cloudServiceToEnvVar {
 		// Set the appropriate environment variable to simulate a cloud service
