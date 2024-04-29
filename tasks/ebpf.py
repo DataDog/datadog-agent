@@ -239,12 +239,32 @@ def annotate_complexity(_: Context, program: str, function: str, debug=False, sh
     if debug:
         program += "_debug"
 
-    func_name = f"{program}/{function.replace('/', '__')}"
+    function = function.replace('/', '__')
+    func_name = f"{program}/{function}"
     complexity_data_file = COMPLEXITY_DATA_DIR / f"{func_name}.json"
 
     if not os.path.exists(complexity_data_file):
-        raise Exit(f"Complexity data for {func_name} not found at {complexity_data_file}")
+        # Fall back to use section name
+        print(
+            f"Complexity data for function {func_name} not found at {complexity_data_file}, trying to find it as section..."
+        )
 
+        with open(COMPLEXITY_DATA_DIR / program / "mappings.json") as f:
+            mappings = json.load(f)
+        if func_name not in mappings:
+            raise Exit(f"Cannot find complexity data for {func_name}, neither as function nor section name")
+
+        funcs = mappings[function]
+        if len(funcs) > 1:
+            raise Exit(
+                f"Multiple functions corresponding to section {func_name}: {funcs}. Please choose only one of them"
+            )
+
+        function = funcs[0]
+        func_name = f"{program}/{function}"
+        complexity_data_file = COMPLEXITY_DATA_DIR / f"{func_name}.json"
+
+    print(complexity_data_file)
     with open(complexity_data_file) as f:
         complexity_data = json.load(f)
     all_files = {x.split(':')[0] for x in complexity_data["source_map"].keys()}
