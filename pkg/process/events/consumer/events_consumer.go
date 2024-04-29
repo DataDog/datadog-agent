@@ -20,6 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	chanSize = 100
+)
+
 // ProcessConsumer is part of the event monitoring module of the system-probe. It receives
 // events, batches them in the messages channel and serves the messages to the process-agent
 // over GRPC when requested
@@ -82,6 +86,16 @@ func (p *ProcessConsumer) SendStats() {
 	}
 }
 
+// IsReady implements the event consumer interface
+func (p *ProcessConsumer) IsReady() bool {
+	return true
+}
+
+// ChanSize returns the chan size used by this consumer
+func (p *ProcessConsumer) ChanSize() int {
+	return chanSize
+}
+
 // HandleEvent implement the event monitor EventHandler interface
 func (p *ProcessConsumer) HandleEvent(event any) {
 	e, ok := event.(*model.ProcessEvent)
@@ -89,6 +103,9 @@ func (p *ProcessConsumer) HandleEvent(event any) {
 		log.Errorf("Event is not a Process Lifecycle Event")
 		return
 	}
+
+	// transcode event type
+	e.EventType = model.NewEventType(e.SModelEventType.String())
 
 	data, err := e.MarshalMsg(nil)
 	if err != nil {

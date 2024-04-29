@@ -62,9 +62,10 @@ type EventHandler interface {
 // EventConsumer represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
 type EventConsumerInterface interface {
 	ChanSize() int
-	HandleEvent(event any)
+	HandleEvent(_ any)
 	Copy(_ *model.Event) any
 	EventTypes() []model.EventType
+	IsReady() bool
 }
 
 // ProbeEventConsumer defines a probe event consumer
@@ -262,6 +263,10 @@ func (p *Probe) sendEventToHandlers(event *model.Event) {
 
 func (p *Probe) sendEventToConsumers(event *model.Event) {
 	for _, pc := range p.eventConsumers[event.GetEventType()] {
+		if !pc.consumer.IsReady() {
+			continue
+		}
+
 		if copied := pc.consumer.Copy(event); copied != nil {
 			select {
 			case pc.eventCh <- copied:

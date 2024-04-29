@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/event_copy -scope "(h *eventConsumerWrapper)" -pkg events -output event_copy_linux.go Process .
+
 //go:build linux
 
 // Package events handles process events
@@ -20,6 +22,10 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	chanSize = 100
 )
 
 var (
@@ -98,6 +104,11 @@ func (h *eventConsumerWrapper) HandleEvent(ev any) {
 
 	m := theMonitor.Load()
 	if m != nil {
+		if !evProcess.ExecTime.IsZero() {
+			evProcess.StartTime = evProcess.ExecTime.UnixNano()
+		} else if !evProcess.ForkTime.IsZero() {
+			evProcess.StartTime = evProcess.ForkTime.UnixNano()
+		}
 		m.(*eventMonitor).HandleEvent(evProcess)
 	}
 }
@@ -142,6 +153,12 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 	return p
 }
 
+// monitor is not initialized, no need to copy the event
+// since it will get dropped by the handler anyway
+func (h *eventConsumerWrapper) IsReady() bool {
+	return theMonitor.Load() != nil
+}
+
 // EventTypes returns the event types handled by this consumer
 func (h *eventConsumerWrapper) EventTypes() []model.EventType {
 	return []model.EventType{
@@ -152,7 +169,7 @@ func (h *eventConsumerWrapper) EventTypes() []model.EventType {
 
 // ChanSize returns the chan size used by this consumer
 func (h *eventConsumerWrapper) ChanSize() int {
-	return 100
+	return chanSize
 }
 
 var _eventConsumerWrapper = &eventConsumerWrapper{}

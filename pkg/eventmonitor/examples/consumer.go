@@ -62,6 +62,11 @@ func (fc *SimpleEventConsumer) EventTypes() []model.EventType {
 	}
 }
 
+// IsReady specifies is the consumer is ready to consume event
+func (fc *SimpleEventConsumer) IsReady() bool {
+	return true
+}
+
 // ChanSize returns the chan size used by the consumer
 func (fc *SimpleEventConsumer) ChanSize() int {
 	return 50
