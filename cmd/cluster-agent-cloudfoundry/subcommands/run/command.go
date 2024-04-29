@@ -42,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -98,7 +99,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				workloadmeta.Module(),
 				fx.Provide(tagger.NewTaggerParams),
-				tagger.Module(),
+				taggerimpl.Module(),
 				collectorimpl.Module(),
 				fx.Provide(func() optional.Option[serializer.MetricSerializer] {
 					return optional.NewNoneOption[serializer.MetricSerializer]()
@@ -125,7 +126,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func run(log log.Component,
+func run(
+	config config.Component,
+	log log.Component,
 	taggerComp tagger.Component,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
@@ -177,7 +180,7 @@ func run(log log.Component,
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver, settings); err != nil {
+	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver, settings, config); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

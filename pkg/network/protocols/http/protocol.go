@@ -98,6 +98,7 @@ func newHTTPProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}, nil
 }
 
+// Name return the program's name.
 func (p *protocol) Name() string {
 	return "HTTP"
 }

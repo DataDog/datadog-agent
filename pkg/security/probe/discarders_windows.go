@@ -5,7 +5,53 @@
 
 package probe
 
+import "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+
 func init() {
-	SupportedDiscarders["create.file.path"] = true
-	SupportedDiscarders["create.file.name"] = true
+	SupportedMultiDiscarder = []*rules.MultiDiscarder{
+		{
+			Entries: []rules.MultiDiscarderEntry{
+				{
+					Field:     "create.file.path",
+					EventType: "create",
+				},
+				{
+					Field:     "rename.file.path",
+					EventType: "rename",
+				},
+				{
+					Field:     "delete.file.path",
+					EventType: "delete",
+				},
+				{
+					Field:     "write.file.path",
+					EventType: "write",
+				},
+			},
+			FinalField:     "create.file.path",
+			FinalEventType: "create",
+		},
+		{
+			Entries: []rules.MultiDiscarderEntry{
+				{
+					Field:     "create.file.name",
+					EventType: "create",
+				},
+				{
+					Field:     "rename.file.name",
+					EventType: "rename",
+				},
+				{
+					Field:     "delete.file.name",
+					EventType: "delete",
+				},
+				{
+					Field:     "write.file.name",
+					EventType: "write",
+				},
+			},
+			FinalField:     "create.file.name",
+			FinalEventType: "create",
+		},
+	}
 }

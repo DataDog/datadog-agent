@@ -47,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -152,7 +153,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(context.Background()),
 				workloadmeta.Module(),
 				fx.Provide(tagger.NewTaggerParams),
-				tagger.Module(),
+				taggerimpl.Module(),
 				fx.Supply(
 					status.Params{
 						PythonVersionGetFunc: python.GetPythonVersion,
@@ -279,7 +280,7 @@ func start(log log.Component,
 	}
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver, settings); err != nil {
+	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver, settings, config); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

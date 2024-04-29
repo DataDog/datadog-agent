@@ -10,7 +10,12 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log"
+	"net"
 	"os"
+	"sync"
+
+	"golang.org/x/net/netutil"
 )
 
 func main() {
@@ -26,6 +31,8 @@ func main() {
 const request string = "GET /status/200 HTTP/1.0\r\n\r\n"
 
 func run() error {
+	createTCPListener()
+
 	host := "httpbin.org:443"
 	conn, err := tls.Dial("tcp", host, nil)
 	if err != nil {
@@ -52,4 +59,27 @@ func run() error {
 	}
 
 	return nil
+}
+
+// This code is meant to include the netutil.limitedListenerConn type for the
+// purposes of binary inspection. This type is sometimes behind the `net.Conn`
+// interface embedded in the `tls.Conn` type.
+func createTCPListener() {
+	l, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ll := netutil.LimitListener(l, 1)
+
+	// This code is a bit non-sensical as it doesn't do anything meaninful other
+	// than "including" the types we want for DWARF inspection
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		c, _ := ll.Accept()
+		fmt.Println(c)
+	}()
+	ll.Close()
+	wg.Wait()
 }
