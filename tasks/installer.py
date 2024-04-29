@@ -21,7 +21,6 @@ def build(
     install_path=None,
     build_include=None,
     build_exclude=None,
-    arch="x64",
     go_mod="mod",
 ):
     """
@@ -35,7 +34,7 @@ def build(
             build="updater",
         )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+        else filter_incompatible_tags(build_include.split(","))
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 

@@ -517,7 +517,6 @@ def ebpfless_functional_tests(
 ):
     build_functional_tests(
         ctx,
-        arch=arch,
         major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,

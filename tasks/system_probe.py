@@ -557,7 +557,6 @@ def build(
 @task
 def clean(
     ctx,
-    arch=CURRENT_ARCH,
 ):
     clean_object_files(
         ctx,
