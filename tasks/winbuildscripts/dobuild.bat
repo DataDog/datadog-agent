@@ -59,4 +59,8 @@ if "%OMNIBUS_TARGET%" == "main" (
     @echo "inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" --release-version %RELEASE_VERSION%
     inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" --release-version %RELEASE_VERSION% || exit /b 106
 )
+
+REM Build the OCI package
+Powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1"
+
 popd
