@@ -64,7 +64,7 @@ func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricS
 
 type tagEnricher struct{}
 
-func (t *tagEnricher) SetCardinality(cardinality string) (err error) {
+func (t *tagEnricher) SetCardinality(_ string) (err error) {
 	return nil
 }
 
@@ -151,9 +151,9 @@ func checkAndCastConfig(c component.Config, logger *zap.Logger) *Config {
 
 // createTracesExporter creates a trace exporter based on this config.
 func (f *factory) createTracesExporter(
-	ctx context.Context,
-	set exporter.CreateSettings,
-	c component.Config,
+	_ context.Context,
+	_ exporter.CreateSettings,
+	_ component.Config,
 ) (exporter.Traces, error) {
 	// TODO implement
 	return nil, nil
@@ -181,7 +181,7 @@ func (f *factory) createMetricsExporter(
 func (f *factory) createLogsExporter(
 	ctx context.Context,
 	set exporter.CreateSettings,
-	c component.Config,
+	_ component.Config,
 ) (exporter.Logs, error) {
 	var logch chan *message.Message
 	if provider := f.logsAgent.GetPipelineProvider(); provider != nil {
