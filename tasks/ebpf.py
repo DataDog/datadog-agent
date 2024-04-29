@@ -45,7 +45,8 @@ verifier_stat_json_keys = [
     "total_states",
 ]
 
-skip_stat_keys = ["Complexity","verification_time"]
+skip_stat_keys = ["Complexity", "verification_time"]
+
 
 def tabulate_stats(stats):
     table = list()
@@ -264,7 +265,6 @@ def annotate_complexity(_: Context, program: str, function: str, debug=False, sh
         func_name = f"{program}/{function}"
         complexity_data_file = COMPLEXITY_DATA_DIR / f"{func_name}.json"
 
-    print(complexity_data_file)
     with open(complexity_data_file) as f:
         complexity_data = json.load(f)
     all_files = {x.split(':')[0] for x in complexity_data["source_map"].keys()}
