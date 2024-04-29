@@ -166,7 +166,7 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 	c.config = instanceConfig
 
 	if c.config.Namespace == "" {
-		c.config.Namespace = "cisco-sdwan"
+		c.config.Namespace = "default"
 	} else {
 		namespace, err := utils.NormalizeNamespace(c.config.Namespace)
 		if err != nil {
