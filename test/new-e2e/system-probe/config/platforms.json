@@ -193,6 +193,17 @@
         "mantic"
       ]
     },
+    "ubuntu_24.04": {
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.5.0-9-generic",
+      "os_version": "23.10",
+      "image": "ubuntu-24.04-x86_64.qcow2.xz",
+      "image_version": "guillermo.julian/ubuntu-24.04",
+      "alt_version_names": [
+        "noble"
+      ]
+    },
     "opensuse_15.3": {
       "os_name": "openSUSE Leap",
       "os_id": "opensuse-leap",
@@ -390,6 +401,17 @@
       "image_version": "20240425_b4ca668c",
       "alt_version_names": [
         "mantic"
+      ]
+    },
+    "ubuntu_24.04": {
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.5.0-9-generic",
+      "os_version": "23.10",
+      "image": "ubuntu-24.04-arm64.qcow2.xz",
+      "image_version": "guillermo.julian/ubuntu-24.04",
+      "alt_version_names": [
+        "noble"
       ]
     },
     "opensuse_15.3": {
