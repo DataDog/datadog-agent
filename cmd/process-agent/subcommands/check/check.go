@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
@@ -123,7 +124,7 @@ func MakeCommand(globalParams *command.GlobalParams, name string, allowlist []st
 				}),
 
 				// Provide tagger module
-				tagger.Module(),
+				taggerimpl.Module(),
 				// Tagger must be initialized after agent config has been setup
 				fx.Provide(func(c config.Component) tagger.Params {
 					if c.GetBool("process_config.remote_tagger") {

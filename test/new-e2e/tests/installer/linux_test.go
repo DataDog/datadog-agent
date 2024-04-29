@@ -31,11 +31,12 @@ import (
 )
 
 const (
-	confDir          = "/etc/datadog-agent"
-	logDir           = "/var/log/datadog"
-	locksDir         = "/var/run/datadog-packages"
-	packagesDir      = "/opt/datadog-packages"
-	bootInstallerDir = "/opt/datadog-installer"
+	confDir               = "/etc/datadog-agent"
+	logDir                = "/var/log/datadog"
+	stableInstallerRunDir = "/opt/datadog-packages/datadog-installer/stable/run"
+	locksDir              = "/var/run/datadog-packages"
+	packagesDir           = "/opt/datadog-packages"
+	bootInstallerDir      = "/opt/datadog-installer"
 )
 
 type installerSuite struct {
@@ -60,6 +61,21 @@ func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.De
 func TestCentOSAMD(t *testing.T) {
 	t.Parallel()
 	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault, false)
+}
+
+func TestAmazonLinux2023ARM(t *testing.T) {
+	t.Parallel()
+	runTest(t, "rpm", os.ARM64Arch, os.AmazonLinux2023, false)
+}
+
+func TestAmazonLinux2AMD(t *testing.T) {
+	t.Parallel()
+	runTest(t, "rpm", os.AMD64Arch, os.AmazonLinux2, false)
+}
+
+func TestFedoraAMD(t *testing.T) {
+	t.Parallel()
+	runTest(t, "rpm", os.AMD64Arch, os.FedoraDefault, false)
 }
 
 func TestRedHatARM(t *testing.T) {
@@ -89,7 +105,7 @@ func TestSuseARM(t *testing.T) {
 
 func (v *installerSuite) bootstrap(remoteUpdatesEnabled bool) {
 	v.Env().RemoteHost.MustExecute(
-		fmt.Sprintf("sudo -E %v/bin/installer/installer bootstrap", bootInstallerDir),
+		"sudo -E datadog-bootstrap bootstrap",
 		components.WithEnvVariables(components.EnvVar{
 			"DD_INSTALLER_REGISTRY":          "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 			"DD_INSTALLER_REGISTRY_AUTH":     "ecr",
@@ -114,12 +130,34 @@ func (v *installerSuite) TestSharedAgentDirs() {
 	}
 }
 
+func (v *installerSuite) TestInstallerInPath() {
+	host := v.Env().RemoteHost
+
+	// add
+	v.bootstrap(false)
+	_ = host.MustExecute(`test -L /usr/bin/datadog-installer`)
+	require.Equal(v.T(), "/usr/bin/datadog-installer\n", host.MustExecute("which datadog-installer"))
+	binPath := host.MustExecute("readlink -f $(which datadog-installer)")
+	assert.True(v.T(), strings.HasPrefix(binPath, "/opt/datadog-packages/datadog-installer/7."))
+	assert.True(v.T(), strings.HasSuffix(binPath, "/bin/installer/installer\n"))
+
+	// remove
+	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer remove datadog-installer", bootInstallerDir))
+	_, err := host.Execute(`test -L /usr/bin/datadog-installer`)
+	require.NotNil(v.T(), err)
+}
+
 func (v *installerSuite) TestInstallerDirs() {
 	host := v.Env().RemoteHost
 	v.bootstrap(false)
 	for _, dir := range []string{packagesDir, bootInstallerDir} {
 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%U" `+dir))
 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%G" `+dir))
+	}
+	for _, dir := range []string{stableInstallerRunDir} {
+		require.Equal(v.T(), "dd-agent\n", host.MustExecute(`stat -c "%U" `+dir))
+		require.Equal(v.T(), "dd-agent\n", host.MustExecute(`stat -c "%G" `+dir))
+
 	}
 	require.Equal(v.T(), "drwxrwxrwx\n", host.MustExecute(`stat -c "%A" `+locksDir))
 	require.Equal(v.T(), "drwxr-xr-x\n", host.MustExecute(`stat -c "%A" `+packagesDir))
@@ -250,9 +288,13 @@ func (v *installerSuite) TestPurgeAndInstallAgent() {
 }
 
 func (v *installerSuite) TestPurgeAndInstallAPMInjector() {
-	if v.packageManager == "rpm" {
-		v.T().Skip("skip APMInjector test on rpm distros")
+	if v.distro == os.SuseDefault {
+		v.T().Skip(
+			"Docker is not supported on SUSE without arch s390x (IBM Z), but we don't support that arch in E2E tests.\n" +
+				"See https://docs.docker.com/engine/install/sles/#os-requirements for more details",
+		)
 	}
+
 	host := v.Env().RemoteHost
 
 	///////////////////
