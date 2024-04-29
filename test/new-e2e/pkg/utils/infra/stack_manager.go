@@ -346,7 +346,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 	if datadodatadogEventSender == nil {
 		datadodatadogEventSender, err = newDatadogEventSender(logger)
 		if err != nil {
-			fmt.Fprintf(logger, "error when creating datadog event sender: %v", err)
+			fmt.Fprintf(logger, "error when creating datadog event sender: %v\n", err)
 		}
 	}
 
@@ -370,18 +370,18 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 
 		switch retryStrategy {
 		case reUp:
-			fmt.Fprintf(logger, "Retrying stack on error during stack up: %v", upError)
+			fmt.Fprintf(logger, "Retrying stack on error during stack up: %v\n", upError)
 		case reCreate:
-			fmt.Fprintf(logger, "Recreating stack on error during stack up: %v", upError)
+			fmt.Fprintf(logger, "Recreating stack on error during stack up: %v\n", upError)
 			destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
 			_, err = stack.Destroy(destroyCtx, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 			cancel()
 			if err != nil {
-				fmt.Fprintf(logger, "Error during stack destroy at recrate stack attempt: %v", err)
+				fmt.Fprintf(logger, "Error during stack destroy at recrate stack attempt: %v\n", err)
 				return stack, auto.UpResult{}, err
 			}
 		case noRetry:
-			fmt.Fprintf(logger, "Giving up on error during stack up: %v", upError)
+			fmt.Fprintf(logger, "Giving up on error during stack up: %v\n", upError)
 			return stack, upResult, upError
 		}
 	}
@@ -409,7 +409,7 @@ func buildWorkspace(ctx context.Context, profile runner.Profile, stackName strin
 		return nil, fmt.Errorf("unable to create temporary folder at: %s, err: %w", workspaceStackDir, err)
 	}
 
-	fmt.Printf("Creating workspace for stack: %s at %s", stackName, workspaceStackDir)
+	fmt.Printf("Creating workspace for stack: %s at %s\n", stackName, workspaceStackDir)
 	return auto.NewLocalWorkspace(ctx,
 		auto.Project(project),
 		auto.Program(runFunc),
