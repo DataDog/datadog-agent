@@ -372,15 +372,17 @@ def build_functional_tests(
     race=False,
     kernel_release=None,
     debug=False,
+    skip_object_files=False,
 ):
     if not is_windows:
-        build_cws_object_files(
-            ctx,
-            major_version=major_version,
-            arch=arch,
-            kernel_release=kernel_release,
-            debug=debug,
-        )
+        if not skip_object_files:
+            build_cws_object_files(
+                ctx,
+                major_version=major_version,
+                arch=arch,
+                kernel_release=kernel_release,
+                debug=debug,
+            )
         build_embed_syscall_tester(ctx)
 
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
