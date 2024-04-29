@@ -490,14 +490,6 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	}
 }
 
-// max returns the maximum value between a and b.
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request, demux demultiplexer.Component) {
 	if demux == nil {
 		utils.SetJSONError(w, log.Errorf("Unable to stream dogstatsd contexts, demultiplexer is not initialized"), 404)

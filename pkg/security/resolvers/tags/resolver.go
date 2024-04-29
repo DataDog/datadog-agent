@@ -9,8 +9,8 @@ package tags
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/remote"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,7 +20,7 @@ import (
 type Tagger interface {
 	Start(ctx context.Context) error
 	Stop() error
-	Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
+	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
 }
 
 type nullTagger struct{}
@@ -33,7 +33,7 @@ func (n *nullTagger) Stop() error {
 	return nil
 }
 
-func (n *nullTagger) Tag(_ string, _ collectors.TagCardinality) ([]string, error) {
+func (n *nullTagger) Tag(_ string, _ types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
@@ -69,13 +69,13 @@ func (t *DefaultResolver) Start(ctx context.Context) error {
 
 // Resolve returns the tags for the given id
 func (t *DefaultResolver) Resolve(id string) []string {
-	tags, _ := t.tagger.Tag("container_id://"+id, collectors.OrchestratorCardinality)
+	tags, _ := t.tagger.Tag("container_id://"+id, types.OrchestratorCardinality)
 	return tags
 }
 
 // ResolveWithErr returns the tags for the given id
 func (t *DefaultResolver) ResolveWithErr(id string) ([]string, error) {
-	return t.tagger.Tag("container_id://"+id, collectors.OrchestratorCardinality)
+	return t.tagger.Tag("container_id://"+id, types.OrchestratorCardinality)
 }
 
 // GetValue return the tag value for the given id and tag name

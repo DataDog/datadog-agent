@@ -10,6 +10,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../../core/secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../../../core/status
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../../../def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../../forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../../../forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ../../../../../serializer/compression/
@@ -81,12 +82,13 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.106 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.114 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.0.0-00010101000000-000000000000 // indirect
@@ -120,7 +122,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.4 // indirect
-	github.com/DataDog/viper v1.13.0 // indirect
+	github.com/DataDog/viper v1.13.2 // indirect
 	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
