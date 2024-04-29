@@ -26,7 +26,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -86,7 +86,7 @@ func (t *tracerOffsetGuesser) Manager() *manager.Manager {
 }
 
 func (t *tracerOffsetGuesser) Close() {
-	ebpfcheck.RemoveNameMappings(t.m)
+	ddebpf.RemoveNameMappings(t.m)
 	if err := t.m.Stop(manager.CleanAll); err != nil {
 		log.Warnf("error stopping tracer offset guesser: %s", err)
 	}

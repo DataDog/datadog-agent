@@ -25,7 +25,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -679,7 +679,7 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 					HookFuncName:            symbol,
 				}
 				if err := m.AddHook("", newProbe); err == nil {
-					ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_tls")
+					ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_tls")
 				}
 			}
 			if err := singleProbe.RunValidator(m); err != nil {

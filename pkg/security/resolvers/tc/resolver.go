@@ -18,7 +18,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/vishvananda/netlink"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -117,7 +117,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 		} else {
 			tcr.programs[deviceKey] = newProbe
 			// do not use dynamic program name here, it explodes cardinality
-			ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "cws")
+			ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "cws")
 		}
 	}
 	return combinedErr.ErrorOrNil()
