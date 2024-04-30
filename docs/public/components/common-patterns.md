@@ -33,7 +33,7 @@ Here, two components add a `server.Endpoint` type to the `server` group.
     }
     ```
 
-Here, a component requests all the types added to the `server` group. This takes the form of a slice received at
+In the following example, a component requests all the types added to the `server` group. This takes the form of a slice received at
 instantiation (note once again the `group` label but in `fx.In` struct).
 
 === ":octicons-file-code-16: server/server.go"
