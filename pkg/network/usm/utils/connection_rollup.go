@@ -11,24 +11,41 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
+const (
+	// defaultIPTupleSize represents the default capacity of the map storing
+	// (IP-A:IP-B) tuples. The number here should be more or less the number
+	// of local IPs a host has times the number of remote IPs it
+	// talks to.
+	defaultIPTupleSize = 1000
+
+	// defaultServerPortSize represents the default capacity of the slice
+	// storing `portValues` objects for a given (IP-A:IP-B) tuple. This slice
+	// should store one `portValues` object per unique server port, so its
+	// cardiality should be relatively low.
+	// For example, a HTTP client container with (IP-A) hitting a HTTP server
+	// with (IP-B), will probably have one or two `portValues` objects (:80),
+	// (:443).
+	defaultServerPortSize = 10
+)
+
 // ConnectionAggregator provides functionality for rolling-up datapoints from
 // different connections that refer to the same (client, server) pair
 type ConnectionAggregator struct {
-	data map[ipTuple]portValues
+	data map[ipTuple][]portValues
 }
 
 // NewConnectionAggregator returns a new instance of a `ConnectionAggregator`
 func NewConnectionAggregator() *ConnectionAggregator {
 	return &ConnectionAggregator{
-		data: make(map[ipTuple]portValues, 1000),
+		data: make(map[ipTuple][]portValues, defaultIPTupleSize),
 	}
 }
 
 // ipTuple represents a pair of 64-bit IP addresses.
 //
 // note: we chose generic names ("a" and "b") on purpose, since the order of IPs
-// here doesn't align with the notion of "source/destination", "local/remote"
-// or "client/server".
+// here doesn't align with the notion of "source/destination", "local/remote" or
+// "client/server".
 type ipTuple struct {
 	aLow  uint64
 	aHigh uint64
@@ -36,29 +53,25 @@ type ipTuple struct {
 	bHigh uint64
 }
 
-// ephemeralPortSide designates which side of the tuple ("a" or "b") contains
-// the ephemeral/client port
-type ephemeralPortSide uint8
+// serverPortSide designates the side of the tuple ("a" or "b") that contains
+// the server port
+type serverPortSide uint8
 
 const (
-	ephemeralPortUnknown = iota
-	ephemeralPortA
-	ephemeralPortB
+	serverPortUnknown = iota
+	serverPortA
+	serverPortB
 )
 
+// portValues represents a "sample" of a pair of port numbers associated to a
+// given ipTuple.
 type portValues struct {
-	// these two values are populated by the *first* connection
-	// that has a given ipTuple
 	a uint16
 	b uint16
 
 	// this value is determined by analyzing the second connection that matches
 	// the associated ipTuple but has either a different port "a" or "b"
-	ephemeralSide ephemeralPortSide
-
-	// this is used to determine whether we should generate (a, b) or (b, a)
-	// when calling generateKey()
-	flipped bool
+	serverSide serverPortSide
 }
 
 // RollupKey returns a _potentially_ modified key that is suitable for
@@ -66,114 +79,79 @@ type portValues struct {
 // high-level, the function is supposed to return *one* key for all connections
 // matching (IP-A:*,IP-B:SERVER_PORT).
 //
-// This means that RollupKey(c1) == RollupKey(c2) == RollupKey(c3) for the
-// example below:
+// The approach here was designed such that it can be used in the context of a
+// *stream* of events, so we don't need to have the full data set in order to
+// aggregate different connections.
 //
-// c1: (IP-A:60001, IP-B:8080)
-// c2: (IP-A:60002, IP-B:8080)
-// c3: (IP-B:8080, IP-A:60003)
+// Here's an input/output example:
 //
-// The approach is very simplistic and only aims to address the common cases we
-// see in most workloads. The function will likely generate "false negatives",
-// but ideally it shouldn't generate "false positives". In other words, we may
-// not always rollup two different `types.ConnectionKey` that may legitimately
-// refer to the same (client, server) pair, but we shouldn't cause correctness
-// issues by aggregating two datapoints that *don't* belong to to the same
-// (client, server) pair.
+// |-------------------------------*-------------------------------|
+// | Input                         | Output                        |
+// |-------------------------------+-------------------------------|
+// | (1.1.1.1:60001 - 2.2.2.2:80)  | (1.1.1.1:60001 - 2.2.2.2:80)  |
+// | (1.1.1.1:60002 - 2.2.2.2:80)  | (1.1.1.1:60001 - 2.2.2.2:80)  |
+// | (1.1.1.1:60003 - 3.3.3.3:80)  | (1.1.1.1:60003 - 3.3.3.3:80)  |
+// | (1.1.1.1:60004 - 2.2.2.2:443) | (1.1.1.1:60004 - 2.2.2.2:443) |
+// | (1.1.1.1:60005 - 2.2.2.2:80)  | (1.1.1.1:60001 - 2.2.2.2:80)  |
+// | (1.1.1.1:60006 - 2.2.2.2:443) | (1.1.1.1:60004 - 2.2.2.2:443) |
+// | (2.2.2.2:80 - 1.1.1.1:70000)  | (2.2.2.2:80 - 1.1.1.1:60001)  |
+// | (2.2.2.2:90001 - 1.1.1.1:80)  | (2.2.2.2:90001 - 1.1.1.1:80)  |
+// | (2.2.2.2:90002 - 1.1.1.1:80)  | (2.2.2.2:90001 - 1.1.1.1:80)  |
+// |-------------------------------+-------------------------------|
 //
-// For the sake of documentation these are the edge-cases we *don't* intend to
-// address at this time:
+// Note that the ephemeral port numbers just happen to be the number of the
+// first "sample" processed (eg. 60001, 60004, 90001) for a given
+// (IP-A,IP-B,SERVER_PORT) tuple.
 //
-// * Bare process monitoring (this code shouldn't even be reached when bare
-// process monitoring is enabled);
-// * Gossip/p2p protocols where you see symmetrical traffic like
-// (IP-A:PORT-X,IP-B:PORT-Y) and (IP-B:PORT-X,IP-A:PORT-Y);
-// * Containers running multiple processes instances bound to different ports. A
-// real world example we have here at Datadog are redis containers running
-// multiple instances. In this case only one one of the redis instances would
-// trigger a rollup.
+// It may be convenient for the client of this code to clear those ephemera
+// numbers and have something like (1.1.1.1:0 - 2.2.2.2:80) instead of
+// (1.1.1.1:60001 - 2.2.2.2:80) for the "rolled up" key.  For that purpose we
+// provided a second method (`ClearEphemeralPort`) that can be called once the
+// stream has been processed.
+//
+// NOTE: this code should not be used in the context of bare-process monitoring.
 func (c *ConnectionAggregator) RollupKey(key types.ConnectionKey) types.ConnectionKey {
 	if c == nil {
 		return key
 	}
 
-	// order IPs and ports such that
-	// srcIP < dstIP
+	// Here we translate the ConnectionKey to a (ipTuple, portValues) pair.
+	// Note that this representation is normalized, so
 	//
-	// why do we do this? we want to be able to index and lookup IPs in a
-	// deterministic way, but our kernel code only does a best-effort in
-	// ordering tuples based on the *port* number, which sometimes generates
-	// tuples that look like
-	//
-	// A:5000 B:8080
-	// B:8080 B:9000
-	//
-	// when host(A) or host(B) don't really "abide" to the correct port ranges.
-	normalizedKey, flipped := normalizeByIP(key)
+	// splitKey(IP-A:PORT-A,IP-B:PORT-B) == splitKey(IP-B:PORT-B,IP-A:PORT-A)
+	ips, ports, flipped := splitKey(key)
 
-	ips, ports := split(normalizedKey)
-	savedPorts, ok := c.data[ips]
+	// Check if we have seen a "similar" types.ConnectionKey before. In this
+	// context "similar" means another type.ConnectionKey that has the same IPs
+	// and *at least one port number* matching on the same "side".
+	//
+	// (IP-A:8888, IP-B:5555) and (IP-A:8888, IP-B:6666) are similar;
+	// (IP-A:8888, IP-B:5555) and (IP-A:6666, IP-B:8888) are *not* similar;
+	savedPorts, ok := c.findSimilar(ips, ports)
 	if !ok {
-		// first time we see this ipTuple, so we just save the IPs and ports as
-		// we can't determine which side has the ephemeral port yet. Note that this
-		// key will be returned for future connections that match
-		//
-		// (IP-A:PORT-A,IP-B:PORT-B)
-		// (IP-A:*,IP-B:PORT-B)
-		// (IP-A:PORT-A,IP-B:*)
-		//
-		// So let's say we see:
-		// c1: A:6000 B:80
-		// Followed by:
-		// c2: A:6001 B:80
-		// And then followed by:
-		// c3: B:80 A:6002
-		//
-		// What we'll see is the following:
-		//
-		// RollupKey(c1) => c1
-		// RollupKey(c2) => c1
-		// RollupKey(c3) => c1
-		ports.flipped = flipped
-		c.data[ips] = ports
+		// There are no similar entries, so we store this sample and
+		// return the key as it is.
+		c.data[ips] = append(c.data[ips], ports)
 		return key
 	}
 
 	if savedPorts.a == ports.a && savedPorts.b == ports.b {
-		// we're seeing the same connection for a second time, so we bail out
-		// earlier. the only reason why we call `generateKey` (as opposed to
-		// just `return key`) is because we want to make sure that if we first
-		// saw (A:X, B:Y) and then (B:Y, A:X), we'll preserve the original key
-		// ordering (A:X, B:Y)
-		return generateKey(ips, savedPorts)
-	}
-
-	if savedPorts.a != ports.a && savedPorts.b != ports.b {
-		// this is more like an edge-case but it may happen. in this case we
-		// don't attempt to rollup the key because we would be likely be
-		// merging two connections that are hitting different services
-		// we're talking about something like:
-		//
-		// c1: A:X B:Y
-		// c2: A:Z B:W
-		//
-		// So none of the ports match and we preserve the key as it is.
+		// This is an exact match so we can bail out and return the key as it is
 		return key
 	}
 
-	if savedPorts.ephemeralSide == ephemeralPortUnknown {
-		// determine which side is the ephemeral port, in case we haven't done it yet
-		// this information is only used when calling `ClearEphemeralPort()`
+	if savedPorts.serverSide == serverPortUnknown {
+		// Determine which side is the server port in case we haven't done it yet.
+		// This information is only used when calling `ClearEphemeralPort()`
 		if savedPorts.a == ports.a {
-			savedPorts.ephemeralSide = ephemeralPortB
+			savedPorts.serverSide = serverPortA
 		} else {
-			savedPorts.ephemeralSide = ephemeralPortA
+			savedPorts.serverSide = serverPortB
 		}
-
-		c.data[ips] = savedPorts
 	}
 
-	return generateKey(ips, savedPorts)
+	// Return the *similar* key we've seen before
+	return generateKey(ips, *savedPorts, flipped)
 }
 
 // ClearEphemeralPort returns a new `types.ConnectionKey` with the ephemeral
@@ -210,34 +188,54 @@ func (c *ConnectionAggregator) ClearEphemeralPort(key types.ConnectionKey) types
 		return key
 	}
 
-	normalizedKey, _ := normalizeByIP(key)
-	ips, ports := split(normalizedKey)
-	savedPorts, ok := c.data[ips]
-	if !ok || savedPorts.ephemeralSide == ephemeralPortUnknown ||
-		(ports.a != savedPorts.a && ports.b != savedPorts.b) {
+	ips, ports, flipped := splitKey(key)
+	savedPorts, ok := c.findSimilar(ips, ports)
+	if !ok || savedPorts.serverSide == serverPortUnknown {
 		// We either haven't seen at this connection, or were not able to
 		// determine the ephemeral port side. In this case we return the key
 		// completely unmodified.
 		return key
 	}
 
-	// Get the server port from our stored information
-	serverPort := savedPorts.a
-	if savedPorts.ephemeralSide == ephemeralPortA {
-		serverPort = savedPorts.b
-	}
-
-	// Clear the ephemeral port side
-	if key.DstPort == serverPort {
-		key.SrcPort = 0
+	// We were able to determine the server side, in which case we clear the
+	// ephemeral port side and return the new key.
+	if savedPorts.serverSide == serverPortA {
+		savedPorts.b = 0
 	} else {
-		key.DstPort = 0
+		savedPorts.a = 0
 	}
 
-	return key
+	return generateKey(ips, *savedPorts, flipped)
 }
 
-// normalizeByIP such that srcIP < dstIP
+func (c *ConnectionAggregator) findSimilar(ips ipTuple, ports portValues) (*portValues, bool) {
+	pvSamples, ok := c.data[ips]
+	if !ok {
+		// a `find` with no matches is always followed by a insert by the code
+		// upstream so we go ahead a pre-allocate a slice for this ipTuple key
+		c.data[ips] = make([]portValues, 0, defaultServerPortSize)
+		return nil, false
+	}
+
+	// NOTE: we're doing a brute force search here because the search space
+	// should be quite small. The cardinality of pvSamples is the number of
+	// server ports, for a given (IP-A:IP-B) tuple. In typical containerized
+	// workloads this tends to be 1 (a container listens to a single port).
+	// Obviously this is the best case, but I still don't see how this can go,
+	// say, beyond dozens of entries, so I don't think we need anything better
+	// than this for now.
+	for i, pv := range pvSamples {
+		if pv.a == ports.a || pv.b == ports.b {
+			return &pvSamples[i], true
+		}
+	}
+
+	return nil, false
+}
+
+// normalizeByIP such that srcIP < dstIP so we can index and lookup IPs in a
+// deterministic way. In addition to the normalized `types.ConnectionKey` we
+// also return a bool indicated whether or not the original tuple was flipped.
 func normalizeByIP(key types.ConnectionKey) (normalizedKey types.ConnectionKey, flipped bool) {
 	if key.SrcIPHigh > key.DstIPHigh || (key.SrcIPHigh == key.DstIPHigh && key.SrcIPLow > key.DstIPLow) {
 		return flipKey(key), true
@@ -246,23 +244,28 @@ func normalizeByIP(key types.ConnectionKey) (normalizedKey types.ConnectionKey, 
 	return key, false
 }
 
-func split(key types.ConnectionKey) (ipTuple, portValues) {
+// splitKey maps a `types.ConnectionKey` into a (ipTuple, portValues) pair.  the
+// third return value (bool) indicates whether or not the normalized (ipTuple,
+// portValues), is flipped when compared to the original `key`.
+func splitKey(key types.ConnectionKey) (ipTuple, portValues, bool) {
+	normKey, flipped := normalizeByIP(key)
+
 	ips := ipTuple{
-		aLow:  key.SrcIPLow,
-		aHigh: key.SrcIPHigh,
-		bLow:  key.DstIPLow,
-		bHigh: key.DstIPHigh,
+		aLow:  normKey.SrcIPLow,
+		aHigh: normKey.SrcIPHigh,
+		bLow:  normKey.DstIPLow,
+		bHigh: normKey.DstIPHigh,
 	}
 
 	ports := portValues{
-		a: key.SrcPort,
-		b: key.DstPort,
+		a: normKey.SrcPort,
+		b: normKey.DstPort,
 	}
 
-	return ips, ports
+	return ips, ports, flipped
 }
 
-func generateKey(ips ipTuple, ports portValues) types.ConnectionKey {
+func generateKey(ips ipTuple, ports portValues, flipped bool) types.ConnectionKey {
 	key := types.ConnectionKey{
 		SrcIPLow:  ips.aLow,
 		SrcIPHigh: ips.aHigh,
@@ -272,7 +275,7 @@ func generateKey(ips ipTuple, ports portValues) types.ConnectionKey {
 		DstPort:   ports.b,
 	}
 
-	if ports.flipped {
+	if flipped {
 		key = flipKey(key)
 	}
 

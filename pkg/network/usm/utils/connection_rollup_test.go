@@ -23,11 +23,11 @@ func TestRollupKey(t *testing.T) {
 		dstIP := util.AddressFromString("2.2.2.2")
 
 		c1 := types.NewConnectionKey(srcIP, dstIP, 6000, 80)
-		t1 := aggregator.RollupKey(c1)
-		t2 := aggregator.RollupKey(c1)
+		rk1 := aggregator.RollupKey(c1)
+		rk2 := aggregator.RollupKey(c1)
 
-		assert.Equal(t, c1, t1)
-		assert.Equal(t, c1, t2)
+		assert.Equal(t, c1, rk1)
+		assert.Equal(t, c1, rk2)
 	})
 
 	t.Run("same key, flipped order", func(t *testing.T) {
@@ -36,13 +36,14 @@ func TestRollupKey(t *testing.T) {
 		dstIP := util.AddressFromString("2.2.2.2")
 
 		c1 := types.NewConnectionKey(srcIP, dstIP, 6000, 80)
-		t1 := aggregator.RollupKey(c1)
+		rk1 := aggregator.RollupKey(c1)
 
 		c2 := types.NewConnectionKey(dstIP, srcIP, 80, 6000)
-		t2 := aggregator.RollupKey(c2)
+		rk2 := aggregator.RollupKey(c2)
 
-		assert.Equal(t, c1, t1)
-		assert.Equal(t, c1, t2)
+		// Ensure the ordering of the key is preserved
+		assert.Equal(t, c1, rk1)
+		assert.Equal(t, c2, rk2)
 	})
 
 	t.Run("same IPs, but no matching ports", func(t *testing.T) {
@@ -51,15 +52,15 @@ func TestRollupKey(t *testing.T) {
 		dstIP := util.AddressFromString("2.2.2.2")
 
 		c1 := types.NewConnectionKey(srcIP, dstIP, 6000, 80)
-		t1 := aggregator.RollupKey(c1)
+		rk1 := aggregator.RollupKey(c1)
 
 		c2 := types.NewConnectionKey(dstIP, srcIP, 7000, 53)
-		t2 := aggregator.RollupKey(c2)
+		rk2 := aggregator.RollupKey(c2)
 
-		// In this case both keys are preserved, which wouldn't trigger a rollup
-		assert.Equal(t, c1, t1)
-		assert.Equal(t, c2, t2)
-		assert.NotEqual(t, c1, c2)
+		// In this case both keys are preserved, and there are no rollups
+		assert.Equal(t, c1, rk1)
+		assert.Equal(t, c2, rk2)
+		assert.NotEqual(t, rk1, rk2)
 	})
 
 	t.Run("same IPs, different ephemeral ports", func(t *testing.T) {
@@ -68,19 +69,47 @@ func TestRollupKey(t *testing.T) {
 		dstIP := util.AddressFromString("2.2.2.2")
 
 		c1 := types.NewConnectionKey(srcIP, dstIP, 6000, 80)
-		t1 := aggregator.RollupKey(c1)
+		rk1 := aggregator.RollupKey(c1)
 
 		c2 := types.NewConnectionKey(srcIP, dstIP, 6001, 80)
-		t2 := aggregator.RollupKey(c2)
+		rk2 := aggregator.RollupKey(c2)
 
 		// Let's also try a different tuple order
 		c3 := types.NewConnectionKey(dstIP, srcIP, 80, 6002)
-		t3 := aggregator.RollupKey(c3)
+		rk3 := aggregator.RollupKey(c3)
 
-		// c1, c2 and c3 should all translate to c1
-		assert.Equal(t, c1, t1)
-		assert.Equal(t, c1, t2)
-		assert.Equal(t, c1, t3)
+		c4 := types.NewConnectionKey(dstIP, srcIP, 80, 6003)
+		rk4 := aggregator.RollupKey(c4)
+
+		// Everything will be translated to essentially the same key, but tuple
+		// order will be preserved.
+		assert.Equal(t, c1, rk1)
+		assert.Equal(t, c1, rk2)
+		assert.Equal(t, c1, flipKey(rk3))
+		assert.Equal(t, c1, flipKey(rk4))
+	})
+
+	t.Run("multiple server ports", func(t *testing.T) {
+		aggregator := NewConnectionAggregator()
+		srcIP := util.AddressFromString("1.1.1.1")
+		dstIP := util.AddressFromString("2.2.2.2")
+
+		c1 := types.NewConnectionKey(srcIP, dstIP, 6000, 80)
+		rk1 := aggregator.RollupKey(c1)
+
+		c2 := types.NewConnectionKey(srcIP, dstIP, 6001, 443)
+		rk2 := aggregator.RollupKey(c2)
+
+		c3 := types.NewConnectionKey(srcIP, dstIP, 6002, 80)
+		rk3 := aggregator.RollupKey(c3)
+
+		c4 := types.NewConnectionKey(srcIP, dstIP, 6003, 443)
+		rk4 := aggregator.RollupKey(c4)
+
+		// rk3 (*:80)  should be rolled up with rk1
+		// rk4 (*:443) should be rolled up with rk2
+		assert.Equal(t, rk1, rk3)
+		assert.Equal(t, rk2, rk4)
 	})
 }
 
