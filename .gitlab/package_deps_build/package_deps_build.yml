@@ -11,13 +11,13 @@
   tags: ["arch:amd64"]
   script:
     - cd $CI_PROJECT_DIR
-    - export BTFS_ETAG=$(aws s3api head-object --bucket dd-agent-omnibus --key btfs/$BTFHUB_ARCHIVE_BRANCH/btfs-$ARCH.tar --query ETag --output text | tr -d \")
+    - export BTFS_ETAG=$(aws s3api head-object --region us-east-1 --bucket dd-agent-omnibus --key btfs/$BTFHUB_ARCHIVE_BRANCH/btfs-$ARCH.tar --query ETag --output text | tr -d \")
     - export OUTPUTS_HASH=$(sha256sum sysprobe-build-outputs.tar.xz.sum | cut -d' ' -f1)
     - export MIN_BTFS_FILENAME=minimized-btfs-$BTFS_ETAG-$OUTPUTS_HASH.tar.xz
     - |
       # if running all builds, or this is a release branch, skip the cache check
       if [ "$RUN_ALL_BUILDS" != "true" && ! $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/ ]; then
-        if [ aws s3api head-object --bucket dd-ci-artefacts-build-stable --key $CI_PROJECT_NAME/btfs/$MIN_BTFS_FILENAME ]; then
+        if [ aws s3api head-object --region us-east-1 --bucket dd-ci-artefacts-build-stable --key $CI_PROJECT_NAME/btfs/$MIN_BTFS_FILENAME ]; then
           $S3_CP_CMD $S3_PROJECT_ARTIFACTS_URI/btfs/$MIN_BTFS_FILENAME minimized-btfs.tar.xz
           echo "cached minimized BTFs exist"
           exit 0
