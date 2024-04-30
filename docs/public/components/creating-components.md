@@ -326,8 +326,8 @@ In the following case, our mock has no dependencies and returns the same string 
 
     type mock struct {}
 
-    // NewMockCompressor returns a mock compressor
-    func NewMockCompressor() Provides {
+    // NewMockComponent returns a mock compressor
+    func NewMockComponent() Provides {
         return Provides{
             comp: &mock{},
         }
@@ -341,25 +341,6 @@ In the following case, our mock has no dependencies and returns the same string 
     // Decompress decompresses the input data using ZSTD.
     func (c *compressor) Decompress(data []byte) ([]byte, error) {
         return []byte("decompressed"), nil
-    }
-    ```
-
-We need a `Fx` wrapper:
-
-=== ":octicons-file-code-16: comp/compression/fx-mock/fx.go"
-    ```go
-
-    package fxmock
-
-    import (
-        "github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-        "github.com/DataDog/datadog-agent/comp/compression/mock"
-    )
-
-    // Module specifies the compression module.
-    func Module() fxutil.Module {
-        return fxutil.Component(fxutil.ProvideComponentConstructor(mock.NewMockCompressor))
     }
     ```
 
@@ -384,8 +365,6 @@ comp/<component>/
 │   └── component.go
 ├── fx
 │   └── fx.go
-├── fx-mock
-│   └── fx.go
 ├── impl
 │   └── component.go
 └── mock
@@ -400,8 +379,6 @@ Our example, which has 2 implementations looks like this:
 comp/core/compression/
 ├── def
 │   └── component.go
-├── fx-mock
-│   └── fx.go
 ├── fx-zip
 │   └── fx.go
 ├── fx-zstd
@@ -413,7 +390,7 @@ comp/core/compression/
 └── mock
     └── mock.go
 
-7 directories, 7 files
+6 directories, 6 files
 ```
 
 This can seems a lot for a simple compression component, but this design answer the exponentially increasing complexity
