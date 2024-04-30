@@ -198,7 +198,6 @@ type StartStopServiceRaceConditionTestSuite struct {
 	dep1SvcName string
 	dep2SvcName string
 
-	stopServiceCallback
 	beforeStopServiceInvokeCount   int
 	startingServiceOnFirstCallback bool
 	startedServiceOnFirstCallback  bool
