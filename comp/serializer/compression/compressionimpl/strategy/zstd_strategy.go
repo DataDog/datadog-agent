@@ -47,5 +47,5 @@ func (s *ZstdStrategy) ContentEncoding() string {
 
 // NewStreamCompressor returns a new zstd Writer
 func (s *ZstdStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
-	return zstd.NewWriter(output)
+	return zstd.NewWriterLevel(output, s.level)
 }
