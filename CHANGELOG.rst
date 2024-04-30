@@ -5,7 +5,7 @@ Release Notes
 .. _Release Notes_7.53.0:
 
 7.53.0 / 6.53.0
-======
+================
 
 .. _Release Notes_7.53.0_Prelude:
 
@@ -59,8 +59,6 @@ Enhancement Notes
   This will help to avoid intermittent failures during the collection process.
 
 - Add startup timestamp to the Agent metadata payload.
-
-- Agents are now built with Go ``1.21.8``.
 
 - Agents are now built with Go ``1.21.9``.
 
