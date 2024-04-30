@@ -1562,6 +1562,10 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 			Value: getDoForkInput(p.kernelVersion),
 		},
 		manager.ConstantEditor{
+			Name:  "sched_process_fork_parent_pid_offset",
+			Value: getSchedProcessForkParentPidOffset(p.kernelVersion),
+		},
+		manager.ConstantEditor{
 			Name:  "sched_process_fork_child_pid_offset",
 			Value: getSchedProcessForkChildPidOffset(p.kernelVersion),
 		},
@@ -1777,6 +1781,14 @@ func getDoForkInput(kernelVersion *kernel.Version) uint64 {
 		return doForkStructInput
 	}
 	return doForkListInput
+}
+
+func getSchedProcessForkParentPidOffset(kernelVersion *kernel.Version) uint64 {
+	if kernelVersion.IsInRangeCloseOpen(kernel.Kernel5_14, kernel.Kernel5_15) && kernelVersion.IsRH9Kernel() {
+		return 28
+	}
+
+	return 24 // for regular kernels
 }
 
 func getSchedProcessForkChildPidOffset(kernelVersion *kernel.Version) uint64 {
