@@ -162,7 +162,7 @@ func myTestCallback(logger log.Component, c custom) {
 ```
 
 !!! Info
-    This means that components can depend on non components type too (as long as the main instruct Fx how to create them).
+    This means that components can depend on non-component types too (as long as the main instruct Fx how to create them).
 
 ## Using components parameters
 
