@@ -1,7 +1,6 @@
 # Creating a bundle
 
-Bundles are grouping of related components. The goal of a bundle is simply to ease usage of multiple components working
-as a whole to offer a product.
+A bundle is a grouping of related components. The goal of a bundle is to ease the usage of multiple components working together to constitute a product.
 
 One example is `DogStatsD`, a server to receive metrics locally from customer apps. `DogStatsD` is composed of 9+
 components, but most binaries just want to include `DogStatsD` as a whole.
