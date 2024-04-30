@@ -2,6 +2,135 @@
 Release Notes
 =============
 
+.. _Release Notes_7.53.0:
+
+7.53.0 / 6.53.0
+================
+
+.. _Release Notes_7.53.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-04-30
+
+- Please refer to the `7.53.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7530>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.53.0_New Features:
+
+New Features
+------------
+
+- Support database-monitoring autodiscovery for Aurora cluster instances. Adds a new configuration listener to poll
+  for a specific set of Aurora cluster IDs and then create a new database-monitoring supported check
+  configuration for each endpoint. This allows for monitoring of endpoints that scale dynamically.
+
+- Add new core check orchestrator_ecs to collect running ECS tasks
+
+- APM stats now include an is_trace_root field to indicate if the stats are from the root span of a trace.
+
+- The cluster-agent now collects network policies from the cluster.
+
+- Enable 'host_benchmarks' by default when running the security-agent compliance module.
+
+- OTLP ingest now has a feature flag to identify top-level spans by span kind. This new logic can be enabled by adding `enable_otlp_compute_top_level_by_span_kind` in DD_APM_FEATURES.
+  - With this new logic, root spans and spans with a server or consumer `span.kind` will be marked as top-level. Additionally, spans with a client or producer `span.kind` will have stats computed.
+  - Enabling this feature flag may increase the number of spans that generate trace metrics, and may change which spans appear as top-level in Datadog.
+
+- Experimental: The process-agent checks (process, container, and process-discovery) can be run from the Core Agent in
+  Linux. This feature can be toggled on by setting the `process_config.run_in_core_agent.enabled` flag to `true` in
+  the `datadog.yaml` file. This feature is disabled by default.
+
+
+.. _Release Notes_7.53.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add the container image and container lifecycle checks to the output of the Agent status command.
+
+- Add `kubelet_core_check_enabled` flag to Agent config to control  
+  whether the kubelet core check should be loaded.
+
+- Added LastSuccessfulTime to cronjob status payload.
+
+- Add a retry mechanism to Software Bill of Materials (SBOM) collection for container images.
+  This will help to avoid intermittent failures during the collection process.
+
+- Add startup timestamp to the Agent metadata payload.
+
+- Agents are now built with Go ``1.21.9``.
+
+- Adds image repo digest string to the container payload when present
+
+- CWS: Add selftests report on Windows and platforms with no eBPF support.
+
+- CWS: Add visibility for cross container program executions on platforms with no eBPF support.
+
+- APM: Enable credit card obfuscation by default. There is a small chance that numbers that are similar to valid credit cards may be redacted, this feature can be disabled by using `apm_config.obfuscation.credit_cards.enabled`. Alternatively, it can be made more accurate through luhn checksum verification by using `apm_config.obfuscation.credit_cards.luhn`, however, this increases the performance penalty of this check.
+
+- ``logs_config.expected_tags_duration`` now works for ``journald`` logs.
+
+- [oracle] Adds `oracle.can_query` service check.
+
+- [oracle] Automatically fall back to deprecated Oracle integration mode if privileges are missing.
+
+- [oracle] Add ``service`` configuration parameter.
+
+- The connections check no longer relies on the process/container check as it can now
+  fetch container data independently.
+
+- The performance of Remote Config has been significantly improved when large amounts of configurations are received.
+
+- Send ECS task lifecycle events in the container lifecycle check.
+
+- dbm: add new SQL obfuscation mode ``normalize_only`` to support normalizing SQL without obfuscating it. 
+  This mode is useful for customers who want to view unobfuscated SQL statements.
+  By default, ``ObfuscationMode`` is set to ``obfuscate_and_normalize`` and every SQL statement is obfuscated and normalized.
+
+- USM: Handle the HTTP TRACE method.
+
+
+.. _Release Notes_7.53.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- [oracle] Deprecating Oracle integration code. The functionality is fully implemented in the ``oracle-dbm`` check which is now renamed to ``oracle``.
+
+
+.. _Release Notes_7.53.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The `windows_registry` check can be run with the `check` sub-command.
+
+- CWS: Fix very rare event corruption.
+
+- Fixes issue where processes for ECS Fargate containers would sometimes not be associated
+  with the correct container.
+
+- Fixed a bug in the Dual Shipping feature where events were not being
+  emitted on endpoint recovery.
+
+- Fix issue with ``display_container_name`` being tagged as ``N/A`` 
+  when ``container_name`` information is available.
+
+- Fix a Windows process handle leak in the Process Agent, which was introduced in 7.52.0 when `process_collection` is enabled.
+
+- Fixes a bug where the tagger server did not properly handle a closed channel.
+
+- [oracle] Set the default for ``metric_prefix`` in ``custom_queries`` to ``oracle``.
+
+- [oracle] Fix ``global_custom_queries`` bug.
+
+- [oracle] Adds the ``oracle.process.pga_maximum_memory`` metric for backward compatibility.
+
+- Stop sending ``systemd`` metrics when they are not set
+
+
 .. _Release Notes_7.52.1:
 
 7.52.1 / 6.52.1
