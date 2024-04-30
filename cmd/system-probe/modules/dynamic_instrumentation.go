@@ -8,13 +8,14 @@
 package modules
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	dynamicinstrumentation "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -30,7 +31,7 @@ var DynamicInstrumentation = module.Factory{
 		}
 
 		m, err := dynamicinstrumentation.NewModule(config)
-		if err == ebpf.ErrNotImplemented {
+		if errors.Is(err, ebpf.ErrNotImplemented) {
 			return nil, module.ErrNotEnabled
 		}
 

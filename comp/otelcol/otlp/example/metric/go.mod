@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/otlp/example/metric
 
-go 1.21
+go 1.21.0
 
 require (
 	go.opentelemetry.io/otel v1.11.2

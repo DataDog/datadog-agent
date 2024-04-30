@@ -539,6 +539,11 @@ type DNSEvent struct {
 	Count uint16 `field:"question.count"`                                                  // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
 }
 
+// Matches returns true if the two DNS events matches
+func (de *DNSEvent) Matches(new *DNSEvent) bool {
+	return de.Name == new.Name && de.Type == new.Type && de.Class == new.Class
+}
+
 // BaseExtraFieldHandlers handlers not hold by any field
 type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)

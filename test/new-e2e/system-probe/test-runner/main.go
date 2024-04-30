@@ -46,6 +46,7 @@ type testConfig struct {
 	verbose           bool
 	packagesRunConfig map[string]packageRunConfiguration
 	testDirRoot       string
+	testingTools      string
 	extraParams       string
 }
 
@@ -60,7 +61,7 @@ var timeouts = map[*regexp.Regexp]time.Duration{
 	regexp.MustCompile("pkg/network/protocols/http$"): 15 * time.Minute,
 	regexp.MustCompile("pkg/network/tracer$"):         55 * time.Minute,
 	regexp.MustCompile("pkg/network/usm$"):            55 * time.Minute,
-	regexp.MustCompile("pkg/security/.*"):             30 * time.Minute,
+	regexp.MustCompile("pkg/security.*"):              30 * time.Minute,
 }
 
 func getTimeout(pkg string) time.Duration {
@@ -77,6 +78,7 @@ func getTimeout(pkg string) time.Duration {
 
 func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, error) {
 	var matches []string
+
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -106,6 +108,7 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 	if testConfig.verbose {
 		verbosity = "standard-verbose"
 	}
+
 	args := []string{
 		"--format", verbosity,
 		"--junitfile", xmlpath,
@@ -113,7 +116,7 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 		fmt.Sprintf("--rerun-fails=%d", testConfig.retryCount),
 		"--rerun-fails-max-failures=100",
 		"--raw-command", "--",
-		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", fmt.Sprintf("-test.count=%d", testConfig.runCount), "-test.timeout=" + getTimeout(pkg).String(),
+		filepath.Join(testConfig.testingTools, "go/bin/test2json"), "-t", "-p", pkg, file, "-test.v", fmt.Sprintf("-test.count=%d", testConfig.runCount), "-test.timeout=" + getTimeout(pkg).String(),
 	}
 
 	if testConfig.extraParams != "" {
@@ -204,7 +207,7 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
 		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuite, testConfig)
 
-		cmd := exec.Command("/go/bin/gotestsum", args...)
+		cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
 		baseEnv = append(
 			baseEnv,
 			"DD_SYSTEM_PROBE_BPF_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/ebpf/bytecode/build"),
@@ -231,12 +234,26 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	return nil
 }
 
+func getRealPath(dir string) (string, error) {
+	target := dir
+
+	if fi, err := os.Lstat(target); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		target, err = os.Readlink(target)
+		if err != nil {
+			return "", fmt.Errorf("unable to resolve symlink for %s: %w", target, err)
+		}
+	}
+
+	return target, nil
+}
+
 func buildTestConfiguration() (*testConfig, error) {
 	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
 	packageRunConfigPtr := flag.String("packages-run-config", "", "Configuration for controlling which tests run in a package")
 	verbose := flag.Bool("verbose", false, "if set to true verbosity level is 'standard-verbose', otherwise it is 'testname'")
 	runCount := flag.Int("run-count", 1, "number of times to run the test")
-	testRoot := flag.String("test-root", "/opt/kernel-version-testing/system-probe-tests", "directory containing test packages")
+	testRoot := flag.String("test-root", "/opt/system-probe-tests", "directory containing test packages")
+	testTools := flag.String("test-tools", "/opt/testing-tools", "directory containing test tools")
 	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
 
 	flag.Parse()
@@ -256,12 +273,24 @@ func buildTestConfiguration() (*testConfig, error) {
 		}
 	}
 
+	// get real path because the `WalkDir` helper does not support following symlinks
+	root, err := getRealPath(*testRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	tools, err := getRealPath(*testTools)
+	if err != nil {
+		return nil, err
+	}
+
 	return &testConfig{
 		runCount:          *runCount,
 		verbose:           *verbose,
 		retryCount:        *retryPtr,
 		packagesRunConfig: breakdown,
-		testDirRoot:       *testRoot,
+		testDirRoot:       root,
+		testingTools:      tools,
 		extraParams:       *extraParams,
 	}, nil
 }

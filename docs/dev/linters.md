@@ -23,9 +23,7 @@ To run the linters locally, run `inv linter.go`.
 ## Python
 
 For Python, we're using ([see invoke task](https://github.com/DataDog/datadog-agent/blob/dffd3262934a5540b9bf8e4bd3a743732637ef37/tasks/linter_tasks.py/#L17-L33)):
-- [flake8](https://flake8.pycqa.org/en/latest), a style linter.
-- [black](https://black.readthedocs.io/en/stable/), a code formatter.
-- [isort](https://pycqa.github.io/isort/), to sort the imports.
+- [ruff](https://github.com/astral-sh/ruff), a style linter and a code formatter.
 - [vulture](https://github.com/jendrikseipp/vulture), to find unused code.
 
 Their configuration is defined in both the [setup.cfg](https://github.com/DataDog/datadog-agent/blob/dffd3262934a5540b9bf8e4bd3a743732637ef37/setup.cfg) and the [pyproject.toml](https://github.com/DataDog/datadog-agent/blob/dffd3262934a5540b9bf8e4bd3a743732637ef37/pyproject.toml) files.

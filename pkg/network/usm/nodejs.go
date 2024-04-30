@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -107,7 +108,7 @@ var (
 	}
 )
 
-// nodejsMonitor essentially scans for Node processes and attaches SSL uprobes
+// nodeJSMonitor essentially scans for Node processes and attaches SSL uprobes
 // to them.
 type nodeJSMonitor struct {
 	registry *utils.FileRegistry
@@ -121,6 +122,9 @@ type nodeJSMonitor struct {
 	wg   sync.WaitGroup
 	done chan struct{}
 }
+
+// Validate that nodeJSMonitor implements the Attacher interface.
+var _ utils.Attacher = &nodeJSMonitor{}
 
 func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) *nodeJSMonitor {
 	if !c.EnableNodeJSMonitoring {
@@ -139,6 +143,7 @@ func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) *nodeJSMonitor {
 	}
 }
 
+// Start the nodeJSMonitor
 func (m *nodeJSMonitor) Start() {
 	if m == nil {
 		return
@@ -184,10 +189,11 @@ func (m *nodeJSMonitor) Start() {
 			}
 		}
 	}()
-
+	utils.AddAttacher("nodejs-tls", m)
 	log.Info("Node JS TLS monitoring enabled")
 }
 
+// Stop the nodeJSMonitor.
 func (m *nodeJSMonitor) Stop() {
 	if m == nil {
 		return
@@ -195,6 +201,34 @@ func (m *nodeJSMonitor) Stop() {
 
 	close(m.done)
 	m.wg.Wait()
+}
+
+// DetachPID detaches a given pid from the eBPF program
+func (m *nodeJSMonitor) DetachPID(pid uint32) error {
+	// We avoid filtering PIDs here because it's cheaper to simply do a registry lookup
+	// instead of fetching a process name in order to determine whether it is an
+	// envoy process or not (which at the very minimum involves syscalls)
+	return m.registry.Unregister(pid)
+}
+
+var (
+	// ErrNoNodeJSPath is returned when no nodejs path is found for a given PID
+	ErrNoNodeJSPath = errors.New("no nodejs path found for PID")
+)
+
+// AttachPID attaches a given pid to the eBPF program
+func (m *nodeJSMonitor) AttachPID(pid uint32) error {
+	path := m.getNodeJSPath(pid)
+	if path == "" {
+		return ErrNoNodeJSPath
+	}
+
+	return m.registry.Register(
+		path,
+		pid,
+		m.registerCB,
+		m.unregisterCB,
+	)
 }
 
 // sync state of nodeJSMonitor with the current state of procFS
@@ -218,31 +252,18 @@ func (m *nodeJSMonitor) sync() {
 	})
 
 	// At this point all entries from deletionCandidates are no longer alive, so
-	// we should dettach our SSL probes from them
+	// we should detach our SSL probes from them
 	for pid := range deletionCandidates {
 		m.handleProcessExit(pid)
 	}
 }
 
-func (m *nodeJSMonitor) handleProcessExec(pid uint32) {
-	path := m.getNodeJSPath(pid)
-	if path == "" {
-		return
-	}
-
-	m.registry.Register(
-		path,
-		pid,
-		m.registerCB,
-		m.unregisterCB,
-	)
+func (m *nodeJSMonitor) handleProcessExit(pid uint32) {
+	_ = m.DetachPID(pid)
 }
 
-func (m *nodeJSMonitor) handleProcessExit(pid uint32) {
-	// We avoid filtering PIDs here because it's cheaper to simply do a registry lookup
-	// instead of fetching a process name in order to determine whether it is an
-	// envoy process or not (which at the very minimum involves syscalls)
-	m.registry.Unregister(pid)
+func (m *nodeJSMonitor) handleProcessExec(pid uint32) {
+	_ = m.AttachPID(pid)
 }
 
 // getNodeJSPath returns the executable path of the nodejs binary for a given PID.

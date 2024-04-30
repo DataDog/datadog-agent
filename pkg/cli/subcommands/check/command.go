@@ -44,10 +44,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
@@ -68,7 +70,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
@@ -170,7 +172,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				authtokenimpl.Module(),
 				fx.Supply(context.Background()),
 				fx.Provide(tagger.NewTaggerParamsForCoreAgent),
-				tagger.Module(),
+				taggerimpl.Module(),
 				autodiscoveryimpl.Module(),
 				forwarder.Bundle(),
 				inventorychecksimpl.Module(),
@@ -208,7 +210,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					},
 				),
 				statusimpl.Module(),
-
+				// The check command do not have settings that change are runtime
+				// still, we need to pass it to ensure the API server is proprely initialized
+				settingsimpl.Module(),
+				fx.Supply(settings.Params{}),
 				// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
 				// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
 				// in others commands such as run.
@@ -217,13 +222,12 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() replay.Component { return nil }),
 				fx.Provide(func() pidmap.Component { return nil }),
 				fx.Provide(func() serverdebug.Component { return nil }),
-				fx.Provide(func() settings.Component { return nil }),
 				fx.Provide(func() host.Component { return nil }),
 				fx.Provide(func() inventoryagent.Component { return nil }),
 				fx.Provide(func() inventoryhost.Component { return nil }),
 				fx.Provide(func() packagesigning.Component { return nil }),
-				fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewNoneOption[rcservice.Component]() }),
-				fx.Provide(func() optional.Option[rcserviceha.Component] { return optional.NewNoneOption[rcserviceha.Component]() }),
+				fx.Supply(optional.NewNoneOption[rcservice.Component]()),
+				fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 				fx.Provide(func() optional.Option[gui.Component] { return optional.NewNoneOption[gui.Component]() }),
 				getPlatformModules(),
 				jmxloggerimpl.Module(),
@@ -306,7 +310,7 @@ func run(
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 	pkgcollector.InitPython(common.GetPythonPaths()...)
-	commonchecks.RegisterChecks(wmeta)
+	commonchecks.RegisterChecks(wmeta, config)
 
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
@@ -477,7 +481,7 @@ func run(
 	var checkFileOutput bytes.Buffer
 	var instancesData []interface{}
 	printer := aggregator.AgentDemultiplexerPrinter{DemultiplexerWithAggregator: demultiplexer}
-	data, err := statusComponent.GetStatusBySection(status.CollectorSection, "json", false)
+	data, err := statusComponent.GetStatusBySections([]string{status.CollectorSection}, "json", false)
 
 	if err != nil {
 		return err

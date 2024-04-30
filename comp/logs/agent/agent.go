@@ -61,12 +61,13 @@ const (
 type dependencies struct {
 	fx.In
 
-	Lc             fx.Lifecycle
-	Log            logComponent.Component
-	Config         configComponent.Component
-	InventoryAgent inventoryagent.Component
-	Hostname       hostname.Component
-	WMeta          optional.Option[workloadmeta.Component]
+	Lc                 fx.Lifecycle
+	Log                logComponent.Component
+	Config             configComponent.Component
+	InventoryAgent     inventoryagent.Component
+	Hostname           hostname.Component
+	WMeta              optional.Option[workloadmeta.Component]
+	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 }
 
 type provides struct {
@@ -100,6 +101,7 @@ type agent struct {
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 	flarecontroller           *flareController.FlareController
 	wmeta                     optional.Option[workloadmeta.Component]
+	schedulerProviders        []schedulers.Scheduler
 
 	// started is true if the logs agent is running
 	started *atomic.Bool
@@ -118,11 +120,12 @@ func newLogsAgent(deps dependencies) provides {
 			hostname:       deps.Hostname,
 			started:        atomic.NewBool(false),
 
-			sources:         sources.NewLogSources(),
-			services:        service.NewServices(),
-			tracker:         tailers.NewTailerTracker(),
-			flarecontroller: flareController.NewFlareController(),
-			wmeta:           deps.WMeta,
+			sources:            sources.NewLogSources(),
+			services:           service.NewServices(),
+			tracker:            tailers.NewTailerTracker(),
+			flarecontroller:    flareController.NewFlareController(),
+			wmeta:              deps.WMeta,
+			schedulerProviders: deps.SchedulerProviders,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -175,6 +178,10 @@ func (a *agent) start(context.Context) error {
 
 	a.startPipeline()
 	a.log.Info("logs-agent started")
+
+	for _, scheduler := range a.schedulerProviders {
+		a.AddScheduler(scheduler)
+	}
 
 	return nil
 }

@@ -9,12 +9,9 @@ package oracle
 
 import (
 	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
 func TestFailingConnection(t *testing.T) {
-	senderManager := mocksender.CreateDefaultDemultiplexer()
-	chk, _ := initCheck(t, senderManager, "localhost", 1523, "a", "a", "a")
-	chk.Run()
+	c, _ := newDbDoesNotExistCheck(t, "", "")
+	c.Run()
 }

@@ -111,6 +111,8 @@ def normalize_traces(stage, aws_account_id):
         replace(r'("architecture":)"(x86_64|arm64)"', r'\1"XXX"'),
         replace(r'("process_id":)[0-9]+', r'\1null'),
         replace(r'("otel.trace_id":")[a-zA-Z0-9]+"', r'\1null"'),
+        replace(r'("_dd.p.dm":")\-[0-9]+"', r'\1null"'),
+        replace(r'("_dd.otlp_sr":")[0-9\.]+"', r'\1null"'),
         replace(r'("faas.execution":")[a-zA-Z0-9-]+"', r'\1null"'),
         replace(r'("faas.instance":")[a-zA-Z0-9-/]+\[\$LATEST\][a-zA-Z0-9]+"', r'\1null"'),
         replace(stage, 'XXXXXX'),
@@ -313,7 +315,7 @@ if __name__ == '__main__':
         args = parse_args()
 
         if args.logs.startswith('file:'):
-            with open(args.logs[5:], 'r') as f:
+            with open(args.logs[5:]) as f:
                 args.logs = f.read()
 
         print(normalize(args.logs, args.type, args.stage, args.accountid))

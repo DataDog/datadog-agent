@@ -10,10 +10,11 @@ package host
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"reflect"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -30,12 +31,13 @@ const channelSize = 1
 // scanRequest defines a scan request. This struct should be
 // hashable to be pushed in the work queue for processing.
 type scanRequest struct {
-	path string
+	Path string
+	FS   fs.FS
 }
 
 // NewScanRequest creates a new scan request
-func NewScanRequest(path string) sbom.ScanRequest {
-	return scanRequest{path: path}
+func NewScanRequest(path string, fs fs.FS) sbom.ScanRequest {
+	return scanRequest{Path: path, FS: fs}
 }
 
 // Collector returns the collector name
@@ -44,13 +46,13 @@ func (r scanRequest) Collector() string {
 }
 
 // Type returns the scan request type
-func (r scanRequest) Type() string {
+func (r scanRequest) Type(sbom.ScanOptions) string {
 	return sbom.ScanFilesystemType
 }
 
 // ID returns the scan request ID
 func (r scanRequest) ID() string {
-	return r.path
+	return r.Path
 }
 
 // Collector defines a host collector
@@ -68,7 +70,7 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initialize the host collector
-func (c *Collector) Init(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) error {
+func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err
@@ -77,7 +79,7 @@ func (c *Collector) Init(cfg config.Config, wmeta optional.Option[workloadmeta.C
 	if flavor.GetFlavor() == flavor.SecurityAgent {
 		c.opts = sbom.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}, Fast: true, CollectFiles: true}
 	} else {
-		c.opts = sbom.ScanOptionsFromConfig(config.Datadog, false)
+		c.opts = sbom.ScanOptionsFromConfig(cfg, false)
 	}
 	return nil
 }
@@ -90,7 +92,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	}
 	log.Infof("host scan request [%v]", hostScanRequest.ID())
 
-	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.path, c.opts)
+	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.FS, hostScanRequest.Path, c.opts)
 	return sbom.ScanResult{
 		Error:  err,
 		Report: report,

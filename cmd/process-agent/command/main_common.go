@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -139,7 +140,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		workloadmeta.Module(),
 
 		// Provide tagger module
-		tagger.Module(),
+		taggerimpl.Module(),
 
 		// Provide status modules
 		statusimpl.Module(),
@@ -209,15 +210,18 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			}
 			return nil
 		}),
-		fx.Supply(
-			settings.Settings{
-				"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
-				"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
-				"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
-				"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
-				"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
-			},
-		),
+		fx.Provide(func(c config.Component) settings.Params {
+			return settings.Params{
+				Settings: map[string]settings.RuntimeSetting{
+					"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
+					"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
+					"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
+					"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
+					"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
+				},
+				Config: c,
+			}
+		}),
 		settingsimpl.Module(),
 	)
 

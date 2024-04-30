@@ -106,8 +106,8 @@ func (ms *SDWanSender) SendInterfaceMetrics(interfaceStats []client.InterfaceSta
 
 		ms.countWithTimestamp(ciscoSDWANMetricPrefix+"interface.tx_bits", entry.TxOctets*8, tags, ts)
 		ms.countWithTimestamp(ciscoSDWANMetricPrefix+"interface.rx_bits", entry.RxOctets*8, tags, ts)
-		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"interface.rx_kbps", entry.RxKbps, tags, ts)
-		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"interface.tx_kbps", entry.TxKbps, tags, ts)
+		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"interface.rx_bps", entry.RxKbps*1000, tags, ts)
+		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"interface.tx_bps", entry.TxKbps*1000, tags, ts)
 		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"interface.rx_bandwidth_usage", entry.DownCapacityPercentage, tags, ts)
 		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"interface.tx_bandwidth_usage", entry.UpCapacityPercentage, tags, ts)
 		ms.countWithTimestamp(ciscoSDWANMetricPrefix+"interface.rx_errors", entry.RxErrors, tags, ts)
@@ -223,6 +223,14 @@ func (ms *SDWanSender) SendDeviceCountersMetrics(deviceCounters []client.DeviceC
 
 		ms.sender.MonotonicCount(ciscoSDWANMetricPrefix+"crash.count", float64(entry.CrashCount), "", tags)
 		ms.sender.MonotonicCount(ciscoSDWANMetricPrefix+"reboot.count", float64(entry.RebootCount), "", tags)
+	}
+}
+
+// SendDeviceStatusMetrics sends device status metrics
+func (ms *SDWanSender) SendDeviceStatusMetrics(deviceStatus map[string]float64) {
+	for device, status := range deviceStatus {
+		tags := ms.getDeviceTags(device)
+		ms.sender.Gauge(ciscoSDWANMetricPrefix+"device.reachable", status, "", tags)
 	}
 }
 

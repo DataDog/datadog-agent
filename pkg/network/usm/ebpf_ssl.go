@@ -468,10 +468,12 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 	}
 }
 
+// Name return the program's name.
 func (o *sslProgram) Name() string {
 	return "openssl"
 }
 
+// ConfigureOptions changes map attributes to the given options.
 func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
 		MaxEntries: o.cfg.MaxTrackedConnections,
@@ -479,6 +481,7 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 	}
 }
 
+// PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart(*manager.Manager) error {
 	o.watcher.Start()
 	o.istioMonitor.Start()
@@ -486,16 +489,19 @@ func (o *sslProgram) PreStart(*manager.Manager) error {
 	return nil
 }
 
+// PostStart is a no-op.
 func (o *sslProgram) PostStart(*manager.Manager) error {
 	return nil
 }
 
+// Stop stops the program.
 func (o *sslProgram) Stop(*manager.Manager) {
 	o.watcher.Stop()
 	o.istioMonitor.Stop()
 	o.nodeJSMonitor.Stop()
 }
 
+// DumpMaps dumps the content of the map represented by mapName & currentMap, if it used by the eBPF program, to output.
 func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	switch mapName {
 	case sslSockByCtxMap: // maps/ssl_sock_by_ctx (BPF_MAP_TYPE_HASH), key uintptr // C.void *, value C.ssl_sock_t
@@ -546,6 +552,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 
 }
 
+// GetStats returns the latest monitoring stats from a protocol implementation.
 func (o *sslProgram) GetStats() *protocols.ProtocolStats {
 	return nil
 }

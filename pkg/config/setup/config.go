@@ -210,10 +210,14 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.SetDefault("proxy", nil)
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("sslkeylogfile", "")
+	config.BindEnv("tls_handshake_timeout")
 	config.BindEnvAndSetDefault("hostname", "")
 	config.BindEnvAndSetDefault("hostname_file", "")
 	config.BindEnvAndSetDefault("tags", []string{})
 	config.BindEnvAndSetDefault("extra_tags", []string{})
+	// If enabled, all origin detection mechanisms will be unified to use the same logic.
+	// Will override all other origin detection settings in favor of the unified one.
+	config.BindEnvAndSetDefault("origin_detection_unified", false)
 	config.BindEnv("env")
 	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
 	config.BindEnvAndSetDefault("conf_path", ".")
@@ -633,7 +637,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 
 	// Podman
-	config.BindEnvAndSetDefault("podman_db_path", "/var/lib/containers/storage/libpod/bolt_state.db")
+	config.BindEnvAndSetDefault("podman_db_path", "")
 
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
@@ -643,7 +647,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
 
 	config.BindEnvAndSetDefault("kubelet_tls_verify", true)
-	config.BindEnvAndSetDefault("kubelet_core_check_enabled", false)
+	config.BindEnvAndSetDefault("kubelet_core_check_enabled", true)
 	config.BindEnvAndSetDefault("collect_kubernetes_events", false)
 	config.BindEnvAndSetDefault("kubelet_client_ca", "")
 
@@ -691,6 +695,27 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.SetKnown("snmp_listener.ping.linux")
 	config.SetKnown("snmp_listener.ping.linux.use_raw_socket")
 
+	// network_devices.autodiscovery has precedence over snmp_listener config
+	// snmp_listener config is still here for legacy reasons
+	config.SetKnown("network_devices.autodiscovery.discovery_interval")
+	config.SetKnown("network_devices.autodiscovery.allowed_failures")
+	config.SetKnown("network_devices.autodiscovery.discovery_allowed_failures")
+	config.SetKnown("network_devices.autodiscovery.collect_device_metadata")
+	config.SetKnown("network_devices.autodiscovery.collect_topology")
+	config.SetKnown("network_devices.autodiscovery.workers")
+	config.SetKnown("network_devices.autodiscovery.configs")
+	config.SetKnown("network_devices.autodiscovery.loader")
+	config.SetKnown("network_devices.autodiscovery.min_collection_interval")
+	config.SetKnown("network_devices.autodiscovery.namespace")
+	config.SetKnown("network_devices.autodiscovery.use_device_id_as_hostname")
+	config.SetKnown("network_devices.autodiscovery.ping")
+	config.SetKnown("network_devices.autodiscovery.ping.enabled")
+	config.SetKnown("network_devices.autodiscovery.ping.count")
+	config.SetKnown("network_devices.autodiscovery.ping.interval")
+	config.SetKnown("network_devices.autodiscovery.ping.timeout")
+	config.SetKnown("network_devices.autodiscovery.ping.linux")
+	config.SetKnown("network_devices.autodiscovery.ping.linux.use_raw_socket")
+
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.port", 9162)
@@ -732,6 +757,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("cluster_agent.auth_token", "")
 	config.BindEnvAndSetDefault("cluster_agent.url", "")
 	config.BindEnvAndSetDefault("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
+	config.BindEnvAndSetDefault("cluster_agent.service_account_name", "")
 	config.BindEnvAndSetDefault("cluster_agent.tagging_fallback", false)
 	config.BindEnvAndSetDefault("cluster_agent.server.read_timeout_seconds", 2)
 	config.BindEnvAndSetDefault("cluster_agent.server.write_timeout_seconds", 2)
@@ -750,6 +776,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	})
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.enabled", true)
+	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.base_backoff", "5m")
+	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.max_backoff", "1h")
 	// sets the expiration deadline (TTL) for reported languages
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.language_ttl", "30m")
 	// language annotation cleanup period
@@ -783,6 +811,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
 	config.BindEnvAndSetDefault("ecs_resource_tags_replace_colon", false)
 	config.BindEnvAndSetDefault("ecs_metadata_timeout", 500) // value in milliseconds
+	config.BindEnvAndSetDefault("ecs_task_collection_enabled", false)
+	config.BindEnvAndSetDefault("ecs_task_cache_ttl", 3*time.Minute)
+	config.BindEnvAndSetDefault("ecs_task_collection_rate", 35)
+	config.BindEnvAndSetDefault("ecs_task_collection_burst", 60)
 
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
@@ -869,6 +901,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
+	config.BindEnvAndSetDefault("internal_profiling.enable_block_profiling", false)
+	config.BindEnvAndSetDefault("internal_profiling.enable_mutex_profiling", false)
 	config.BindEnvAndSetDefault("internal_profiling.delta_profiles", true)
 	config.BindEnvAndSetDefault("internal_profiling.extra_tags", []string{})
 	config.BindEnvAndSetDefault("internal_profiling.custom_attributes", []string{"check_id"})
@@ -944,6 +978,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.enabled", false)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.discovery_interval", 300)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.region", "")
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.query_timeout", 10)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.tags", []string{"datadoghq.com/scrape:true"})
 
@@ -1069,6 +1104,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.webhook_name", "datadog-webhook")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_config.endpoint", "/injectconfig")
+	config.BindEnvAndSetDefault("admission_controller.inject_config.inject_container_name", false)
 	config.BindEnvAndSetDefault("admission_controller.inject_config.mode", "hostip") // possible values: hostip / service / socket
 	config.BindEnvAndSetDefault("admission_controller.inject_config.local_service_name", "datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.socket_path", "/var/run/datadog")
@@ -1105,6 +1141,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_tag", "latest")
 	config.BindEnv("admission_controller.cws_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.cws_instrumentation.init_resources.memory")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mode", "remote_copy")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.remote_copy.mount_volume", false)
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.provider", "")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.endpoint", "/agentsidecar")
@@ -1132,6 +1170,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("telemetry.dogstatsd.aggregator_channel_latency_buckets", []string{})
 	// The histogram buckets use to track the time in nanoseconds it takes for a DogStatsD listeners to push data to the server
 	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_channel_latency_buckets", []string{})
+
+	// Agent Telemetry. It is experimental feature and is subject to change.
+	// It should not be enabled unless prompted by Datadog Support
+	config.BindEnvAndSetDefault("agent_telemetry.enabled", false)
 
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
@@ -1191,6 +1233,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("sbom.container_image.analyzers", []string{"os"})
 	config.BindEnvAndSetDefault("sbom.container_image.check_disk_usage", true)
 	config.BindEnvAndSetDefault("sbom.container_image.min_available_disk", "1Gb")
+	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_direct_scan", false)
 
 	// Host SBOM configuration
 	config.BindEnvAndSetDefault("sbom.host.enabled", false)
@@ -1238,6 +1281,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_goroutine_stacktraces", false)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_block_profiling", false)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_mutex_profiling", false)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.delta_profiles", true)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.unix_socket", "")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.extra_tags", []string{})
@@ -1332,11 +1377,12 @@ func InitConfig(config pkgconfigmodel.Config) {
 	setupAPM(config)
 	OTLP(config)
 	setupProcesses(config)
-	setupHighAvailability(config)
+	setupMultiRegionFailover(config)
 
 	// Updater configuration
 	config.BindEnvAndSetDefault("updater.remote_updates", false)
 	config.BindEnv("updater.registry")
+	config.BindEnvAndSetDefault("updater.registry_auth", "")
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
