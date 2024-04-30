@@ -4,6 +4,7 @@
 // Copyright 2014-present Datadog, Inc.
 
 //go:build darwin && !ios
+// +build darwin,!ios
 
 package portlist
 
