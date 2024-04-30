@@ -13,4 +13,4 @@ otel_agent_binary_build:
   artifacts:
     expire_in: 1 day
     paths:
-      - $CI_PROJECT_DIR/cmd/otel-agent
+      - $CI_PROJECT_DIR/bin/otel-agent/otel-agent
