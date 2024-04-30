@@ -124,7 +124,7 @@ the `core` bundle were instantiated ! The `core.Bundle` instructs `Fx` how to cr
 are created.
 
 In our example, the `config.Component` might have dozens of dependencies instantiated from the core bundle. `Fx` handles
-all of this for us.
+all of this.
 
 ## Using non-component types with Fx
 
