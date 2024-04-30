@@ -59,7 +59,6 @@ from tasks.go import (
     generate_licenses,
     generate_protobuf,
     go_fix,
-    golangci_lint,
     internal_deps_checker,
     lint_licenses,
     reset,
@@ -87,7 +86,6 @@ from tasks.windows_resources import build_messagetable
 ns = Collection()
 
 # add single tasks to the root
-ns.add_task(golangci_lint)
 ns.add_task(test)
 ns.add_task(codecov)
 ns.add_task(integration_tests)
