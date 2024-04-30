@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package evtlog defines a check that reads the Windows Event Log and submits Events
 package evtlog
 
 import (

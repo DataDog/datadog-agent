@@ -20,14 +20,19 @@ import (
 
 // eventWithMessage is an event record with rendered system values and message
 type eventWithMessage struct {
-	*eventWithData
+	winevent        *evtapi.EventRecord
+	systemVals      evtapi.EvtVariantValues
 	renderedMessage string
+	evtapi          evtapi.API
 }
 
 // Close frees resources associated with the event
 func (e *eventWithMessage) Close() {
-	if e.eventWithData != nil {
-		e.eventWithData.Close()
+	if e.systemVals != nil {
+		e.systemVals.Close()
+	}
+	if e.winevent != nil {
+		evtapi.EvtCloseRecord(e.evtapi, e.winevent.EventRecordHandle)
 	}
 }
 
@@ -35,7 +40,7 @@ func (e *eventWithMessage) Close() {
 // Events that are not output are closed.
 type eventMessageFilter struct {
 	doneCh <-chan struct{}
-	inCh   <-chan *eventWithData
+	inCh   <-chan *evtapi.EventRecord
 	outCh  chan<- *eventWithMessage
 
 	// config
@@ -44,15 +49,18 @@ type eventMessageFilter struct {
 	interpretMessages bool
 
 	// contexts
-	userRenderContext evtapi.EventRenderContextHandle
+	evtapi              evtapi.API
+	systemRenderContext evtapi.EventRenderContextHandle
+	userRenderContext   evtapi.EventRenderContextHandle
 }
 
 func (f *eventMessageFilter) run(w *sync.WaitGroup) {
 	defer w.Done()
 	defer close(f.outCh)
-	for d := range f.inCh {
+	for winevent := range f.inCh {
 		e := &eventWithMessage{
-			eventWithData: d,
+			winevent: winevent,
+			evtapi:   f.evtapi,
 		}
 
 		err := f.renderEvent(e)
@@ -82,14 +90,20 @@ func (f *eventMessageFilter) run(w *sync.WaitGroup) {
 }
 
 func (f *eventMessageFilter) renderEvent(e *eventWithMessage) error {
-	d := e.eventWithData
+	// Render the values
+	vals, err := f.evtapi.EvtRenderEventValues(f.systemRenderContext, e.winevent.EventRecordHandle)
+	if err != nil {
+		return fmt.Errorf("failed to render values: %w", err)
+	}
+	e.systemVals = vals
+
 	// Provider
-	providerName, err := d.systemVals.String(evtapi.EvtSystemProviderName)
+	providerName, err := e.systemVals.String(evtapi.EvtSystemProviderName)
 	if err != nil {
 		return fmt.Errorf("failed to get provider name: %w", err)
 	}
 
-	e.renderedMessage, err = f.getEventMessage(d.evtapi, providerName, d.winevent)
+	e.renderedMessage, err = f.getEventMessage(providerName, e.winevent)
 	if err != nil {
 		return fmt.Errorf("failed to get event message: %w", err)
 	}
@@ -97,15 +111,15 @@ func (f *eventMessageFilter) renderEvent(e *eventWithMessage) error {
 	return nil
 }
 
-func (f *eventMessageFilter) getEventMessage(api evtapi.API, providerName string, winevent *evtapi.EventRecord) (string, error) {
+func (f *eventMessageFilter) getEventMessage(providerName string, winevent *evtapi.EventRecord) (string, error) {
 	var message string
 
 	// Try to render the message via the event log API
-	pm, err := api.EvtOpenPublisherMetadata(providerName, "")
+	pm, err := f.evtapi.EvtOpenPublisherMetadata(providerName, "")
 	if err == nil {
-		defer evtapi.EvtClosePublisherMetadata(api, pm)
+		defer evtapi.EvtClosePublisherMetadata(f.evtapi, pm)
 
-		message, err = api.EvtFormatMessage(pm, winevent.EventRecordHandle, 0, nil, evtapi.EvtFormatMessageEvent)
+		message, err = f.evtapi.EvtFormatMessage(pm, winevent.EventRecordHandle, 0, nil, evtapi.EvtFormatMessageEvent)
 		if err == nil {
 			return message, nil
 		}
@@ -123,7 +137,7 @@ func (f *eventMessageFilter) getEventMessage(api evtapi.API, providerName string
 	if f.interpretMessages {
 		// Render the values
 		var eventValues evtapi.EvtVariantValues
-		eventValues, err = api.EvtRenderEventValues(f.userRenderContext, winevent.EventRecordHandle)
+		eventValues, err = f.evtapi.EvtRenderEventValues(f.userRenderContext, winevent.EventRecordHandle)
 		if err == nil {
 			defer eventValues.Close()
 			// aggregate the string values
