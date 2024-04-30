@@ -11,9 +11,7 @@ TODO: A page documenting common pattern:
 
 Fx [groups](https://pkg.go.dev/go.uber.org/fx#hdr-Value_Groups) help you produce and consume values of the same type, even if these values are produced in different parts of the codebase. A component can add any type into a group; this group can then consumed by other components.
 
-For example:
-
-Here, two components add a `server.Endpoint` type to the `server` group.
+In the following example, two components add a `server.Endpoint` type to the `server` group.
 
 === ":octicons-file-code-16: todolist/todolist.go"
     ```go
