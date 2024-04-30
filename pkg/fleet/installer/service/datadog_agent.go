@@ -49,7 +49,7 @@ var (
 )
 
 // SetupAgent installs and starts the agent
-func SetupAgent(ctx context.Context, _ string, _ []string) (err error) {
+func SetupAgent(ctx context.Context, _ []string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
 		if err != nil {
