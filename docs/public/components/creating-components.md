@@ -314,7 +314,7 @@ To support testing, components MUST provide a mock implementation (unless your c
 interface).
 
 Your mock must implement the `Component` interface of the `def` folder but can expose more methods if needed. All mock
-constructor must take a `*testing.T` as parameter.
+constructors must take a `*testing.T` as parameter.
 
 In the following example, your mock has no dependencies and returns the same string every time.
 
