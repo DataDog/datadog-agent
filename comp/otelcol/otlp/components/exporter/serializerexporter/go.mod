@@ -122,7 +122,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.54.0-rc.1 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.4 // indirect
-	github.com/DataDog/viper v1.13.3-0.20240429123956-163dcbf55ffc // indirect
+	github.com/DataDog/viper v1.13.3-0.20240430093604-ab6329b19a68 // indirect
 	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
@@ -181,6 +181,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
+	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/collector/config/configretry v0.97.0 // indirect
 	go.opentelemetry.io/otel v1.24.0 // indirect

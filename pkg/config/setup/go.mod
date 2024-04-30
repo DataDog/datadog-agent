@@ -53,7 +53,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.54.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.54.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.54.0-rc.1 // indirect
-	github.com/DataDog/viper v1.13.3-0.20240429123956-163dcbf55ffc // indirect
+	github.com/DataDog/viper v1.13.3-0.20240430093604-ab6329b19a68 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect

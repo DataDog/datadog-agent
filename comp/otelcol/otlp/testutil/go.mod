@@ -46,7 +46,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.54.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.54.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.54.0-rc.1 // indirect
-	github.com/DataDog/viper v1.13.3-0.20240429123956-163dcbf55ffc // indirect
+	github.com/DataDog/viper v1.13.3-0.20240430093604-ab6329b19a68 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
@@ -70,7 +70,6 @@ require (
 	github.com/spf13/afero v1.1.2 // indirect
 	github.com/spf13/cast v1.5.1 // indirect
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
