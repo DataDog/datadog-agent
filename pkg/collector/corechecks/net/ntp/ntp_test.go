@@ -31,6 +31,13 @@ port: 123
 version: 3
 timeout: 5
 `
+	ntpCfgStringDatadogPool = `
+offset_threshold: 60
+port: 123
+version: 3
+timeout: 5
+hosts: [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org, 3.datadog.pool.ntp.org ]
+`
 	offset = 10
 )
 
@@ -117,7 +124,7 @@ func TestNTPCritical(t *testing.T) {
 }
 
 func TestNTPError(t *testing.T) {
-	ntpCfg := []byte(ntpCfgString)
+	ntpCfg := []byte(ntpCfgStringDatadogPool)
 	ntpInitCfg := []byte("")
 
 	ntpQuery = testNTPQueryError
