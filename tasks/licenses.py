@@ -270,6 +270,9 @@ def find_copyright_for(package, overrides, ctx):
 
                 cpy = cpy.strip().rstrip('.')
                 if cpy:
+                    # If copyright contains double quote ("), escape it
+                    if '"' in cpy:
+                        cpy = '"' + cpy.replace('"', '""') + '"'
                     copyright.append(cpy)
 
     # skip through the first blank line of a file

@@ -11,6 +11,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
 	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater"
@@ -29,12 +30,13 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 
+	Config  config.Component
 	Updater updatercomp.Component
 	Log     log.Component
 }
 
-func newLocalAPIComponent(lc fx.Lifecycle, dependencies dependencies) (localapi.Component, error) {
-	localAPI, err := daemon.NewLocalAPI(dependencies.Updater)
+func newLocalAPIComponent(lc fx.Lifecycle, deps dependencies) (localapi.Component, error) {
+	localAPI, err := daemon.NewLocalAPI(deps.Updater, deps.Config.GetString("run_path"))
 	if err != nil {
 		return nil, fmt.Errorf("could not create local API: %w", err)
 	}

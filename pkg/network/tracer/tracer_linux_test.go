@@ -588,14 +588,14 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 	t.Run("gateway lookup enabled, not on aws", func(t *testing.T) {
 		cfg := testConfig()
 		cfg.EnableGatewayLookup = true
-		oldCloud := cloud
+		oldCloud := network.Cloud
 		defer func() {
-			cloud = oldCloud
+			network.Cloud = oldCloud
 		}()
 		ctrl := gomock.NewController(t)
 		m := NewMockcloudProvider(ctrl)
 		m.EXPECT().IsAWS().Return(false)
-		cloud = m
+		network.Cloud = m
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)
 	})
@@ -603,14 +603,14 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 	t.Run("gateway lookup enabled, aws metadata endpoint not enabled", func(t *testing.T) {
 		cfg := testConfig()
 		cfg.EnableGatewayLookup = true
-		oldCloud := cloud
+		oldCloud := network.Cloud
 		defer func() {
-			cloud = oldCloud
+			network.Cloud = oldCloud
 		}()
 		ctrl := gomock.NewController(t)
 		m := NewMockcloudProvider(ctrl)
 		m.EXPECT().IsAWS().Return(true)
-		cloud = m
+		network.Cloud = m
 
 		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
 		ddconfig.Datadog.SetWithoutSource("cloud_provider_metadata", []string{})
@@ -625,13 +625,13 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 	t := s.T()
 	ctrl := gomock.NewController(t)
 	m := NewMockcloudProvider(ctrl)
-	oldCloud := cloud
+	oldCloud := network.Cloud
 	defer func() {
-		cloud = oldCloud
+		network.Cloud = oldCloud
 	}()
 
 	m.EXPECT().IsAWS().Return(true)
-	cloud = m
+	network.Cloud = m
 
 	dnsAddr := net.ParseIP("8.8.8.8")
 	ifi := ipRouteGet(t, "", dnsAddr.String(), nil)
@@ -646,7 +646,7 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 	t.Cleanup(tr.Stop)
 	require.NotNil(t, tr.gwLookup)
 
-	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+	network.SubnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
 		t.Logf("subnet lookup: %s", hwAddr)
 		for _, i := range ifs {
 			if hwAddr.String() == i.HardwareAddr.String() {
@@ -686,13 +686,13 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	t := s.T()
 	ctrl := gomock.NewController(t)
 	m := NewMockcloudProvider(ctrl)
-	oldCloud := cloud
+	oldCloud := network.Cloud
 	defer func() {
-		cloud = oldCloud
+		network.Cloud = oldCloud
 	}()
 
 	m.EXPECT().IsAWS().Return(true)
-	cloud = m
+	network.Cloud = m
 
 	destAddr := net.ParseIP("8.8.8.8")
 	destDomain := "google.com"
@@ -707,14 +707,13 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 
 	ifi := ipRouteGet(t, "", destAddr.String(), nil)
 	calls := 0
-	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+	network.SubnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
 		if hwAddr.String() == ifi.HardwareAddr.String() {
 			calls++
 		}
 		return network.Subnet{}, assert.AnError
 	}
 
-	tr.gwLookup.purge()
 	require.NoError(t, tr.start(), "failed to start tracer")
 
 	initTracerState(t, tr)
@@ -756,13 +755,13 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 	t := s.T()
 	ctrl := gomock.NewController(t)
 	m := NewMockcloudProvider(ctrl)
-	oldCloud := cloud
+	oldCloud := network.Cloud
 	defer func() {
-		cloud = oldCloud
+		network.Cloud = oldCloud
 	}()
 
 	m.EXPECT().IsAWS().Return(true)
-	cloud = m
+	network.Cloud = m
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
@@ -811,7 +810,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	ifs, err := net.Interfaces()
 	require.NoError(t, err)
-	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+	network.SubnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
 		for _, i := range ifs {
 			if hwAddr.String() == i.HardwareAddr.String() {
 				return network.Subnet{Alias: fmt.Sprintf("subnet-%s", i.Name)}, nil

@@ -20,12 +20,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"go.opentelemetry.io/collector/component/componenttest"
-
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -41,6 +38,8 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"go.opentelemetry.io/collector/component/componenttest"
 )
 
 // team: agent-apm
@@ -135,7 +134,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 }
 
 func containerTagsFunc(cid string) ([]string, error) {
-	return tagger.Tag("container_id://"+cid, collectors.HighCardinality)
+	return tagger.Tag("container_id://"+cid, types.HighCardinality)
 }
 
 // appendEndpoints appends any endpoint configuration found at the given cfgKey.
@@ -199,7 +198,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		url, err := url.Parse(addr)
 		if err == nil {
 			c.ProxyURL = url
-			c.Proxy = http.ProxyURL(c.ProxyURL)
 		} else {
 			log.Errorf("Failed to parse proxy URL from proxy.https configuration: %s", err)
 		}
@@ -261,6 +259,16 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if core.IsSet("apm_config.rare_sampler.cardinality") {
 		c.RareSamplerCardinality = core.GetInt("apm_config.rare_sampler.cardinality")
+	}
+
+	if core.IsSet("apm_config.probabilistic_sampler.enabled") {
+		c.ProbabilisticSamplerEnabled = core.GetBool("apm_config.probabilistic_sampler.enabled")
+	}
+	if core.IsSet("apm_config.probabilistic_sampler.sampling_percentage") {
+		c.ProbabilisticSamplerSamplingPercentage = float32(core.GetFloat64("apm_config.probabilistic_sampler.sampling_percentage"))
+	}
+	if core.IsSet("apm_config.probabilistic_sampler.hash_seed") {
+		c.ProbabilisticSamplerHashSeed = uint32(core.GetInt("apm_config.probabilistic_sampler.hash_seed"))
 	}
 
 	if core.IsSet("apm_config.max_remote_traces_per_second") {
