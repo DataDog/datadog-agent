@@ -17,8 +17,6 @@ import (
 
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
-	"github.com/spf13/afero"
-	"github.com/spf13/pflag"
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -210,13 +208,6 @@ func (c *safeConfig) SetEnvKeyTransformer(key string, fn func(string) interface{
 	c.Lock()
 	defer c.Unlock()
 	c.Viper.SetEnvKeyTransformer(key, fn)
-}
-
-// SetFs wraps Viper for concurrent access
-func (c *safeConfig) SetFs(fs afero.Fs) {
-	c.Lock()
-	defer c.Unlock()
-	c.Viper.SetFs(fs)
 }
 
 // IsSet wraps Viper for concurrent access
@@ -536,8 +527,9 @@ func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 
 // UnmarshalKey wraps Viper for concurrent access
 func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error {
-	c.RLock()
-	defer c.RUnlock()
+	// UnmarshalKey needs to Write-Lock as we memoize the result of AllSettings in Viper
+	c.Lock()
+	defer c.Unlock()
 	c.checkKnownKey(key)
 	return c.Viper.UnmarshalKey(key, rawVal, opts...)
 }
@@ -599,8 +591,9 @@ func (c *safeConfig) MergeConfigMap(cfg map[string]any) error {
 
 // AllSettings wraps Viper for concurrent access
 func (c *safeConfig) AllSettings() map[string]interface{} {
-	c.RLock()
-	defer c.RUnlock()
+	// AllSettings needs to Write-Lock as we memoize the result in Viper
+	c.Lock()
+	defer c.Unlock()
 
 	// AllSettings returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
@@ -673,13 +666,6 @@ func (c *safeConfig) SetTypeByDefaultValue(in bool) {
 		c.configSources[source].SetTypeByDefaultValue(in)
 	}
 	c.Viper.SetTypeByDefaultValue(in)
-}
-
-// BindPFlag wraps Viper for concurrent access
-func (c *safeConfig) BindPFlag(key string, flag *pflag.Flag) error {
-	c.Lock()
-	defer c.Unlock()
-	return c.Viper.BindPFlag(key, flag)
 }
 
 // GetEnvVars implements the Config interface
