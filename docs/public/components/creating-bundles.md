@@ -3,7 +3,7 @@
 Bundles are grouping of related components. The goal of a bundle is simply to ease usage of multiple components working
 as a whole to offer a product.
 
-A good example is `DogStatsD`, which is a server to receive metrics locally from customer apps. It's composed of 9+
+One example is `DogStatsD`, a server to receive metrics locally from customer apps. `DogStatsD` is composed of 9+
 components, but most binaries just want to include `DogStatsD` as a whole.
 
 For this use case a bundle is created.
