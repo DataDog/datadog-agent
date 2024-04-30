@@ -214,6 +214,7 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Config){
 	cloudfoundry,
 	debugging,
 	vector,
+	podman,
 }
 
 func init() {
@@ -329,9 +330,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("kubernetes_node_label_as_cluster_name", "")
 	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
-
-	// Podman
-	config.BindEnvAndSetDefault("podman_db_path", "")
 
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
@@ -1457,6 +1455,10 @@ func kubernetes(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
+}
+
+func podman(config pkgconfigmodel.Config) {
+	config.BindEnvAndSetDefault("podman_db_path", "")
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
