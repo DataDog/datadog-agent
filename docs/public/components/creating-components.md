@@ -15,7 +15,7 @@ A component contains multiple folders and Go packages. Developers separate a com
 
 All components are located in the `comp` folder at the top of the Agent repo.
 
-The file hierarchy is the following:
+The file hierarchy is as follows:
 
 ```
 comp /
