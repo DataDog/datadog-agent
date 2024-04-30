@@ -55,6 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -65,7 +66,8 @@ import (
 )
 
 type CLIParams struct {
-	confPath string
+	confPath   string
+	socketPath string
 }
 
 type DogstatsdComponents struct {
@@ -93,10 +95,7 @@ func MakeCommand(defaultLogFile string) *cobra.Command {
 
 	// local flags
 	startCmd.PersistentFlags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
-
-	var socketPath string
-	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
-	pkgconfig.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
+	startCmd.Flags().StringVarP(&cliParams.socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 
 	return startCmd
 }
@@ -229,6 +228,10 @@ func start(
 func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Component, log log.Component, params *Params, components *DogstatsdComponents, demultiplexer demultiplexer.Component) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
+	}
+
+	if cliParams.socketPath != "" {
+		config.Set("dogstatsd_socket", cliParams.socketPath, model.SourceCLI)
 	}
 
 	// go_expvar server

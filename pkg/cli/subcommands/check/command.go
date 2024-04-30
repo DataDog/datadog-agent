@@ -79,7 +79,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
@@ -161,7 +160,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
 					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-					LogParams:            logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
+					LogParams:            logimpl.ForOneShot(globalParams.LoggerName, "off", true),
+				}),
 				core.Bundle(),
 
 				// workloadmeta setup
@@ -182,7 +182,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(status.NewInformationProvider(statuscollector.Provider{})),
 				fx.Provide(func() optional.Option[logagent.Component] {
 					return optional.NewNoneOption[logagent.Component]()
-
 				}),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
@@ -252,8 +251,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.Flags().UintVarP(&cliParams.discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	cmd.Flags().UintVarP(&cliParams.discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
 
-	pkgconfig.Datadog.BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
-
 	// Power user flags - mark as hidden
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryFrames, "m-frames", "", "the number of stack frames to consider")
@@ -286,18 +283,19 @@ func run(
 	collector optional.Option[collector.Component],
 	jmxLogger jmxlogger.Component,
 ) error {
+	config.Set("cmd.check.fullsketches", cliParams.fullSketches, model.SourceCLI)
+
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
-		if pkgconfig.Datadog.IsSet("integration_tracing") {
-			previousIntegrationTracing = pkgconfig.Datadog.GetBool("integration_tracing")
-
+		if config.IsSet("integration_tracing") {
+			previousIntegrationTracing = config.GetBool("integration_tracing")
 		}
-		if pkgconfig.Datadog.IsSet("integration_tracing_exhaustive") {
-			previousIntegrationTracingExhaustive = pkgconfig.Datadog.GetBool("integration_tracing_exhaustive")
+		if config.IsSet("integration_tracing_exhaustive") {
+			previousIntegrationTracingExhaustive = config.GetBool("integration_tracing_exhaustive")
 		}
-		pkgconfig.Datadog.Set("integration_tracing", true, model.SourceAgentRuntime)
-		pkgconfig.Datadog.Set("integration_tracing_exhaustive", true, model.SourceAgentRuntime)
+		config.Set("integration_tracing", true, model.SourceAgentRuntime)
+		config.Set("integration_tracing_exhaustive", true, model.SourceAgentRuntime)
 	}
 
 	if len(cliParams.args) != 0 {
@@ -312,7 +310,7 @@ func run(
 	pkgcollector.InitPython(common.GetPythonPaths()...)
 	commonchecks.RegisterChecks(wmeta, config)
 
-	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, ac, config.GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
@@ -482,14 +480,12 @@ func run(
 	var instancesData []interface{}
 	printer := aggregator.AgentDemultiplexerPrinter{DemultiplexerWithAggregator: demultiplexer}
 	data, err := statusComponent.GetStatusBySections([]string{status.CollectorSection}, "json", false)
-
 	if err != nil {
 		return err
 	}
 
 	collectorData := map[string]interface{}{}
 	err = json.Unmarshal(data, &collectorData)
-
 	if err != nil {
 		return err
 	}
@@ -638,8 +634,8 @@ func run(
 	}
 
 	if cliParams.generateIntegrationTraces {
-		pkgconfig.Datadog.Set("integration_tracing", previousIntegrationTracing, model.SourceAgentRuntime)
-		pkgconfig.Datadog.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive, model.SourceAgentRuntime)
+		config.Set("integration_tracing", previousIntegrationTracing, model.SourceAgentRuntime)
+		config.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive, model.SourceAgentRuntime)
 	}
 
 	return nil

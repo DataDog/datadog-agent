@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/viper"
 	"github.com/spf13/afero"
-	"github.com/spf13/pflag"
 )
 
 // Proxy represents the configuration for proxies in the agent
@@ -130,8 +129,6 @@ type Loader interface {
 	SetConfigName(in string)
 	SetConfigFile(in string)
 	SetConfigType(in string)
-
-	BindPFlag(key string, flag *pflag.Flag) error
 
 	// SetKnown adds a key to the set of known valid config keys
 	SetKnown(key string)
