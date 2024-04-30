@@ -9,9 +9,7 @@ TODO: A page documenting common pattern:
 
 ## Groups
 
-`Fx` [groups](https://pkg.go.dev/go.uber.org/fx#hdr-Value_Groups) are a useful feature that make it easier to produce
-and consume many values of the same type produced in different parts of the codebase. A component can add any type into
-groups which can be consumed by other components.
+Fx [groups](https://pkg.go.dev/go.uber.org/fx#hdr-Value_Groups) help you produce and consume values of the same type, even if these values are produced in different parts of the codebase. A component can add any type into a group; this group can then consumed by other components.
 
 For example:
 
