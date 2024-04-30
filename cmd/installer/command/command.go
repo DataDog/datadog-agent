@@ -34,11 +34,11 @@ type GlobalParams struct {
 	// LogFilePath is the path to the log file.
 	LogFilePath string
 
-	// RepositoriesDir is the path to the directory containing the repositories.
-	RepositoriesDir string
-
 	// PIDFilePath is the path to the pidfile.
 	PIDFilePath string
+
+	// AllowNoRoot is a flag to allow running the installer as non-root.
+	AllowNoRoot bool
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
@@ -58,11 +58,25 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 Datadog Installer installs datadog-packages based on your commands.`,
 		SilenceUsage: true,
 	}
+	agentCmd.AddGroup(
+		&cobra.Group{
+			ID:    "installer",
+			Title: "Installer Commands",
+		},
+		&cobra.Group{
+			ID:    "daemon",
+			Title: "Daemon Commands",
+		},
+		&cobra.Group{
+			ID:    "bootstrap",
+			Title: "Bootstrap Commands",
+		},
+	)
 
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing installer.yaml")
-	agentCmd.PersistentFlags().StringVarP(&globalParams.RepositoriesDir, "repositories", "d", "/opt/datadog-packages", "path to directory containing repositories")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.PIDFilePath, "pidfile", "p", "", "path to the pidfile")
-	_ = agentCmd.MarkFlagRequired("package")
+	agentCmd.PersistentFlags().StringVarP(&globalParams.LogFilePath, "logfile", "l", "", "path to the logfile")
+	agentCmd.PersistentFlags().BoolVar(&globalParams.AllowNoRoot, "no-root", false, "allow running the installer as non-root")
 
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
 	// whether the process is running in a tty.  So, we only want to override that when

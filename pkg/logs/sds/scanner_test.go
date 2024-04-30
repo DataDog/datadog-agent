@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	sds "github.com/DataDog/dd-sensitive-data-scanner/sds-go/go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,17 +27,17 @@ func TestCreateScanner(t *testing.T) {
                 "id":"zero-0",
                 "description":"zero desc",
                 "name":"zero",
-                "pattern":"zero"
+                "definitions": [{"version":1, "pattern":"zero"}]
             },{
                 "id":"one-1",
                 "description":"one desc",
                 "name":"one",
-                "pattern":"one"
+                "definitions": [{"version":1, "pattern":"one"}]
             },{
                 "id":"two-2",
                 "description":"two desc",
                 "name":"two",
-                "pattern":"two"
+                "definitions": [{"version":1, "pattern":"two"}]
             }
         ]}
     `)
@@ -67,7 +68,7 @@ func TestCreateScanner(t *testing.T) {
 	// scanner creation
 	// -----
 
-	s := CreateScanner()
+	s := CreateScanner(0)
 
 	require.NotNil(s, "the scanner should not be nil after a creation")
 
@@ -211,17 +212,17 @@ func TestIsReady(t *testing.T) {
                 "id":"zero-0",
                 "description":"zero desc",
                 "name":"zero",
-                "pattern":"zero"
+                "definitions": [{"version":1, "pattern":"zero"}]
             },{
                 "id":"one-1",
                 "description":"one desc",
                 "name":"one",
-                "pattern":"one"
+                "definitions": [{"version":1, "pattern":"one"}]
             },{
                 "id":"two-2",
                 "description":"two desc",
                 "name":"two",
-                "pattern":"two"
+                "definitions": [{"version":1, "pattern":"two"}]
             }
         ]}
     `)
@@ -246,7 +247,7 @@ func TestIsReady(t *testing.T) {
 	// scanner creation
 	// -----
 
-	s := CreateScanner()
+	s := CreateScanner(0)
 
 	require.NotNil(s, "the scanner should not be nil after a creation")
 	require.False(s.IsReady(), "at this stage, the scanner should not be considered ready, no definitions received")
@@ -279,17 +280,17 @@ func TestScan(t *testing.T) {
                 "id":"zero-0",
                 "description":"zero desc",
                 "name":"zero",
-                "pattern":"zero"
+                "definitions": [{"version":1, "pattern":"zero"}]
             },{
                 "id":"one-1",
                 "description":"one desc",
                 "name":"one",
-                "pattern":"one"
+                "definitions": [{"version":1, "pattern":"one"}]
             },{
                 "id":"two-2",
                 "description":"two desc",
                 "name":"two",
-                "pattern":"two"
+                "definitions": [{"version":1, "pattern":"two"}]
             }
         ]}
     `)
@@ -314,7 +315,7 @@ func TestScan(t *testing.T) {
 	// scanner creation
 	// -----
 
-	s := CreateScanner()
+	s := CreateScanner(0)
 	require.NotNil(s, "the returned scanner should not be nil")
 
 	_ = s.Reconfigure(ReconfigureOrder{
@@ -346,7 +347,7 @@ func TestScan(t *testing.T) {
 		},
 		"and so we go": {
 			matched:    false,
-			event:      "",
+			event:      "and so we go",
 			matchCount: 0,
 		},
 	}
@@ -372,7 +373,7 @@ func TestCloseCycleScan(t *testing.T) {
                 "id":"zero-0",
                 "description":"zero desc",
                 "name":"zero",
-                "pattern":"zero"
+                "definitions": [{"version":1, "pattern":"zero"}]
             }
         ]}
     `)
@@ -398,7 +399,7 @@ func TestCloseCycleScan(t *testing.T) {
 	// -----
 
 	for i := 0; i < 10; i++ {
-		s := CreateScanner()
+		s := CreateScanner(0)
 		require.NotNil(s, "the returned scanner should not be nil")
 
 		_ = s.Reconfigure(ReconfigureOrder{
@@ -430,17 +431,17 @@ func TestCloseCycleScan(t *testing.T) {
 			},
 			"and so we go": {
 				matched:    false,
-				event:      "",
+				event:      "and so we go",
 				matchCount: 0,
 			},
 		}
 
-        // this test is about being over-cautious, making sure the Scan method
-        // will never cause a race when calling the Delete method at the same time.
-        // It can't happen with the current implementation / concurrency pattern
-        // used in processor.go, but I'm being over-cautious because if it happens
-        // in the future because of someone changing the processor implementation,
-        // it could lead to a panic and a hard crash of the Agent.
+		// this test is about being over-cautious, making sure the Scan method
+		// will never cause a race when calling the Delete method at the same time.
+		// It can't happen with the current implementation / concurrency pattern
+		// used in processor.go, but I'm being over-cautious because if it happens
+		// in the future because of someone changing the processor implementation,
+		// it could lead to a panic and a hard crash of the Agent.
 
 		go func() {
 			for {
@@ -454,4 +455,123 @@ func TestCloseCycleScan(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 		s.Delete()
 	}
+}
+
+func TestInterpretRC(t *testing.T) {
+	require := require.New(t)
+
+	stdRc := StandardRuleConfig{
+		ID:          "0",
+		Name:        "Zero",
+		Description: "Zero desc",
+		Definitions: []StandardRuleDefinition{{
+			Version: 1,
+			Pattern: "rule pattern 1",
+		}},
+	}
+
+	rc := RuleConfig{
+		Name:        "test",
+		Description: "desc",
+		Definition: RuleDefinition{
+			StandardRuleID: "0",
+		},
+		Tags: []string{"tag:test"},
+		MatchAction: MatchAction{
+			Type:        matchActionRCRedact,
+			Placeholder: "[redacted]",
+		},
+	}
+
+	rule, err := interpretRCRule(rc, stdRc, StandardRulesDefaults{})
+	require.NoError(err)
+
+	require.Equal(rule.Id, "Zero")
+	require.Equal(rule.Pattern, "rule pattern 1")
+	require.Equal(rule.SecondaryValidator, sds.SecondaryValidator(""))
+
+	// add a version with a required capability
+	stdRc.Definitions = append(stdRc.Definitions, StandardRuleDefinition{
+		Version:              2,
+		Pattern:              "second pattern",
+		RequiredCapabilities: []string{RCSecondaryValidationLuhnChecksum},
+	})
+
+	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{})
+	require.NoError(err)
+
+	require.Equal(rule.Id, "Zero")
+	require.Equal(rule.Pattern, "second pattern")
+	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
+
+	// add a third version with an unknown required capability
+	// it should fallback on using the version 2
+	// also, make sure the version ain't ordered properly
+	stdRc.Definitions = []StandardRuleDefinition{
+		{
+			Version:              2,
+			Pattern:              "second pattern",
+			RequiredCapabilities: []string{RCSecondaryValidationLuhnChecksum},
+		},
+		{
+			Version:              1,
+			Pattern:              "first pattern",
+			RequiredCapabilities: nil,
+		},
+		{
+			Version:              3,
+			Pattern:              "third pattern",
+			RequiredCapabilities: []string{"unsupported"},
+		},
+	}
+
+	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{})
+	require.NoError(err)
+
+	require.Equal(rule.Id, "Zero")
+	require.Equal(rule.Pattern, "second pattern")
+	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
+
+	// make sure we use the keywords proximity feature if any's configured
+	// in the std rule definition 	stdRc.Definitions = []StandardRuleDefinition{
+	stdRc.Definitions = []StandardRuleDefinition{
+		{
+			Version:                 2,
+			Pattern:                 "second pattern",
+			RequiredCapabilities:    []string{RCSecondaryValidationLuhnChecksum},
+			DefaultIncludedKeywords: []string{"hello"},
+		},
+		{
+			Version:              1,
+			Pattern:              "first pattern",
+			RequiredCapabilities: nil,
+		},
+	}
+
+	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{IncludedKeywordsCharCount: 10})
+	require.NoError(err)
+
+	require.Equal(rule.Id, "Zero")
+	require.Equal(rule.Pattern, "second pattern")
+	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
+	require.NotNil(rule.ProximityKeywords)
+	require.Equal(rule.ProximityKeywords.LookAheadCharacterCount, uint32(10))
+	require.Equal(rule.ProximityKeywords.IncludedKeywords, []string{"hello"})
+
+	// make sure we use the user provided information first
+	// even if there is some in the std rule
+	rc.IncludedKeywords = ProximityKeywords{
+		Keywords:       []string{"custom"},
+		CharacterCount: 42,
+	}
+
+	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{IncludedKeywordsCharCount: 10})
+	require.NoError(err)
+
+	require.Equal(rule.Id, "Zero")
+	require.Equal(rule.Pattern, "second pattern")
+	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
+	require.NotNil(rule.ProximityKeywords)
+	require.Equal(rule.ProximityKeywords.LookAheadCharacterCount, uint32(42))
+	require.Equal(rule.ProximityKeywords.IncludedKeywords, []string{"custom"})
 }

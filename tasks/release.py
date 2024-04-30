@@ -11,12 +11,11 @@ from collections import OrderedDict
 from datetime import date
 from time import sleep
 
-from gitlab import GitlabError
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
 from tasks.libs.common.color import color_message
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import (
@@ -1040,6 +1039,8 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
     Updates internal module dependencies with the new version.
     """
 
+    # Step 1: Preparation
+
     if sys.version_info[0] < 3:
         return Exit(message="Must use Python 3 for this task", code=1)
 
@@ -1057,10 +1058,13 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
         new_version = next_final_version(ctx, major_version, False)
         update_release_json(new_version, new_version)
 
-    # Update internal module dependencies
+    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
+    # Step 2: Update internal module dependencies
+
     update_modules(ctx, str(new_version))
 
-    # Step 3: branch out, commit change, push branch
+    # Step 3: Branch out, commit change, push branch
 
     final_branch = f"{new_version}-final"
 
@@ -1088,7 +1092,7 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
             code=1,
         )
 
-    # Step 4: add release changelog preludes
+    # Step 4: Add release changelog preludes
     print(color_message("Adding Agent release changelog prelude", "bold"))
     add_prelude(ctx, str(new_version))
 
@@ -1105,7 +1109,7 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
             code=1,
         )
 
-    # Step 5: push branch and create PR
+    # Step 5: Push branch and create PR
 
     print(color_message("Pushing new branch to the upstream repository", "bold"))
     res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
@@ -1118,7 +1122,6 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
             code=1,
         )
 
-    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
     create_pr(
         f"Final updates for release.json and Go modules for {new_version} release + preludes",
         current_branch,
@@ -1343,7 +1346,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     if sys.version_info[0] < 3:
         return Exit(message="Must use Python 3 for this task", code=1)
 
-    datadog_agent = get_gitlab_repo()
+    gitlab = Gitlab(project_name=GITHUB_REPO_NAME, api_token=get_gitlab_token())
     list_major_versions = parse_major_versions(major_versions)
 
     # Get the version of the highest major: needed for tag_version and to know
@@ -1392,11 +1395,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
     gitlab_tag = None
     while not gitlab_tag:
-        try:
-            gitlab_tag = datadog_agent.tags.get(str(new_version))
-        except GitlabError:
-            continue
-
+        gitlab_tag = gitlab.find_tag(str(new_version)).get("name", None)
         sleep(5)
 
     print(color_message("Creating RC pipeline", "bold"))
