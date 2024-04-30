@@ -67,6 +67,7 @@ type Event struct {
 
 	// network events
 	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
+	IMDS IMDSEvent `field:"imds" event:"imds"` // [7.55] [Network] A IMDS event was captured
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
 
 	// internal usage

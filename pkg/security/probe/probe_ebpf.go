@@ -468,7 +468,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 }
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
-	return eventType == model.DNSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
+	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
 }
 
 func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
@@ -920,6 +920,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 				seclog.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
 			}
 
+			return
+		}
+	case model.IMDSEventType:
+		if _, err = event.IMDS.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	case model.BindEventType:

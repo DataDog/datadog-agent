@@ -492,6 +492,7 @@ type EventSerializer struct {
 	*SignalEventSerializer   `json:"signal,omitempty"`
 	*SpliceEventSerializer   `json:"splice,omitempty"`
 	*DNSEventSerializer      `json:"dns,omitempty"`
+	*IMDSEventSerializer                    `json:"imds,omitempty"`
 	*BindEventSerializer     `json:"bind,omitempty"`
 	*MountEventSerializer    `json:"mount,omitempty"`
 	*SyscallsEventSerializer `json:"syscalls,omitempty"`
@@ -1187,6 +1188,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)
+	case model.IMDSEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(0)
+		s.IMDSEventSerializer = newIMDSEventSerializer(&event.IMDS)
 	}
 
 	return s

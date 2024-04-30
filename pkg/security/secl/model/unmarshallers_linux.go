@@ -7,9 +7,15 @@
 package model
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/bits"
+	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -1021,6 +1027,88 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 	return len(data), nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 10 {
+		return 0, ErrNotEnoughData
+	}
+
+	firstWord := strings.SplitN(string(data[0:10]), " ", 2)
+	switch {
+	case strings.HasPrefix(firstWord[0], "HTTP"):
+		// this is an IMDS response
+		e.Type = IMDSResponseType
+		resp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(data)), nil)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse IMDS response: %v", err)
+		}
+		e.fillFromIMDSHeader(resp.Header)
+
+		// try to parse cloud provider specific data
+		if e.CloudProvider == IMDSAWSCloudProvider {
+			b := new(bytes.Buffer)
+			io.Copy(b, resp.Body)
+			_ = resp.Body.Close()
+			// we don't care about errors, this unmarshalling will only work for token responses
+			_ = e.AWS.SecurityCredentials.UnmarshalBinary(b.Bytes())
+			if len(e.AWS.SecurityCredentials.ExpirationRaw) > 0 {
+				e.AWS.SecurityCredentials.Expiration, _ = time.Parse(time.RFC3339, e.AWS.SecurityCredentials.ExpirationRaw)
+			}
+		}
+		break
+	case slices.Contains([]string{
+		http.MethodGet,
+		http.MethodHead,
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodPatch,
+		http.MethodDelete,
+		http.MethodConnect,
+		http.MethodOptions,
+		http.MethodTrace,
+	}, firstWord[0]):
+		// this is an IMDS request
+		e.Type = IMDSRequestType
+		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBuffer(data)))
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse IMDS request: %v", err)
+		}
+		e.fillFromIMDSHeader(req.Header)
+		e.URL = req.URL.String()
+		e.Host = req.Host
+		e.UserAgent = req.UserAgent()
+		break
+	default:
+		return 0, fmt.Errorf("invalid HTTP packet: unknown first word %s", firstWord[0])
+	}
+
+	return len(data), nil
+}
+
+func (e *IMDSEvent) fillFromIMDSHeader(header http.Header) {
+	if header != nil {
+		e.Server = header.Get("Server")
+
+		// set the cloud provider
+		if flavor := header.Get("Metadata-Flavor"); flavor == "Google" {
+			e.CloudProvider = IMDSGCPCloudProvider
+		} else if metadata := header.Get("Metadata"); metadata == "true" {
+			e.CloudProvider = IMDSAzureCloudProvider
+		} else {
+			e.CloudProvider = IMDSAWSCloudProvider
+
+			// check if this is an IMDSv2 request
+			e.AWS.IsIMDSv2 = len(header.Get("x-aws-ec2-metadata-token-ttl-seconds")) > 0 ||
+				len(header.Get("x-aws-ec2-metadata-token")) > 0
+		}
+	}
+}
+
+// UnmarshalBinary extract scrubbed data from an AWS IMDS security credentials response body
+func (creds *AWSSecurityCredentials) UnmarshalBinary(body []byte) error {
+	return json.Unmarshal(body, creds)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

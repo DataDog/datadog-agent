@@ -42,6 +42,7 @@ func GetAllTCProgramFunctions() []string {
 	output := []string{
 		"classifier_dns_request_parser",
 		"classifier_dns_request",
+		"classifier_imds_request",
 	}
 
 	for _, tcProbe := range GetTCProbes() {
@@ -73,6 +74,13 @@ func getTCTailCallRoutes() []manager.TailCallRoute {
 			Key:           TCDNSRequestParserKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "classifier_dns_request_parser",
+			},
+		},
+		{
+			ProgArrayName: "classifier_router",
+			Key:           TCIMDSRequestParserKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "classifier_imds_request",
 			},
 		},
 	}

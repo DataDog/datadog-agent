@@ -113,6 +113,50 @@ type NetworkContextSerializer struct {
 	Size uint32 `json:"size"`
 }
 
+// AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request
+// easyjson:json
+type AWSSecurityCredentialsSerializer struct {
+	// code is the IMDS server code response
+	Code string `json:"code"`
+	// type is the security credentials type
+	Type string `json:"type"`
+	// access_key_id is the unique access key ID of the credentials
+	AccessKeyID string `json:"access_key_id"`
+	// last_updated is the last time the credentials were updated
+	LastUpdated string `json:"last_updated"`
+	// expiration is the expiration date of the credentials
+	Expiration string `json:"expiration"`
+}
+
+// AWSIMDSEventSerializer serializes an AWS IMDS event to JSON
+// easyjson:json
+type AWSIMDSEventSerializer struct {
+	// is_imds_v2 reports if the IMDS event follows IMDSv1 or IMDSv2 conventions
+	IsIMDSv2 bool `json:"is_imds_v2"`
+	// SecurityCredentials holds the scrubbed data collected on the security credentials
+	SecurityCredentials *AWSSecurityCredentialsSerializer `json:"security_credentials,omitempty"`
+}
+
+// IMDSEventSerializer serializes an IMDS event to JSON
+// easyjson:json
+type IMDSEventSerializer struct {
+	// type is the type of IMDS event
+	Type string `json:"type"`
+	// cloud_provider is the intended cloud provider of the IMDS event
+	CloudProvider string `json:"cloud_provider"`
+	// url is the url of the IMDS request
+	URL string `json:"url,omitempty"`
+	// host is the host of the HTTP protocol
+	Host string `json:"host,omitempty"`
+	// user_agent is the user agent of the HTTP client
+	UserAgent string `json:"user_agent,omitempty"`
+	// server is the server header of a response
+	Server string `json:"server,omitempty"`
+
+	// AWS holds the AWS specific data parsed from the IMDS event
+	AWS *AWSIMDSEventSerializer `json:"aws,omitempty"`
+}
+
 // DNSQuestionSerializer serializes a DNS question to JSON
 // easyjson:json
 type DNSQuestionSerializer struct {
@@ -194,6 +238,35 @@ func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 			Size:  d.Size,
 			Count: d.Count,
 		},
+	}
+}
+
+// nolint: deadcode, unused
+func newIMDSEventSerializer(e *model.IMDSEvent) *IMDSEventSerializer {
+	var aws *AWSIMDSEventSerializer
+	if e.CloudProvider == model.IMDSAWSCloudProvider {
+		aws = &AWSIMDSEventSerializer{
+			IsIMDSv2: e.AWS.IsIMDSv2,
+		}
+		if len(e.AWS.SecurityCredentials.AccessKeyID) > 0 {
+			aws.SecurityCredentials = &AWSSecurityCredentialsSerializer{
+				Code:        e.AWS.SecurityCredentials.Code,
+				Type:        e.AWS.SecurityCredentials.Type,
+				LastUpdated: e.AWS.SecurityCredentials.LastUpdated,
+				Expiration:  e.AWS.SecurityCredentials.ExpirationRaw,
+				AccessKeyID: e.AWS.SecurityCredentials.AccessKeyID,
+			}
+		}
+	}
+
+	return &IMDSEventSerializer{
+		Type:          e.Type,
+		CloudProvider: e.CloudProvider,
+		URL:           e.URL,
+		Host:          e.Host,
+		UserAgent:     e.UserAgent,
+		Server:        e.Server,
+		AWS:           aws,
 	}
 }
 
