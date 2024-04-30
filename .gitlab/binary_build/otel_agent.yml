@@ -10,3 +10,7 @@ otel_agent_binary_build:
     - !reference [.retrieve_linux_go_deps]
     - inv -e otel-agent.build
   needs: ["go_deps"]
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $CI_PROJECT_DIR/cmd/otel-agent
