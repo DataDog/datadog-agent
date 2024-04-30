@@ -6,7 +6,7 @@ as a whole to offer a product.
 One example is `DogStatsD`, a server to receive metrics locally from customer apps. `DogStatsD` is composed of 9+
 components, but most binaries just want to include `DogStatsD` as a whole.
 
-For this use case a bundle is created.
+For use cases like that of DogStatsD, create a bundle.
 
 ## Creating a bundle
 
