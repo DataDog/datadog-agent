@@ -8,19 +8,11 @@ from time import perf_counter
 from getpass import getuser
 from datetime import datetime
 import logging
+import sys
 import traceback
 from invoke import Context
 
 DD_INVOKE_LOGS_PATH = "/tmp/dd_invoke.log"
-
-# Set up the logger to write to the DD_INVOKE_LOGS_PATH file.
-logger = logging.getLogger(__name__)
-logger.propagate = False
-logger.setLevel(logging.INFO)
-formatter = logging.Formatter('%(message)s')
-handler = logging.FileHandler(DD_INVOKE_LOGS_PATH)
-handler.setFormatter(formatter)
-logger.addHandler(handler)
 
 
 def log_invoke_task(name: str, module: str, task_datetime: str, duration: float, task_result: str) -> None:
@@ -35,6 +27,7 @@ def log_invoke_task(name: str, module: str, task_datetime: str, duration: float,
         source: "invoke"
     ```
     """
+    logging.basicConfig(filename=DD_INVOKE_LOGS_PATH, level=logging.INFO, format='%(message)s')
     user = getuser()
     task_info = {
         "name": name,
@@ -44,7 +37,7 @@ def log_invoke_task(name: str, module: str, task_datetime: str, duration: float,
         "user": user,
         "result": task_result,
     }
-    logger.info(task_info)
+    logging.info(task_info)
 
 
 class InvokeLogger:
@@ -75,7 +68,10 @@ class InvokeLogger:
                 name=name, module=module, task_datetime=self.datetime, duration=duration, task_result=task_result
             )
         except Exception as e:
-            logger.warning("Warning: couldn't log the invoke task in the InvokeLogger context manager (error: %s)", e)
+            print(
+                f"Warning: couldn't log the invoke task in the InvokeLogger context manager (error: {e})",
+                file=sys.stderr,
+            )
 
 
 def custom__call__(self, *args, **kwargs):
