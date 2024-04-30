@@ -291,16 +291,30 @@ single implementation. If so, you have only one `impl` and `fx` folder.
 #### `fx-void`
 
 Some parts of the codebase might have optional dependencies on your components (see [FAQ](faq.md#optional-dependency)).
-To ease the creation of binary you need to provide a
+
+If it's the case, you need to provide a fx wrapper called `fx-void` to avoid duplicating the use of `optional.NewNoneOption[def.Component]()` in all our binaries
+
+=== ":octicons-file-code-16: comp/compression/fx-void/fx.go"
+    ```go
+    import (
+        "github.com/DataDog/datadog-agent/comp/compression/def"
+    )
+
+    func Module() fxutil.Module {
+        return fxutil.Component(
+            fx.Provide(func() optional.Option[def.Component] {
+                return optional.NewNoneOption[def.Component]()
+            }))
+    }
+    ```
 
 ### The mock folder
 
 To support testing, components MUST provide a mock implementation (unless your component has no public method in its
 interface).
 
-Your mock must implement the `Component` interface of the `def` folder. It can expose more methods if needed. Your mock must
-respect the same logic as other implementation: having a public constructor, being possible to take dependencies
-through fx, ...
+Your mock must implement the `Component` interface of the `def` folder but can expose more methods if needed. All mock
+constructor must take a `*testing.T` as parameter.
 
 In the following example, your mock has no dependencies and returns the same string every time.
 
@@ -322,8 +336,8 @@ In the following example, your mock has no dependencies and returns the same str
 
     type mock struct {}
 
-    // NewMockCompressor returns a mock compressor
-    func NewMockCompressor() Provides {
+    // New returns a mock compressor
+    func New(t *testing.T) Provides {
         return Provides{
             comp: &mock{},
         }
@@ -337,25 +351,6 @@ In the following example, your mock has no dependencies and returns the same str
     // Decompress decompresses the input data using ZSTD.
     func (c *compressor) Decompress(data []byte) ([]byte, error) {
         return []byte("decompressed"), nil
-    }
-    ```
-
-You need an Fx wrapper:
-
-=== ":octicons-file-code-16: comp/compression/fx-mock/fx.go"
-    ```go
-
-    package fxmock
-
-    import (
-        "github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-        "github.com/DataDog/datadog-agent/comp/compression/mock"
-    )
-
-    // Module specifies the compression module.
-    func Module() fxutil.Module {
-        return fxutil.Component(fxutil.ProvideComponentConstructor(mock.NewMockCompressor))
     }
     ```
 
@@ -379,8 +374,6 @@ comp/<component>/
 │   └── component.go
 ├── fx
 │   └── fx.go
-├── fx-mock
-│   └── fx.go
 ├── impl
 │   └── component.go
 └── mock
@@ -395,8 +388,6 @@ The example compression component, which has two implementations, looks like:
 comp/core/compression/
 ├── def
 │   └── component.go
-├── fx-mock
-│   └── fx.go
 ├── fx-zip
 │   └── fx.go
 ├── fx-zstd
@@ -408,7 +399,7 @@ comp/core/compression/
 └── mock
     └── mock.go
 
-7 directories, 7 files
+6 directories, 7 files
 ```
 
 This can seem like a lot for a single compression component, but this design answers the exponentially increasing complexity
