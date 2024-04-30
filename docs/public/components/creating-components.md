@@ -113,7 +113,7 @@ internally by each component (more on this [here TODO]()). -->
 
 ### The impl folders
 
-The `impl` folder is where the component implementation is written. The component implementation details is up to the developer.
+The `impl` folder is where the component implementation is written. The details of component implementation are up to the developer.
 The only requirement is that there is a public instantiation function called `NewComponent`.
 
 === ":octicons-file-code-16: comp/compression/impl-zstd/component.go"
@@ -254,7 +254,7 @@ The `fx` folder must be the only folder importing and referencing Fx. It's meant
 dependency injection with Fx for your component.
 
 All `fx.go` files must define a `func Module() fxutil.Module` function. The helpers contained in `fxutil` handle all
-the logic for you. Most `fx/fx.go` file should look the same as this:
+the logic. Most `fx/fx.go` file should look the same as this:
 
 === ":octicons-file-code-16: comp/compression/fx-zstd/fx.go"
     ```go
@@ -280,12 +280,12 @@ the logic for you. Most `fx/fx.go` file should look the same as this:
     ```
 
 !!! Info "Optional dependencies"
-    Creating a conversion function to `optional.Option` will be done automatically by `ProvideComponentConstructor`.
-    This means that you should be able to depends on any `comp` as a `optional.Option[comp]` if needed.
+    Creating a conversion function to `optional.Option` is done automatically by `ProvideComponentConstructor`.
+    This means that you can depend on any `comp` as an `optional.Option[comp]` if needed.
 
     More on this in the [FAQ](faq.md#optional-dependency).
 
-You would create the same file in `fx-zip` folder for the ZIP implementation. In most case your component will have a
+For the ZIP implementation, create the same file in `fx-zip` folder. In most cases, your component has a
 single implementation. If so, you have only one `impl` and `fx` folder.
 
 #### `fx-void`
@@ -428,7 +428,7 @@ Your component must:
 
 * Be thread safe.
 * Any public methods should be able to be used as soon as your constructor is called. It's OK if some do nothing or
-  drop data as long as the agent lifecycle is still in its init phase (see [lifecycle section for more | TODO]()).
+  drop data as long as the Agent lifecycle is still in its init phase (see [lifecycle section for more | TODO]()).
 * Be clearly documented (see section below).
 * Be tested.
 
