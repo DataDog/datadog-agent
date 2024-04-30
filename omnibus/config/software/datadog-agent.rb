@@ -83,9 +83,9 @@ build do
     command "inv -e rtloader.install"
     bundle_arg = bundled_agents ? bundled_agents.map { |k| "--bundle #{k}" }.join(" ") : "--bundle agent"
 
-    include_sds = "--include-sds"
-    if osx_target?
-        include_sds = "" # we do not include SDS for now in the mac build
+    include_sds = ""
+    if linux_target?
+        include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
     command "inv -e agent.build --exclude-rtloader #{include_sds} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
 
