@@ -14,36 +14,79 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
+	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
+	"go.opentelemetry.io/collector/service"
 )
 
 // NewConfigComponent creates a new config component from the given URIs
-func NewConfigComponent(uris []string) (config.Component, error) {
+func NewConfigComponent(ctx context.Context, uris []string) (config.Component, error) {
 	// Load the configuration from the fileName
-	set := confmap.ProviderSettings{}
 	rs := confmap.ResolverSettings{
 		URIs: uris,
-		Providers: makeMapProvidersMap(
-			fileprovider.NewWithSettings(set),
-			envprovider.NewWithSettings(set),
-			yamlprovider.NewWithSettings(set),
-			httpprovider.NewWithSettings(set),
-		),
-		Converters: []confmap.Converter{expandconverter.New(confmap.ConverterSettings{})},
+		ProviderFactories: []confmap.ProviderFactory{
+			fileprovider.NewFactory(),
+			envprovider.NewFactory(),
+			yamlprovider.NewFactory(),
+			httpprovider.NewFactory(),
+			httpsprovider.NewFactory(),
+		},
+		ConverterFactories: []confmap.ConverterFactory{expandconverter.NewFactory()},
 	}
-	fmt.Printf("Loading config from %s\n", uris)
 
 	resolver, err := confmap.NewResolver(rs)
 	if err != nil {
-		fmt.Printf("Error creating resolver: %v\n", err)
+		fmt.Printf("Failed to create resolver: %v\n", err)
 		return nil, err
 	}
-	cfg, err := resolver.Resolve(context.Background())
+	cfg, err := resolver.Resolve(ctx)
 	if err != nil {
-		fmt.Printf("Error resolving config: %v\n", err)
+		fmt.Printf("Failed to resolve config: %v\n", err)
 		return nil, err
 	}
+	ddc, err := getDDExporterConfig(cfg)
+	if err != nil {
+		fmt.Printf("Failed to get DD exporter config: %v\n", err)
+		return nil, err
+	}
+	sc, err := getServiceConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	site := ddc.API.Site
+	apiKey := string(ddc.API.Key)
+	// Create a new config
+	pkgconfig := pkgconfigmodel.NewConfig("OTel", "DD", strings.NewReplacer(".", "_"))
+	// Set Default values
+	pkgconfigsetup.InitConfig(pkgconfig)
+	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("site", site, pkgconfigmodel.SourceFile)
+
+	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("logs_config.use_compression", true, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("log_level", sc.Telemetry.Logs.Level, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceFile)
+	return pkgconfig, nil
+}
+
+func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
+	var pipelineConfig *service.Config
+	s := cfg.Get("service")
+	if s == nil {
+		return nil, fmt.Errorf("service config not found")
+	}
+	smap := s.(map[string]any)
+	err := confmap.NewFromStringMap(smap).Unmarshal(&pipelineConfig)
+	if err != nil {
+		return nil, err
+	}
+	return pipelineConfig, nil
+}
+
+func getDDExporterConfig(cfg *confmap.Conf) (*datadogexporter.Config, error) {
 	var configs []*datadogexporter.Config
+	var err error
 	for k, v := range cfg.ToStringMap() {
 		if k != "exporters" {
 			continue
@@ -62,37 +105,15 @@ func NewConfigComponent(uris []string) (config.Component, error) {
 		}
 	}
 	if len(configs) == 0 {
-		return nil, fmt.Errorf("no datadog exporter found in %s", uris)
+		return nil, fmt.Errorf("no datadog exporter found")
 	}
+	// Check if we have multiple datadog exporters
+	// We only support one exporter for now
+	// TODO: support multiple exporters
 	if len(configs) > 1 {
-		return nil, fmt.Errorf("multiple datadog exporters found in %s", uris)
+		return nil, fmt.Errorf("multiple datadog exporters found")
 	}
 
-	// Ensure datadog exporter has same apikey
-	apiKey := string(configs[0].API.Key)
-	site := configs[0].API.Site
-
-	// Create a new config
-	pkgconfig := pkgconfigmodel.NewConfig("OTel", "DD", strings.NewReplacer(".", "_"))
-	// Set Default values
-	pkgconfigsetup.InitConfig(pkgconfig)
-	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("site", site, pkgconfigmodel.SourceFile)
-
-	// TOOD check if we need to set these values
-	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("logs_config.use_compression", true, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("log_level", "info", pkgconfigmodel.SourceFile)
-	pkgconfig.Set("forwarder_timeout", 10, pkgconfigmodel.SourceDefault)
-	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceFile)
-	return pkgconfig, nil
-}
-
-func makeMapProvidersMap(providers ...confmap.Provider) map[string]confmap.Provider {
-	ret := make(map[string]confmap.Provider, len(providers))
-	for _, provider := range providers {
-		ret[provider.Scheme()] = provider
-	}
-	return ret
+	datadogConfig := configs[0]
+	return datadogConfig, nil
 }
