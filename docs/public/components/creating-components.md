@@ -49,7 +49,7 @@ This file hierarchy aimed at solving a few problems:
   reason we need different folders for each implementation, the definition and fx. This way, external repository can pull a
   specific implementation and definition without having to import the rest.
 * We have one `fx` folder per implementation to allow binaries to import/link against a single one.
-* A main that imports a component should be able to select a specific implementation without compiling with the others.
+* A main function that imports a component should be able to select a specific implementation without compiling with the others.
   For example: the ZSTD library should not be included at compile time when the ZIP version is used.
 
 
