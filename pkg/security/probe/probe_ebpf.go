@@ -1800,10 +1800,14 @@ func getSchedProcessForkChildPidOffset(kernelVersion *kernel.Version) uint64 {
 }
 
 func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
-	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_0 {
+	switch {
+	case kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_0:
 		return 1
+	case kernelVersion.IsInRangeCloseOpen(kernel.Kernel5_14, kernel.Kernel5_15) && kernelVersion.IsRH9Kernel():
+		return 1
+	default:
+		return 0
 	}
-	return 0
 }
 
 func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
