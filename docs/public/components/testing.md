@@ -38,15 +38,13 @@ Our `Requires` struct declared a dependency on the config component and the logs
     import (
       "testing"
 
-      "github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-      "github.com/DataDog/datadog-agent/comp/core/config"
-      "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+      configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+      logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
     )
     
     func TestCompress(t *testing.T) {
-      logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
-      configComponent := fxutil.Test[config.Component](t, config.MockModule())
+      logComponent := configmock.NewMockComponent()
+      configComponent := logmock.NewMockComponent()
       
       requires := Requires{
         Conf: configComponent,
@@ -56,10 +54,7 @@ Our `Requires` struct declared a dependency on the config component and the logs
     }
     ```
     
-To create the log and config component from their respective mocks we used `fxutil.Test[T]` generic function. This functions make sure to initialize any Fx dependency needed for the Mock and return a instance of `T`.
-
-!!! warning "is not intended to use `fxutil` package inside the implementation"
-    We are migrating from a previous file structure to the one outlined in the [creating a component page](creating-components.md#file-hierarchy). For now it is ok to use as it allow us to migrate one component at a time. in the future there we would be restrciting the use Fx related code inside the implementation folder using a custom Go linter. 
+To create the log and config component we use their respective mocks. We mentioned the [mock package](creating-components.md#the-mock-folder) previously in the [Creating a Component page](creating-components.md)
     
 
 ### Testing the component's interface
@@ -73,15 +68,13 @@ Now we have our `Require` struct we can create an instance of our component and 
     import (
       "testing"
 
-      "github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-      "github.com/DataDog/datadog-agent/comp/core/config"
-      "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+      configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+      logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
     )
     
     func TestCompress(t *testing.T) {
-      logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
-      configComponent := fxutil.Test[config.Component](t, config.MockModule())
+      logComponent := configmock.NewMockComponent()
+      configComponent := logmock.NewMockComponent()
       
       requires := Requires{
         Conf: configComponent,
