@@ -43,6 +43,10 @@ func storeGenerators(cfg config.Reader) []storeGenerator {
 		generators = append(generators, newDeploymentStore)
 	}
 
+	if true {
+		generators = append(generators, newNamespaceStore)
+	}
+
 	return generators
 }
 
