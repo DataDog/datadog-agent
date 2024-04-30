@@ -128,7 +128,7 @@ all of this for us.
 
 ## Using non-component types with Fx
 
-As our migration to components is not finished you might need to manually instruct `Fx` on how to create certain types.
+As your migration to components is not finished, you might need to manually instruct Fx on how to create certain types.
 
 You will need to use `fx.Provide` for this. More details can be found [here](fx.md).
 
