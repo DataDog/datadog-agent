@@ -43,7 +43,7 @@ func storeGenerators(cfg config.Reader) []storeGenerator {
 		generators = append(generators, newDeploymentStore)
 	}
 
-	if true {
+	if cfg.GetBool("kubernetes_namespace_collection_enabled") {
 		generators = append(generators, newNamespaceStore)
 	}
 

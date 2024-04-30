@@ -623,6 +623,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("kubernetes_node_label_as_cluster_name", "")
 	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
+	config.BindEnvAndSetDefault("kubernetes_namespace_collection_enabled", false) // Enables collection of kubernetes namespace information
 
 	// CRI
 	config.BindEnvAndSetDefault("cri_socket_path", "")              // empty is disabled
