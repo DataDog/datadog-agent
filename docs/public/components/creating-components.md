@@ -2,7 +2,7 @@
 
 This page explains how to create components in detail.
 
-Throughout this page we're going to create a compression component. The component compresses the payload before sending it to the Datadog backend.
+This page uses the example of creating a compression component. This component compresses a payload before sending it to the Datadog backend.
 
 Since there are multiple ways to compress data, this component provides two implementations of the same interface:
 
