@@ -44,7 +44,7 @@ For example, our compression component will have `impl-zstd` and `impl-zip` fold
 This file hierarchy aimed at solving a few problems:
 
 * Component users should only interact with the `def` folders and never care about which implementation was loaded in the
-  main.
+  main function.
 * We want to support Go modules. When creating a Go module, any sub folders will be pulled into the module. For this
   reason we need different folders for each implementation, the definition and fx. This way, external repository can pull a
   specific implementation and definition without having to import the rest.
