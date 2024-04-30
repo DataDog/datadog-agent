@@ -107,7 +107,7 @@ var (
 	}
 )
 
-// nodejsMonitor essentially scans for Node processes and attaches SSL uprobes
+// nodeJSMonitor essentially scans for Node processes and attaches SSL uprobes
 // to them.
 type nodeJSMonitor struct {
 	registry *utils.FileRegistry
@@ -139,6 +139,7 @@ func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) *nodeJSMonitor {
 	}
 }
 
+// Start the nodeJSMonitor
 func (m *nodeJSMonitor) Start() {
 	if m == nil {
 		return
@@ -188,6 +189,7 @@ func (m *nodeJSMonitor) Start() {
 	log.Info("Node JS TLS monitoring enabled")
 }
 
+// Stop the nodeJSMonitor.
 func (m *nodeJSMonitor) Stop() {
 	if m == nil {
 		return
@@ -218,7 +220,7 @@ func (m *nodeJSMonitor) sync() {
 	})
 
 	// At this point all entries from deletionCandidates are no longer alive, so
-	// we should dettach our SSL probes from them
+	// we should detach our SSL probes from them
 	for pid := range deletionCandidates {
 		m.handleProcessExit(pid)
 	}

@@ -24,16 +24,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	"github.com/DataDog/datadog-agent/comp/otelcol"
 	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/spf13/cobra"
-	otelcollector "go.opentelemetry.io/collector/otelcol"
 
 	"go.uber.org/fx"
 )
@@ -72,11 +70,10 @@ func (o *orchestratorinterfaceimpl) Reset() {
 func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) error {
 	err := fxutil.Run(
 		forwarder.Bundle(),
-		fx.Provide(func(s serializer.MetricSerializer, logsAgent chan *message.Message) (otelcollector.Factories, error) {
-			return otlp.GetCoreComponents(s, logsAgent)
-		}),
+		otelcol.Bundle(),
 		// TODO: remove this once we start reading the collector config
 		// We need to create a new config module from the collector config
+		config.Module(),
 		corelogimpl.Module(),
 		inventoryagentimpl.Module(),
 		workloadmeta.Module(),
@@ -89,6 +86,9 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 		}),
 
 		// TODO: remove this once we start reading the collector config
+		fx.Provide(func() config.Params {
+			return config.NewAgentParams(params.ConfPath)
+		}),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		fx.Provide(func() corelogimpl.Params {
 			// TODO configure the log level from collector config

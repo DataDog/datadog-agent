@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/fxutil
 
-go 1.21.9
+go 1.21.0
 
 require (
 	github.com/spf13/cobra v1.7.0
