@@ -129,7 +129,7 @@ func Bootstrap(ctx context.Context, opts ...Option) error {
 	}
 
 	// 3. Extract the installer image layers on the disk.
-	binTmpDir, err := os.MkdirTemp("", "")
+	binTmpDir, err := os.MkdirTemp(rootTmpDir, "")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
 	}
