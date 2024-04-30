@@ -98,7 +98,7 @@ Now we have our `Require` struct we can create an instance of our component and 
     }
     ```
 
-### Testing lifecycle events
+### Testing lifecycle hooks
 
 There are going to be times in which our component uses [Fx lifecycle](fx.md#lifecycle) to add hooks. It is a good practice to test the hooks as well. 
 
