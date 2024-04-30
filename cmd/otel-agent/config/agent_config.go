@@ -36,17 +36,14 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 
 	resolver, err := confmap.NewResolver(rs)
 	if err != nil {
-		fmt.Printf("Failed to create resolver: %v\n", err)
 		return nil, err
 	}
 	cfg, err := resolver.Resolve(ctx)
 	if err != nil {
-		fmt.Printf("Failed to resolve config: %v\n", err)
 		return nil, err
 	}
 	ddc, err := getDDExporterConfig(cfg)
 	if err != nil {
-		fmt.Printf("Failed to get DD exporter config: %v\n", err)
 		return nil, err
 	}
 	sc, err := getServiceConfig(cfg)
