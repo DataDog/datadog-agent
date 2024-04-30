@@ -87,7 +87,7 @@ All component interfaces must be called `Component`, so all imports have the for
 You can see that our interface only exposes the bare minimum. You should aim at having the smallest possible interface
 for your component.
 
-When defining a component interface, we avoid using structs or interfaces from third-party dependencies.
+When defining a component interface, avoid using structs or interfaces from third-party dependencies.
 
 !!! warning "Interface using a third-party dependency"
     ```
