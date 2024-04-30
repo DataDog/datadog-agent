@@ -263,6 +263,12 @@ int socket__http_filter(struct __sk_buff* skb) {
     return SK_PASS;
 }
 
+SEC("sk_msg/http_filter")
+int sk_msg__http_filter(struct sk_msg_md *msg) {
+    log_debug("sk_msg__http_filter");
+    return SK_PASS;
+}
+
 SEC("uprobe/http_process")
 int uprobe__http_process(struct pt_regs *ctx) {
     const __u32 zero = 0;

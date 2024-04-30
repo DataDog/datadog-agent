@@ -39,6 +39,7 @@ type protocol struct {
 const (
 	inFlightMap            = "http_in_flight"
 	filterTailCall         = "socket__http_filter"
+	skMsgfilterTailCall    = "sk_msg__http_filter"
 	tlsProcessTailCall     = "uprobe__http_process"
 	tlsTerminationTailCall = "uprobe__http_termination"
 	eventStream            = "http"
@@ -56,6 +57,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramHTTP),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: filterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.SkMsgProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: skMsgfilterTailCall,
 			},
 		},
 		{
