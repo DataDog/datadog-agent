@@ -146,7 +146,7 @@ func StopService(serviceName string) error {
 // We need to get all dependent services (windows.SERVICE_STATE_ALL) to attempt to stop them,
 // including those that are not RUNNING yet (stopped). It may appears to be strange, but it
 // better handles some edge cases (which more likely during installation or upgrade if
-// Agent configuration is updated immedeatly after). It may happen if the core agent
+// Agent configuration is updated immediately after). It may happen if the core agent
 // (datadogagent) service is starting, which in turn will "manually" startdependent services
 // and at the same time, externally, a configuration script would restart agent to make sure
 // that new configuration is applied.
