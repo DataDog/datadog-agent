@@ -30,6 +30,7 @@ import (
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
@@ -166,6 +167,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() status.Component { return nil }),
 			fx.Provide(func() eventplatformreceiver.Component { return nil }),
 			fx.Provide(func() optional.Option[collector.Component] { return optional.NewNoneOption[collector.Component]() }),
+			fx.Provide(func() optional.Option[logsAgent.Component] { return optional.NewNoneOption[logsAgent.Component]() }),
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			taggerimpl.Module(),
 			autodiscoveryimpl.Module(),
@@ -309,6 +311,7 @@ func runJmxCommandConsole(config config.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	collector optional.Option[collector.Component],
+	logsAgent optional.Option[logsAgent.Component],
 	jmxLogger jmxlogger.Component) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
@@ -343,7 +346,7 @@ func runJmxCommandConsole(config config.Component,
 		return err
 	}
 
-	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, wmeta, taggerComp, ac, diagnoseSendermanager, agentAPI, collector, jmxLogger)
+	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, diagnoseSendermanager, agentAPI, jmxLogger)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")
