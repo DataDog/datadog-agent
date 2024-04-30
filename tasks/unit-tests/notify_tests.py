@@ -184,31 +184,31 @@ class TestSendMessage(unittest.TestCase):
         list_mock.assert_called()
 
     def test_post_to_channel1(self):
-        self.assertTrue(notify._should_send_message_to_channel('main', default_branch='main'))
+        self.assertTrue(notify._should_send_message_to_channel("main", default_branch="main"))
 
     def test_post_to_channel2(self):
-        self.assertTrue(notify._should_send_message_to_channel('7.52.x', default_branch='main'))
+        self.assertTrue(notify._should_send_message_to_channel("7.52.x", default_branch="main"))
 
     def test_post_to_channel3(self):
-        self.assertTrue(notify._should_send_message_to_channel('7.52.0', default_branch='main'))
+        self.assertTrue(notify._should_send_message_to_channel("7.52.0", default_branch="main"))
 
     def test_post_to_channel4(self):
-        self.assertTrue(notify._should_send_message_to_channel('7.52.0-rc.1', default_branch='main'))
+        self.assertTrue(notify._should_send_message_to_channel("7.52.0-rc.1", default_branch="main"))
 
     def test_post_to_author1(self):
-        self.assertFalse(notify._should_send_message_to_channel('7.52.0-beta-test-feature', default_branch='main'))
+        self.assertFalse(notify._should_send_message_to_channel("7.52.0-beta-test-feature", default_branch="main"))
 
     def test_post_to_author2(self):
-        self.assertFalse(notify._should_send_message_to_channel('7.52.0-rc.1-beta-test-feature', default_branch='main'))
+        self.assertFalse(notify._should_send_message_to_channel("7.52.0-rc.1-beta-test-feature", default_branch="main"))
 
     def test_post_to_author3(self):
-        self.assertFalse(notify._should_send_message_to_channel('celian/7.52.0', default_branch='main'))
+        self.assertFalse(notify._should_send_message_to_channel("celian/7.52.0", default_branch="main"))
 
     def test_post_to_author4(self):
-        self.assertFalse(notify._should_send_message_to_channel('a.b.c', default_branch='main'))
+        self.assertFalse(notify._should_send_message_to_channel("a.b.c", default_branch="main"))
 
     def test_post_to_author5(self):
-        self.assertFalse(notify._should_send_message_to_channel('my-feature', default_branch='main'))
+        self.assertFalse(notify._should_send_message_to_channel("my-feature", default_branch="main"))
 
 
 class TestSendStats(unittest.TestCase):
@@ -217,15 +217,17 @@ class TestSendStats(unittest.TestCase):
     def test_nominal(self, api_mock):
         repo_mock = api_mock.return_value.projects.get.return_value
         trace_mock = repo_mock.jobs.get.return_value.trace
-        list_mock = repo_mock.pipelines.get.return_value.jobs.list
+        pipeline_mock = repo_mock.pipelines.get
 
         trace_mock.return_value = b"E2E INTERNAL ERROR"
-        list_mock.return_value = get_fake_jobs()
+        attrs={"jobs.list.return_value": get_fake_jobs(), "created_at": "2024-03-12T10:00:00.000Z"}
+        pipeline_mock.return_value = MagicMock(**attrs)
 
         notify.send_stats(MockContext(), print_to_stdout=True)
 
         trace_mock.assert_called()
-        list_mock.assert_called()
+        pipeline_mock.assert_called()
+        self.assertEqual(pipeline_mock.call_count, 2)
 
 
 class TestCheckConsistentFailures(unittest.TestCase):
@@ -241,7 +243,8 @@ class TestCheckConsistentFailures(unittest.TestCase):
         list_mock.return_value = get_fake_jobs()
 
         notify.check_consistent_failures(
-            MockContext(run=Result("test")), "tasks/unit-tests/testdata/job_executions.json"
+            MockContext(run=Result("test")),
+            "tasks/unit-tests/testdata/job_executions.json",
         )
 
         trace_mock.assert_called()
@@ -281,7 +284,7 @@ class TestRetrieveJobExecutions(unittest.TestCase):
 
 
 class TestUpdateStatistics(unittest.TestCase):
-    @patch('tasks.notify.get_failed_jobs')
+    @patch("tasks.notify.get_failed_jobs")
     def test_nominal(self, mock_get_failed):
         failed_jobs = mock_get_failed.return_value
         failed_jobs.all_failures.return_value = [
@@ -289,8 +292,14 @@ class TestUpdateStatistics(unittest.TestCase):
         ]
         j = {
             "jobs": {
-                "nafnaf": {"consecutive_failures": 2, "cumulative_failures": [0, 0, 0, 0, 0, 0, 0, 0, 1, 1]},
-                "noufnouf": {"consecutive_failures": 2, "cumulative_failures": [1, 0, 1, 1]},
+                "nafnaf": {
+                    "consecutive_failures": 2,
+                    "cumulative_failures": [0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
+                },
+                "noufnouf": {
+                    "consecutive_failures": 2,
+                    "cumulative_failures": [1, 0, 1, 1],
+                },
             }
         }
         a, j = notify.update_statistics(j)
@@ -305,7 +314,7 @@ class TestUpdateStatistics(unittest.TestCase):
         self.assertIn("nafnaf", a["consecutive"])
         mock_get_failed.assert_called()
 
-    @patch('tasks.notify.get_failed_jobs')
+    @patch("tasks.notify.get_failed_jobs")
     def test_multiple_failures(self, mock_get_failed):
         failed_jobs = mock_get_failed.return_value
         failed_jobs.all_failures.return_value = [
@@ -313,8 +322,14 @@ class TestUpdateStatistics(unittest.TestCase):
         ]
         j = {
             "jobs": {
-                "poulidor": {"consecutive_failures": 8, "cumulative_failures": [0, 0, 1, 1, 1, 1, 1, 1, 1, 1]},
-                "virenque": {"consecutive_failures": 2, "cumulative_failures": [0, 0, 0, 0, 1, 0, 1, 0, 1, 1]},
+                "poulidor": {
+                    "consecutive_failures": 8,
+                    "cumulative_failures": [0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
+                },
+                "virenque": {
+                    "consecutive_failures": 2,
+                    "cumulative_failures": [0, 0, 0, 0, 1, 0, 1, 0, 1, 1],
+                },
                 "bardet": {"consecutive_failures": 2, "cumulative_failures": [1, 1]},
             }
         }
@@ -331,15 +346,16 @@ class TestUpdateStatistics(unittest.TestCase):
 
 
 class TestSendNotification(unittest.TestCase):
-    @patch('tasks.notify.send_slack_message')
+    @patch("tasks.notify.send_slack_message")
     def test_consecutive(self, mock_slack):
         alert_jobs = {"consecutive": ["foo"], "cumulative": []}
         notify.send_notification(alert_jobs)
         mock_slack.assert_called_with(
-            "#agent-platform-ops", f"Job(s) `foo` failed {notify.CONSECUTIVE_THRESHOLD} times in a row.\n"
+            "#agent-platform-ops",
+            f"Job(s) `foo` failed {notify.CONSECUTIVE_THRESHOLD} times in a row.\n",
         )
 
-    @patch('tasks.notify.send_slack_message')
+    @patch("tasks.notify.send_slack_message")
     def test_cumulative(self, mock_slack):
         alert_jobs = {"consecutive": [], "cumulative": ["bar", "baz"]}
         notify.send_notification(alert_jobs)
@@ -348,7 +364,7 @@ class TestSendNotification(unittest.TestCase):
             f"Job(s) `bar`, `baz` failed {notify.CUMULATIVE_THRESHOLD} times in last {notify.CUMULATIVE_LENGTH} executions.\n",
         )
 
-    @patch('tasks.notify.send_slack_message')
+    @patch("tasks.notify.send_slack_message")
     def test_both(self, mock_slack):
         alert_jobs = {"consecutive": ["foo"], "cumulative": ["bar", "baz"]}
         notify.send_notification(alert_jobs)
@@ -357,7 +373,7 @@ class TestSendNotification(unittest.TestCase):
             f"Job(s) `foo` failed {notify.CONSECUTIVE_THRESHOLD} times in a row.\nJob(s) `bar`, `baz` failed {notify.CUMULATIVE_THRESHOLD} times in last {notify.CUMULATIVE_LENGTH} executions.\n",
         )
 
-    @patch('tasks.notify.send_slack_message')
+    @patch("tasks.notify.send_slack_message")
     def test_none(self, mock_slack):
         alert_jobs = {"consecutive": [], "cumulative": []}
         notify.send_notification(alert_jobs)
