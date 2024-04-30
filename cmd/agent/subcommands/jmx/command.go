@@ -305,13 +305,11 @@ func disableCmdPort() {
 func runJmxCommandConsole(config config.Component,
 	cliParams *cliParams,
 	wmeta workloadmeta.Component,
-	taggerComp tagger.Component,
 	ac autodiscovery.Component,
 	diagnoseSendermanager diagnosesendermanager.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	collector optional.Option[collector.Component],
-	logsAgent optional.Option[logsAgent.Component],
 	jmxLogger jmxlogger.Component) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.

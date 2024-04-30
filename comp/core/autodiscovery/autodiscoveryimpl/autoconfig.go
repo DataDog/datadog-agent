@@ -212,7 +212,7 @@ func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 	}
 }
 
-func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
+func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, _ *http.Request) {
 	var response response.ConfigCheckResponse
 
 	configSlice := ac.LoadedConfigs()

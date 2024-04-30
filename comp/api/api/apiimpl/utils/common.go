@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
+// SetJSONError writes a server error as JSON with the correct http error code
 func SetJSONError(w http.ResponseWriter, err error, errorCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	body, _ := json.Marshal(map[string]string{"error": err.Error()})

@@ -29,10 +29,11 @@ type MockTaggerClient struct {
 }
 
 // mockHandleRequest is a simple mocked http.Handler function to test the route is registered correctly on the api component
-func (t *MockTaggerClient) mockHandleRequest(w http.ResponseWriter, _ *http.Request) {
+func (m *MockTaggerClient) mockHandleRequest(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("OK"))
 }
 
+// MockProvides is a mock of the tagger.Component provides struct to test endpoints register properly
 type MockProvides struct {
 	fx.Out
 
