@@ -43,8 +43,8 @@ Our `Requires` struct declared a dependency on the config component and the logs
     )
     
     func TestCompress(t *testing.T) {
-      logComponent := configmock.NewMockComponent()
-      configComponent := logmock.NewMockComponent()
+      logComponent := configmock.NewMockComponent(t)
+      configComponent := logmock.NewMockComponent(t)
       
       requires := Requires{
         Conf: configComponent,
@@ -73,8 +73,8 @@ Now we have our `Require` struct we can create an instance of our component and 
     )
     
     func TestCompress(t *testing.T) {
-      logComponent := configmock.NewMockComponent()
-      configComponent := logmock.NewMockComponent()
+      logComponent := configmock.NewMockComponent(t)
+      configComponent := logmock.NewMockComponent(t)
       
       requires := Requires{
         Conf: configComponent,

@@ -1,15 +1,15 @@
 # Using components
 
-We already cover using components within other components in the [create components page](creating-components.md).
+Using components within other components is covered on the [create components page](creating-components.md).
 
-Now let's explore how to use them in your binaries. One of the core idea behind the components design is to be able to
-easily create new binaries for customers by aggregating components.
+Now let's explore how to use components in your binaries. One of the core idea behind component design is to be able to
+create new binaries for customers by aggregating components.
 
 ## the `cmd` folder
 
-All `main` function and binary entry points should be in the `cmd` folder.
+All `main` functions and binary entry points should be in the `cmd` folder.
 
-The `cmd` folder use the following hierarchy:
+The `cmd` folder uses the following hierarchy:
 
 ```
 cmd /
@@ -21,9 +21,9 @@ cmd /
                 command_test.go
 ```
 
-Let's say we add a `test` command in `agent` CLI.
+Say you want to add a `test` command to the `agent` CLI.
 
-We would create the following file:
+You would create the following file:
 
 === ":octicons-file-code-16: cmd/agent/subcommands/test/command.go"
     ```go
@@ -35,7 +35,7 @@ We would create the following file:
 
     // Commands returns a slice of subcommands for the 'agent' command.
     //
-    // The agent uses "cobra" to create its CLI. The command method is your entrypoint. Here we're going to create a single
+    // The Agent uses "cobra" to create its CLI. The command method is your entrypoint. Here, you're going to create a single
     // command.
     func Commands(globalParams *command.GlobalParams) []*cobra.Command {
         cmd := &cobra.Command{
@@ -54,20 +54,21 @@ We would create the following file:
     }
     ```
 
-The code above creates a test command that does nothing. You can see we're using the `fxutil.OneShot` helpers. This
-helpers will initialize an `Fx` app for us with all the wanted dependencies. The next section explain how to request a
+The code above creates a test command that does nothing. As you can see, `fxutil.OneShot` helpers are being used. These
+helpers initialize an Fx app with all the wanted dependencies. 
+
+The next section explains how to request a
 dependency.
 
 ## Importing components
 
-The `fxutil.OneShot` will take a list of components and give them to `Fx`. It's important to understanding that this
-will only tell `Fx` how to create types when they're needed. This alone will do nothing more.
+The `fxutil.OneShot` takes a list of components and gives them to Fx. Note that this only tells Fx how to create types when they're needed. This does not do anything else.
 
-In order for a components to be instantiated it needs to be required:
+For a component to be instantiated, it must be one of the following:
 
-+ As a parameter for the `callback` function
-+ As dependencies from other components already marked for instantiation
-+ Directly asked for by using `fx.Invoke`. More on this in [fx page](fx.md).
++ Required as a parameter by the `callback` function
++ Required as a dependency from other components already marked for instantiation
++ Directly asked for by using `fx.Invoke`. More on this on the [Fx page](fx.md).
 
 Let's require the `log` components:
 
@@ -93,7 +94,7 @@ func myTestCallback(logger log.Component) {
 
 ## Importing bundles
 
-Now let's say we want to include the core bundle instead. The core bundle offers many basic features (logger, config,
+Now let's say you want to include the core bundle instead. The core bundle offers many basic features (logger, config,
 telemetry, flare, ...).
 
 ```go
@@ -119,16 +120,16 @@ func myTestCallback(conf config.Component) {
 }
 ```
 
-It's very important to understand that since `myTestCallback` only uses the `config.Component` not all components from
-the `core` bundle were instantiated ! The `core.Bundle` instructs `Fx` how to create components but only the ones required
+It's very important to understand that since `myTestCallback` only uses the `config.Component`, not all components from
+the `core` bundle are instantiated! The `core.Bundle` instructs Fx how to create components, but only the ones required
 are created.
 
-In our example, the `config.Component` might have dozens of dependencies instantiated from the core bundle. `Fx` handles
-all of this for us.
+In our example, the `config.Component` might have dozens of dependencies instantiated from the core bundle. Fx handles
+all of this.
 
 ## Using non-component types with Fx
 
-As our migration to components is not finished you might need to manually instruct `Fx` on how to create certain types.
+As your migration to components is not finished, you might need to manually instruct Fx on how to create certain types.
 
 You will need to use `fx.Provide` for this. More details can be found [here](fx.md).
 
@@ -162,7 +163,7 @@ func myTestCallback(logger log.Component, c custom) {
 ```
 
 !!! Info
-    This means that components can depend on non components type too (as long as the main instruct Fx how to create them).
+    This means that components can depend on non-component types too (as long as the main instruct Fx how to create them).
 
 ## Using components parameters
 
