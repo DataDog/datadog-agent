@@ -219,13 +219,6 @@ func TestGetSource(t *testing.T) {
 	assert.Equal(t, SourceEnvVar, config.GetSource("foo"))
 }
 
-func TestIsSet(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	assert.False(t, config.IsSetForSource("foo", SourceFile))
-	config.Set("foo", "bar", SourceFile)
-	assert.True(t, config.IsSetForSource("foo", SourceFile))
-}
-
 func TestIsKnown(t *testing.T) {
 	testCases := []struct {
 		setDefault bool
@@ -275,13 +268,6 @@ func TestIsKnown(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestUnsetForSource(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	config.Set("foo", "bar", SourceFile)
-	config.UnsetForSource("foo", SourceFile)
-	assert.False(t, config.IsSetForSource("foo", SourceFile))
 }
 
 func TestAllFileSettingsWithoutDefault(t *testing.T) {

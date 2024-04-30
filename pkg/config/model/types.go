@@ -60,7 +60,6 @@ type Reader interface {
 	AllKeysLowercased() []string
 
 	IsSet(key string) bool
-	IsSetForSource(key string, source Source) bool
 
 	// UnmarshalKey Unmarshal a configuration key into a struct
 	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error

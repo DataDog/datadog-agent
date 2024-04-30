@@ -255,13 +255,6 @@ func (c *safeConfig) IsSet(key string) bool {
 	return c.Viper.IsSet(key)
 }
 
-// IsSet wraps Viper for concurrent access
-func (c *safeConfig) IsSetForSource(key string, source Source) bool {
-	c.RLock()
-	defer c.RUnlock()
-	return c.configSources[source].IsSet(key)
-}
-
 // IsSectionSet checks if a section is set by checking if either it
 // or any of its subkeys is set.
 func (c *safeConfig) IsSectionSet(section string) bool {
