@@ -64,7 +64,7 @@ dependency.
 
 The `fxutil.OneShot` takes a list of components and gives them to Fx. Note that this only tells Fx how to create types when they're needed. This does not do anything else.
 
-In order for a components to be instantiated it needs to be required:
+For a component to be instantiated, it must be one of the following:
 
 + Required as a parameter by the `callback` function
 + Required as a dependency from other components already marked for instantiation
