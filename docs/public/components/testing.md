@@ -62,7 +62,7 @@ To create the log and config component from their respective mocks we used `fxut
     We are migrating from a previous file structure to the one outlined in the [creating a component page](creating-components.md#file-hierarchy). For now it is ok to use as it allow us to migrate one component at a time. in the future there we would be restrciting the use Fx related code inside the implementation folder using a custom Go linter. 
     
 
-### Testing
+### Testing the component's interface
 
 Now we have our `Require` struct we can create an instance of our component and test iots functionality.
 
