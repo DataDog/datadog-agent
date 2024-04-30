@@ -223,13 +223,13 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
 // this function is called by the socket-filter program to decide whether or not we should inspect
 // the contents of a certain packet, in order to avoid the cost of processing packets that are not
 // of interest such as empty ACKs, UDP data or encrypted traffic.
-static __always_inline bool http_allow_packet(conn_tuple_t *tuple, struct __sk_buff* skb, skb_info_t *skb_info) {
+static __always_inline bool http_allow_packet(conn_tuple_t *tuple, skb_info_t *skb_info) {
     // we're only interested in TCP traffic
     if (!(tuple->metadata&CONN_TYPE_TCP)) {
         return false;
     }
 
-    bool empty_payload = skb_info->data_off == skb->len;
+    bool empty_payload = skb_info->data_off == skb_info->data_end;
     if (empty_payload || tuple->sport == HTTPS_PORT || tuple->dport == HTTPS_PORT) {
         // if the payload data is empty or encrypted packet, we only
         // process it if the packet represents a TCP termination
@@ -252,7 +252,7 @@ int socket__http_filter(struct __sk_buff* skb) {
         return SK_PASS;
     }
 
-    if (!http_allow_packet(&event.tuple, skb, &skb_info)) {
+    if (!http_allow_packet(&event.tuple, &skb_info)) {
         log_debug("http not allowed");
         return SK_PASS;
     }
@@ -265,7 +265,47 @@ int socket__http_filter(struct __sk_buff* skb) {
 
 SEC("sk_msg/http_filter")
 int sk_msg__http_filter(struct sk_msg_md *msg) {
+    skb_info_t skb_info;
+    http_event_t event;
+
     log_debug("sk_msg__http_filter");
+    bpf_memset(&event, 0, sizeof(http_event_t));
+
+    if (!fetch_dispatching_arguments(&event.tuple, &skb_info)) {
+        log_debug("sk_msg__http_filter failed to fetch arguments for tail call");
+        return SK_PASS;
+    }
+
+    if (!http_allow_packet(&event.tuple, &skb_info)) {
+        log_debug("http not allowed");
+        return SK_PASS;
+    }
+    normalize_tuple(&event.tuple);
+
+    u32 size = sizeof(event.http.request_fragment);
+    if (size > msg->size) {
+        size = msg->size;
+    }
+
+    long err = bpf_msg_pull_data(msg, 0, size, 0);
+    if (err < 0) {
+        log_debug("sk_msg__http_filter: pull fail %ld", err);
+        return SK_PASS;
+    }
+
+    void *data = msg->data;
+    void *data_end = msg->data_end;
+    if (data + size > data_end) {
+        log_debug("http data size wrong");
+        return SK_PASS;
+    }
+
+    // Could use direct access or memcpy here but the latter only allows built-time constants for size
+    size &= sizeof(event.http.request_fragment);
+    bpf_probe_read_kernel(event.http.request_fragment, size, msg->data);
+
+    //read_into_buffer_skb((char *)event.http.request_fragment, skb, skb_info.data_off);
+    http_process(&event, &skb_info, NO_TAGS);
     return SK_PASS;
 }
 

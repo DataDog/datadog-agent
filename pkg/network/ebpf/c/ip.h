@@ -227,6 +227,50 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb_cgroup(struct __
     return 1;
 }
 
+__maybe_unused static __always_inline __u64 read_conn_tuple_sk_msg(struct sk_msg_md *msg, skb_info_t *info, conn_tuple_t *tup) {
+    bpf_memset(info, 0, sizeof(skb_info_t));
+
+    log_debug("read_conn_tuple_sk_msg");
+
+    // void *data = msg->data;
+    // void *data_end = msg->data_end;
+    // if (data + 16 > data_end) {
+    //     return 0;
+    // }
+
+    // log_debug("%08x %08x", *(u32 *)(data + 0), *(u32 *)(data + 4));
+    // log_debug("%08x %08x", *(u32 *)(data + 8), *(u32 *)(data + 12));
+    log_debug("remote_ip4: %08x (%u)", bpf_ntohl(msg->remote_ip4), bpf_ntohl(msg->remote_port));
+    log_debug("local_ip4: %08x (%u)", bpf_ntohl(msg->local_ip4), msg->local_port);
+    //log_debug("proto: %d", msg->protocol);
+
+    info->data_off = 0;
+    info->data_end = msg->size;
+
+    // if (skb->protocol != 8) {
+    //     log_debug("unknown protocol %d", skb->protocol);
+    //     return 0;
+    // }
+
+    // TCP ack, termination, etc, cannot be captured(?)
+
+        tup->saddr_l = msg->local_ip4;
+        tup->saddr_h = 0;
+        tup->daddr_l = msg->remote_ip4;
+        tup->daddr_h = 0;
+        tup->sport = msg->local_port;
+        tup->dport = bpf_htonl(msg->remote_port);
+        tup->metadata |= CONN_V4 | CONN_TYPE_TCP;
+
+    // Assume that empty packets arriving at the streamparser are TCP FINs. FIXME is this valid?
+    // Is there some other way to get at the metadata of the packet?
+    if (msg->size == 0) {
+      info->tcp_flags |= TCPHDR_FIN | TCPHDR_RST;
+    }
+
+    return 1;
+}
+
 __maybe_unused static __always_inline bool is_equal(conn_tuple_t *t, conn_tuple_t *t2) {
     bool match = !bpf_memcmp(t, t2, sizeof(conn_tuple_t));
     return match;

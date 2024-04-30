@@ -87,7 +87,18 @@ static __always_inline void dispatcher_delete_protocol_stack(conn_tuple_t *tuple
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies & dispatches the protocols of the connections.
-static __always_inline void protocol_dispatcher_entrypoint_tail(struct __sk_buff *skb, skb_info_t skb_info, conn_tuple_t skb_tup) {
+static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb) {
+    skb_info_t skb_info = {0};
+    conn_tuple_t skb_tup = {0};
+
+    log_debug("dispatch");
+
+    // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
+    if (!read_conn_tuple_skb_cgroup(skb, &skb_info, &skb_tup)) {
+        log_debug("dispatch no read conn");
+        return;
+    }
+
     bool tcp_termination = is_tcp_termination(&skb_info);
     // We don't process non tcp packets, nor empty tcp packets which are not tcp termination packets.
     if (!is_tcp(&skb_tup) || (is_payload_empty(&skb_info) && !tcp_termination)) {
@@ -161,19 +172,103 @@ static __always_inline void protocol_dispatcher_entrypoint_tail(struct __sk_buff
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies & dispatches the protocols of the connections.
-static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb) {
+static __always_inline void protocol_dispatcher_entrypoint_sk_msg(struct sk_msg_md *msg) {
     skb_info_t skb_info = {0};
     conn_tuple_t skb_tup = {0};
     
-    log_debug("dispatch");
+    log_debug("protocol_dispatcher_entrypoint_sk_msg");
 
     // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
-    if (!read_conn_tuple_skb_cgroup(skb, &skb_info, &skb_tup)) {
+    if (!read_conn_tuple_sk_msg(msg, &skb_info, &skb_tup)) {
         log_debug("dispatch no read conn");
         return;
     }
  
-    protocol_dispatcher_entrypoint_tail(skb, skb_info, skb_tup);
+    bool tcp_termination = is_tcp_termination(&skb_info);
+    // We don't process non tcp packets, nor empty tcp packets which are not tcp termination packets.
+    if (!is_tcp(&skb_tup) || (is_payload_empty(&skb_info) && !tcp_termination)) {
+        log_debug("dispatch no tcp");
+        return;
+    }
+
+    // Making sure we've not processed the same tcp segment, which can happen when a single packet travels different
+    // interfaces.
+    if (has_sequence_seen_before(&skb_tup, &skb_info)) {
+        log_debug("dispatch seen before");
+        return;
+    }
+
+    if (tcp_termination) {
+        bpf_map_delete_elem(&connection_states, &skb_tup);
+    }
+
+    protocol_stack_t *stack = get_protocol_stack(&skb_tup);
+    if (!stack) {
+        // should never happen, but it is required by the eBPF verifier
+        return;
+    }
+
+    // This is used to signal the tracer program that this protocol stack
+    // is also shared with our USM program for the purposes of deletion.
+    // For more context refer to the comments in `delete_protocol_stack`
+    stack->flags |= FLAG_USM_ENABLED;
+
+    protocol_t cur_fragment_protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
+    if (tcp_termination) {
+        dispatcher_delete_protocol_stack(&skb_tup, stack);
+    } else if (is_protocol_layer_known(stack, LAYER_ENCRYPTION)) {
+        // If we have a TLS connection and we're not in the middle of a TCP termination, we can skip the packet.
+        return;
+    }
+
+    if (msg && cur_fragment_protocol == PROTOCOL_UNKNOWN) {
+        log_debug("[protocol_dispatcher_entrypoint_sk_msg]: %p was not classified", msg);
+        char request_fragment[CLASSIFICATION_MAX_BUFFER];
+        bpf_memset(request_fragment, 0, sizeof(request_fragment));
+
+        //read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
+        long err = bpf_msg_pull_data(msg, 0, CLASSIFICATION_MAX_BUFFER, 0);
+        if (err < 0) {
+            log_debug("protocol_dispatcher_entrypoint_sk_msg: pull fail %ld", err);
+            return;
+        }
+
+        void *data = msg->data;
+        void *data_end = msg->data_end;
+        if (data + CLASSIFICATION_MAX_BUFFER > data_end) {
+            return;
+        }
+
+        bpf_memcpy(request_fragment, data, CLASSIFICATION_MAX_BUFFER);
+
+        const size_t payload_length = skb_info.data_end - skb_info.data_off;
+        const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
+        classify_protocol_for_dispatcher(&cur_fragment_protocol, &skb_tup, request_fragment, final_fragment_size);
+        // if (is_kafka_monitoring_enabled() && cur_fragment_protocol == PROTOCOL_UNKNOWN) {
+        //     bpf_tail_call_compat(skb, &dispatcher_classification_progs, DISPATCHER_KAFKA_PROG);
+        // }
+        log_debug("[protocol_dispatcher_entrypoint_sk_msg]: %p Classifying protocol as: %d", msg, cur_fragment_protocol);
+        // If there has been a change in the classification, save the new protocol.
+        if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+            set_protocol(stack, cur_fragment_protocol);
+        }
+    }
+
+    if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+        // dispatch if possible
+        const u32 zero = 0;
+        dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
+        if (args == NULL) {
+            log_debug("dispatcher failed to save arguments for tail call");
+            return;
+        }
+        bpf_memset(args, 0, sizeof(dispatcher_arguments_t));
+        bpf_memcpy(&args->tup, &skb_tup, sizeof(conn_tuple_t));
+        bpf_memcpy(&args->skb_info, &skb_info, sizeof(skb_info_t));
+
+        log_debug("dispatching to protocol number: %d", cur_fragment_protocol);
+        bpf_tail_call_compat(msg, &skmsg_protocols_progs, protocol_to_program(cur_fragment_protocol));
+    }
 }
 
 static __always_inline void dispatch_kafka(struct __sk_buff *skb) {

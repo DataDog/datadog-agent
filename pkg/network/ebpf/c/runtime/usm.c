@@ -82,6 +82,7 @@ int sk_msg__protocol_dispatcher(struct sk_msg_md *msg) {
     }
 
     log_debug("sk_msg__protocol_dispatcher: bytes %x", *(__u32*)data);
+    protocol_dispatcher_entrypoint_sk_msg(msg);
 
     return SK_PASS;
 }
