@@ -544,7 +544,99 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 			},
 		},
 		{
-			name: "irrelevant reason",
+			name: "BackoffLimitExceeded and value 0",
+			args: args{
+				name: "kube_job_status_failed",
+				metric: ksmstore.DDMetric{
+					Val: 0,
+					Labels: map[string]string{
+						"job":       "foo-1509998340",
+						"namespace": "default",
+						"reason":    "BackoffLimitExceeded",
+					},
+				},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:backofflimitexceeded"},
+			},
+			expected: nil,
+		},
+		{
+			name: "BackoffLimitExceeded and value 1",
+			args: args{
+				name: "kube_job_status_failed",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"job":       "foo-1509998340",
+						"namespace": "default",
+						"reason":    "BackoffLimitExceeded",
+					},
+				},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:backofflimitexceeded"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.job.failed",
+				val:  1,
+				tags: []string{"kube_cronjob:foo", "namespace:default", "reason:backofflimitexceeded"},
+			},
+		},
+		{
+			name: "DeadlineExceeded and value 0",
+			args: args{
+				name: "kube_job_status_failed",
+				metric: ksmstore.DDMetric{
+					Val: 0,
+					Labels: map[string]string{
+						"job":       "foo-1509998340",
+						"namespace": "default",
+						"reason":    "DeadlineExceeded",
+					},
+				},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:deadlineexceeded"},
+			},
+			expected: nil,
+		},
+		{
+			name: "DeadlineExceeded and value 1.0",
+			args: args{
+				name: "kube_job_status_failed",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"job":       "foo-1509998340",
+						"namespace": "default",
+						"reason":    "DeadlineExceeded",
+					},
+				},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:deadlineexceeded"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.job.failed",
+				val:  1,
+				tags: []string{"kube_cronjob:foo", "namespace:default", "reason:deadlineexceeded"},
+			},
+		},
+		{
+			name: "DeadlineExceeded and value 1.0",
+			args: args{
+				name: "kube_job_status_failed",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"job":       "foo-1509998340",
+						"namespace": "default",
+						"reason":    "DeadlineExceeded",
+					},
+				},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:deadlineexceeded"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.job.failed",
+				val:  1,
+				tags: []string{"kube_cronjob:foo", "namespace:default", "reason:deadlineexceeded"},
+			},
+		},
+		{
+			name: "Evicted and 0",
 			args: args{
 				name: "kube_job_status_failed",
 				metric: ksmstore.DDMetric{
@@ -558,6 +650,26 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 				tags: []string{"job:foo-1509998340", "namespace:default", "reason:Evicted"},
 			},
 			expected: nil,
+		},
+		{
+			name: "Evicted and 1",
+			args: args{
+				name: "kube_job_status_failed",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"job":       "foo-1509998340",
+						"namespace": "default",
+						"reason":    "Evicted",
+					},
+				},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:Evicted"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.job.failed",
+				val:  1,
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
+			},
 		},
 		{
 			name: "inactive",
@@ -1560,6 +1672,27 @@ func Test_validateJob(t *testing.T) {
 			val:   1.0,
 			tags:  []string{"foo:bar", "job_name:foo"},
 			want:  []string{"foo:bar", "job_name:foo"},
+			want1: true,
+		},
+		{
+			name:  "reason:backofflimitexceeded",
+			val:   1.0,
+			tags:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "reason:backofflimitexceeded"},
+			want:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "kube_cronjob:foo", "reason:backofflimitexceeded"},
+			want1: true,
+		},
+		{
+			name:  "reason:deadlineexceeded",
+			val:   1.0,
+			tags:  []string{"foo:bar", "job_name:foo-1600167000", "reason:deadlineexceeded", "kube_job:foo-1600167000"},
+			want:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "kube_cronjob:foo", "reason:deadlineexceeded"},
+			want1: true,
+		},
+		{
+			name:  "invalid reason",
+			val:   1.0,
+			tags:  []string{"foo:bar", "reason:error", "job_name:foo-1600167000", "kube_job:foo-1600167000"},
+			want:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "kube_cronjob:foo"},
 			want1: true,
 		},
 		{

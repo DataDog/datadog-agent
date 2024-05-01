@@ -421,18 +421,34 @@ func trimJobTag(tag string) (string, bool) {
 	return trimmed, tag != trimmed
 }
 
+var allowedJobReasons = map[string]struct{}{
+	"backofflimitexceeded": {},
+	"deadlineexceeded":     {},
+}
+
+func validJobReason(reason string) bool {
+	_, ok := allowedJobReasons[reason]
+	return ok
+}
+
 // validateJob detects active jobs and adds the `kube_cronjob` tag
 func validateJob(val float64, tags []string) ([]string, bool) {
 	kubeCronjob := ""
-	for _, tag := range tags {
+	for i, tag := range tags {
 		split := strings.Split(tag, ":")
-		if len(split) == 2 && split[0] == "kube_job" || split[0] == "job" || split[0] == "job_name" {
+		if len(split) != 2 {
+			continue
+		}
+		if split[0] == "kube_job" || split[0] == "job" || split[0] == "job_name" {
 			// Trim the timestamp suffix to avoid high cardinality
 			if name, trimmed := trimJobTag(split[1]); trimmed {
 				// The trimmed job name corresponds to the parent cronjob name
 				// https://github.com/kubernetes/kubernetes/blob/v1.21.0/pkg/controller/cronjob/utils.go#L240
 				kubeCronjob = name
 			}
+		}
+		if split[0] == "reason" && !validJobReason(split[1]) {
+			tags = append(tags[:i], tags[i+1:]...)
 		}
 	}
 
@@ -480,10 +496,6 @@ func jobStatusFailedTransformer(s sender.Sender, name string, metric ksmstore.DD
 
 	if reasonTagIndex != -1 && metric.Val == 0 {
 		return
-	}
-
-	if reasonTagIndex != -1 {
-		tags = append(tags[:reasonTagIndex], tags[reasonTagIndex+1:]...)
 	}
 
 	jobMetric(s, metric, ksmMetricPrefix+"job.failed", hostname, tags)
