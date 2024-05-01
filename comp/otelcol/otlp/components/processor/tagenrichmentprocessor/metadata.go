@@ -4,7 +4,7 @@
 // Copyright 2024-present Datadog, Inc.
 
 // Package metadata - metadata for tag enrichment processor.
-package metadata
+package tagenrichmentprocessor
 
 import (
 	"go.opentelemetry.io/collector/component"

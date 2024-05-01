@@ -12,8 +12,6 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/processor/processorhelper"
-
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/tagenrichmentprocessor/internal"
 )
 
 var processorCapabilities = consumer.Capabilities{MutatesData: true}
@@ -21,11 +19,11 @@ var processorCapabilities = consumer.Capabilities{MutatesData: true}
 // NewFactory returns a new factory for the TagEnrichment processor.
 func NewFactory() processor.Factory {
 	return processor.NewFactory(
-		metadata.Type,
+		Type,
 		createDefaultConfig,
-		processor.WithMetrics(createMetricsProcessor, metadata.MetricsStability),
-		processor.WithLogs(createLogsProcessor, metadata.LogsStability),
-		processor.WithTraces(createTracesProcessor, metadata.TracesStability),
+		processor.WithMetrics(createMetricsProcessor, MetricsStability),
+		processor.WithLogs(createLogsProcessor, LogsStability),
+		processor.WithTraces(createTracesProcessor, TracesStability),
 	)
 }
 
