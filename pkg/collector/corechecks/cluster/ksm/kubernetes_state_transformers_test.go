@@ -343,17 +343,17 @@ func Test_jobFailedTransformer(t *testing.T) {
 						"condition": "true",
 					},
 				},
-				tags: []string{"job_name:foo-1509998340", "namespace:default", "condition:true", "reason:backofflimitexceeded"},
+				tags: []string{"job_name:foo-1509998340", "namespace:default", "condition:true"},
 			},
 			expectedServiceCheck: &serviceCheck{
 				name:   "kubernetes_state.job.complete",
 				status: servicecheck.ServiceCheckCritical,
-				tags:   []string{"kube_cronjob:foo", "namespace:default", "reason:backofflimitexceeded"},
+				tags:   []string{"kube_cronjob:foo", "namespace:default"},
 			},
 			expectedMetric: &metricsExpected{
 				name: "kubernetes_state.job.completion.failed",
 				val:  1,
-				tags: []string{"kube_cronjob:foo", "namespace:default", "reason:backofflimitexceeded"},
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
 			},
 		},
 		{
@@ -368,17 +368,17 @@ func Test_jobFailedTransformer(t *testing.T) {
 						"condition": "true",
 					},
 				},
-				tags: []string{"job:foo-1509998340", "namespace:default", "condition:true", "reason:deadlineexceeded"},
+				tags: []string{"job:foo-1509998340", "namespace:default", "condition:true"},
 			},
 			expectedServiceCheck: &serviceCheck{
 				name:   "kubernetes_state.job.complete",
 				status: servicecheck.ServiceCheckCritical,
-				tags:   []string{"kube_cronjob:foo", "namespace:default", "reason:deadlineexceeded"},
+				tags:   []string{"kube_cronjob:foo", "namespace:default"},
 			},
 			expectedMetric: &metricsExpected{
 				name: "kubernetes_state.job.completion.failed",
 				val:  1,
-				tags: []string{"kube_cronjob:foo", "namespace:default", "reason:deadlineexceeded"},
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
 			},
 		},
 		{
@@ -393,7 +393,7 @@ func Test_jobFailedTransformer(t *testing.T) {
 						"condition": "true",
 					},
 				},
-				tags: []string{"job_name:foo-1509998340", "namespace:default", "condition:true", "reason:backofflimitexceeded"},
+				tags: []string{"job_name:foo-1509998340", "namespace:default", "condition:true"},
 			},
 			expectedServiceCheck: nil,
 			expectedMetric:       nil,
@@ -1007,48 +1007,6 @@ func Test_containerTerminatedReasonTransformer(t *testing.T) {
 				name: "kubernetes_state.container.status_report.count.terminated",
 				val:  1,
 				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:Error"},
-			},
-		},
-		{
-			name: "BackoffLimitExceeded",
-			args: args{
-				name: "kube_pod_container_status_terminated_reason",
-				metric: ksmstore.DDMetric{
-					Val: 1,
-					Labels: map[string]string{
-						"container": "foo",
-						"pod":       "bar",
-						"namespace": "default",
-						"reason":    "BackoffLimitExceeded",
-					},
-				},
-				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:BackoffLimitExceeded"},
-			},
-			expected: &metricsExpected{
-				name: "kubernetes_state.container.status_report.count.terminated",
-				val:  1,
-				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:BackoffLimitExceeded"},
-			},
-		},
-		{
-			name: "DeadlineExceeded",
-			args: args{
-				name: "kube_pod_container_status_terminated_reason",
-				metric: ksmstore.DDMetric{
-					Val: 1,
-					Labels: map[string]string{
-						"container": "foo",
-						"pod":       "bar",
-						"namespace": "default",
-						"reason":    "DeadlineExceeded",
-					},
-				},
-				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:DeadlineExceeded"},
-			},
-			expected: &metricsExpected{
-				name: "kubernetes_state.container.status_report.count.terminated",
-				val:  1,
-				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:DeadlineExceeded"},
 			},
 		},
 	}

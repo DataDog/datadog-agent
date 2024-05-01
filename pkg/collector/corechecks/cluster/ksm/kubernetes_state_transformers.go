@@ -273,11 +273,9 @@ func containerWaitingReasonTransformer(s sender.Sender, name string, metric ksms
 }
 
 var allowedTerminatedReasons = map[string]struct{}{
-	"oomkilled":            {},
-	"containercannotrun":   {},
-	"error":                {},
-	"deadlineexceeded":     {},
-	"backofflimitexceeded": {},
+	"oomkilled":          {},
+	"containercannotrun": {},
+	"error":              {},
 }
 
 // containerTerminatedReasonTransformer validates the container waiting reasons for metric kube_pod_container_status_terminated_reason
@@ -428,7 +426,7 @@ func validateJob(val float64, tags []string) ([]string, bool) {
 	kubeCronjob := ""
 	for _, tag := range tags {
 		split := strings.Split(tag, ":")
-		if len(split) == 2 && split[0] == "kube_job" || split[0] == "job" || split[0] == "job_name" || split[0] == "reason" {
+		if len(split) == 2 && split[0] == "kube_job" || split[0] == "job" || split[0] == "job_name" {
 			// Trim the timestamp suffix to avoid high cardinality
 			if name, trimmed := trimJobTag(split[1]); trimmed {
 				// The trimmed job name corresponds to the parent cronjob name

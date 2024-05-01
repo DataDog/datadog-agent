@@ -37,13 +37,7 @@ var includeContainerStateReason = map[string][]string{
 		"invalidimagename",
 		"createcontainerconfigerror",
 	},
-	"terminated": {
-		"oomkilled",
-		"containercannotrun",
-		"error",
-		"deadlineexceeded",
-		"backofflimitexceeded",
-	},
+	"terminated": {"oomkilled", "containercannotrun", "error"},
 }
 
 const kubeNamespaceTag = "kube_namespace"
