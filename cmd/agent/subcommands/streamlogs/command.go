@@ -9,11 +9,9 @@ package streamlogs
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -84,6 +82,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fmt.Errorf("error checking directory path: %s, error: %v", dir, err)
 			}
 		}
+		if cliParams.Duration < 0 {
+			return fmt.Errorf("duration must be a positive value")
+		}
 		return nil
 	}
 
@@ -136,23 +137,16 @@ func streamLogs(log log.Component, config config.Component, cliParams *cliParams
 func streamRequest(url string, body []byte, duration time.Duration, onChunk func([]byte)) error {
 	var e error
 	c := util.GetClient(false)
-
+	if duration != 0 {
+		c.Timeout = duration
+	}
 	// Set session token
 	e = util.SetAuthToken(pkgconfig.Datadog)
 	if e != nil {
 		return e
 	}
 
-	// Set the timeout/duration context for the stream log request
-	ctx, cancel := context.WithTimeout(context.Background(), duration)
-	defer cancel()
-
-	e = doPostChunkedWithTimeout(ctx, c, url, "application/json", bytes.NewBuffer(body), duration, onChunk)
-
-	if e == context.DeadlineExceeded {
-		fmt.Printf("Finished streaming logs for %v\n", duration)
-		return nil
-	}
+	e = util.DoPostChunked(c, url, "application/json", bytes.NewBuffer(body), onChunk)
 
 	if e == io.EOF {
 		return nil
@@ -171,26 +165,4 @@ func openFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
 	}
 	bufWriter := bufio.NewWriter(f) // default 4096 bytes buffer
 	return f, bufWriter, nil
-}
-
-// doPostChunkedWithTimeout is a wrapper around requests that stream chunked data with a timeout
-func doPostChunkedWithTimeout(ctx context.Context, c *http.Client, url string, contentType string, body io.Reader, duration time.Duration, onChunk func([]byte)) error {
-	var cancel context.CancelFunc
-	ctx, cancel = context.WithTimeout(ctx, duration)
-	defer cancel()
-
-	done := make(chan bool)
-	var err error
-
-	go func() {
-		err = util.DoPostChunked(c, url, contentType, body, onChunk)
-		done <- true
-	}()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-done:
-		return err
-	}
 }
