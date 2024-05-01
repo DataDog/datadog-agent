@@ -1098,6 +1098,7 @@ require (
 	go.opentelemetry.io/collector/config/configopaque v1.6.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v0.99.0 // indirect
 	go.opentelemetry.io/collector/config/configtelemetry v0.99.0 // indirect
+	go.opentelemetry.io/collector/config/configtls v0.98.0 // indirect
 	go.opentelemetry.io/collector/config/internal v0.98.0 // indirect
 	go.opentelemetry.io/collector/connector v0.99.0 // indirect
 	go.opentelemetry.io/collector/connector/forwardconnector v0.98.0 // indirect

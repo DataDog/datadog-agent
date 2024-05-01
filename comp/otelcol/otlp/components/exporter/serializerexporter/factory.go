@@ -48,7 +48,7 @@ func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter 
 	return exp.NewFactory(
 		cfgType,
 		newDefaultConfig,
-		exp.WithMetrics(f.CreateMetricExporter, stability),
+		exp.WithMetrics(f.createMetricExporter, stability),
 	)
 }
 
