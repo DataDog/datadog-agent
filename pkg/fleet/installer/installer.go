@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -49,6 +50,7 @@ type Installer interface {
 
 	Install(ctx context.Context, url string) error
 	Remove(ctx context.Context, pkg string) error
+	Purge(ctx context.Context)
 
 	InstallExperiment(ctx context.Context, url string) error
 	RemoveExperiment(ctx context.Context, pkg string) error
@@ -220,21 +222,29 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	return i.stopExperiment(ctx, pkg)
 }
 
+// Purge removes all packages.
+func (i *installerImpl) Purge(ctx context.Context) {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	// todo check if agent/injector are installed
+	// and clean them up
+	err := i.remove(ctx, packageDatadogInstaller)
+	if err != nil {
+		log.Warnf("could not remove package: %s", err)
+	}
+}
+
 // Remove uninstalls a package.
 func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
+	return i.remove(ctx, pkg)
+}
 
-	err := i.removePackage(ctx, pkg)
-	if err != nil {
-		return fmt.Errorf("could not remove package: %w", err)
-	}
-
-	err = i.repositories.Delete(ctx, pkg)
-	if err != nil {
-		return fmt.Errorf("could not remove package: %w", err)
-	}
-	return nil
+func (i *installerImpl) remove(ctx context.Context, pkg string) error {
+	i.removePackage(ctx, pkg)
+	return i.repositories.Delete(ctx, pkg)
 }
 
 // GarbageCollect removes unused packages.
@@ -289,19 +299,19 @@ func (i *installerImpl) setupPackage(ctx context.Context, pkg string) error {
 	}
 }
 
-func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
+func (i *installerImpl) removePackage(ctx context.Context, pkg string) {
 	switch pkg {
 	case packageDatadogAgent:
 		service.RemoveAgent(ctx)
-		return nil
+		return
 	case packageAPMInjector:
 		service.RemoveAPMInjector(ctx)
-		return nil
+		return
 	case packageDatadogInstaller:
 		service.RemoveInstaller(ctx)
-		return nil
+		return
 	default:
-		return nil
+		return
 	}
 }
 

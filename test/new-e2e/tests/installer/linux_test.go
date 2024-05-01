@@ -221,6 +221,39 @@ func (v *installerSuite) TestExperimentCrash() {
 	}), fmt.Sprintf("unexpected logs: %v", res))
 }
 
+func (v *installerSuite) TestUninstall() {
+	host := v.Env().RemoteHost
+
+	installAssertions := []string{
+		"test -d /opt/datadog-packages",
+		"test -d /opt/datadog-installer",
+		"test -d /var/run/datadog-packages",
+		"test -L /usr/bin/datadog-installer",
+		"test -L /usr/bin/datadog-bootstrap",
+	}
+
+	for _, assertion := range installAssertions {
+		_ = host.MustExecute(assertion)
+	}
+	if v.packageManager == "rpm" {
+		host.MustExecute("sudo yum -y remove datadog-installer")
+	} else {
+		host.MustExecute("sudo apt-get remove -y datadog-installer")
+	}
+	for _, assertion := range installAssertions {
+		_, err := host.Execute(assertion)
+		require.NotNil(v.T(), err)
+	}
+	if v.packageManager == "rpm" {
+		host.MustExecute("sudo yum -y install datadog-installer")
+	} else {
+		host.MustExecute("sudo apt-get install -y datadog-installer")
+	}
+	for _, assertion := range installAssertions {
+		_ = host.MustExecute(assertion)
+	}
+}
+
 func (v *installerSuite) TestPurgeAndInstallAgent() {
 	host := v.Env().RemoteHost
 	v.bootstrap(false)
