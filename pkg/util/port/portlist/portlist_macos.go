@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 
@@ -231,4 +232,22 @@ func lsofProtoLower(p []byte) string {
 		return "udp"
 	}
 	return strings.ToLower(string(p))
+}
+
+// sortAndDedup sorts ps in place (by Port.LessThan) and then returns
+// a subset of it with duplicate (Proto, Port) removed.
+func sortAndDedup(ps List) List {
+	sort.Slice(ps, func(i, j int) bool {
+		return (&ps[i]).lessThan(&ps[j])
+	})
+	out := ps[:0]
+	var last Port
+	for _, p := range ps {
+		if last.Proto == p.Proto && last.Port == p.Port {
+			continue
+		}
+		out = append(out, p)
+		last = p
+	}
+	return out
 }

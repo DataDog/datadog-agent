@@ -29,7 +29,7 @@ func newOtherOSImpl(includeLocalhost bool) osImpl {
 	}
 }
 
-func (im *otherOSImpl) AppendListeningPorts(base []Port) ([]Port, error) {
+func (im *otherOSImpl) AppendListeningPorts(_ []Port) ([]Port, error) {
 	return nil, ErrNotImplemented
 }
 
