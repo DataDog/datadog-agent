@@ -28,6 +28,7 @@ var validProducts = map[string]struct{}{
 	ProductLiveDebugging:     {},
 	ProductTesting1:          {},
 	ProductTesting2:          {},
+	ProductDebug:             {},
 }
 
 const (
@@ -75,4 +76,6 @@ const (
 	ProductTesting1 = "TESTING1"
 	// ProductTesting2 is a product used for testing remote config
 	ProductTesting2 = "TESTING2"
+	// ProductDebug is a product used for testing
+	ProductDebug = "DEBUG"
 )

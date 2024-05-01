@@ -42,6 +42,13 @@
 
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
+/*! \fn void _set_get_remote_config_cb(cb_get_remote_config_t)
+    \brief Sets a callback to be used by rtloader to collect the agent configuration.
+    \param object A function pointer with cb_get_remote_config_t prototype to the
+    callback function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
 /*! \fn void _set_headers_cb(cb_headers_t)
     \brief Sets a callback to be used by rtloader to collect the typical HTTP headers for
     agent requests.
@@ -137,6 +144,7 @@ void Py2_init_datadog_agent();
 
 void _set_get_clustername_cb(cb_get_clustername_t);
 void _set_get_config_cb(cb_get_config_t);
+void _set_get_remote_config_cb(cb_get_remote_config_t);
 void _set_get_hostname_cb(cb_get_hostname_t);
 void _set_tracemalloc_enabled_cb(cb_tracemalloc_enabled_t);
 void _set_get_version_cb(cb_get_version_t);

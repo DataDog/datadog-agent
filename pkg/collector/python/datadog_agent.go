@@ -10,6 +10,7 @@ package python
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"unsafe"
 
@@ -37,6 +38,34 @@ import (
 import (
 	"C"
 )
+
+type remoteConfig struct {
+	Topic     string `yaml:"topic"`
+	Partition int32  `yaml:"partition"`
+	Offset    int64  `yaml:"offset"`
+}
+
+// GetRemoteConfig exposes the remote configs to Python checks.
+//
+//export GetRemoteConfig
+func GetRemoteConfig(key *C.char, yamlPayload **C.char) {
+	goKey := C.GoString(key)
+
+	value := remoteConfig{
+		Topic:     "topic",
+		Partition: 12,
+		Offset:    20,
+	}
+	fmt.Println("key is ", goKey)
+	data, err := yaml.Marshal(value)
+	if err != nil {
+		log.Errorf("could not convert configuration value '%v' to YAML: %s", value, err)
+		*yamlPayload = nil
+		return
+	}
+	// yaml Payload will be free by rtloader when it's done with it
+	*yamlPayload = TrackedCString(string(data))
+}
 
 // GetVersion exposes the version of the agent to Python checks.
 //

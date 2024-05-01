@@ -113,6 +113,8 @@ typedef void (*cb_submit_event_platform_event_t)(char *, char *, int, char *);
 typedef void (*cb_get_version_t)(char **);
 // (key, yaml_result)
 typedef void (*cb_get_config_t)(char *, char **);
+// (key, yaml_result)
+typedef void (*cb_get_remote_config_t)(char *, char **);
 // (yaml_result)
 typedef void (*cb_headers_t)(char **);
 // (hostname)
