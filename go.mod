@@ -710,6 +710,7 @@ require (
 	go.opentelemetry.io/collector/extension v0.99.0
 	go.opentelemetry.io/collector/otelcol v0.99.0
 	go.opentelemetry.io/collector/processor v0.99.0
+	go.opentelemetry.io/collector/service v0.99.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	gotest.tools v2.2.0+incompatible
 	k8s.io/cli-runtime v0.29.0
@@ -1107,7 +1108,6 @@ require (
 	go.opentelemetry.io/collector/extension/zpagesextension v0.99.0 // indirect
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.98.0 // indirect
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.98.0 // indirect
-	go.opentelemetry.io/collector/service v0.99.0 // indirect
 	go.opentelemetry.io/contrib/config v0.5.0 // indirect
 	go.opentelemetry.io/contrib/zpages v0.50.0 // indirect
 	go.opentelemetry.io/otel/bridge/opencensus v1.25.0 // indirect
