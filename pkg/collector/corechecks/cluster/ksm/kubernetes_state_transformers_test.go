@@ -1675,17 +1675,17 @@ func Test_validateJob(t *testing.T) {
 			want1: true,
 		},
 		{
-			name:  "reason:backofflimitexceeded",
+			name:  "reason:BackoffLimitExceeded",
 			val:   1.0,
-			tags:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "reason:backofflimitexceeded"},
-			want:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "kube_cronjob:foo", "reason:backofflimitexceeded"},
+			tags:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "reason:BackoffLimitExceeded"},
+			want:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "kube_cronjob:foo", "reason:BackoffLimitExceeded"},
 			want1: true,
 		},
 		{
-			name:  "reason:deadlineexceeded",
+			name:  "reason:DeadLineExceeded",
 			val:   1.0,
-			tags:  []string{"foo:bar", "job_name:foo-1600167000", "reason:deadlineexceeded", "kube_job:foo-1600167000"},
-			want:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "kube_cronjob:foo", "reason:deadlineexceeded"},
+			tags:  []string{"foo:bar", "job_name:foo-1600167000", "reason:DeadLineExceeded", "kube_job:foo-1600167000"},
+			want:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "kube_cronjob:foo", "reason:DeadLineExceeded"},
 			want1: true,
 		},
 		{

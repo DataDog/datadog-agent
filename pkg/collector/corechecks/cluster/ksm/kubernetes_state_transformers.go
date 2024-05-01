@@ -427,7 +427,7 @@ var allowedJobReasons = map[string]struct{}{
 }
 
 func validJobReason(reason string) bool {
-	_, ok := allowedJobReasons[reason]
+	_, ok := allowedJobReasons[strings.ToLower(reason)]
 	return ok
 }
 
