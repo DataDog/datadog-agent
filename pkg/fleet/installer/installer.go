@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
@@ -228,10 +229,14 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	defer i.m.Unlock()
 
 	// todo check if agent/injector are installed
-	// and clean them up
-	err := i.remove(ctx, packageDatadogInstaller)
+	i.removePackage(ctx, packageDatadogInstaller)
+
+	// remove all from disk
+	span, _ := tracer.StartSpanFromContext(ctx, "remove_all")
+	err := os.RemoveAll(PackagesPath)
+	defer span.Finish(tracer.WithError(err))
 	if err != nil {
-		log.Warnf("could not remove package: %s", err)
+		log.Warnf("could not remove path: %v", err)
 	}
 }
 
@@ -239,10 +244,6 @@ func (i *installerImpl) Purge(ctx context.Context) {
 func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	return i.remove(ctx, pkg)
-}
-
-func (i *installerImpl) remove(ctx context.Context, pkg string) error {
 	i.removePackage(ctx, pkg)
 	return i.repositories.Delete(ctx, pkg)
 }

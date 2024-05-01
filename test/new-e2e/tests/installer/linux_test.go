@@ -241,7 +241,7 @@ func (v *installerSuite) TestUninstall() {
 	switch v.packageManager {
 	case rpm:
 		host.MustExecute("sudo yum -y remove datadog-installer")
-	case apt:
+	case dpkg:
 		host.MustExecute("sudo apt-get remove -y datadog-installer")
 	case zypper:
 		host.MustExecute("sudo zypper --non-interactive remove datadog-installer")
@@ -253,7 +253,7 @@ func (v *installerSuite) TestUninstall() {
 	switch v.packageManager {
 	case rpm:
 		host.MustExecute("sudo yum -y install datadog-installer")
-	case apt:
+	case dpkg:
 		host.MustExecute("sudo apt-get install -y datadog-installer")
 	case zypper:
 		host.MustExecute("sudo zypper --non-interactive install datadog-installer")
@@ -475,11 +475,11 @@ func assertInstallMethod(v *installerSuite, t *testing.T, host *components.Remot
 	require.Nil(t, yaml.Unmarshal(rawYaml, &config))
 
 	assert.Equal(t, "installer_package", config.InstallMethod["installer_version"])
-	expectedPackageManager = v.packageManager
+	expectedPackageManager := v.packageManager
 	if v.packageManager == zypper {
 		expectedPackageManager = rpm
 	}
-	assert.Equal(t, v.packageManager, config.InstallMethod["tool"])
+	assert.Equal(t, expectedPackageManager, config.InstallMethod["tool"])
 	assert.True(t, "" != config.InstallMethod["tool_version"])
 }
 
