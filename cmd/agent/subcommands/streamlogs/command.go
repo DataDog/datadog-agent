@@ -147,7 +147,7 @@ func streamRequest(url string, body []byte, duration time.Duration, onChunk func
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
 
-	e = DoPostChunkedWithTimeout(ctx, c, url, "application/json", bytes.NewBuffer(body), duration, onChunk)
+	e = doPostChunkedWithTimeout(ctx, c, url, "application/json", bytes.NewBuffer(body), duration, onChunk)
 
 	if e == context.DeadlineExceeded {
 		fmt.Printf("Finished streaming logs for %v\n", duration)
@@ -163,6 +163,7 @@ func streamRequest(url string, body []byte, duration time.Duration, onChunk func
 	return e
 }
 
+// openFileForWriting opens a file for writing
 func openFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -172,7 +173,8 @@ func openFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
 	return f, bufWriter, nil
 }
 
-func DoPostChunkedWithTimeout(ctx context.Context, c *http.Client, url string, contentType string, body io.Reader, duration time.Duration, onChunk func([]byte)) error {
+// doPostChunkedWithTimeout is a wrapper around requests that stream chunked data with a timeout
+func doPostChunkedWithTimeout(ctx context.Context, c *http.Client, url string, contentType string, body io.Reader, duration time.Duration, onChunk func([]byte)) error {
 	var cancel context.CancelFunc
 	ctx, cancel = context.WithTimeout(ctx, duration)
 	defer cancel()
