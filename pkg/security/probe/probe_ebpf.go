@@ -1562,14 +1562,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 			Value: getDoForkInput(p.kernelVersion),
 		},
 		manager.ConstantEditor{
-			Name:  "sched_process_fork_parent_pid_offset",
-			Value: getSchedProcessForkParentPidOffset(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "sched_process_fork_child_pid_offset",
-			Value: getSchedProcessForkChildPidOffset(p.kernelVersion),
-		},
-		manager.ConstantEditor{
 			Name:  "has_usernamespace_first_arg",
 			Value: getHasUsernamespaceFirstArg(p.kernelVersion),
 		},
@@ -1783,22 +1775,6 @@ func getDoForkInput(kernelVersion *kernel.Version) uint64 {
 	return doForkListInput
 }
 
-func getSchedProcessForkParentPidOffset(kernelVersion *kernel.Version) uint64 {
-	if kernelVersion.IsInRangeCloseOpen(kernel.Kernel5_14, kernel.Kernel5_15) && kernelVersion.IsRH9Kernel() {
-		return 28
-	}
-
-	return 24 // for regular kernels
-}
-
-func getSchedProcessForkChildPidOffset(kernelVersion *kernel.Version) uint64 {
-	if kernelVersion.IsInRangeCloseOpen(kernel.Kernel5_14, kernel.Kernel5_15) && kernelVersion.IsRH9Kernel() {
-		return 48
-	}
-
-	return 44 // for regular kernels
-}
-
 func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 	switch {
 	case kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_0:
@@ -1886,6 +1862,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags", "linux/mm_types.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFinode, "struct file", "f_inode", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFpath, "struct file", "f_path", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSchedProcessForkChildPid, "trace_event_raw_sched_process_fork", "child_pid", "")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSchedProcessForkParentPid, "trace_event_raw_sched_process_fork", "parent_pid", "")
 	if kv.Code >= kernel.Kernel5_3 {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal", "linux/sched/task.h")
 	}
