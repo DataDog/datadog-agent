@@ -9,11 +9,14 @@ package streamlogs
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -37,6 +40,9 @@ type cliParams struct {
 
 	// Output represents the output file path to write the log stream to.
 	FilePath string
+
+	// Duration represents the duration of the log stream.
+	Duration time.Duration
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -62,7 +68,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd.Flags().StringVar(&cliParams.filters.Source, "source", "", "Filter by source")
 	cmd.Flags().StringVar(&cliParams.filters.Service, "service", "", "Filter by service")
 	cmd.Flags().StringVarP(&cliParams.FilePath, "output", "o", "", "Output file path to write the log stream")
-
+	cmd.Flags().DurationVarP(&cliParams.Duration, "duration", "d", 0, "Duration of the log stream (default: 0, infinite)")
 	// PreRunE is used to validate the file path before stream-logs is run.
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
 		if cliParams.FilePath != "" {
@@ -108,10 +114,15 @@ func streamLogs(log log.Component, config config.Component, cliParams *cliParams
 			return fmt.Errorf("error opening file %s for writing: %v", cliParams.FilePath, err)
 		}
 		defer f.Close()
-		defer bufWriter.Flush()
+		defer func() {
+			err := bufWriter.Flush()
+			if err != nil {
+				fmt.Printf("Error flushing buffer for log stream: %v", err)
+			}
+		}()
 	}
 
-	return streamRequest(urlstr, body, func(chunk []byte) {
+	return streamRequest(urlstr, body, cliParams.Duration, func(chunk []byte) {
 		fmt.Print(string(chunk))
 
 		if bufWriter != nil {
@@ -122,7 +133,7 @@ func streamLogs(log log.Component, config config.Component, cliParams *cliParams
 	})
 }
 
-func streamRequest(url string, body []byte, onChunk func([]byte)) error {
+func streamRequest(url string, body []byte, duration time.Duration, onChunk func([]byte)) error {
 	var e error
 	c := util.GetClient(false)
 
@@ -132,7 +143,16 @@ func streamRequest(url string, body []byte, onChunk func([]byte)) error {
 		return e
 	}
 
-	e = util.DoPostChunked(c, url, "application/json", bytes.NewBuffer(body), onChunk)
+	// Set the timeout/duration context for the stream log request
+	ctx, cancel := context.WithTimeout(context.Background(), duration)
+	defer cancel()
+
+	e = DoPostChunkedWithTimeout(ctx, c, url, "application/json", bytes.NewBuffer(body), duration, onChunk)
+
+	if e == context.DeadlineExceeded {
+		fmt.Printf("Finished streaming logs for %v\n", duration)
+		return nil
+	}
 
 	if e == io.EOF {
 		return nil
@@ -148,6 +168,27 @@ func openFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("error opening file %s: %v", filePath, err)
 	}
-	bufWriter := bufio.NewWriter(f)
+	bufWriter := bufio.NewWriter(f) // default 4096 bytes buffer
 	return f, bufWriter, nil
+}
+
+func DoPostChunkedWithTimeout(ctx context.Context, c *http.Client, url string, contentType string, body io.Reader, duration time.Duration, onChunk func([]byte)) error {
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithTimeout(ctx, duration)
+	defer cancel()
+
+	done := make(chan bool)
+	var err error
+
+	go func() {
+		err = util.DoPostChunked(c, url, contentType, body, onChunk)
+		done <- true
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-done:
+		return err
+	}
 }
