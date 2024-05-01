@@ -729,7 +729,7 @@ func (wp *WindowsProbe) convertDrivePath(devicefilename string) (string, error) 
 	}
 	return "", fmt.Errorf("Unable to parse path %v", devicefilename)
 }
-func (wp *WindowsProbe) InitializeVolumeMap() error {
+func (wp *WindowsProbe) initializeVolumeMap() error {
 
 	buf := make([]uint16, 1024)
 	bufferLength := uint32(len(buf))

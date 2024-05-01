@@ -155,7 +155,7 @@ func (p *WindowsProbe) initEtwFIM() error {
 	if !p.config.RuntimeSecurity.FIMEnabled {
 		return nil
 	}
-	p.InitializeVolumeMap()
+	_ = p.initializeVolumeMap()
 
 	// log at Warning right now because it's not expected to be enabled
 	log.Warnf("Enabling FIM processing")
