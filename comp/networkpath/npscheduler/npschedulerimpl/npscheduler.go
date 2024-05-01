@@ -49,9 +49,16 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 	workers := sysprobeYamlConfig.GetInt("network_path.workers")
 	pathtestInputChanSize := sysprobeYamlConfig.GetInt("network_path.input_chan_size")
 	pathtestProcessChanSize := sysprobeYamlConfig.GetInt("network_path.process_chan_size")
+	pathtestTTL := sysprobeYamlConfig.GetDuration("network_path.pathtest_ttl")
+	pathtestInterval := sysprobeYamlConfig.GetDuration("network_path.pathtest_interval")
 	excludeCIDR := sysprobeYamlConfig.GetStringSlice("network_path.exclude_cidr")
 
-	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d exclude_cidr=%v)", workers, pathtestInputChanSize, excludeCIDR)
+	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d pathtest_ttl=%s pathtest_interval=%s exclude_cidr=%v)",
+		workers,
+		pathtestTTL.String(),
+		pathtestInterval.String(),
+		pathtestInputChanSize,
+		excludeCIDR)
 
 	var excludeIPManager *bogon.Bogon
 	if len(excludeCIDR) >= 1 {
@@ -71,7 +78,7 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 		epForwarder: epForwarder,
 		logger:      logger,
 
-		pathtestStore:       newPathtestStore(DefaultFlushTickerInterval, DefaultPathtestRunDurationFromDiscovery, DefaultPathtestRunInterval, logger),
+		pathtestStore:       newPathtestStore(DefaultFlushTickerInterval, pathtestTTL, pathtestInterval, logger),
 		pathtestInputChan:   make(chan *pathtest, pathtestInputChanSize),
 		pathtestProcessChan: make(chan *pathtestContext, pathtestProcessChanSize),
 		workers:             workers,

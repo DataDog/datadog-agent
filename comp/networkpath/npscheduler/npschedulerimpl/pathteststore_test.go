@@ -33,7 +33,7 @@ func Test_pathtestStore_add(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 
 	// GIVEN
-	store := newPathtestStore(DefaultFlushTickerInterval, DefaultPathtestRunDurationFromDiscovery, DefaultPathtestRunInterval, logger)
+	store := newPathtestStore(DefaultFlushTickerInterval, DefaultPathtestTTL, DefaultPathtestInterval, logger)
 
 	// WHEN
 	pt1 := &pathtest{hostname: "host1", port: 53}
@@ -80,7 +80,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	// TODO: check flush results
 	store.flush()
 	ptCtx = store.pathtestContexts[pt.getHash()]
-	assert.Equal(t, MockTimeNow().Add(store.pathtestRunInterval), ptCtx.nextRunTime)
+	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval), ptCtx.nextRunTime)
 	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc), ptCtx.runUntilTime)
 
 	// skip flush if nextRunTime is not reached yet
@@ -88,7 +88,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	setMockTimeNow(flushTime2)
 	store.flush()
 	ptCtx = store.pathtestContexts[pt.getHash()]
-	assert.Equal(t, MockTimeNow().Add(store.pathtestRunInterval), ptCtx.nextRunTime)
+	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval), ptCtx.nextRunTime)
 	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc), ptCtx.runUntilTime)
 
 	// test flush, it should increment nextRunTime
@@ -96,7 +96,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	setMockTimeNow(flushTime3)
 	store.flush()
 	ptCtx = store.pathtestContexts[pt.getHash()]
-	assert.Equal(t, MockTimeNow().Add(store.pathtestRunInterval*2), ptCtx.nextRunTime)
+	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval*2), ptCtx.nextRunTime)
 	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc), ptCtx.runUntilTime)
 
 	// test add new pathtest after nextRunTime is reached
@@ -105,7 +105,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	setMockTimeNow(flushTime4)
 	store.add(pt)
 	ptCtx = store.pathtestContexts[pt.getHash()]
-	assert.Equal(t, MockTimeNow().Add(store.pathtestRunInterval*2), ptCtx.nextRunTime)
+	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval*2), ptCtx.nextRunTime)
 	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc+80*time.Second), ptCtx.runUntilTime)
 
 	// test flush, it should increment nextRunTime
@@ -113,7 +113,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	setMockTimeNow(flushTime5)
 	store.flush()
 	ptCtx = store.pathtestContexts[pt.getHash()]
-	assert.Equal(t, MockTimeNow().Add(store.pathtestRunInterval*3), ptCtx.nextRunTime)
+	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval*3), ptCtx.nextRunTime)
 	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc+80*time.Second), ptCtx.runUntilTime)
 
 	// test flush before runUntilTime, it should NOT delete pathtest entry
@@ -121,7 +121,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	setMockTimeNow(flushTime6)
 	store.flush()
 	ptCtx = store.pathtestContexts[pt.getHash()]
-	assert.Equal(t, MockTimeNow().Add(store.pathtestRunInterval*4), ptCtx.nextRunTime)
+	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval*4), ptCtx.nextRunTime)
 	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc+80*time.Second), ptCtx.runUntilTime)
 
 	// test flush after runUntilTime, it should delete pathtest entry

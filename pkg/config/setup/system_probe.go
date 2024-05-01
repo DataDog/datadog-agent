@@ -290,6 +290,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(npNS, "workers"), 4)
 	cfg.BindEnvAndSetDefault(join(npNS, "input_chan_size"), 1000)
 	cfg.BindEnvAndSetDefault(join(npNS, "process_chan_size"), 1000)
+	cfg.BindEnvAndSetDefault(join(npNS, "pathtest_ttl"), "15min")
+	cfg.BindEnvAndSetDefault(join(npNS, "pathtest_interval"), "5min")
 	cfg.BindEnv(join(npNS, "exclude_cidr"))
 
 	// windows config

@@ -32,9 +32,15 @@ type pathtestStore struct {
 	// are called by different routines.
 	pathtestConfigsMutex sync.Mutex
 
-	flushInterval            time.Duration
-	pathtestRunInterval      time.Duration
-	pathtestRunUntilDuration time.Duration
+	// flushInterval defines how frequently we check for paths to be run
+	flushInterval time.Duration
+
+	// pathtestInterval defines how frequently pathtests should run
+	pathtestInterval time.Duration
+
+	// pathtestTTL is the duration a pathtest should run from discovery.
+	// If a pathtest is added again before the TTL expires, the TTL is reset to this duration.
+	pathtestTTL time.Duration
 }
 
 func newPathtestContext(pt *pathtest, runUntilDuration time.Duration) *pathtestContext {
@@ -46,22 +52,22 @@ func newPathtestContext(pt *pathtest, runUntilDuration time.Duration) *pathtestC
 	}
 }
 
-func newPathtestStore(flushInterval time.Duration, pathtestRunUntilDuration time.Duration, pathtestRunInterval time.Duration, logger log.Component) *pathtestStore {
+func newPathtestStore(flushInterval time.Duration, pathtestTTL time.Duration, pathtestInterval time.Duration, logger log.Component) *pathtestStore {
 	return &pathtestStore{
-		pathtestContexts:         make(map[uint64]*pathtestContext),
-		flushInterval:            flushInterval,
-		pathtestRunUntilDuration: pathtestRunUntilDuration,
-		pathtestRunInterval:      pathtestRunInterval,
-		logger:                   logger,
+		pathtestContexts: make(map[uint64]*pathtestContext),
+		flushInterval:    flushInterval,
+		pathtestTTL:      pathtestTTL,
+		pathtestInterval: pathtestInterval,
+		logger:           logger,
 	}
 }
 
 // flush will flush specific pathtest context (distinct hash) if nextRunTime is reached
 // once a pathtest context is flushed nextRunTime will be updated to the next flush time
 //
-// pathtestRunUntilDuration:
-// pathtestRunUntilDuration defines the duration we should keep a specific pathtestContext in `pathtestStore.pathtestContexts`
-// after `lastSuccessfulFlush`. // Flow context in `pathtestStore.pathtestContexts` map will be deleted if `pathtestRunUntilDuration`
+// pathtestTTL:
+// pathtestTTL defines the duration we should keep a specific pathtestContext in `pathtestStore.pathtestContexts`
+// after `lastSuccessfulFlush`. // Flow context in `pathtestStore.pathtestContexts` map will be deleted if `pathtestTTL`
 // is reached to avoid keeping pathtest context that are not seen anymore.
 // We need to keep pathtestContext (contains `nextRunTime` and `lastSuccessfulFlush`) after flush
 // to be able to flush at regular interval (`flushInterval`).
@@ -99,7 +105,7 @@ func (f *pathtestStore) flush() []*pathtestContext {
 		pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx)
 		// TODO: increment nextRunTime to a time after current time
 		//       in case flush() is not fast enough, it won't accumulate excessively
-		ptConfigCtx.nextRunTime = ptConfigCtx.nextRunTime.Add(f.pathtestRunInterval)
+		ptConfigCtx.nextRunTime = ptConfigCtx.nextRunTime.Add(f.pathtestInterval)
 		f.pathtestContexts[key] = ptConfigCtx
 	}
 	return pathtestsToFlush
@@ -114,10 +120,10 @@ func (f *pathtestStore) add(pathtestToAdd *pathtest) {
 	hash := pathtestToAdd.getHash()
 	pathtestCtx, ok := f.pathtestContexts[hash]
 	if !ok {
-		f.pathtestContexts[hash] = newPathtestContext(pathtestToAdd, f.pathtestRunUntilDuration)
+		f.pathtestContexts[hash] = newPathtestContext(pathtestToAdd, f.pathtestTTL)
 		return
 	}
-	pathtestCtx.runUntilTime = timeNow().Add(f.pathtestRunUntilDuration)
+	pathtestCtx.runUntilTime = timeNow().Add(f.pathtestTTL)
 	f.pathtestContexts[hash] = pathtestCtx
 }
 
