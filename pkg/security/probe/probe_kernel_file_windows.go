@@ -15,6 +15,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+
+	"golang.org/x/sys/windows"
 )
 
 const (
@@ -134,6 +137,7 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	ca := &createHandleArgs{
 		DDEventHeader: e.EventHeader,
 	}
+	var devicefilename string
 	data := etwimpl.GetUserData(e)
 	if e.EventHeader.EventDescriptor.Version == 0 {
 		ca.irp = data.GetUint64(0)
@@ -143,7 +147,7 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		ca.createAttributes = data.GetUint32(28)
 		ca.shareAccess = data.GetUint32(32)
 
-		ca.fileName, _, _, _ = data.ParseUnicodeString(36)
+		devicefilename, _, _, _ = data.ParseUnicodeString(36)
 	} else if e.EventHeader.EventDescriptor.Version == 1 {
 
 		ca.irp = data.GetUint64(0)
@@ -153,9 +157,16 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		ca.createAttributes = data.GetUint32(24)
 		ca.shareAccess = data.GetUint32(28)
 
-		ca.fileName, _, _, _ = data.ParseUnicodeString(32)
+		devicefilename, _, _, _ = data.ParseUnicodeString(32)
 	} else {
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
+	}
+
+	// convert \device\harddiskvolume1 to C:\
+	var err error
+	ca.fileName, err = wp.convertDrivePath(devicefilename)
+	if err != nil {
+		return nil, fmt.Errorf("error converting drive path %v", err)
 	}
 
 	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
@@ -575,6 +586,7 @@ func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (*deletePathAr
 	dpa := &deletePathArgs{
 		DDEventHeader: e.EventHeader,
 	}
+	var devicefilename string
 	data := etwimpl.GetUserData(e)
 	if e.EventHeader.EventDescriptor.Version == 0 {
 		dpa.irp = data.GetUint64(0)
@@ -583,7 +595,7 @@ func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (*deletePathAr
 		dpa.fileKey = fileObjectPointer(data.GetUint64(24))
 		dpa.extraInformation = data.GetUint64(32)
 		dpa.infoClass = data.GetUint32(40)
-		dpa.filePath, _, _, _ = data.ParseUnicodeString(44)
+		devicefilename, _, _, _ = data.ParseUnicodeString(44)
 	} else if e.EventHeader.EventDescriptor.Version == 1 {
 		dpa.irp = data.GetUint64(0)
 		dpa.fileObject = fileObjectPointer(data.GetUint64(8))
@@ -591,9 +603,14 @@ func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (*deletePathAr
 		dpa.extraInformation = data.GetUint64(24)
 		dpa.threadID = uint64(data.GetUint32(32))
 		dpa.infoClass = data.GetUint32(36)
-		dpa.filePath, _, _, _ = data.ParseUnicodeString(40)
+		devicefilename, _, _, _ = data.ParseUnicodeString(40)
 	}
 
+	var err error
+	dpa.filePath, err = wp.convertDrivePath(devicefilename)
+	if err != nil {
+		return nil, fmt.Errorf("error converting drive path %v", err)
+	}
 	wp.filePathResolverLock.Lock()
 	defer wp.filePathResolverLock.Unlock()
 	if s, ok := wp.filePathResolver[fileObjectPointer(dpa.fileObject)]; ok {
@@ -699,4 +716,70 @@ func (wp *WindowsProbe) parseNameDeleteArgs(e *etw.DDEventRecord) (*nameDeleteAr
 		return nil, err
 	}
 	return (*nameDeleteArgs)(ca), nil
+}
+
+func (wp *WindowsProbe) convertDrivePath(devicefilename string) (string, error) {
+	// filepath doesn't seem to like the \Device\HarddiskVolume1 format
+	pathchunks := strings.Split(devicefilename, "\\")
+	if len(pathchunks) > 2 {
+		if strings.EqualFold(pathchunks[1], "device") {
+			pathchunks[2] = wp.volumeMap[strings.ToLower(pathchunks[2])]
+			return filepath.Join(pathchunks[2:]...), nil
+		}
+	}
+	return "", fmt.Errorf("Unable to parse path %v", devicefilename)
+}
+func (wp *WindowsProbe) InitializeVolumeMap() error {
+
+	buf := make([]uint16, 1024)
+	bufferLength := uint32(len(buf))
+
+	_, err := windows.GetLogicalDriveStrings(bufferLength, &buf[0])
+	if err != nil {
+		return err
+	}
+	drives := winutil.ConvertWindowsStringList(buf)
+	for _, drive := range drives {
+		t := windows.GetDriveType(windows.StringToUTF16Ptr(drive[:3]))
+		/*
+			DRIVE_UNKNOWN
+			0
+			The drive type cannot be determined.
+			DRIVE_NO_ROOT_DIR
+			1
+			The root path is invalid; for example, there is no volume mounted at the specified path.
+			DRIVE_REMOVABLE
+			2
+			The drive has removable media; for example, a floppy drive, thumb drive, or flash card reader.
+			DRIVE_FIXED
+			3
+			The drive has fixed media; for example, a hard disk drive or flash drive.
+			DRIVE_REMOTE
+			4
+			The drive is a remote (network) drive.
+			DRIVE_CDROM
+			5
+			The drive is a CD-ROM drive.
+			DRIVE_RAMDISK
+			6
+			The drive is a RAM disk.
+		*/
+		if t == windows.DRIVE_FIXED {
+			volpath := make([]uint16, 1024)
+			vollen := uint32(len(volpath))
+			_, err = windows.QueryDosDevice(windows.StringToUTF16Ptr(drive[:2]), &volpath[0], vollen)
+			if err == nil {
+				devname := windows.UTF16PtrToString(&volpath[0])
+				paths := strings.Split(devname, "\\") // apparently, filepath.split doesn't like volume names
+
+				if len(paths) > 2 {
+					// the \Device leads to the first entry being empty
+					if strings.EqualFold(paths[1], "device") {
+						wp.volumeMap[strings.ToLower(paths[2])] = drive
+					}
+				}
+			}
+		}
+	}
+	return nil
 }

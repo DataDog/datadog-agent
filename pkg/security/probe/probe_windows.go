@@ -83,6 +83,9 @@ type WindowsProbe struct {
 	// discarders
 	discardedPaths     *lru.Cache[string, struct{}]
 	discardedBasenames *lru.Cache[string, struct{}]
+
+	//volume map
+	volumeMap map[string]string
 }
 
 type renameState struct {
@@ -152,6 +155,8 @@ func (p *WindowsProbe) initEtwFIM() error {
 	if !p.config.RuntimeSecurity.FIMEnabled {
 		return nil
 	}
+	p.InitializeVolumeMap()
+
 	// log at Warning right now because it's not expected to be enabled
 	log.Warnf("Enabling FIM processing")
 	etwSessionName := "SystemProbeFIM_ETW"
@@ -803,6 +808,8 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 		discardedPaths:     discardedPaths,
 		discardedBasenames: discardedBasenames,
+
+		volumeMap: make(map[string]string, 0),
 	}
 
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)
