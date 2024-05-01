@@ -426,7 +426,7 @@ var jobFailureReasons = map[string]struct{}{
 	"deadlineexceeded":     {},
 }
 
-func validJobReason(reason string) bool {
+func validJobFailureReason(reason string) bool {
 	_, ok := jobFailureReasons[strings.ToLower(reason)]
 	return ok
 }
@@ -436,7 +436,7 @@ func validateJob(val float64, tags []string) ([]string, bool) {
 	kubeCronjob := ""
 	for i, tag := range tags {
 		if strings.HasPrefix(tag, "reason:") {
-			if v := strings.TrimPrefix(tag, "reason:"); !validJobReason(v) {
+			if v := strings.TrimPrefix(tag, "reason:"); !validJobFailureReason(v) {
 				tags = append(tags[:i], tags[i+1:]...)
 				continue
 			}
