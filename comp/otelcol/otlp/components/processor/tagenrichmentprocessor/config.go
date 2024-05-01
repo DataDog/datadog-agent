@@ -35,6 +35,5 @@ var _ component.Config = (*Config)(nil)
 
 // Validate configuration
 func (cfg *Config) Validate() error {
-	var errors error
-	return errors
+	return nil
 }
