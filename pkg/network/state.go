@@ -16,7 +16,6 @@ import (
 	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
@@ -109,7 +108,7 @@ type State interface {
 	RemoveConnections(conns []*ConnectionStats)
 
 	// StoreClosedConnections stores a batch of closed connections
-	StoreClosedConnections(connections []ConnectionStats, failedConnMap *FailedConns)
+	StoreClosedConnections(connections []ConnectionStats)
 
 	// GetStats returns a map of statistics about the current network state
 	GetStats() map[string]interface{}
@@ -566,47 +565,17 @@ func (ns *networkState) mergeByCookie(conns []ConnectionStats) ([]ConnectionStat
 	return conns, connsByKey
 }
 
-// FailedConnStats is a wrapper to help document the purpose of the underlying map
-type FailedConnStats struct {
-	CountByErrCode map[uint32]uint32
-}
-
-// String returns a string representation of the failedConnStats
-func (t FailedConnStats) String() string {
-	return fmt.Sprintf(
-		"failedConnStats{countByErrCode: %+v}", t.CountByErrCode,
-	)
-}
-
-// FailedConnMap is a map of connection tuples to failed connection stats
-type FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
-
-// FailedConns is a struct to hold failed connections
-type FailedConns struct {
-	FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
-	sync.RWMutex
-}
-
-// NewFailedConns returns a new FailedConns struct
-func NewFailedConns() *FailedConns {
-	return &FailedConns{
-		FailedConnMap: make(map[ebpf.ConnTuple]*FailedConnStats),
-	}
-}
-
 // StoreClosedConnections stores the given closed connections
-func (ns *networkState) StoreClosedConnections(closed []ConnectionStats, failedConnMap *FailedConns) {
+func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 	ns.Lock()
 	defer ns.Unlock()
 
-	ns.storeClosedConnections(closed, failedConnMap)
 }
 
 // storeClosedConnection stores the given connection for every client
-func (ns *networkState) storeClosedConnections(conns []ConnectionStats, failedConnMap *FailedConns) {
+func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
-			matchFailedConn(&c, failedConnMap)
 			if i, ok := client.closed.byCookie[c.Cookie]; ok {
 				if ns.mergeConnectionStats(&client.closed.conns[i], &c) {
 					stateTelemetry.statsCookieCollisions.Inc()
@@ -617,63 +586,6 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats, failedCo
 			client.closed.insert(c, ns.maxClosedConns)
 		}
 	}
-	failedConnMap.Lock()
-	defer failedConnMap.Unlock()
-	clear(failedConnMap.FailedConnMap)
-}
-
-func matchFailedConn(conn *ConnectionStats, failedConnMap *FailedConns) {
-	connTuple := connStatsToTuple(conn)
-	failedConnMap.RLock()
-	defer failedConnMap.RUnlock()
-	if failedConn, ok := failedConnMap.FailedConnMap[connTuple]; ok {
-		conn.TCPFailures = make(map[TCPFailure]uint32)
-		for errCode, count := range failedConn.CountByErrCode {
-			switch errCode {
-			case 104:
-				log.Infof("Incrementing TCP Failed Reset counter for connection: %+v", conn)
-				conn.TCPFailures[TCPFailureConnectionReset] += count
-			case 110:
-				log.Infof("Incrementing TCP Failed Timeout counter for connection: %+v", conn)
-				conn.TCPFailures[TCPFailureConnectionTimeout] += count
-			case 111:
-				log.Infof("Incrementing TCP Failed Refused counter for connection: %+v", conn)
-				conn.TCPFailures[TCPFailureConnectionRefused] += count
-			default:
-				log.Infof("Incrementing TCP Failed Default counter for connection: %+v", conn)
-				conn.TCPFailures[TCPFailureUnknown] += count
-			}
-		}
-	}
-}
-
-func connStatsToTuple(c *ConnectionStats) ebpf.ConnTuple {
-	var tup ebpf.ConnTuple
-	tup.Sport = c.SPort
-	tup.Dport = c.DPort
-	tup.Netns = c.NetNS
-	tup.Pid = c.Pid
-	if c.Family == AFINET {
-		tup.SetFamily(ebpf.IPv4)
-	} else {
-		tup.SetFamily(ebpf.IPv6)
-	}
-	if c.Type == TCP {
-		tup.SetType(ebpf.TCP)
-	} else {
-		tup.SetType(ebpf.UDP)
-	}
-	if !c.Source.IsZero() {
-		tup.Saddr_l, tup.Saddr_h = util.ToLowHigh(c.Source)
-	} else {
-		tup.Saddr_l, tup.Saddr_h = 0, 0
-	}
-	if !c.Dest.IsZero() {
-		tup.Daddr_l, tup.Daddr_h = util.ToLowHigh(c.Dest)
-	} else {
-		tup.Daddr_l, tup.Daddr_h = 0, 0
-	}
-	return tup
 }
 
 func getDeepDNSStatsCount(stats dns.StatsByKeyByNameByType) int {

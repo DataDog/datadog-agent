@@ -5,14 +5,13 @@
 
 //go:build linux_bpf
 
-package connection
+package failed
 
 import (
 	"sync"
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,22 +28,24 @@ var failedConnConsumerTelemetry = struct {
 	telemetry.NewCounter(failedConnConsumerModuleName, "failed_conn_polling_lost", []string{}, "Counter measuring the number of closed connection batches lost (were transmitted from ebpf but never received)"),
 }
 
-type tcpFailedConnConsumer struct {
-	eventHandler  ddebpf.EventHandler
-	once          sync.Once
-	closed        chan struct{}
-	failedConnMap *network.FailedConns
+// TcpFailedConnConsumer consumes failed connection events from the kernel
+type TcpFailedConnConsumer struct {
+	eventHandler ddebpf.EventHandler
+	once         sync.Once
+	closed       chan struct{}
+	FailedConns  *FailedConns
 }
 
-func newFailedConnConsumer(eventHandler ddebpf.EventHandler) *tcpFailedConnConsumer {
-	return &tcpFailedConnConsumer{
-		eventHandler:  eventHandler,
-		closed:        make(chan struct{}),
-		failedConnMap: network.NewFailedConns(),
+// NewFailedConnConsumer creates a new TcpFailedConnConsumer
+func NewFailedConnConsumer(eventHandler ddebpf.EventHandler) *TcpFailedConnConsumer {
+	return &TcpFailedConnConsumer{
+		eventHandler: eventHandler,
+		closed:       make(chan struct{}),
+		FailedConns:  NewFailedConns(),
 	}
 }
 
-func (c *tcpFailedConnConsumer) Stop() {
+func (c *TcpFailedConnConsumer) Stop() {
 	if c == nil {
 		return
 	}
@@ -54,22 +55,23 @@ func (c *tcpFailedConnConsumer) Stop() {
 	})
 }
 
-func (c *tcpFailedConnConsumer) extractConn(data []byte) {
-	c.failedConnMap.Lock()
-	defer c.failedConnMap.Unlock()
+func (c *TcpFailedConnConsumer) extractConn(data []byte) {
+	c.FailedConns.Lock()
+	defer c.FailedConns.Unlock()
 	ct := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
 
-	stats, ok := c.failedConnMap.FailedConnMap[ct.Tup]
+	stats, ok := c.FailedConns.FailedConnMap[ct.Tup]
 	if !ok {
-		stats = &network.FailedConnStats{
+		stats = &FailedConnStats{
 			CountByErrCode: make(map[uint32]uint32),
 		}
-		c.failedConnMap.FailedConnMap[ct.Tup] = stats
+		c.FailedConns.FailedConnMap[ct.Tup] = stats
 	}
 	stats.CountByErrCode[ct.Reason]++
 }
 
-func (c *tcpFailedConnConsumer) Start() {
+// Start starts the consumer
+func (c *TcpFailedConnConsumer) Start() {
 	if c == nil {
 		return
 	}

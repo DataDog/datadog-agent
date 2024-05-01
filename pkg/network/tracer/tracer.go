@@ -294,6 +294,7 @@ func newReverseDNS(c *config.Config) dns.ReverseDNS {
 //nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
+	//failedConnMap := t.ebpfTracer.GetFailedConnections()
 	for i := range connections {
 		cs := &connections[i]
 		cs.IsClosed = true
@@ -313,12 +314,15 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		t.addProcessInfo(cs)
 
 		tracerTelemetry.closedConns.Inc(cs.Type.String())
+		//failed.MatchFailedConn(cs, failedConnMap)
 	}
+	//failedConnMap.Lock()
+	//clear(failedConnMap.FailedConnMap)
+	//failedConnMap.Unlock()
 
 	connections = connections[rejected:]
-	failedConnMap := t.ebpfTracer.GetFailedConnections()
 
-	t.state.StoreClosedConnections(connections, failedConnMap)
+	t.state.StoreClosedConnections(connections)
 }
 
 //nolint:revive // TODO(NET) Fix revive linter
