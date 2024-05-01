@@ -44,10 +44,7 @@ func MakeRootCommand() *cobra.Command {
 
 func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	globalConfGetter := func() *subcommands.GlobalParams {
-		return &subcommands.GlobalParams{
-			ConfigName: globalParams.ConfigName,
-			LoggerName: loggerName,
-		}
+		return globalParams
 	}
 	commands := []*cobra.Command{
 		run.MakeCommand(globalConfGetter),
@@ -61,8 +58,8 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	for _, cmd := range commands {
 		otelAgentCmd.AddCommand(cmd)
 	}
-
-	otelAgentCmd.PersistentFlags().AddGoFlagSet(flags(featuregate.NewRegistry(), globalParams))
+	flagSet := flags(featuregate.GlobalRegistry(), globalParams)
+	otelAgentCmd.PersistentFlags().AddGoFlagSet(flagSet)
 
 	return &otelAgentCmd
 }

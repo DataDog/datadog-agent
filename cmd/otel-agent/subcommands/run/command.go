@@ -28,6 +28,7 @@ import (
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline/provider"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -82,11 +83,15 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 		fetchonlyimpl.Module(),
 		collectorcontribFx.Module(),
 		collector.ContribModule(),
+		fx.Provide(func() []string {
+			return params.ConfPaths
+		}),
+		fx.Provide(provider.NewConfigProvider),
 		fx.Provide(func() workloadmeta.Params {
 			return workloadmeta.NewParams()
 		}),
-		fx.Provide(func(ctx context.Context) (config.Component, error) {
-			c, err := agentconfig.NewConfigComponent(ctx, params.ConfPaths)
+		fx.Provide(func() (config.Component, error) {
+			c, err := agentconfig.NewConfigComponent(context.Background(), params.ConfPaths)
 			if err != nil {
 				return nil, err
 			}

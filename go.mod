@@ -45,6 +45,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ./comp/otelcol/otlp/components/exporter/datadogexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ./comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ./comp/otelcol/otlp/components/exporter/serializerexporter
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline/provider => ./comp/otelcol/otlp/components/pipeline/provider
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ./comp/serializer/compression
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey/
@@ -624,6 +625,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.54.0-rc.1
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.54.0-rc.1
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline/provider v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.54.0-rc.1
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.54.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.54.0-rc.1
