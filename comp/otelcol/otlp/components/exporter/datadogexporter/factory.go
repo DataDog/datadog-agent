@@ -1,14 +1,17 @@
-// Copyright The OpenTelemetry Authors
-// SPDX-License-Identifier: Apache-2.0
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2021-present Datadog, Inc.
 
-package datadogexporter // import "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
+// Package datadogexporter provides a factory for the Datadog exporter.
+package datadogexporter
 
 import (
 	"context"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
@@ -35,7 +38,7 @@ type factory struct {
 	registry  *featuregate.Registry
 	s         serializer.MetricSerializer
 	logsAgent logsagentpipeline.Component
-	h         hostname.Component
+	h         hostnameinterface.Component
 }
 
 func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attributes.Translator, error) {
@@ -45,7 +48,7 @@ func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attrib
 	return f.attributesTranslator, f.attributesErr
 }
 
-func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricSerializer, logsagent logsagentpipeline.Component, h hostname.Component) exporter.Factory {
+func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricSerializer, logsagent logsagentpipeline.Component, h hostnameinterface.Component) exporter.Factory {
 	f := &factory{
 		registry:  registry,
 		s:         s,
@@ -64,7 +67,7 @@ func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricS
 
 type tagEnricher struct{}
 
-func (t *tagEnricher) SetCardinality(cardinality string) (err error) {
+func (t *tagEnricher) SetCardinality(_ string) (err error) {
 	return nil
 }
 
@@ -77,7 +80,7 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 }
 
 // NewFactory creates a Datadog exporter factory
-func NewFactory(s serializer.MetricSerializer, logsAgent logsagentpipeline.Component, h hostname.Component) exporter.Factory {
+func NewFactory(s serializer.MetricSerializer, logsAgent logsagentpipeline.Component, h hostnameinterface.Component) exporter.Factory {
 	return newFactoryWithRegistry(featuregate.GlobalRegistry(), s, logsAgent, h)
 }
 
@@ -151,9 +154,9 @@ func checkAndCastConfig(c component.Config, logger *zap.Logger) *Config {
 
 // createTracesExporter creates a trace exporter based on this config.
 func (f *factory) createTracesExporter(
-	ctx context.Context,
-	set exporter.CreateSettings,
-	c component.Config,
+	_ context.Context,
+	_ exporter.CreateSettings,
+	_ component.Config,
 ) (exporter.Traces, error) {
 	// TODO implement
 	return nil, nil
@@ -181,7 +184,7 @@ func (f *factory) createMetricsExporter(
 func (f *factory) createLogsExporter(
 	ctx context.Context,
 	set exporter.CreateSettings,
-	c component.Config,
+	_ component.Config,
 ) (exporter.Logs, error) {
 	var logch chan *message.Message
 	if provider := f.logsAgent.GetPipelineProvider(); provider != nil {
@@ -190,7 +193,7 @@ func (f *factory) createLogsExporter(
 	lf := logsagentexporter.NewFactory(logch)
 	lc := &logsagentexporter.Config{
 		OtelSource:    "otel_agent",
-		LogSourceName: "otelcol",
+		LogSourceName: logsagentexporter.LogSourceName,
 	}
 	return lf.CreateLogsExporter(ctx, set, lc)
 }

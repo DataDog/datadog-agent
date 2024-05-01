@@ -1,5 +1,7 @@
-// Copyright The OpenTelemetry Authors
-// SPDX-License-Identifier: Apache-2.0
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2021-present Datadog, Inc.
 
 package datadogexporter
 
@@ -78,7 +80,7 @@ func TestSendAggregations(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
-			f := NewFactory(nil, nil)
+			f := NewFactory(nil, nil, nil)
 			cfg := f.CreateDefaultConfig().(*Config)
 			err := component.UnmarshalConfig(testInstance.cfgMap, cfg)
 			if err != nil || testInstance.err != "" {
@@ -154,7 +156,7 @@ func TestPeerTags(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
-			f := NewFactory(nil, nil)
+			f := NewFactory(nil, nil, nil)
 			cfg := f.CreateDefaultConfig().(*Config)
 			err := component.UnmarshalConfig(testInstance.cfgMap, cfg)
 			if err != nil || testInstance.err != "" {
