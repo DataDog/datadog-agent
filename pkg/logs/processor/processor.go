@@ -25,6 +25,7 @@ const UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {
+	pipelineID int
 	inputChan  chan *message.Message
 	outputChan chan *message.Message // strategy input
 	// ReconfigChan transports rules to use in order to reconfigure
@@ -41,10 +42,12 @@ type Processor struct {
 }
 
 // New returns an initialized Processor.
-func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component) *Processor {
-	sdsScanner := sds.CreateScanner()
+func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder,
+	diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component, pipelineID int) *Processor {
+	sdsScanner := sds.CreateScanner(pipelineID)
 
 	return &Processor{
+		pipelineID:                pipelineID,
 		inputChan:                 inputChan,
 		outputChan:                outputChan, // strategy input
 		ReconfigChan:              make(chan sds.ReconfigureOrder),

@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -107,7 +106,7 @@ func isValidStatusCode(code int) bool {
 }
 
 // getMoreEntries gets all results from paginated endpoints
-func getMoreEntries[T Content](client *Client, endpoint string, params map[string]string, pageInfo PageInfo) ([]T, error) {
+func getMoreEntries[T Content](client *Client, endpoint string, pageInfo PageInfo) ([]T, error) {
 	var responses []T
 	currentPageInfo := pageInfo
 
@@ -119,15 +118,15 @@ func getMoreEntries[T Content](client *Client, endpoint string, params map[strin
 		}
 
 		log.Tracef("Getting page %d from endpoint %s", page+1+1, endpoint)
-		// Update the params to get next API page
-		err := updatePaginationParams(currentPageInfo, params)
+		// Build pagination parameters for the to get next API page
+		nextParams, err := getNextPaginationParams(currentPageInfo, client.maxCount)
 		if err != nil {
 			return nil, err
 		}
-		log.Tracef("Pagination params for page %d from endpoint %s : %v", page+1+1, endpoint, params)
+		log.Tracef("Pagination params for page %d from endpoint %s : %v", page+1+1, endpoint, nextParams)
 
 		// Call the endpoint with the new params
-		data, err := get[T](client, endpoint, params)
+		data, err := get[T](client, endpoint, nextParams)
 		if err != nil {
 			return nil, err
 		}
@@ -139,20 +138,20 @@ func getMoreEntries[T Content](client *Client, endpoint string, params map[strin
 	return responses, nil
 }
 
-// updatePaginationParams updates query params to get next page
-func updatePaginationParams(info PageInfo, params map[string]string) error {
+// getNextPaginationParams builds query params to get next page
+func getNextPaginationParams(info PageInfo, count string) (map[string]string, error) {
+	newParams := make(map[string]string)
 	if info.MoreEntries {
 		// For endpoints that uses index-based pagination
-		endID, err := strconv.Atoi(info.EndID)
-		if err != nil {
-			return err
-		}
-		params["startId"] = fmt.Sprintf("%v", endID+1)
+		newParams["count"] = count
+		newParams["startId"] = info.EndID
+		return newParams, nil
 	} else if info.HasMoreData {
 		// For endpoints that uses scroll-based pagination (ES like)
-		params["scrollId"] = info.ScrollID
+		newParams["scrollId"] = info.ScrollID
+		return newParams, nil
 	}
-	return nil
+	return nil, fmt.Errorf("could not build next page params")
 }
 
 // getAllEntries gets all entries from paginated endpoints
@@ -163,7 +162,7 @@ func getAllEntries[T Content](client *Client, endpoint string, params map[string
 	}
 
 	// If API response is paginated, get the rest
-	entries, err := getMoreEntries[T](client, endpoint, params, data.PageInfo)
+	entries, err := getMoreEntries[T](client, endpoint, data.PageInfo)
 	if err != nil {
 		return nil, err
 	}

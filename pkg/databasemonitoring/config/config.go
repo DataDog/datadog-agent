@@ -34,5 +34,6 @@ func NewAuroraAutodiscoveryConfig() (AuroraConfig, error) {
 	discoveryConfigs.QueryTimeout = coreconfig.Datadog.GetInt(autoDiscoveryAuroraConfigKey + ".query_timeout")
 	discoveryConfigs.DiscoveryInterval = coreconfig.Datadog.GetInt(autoDiscoveryAuroraConfigKey + ".discovery_interval")
 	discoveryConfigs.Tags = coreconfig.Datadog.GetStringSlice(autoDiscoveryAuroraConfigKey + ".tags")
+	discoveryConfigs.Region = coreconfig.Datadog.GetString(autoDiscoveryAuroraConfigKey + ".region")
 	return discoveryConfigs, nil
 }

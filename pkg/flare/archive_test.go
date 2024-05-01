@@ -24,7 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -111,13 +111,13 @@ func setupIPCAddress(t *testing.T, URL string) *config.MockConfig {
 }
 
 func TestGetAgentTaggerList(t *testing.T) {
-	tagMap := make(map[string]tagger_api.TaggerListEntity)
-	tagMap["random_entity_name"] = tagger_api.TaggerListEntity{
+	tagMap := make(map[string]types.TaggerListEntity)
+	tagMap["random_entity_name"] = types.TaggerListEntity{
 		Tags: map[string][]string{
 			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
 		},
 	}
-	resp := tagger_api.TaggerListResponse{
+	resp := types.TaggerListResponse{
 		Entities: tagMap,
 	}
 
@@ -269,7 +269,7 @@ func TestProcessAgentChecks(t *testing.T) {
 
 	t.Run("without process-agent running", func(t *testing.T) {
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getProcessChecks(mock.Fb, func() (string, error) { return "fake:1337", nil })
+		getChecksFromProcessAgent(mock.Fb, func() (string, error) { return "fake:1337", nil })
 
 		mock.AssertFileContentMatch("error: process-agent is not running or is unreachable: error collecting data for 'process_discovery_check_output.json': .*", "process_check_output.json")
 	})
@@ -300,7 +300,7 @@ func TestProcessAgentChecks(t *testing.T) {
 		setupIPCAddress(t, srv.URL)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getProcessChecks(mock.Fb, config.GetProcessAPIAddressPort)
+		getChecksFromProcessAgent(mock.Fb, config.GetProcessAPIAddressPort)
 
 		mock.AssertFileContent(string(expectedProcessesJSON), "process_check_output.json")
 		mock.AssertFileContent(string(expectedContainersJSON), "container_check_output.json")

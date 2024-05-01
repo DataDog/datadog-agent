@@ -17,7 +17,6 @@ import (
 // Statistics represent that statistics exposed via
 // the eBPF verifier when  LogLevelStats is enabled
 type Statistics struct {
-	VerificationTime           int `json:"verification_time"`
 	StackDepth                 int `json:"stack_usage"`
 	InstructionsProcessed      int `json:"instruction_processed"`
 	InstructionsProcessedLimit int `json:"limit"`

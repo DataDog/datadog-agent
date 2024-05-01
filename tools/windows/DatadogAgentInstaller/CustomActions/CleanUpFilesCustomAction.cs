@@ -17,7 +17,9 @@ namespace Datadog.CustomActions
                 Path.Combine(projectLocation, "embedded2"),
                 Path.Combine(projectLocation, "embedded3"),
                 Path.Combine(applicationDataLocation, "install_info"),
-                Path.Combine(applicationDataLocation, "auth_token")
+                Path.Combine(applicationDataLocation, "auth_token"),
+                Path.Combine(applicationDataLocation, "conf.d", "win32_event_log.d", "profiles", "dd_security_events_high.yaml"),
+                Path.Combine(applicationDataLocation, "conf.d", "win32_event_log.d", "profiles", "dd_security_events_low.yaml"),
             };
             foreach (var path in toDelete)
             {

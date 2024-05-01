@@ -43,10 +43,6 @@ func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
 	return &remoteConfig{client: client}, nil
 }
 
-func newNoopRemoteConfig() *remoteConfig {
-	return &remoteConfig{}
-}
-
 // Start starts the remote config client.
 func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRemoteAPIRequest handleRemoteAPIRequest) {
 	if rc.client == nil {
@@ -59,17 +55,11 @@ func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRem
 
 // Close closes the remote config client.
 func (rc *remoteConfig) Close() {
-	if rc.client == nil {
-		return
-	}
 	rc.client.Close()
 }
 
 // SetState sets the state of the given package.
 func (rc *remoteConfig) SetState(packages []*pbgo.PackageState) {
-	if rc.client == nil {
-		return
-	}
 	rc.client.SetUpdaterPackagesState(packages)
 }
 

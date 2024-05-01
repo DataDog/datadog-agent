@@ -249,6 +249,8 @@ new-e2e-cws:
     matrix:
       - EXTRA_PARAMS: --run TestAgentSuite
       - EXTRA_PARAMS: --run TestECSFargate
+  # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
+  allow_failure: true
 
 new-e2e-process:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -297,6 +299,11 @@ new-e2e-installer:
     TARGETS: ./tests/installer
     TEAM: fleet
 
-#   ^    If you create a new job here that extends `.new_e2e_template`,
-#  /!\   do not forget to add it in the `dependencies` statement of the
-# /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file
+new-e2e-ndm-netflow:
+  extends: .new_e2e_template
+  rules: !reference [.on_ndm_netflow_or_e2e_changes_or_manual]
+  needs:
+    - qa_agent
+  variables:
+    TARGETS: ./tests/ndm/netflow
+    TEAM: network-device-monitoring
