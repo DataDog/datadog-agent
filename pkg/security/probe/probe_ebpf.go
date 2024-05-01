@@ -1776,6 +1776,13 @@ func getDoForkInput(kernelVersion *kernel.Version) uint64 {
 }
 
 func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
+	if val, err := constantfetch.GetHasUsernamespaceFirstArgWithBtf(); err == nil {
+		if val {
+			return 1
+		}
+		return 0
+	}
+
 	switch {
 	case kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_0:
 		return 1
