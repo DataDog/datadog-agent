@@ -22,3 +22,15 @@ func TestAgentConfig(t *testing.T) {
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
 	assert.Equal(t, "debug", c.Get("log_level"))
 }
+
+func TestNoDDExporter(t *testing.T) {
+	fileName := "testdata/config_no_dd_exporter.yaml"
+	_, err := NewConfigComponent(context.Background(), []string{fileName})
+	assert.EqualError(t, err, "no datadog exporter found")
+}
+
+func TestMultipleDDExporters(t *testing.T) {
+	fileName := "testdata/config_multiple_dd_exporters.yaml"
+	_, err := NewConfigComponent(context.Background(), []string{fileName})
+	assert.EqualError(t, err, "multiple datadog exporters found")
+}

@@ -62,14 +62,14 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	pkgconfig := pkgconfigmodel.NewConfig("OTel", "DD", strings.NewReplacer(".", "_"))
 	// Set Default values
 	pkgconfigsetup.InitConfig(pkgconfig)
-	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("site", site, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("site", site, pkgconfigmodel.SourceLocalConfigProcess)
 
-	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("logs_config.use_compression", true, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("log_level", sc.Telemetry.Logs.Level, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.use_compression", true, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("log_level", sc.Telemetry.Logs.Level, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceLocalConfigProcess)
 	return pkgconfig, nil
 }
 
@@ -79,7 +79,10 @@ func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
 	if s == nil {
 		return nil, fmt.Errorf("service config not found")
 	}
-	smap := s.(map[string]any)
+	smap, ok := s.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("invalid service config")
+	}
 	err := confmap.NewFromStringMap(smap).Unmarshal(&pipelineConfig)
 	if err != nil {
 		return nil, err
@@ -94,11 +97,17 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogexporter.Config, error) {
 		if k != "exporters" {
 			continue
 		}
-		exporters := v.(map[string]any)
+		exporters, ok := v.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid exporters config")
+		}
 		for k, v := range exporters {
 			if strings.HasPrefix(k, "datadog") {
 				var datadogConfig *datadogexporter.Config
-				m := v.(map[string]any)
+				m, ok := v.(map[string]any)
+				if !ok {
+					return nil, fmt.Errorf("invalid datadog exporter config")
+				}
 				err = confmap.NewFromStringMap(m).Unmarshal(&datadogConfig)
 				if err != nil {
 					return nil, err
