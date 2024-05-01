@@ -55,9 +55,9 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 
 	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d pathtest_ttl=%s pathtest_interval=%s exclude_cidr=%v)",
 		workers,
+		pathtestInputChanSize,
 		pathtestTTL.String(),
 		pathtestInterval.String(),
-		pathtestInputChanSize,
 		excludeCIDR)
 
 	var excludeIPManager *bogon.Bogon
