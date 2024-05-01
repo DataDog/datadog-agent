@@ -39,7 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
+	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
