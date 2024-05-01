@@ -228,7 +228,9 @@ func (s *npSchedulerImpl) flushLoop() {
 }
 
 func (s *npSchedulerImpl) flush() {
+	// TODO: Remove workers metric?
 	statsd.Client.Gauge("datadog.network_path.scheduler.workers", float64(s.workers), []string{}, 1) //nolint:errcheck
+
 	flowsContexts := s.pathtestStore.getPathtestContextCount()
 	statsd.Client.Gauge("datadog.network_path.scheduler.pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
 	flushTime := s.TimeNowFunction()
