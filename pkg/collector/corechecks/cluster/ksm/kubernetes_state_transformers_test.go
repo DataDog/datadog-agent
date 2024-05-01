@@ -1689,6 +1689,13 @@ func Test_validateJob(t *testing.T) {
 			want1: true,
 		},
 		{
+			name:  "empty reason tag",
+			val:   1.0,
+			tags:  []string{"reason:", "foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000"},
+			want:  []string{"foo:bar", "job_name:foo-1600167000", "kube_job:foo-1600167000", "kube_cronjob:foo"},
+			want1: true,
+		},
+		{
 			name:  "invalid reason",
 			val:   1.0,
 			tags:  []string{"foo:bar", "reason:error", "job_name:foo-1600167000", "kube_job:foo-1600167000"},

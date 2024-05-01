@@ -421,13 +421,13 @@ func trimJobTag(tag string) (string, bool) {
 	return trimmed, tag != trimmed
 }
 
-var allowedJobReasons = map[string]struct{}{
+var jobFailureReasons = map[string]struct{}{
 	"backofflimitexceeded": {},
 	"deadlineexceeded":     {},
 }
 
 func validJobReason(reason string) bool {
-	_, ok := allowedJobReasons[strings.ToLower(reason)]
+	_, ok := jobFailureReasons[strings.ToLower(reason)]
 	return ok
 }
 
@@ -435,20 +435,20 @@ func validJobReason(reason string) bool {
 func validateJob(val float64, tags []string) ([]string, bool) {
 	kubeCronjob := ""
 	for i, tag := range tags {
-		split := strings.Split(tag, ":")
-		if len(split) != 2 {
-			continue
+		if strings.HasPrefix(tag, "reason:") {
+			if v := strings.TrimPrefix(tag, "reason:"); !validJobReason(v) {
+				tags = append(tags[:i], tags[i+1:]...)
+				continue
+			}
 		}
-		if split[0] == "kube_job" || split[0] == "job" || split[0] == "job_name" {
+		split := strings.Split(tag, ":")
+		if len(split) == 2 && split[0] == "kube_job" || split[0] == "job" || split[0] == "job_name" {
 			// Trim the timestamp suffix to avoid high cardinality
 			if name, trimmed := trimJobTag(split[1]); trimmed {
 				// The trimmed job name corresponds to the parent cronjob name
 				// https://github.com/kubernetes/kubernetes/blob/v1.21.0/pkg/controller/cronjob/utils.go#L240
 				kubeCronjob = name
 			}
-		}
-		if split[0] == "reason" && !validJobReason(split[1]) {
-			tags = append(tags[:i], tags[i+1:]...)
 		}
 	}
 
