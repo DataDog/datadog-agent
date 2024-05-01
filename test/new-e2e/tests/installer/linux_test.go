@@ -38,7 +38,7 @@ const (
 	packagesDir           = "/opt/datadog-packages"
 	bootInstallerDir      = "/opt/datadog-installer"
 	rpm                   = "rpm"
-	apt                   = "apt"
+	dpkg                  = "dpkg"
 	zypper                = "zypper"
 )
 
@@ -88,12 +88,12 @@ func TestRedHatARM(t *testing.T) {
 
 func TestUbuntuARM(t *testing.T) {
 	t.Parallel()
-	runTest(t, apt, os.ARM64Arch, os.UbuntuDefault, true)
+	runTest(t, dpkg, os.ARM64Arch, os.UbuntuDefault, true)
 }
 
 func TestDebianX86(t *testing.T) {
 	t.Parallel()
-	runTest(t, apt, os.AMD64Arch, os.DebianDefault, true)
+	runTest(t, dpkg, os.AMD64Arch, os.DebianDefault, true)
 }
 
 func TestSuseX86(t *testing.T) {
@@ -475,6 +475,10 @@ func assertInstallMethod(v *installerSuite, t *testing.T, host *components.Remot
 	require.Nil(t, yaml.Unmarshal(rawYaml, &config))
 
 	assert.Equal(t, "installer_package", config.InstallMethod["installer_version"])
+	expectedPackageManager = v.packageManager
+	if v.packageManager == zypper {
+		expectedPackageManager = rpm
+	}
 	assert.Equal(t, v.packageManager, config.InstallMethod["tool"])
 	assert.True(t, "" != config.InstallMethod["tool_version"])
 }
