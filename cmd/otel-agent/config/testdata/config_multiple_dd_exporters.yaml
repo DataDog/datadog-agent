@@ -14,6 +14,10 @@ exporters:
     api:
       key: DATADOG_API_KEY
       site: datadoghq.com
+  datadog/exp2:
+    api:
+      key: DATADOG_API_KEY_2
+      site: eu.datadoghq.com
 processors:
   batch:
     timeout: 10s
@@ -31,7 +35,7 @@ service:
     metrics:
       receivers: [otlp]
       processors: [batch, resourcedetection]
-      exporters: [debug]
+      exporters: [debug, datadog/exp2]
     logs:
       receivers: [otlp]
       processors: [batch, resourcedetection]

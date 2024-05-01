@@ -44,7 +44,11 @@ func MakeRootCommand() *cobra.Command {
 
 func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	globalConfGetter := func() *subcommands.GlobalParams {
-		return globalParams
+		return &subcommands.GlobalParams{
+			ConfPath:   globalParams.ConfPath,
+			ConfigName: globalParams.ConfigName,
+			LoggerName: loggerName,
+		}
 	}
 	commands := []*cobra.Command{
 		run.MakeCommand(globalConfGetter),
@@ -59,8 +63,7 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 		otelAgentCmd.AddCommand(cmd)
 	}
 
-	flagSet := flags(featuregate.GlobalRegistry(), globalParams)
-	otelAgentCmd.PersistentFlags().AddGoFlagSet(flagSet)
+	otelAgentCmd.PersistentFlags().StringVarP(&globalParams.ConfPath, "config", "c", defaultConfigPath, "path to directory containing datadog.yaml")
 
 	return &otelAgentCmd
 }

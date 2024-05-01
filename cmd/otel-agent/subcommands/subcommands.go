@@ -13,17 +13,7 @@ import "strings"
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
-	ConfPaths  []string
-	Sets       []string
+	ConfPath   string
 	ConfigName string
 	LoggerName string
-}
-
-func (s *GlobalParams) Set(val string) error {
-	s.ConfPaths = append(s.ConfPaths, val)
-	return nil
-}
-
-func (s *GlobalParams) String() string {
-	return "[" + strings.Join(s.ConfPaths, ", ") + "]"
 }

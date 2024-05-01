@@ -10,10 +10,6 @@ exporters:
     endpoint: localhost:4317
     tls:
       insecure: true
-  datadog/exp1:
-    api:
-      key: DATADOG_API_KEY
-      site: datadoghq.com
 processors:
   batch:
     timeout: 10s
@@ -27,7 +23,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch, resourcedetection]
-      exporters: [debug, datadog/exp1]
+      exporters: [debug]
     metrics:
       receivers: [otlp]
       processors: [batch, resourcedetection]

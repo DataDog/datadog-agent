@@ -24,14 +24,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	"github.com/DataDog/datadog-agent/comp/otelcol"
 	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -75,18 +74,10 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 	fmt.Printf("Running the agent with params: %v\n", params)
 	err := fxutil.Run(
 		forwarder.Bundle(),
-		fx.Provide(func() []string {
-			return params.ConfPaths
-		}),
-		fx.Provide(func() (config.Component, error) {
-			c, err := agentconfig.NewConfigComponent(params.ConfPaths)
-			if err != nil {
-				return nil, err
-			}
-			env.DetectFeatures(c)
-			return c, nil
-		}),
-		fx.Provide(pipeline.NewProvider),
+		otelcol.Bundle(),
+		// TODO: remove this once we start reading the collector config
+		// We need to create a new config module from the collector config
+		config.Module(),
 		corelogimpl.Module(),
 		inventoryagentimpl.MockModule(),
 		workloadmeta.Module(),
@@ -100,6 +91,9 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 		}),
 
 		// TODO: remove this once we start reading the collector config
+		fx.Provide(func() config.Params {
+			return config.NewAgentParams(params.ConfPath)
+		}),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		fx.Provide(func() corelogimpl.Params {
 			// TODO configure the log level from collector config
