@@ -44,7 +44,9 @@ type collector struct {
 func New(deps dependencies) (collectordef.Component, error) {
 	set := otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
-			Version: "1.0.0",
+			Version:     "0.0.1",
+			Command:     "otel-agent",
+			Description: "Datedog Agent OpenTelemetry Collector Distribution",
 		},
 		Factories: func() (otelcol.Factories, error) {
 			factories, err := deps.CollectorContrib.OTelComponentFactories()
