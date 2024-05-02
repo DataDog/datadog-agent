@@ -14,14 +14,14 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
-from tasks.commands.docker import DockerCLI
+from tasks.commands.docker import DockerCLI, AGENT_REPOSITORY_PATH
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 
 DEVCONTAINER_DIR = ".devcontainer"
 DEVCONTAINER_FILE = "devcontainer.json"
 DEVCONTAINER_NAME = "datadog_agent_devcontainer"
-AGENT_REPOSITORY_PATH = "/workspaces/datadog-agent"
+DEVCONTAINER_IMAGE = "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-devenv:1-arm64"
 
 
 @task
@@ -108,9 +108,9 @@ def setup(
             "extensions": ["golang.Go"],
         }
     }
-    devcontainer[
-        "postStartCommand"
-    ] = f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && invoke install-tools && invoke deps"
+    devcontainer["postStartCommand"] = (
+        f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && invoke install-tools && invoke deps"
+    )
 
     with open(fullpath, "w") as sf:
         json.dump(devcontainer, sf, indent=4, sort_keys=False, separators=(',', ': '))
@@ -187,7 +187,7 @@ def run_on_devcontainer(func):
                 if not file().exists():
                     print(color_message("Generating the devcontainer file to run the linter in a container.", "orange"))
                     # TODO remove the hardcoded image and auto-pull it
-                    setup(ctx, image="486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-devenv:1-arm64")
+                    setup(ctx, image=DEVCONTAINER_IMAGE)
 
                 if not is_up(ctx):
                     print(color_message("Starting the devcontainer...", "orange"))
