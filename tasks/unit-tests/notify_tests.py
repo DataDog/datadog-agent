@@ -220,7 +220,7 @@ class TestSendStats(unittest.TestCase):
         pipeline_mock = repo_mock.pipelines.get
 
         trace_mock.return_value = b"E2E INTERNAL ERROR"
-        attrs={"jobs.list.return_value": get_fake_jobs(), "created_at": "2024-03-12T10:00:00.000Z"}
+        attrs = {"jobs.list.return_value": get_fake_jobs(), "created_at": "2024-03-12T10:00:00.000Z"}
         pipeline_mock.return_value = MagicMock(**attrs)
 
         notify.send_stats(MockContext(), print_to_stdout=True)

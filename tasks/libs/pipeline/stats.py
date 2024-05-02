@@ -72,10 +72,8 @@ def compute_failed_jobs_series(project_name: str):
             )
         )
 
-    if job_failure_stats:  # At least one job failed
-        pipeline_state = "failed"
-    else:
-        pipeline_state = "succeeded"
+    # Consider the pipeline state as failed if at least one job failed
+    pipeline_state = "failed" if job_failure_stats else "succeeded"
 
     pipeline_tags = [
         "repository:datadog-agent",
@@ -143,7 +141,7 @@ def compute_required_jobs_max_duration(project_name: str):
     ]
     series.append(
         create_gauge(
-            metric_name="datadog.ci.required_duration",
+            metric_name="datadog.ci.required_job.duration",
             timestamp=timestamp,
             value=max_duration,
             tags=pipeline_tags,
