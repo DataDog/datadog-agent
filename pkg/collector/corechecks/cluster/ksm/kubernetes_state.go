@@ -23,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-
 	//nolint:revive // TODO(CINT) Fix revive linter
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -153,7 +151,7 @@ type KSMConfig struct {
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	agentConfig          config.Config
+	agentConfig          ddconfig.Config
 	instance             *KSMConfig
 	allStores            [][]cache.Store
 	telemetry            *telemetryCache
@@ -480,7 +478,7 @@ func (k *KSMCheck) Run() error {
 	// we also do a safety check for dedicated runners to avoid trying the leader election
 	if !k.isCLCRunner || !k.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
-		if !config.Datadog.GetBool("leader_election") {
+		if !ddconfig.Datadog.GetBool("leader_election") {
 			return log.Error("Leader Election not enabled. The cluster-agent will not run the kube-state-metrics core check.")
 		}
 
@@ -869,7 +867,7 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 		CheckBase:          base,
 		instance:           instance,
 		telemetry:          newTelemetryCache(),
-		isCLCRunner:        config.IsCLCRunner(),
+		isCLCRunner:        ddconfig.IsCLCRunner(),
 		metricNamesMapper:  defaultMetricNamesMapper(),
 		metricAggregators:  defaultMetricAggregators(),
 		metricTransformers: defaultMetricTransformers(),
