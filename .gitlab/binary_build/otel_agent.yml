@@ -1,7 +1,6 @@
 ---
-otel_agent_binary_build:
+.build_otel_agent_binary_common:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
   stage: binary_build
   rules:
     - !reference [.except_mergequeue]
@@ -14,3 +13,13 @@ otel_agent_binary_build:
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/bin/otel-agent/otel-agent
+
+build_otel_agent_binary_x64:
+  extends: .build_otel_agent_binary_common
+  tags: ["arch:amd64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+
+build_otel_agent_binary_arm64:
+  extends: .build_otel_agent_binary_common
+  tags: ["arch:arm64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
