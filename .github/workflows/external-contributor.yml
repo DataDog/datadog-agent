@@ -28,7 +28,7 @@ jobs:
       - name: Set label on external contributor PRs
         run: |
           gh issue edit "$NUMBER" --milestone "$MILESTONE"
-          inv -e github.notify-community-pr --repo="$GH_REPO" --pr-id="$NUMBER"
+          inv -e github.handle-community-pr --repo="$GH_REPO" --pr-id="$NUMBER" --labels="$LABELS"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

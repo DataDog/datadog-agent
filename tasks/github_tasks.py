@@ -287,7 +287,10 @@ def _assign_pr_team_labels(gh, pr_id, teams):
 
 
 @task
-def notify_community_pr(_, repo='', pr_id=-1):
+def handle_community_pr(_, repo='', pr_id=-1, labels=''):
+    """
+    Will set labels and notify teams about a newly opened community PR
+    """
     from tasks.libs.ciproviders.github_api import GithubAPI
     from slack_sdk import WebClient
 
@@ -299,8 +302,9 @@ def notify_community_pr(_, repo='', pr_id=-1):
     channels = [GITHUB_SLACK_MAP[team.lower()] for team in teams if team if team.lower() in GITHUB_SLACK_MAP]
 
     # Update labels
-    for label in os.environ['LABELS'].split(','):
-        gh.add_pr_label(pr_id, label)
+    for label in labels.split(','):
+        if label:
+            gh.add_pr_label(pr_id, label)
 
     if teams != [ALL_TEAMS]:
         _assign_pr_team_labels(gh, pr_id, teams)
@@ -308,8 +312,7 @@ def notify_community_pr(_, repo='', pr_id=-1):
     # Create message
     pr = gh.get_pr(pr_id)
     title = pr.title.strip()
-    pr_url = f'https://github.com/DataDog/datadog-agent/pull/{pr_id}'
-    message = f':pr: *New Community PR*\n{title} <{pr_url}|{repo}#{pr_id}>'
+    message = f':pr: *New Community PR*\n{title} <{pr.html_url}|{repo}#{pr_id}>'
 
     # Post message
     client = WebClient(os.environ['SLACK_API_TOKEN'])
