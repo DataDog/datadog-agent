@@ -8,6 +8,8 @@
 package module
 
 import (
+	"fmt"
+
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
@@ -28,9 +30,14 @@ func preRegister(_ *sysconfigtypes.Config, moduleFactories []Factory) error {
 	return nil
 }
 
-func postRegister(_ *sysconfigtypes.Config, moduleFactories []Factory) error {
+func postRegister(cfg *sysconfigtypes.Config, moduleFactories []Factory) error {
 	if isEBPFRequired(moduleFactories) {
 		ebpf.FlushBTF()
+	}
+	if cfg.TelemetryEnabled && ebpf.ContentionCollector != nil {
+		if err := ebpf.ContentionCollector.Initialize(ebpf.TrackAllEBPFResources); err != nil {
+			return fmt.Errorf("failed to initialize lock contention collector: %w", err)
+		}
 	}
 	return nil
 }

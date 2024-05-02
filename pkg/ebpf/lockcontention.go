@@ -23,6 +23,8 @@ import (
 )
 
 const (
+	TrackAllEBPFResources = true
+
 	bpfObjectFile = "bytecode/build/co-re/lock_contention.o"
 
 	// bpf map names
@@ -84,11 +86,23 @@ type LockContentionCollector struct {
 }
 
 var (
-	contentionCollector *LockContentionCollector
+	ContentionCollector *LockContentionCollector
 )
 
 func NewLockContentionCollector() *LockContentionCollector {
-	contentionCollector = &LockContentionCollector{
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		return nil
+	}
+
+	// the tracepoints for collecting lock contention information
+	// are only available after v5.19.0
+	// https://github.com/torvalds/linux/commit/16edd9b511a13e7760ed4b92ba4e39bacda5c86f
+	if kversion < kernel.VersionCode(5, 19, 0) {
+		return nil
+	}
+
+	ContentionCollector = &LockContentionCollector{
 		maxContention: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Subsystem: "ebpf_locks",
@@ -115,7 +129,7 @@ func NewLockContentionCollector() *LockContentionCollector {
 		),
 	}
 
-	return contentionCollector
+	return ContentionCollector
 }
 
 func (l *LockContentionCollector) Describe(descs chan<- *prometheus.Desc) {
@@ -126,7 +140,14 @@ func (l *LockContentionCollector) Collect(metrics chan<- prometheus.Metric) {
 	return
 }
 
-func (l *LockContentionCollector) InitializeCollector(trackOnlyMapped bool) error {
+func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+
+	if l.trackedLockMemRanges != nil {
+		return nil
+	}
+
 	var name string
 	var err error
 
@@ -145,7 +166,7 @@ func (l *LockContentionCollector) InitializeCollector(trackOnlyMapped bool) erro
 		}
 
 		if name, err = GetMapNameFromMapID(uint32(mapid)); err != nil {
-			if trackOnlyMapped {
+			if !trackAllResources {
 				if err := mp.Close(); err != nil {
 					return fmt.Errorf("failed to close map: %w", err)
 				}
