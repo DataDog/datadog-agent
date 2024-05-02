@@ -6,10 +6,9 @@ import os
 import re
 import tarfile
 import xml.etree.ElementTree as ET
-from typing import TYPE_CHECKING, overload
-from gitlab.v4.objects import ProjectJob
+from typing import TYPE_CHECKING, Any, overload
 
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
 
 if TYPE_CHECKING:
     from typing_extensions import Literal
@@ -17,27 +16,31 @@ if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import Arch, Component, StackOutput, VMConfig
 
 
+def get_gitlab() -> Gitlab:
+    return Gitlab("DataDog/datadog-agent", str(get_gitlab_token()))
+
+
 class KMTJob:
     """Abstract class representing a Kernel Matrix Testing job, with common properties and methods for all job types"""
 
-    def __init__(self, job: ProjectJob):
-        self.gitlab = get_gitlab_repo()
-        self.job = job
+    def __init__(self, job_data: dict[str, Any]):
+        self.gitlab = get_gitlab()
+        self.job_data = job_data
 
     def __str__(self):
         return f"<KMTJob: {self.name}>"
 
     @property
     def id(self) -> int:
-        return self.job.id
+        return self.job_data["id"]
 
     @property
     def pipeline_id(self) -> int:
-        return self.job.pipeline["id"]
+        return self.job_data["pipeline"]["id"]
 
     @property
     def name(self) -> str:
-        return self.job.name
+        return self.job_data.get("name", "")
 
     @property
     def arch(self) -> Arch:
@@ -49,11 +52,11 @@ class KMTJob:
 
     @property
     def status(self) -> str:
-        return self.job.status
+        return self.job_data['status']
 
     @property
     def failure_reason(self) -> str:
-        return self.job.failure_reason
+        return self.job_data["failure_reason"]
 
     @overload
     def artifact_file(self, file: str, ignore_not_found: Literal[True]) -> str | None:  # noqa: U100
@@ -87,14 +90,16 @@ class KMTJob:
         ignore_not_found: if True, return None if the file is not found, otherwise raise an error
         """
         try:
-            res = self.gitlab.jobs.get(self.id, lazy=True).artifact(file)
-
-            return res.content
+            res = self.gitlab.artifact(self.id, file, ignore_not_found=ignore_not_found)
+            if res is None:
+                if not ignore_not_found:
+                    raise RuntimeError("Invalid return value from gitlab.artifact")
+                else:
+                    return None
+            res.raise_for_status()
         except Exception as e:
-            if ignore_not_found:
-                return None
-
             raise RuntimeError(f"Could not retrieve artifact {file}") from e
+        return res.content
 
 
 class KMTSetupEnvJob(KMTJob):
@@ -102,8 +107,8 @@ class KMTSetupEnvJob(KMTJob):
     the job name and output artifacts
     """
 
-    def __init__(self, job: ProjectJob):
-        super().__init__(job)
+    def __init__(self, job_data: dict[str, Any]):
+        super().__init__(job_data)
         self.associated_test_jobs: list[KMTTestRunJob] = []
 
     @property
@@ -160,8 +165,8 @@ class KMTTestRunJob(KMTJob):
     the job name and output artifacts
     """
 
-    def __init__(self, job: ProjectJob):
-        super().__init__(job)
+    def __init__(self, job_data: dict[str, Any]):
+        super().__init__(job_data)
         self.setup_job: KMTSetupEnvJob | None = None
 
     @property
@@ -226,10 +231,9 @@ def get_all_jobs_for_pipeline(pipeline_id: int | str) -> tuple[list[KMTSetupEnvJ
     setup_jobs: list[KMTSetupEnvJob] = []
     test_jobs: list[KMTTestRunJob] = []
 
-    gitlab = get_gitlab_repo()
-    jobs = gitlab.pipelines.get(pipeline_id, lazy=True).jobs.list(per_page=100, all=True)
-    for job in jobs:
-        name = job.name
+    gitlab = get_gitlab()
+    for job in gitlab.all_jobs(pipeline_id):
+        name = job.get("name", "")
         if name.startswith("kmt_setup_env"):
             setup_jobs.append(KMTSetupEnvJob(job))
         elif name.startswith("kmt_run_"):

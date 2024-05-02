@@ -24,7 +24,7 @@ func BenchmarkStatKeeperSameTX(b *testing.B) {
 
 	tx := new(KafkaTransaction)
 	copy(tx.Topic_name[:], topicName)
-	tx.Topic_name_size = uint16(topicNameSize)
+	tx.Topic_name_size = uint8(topicNameSize)
 
 	b.ReportAllocs()
 	b.ResetTimer()

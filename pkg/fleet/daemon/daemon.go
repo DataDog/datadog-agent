@@ -10,6 +10,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -18,10 +20,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -49,86 +52,49 @@ type daemonImpl struct {
 	m        sync.Mutex
 	stopChan chan struct{}
 
-	packageManager installer.Installer
-	remoteUpdates  bool
-	rc             *remoteConfig
-	catalog        catalog
-	requests       chan remoteAPIRequest
-	requestsWG     sync.WaitGroup
+	installer     installer.Installer
+	remoteUpdates bool
+	rc            *remoteConfig
+	catalog       catalog
+	requests      chan remoteAPIRequest
+	requestsWG    sync.WaitGroup
 }
 
-// BootstrapURL installs the given package from an URL.
-func BootstrapURL(ctx context.Context, url string, config config.Reader) error {
-	rc := newNoopRemoteConfig()
-	i := newDaemon(rc, newPackageManager(config), false)
-	err := i.Start(ctx)
-	if err != nil {
-		return fmt.Errorf("could not start daemon: %w", err)
-	}
-	defer func() {
-		err := i.Stop(ctx)
-		if err != nil {
-			log.Errorf("could not stop daemon: %v", err)
-		}
-	}()
-	return i.Install(ctx, url)
-}
-
-// Bootstrap is the generic installer bootstrap.
-func Bootstrap(ctx context.Context, config config.Reader) error {
-	rc := newNoopRemoteConfig()
-	i := newDaemon(rc, newPackageManager(config), false)
-	err := i.Start(ctx)
-	if err != nil {
-		return fmt.Errorf("could not start daemon: %w", err)
-	}
-	defer func() {
-		err := i.Stop(ctx)
-		if err != nil {
-			log.Errorf("could not stop daemon: %v", err)
-		}
-	}()
-	return i.Bootstrap(ctx)
-}
-
-// Remove removes an individual package
-func Remove(ctx context.Context, pkg string) error {
-	packageManager := installer.NewInstaller()
-	return packageManager.Remove(ctx, pkg)
-}
-
-func newPackageManager(config config.Reader) installer.Installer {
+func newInstaller(config config.Reader, installerBin string) installer.Installer {
 	registry := config.GetString("updater.registry")
 	registryAuth := config.GetString("updater.registry_auth")
-	var opts []installer.Options
-	if registry != "" {
-		opts = append(opts, installer.WithRegistry(registry))
-	}
-	if registryAuth != "" {
-		opts = append(opts, installer.WithRegistryAuth(installer.RegistryAuth(registryAuth)))
-	}
-	return installer.NewInstaller(opts...)
+	apiKey := utils.SanitizeAPIKey(config.GetString("api_key"))
+	site := config.GetString("site")
+	return exec.NewInstallerExec(installerBin, registry, registryAuth, apiKey, site)
 }
 
 // NewDaemon returns a new daemon.
 func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, error) {
+	installerBin, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("could not get installer executable path: %w", err)
+	}
+	installerBin, err = filepath.EvalSymlinks(installerBin)
+	if err != nil {
+		return nil, fmt.Errorf("could not get resolve installer executable path: %w", err)
+	}
 	rc, err := newRemoteConfig(rcFetcher)
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	packagesManager := newPackageManager(config)
+	installer := newInstaller(config, installerBin)
 	remoteUpdates := config.GetBool("updater.remote_updates")
-	return newDaemon(rc, packagesManager, remoteUpdates), nil
+	return newDaemon(rc, installer, remoteUpdates), nil
 }
 
-func newDaemon(rc *remoteConfig, packageManager installer.Installer, remoteUpdates bool) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer installer.Installer, remoteUpdates bool) *daemonImpl {
 	i := &daemonImpl{
-		remoteUpdates:  remoteUpdates,
-		rc:             rc,
-		packageManager: packageManager,
-		requests:       make(chan remoteAPIRequest, 32),
-		catalog:        catalog{},
-		stopChan:       make(chan struct{}),
+		remoteUpdates: remoteUpdates,
+		rc:            rc,
+		installer:     installer,
+		requests:      make(chan remoteAPIRequest, 32),
+		catalog:       catalog{},
+		stopChan:      make(chan struct{}),
 	}
 	i.refreshState(context.Background())
 	return i
@@ -139,7 +105,7 @@ func (d *daemonImpl) GetState() (map[string]repository.State, error) {
 	d.m.Lock()
 	defer d.m.Unlock()
 
-	return d.packageManager.States()
+	return d.installer.States()
 }
 
 // GetPackage returns the package with the given name and version.
@@ -163,7 +129,7 @@ func (d *daemonImpl) Start(_ context.Context) error {
 			select {
 			case <-time.After(gcInterval):
 				d.m.Lock()
-				err := d.packageManager.GarbageCollect(context.Background())
+				err := d.installer.GarbageCollect(context.Background())
 				d.m.Unlock()
 				if err != nil {
 					log.Errorf("Daemon: could not run GC: %v", err)
@@ -196,25 +162,6 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 	return nil
 }
 
-// Bootstrap is the method used for the installer to install itself
-func (d *daemonImpl) Bootstrap(ctx context.Context) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "bootstrap")
-	defer func() { span.Finish(tracer.WithError(err)) }()
-	d.m.Lock()
-	defer d.m.Unlock()
-	d.refreshState(ctx)
-	defer d.refreshState(ctx)
-
-	// We don't need to setup anything for the installer if we are not doing remote updates
-	if d.remoteUpdates {
-		err = service.SetupInstaller(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to setup datadog-installer systemd units: %w", err)
-		}
-	}
-	return nil
-}
-
 // Install installs the package from the given URL.
 func (d *daemonImpl) Install(ctx context.Context, url string) error {
 	d.m.Lock()
@@ -223,13 +170,13 @@ func (d *daemonImpl) Install(ctx context.Context, url string) error {
 }
 
 func (d *daemonImpl) install(ctx context.Context, url string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "start_experiment")
+	span, ctx := tracer.StartSpanFromContext(ctx, "install")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
-	log.Infof("Daemon: Bootstrapping package from %s", url)
-	err = d.packageManager.Install(ctx, url)
+	log.Infof("Daemon: Installing package from %s", url)
+	err = d.installer.Install(ctx, url)
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}
@@ -251,7 +198,7 @@ func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting experiment for package from %s", url)
-	err = d.packageManager.InstallExperiment(ctx, url)
+	err = d.installer.InstallExperiment(ctx, url)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
@@ -273,7 +220,7 @@ func (d *daemonImpl) promoteExperiment(ctx context.Context, pkg string) (err err
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Promoting experiment for package %s", pkg)
-	err = d.packageManager.PromoteExperiment(ctx, pkg)
+	err = d.installer.PromoteExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -295,7 +242,7 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Stopping experiment for package %s", pkg)
-	err = d.packageManager.RemoveExperiment(ctx, pkg)
+	err = d.installer.RemoveExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
@@ -325,7 +272,7 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
-	s, err := d.packageManager.State(request.Package)
+	s, err := d.installer.State(request.Package)
 	if err != nil {
 		return fmt.Errorf("could not get installer state: %w", err)
 	}
@@ -396,7 +343,7 @@ func setRequestDone(ctx context.Context, err error) {
 }
 
 func (d *daemonImpl) refreshState(ctx context.Context) {
-	state, err := d.packageManager.States()
+	state, err := d.installer.States()
 	if err != nil {
 		// TODO: we should report this error through RC in some way
 		log.Errorf("could not get installer state: %v", err)

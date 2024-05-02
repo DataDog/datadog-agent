@@ -21,7 +21,7 @@ type windowsHostnameSuite struct {
 	baseHostnameSuite
 }
 
-func TestWindowsHostnameEC2Suite(t *testing.T) {
+func TestWindowsHostnameSuite(t *testing.T) {
 	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))
 	e2e.Run(t, &windowsHostnameSuite{baseHostnameSuite: baseHostnameSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(osOption)))
 }
