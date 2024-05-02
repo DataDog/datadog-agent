@@ -16,6 +16,7 @@ import (
 
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
@@ -113,6 +114,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
 				taggerimpl.MockModule(),
+				telemetryimpl.Module(),
 				Module(),
 
 				fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
@@ -173,6 +175,7 @@ func TestStatusProvider(t *testing.T) {
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
 				taggerimpl.MockModule(),
+				telemetryimpl.Module(),
 				Module(),
 				fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
 					"process_config.run_in_core_agent.enabled": true,
