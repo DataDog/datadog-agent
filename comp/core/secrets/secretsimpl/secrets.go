@@ -12,7 +12,6 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
-	"net/http"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -27,8 +26,6 @@ import (
 	"golang.org/x/exp/maps"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -41,10 +38,8 @@ const auditFileBasename = "secret-audit-file.json"
 type provides struct {
 	fx.Out
 
-	Comp            secrets.Component
-	FlareProvider   flaretypes.Provider
-	InfoEndpoint    api.AgentEndpointProvider
-	RefreshEndpoint api.AgentEndpointProvider
+	Comp          secrets.Component
+	FlareProvider flaretypes.Provider
 }
 
 type dependencies struct {
@@ -115,10 +110,8 @@ func newSecretResolverProvider(deps dependencies) provides {
 	resolver := newEnabledSecretResolver()
 	resolver.enabled = deps.Params.Enabled
 	return provides{
-		Comp:            resolver,
-		FlareProvider:   flaretypes.NewProvider(resolver.fillFlare),
-		InfoEndpoint:    api.NewAgentEndpointProvider(resolver.writeDebugInfo, "/secrets", "GET"),
-		RefreshEndpoint: api.NewAgentEndpointProvider(resolver.handleRefresh, "/secret/refresh", "GET"),
+		Comp:          resolver,
+		FlareProvider: flaretypes.NewProvider(resolver.fillFlare),
 	}
 }
 
@@ -131,19 +124,6 @@ func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 	fb.AddFile("secrets.log", buffer.Bytes())
 	fb.CopyFile(r.auditFilename)
 	return nil
-}
-
-func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) {
-	r.GetDebugInfo(w)
-}
-
-func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
-	result, err := r.Refresh()
-	if err != nil {
-		utils.SetJSONError(w, err, 500)
-		return
-	}
-	w.Write([]byte(result))
 }
 
 // assocate with the handle itself the origin (filename) and path where the handle appears

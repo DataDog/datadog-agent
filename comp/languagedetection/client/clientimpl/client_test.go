@@ -95,7 +95,7 @@ func TestClientEnabled(t *testing.T) {
 				deps := fxutil.Test[dependencies](t, fx.Options(
 					config.MockModule(),
 					fx.Provide(func() optional.Option[secrets.Component] {
-						return optional.NewOption[secrets.Component](secretsimpl.NewMock().Comp)
+						return optional.NewOption[secrets.Component](secretsimpl.NewMock())
 					}),
 					fx.Replace(config.MockParams{Overrides: map[string]interface{}{
 						"language_detection.enabled":           testCase.languageDetectionEnabled,

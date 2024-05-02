@@ -27,7 +27,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -118,6 +118,8 @@ func SetupHandlers(
 		setting := vars["setting"]
 		settings.SetValue(setting, w, r)
 	}).Methods("POST")
+	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretResolver) }).Methods("GET")
+	r.HandleFunc("/secret/refresh", func(w http.ResponseWriter, r *http.Request) { secretRefresh(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/metadata/gohai", metadataPayloadGohai).Methods("GET")
 	r.HandleFunc("/metadata/v5", func(w http.ResponseWriter, r *http.Request) { metadataPayloadV5(w, r, hostMetadata) }).Methods("GET")
 	r.HandleFunc("/metadata/inventory-checks", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvChecks(w, r, invChecks) }).Methods("GET")
@@ -377,6 +379,19 @@ func getCSRFToken(w http.ResponseWriter, optGui optional.Option[gui.Component]) 
 		return
 	}
 	w.Write([]byte(gui.GetCSRFToken()))
+}
+
+func secretInfo(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
+	secretResolver.GetDebugInfo(w)
+}
+
+func secretRefresh(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
+	result, err := secretResolver.Refresh()
+	if err != nil {
+		utils.SetJSONError(w, err, 500)
+		return
+	}
+	w.Write([]byte(result))
 }
 
 func metadataPayloadV5(w http.ResponseWriter, _ *http.Request, hostMetadataComp host.Component) {

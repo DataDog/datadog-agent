@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/api/api"
-	apiutils "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
 	taggerComp "github.com/DataDog/datadog-agent/comp/core/tagger"

@@ -29,7 +29,7 @@ func TestBundleDependencies(t *testing.T) {
 		telemetryimpl.Module(),
 		logimpl.Module(),
 		fx.Provide(func() optional.Option[secrets.Component] {
-			return optional.NewOption[secrets.Component](secretsimpl.NewMock().Comp)
+			return optional.NewOption[secrets.Component](secretsimpl.NewMock())
 		}),
 		secretsimpl.MockModule(),
 		fx.Supply(logimpl.Params{}),
