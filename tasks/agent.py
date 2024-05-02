@@ -442,7 +442,6 @@ def hacky_dev_image_build(
     ctx,
     base_image=None,
     target_image="agent",
-    target_tag="latest",
     push=False,
     signed_pull=False,
 ):
@@ -533,14 +532,13 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
         )
         dockerfile.flush()
 
-        target_image_name = f'{target_image}:{target_tag}'
         pull_env = {}
         if signed_pull:
             pull_env['DOCKER_CONTENT_TRUST'] = '1'
-        ctx.run(f'docker build -t {target_image_name} -f {dockerfile.name} .', env=pull_env)
+        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
 
         if push:
-            ctx.run(f'docker push {target_image_name}')
+            ctx.run(f'docker push {target_image}')
 
 
 @task
