@@ -633,6 +633,16 @@ def build_sysprobe_binary(
     ctx.run(cmd.format(**args), env=env)
 
 
+def get_sysprobe_buildtags(is_windows, bundle_ebpf):
+    build_tags = [NPM_TAG]
+    build_tags.extend(UNIT_TEST_TAGS)
+    if not is_windows:
+        build_tags.append(BPF_TAG)
+        if bundle_ebpf:
+            build_tags.append(BUNDLE_TAG)
+    return build_tags
+
+
 @task
 def test(
     ctx,
@@ -666,12 +676,7 @@ def test(
             instrument_trampoline=False,
         )
 
-    build_tags = [NPM_TAG]
-    build_tags.extend(UNIT_TEST_TAGS)
-    if not is_windows:
-        build_tags.append(BPF_TAG)
-        if bundle_ebpf:
-            build_tags.append(BUNDLE_TAG)
+    build_tags = get_sysprobe_buildtags(is_windows, bundle_ebpf)
 
     args = get_common_test_args(build_tags, failfast)
     args["output_params"] = f"-c -o {output_path}" if output_path else ""
@@ -1517,7 +1522,7 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
                     },
                 )
 
-    ctx.run(f"ninja -f {ninja_file_path}")
+    ctx.run(f"ninja -f {ninja_file_path}", env={"NINJA_STATUS": "(%r running) (%c/s) (%es) [%f/%t] "})
 
 
 @task
@@ -1577,13 +1582,12 @@ def process_btfhub_archive(ctx, branch="main"):
         # generate both tarballs
         for arch in ["x86_64", "arm64"]:
             btfs_dir = os.path.join(temp_dir, f"btfs-{arch}")
-            output_path = os.path.join(output_dir, f"btfs-{arch}.tar.gz")
+            output_path = os.path.join(output_dir, f"btfs-{arch}.tar")
             # at least one file needs to be moved for directory to exist
             if os.path.exists(btfs_dir):
                 with ctx.cd(temp_dir):
-                    # gzip ends up being much faster than xz, for roughly the same output file size
                     # include btfs-$ARCH as prefix for all paths
-                    ctx.run(f"tar -czf {output_path} btfs-{arch}")
+                    ctx.run(f"tar -cf {output_path} btfs-{arch}")
 
 
 @task
@@ -1760,9 +1764,10 @@ def start_microvms(
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))
-    ctx.run(
-        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go {go_args}",
-    )
+
+    # building the binary improves start up time for local usage where we invoke this multiple times.
+    ctx.run("cd ./test/new-e2e && go build -o start-microvms ./scenarios/system-probe/main.go")
+    ctx.run(f"./test/new-e2e/start-microvms {go_args}")
 
 
 @task

@@ -41,9 +41,10 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
@@ -530,7 +531,7 @@ func TestProcess(t *testing.T) {
 }
 
 func spansToChunk(spans ...*pb.Span) *pb.TraceChunk {
-	return &pb.TraceChunk{Spans: spans}
+	return &pb.TraceChunk{Spans: spans, Tags: make(map[string]string)}
 }
 
 func dropped(c *pb.TraceChunk) *pb.TraceChunk {
