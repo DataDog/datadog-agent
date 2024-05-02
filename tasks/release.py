@@ -1039,6 +1039,8 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
     Updates internal module dependencies with the new version.
     """
 
+    # Step 1: Preparation
+
     if sys.version_info[0] < 3:
         return Exit(message="Must use Python 3 for this task", code=1)
 
@@ -1056,10 +1058,13 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
         new_version = next_final_version(ctx, major_version, False)
         update_release_json(new_version, new_version)
 
-    # Update internal module dependencies
+    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
+    # Step 2: Update internal module dependencies
+
     update_modules(ctx, str(new_version))
 
-    # Step 3: branch out, commit change, push branch
+    # Step 3: Branch out, commit change, push branch
 
     final_branch = f"{new_version}-final"
 
@@ -1087,7 +1092,7 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
             code=1,
         )
 
-    # Step 4: add release changelog preludes
+    # Step 4: Add release changelog preludes
     print(color_message("Adding Agent release changelog prelude", "bold"))
     add_prelude(ctx, str(new_version))
 
@@ -1104,7 +1109,7 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
             code=1,
         )
 
-    # Step 5: push branch and create PR
+    # Step 5: Push branch and create PR
 
     print(color_message("Pushing new branch to the upstream repository", "bold"))
     res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
@@ -1117,7 +1122,6 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
             code=1,
         )
 
-    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
     create_pr(
         f"Final updates for release.json and Go modules for {new_version} release + preludes",
         current_branch,
