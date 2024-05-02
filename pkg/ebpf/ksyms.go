@@ -30,6 +30,8 @@ func newExistCache(path string) *existCache {
 	}
 }
 
+const invalidAddress = 0xffffffffffffffff
+
 var funcCache = newExistCache("/proc/kallsyms")
 
 // VerifyKernelFuncs ensures all kernel functions exist in ksyms located at provided path.
@@ -107,14 +109,15 @@ func (ec *existCache) verifyKernelFuncs(requiredKernelFuncs []string) (map[strin
 		}
 		// anything left in check is missing
 		for _, rf := range check {
-			ec.c[string(rf)] = 0
+			// set invalid address to indicate missing
+			ec.c[string(rf)] = invalidAddress
 		}
 	}
 
 	// only return missing funcs at this point
 	missingStrs := make(map[string]struct{})
 	for _, rf := range requiredKernelFuncs {
-		if v, ok := ec.c[rf]; !ok || (v == 0) {
+		if v, ok := ec.c[rf]; !ok || (v == invalidAddress) {
 			missingStrs[rf] = struct{}{}
 		}
 	}

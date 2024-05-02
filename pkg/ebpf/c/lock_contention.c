@@ -1,4 +1,5 @@
 #include "ktypes.h"
+#include "lock_contention.h"
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
 #include "bpf_core_read.h"
@@ -8,11 +9,6 @@
 #include <asm-generic/errno-base.h>
 
 #define LOCK_CONTENTION_IOCTL_ID 0x70C13
-
-struct lock_range {
-    u64 addr_start;
-    u64 range;
-};
 
 BPF_HASH_MAP(map_addr_fd, struct lock_range, u32, 0);
 
@@ -70,14 +66,20 @@ static __always_inline enum bpf_map_type get_bpf_map_type(struct bpf_map* map) {
     return mtype;
 }
 
-//static __always_inline int per_cpu_ptr(void *ptr, int cpu) {
-//    return 0;
-//}
-
-static __always_inline int record_pcpu_freelist_lock(u32 fd, struct bpf_map* bm) {
+static __always_inline u64 per_cpu_ptr(u64 ptr, u64 cpu) {
     u64 cpu_per_cpu_region;
+    int err;
+
+    err = bpf_core_read(&cpu_per_cpu_region, sizeof(u64), __per_cpu_offset + (cpu * 8));
+    if (err < 0)
+        return 0;
+
+    return ptr + cpu_per_cpu_region;
+}
+
+static __always_inline int record_pcpu_freelist_locks(u32 fd, struct bpf_map* bm) {
     struct pcpu_freelist freelist;
-    u64 pcpu_head; // struct pcpu_freelist_head *pcpu_head
+    u64 region;
     int err;
 
     struct bpf_htab *htab = container_of(bm, struct bpf_htab, map);
@@ -86,19 +88,26 @@ static __always_inline int record_pcpu_freelist_lock(u32 fd, struct bpf_map* bm)
     if (err < 0)
         return err;
 
-    pcpu_head = (u64)freelist.freelist;
     for (int i = 0; i < num_cpus; i++) {
-        err = bpf_core_read(&cpu_per_cpu_region, sizeof(u64), __per_cpu_offset + (i * 8));
-        if (err < 0)
-            return err;
+        region = per_cpu_ptr((u64)(freelist.freelist), i);
+        if (!region)
+            return -EINVAL;
 
-        struct lock_range lr = { .addr_start =  pcpu_head + cpu_per_cpu_region, .range = 0 };
-        log_info("monitoring range starting @ 0x%llx\n", lr.addr_start);
+        struct lock_range lr = { .addr_start =  region, .range = sizeof(struct pcpu_freelist_head) };
+//        log_info("[%d] monitoring range starting @ 0x%llx\n", i, lr.addr_start);
 
         err = bpf_map_update_elem(&map_addr_fd, &lr, &fd, BPF_NOEXIST);
         if (err < 0)
             return err;
     }
+
+    // this regions contains the lock htab->freelist.extralist.lock
+    struct lock_range lr = { .addr_start = (u64)(&htab->freelist), .range = sizeof(struct pcpu_freelist) };
+ //   log_info("monitoring range starting @ 0x%llx\n", lr.addr_start);
+
+    err = bpf_map_update_elem(&map_addr_fd, &lr, &fd, BPF_NOEXIST);
+    if (err < 0)
+        return err;
 
     return 0;
 }
@@ -121,7 +130,7 @@ static __always_inline int record_bucket_locks(u32 fd, struct bpf_map* bm) {
     u64 memsz = n_buckets * sizeof(struct bucket);
     struct lock_range lr = { .addr_start = buckets, .range = memsz};
 
-    log_info("Range start: 0x%llx, range size: 0x%llx", lr.addr_start, lr.range);
+    //log_info("Range start: 0x%llx, range size: 0x%llx", lr.addr_start, lr.range);
 
     err = bpf_map_update_elem(&map_addr_fd, &lr, &fd, BPF_NOEXIST);
     if (err < 0)
@@ -137,6 +146,13 @@ static __always_inline int record_bucket_locks(u32 fd, struct bpf_map* bm) {
      || (mtype == BPF_MAP_TYPE_PERCPU_HASH) \
      || (mtype == BPF_MAP_TYPE_HASH_OF_MAPS))
 
+
+#define log_and_ret_err(err) \
+{ \
+    log_info("[%d] err: %d", __LINE__, err); \
+    return 0; \
+}
+
 SEC("kprobe/do_vfs_ioctl")
 int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
     int err;
@@ -144,39 +160,36 @@ int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
     struct file* bpf_map_file;
 
     u32 cmd = PT_REGS_PARM3(ctx);
-    if (cmd != LOCK_CONTENTION_IOCTL_ID) {
+    if (cmd != LOCK_CONTENTION_IOCTL_ID)
         return 0;
-    }
 
     u32 fd = PT_REGS_PARM2(ctx);
     if (fd <= 2)
-        return 0;
+        log_and_ret_err(-EINVAL);
 
-    if (!is_bpf_map(fd, &bpf_map_file)) {
-        return 0;
-    }
+    if (!is_bpf_map(fd, &bpf_map_file))
+        log_and_ret_err(-EINVAL);
 
     err = bpf_core_read(&bm, sizeof(struct bpf_map *), &bpf_map_file->private_data);
     if (err < 0)
-        return 0;
+        log_and_ret_err(err);
 
     if (bm == NULL)
-        return 0;
+        log_and_ret_err(-EINVAL);
 
     enum bpf_map_type mtype = get_bpf_map_type(bm);
     if (mtype == BPF_MAP_TYPE_UNSPEC)
-        return 0;
+        log_and_ret_err(-EINVAL);
 
     if (HAS_HASH_MAP_BUCKET_LOCKS(mtype)) {
         err = record_bucket_locks(fd, bm);
         if (err < 0)
-            return 0;
+            log_and_ret_err(err);
 
-        err = record_pcpu_freelist_lock(fd, bm);
-        if (err < 0) {
-            log_info("record_pcpu_freelist_lock: err: %d\n", err);
-            return 0;
-        }
+        err = record_pcpu_freelist_locks(fd, bm);
+        if (err < 0)
+            log_and_ret_err(err);
+
     }
 
     return 0;
@@ -195,13 +208,13 @@ BPF_HASH_MAP(lock_stat, struct lock_range, struct contention_data, 0);
 BPF_PERCPU_ARRAY_MAP(ranges, struct lock_range, 0);
 
 /* control flags */
-int enabled;
+//int enabled;
 
 /* error stat */
-int task_fail;
-int time_fail;
-int data_fail;
-
+//int task_fail;
+//int time_fail;
+//int data_fail;
+//
 int data_map_full;
 
 // binary search over all ranges
@@ -269,13 +282,13 @@ static __always_inline struct tstamp_data *get_tstamp_elem(__u32 flags) {
 		struct tstamp_data zero = {};
 
 		if (bpf_map_update_elem(&tstamp, &pid, &zero, BPF_NOEXIST) < 0) {
-			__sync_fetch_and_add(&task_fail, 1);
+			//__sync_fetch_and_add(&task_fail, 1);
 			return NULL;
 		}
 
 		pelem = bpf_map_lookup_elem(&tstamp, &pid);
 		if (pelem == NULL) {
-			__sync_fetch_and_add(&task_fail, 1);
+			//__sync_fetch_and_add(&task_fail, 1);
 			return NULL;
 		}
 	}
@@ -284,12 +297,13 @@ static __always_inline struct tstamp_data *get_tstamp_elem(__u32 flags) {
 }
 
 SEC("tp_btf/contention_begin")
-int contention_begin(u64 *ctx)
+int tracepoint__contention_begin(u64 *ctx)
 {
 	struct tstamp_data *pelem;
     struct lock_range range;
 
-	if (!enabled || !can_record(ctx, &range))
+
+	if (!can_record(ctx, &range))
 		return 0;
 
 	pelem = get_tstamp_elem(ctx[1]);
@@ -313,16 +327,13 @@ struct contention_data {
 };
 
 SEC("tp_btf/contention_end")
-int contention_end(u64 *ctx)
+int tracepoint__contention_end(u64 *ctx)
 {
 	__u32 pid = 0, idx = 0;
 	struct tstamp_data *pelem;
 	struct contention_data *data;
 	__u64 duration;
 	bool need_delete = false;
-
-	if (!enabled)
-		return 0;
 
 	/*
 	 * For spinlock and rwlock, it needs to get the timestamp for the
@@ -350,7 +361,7 @@ int contention_end(u64 *ctx)
 		pelem->lock = 0;
 		if (need_delete)
 			bpf_map_delete_elem(&tstamp, &pid);
-		__sync_fetch_and_add(&time_fail, 1);
+		//__sync_fetch_and_add(&time_fail, 1);
 		return 0;
 	}
 
@@ -361,7 +372,7 @@ int contention_end(u64 *ctx)
 			pelem->lock = 0;
 			if (need_delete)
 				bpf_map_delete_elem(&tstamp, &pid);
-			__sync_fetch_and_add(&data_fail, 1);
+			//__sync_fetch_and_add(&data_fail, 1);
 			return 0;
 		}
 
@@ -378,7 +389,7 @@ int contention_end(u64 *ctx)
 		if (err < 0) {
 			if (err == -E2BIG)
 				data_map_full = 1;
-			__sync_fetch_and_add(&data_fail, 1);
+			//__sync_fetch_and_add(&data_fail, 1);
 		}
 
 		pelem->lock = 0;
