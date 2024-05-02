@@ -242,6 +242,17 @@ func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 }
 
 // nolint: deadcode, unused
+func newAWSSecurityCredentialsSerializer(creds *model.AWSSecurityCredentials) *AWSSecurityCredentialsSerializer {
+	return &AWSSecurityCredentialsSerializer{
+		Code:        creds.Code,
+		Type:        creds.Type,
+		LastUpdated: creds.LastUpdated,
+		Expiration:  creds.ExpirationRaw,
+		AccessKeyID: creds.AccessKeyID,
+	}
+}
+
+// nolint: deadcode, unused
 func newIMDSEventSerializer(e *model.IMDSEvent) *IMDSEventSerializer {
 	var aws *AWSIMDSEventSerializer
 	if e.CloudProvider == model.IMDSAWSCloudProvider {
@@ -249,13 +260,7 @@ func newIMDSEventSerializer(e *model.IMDSEvent) *IMDSEventSerializer {
 			IsIMDSv2: e.AWS.IsIMDSv2,
 		}
 		if len(e.AWS.SecurityCredentials.AccessKeyID) > 0 {
-			aws.SecurityCredentials = &AWSSecurityCredentialsSerializer{
-				Code:        e.AWS.SecurityCredentials.Code,
-				Type:        e.AWS.SecurityCredentials.Type,
-				LastUpdated: e.AWS.SecurityCredentials.LastUpdated,
-				Expiration:  e.AWS.SecurityCredentials.ExpirationRaw,
-				AccessKeyID: e.AWS.SecurityCredentials.AccessKeyID,
-			}
+			aws.SecurityCredentials = newAWSSecurityCredentialsSerializer(&e.AWS.SecurityCredentials)
 		}
 	}
 

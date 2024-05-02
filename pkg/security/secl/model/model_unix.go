@@ -188,6 +188,8 @@ type Process struct {
 
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
 
+	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
+
 	ArgsID uint32 `field:"-"`
 	EnvsID uint32 `field:"-"`
 
