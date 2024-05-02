@@ -4360,3 +4360,5 @@ core,skywalking.apache.org/repo/goapi/collect/event/v3,Apache-2.0,Copyright 2017
 core,skywalking.apache.org/repo/goapi/collect/language/agent/v3,Apache-2.0,Copyright 2017-2021 The Apache Software Foundation
 core,skywalking.apache.org/repo/goapi/collect/language/profile/v3,Apache-2.0,Copyright 2017-2021 The Apache Software Foundation
 core,skywalking.apache.org/repo/goapi/collect/management/v3,Apache-2.0,Copyright 2017-2021 The Apache Software Foundation
+core,tailscale/tailscale,BSD-3-Clause,Copyright (c) Tailscale Inc & AUTHORS
+core,go4.org/mem,Apache-2.0,Copyright 2020 The Go4 AUTHORS
