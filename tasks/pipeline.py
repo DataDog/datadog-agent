@@ -686,7 +686,7 @@ def update_buildimages(_):
     Update local files to run with new image_tag from agent-buildimages and launch a full pipeline
     Use --no-test-version to commit without the _test_only suffixes
     """
-    print("This invoke task is deprecated, please use inv buildimages.update instead.")
+    raise RuntimeError("This invoke task is deprecated, please use inv buildimages.update instead.")
 
 
 @task(

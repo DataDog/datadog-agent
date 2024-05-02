@@ -558,7 +558,7 @@ def update_gitlab_config(file_path, version, patterns="", test_version=False):
     return images
 
 
-def modify_content(lines, version, patterns="", test_version=False):
+def modify_content(lines, version, patterns=None, test_version=False):
     """
     Modify lines according to the version and patterns
     """
@@ -566,12 +566,10 @@ def modify_content(lines, version, patterns="", test_version=False):
     modified_images = []
     image_pattern = re.compile(r"^[ ]+CI_IMAGE_(?P<name>\w+)_(?P<id>VERSION|SUFFIX): (?P<version>.+)$")
     version_pattern = re.compile(r"v\d+-\w+")
-    if patterns == "":
-        patterns = [""]  # Default to all images
     for line in lines:
         is_image = image_pattern.match(line)
         if is_image:
-            if any(p in is_image["name"].casefold() for p in patterns):
+            if patterns is None or any(p in is_image["name"].casefold() for p in patterns):
                 if is_image["id"] == "SUFFIX":
                     if test_version:
                         output.append(line.replace('""', '"_test_only"'))

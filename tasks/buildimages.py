@@ -22,7 +22,7 @@ def update(_: Context, version: str, images: Optional[str] = "", test: Optional[
     patterns = images.split(",")
     modified = update_gitlab_config(".gitlab-ci.yml", version, patterns, test_version=test)
     message = ", ".join(modified)
-    if images == "" or any(p.startswith("circle") for p in patterns):
+    if len(patterns) == 0 or any(p.startswith("circle") for p in patterns):
         update_circleci_config(".circleci/config.yml", version, test_version=test)
         message += ", circleci"
     print(f"Updated {message}")
