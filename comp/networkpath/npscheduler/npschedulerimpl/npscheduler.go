@@ -202,7 +202,7 @@ func (s *npSchedulerImpl) Start() {
 }
 
 func (s *npSchedulerImpl) Stop() {
-	s.logger.Infof("Stop npSchedulerImpl")
+	s.logger.Infof("Stop NpScheduler")
 	close(s.stopChan)
 	<-s.flushLoopDone
 	<-s.runDone
