@@ -198,3 +198,77 @@ func TestClearEphemeralPort(t *testing.T) {
 		)
 	})
 }
+
+func TestNormalizeKey(t *testing.T) {
+	t.Run("opposite keys, different IPs", func(t *testing.T) {
+		var (
+			ipA = util.AddressFromString("1.1.1.1")
+			ipB = util.AddressFromString("2.2.2.2")
+		)
+
+		k1 := types.NewConnectionKey(ipA, ipB, 6001, 80)
+		k2 := types.NewConnectionKey(ipB, ipA, 80, 6001)
+
+		nk1, k1flipped := normalizeKey(k1)
+		nk2, k2flipped := normalizeKey(k2)
+
+		// k1 shouldn't change after normalization because srcIP < dstIP
+		assert.False(t, k1flipped)
+		assert.Equal(t, nk1, k1)
+
+		// k2 should be flipped after normalization because srcIP > dstIP
+		assert.True(t, k2flipped)
+		assert.NotEqual(t, nk2, k2)
+
+		// both keys should yield the same normalized result
+		assert.Equal(t, nk1, nk2)
+	})
+
+	t.Run("opposite keys, but same IPs", func(t *testing.T) {
+		localhost := util.AddressFromString("127.0.0.1")
+
+		k1 := types.NewConnectionKey(localhost, localhost, 80, 6001)
+		k2 := types.NewConnectionKey(localhost, localhost, 6001, 80)
+
+		nk1, k1flipped := normalizeKey(k1)
+		nk2, k2flipped := normalizeKey(k2)
+
+		// k1 shouldn't change after normalization because the IPs are the same
+		// and srcPort < dstPort
+		assert.False(t, k1flipped)
+		assert.Equal(t, nk1, k1)
+
+		// k2 should be flipped after normalization because the IPs are the same
+		// and srcPort > dstPort
+		assert.True(t, k2flipped)
+		assert.NotEqual(t, nk2, k2)
+
+		// both keys should yield the same normalized result
+		assert.Equal(t, nk1, nk2)
+	})
+
+	t.Run("when srcIP < dstIP values are preserved", func(t *testing.T) {
+		ipA := util.AddressFromString("1.1.1.1")
+		ipB := util.AddressFromString("2.2.2.2")
+
+		key := types.NewConnectionKey(ipA, ipB, 60000, 80)
+		normalizedKey, flipped := normalizeKey(key)
+		assert.False(t, flipped)
+		assert.Equal(t, key, normalizedKey)
+	})
+
+	t.Run("when srcIP < dstIP values are flipped", func(t *testing.T) {
+		ipA := util.AddressFromString("1.1.1.1")
+		ipB := util.AddressFromString("2.2.2.2")
+
+		key := types.NewConnectionKey(ipB, ipA, 60000, 80)
+		normalizedKey, flipped := normalizeKey(key)
+		assert.True(t, flipped)
+
+		assert.Equal(t, key.SrcIPHigh, normalizedKey.DstIPHigh)
+		assert.Equal(t, key.SrcIPLow, normalizedKey.DstIPLow)
+		assert.Equal(t, key.DstIPHigh, normalizedKey.SrcIPHigh)
+		assert.Equal(t, key.DstIPLow, normalizedKey.SrcIPLow)
+		assert.Equal(t, key.SrcPort, normalizedKey.DstPort)
+	})
+}

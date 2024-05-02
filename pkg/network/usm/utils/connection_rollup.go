@@ -247,11 +247,23 @@ func (c *ConnectionAggregator) findSimilar(candidates []portTuple, target portTu
 	return nil, false
 }
 
-// normalizeByIP such that srcIP < dstIP so we can index and lookup IPs in a
+// normalizeKey such that srcIP < dstIP so we can index and lookup IPs in a
 // deterministic way. In addition to the normalized `types.ConnectionKey` we
 // also return a bool indicated whether or not the original tuple was flipped.
-func normalizeByIP(key types.ConnectionKey) (normalizedKey types.ConnectionKey, flipped bool) {
+// Note that if the IPs match on both sides, we normalize it such that
+// srcPort < dstPort.
+func normalizeKey(key types.ConnectionKey) (normalizedKey types.ConnectionKey, flipped bool) {
+	if key.SrcIPHigh == key.DstIPHigh && key.SrcIPLow == key.DstIPLow {
+		// If both IPs match we normalize by port number
+		if key.SrcPort < key.DstPort {
+			return key, false
+		}
+
+		return flipKey(key), true
+	}
+
 	if key.SrcIPHigh > key.DstIPHigh || (key.SrcIPHigh == key.DstIPHigh && key.SrcIPLow > key.DstIPLow) {
+		// if srcIP > dstIP, flip the key
 		return flipKey(key), true
 	}
 
@@ -262,7 +274,7 @@ func normalizeByIP(key types.ConnectionKey) (normalizedKey types.ConnectionKey, 
 // third return value (bool) indicates whether or not the normalized (ipTuple,
 // portTuple), is flipped when compared to the original `key`.
 func splitKey(key types.ConnectionKey) (ipTuple, portTuple, bool) {
-	normKey, flipped := normalizeByIP(key)
+	normKey, flipped := normalizeKey(key)
 
 	ips := ipTuple{
 		aLow:  normKey.SrcIPLow,
