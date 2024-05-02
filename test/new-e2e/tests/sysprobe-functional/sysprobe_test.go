@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -31,9 +32,8 @@ type vmSuite struct {
 }
 
 var (
-	devMode    = flag.Bool("devmode", false, "run tests in dev mode")
+	devMode = flag.Bool("devmode", false, "run tests in dev mode")
 )
-
 
 func TestVMSuite(t *testing.T) {
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(componentsos.WindowsDefault))))}
@@ -116,6 +116,7 @@ func (v *vmSuite) TestSystemProbeSuite() {
 	t.Log("Install complete")
 	require.NoError(t, err)
 
+	time.Sleep(30 * time.Second)
 	// disable the agent, and enable the drivers for testing
 	_, err = vm.Execute("stop-service -force datadogagent")
 	require.NoError(t, err)
