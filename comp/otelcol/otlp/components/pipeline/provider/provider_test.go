@@ -42,7 +42,7 @@ func nopConfig() *otelcol.Config {
 		Processors: map[component.ID]component.Config{component.NewID(nopType): processortest.NewNopFactory().CreateDefaultConfig()},
 		Exporters:  map[component.ID]component.Config{component.NewID(nopType): exportertest.NewNopFactory().CreateDefaultConfig()},
 		Extensions: map[component.ID]component.Config{component.NewID(nopType): extensiontest.NewNopFactory().CreateDefaultConfig()},
-		Connectors: map[component.ID]component.Config{component.NewID(nopType): connectortest.NewNopFactory().CreateDefaultConfig()},
+		Connectors: map[component.ID]component.Config{component.NewIDWithName(nopType, "connector"): connectortest.NewNopFactory().CreateDefaultConfig()},
 		Service: service.Config{
 			Extensions: []component.ID{component.NewID(nopType)},
 			Pipelines: pipelines.Config{
@@ -116,6 +116,9 @@ func TestConfigProviderGet(t *testing.T) {
 	assert.NoError(t, err)
 
 	conf, err := provider.Get(context.Background(), factories)
+	assert.NoError(t, err)
+
+	err = conf.Validate()
 	assert.NoError(t, err)
 
 	assert.Equal(t, nopConfig(), conf)
