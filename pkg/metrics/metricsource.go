@@ -472,8 +472,6 @@ func (ms MetricSource) String() string {
 		return "datadog_operator"
 	case MetricSourceDcgm:
 		return "dcgm"
-	case MetricSourceDdev:
-		return "ddev"
 	case MetricSourceDirectory:
 		return "directory"
 	case MetricSourceDNSCheck:
@@ -958,8 +956,6 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceDatadogOperator
 	case "dcgm":
 		return MetricSourceDcgm
-	case "ddev":
-		return MetricSourceDdev
 	case "directory":
 		return MetricSourceDirectory
 	case "dns_check":
