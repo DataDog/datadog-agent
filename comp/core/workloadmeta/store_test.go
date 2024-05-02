@@ -710,14 +710,6 @@ func TestGetKubernetesNamespace(t *testing.T) {
 		t.Errorf("expected namespace %q to match the one in the store", retrievedNamespace.ID)
 	}
 
-	s.handleEvents([]CollectorEvent{
-		{
-			Type:   EventTypeUnset,
-			Source: fooSource,
-			Entity: namespace,
-		},
-	})
-
 	_, err = s.GetKubernetesNamespace("datadog-cluster-agent")
 	tassert.True(t, errors.IsNotFound(err))
 }
