@@ -705,8 +705,13 @@ def is_pr_context(branch, pr_id, test_name):
 @contextmanager
 def collapsed_section(section_name):
     section_id = section_name.replace(" ", "_")
+    in_ci = running_in_gitlab_ci()
     try:
-        print(f"\033[0Ksection_start:{int(time.time())}:{section_id}[collapsed=true]\r\033[0K{section_name + '...'}")
-        yield section_id
+        if in_ci:
+            print(
+                f"\033[0Ksection_start:{int(time.time())}:{section_id}[collapsed=true]\r\033[0K{section_name + '...'}"
+            )
+        yield
     finally:
-        print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K")
+        if in_ci:
+            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K")
