@@ -111,6 +111,27 @@ func TestRollupKey(t *testing.T) {
 		assert.Equal(t, rk1, rk3)
 		assert.Equal(t, rk2, rk4)
 	})
+
+	t.Run("same server but different clients", func(t *testing.T) {
+		var (
+			clientA = util.AddressFromString("1.1.1.1")
+			clientB = util.AddressFromString("2.2.2.2")
+			server  = util.AddressFromString("3.3.3.3")
+		)
+
+		aggregator := NewConnectionAggregator()
+
+		c1 := types.NewConnectionKey(clientA, server, 6000, 80)
+		rk1 := aggregator.RollupKey(c1)
+
+		c2 := types.NewConnectionKey(clientB, server, 6001, 80)
+		rk2 := aggregator.RollupKey(c2)
+
+		// Assert that this shouldn't trigger rollups
+		assert.NotEqual(t, rk1, rk2)
+		assert.Equal(t, c1, rk1)
+		assert.Equal(t, c2, rk2)
+	})
 }
 
 func TestClearEphemeralPort(t *testing.T) {
