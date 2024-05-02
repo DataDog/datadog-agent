@@ -10,6 +10,7 @@ package kprobe
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -89,6 +90,8 @@ var (
 	tracerOffsetGuesserRunner = offsetguess.TracerOffsets.Offsets
 
 	errCORETracerNotSupported = errors.New("CO-RE tracer not supported on this platform")
+	// ErrPrecompiledTracerNotSupported is the error returned when the pre-compiled tracer is not supported
+	ErrPrecompiledTracerNotSupported = errors.New("pre-compiled tracer not supported on this platform")
 )
 
 // ClassificationSupported returns true if the current kernel version supports the classification feature.
@@ -119,6 +122,15 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 
 	mgrOpts.DefaultKprobeAttachMethod = kprobeAttachMethod
 
+	prebuiltSupported := true
+	if err := IsPrecompiledTracerSupported(); err != nil {
+		if !errors.Is(err, ErrPrecompiledTracerNotSupported) {
+			return nil, nil, TracerTypeCORE, fmt.Errorf("error determining if pre-compiled tracer is supported: %w", err)
+		}
+
+		prebuiltSupported = false
+	}
+
 	if cfg.EnableCORE {
 		err := isCORETracerSupported()
 		if err != nil && !errors.Is(err, errCORETracerNotSupported) {
@@ -141,7 +153,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 
 		if cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback {
 			log.Warnf("error loading CO-RE network tracer, falling back to runtime compiled: %s", err)
-		} else if cfg.AllowPrecompiledFallback {
+		} else if cfg.AllowPrecompiledFallback && prebuiltSupported {
 			log.Warnf("error loading CO-RE network tracer, falling back to pre-compiled: %s", err)
 		} else {
 			return nil, nil, TracerTypeCORE, fmt.Errorf("error loading CO-RE network tracer: %w", err)
@@ -154,11 +166,15 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 			return m, closeFn, TracerTypeRuntimeCompiled, err
 		}
 
-		if !cfg.AllowPrecompiledFallback {
+		if !cfg.AllowPrecompiledFallback || !prebuiltSupported {
 			return nil, nil, TracerTypeRuntimeCompiled, fmt.Errorf("error compiling network tracer: %w", err)
 		}
 
 		log.Warnf("error compiling network tracer, falling back to pre-compiled: %s", err)
+	}
+
+	if !prebuiltSupported {
+		return nil, nil, TracerTypePrebuilt, fmt.Errorf("network tracer not supported on this platform")
 	}
 
 	offsets, err := tracerOffsetGuesserRunner(cfg)
@@ -336,4 +352,26 @@ func isCORETracerSupported() error {
 	}
 
 	return errCORETracerNotSupported
+}
+
+// IsPrecompiledTracerSupported returns whether the pre-compiled
+// tracer is supported on this platform
+func IsPrecompiledTracerSupported() error {
+	family, err := kernel.Family()
+	if err != nil {
+		return err
+	}
+
+	platformVersion, err := kernel.PlatformVersion()
+	if err != nil {
+		return err
+	}
+
+	// currently only redhat 9.3 is not supported due to
+	// offset guessing being broken
+	if family == "rhel" && strings.HasPrefix(platformVersion, "9.3") {
+		return ErrPrecompiledTracerNotSupported
+	}
+
+	return nil
 }
