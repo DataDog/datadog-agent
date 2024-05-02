@@ -125,7 +125,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
 
-	c.networkPathEnabled = c.sysprobeYamlConfig.GetBool("network_config.enable_network_path")
+	c.networkPathEnabled = c.sysprobeYamlConfig.GetBool("network_path.enabled")
 
 	// LocalResolver is a singleton LocalResolver
 	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(c.wmeta), clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)

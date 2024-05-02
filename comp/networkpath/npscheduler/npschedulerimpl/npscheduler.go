@@ -9,6 +9,7 @@ package npschedulerimpl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -43,6 +44,10 @@ type npSchedulerImpl struct {
 	runDone                     chan struct{}
 
 	TimeNowFunction func() time.Time // Allows to mock time in tests
+}
+
+func newNoopNpSchedulerImpl() *npSchedulerImpl {
+	return &npSchedulerImpl{}
 }
 
 func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Component, sysprobeYamlConfig config.Reader) *npSchedulerImpl {
@@ -113,6 +118,9 @@ func (s *npSchedulerImpl) listenPathtestConfigs() {
 // Schedule schedules pathtests.
 // It shouldn't block, if the input channel is full, an error is returned.
 func (s *npSchedulerImpl) Schedule(hostname string, port uint16) error {
+	if s.pathtestInputChan == nil {
+		return errors.New("no input channel, please check that network path is enabled")
+	}
 	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
 
 	if net.ParseIP(hostname).To4() == nil {
