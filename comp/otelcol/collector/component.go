@@ -11,7 +11,8 @@ package collector
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
+	collectorimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -23,14 +24,16 @@ import (
 // of the logs agent component.
 
 // Component specifies the interface implemented by the collector module.
-type Component interface {
-	Start() error
-	Stop()
-	Status() otlp.CollectorStatus
-}
+type Component = collectordef.Component
 
 // Module specifies the Collector module bundle.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newPipeline))
+}
+
+// OTelModule for OTel Agent
+func OTelModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(collectorimpl.New))
 }
