@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from tasks.libs.common.color import color_message
 
 if TYPE_CHECKING:
-    from typing import Callable, Iterable, Optional
+    from typing import Callable, Iterable
 
     from invoke import Result
 
@@ -19,7 +19,7 @@ class CLI:
     def _format_command(self, command: Iterable[str]) -> str:
         return " ".join(c if ' ' not in c else f"'{c}'" for c in command)
 
-    def run_command(self, command: Iterable[str]) -> Optional[Result]:
+    def run_command(self, command: Iterable[str]) -> Result | None:
         from invoke import run
 
         cmd = self._format_command(command)
@@ -28,7 +28,7 @@ class CLI:
 
     @staticmethod
     def _isatty() -> bool:
-        isatty: Optional[Callable[[], bool]] = getattr(sys.stdout, 'isatty', None)
+        isatty: Callable[[], bool] | None = getattr(sys.stdout, 'isatty', None)
         if isatty is not None:
             try:
                 return isatty()
