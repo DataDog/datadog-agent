@@ -94,7 +94,6 @@ static __always_inline int record_pcpu_freelist_locks(u32 fd, struct bpf_map* bm
             return -EINVAL;
 
         struct lock_range lr = { .addr_start =  region, .range = sizeof(struct pcpu_freelist_head) };
-//        log_info("[%d] monitoring range starting @ 0x%llx\n", i, lr.addr_start);
 
         err = bpf_map_update_elem(&map_addr_fd, &lr, &fd, BPF_NOEXIST);
         if (err < 0)
@@ -103,7 +102,6 @@ static __always_inline int record_pcpu_freelist_locks(u32 fd, struct bpf_map* bm
 
     // this regions contains the lock htab->freelist.extralist.lock
     struct lock_range lr = { .addr_start = (u64)(&htab->freelist), .range = sizeof(struct pcpu_freelist) };
- //   log_info("monitoring range starting @ 0x%llx\n", lr.addr_start);
 
     err = bpf_map_update_elem(&map_addr_fd, &lr, &fd, BPF_NOEXIST);
     if (err < 0)
@@ -129,8 +127,6 @@ static __always_inline int record_bucket_locks(u32 fd, struct bpf_map* bm) {
 
     u64 memsz = n_buckets * sizeof(struct bucket);
     struct lock_range lr = { .addr_start = buckets, .range = memsz};
-
-    //log_info("Range start: 0x%llx, range size: 0x%llx", lr.addr_start, lr.range);
 
     err = bpf_map_update_elem(&map_addr_fd, &lr, &fd, BPF_NOEXIST);
     if (err < 0)
@@ -197,9 +193,9 @@ int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
 
 struct tstamp_data {
     struct lock_range lr;
-	__u64 timestamp;
-	__u64 lock;
-	__u32 flags;
+    __u64 timestamp;
+    __u64 lock;
+    __u32 flags;
 };
 
 BPF_HASH_MAP(tstamp, int, struct tstamp_data, 0);
@@ -217,7 +213,6 @@ BPF_PERCPU_ARRAY_MAP(ranges, struct lock_range, 0);
 //
 int data_map_full;
 
-// binary search over all ranges
 static __always_inline int can_record(u64 *ctx, struct lock_range* range)
 {
     u64 addr = ctx[0];
@@ -299,119 +294,117 @@ static __always_inline struct tstamp_data *get_tstamp_elem(__u32 flags) {
 SEC("tp_btf/contention_begin")
 int tracepoint__contention_begin(u64 *ctx)
 {
-	struct tstamp_data *pelem;
+    struct tstamp_data *pelem;
     struct lock_range range;
 
+    if (!can_record(ctx, &range))
+    	return 0;
 
-	if (!can_record(ctx, &range))
-		return 0;
+    pelem = get_tstamp_elem(ctx[1]);
+    if (pelem == NULL)
+    	return 0;
 
-	pelem = get_tstamp_elem(ctx[1]);
-	if (pelem == NULL)
-		return 0;
-
-	pelem->timestamp = bpf_ktime_get_ns();
-	pelem->lock = (__u64)ctx[0];
-	pelem->flags = (__u32)ctx[1];
+    pelem->timestamp = bpf_ktime_get_ns();
+    pelem->lock = (u64)ctx[0];
+    pelem->flags = (u32)ctx[1];
     bpf_memcpy(&pelem->lr, &range, sizeof(struct lock_range));
 
-	return 0;
+    return 0;
 }
 
 struct contention_data {
-	u64 total_time;
-	u64 min_time;
-	u64 max_time;
-	u32 count;
-	u32 flags;
+    u64 total_time;
+    u64 min_time;
+    u64 max_time;
+    u32 count;
+    u32 flags;
 };
 
 SEC("tp_btf/contention_end")
 int tracepoint__contention_end(u64 *ctx)
 {
-	__u32 pid = 0, idx = 0;
-	struct tstamp_data *pelem;
-	struct contention_data *data;
-	__u64 duration;
-	bool need_delete = false;
+    u32 pid = 0, idx = 0;
+    struct tstamp_data *pelem;
+    struct contention_data *data;
+    u64 duration;
+    bool need_delete = false;
 
-	/*
-	 * For spinlock and rwlock, it needs to get the timestamp for the
-	 * per-cpu map.  However, contention_end does not have the flags
-	 * so it cannot know whether it reads percpu or hash map.
-	 *
-	 * Try per-cpu map first and check if there's active contention.
-	 * If it is, do not read hash map because it cannot go to sleeping
-	 * locks before releasing the spinning locks.
-	 */
-	pelem = bpf_map_lookup_elem(&tstamp_cpu, &idx);
-	if (pelem && pelem->lock) {
-		if (pelem->lock != ctx[0])
-			return 0;
-	} else {
-		pid = bpf_get_current_pid_tgid();
-		pelem = bpf_map_lookup_elem(&tstamp, &pid);
-		if (!pelem || pelem->lock != ctx[0])
-			return 0;
-		need_delete = true;
-	}
+    /*
+     * For spinlock and rwlock, it needs to get the timestamp for the
+     * per-cpu map.  However, contention_end does not have the flags
+     * so it cannot know whether it reads percpu or hash map.
+     *
+     * Try per-cpu map first and check if there's active contention.
+     * If it is, do not read hash map because it cannot go to sleeping
+     * locks before releasing the spinning locks.
+     */
+    pelem = bpf_map_lookup_elem(&tstamp_cpu, &idx);
+    if (pelem && pelem->lock) {
+    	if (pelem->lock != ctx[0])
+    		return 0;
+    } else {
+    	pid = bpf_get_current_pid_tgid();
+    	pelem = bpf_map_lookup_elem(&tstamp, &pid);
+    	if (!pelem || pelem->lock != ctx[0])
+    		return 0;
+    	need_delete = true;
+    }
 
-	duration = bpf_ktime_get_ns() - pelem->timestamp;
-	if ((__s64)duration < 0) {
-		pelem->lock = 0;
-		if (need_delete)
-			bpf_map_delete_elem(&tstamp, &pid);
-		//__sync_fetch_and_add(&time_fail, 1);
-		return 0;
-	}
+    duration = bpf_ktime_get_ns() - pelem->timestamp;
+    if ((s64)duration < 0) {
+    	pelem->lock = 0;
+    	if (need_delete)
+    		bpf_map_delete_elem(&tstamp, &pid);
+    	//__sync_fetch_and_add(&time_fail, 1);
+    	return 0;
+    }
 
 
-	data = bpf_map_lookup_elem(&lock_stat, &pelem->lr);
-	if (!data) {
-		if (data_map_full) {
-			pelem->lock = 0;
-			if (need_delete)
-				bpf_map_delete_elem(&tstamp, &pid);
-			//__sync_fetch_and_add(&data_fail, 1);
-			return 0;
-		}
+    data = bpf_map_lookup_elem(&lock_stat, &pelem->lr);
+    if (!data) {
+    	if (data_map_full) {
+    		pelem->lock = 0;
+    		if (need_delete)
+    			bpf_map_delete_elem(&tstamp, &pid);
+    		//__sync_fetch_and_add(&data_fail, 1);
+    		return 0;
+    	}
 
-		struct contention_data first = {
-			.total_time = duration,
-			.max_time = duration,
-			.min_time = duration,
-			.count = 1,
-			.flags = pelem->flags,
-		};
-		int err;
+    	struct contention_data first = {
+    		.total_time = duration,
+    		.max_time = duration,
+    		.min_time = duration,
+    		.count = 1,
+    		.flags = pelem->flags,
+    	};
+    	int err;
 
-		err = bpf_map_update_elem(&lock_stat, &pelem->lr, &first, BPF_NOEXIST);
-		if (err < 0) {
-			if (err == -E2BIG)
-				data_map_full = 1;
-			//__sync_fetch_and_add(&data_fail, 1);
-		}
+    	err = bpf_map_update_elem(&lock_stat, &pelem->lr, &first, BPF_NOEXIST);
+    	if (err < 0) {
+    		if (err == -E2BIG)
+    			data_map_full = 1;
+    		//__sync_fetch_and_add(&data_fail, 1);
+    	}
 
-		pelem->lock = 0;
-		if (need_delete)
-			bpf_map_delete_elem(&tstamp, &pid);
-		return 0;
-	}
+    	pelem->lock = 0;
+    	if (need_delete)
+    		bpf_map_delete_elem(&tstamp, &pid);
+    	return 0;
+    }
 
-	__sync_fetch_and_add(&data->total_time, duration);
-	__sync_fetch_and_add(&data->count, 1);
+    __sync_fetch_and_add(&data->total_time, duration);
+    __sync_fetch_and_add(&data->count, 1);
 
-	/* FIXME: need atomic operations */
-	if (data->max_time < duration)
-		data->max_time = duration;
-	if (data->min_time > duration)
-		data->min_time = duration;
+    /* FIXME: need atomic operations */
+    if (data->max_time < duration)
+    	data->max_time = duration;
+    if (data->min_time > duration)
+    	data->min_time = duration;
 
-	pelem->lock = 0;
-	if (need_delete)
-		bpf_map_delete_elem(&tstamp, &pid);
-	return 0;
+    pelem->lock = 0;
+    if (need_delete)
+    	bpf_map_delete_elem(&tstamp, &pid);
+    return 0;
 }
 
 char _license[] SEC("license") = "GPL";
-

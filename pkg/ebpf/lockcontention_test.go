@@ -21,6 +21,7 @@ type checkMap struct {
 	name      string
 	mtype     ebpf.MapType
 	lockCount uint32
+	alloc     func() *ebpf.Map
 }
 
 var specs map[ebpf.MapType]ebpf.MapSpec = map[ebpf.MapType]ebpf.MapSpec{
@@ -67,11 +68,17 @@ func TestLockRanges(t *testing.T) {
 			name:      "Hashmap",
 			mtype:     ebpf.Hash,
 			lockCount: hashMapLockRanges(cpu),
+			alloc: func(spec *ebpf.MapSpec) *ebpf.Map {
+				return ebpf.NewMap(spec)
+			},
 		},
 		{
 			name:      "Percpu-Hashmap",
 			mtype:     ebpf.PerCPUHash,
 			lockCount: hashMapLockRanges(cpu),
+			alloc: func(spec *ebpf.MapSpec) *ebpf.Map {
+				return ebpf.NewMap(spec)
+			},
 		},
 	}
 
@@ -79,7 +86,7 @@ func TestLockRanges(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			l := NewLockContentionCollector()
 			spec := specs[c.mtype]
-			m, err := ebpf.NewMap(&spec)
+			m, err := c.alloc(&spec)
 			require.NoError(t, err)
 
 			mInfo, err := m.Info()
