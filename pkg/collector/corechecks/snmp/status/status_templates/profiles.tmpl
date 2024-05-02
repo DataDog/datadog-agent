@@ -1,7 +1,3 @@
-{{- if eq (len .profiles) 0}}
-  No error found in profiles
-{{- else}}
-{{- range $key, $value := .profiles}}
+{{- range $key, $value := .snmpProfiles}}
   {{$key}}: {{$value}}
 {{- end }}
-{{end}}

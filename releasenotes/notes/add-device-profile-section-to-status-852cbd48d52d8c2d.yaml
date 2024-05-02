@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add a section in the agent status to show the device profile parsing errors.
+    Add a section in the Agent status to show device profile parsing errors.

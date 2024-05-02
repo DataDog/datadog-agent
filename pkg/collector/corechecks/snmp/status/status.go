@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024 Datadog, Inc.
+
 package status
 
 import (
@@ -17,12 +22,21 @@ type Provider struct{}
 
 // Name returns the name
 func (Provider) Name() string {
-	return "Profiles"
+	profiles := make(map[string]string)
+
+	snmpProfileErrorsVar := expvar.Get("snmpProfileErrors")
+	snmpProfileErrorsJSON := []byte(snmpProfileErrorsVar.String())
+	json.Unmarshal(snmpProfileErrorsJSON, &profiles) //nolint:errcheck
+
+	if len(profiles) == 0 {
+		return ""
+	}
+	return "SNMP Profiles"
 }
 
 // Section return the section
 func (Provider) Section() string {
-	return "profiles"
+	return "SNMP Profiles"
 }
 
 func (p Provider) getStatusInfo() map[string]interface{} {
@@ -36,11 +50,10 @@ func (p Provider) getStatusInfo() map[string]interface{} {
 func (Provider) populateStatus(stats map[string]interface{}) {
 	profiles := make(map[string]string)
 
-	profileErrorsVar := expvar.Get("profileErrors")
-	profileErrorsJSON := []byte(profileErrorsVar.String())
-	json.Unmarshal(profileErrorsJSON, &profiles)
-
-	stats["profiles"] = profiles
+	snmpProfileErrorsVar := expvar.Get("snmpProfileErrors")
+	snmpProfileErrorsJSON := []byte(snmpProfileErrorsVar.String())
+	json.Unmarshal(snmpProfileErrorsJSON, &profiles) //nolint:errcheck
+	stats["snmpProfiles"] = profiles
 }
 
 // JSON populates the status map

@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	profileExpVar = expvar.NewMap("profileErrors")
+	profileExpVar = expvar.NewMap("snmpProfileErrors")
 )
 
 func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
