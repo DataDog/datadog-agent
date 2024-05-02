@@ -12,7 +12,8 @@ import (
 	"time"
 
 	osComp "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/cenkalti/backoff"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
@@ -52,9 +53,7 @@ func NewHostAgentClientWithParams(t *testing.T, host *components.RemoteHost, opt
 			return nil, err
 		}
 	}
-	if err := waitForAgentsReady(host, params); err != nil {
-		return nil, err
-	}
+	waitForAgentsReady(t, host, params)
 
 	return commandRunner, nil
 }
@@ -80,9 +79,8 @@ func NewDockerAgentClient(t *testing.T, docker *Docker, agentContainerName strin
 // If the timeout is reached, an error is returned.
 //
 // As of now this is only implemented for Linux.
-func waitForAgentsReady(host *components.RemoteHost, params *agentclientparams.Params) error {
-	maxRetries := uint64(params.WaitForDuration / params.WaitForTick)
-	return backoff.Retry(func() error {
+func waitForAgentsReady(tt *testing.T, host *components.RemoteHost, params *agentclientparams.Params) {
+	require.EventuallyWithT(tt, func(t *assert.CollectT) {
 		agentReadyCmds := map[string]func(*agentclientparams.Params, *components.RemoteHost) (string, bool, error){
 			"process-agent":  processAgentCommand,
 			"trace-agent":    traceAgentCommand,
@@ -91,22 +89,19 @@ func waitForAgentsReady(host *components.RemoteHost, params *agentclientparams.P
 
 		for name, getReadyCmd := range agentReadyCmds {
 			cmd, ok, err := getReadyCmd(params, host)
-			if err != nil {
-				return fmt.Errorf("could not build ready command for %s: %v", name, err)
+			if !assert.NoErrorf(t, err, "could not build ready command for %s", name) {
+				continue
 			}
 
 			if !ok {
 				continue
 			}
 
+			tt.Logf("Checking if %s is ready...", name)
 			_, err = host.Execute(cmd)
-			if err != nil {
-				return fmt.Errorf("%s did not become ready: %v", name, err)
-			}
+			assert.NoErrorf(t, err, "%s did not become ready", name)
 		}
-
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(params.WaitForTick), maxRetries))
+	}, params.WaitForDuration, params.WaitForTick)
 }
 
 func ensureAuthToken(params *agentclientparams.Params, host *components.RemoteHost) error {
@@ -136,12 +131,12 @@ func securityAgentCommand(params *agentclientparams.Params, host *components.Rem
 }
 
 func makeStatusEndpointCommand(params *agentclientparams.Params, host *components.RemoteHost, url string, port int) (string, bool, error) {
-	if host.OSFamily != osComp.LinuxFamily {
-		return "", true, fmt.Errorf("waiting for non-core agents is not implemented for OS family %d", host.OSFamily)
-	}
-
 	if port == 0 {
 		return "", false, nil
+	}
+
+	if host.OSFamily != osComp.LinuxFamily {
+		return "", true, fmt.Errorf("waiting for non-core agents is not implemented for OS family %d", host.OSFamily)
 	}
 
 	// we want to fetch the auth token only if we actually need it

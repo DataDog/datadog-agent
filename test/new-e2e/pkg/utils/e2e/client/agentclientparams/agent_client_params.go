@@ -54,7 +54,7 @@ func NewParams(osfam osComp.Family, options ...Option) *Params {
 		ShouldWaitForReady: true,
 		AuthTokenPath:      defaultAuthTokenPath(osfam),
 		WaitForDuration:    1 * time.Minute,
-		WaitForTick:        10 * time.Second,
+		WaitForTick:        5 * time.Second,
 	}
 	return applyOption(p, options...)
 }
