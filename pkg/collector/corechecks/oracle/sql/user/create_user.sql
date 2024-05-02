@@ -1,6 +1,6 @@
 -- Description: Create Datadog Agent user
 
-@@../lib/init.sql
+@@pkg/collector/corechecks/oracle/sql/lib/init.sql
 
 BEGIN
   IF :connection_type = :connection_type_cdb THEN

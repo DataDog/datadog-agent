@@ -1,6 +1,6 @@
 -- Description: Setup test environment for Oracle tests
 
-@@../lib/init.sql
+@@pkg/collector/corechecks/oracle/sql/lib/init.sql
 
 var username varchar2(30);
 var legacy_username varchar2(30);
@@ -23,20 +23,20 @@ select :username username, :legacy_username legacy_username, 'datadog' password 
 set term on
 
 prompt create user
-@@../user/create_user.sql
+@@pkg/collector/corechecks/oracle/sql/user/create_user.sql
 prompt grants
-@@../user/grants.sql
+@@pkg/collector/corechecks/oracle/sql/user/grants.sql
 prompt activity view
-@@../user/create_activity_view.sql
+@@pkg/collector/corechecks/oracle/sql/user/create_activity_view.sql
 
 prompt create legacy user
-@@../user/legacy/create_user.sql
+@@pkg/collector/corechecks/oracle/sql/user/legacy/create_user.sql
 prompt create legacy user grants
-@@../user/legacy/grants.sql
+@@pkg/collector/corechecks/oracle/sql/user/legacy/grants.sql
 
 prompt create test table
 create table sys.t(n number);
-grant insert on sys.t to &&user ;
+grant select,insert on sys.t to &&user ;
 
 prompt create test tablespace
 declare

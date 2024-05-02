@@ -1,6 +1,6 @@
 -- Description: grant privileges to the legacy Datadog user
 
-@@../lib/init.sql
+@@pkg/collector/corechecks/oracle/sql/lib/init.sql
 
 begin
   if :connection_type = :connection_type_cdb then

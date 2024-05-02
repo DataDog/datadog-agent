@@ -1,6 +1,6 @@
 -- Description: Create a user for the legacy Oracle integration
 
-@@../lib/init.sql
+@@pkg/collector/corechecks/oracle/sql/lib/init.sql
 
 BEGIN
   IF :connection_type = :connection_type_cdb THEN

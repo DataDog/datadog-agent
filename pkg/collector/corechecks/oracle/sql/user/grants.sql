@@ -1,7 +1,7 @@
 -- Description: grant privileges to the Datadog user
 set serveroutput on size 100000
 
-@@../lib/init.sql
+@@pkg/collector/corechecks/oracle/sql/lib/init.sql
 
 grant create session to &&user ;
 
