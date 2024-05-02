@@ -26,10 +26,10 @@ import (
 )
 
 // TCPConnection encapsulates information for a TCP connection.
-// This information is obtained from the /proc/net/{tcp,tcp6} files
+// This information is obtained from the /proc/<PID>/net/{tcp,tcp6} files
 // along with /proc/<PID>/fds directories.
 type TCPConnection struct {
-	// Sourced from /proc/net/{tcp,tcp6}
+	// Sourced from /proc/<PID>/net/{tcp,tcp6}
 	Laddr netip.Addr
 	Raddr netip.Addr
 	Lport uint16
@@ -45,14 +45,25 @@ type TCPConnection struct {
 
 // GetTCPConnections returns a list of all existing TCP connections
 func GetTCPConnections() []TCPConnection {
-	procRoot := kernel.ProcFSRoot()
+	var (
+		procRoot    = kernel.ProcFSRoot()
+		seenNS      = make(map[uint32]struct{})
+		connByInode = make(map[int]TCPConnection, 100)
+		result      = make([]TCPConnection, 100)
+	)
 
-	connByInode := make(map[int]TCPConnection)
-	populateIndex(connByInode, filepath.Join(procRoot, "net", "tcp"))
-	populateIndex(connByInode, filepath.Join(procRoot, "net", "tcp6"))
-
-	result := make([]TCPConnection, 0, len(connByInode))
 	_ = kernel.WithAllProcs(procRoot, func(pid int) error {
+		ino, err := kernel.GetNetNsInoFromPid(procRoot, pid)
+		if err != nil {
+			return nil
+		}
+
+		if _, ok := seenNS[ino]; !ok {
+			populateIndex(connByInode, ino, filepath.Join(procRoot, fmt.Sprintf("%d", pid), "net", "tcp"))
+			populateIndex(connByInode, ino, filepath.Join(procRoot, fmt.Sprintf("%d", pid), "net", "tcp6"))
+		}
+		seenNS[ino] = struct{}{}
+
 		result = matchFDWithSocket(procRoot, pid, connByInode, result)
 		return nil
 	})
@@ -62,7 +73,7 @@ func GetTCPConnections() []TCPConnection {
 
 // populateIndex builds an index of TCP connection data by inode by
 // reading /proc/net/{tcp,tcp6} files
-func populateIndex(connByInode map[int]TCPConnection, file string) {
+func populateIndex(connByInode map[int]TCPConnection, ino uint32, file string) {
 	scanner, err := newScanner(file)
 	if err != nil {
 		return
@@ -83,6 +94,7 @@ func populateIndex(connByInode map[int]TCPConnection, file string) {
 			Lport: lport,
 			Rport: rport,
 			State: entry.ConnectionState(),
+			NetNS: ino,
 		}
 	}
 }
@@ -95,11 +107,6 @@ func populateIndex(connByInode map[int]TCPConnection, file string) {
 // original `connsByInode` map size because one TCP socket can potentially "map"
 // to multiple (PID, FD) pairs (eg. forked processes etc).
 func matchFDWithSocket(procRoot string, pid int, connByInode map[int]TCPConnection, conns []TCPConnection) []TCPConnection {
-	netNS, err := kernel.GetNetNsInoFromPid(procRoot, pid)
-	if err != nil {
-		return conns
-	}
-
 	fdsPath := filepath.Join(procRoot, fmt.Sprintf("%d", pid), "fd")
 	fdsDir, err := os.Open(fdsPath)
 	if err != nil {
@@ -135,7 +142,6 @@ func matchFDWithSocket(procRoot string, pid int, connByInode map[int]TCPConnecti
 
 		conn.PID = uint32(pid)
 		conn.FD = uint32(fdNum)
-		conn.NetNS = netNS
 		conns = append(conns, conn)
 	}
 
