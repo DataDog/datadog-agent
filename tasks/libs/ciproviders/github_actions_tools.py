@@ -26,7 +26,7 @@ def trigger_macos_workflow(
     version_cache_file_content=None,
     concurrency_key=None,
     fast_tests=None,
-    test_washer=None,
+    test_washer=False,
     integrations_core_ref=None,
 ):
     """
@@ -64,7 +64,7 @@ def trigger_macos_workflow(
     if integrations_core_ref is not None:
         inputs["integrations_core_ref"] = integrations_core_ref
 
-    if test_washer is not None:
+    if test_washer:
         inputs["test_washer"] = test_washer
 
     # Test-only input, only to be passed to the test workflow

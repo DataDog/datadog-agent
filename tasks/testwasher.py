@@ -6,19 +6,17 @@ from tasks.test_core import ModuleTestResult
 
 
 class TestWasher:
-    test_output_json_file = "module_test_output.json"
-    flaky_test_indicator = "flakytest: this is a known flaky test"
-    flakes_file_path = "flakes.yaml"
-
-    known_flaky_tests = defaultdict(set)
-
-    def __init__(self, test_output_json_file=None, flaky_test_indicator=None, flakes_file_path=None):
-        self.test_output_json_file = test_output_json_file if test_output_json_file else "module_test_output.json"
-        self.flaky_test_indicator = (
-            flaky_test_indicator if flaky_test_indicator else "flakytest: this is a known flaky test"
-        )
-        self.flakes_file_path = flakes_file_path if flakes_file_path else "flakes.yaml"
+    def __init__(
+        self,
+        test_output_json_file="module_test_output.json",
+        flaky_test_indicator="flakytest: this is a known flaky test",
+        flakes_file_path="flakes.yaml",
+    ):
+        self.test_output_json_file = test_output_json_file
+        self.flaky_test_indicator = flaky_test_indicator
+        self.flakes_file_path = flakes_file_path
         self.known_flaky_tests = defaultdict(set)
+
         self.parse_flaky_file()
 
     def get_non_flaky_failing_tests(self, module_path):

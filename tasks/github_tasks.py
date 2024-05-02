@@ -68,7 +68,7 @@ def trigger_macos(
     retry_download=3,
     retry_interval=10,
     fast_tests=None,
-    test_washer=None,
+    test_washer=False,
     integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
     if workflow_type == "build":
