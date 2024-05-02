@@ -114,12 +114,12 @@ func streamLogs(log log.Component, config config.Component, cliParams *cliParams
 		if err != nil {
 			return fmt.Errorf("error opening file %s for writing: %v", cliParams.FilePath, err)
 		}
-		defer f.Close()
 		defer func() {
 			err := bufWriter.Flush()
 			if err != nil {
 				fmt.Printf("Error flushing buffer for log stream: %v", err)
 			}
+			f.Close()
 		}()
 	}
 
