@@ -3,7 +3,7 @@ from typing import Optional
 
 from invoke import Context, task
 
-from tasks.libs.ciproviders.gitlab_api import update_gitlab_config, update_test_infra_def
+from tasks.libs.ciproviders.gitlab import update_gitlab_config, update_test_infra_def
 from tasks.libs.ciproviders.circleci import update_circleci_config
 
 

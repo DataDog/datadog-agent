@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, cast
 import yaml
 
 from tasks.kernel_matrix_testing.tool import Exit
-from tasks.libs.ciproviders.gitlab_api import ReferenceTag
+from tasks.libs.ciproviders.gitlab import ReferenceTag
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import (
