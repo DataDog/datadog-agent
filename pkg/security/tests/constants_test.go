@@ -22,6 +22,8 @@ import (
 var BTFHubVsRcPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameNFConnStructCTNet,
 	constantfetch.OffsetNameIoKiocbStructCtx,
+	constantfetch.OffsetNameSchedProcessForkChildPid,
+	constantfetch.OffsetNameSchedProcessForkParentPid,
 }
 
 var RCVsFallbackPossiblyMissingConstants = []string{
@@ -29,6 +31,8 @@ var RCVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
 	constantfetch.OffsetNameDeviceStructNdNet,
+	constantfetch.OffsetNameSchedProcessForkChildPid,
+	constantfetch.OffsetNameSchedProcessForkParentPid,
 }
 
 var BTFHubVsFallbackPossiblyMissingConstants = []string{
@@ -36,6 +40,8 @@ var BTFHubVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
 	constantfetch.OffsetNameDeviceStructNdNet,
+	constantfetch.OffsetNameSchedProcessForkChildPid,
+	constantfetch.OffsetNameSchedProcessForkParentPid,
 }
 
 var BTFVsFallbackPossiblyMissingConstants = []string{
@@ -43,6 +49,8 @@ var BTFVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
 	constantfetch.OffsetNameDeviceStructNdNet,
+	constantfetch.OffsetNameSchedProcessForkChildPid,
+	constantfetch.OffsetNameSchedProcessForkParentPid,
 }
 
 func TestOctogonConstants(t *testing.T) {

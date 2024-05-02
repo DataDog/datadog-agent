@@ -13,6 +13,7 @@ cluster_agent_cloudfoundry-build_amd64:
       - $OMNIBUS_PACKAGE_DIR
   variables:
     ARCH: amd64
+    KUBERNETES_CPU_REQUEST: 4
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]

@@ -35,7 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -68,7 +68,7 @@ func stopServer(listener net.Listener, name string) {
 // StartServers creates certificates and starts API + IPC servers
 func StartServers(
 	configService optional.Option[rcservice.Component],
-	configServiceHA optional.Option[rcserviceha.Component],
+	configServiceMRF optional.Option[rcservicemrf.Component],
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
 	pidMap pidmap.Component,
@@ -120,7 +120,7 @@ func StartServers(
 		tlsConfig,
 		tlsCertPool,
 		configService,
-		configServiceHA,
+		configServiceMRF,
 		dogstatsdServer,
 		capture,
 		pidMap,

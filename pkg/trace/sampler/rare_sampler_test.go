@@ -29,14 +29,13 @@ func TestSpanSeenTTLExpiration(t *testing.T) {
 	c := config.New()
 	c.RareSamplerEnabled = true
 	testTime := time.Unix(13829192398, 0)
+	ttl := c.RareSamplerCooldownPeriod
 	testCases := []testCase{
-		{"blocked-p1", false, testTime, map[string]float64{"_top_level": 1}, PriorityAutoKeep},
+		{"p1", true, testTime, map[string]float64{"_top_level": 1}, PriorityAutoKeep},
 		{"p0-blocked-by-p1", false, testTime, map[string]float64{"_top_level": 1}, PriorityNone},
-		{"p1-ttl-before-expiration", false, testTime.Add(priorityTTL), map[string]float64{"_top_level": 1}, PriorityNone},
-		{"p1-ttl-expired", true, testTime.Add(priorityTTL + time.Nanosecond), map[string]float64{"_top_level": 1}, PriorityNone},
-		{"p0-ttl-active", false, testTime.Add(priorityTTL + time.Nanosecond), map[string]float64{"_top_level": 1}, PriorityNone},
-		{"p0-ttl-before-expiration", false, testTime.Add(priorityTTL + c.RareSamplerCooldownPeriod + time.Nanosecond), map[string]float64{"_top_level": 1}, PriorityNone},
-		{"p0-ttl-expired", true, testTime.Add(priorityTTL + c.RareSamplerCooldownPeriod + 2*time.Nanosecond), map[string]float64{"_dd.measured": 1}, PriorityNone},
+		{"p0-ttl-before-expiration", false, testTime.Add(ttl), map[string]float64{"_top_level": 1}, PriorityNone},
+		{"p0-ttl-expired", true, testTime.Add(ttl + time.Nanosecond), map[string]float64{"_top_level": 1}, PriorityNone},
+		{"p0-ttl-active", false, testTime.Add(ttl + time.Nanosecond), map[string]float64{"_top_level": 1}, PriorityNone},
 	}
 
 	e := NewRareSampler(c, &statsd.NoOpClient{})
@@ -61,7 +60,7 @@ func TestConsideredSpans(t *testing.T) {
 	}
 	testTime := time.Unix(13829192398, 0)
 	testCases := []testCase{
-		{"p1-blocked", false, "s1", map[string]float64{"_top_level": 1}, PriorityAutoKeep},
+		{"p1-blocked", true, "s1", map[string]float64{"_top_level": 1}, PriorityAutoKeep},
 		{"p0-top-passes", true, "s2", map[string]float64{"_top_level": 1}, PriorityNone},
 		{"p0-measured-passes", true, "s3", map[string]float64{"_dd.measured": 1}, PriorityNone},
 		{"p0-non-top-non-measured-blocked", false, "s4", nil, PriorityNone},
@@ -94,6 +93,13 @@ func TestRareSamplerRace(_ *testing.T) {
 	}
 }
 
+func min(i, j int) int {
+	if i < j {
+		return i
+	}
+	return j
+}
+
 func TestCardinalityLimit(t *testing.T) {
 	assert := assert.New(t)
 	c := config.New()
@@ -104,9 +110,11 @@ func TestCardinalityLimit(t *testing.T) {
 		span := &pb.Span{Resource: strconv.Itoa(j), Metrics: map[string]float64{"_top_level": 1}}
 		e.Sample(time.Now(), getTraceChunkWithSpanAndPriority(span, PriorityAutoKeep), "")
 		for _, set := range e.seen {
-			assert.Len(set.expires, j)
+			assert.Len(set.expires, min(j, rareSamplerBurst))
 		}
 	}
+	assert.Equal(rareSamplerBurst, int(e.hits.Load()))
+
 	span := &pb.Span{Resource: "newResource", Metrics: map[string]float64{"_top_level": 1}}
 	e.Sample(time.Now(), getTraceChunkWithSpanAndPriority(span, PriorityNone), "")
 

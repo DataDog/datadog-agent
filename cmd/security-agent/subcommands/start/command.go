@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -112,7 +113,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						AgentType: catalog,
 					}
 				}),
-				tagger.Module(),
+				taggerimpl.Module(),
 				fx.Provide(func(config config.Component) tagger.Params {
 					if config.GetBool("security_agent.remote_tagger") {
 						return tagger.NewNodeRemoteTaggerParams()
@@ -375,6 +376,8 @@ func setupInternalProfiling(config config.Component) error {
 			MutexProfileFraction: config.GetInt(secAgentKey("internal_profiling.mutex_profile_fraction")),
 			BlockProfileRate:     config.GetInt(secAgentKey("internal_profiling.block_profile_rate")),
 			WithGoroutineProfile: config.GetBool(secAgentKey("internal_profiling.enable_goroutine_stacktraces")),
+			WithBlockProfile:     config.GetBool(secAgentKey("internal_profiling.enable_block_profiling")),
+			WithMutexProfile:     config.GetBool(secAgentKey("internal_profiling.enable_mutex_profiling")),
 			WithDeltaProfiles:    config.GetBool(secAgentKey("internal_profiling.delta_profiles")),
 			Socket:               config.GetString(secAgentKey("internal_profiling.unix_socket")),
 			Tags:                 tags,

@@ -10,10 +10,12 @@ package collectors
 
 import (
 	"context"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+
 	"github.com/stretchr/testify/mock"
 )
 
@@ -40,7 +42,7 @@ func (m *MockCollector) CleanCache() error {
 }
 
 // Init initializes the collector
-func (m *MockCollector) Init(cfg config.Config, opt optional.Option[workloadmeta.Component]) error {
+func (m *MockCollector) Init(cfg config.Component, opt optional.Option[workloadmeta.Component]) error {
 	args := m.Called(cfg, opt)
 	return args.Error(0)
 }

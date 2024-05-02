@@ -221,11 +221,6 @@ func (fh *EBPFLessFieldHandlers) ResolveFileFilesystem(_ *model.Event, e *model.
 	return e.Filesystem
 }
 
-// ResolveHashesFromEvent resolves the hashes of the requested event
-func (fh *EBPFLessFieldHandlers) ResolveHashesFromEvent(_ *model.Event, e *model.FileEvent) []string {
-	return e.Hashes
-}
-
 // ResolveK8SGroups resolves the k8s groups of the event
 func (fh *EBPFLessFieldHandlers) ResolveK8SGroups(_ *model.Event, e *model.UserSessionContext) []string {
 	return e.K8SGroups
@@ -337,8 +332,13 @@ func (fh *EBPFLessFieldHandlers) ResolveXAttrNamespace(_ *model.Event, e *model.
 }
 
 // ResolveHashes resolves the hash of the provided file
-func (fh *EBPFLessFieldHandlers) ResolveHashes(_ model.EventType, _ *model.Process, _ *model.FileEvent) []string {
-	return nil
+func (fh *EBPFLessFieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
+	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
+}
+
+// ResolveHashesFromEvent resolves the hashes of the requested event
+func (fh *EBPFLessFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.FileEvent) []string {
+	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f)
 }
 
 // ResolveUserSessionContext resolves and updates the provided user session context

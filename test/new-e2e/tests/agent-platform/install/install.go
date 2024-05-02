@@ -67,7 +67,7 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 		require.NoError(tt, err, "failed to download install script from %s: ", source, err)
 
 		cmd := fmt.Sprintf(`DD_API_KEY="%s" %v DD_SITE="datadoghq.eu" bash installscript.sh`, apikey, commandLine)
-		output, err := client.Host.Execute(cmd)
+		output, err := client.ExecuteWithRetry(cmd)
 		tt.Log(output)
 		require.NoError(tt, err, "agent installation should not return any error: ", err)
 	})

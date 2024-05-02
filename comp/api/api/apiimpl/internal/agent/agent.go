@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -90,10 +89,12 @@ func SetupHandlers(
 	providers []api.EndpointProvider,
 ) *mux.Router {
 
-	// TODO: move these to a component that is registerable
+	// Register the handlers from the component providers
 	for _, p := range providers {
-		r.Handle(p.Route, p.Handler).Methods(p.Methods...)
+		r.HandleFunc(p.Route, p.HandlerFunc).Methods(p.Methods...)
 	}
+
+	// TODO: move these to a component that is registerable
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
@@ -225,7 +226,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 
 	var err error
 	if len(section) > 0 {
-		s, err = statusComponent.GetStatusBySection(section, format, verbose)
+		s, err = statusComponent.GetStatusBySections([]string{section}, format, verbose)
 	} else {
 		s, err = statusComponent.GetStatus(format, verbose)
 	}
@@ -406,9 +407,7 @@ func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Com
 }
 
 func getTaggerList(w http.ResponseWriter, _ *http.Request) {
-	// query at the highest cardinality between checks and dogstatsd cardinalities
-	cardinality := collectors.TagCardinality(max(int(tagger.ChecksCardinality), int(tagger.DogstatsdCardinality)))
-	response := tagger.List(cardinality)
+	response := tagger.List()
 
 	jsonTags, err := json.Marshal(response)
 	if err != nil {
@@ -559,14 +558,6 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	if err != nil {
 		setJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
 	}
-}
-
-// max returns the maximum value between a and b.
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // GetConnection returns the connection for the request

@@ -20,6 +20,9 @@ COPY ./install_info etc/datadog-agent/install_info
 COPY entrypoint.sh .
 COPY readsecret.sh readsecret_multiple_providers.sh ./
 
+# CWS Instrumentation
+COPY --chmod=0755 ./datadog-cws-instrumentation/ opt/datadog-agent/bin/datadog-cws-instrumentation/
+
 RUN apt-get update \
     && apt-get install --no-install-recommends -y adduser \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \

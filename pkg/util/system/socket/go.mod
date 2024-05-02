@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/system/socket
 
-go 1.21.9
+go 1.21.0
 
 require github.com/Microsoft/go-winio v0.6.1
 

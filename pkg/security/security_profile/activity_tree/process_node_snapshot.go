@@ -37,8 +37,6 @@ func (pn *ProcessNode) snapshot(owner Owner, stats *Stats, newEvent func() *mode
 	// call snapshot for all the children of the current node
 	for _, child := range pn.Children {
 		child.snapshot(owner, stats, newEvent, reducer)
-		// iterate slowly
-		time.Sleep(50 * time.Millisecond)
 	}
 
 	// snapshot the current process

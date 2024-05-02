@@ -361,13 +361,13 @@ func TestDestinationHA(t *testing.T) {
 	variants := []bool{true, false}
 	for _, variant := range variants {
 		endpoint := config.Endpoint{
-			IsHA: variant,
+			IsMRF: variant,
 		}
-		isEndpointHA := endpoint.IsHA
+		isEndpointMRF := endpoint.IsMRF
 
 		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), 1, false, "test", getNewConfig())
-		isDestHA := dest.IsHA()
+		isDestMRF := dest.IsMRF()
 
-		assert.Equal(t, isEndpointHA, isDestHA)
+		assert.Equal(t, isEndpointMRF, isDestMRF)
 	}
 }

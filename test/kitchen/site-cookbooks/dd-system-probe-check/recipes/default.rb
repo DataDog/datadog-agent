@@ -7,7 +7,6 @@
 
 rootdir = value_for_platform(
   'windows' => { 'default' => ::File.join(Chef::Config[:file_cache_path], 'system-probe') },
-  'default' => '/tmp/ci/system-probe'
 )
 
 directory rootdir do
@@ -21,13 +20,8 @@ remote_directory ::File.join(rootdir, "tests") do
   mode '755'
   files_mode '755'
   sensitive true
-  unless platform?('windows')
-    files_owner 'root'
-  end
 end
 
 if platform?('windows')
   include_recipe "::windows"
-else
-  include_recipe "::linux"
 end

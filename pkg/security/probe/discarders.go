@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 // Discarder represents a discarder which is basically the field that we know for sure
@@ -30,4 +31,6 @@ func (e ErrDiscarderNotSupported) Error() string {
 var (
 	// SupportedDiscarders lists all field which supports discarders
 	SupportedDiscarders = make(map[eval.Field]bool)
+	// SupportedMultiDiscarder lists all supported multi discarders
+	SupportedMultiDiscarder []*rules.MultiDiscarder
 )
