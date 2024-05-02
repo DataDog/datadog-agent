@@ -122,7 +122,9 @@ func TestClearEphemeralPort(t *testing.T) {
 		c1 := types.NewConnectionKey(srcIP, dstIP, 6000, 80)
 
 		// Nothing should happen in this case
-		assert.Equal(t, c1, aggregator.ClearEphemeralPort(c1))
+		clearedC1, modified := aggregator.ClearEphemeralPort(c1)
+		assert.False(t, modified)
+		assert.Equal(t, c1, clearedC1)
 	})
 
 	t.Run("base case", func(t *testing.T) {
@@ -139,8 +141,13 @@ func TestClearEphemeralPort(t *testing.T) {
 		// with the ephemeral port side set to 0
 		expected := types.NewConnectionKey(srcIP, dstIP, 0, 80)
 
-		assert.Equal(t, expected, aggregator.ClearEphemeralPort(c1))
-		assert.Equal(t, expected, aggregator.ClearEphemeralPort(c2))
+		clearedC1, modified := aggregator.ClearEphemeralPort(c1)
+		assert.True(t, modified)
+		assert.Equal(t, expected, clearedC1)
+
+		clearedC2, modified := aggregator.ClearEphemeralPort(c2)
+		assert.True(t, modified)
+		assert.Equal(t, expected, clearedC2)
 	})
 
 	t.Run("flipped tuples", func(t *testing.T) {
@@ -155,13 +162,18 @@ func TestClearEphemeralPort(t *testing.T) {
 
 		// The order of the tuples should be preserved, but 6001/6002 ports
 		// should still be correctly cleared
+		clearedC1, modified := aggregator.ClearEphemeralPort(c1)
+		assert.True(t, modified)
 		assert.Equal(t,
 			types.NewConnectionKey(srcIP, dstIP, 0, 80),
-			aggregator.ClearEphemeralPort(c1),
+			clearedC1,
 		)
+
+		clearedC2, modified := aggregator.ClearEphemeralPort(c2)
+		assert.True(t, modified)
 		assert.Equal(t,
 			types.NewConnectionKey(dstIP, srcIP, 80, 0),
-			aggregator.ClearEphemeralPort(c2),
+			clearedC2,
 		)
 	})
 }
