@@ -61,19 +61,20 @@ import (
 
 const (
 	// Most of the classifications are only supported on Linux, hence, they are defined in a Linux specific file.
+	amqpPort       = "5672"
+	amqpsPort      = "5671"
+	grpcPort       = "9091"
+	http2Port      = "9090"
+	httpsPort      = "8443"
+	kafkaPort      = "9092"
+	mongoPort      = "27017"
 	mysqlPort      = "3306"
 	postgresPort   = "5432"
-	mongoPort      = "27017"
-	redisPort      = "6379"
-	amqpPort       = "5672"
-	kafkaPort      = "9092"
-	http2Port      = "9090"
-	grpcPort       = "9091"
-	httpsPort      = "8443"
 	rawTrafficPort = "9093"
+	redisPort      = "6379"
 
-	produceAPIKey = 0
 	fetchAPIKey   = 1
+	produceAPIKey = 0
 
 	produceMaxSupportedVersion = 8
 	produceMinSupportedVersion = 1
@@ -422,6 +423,7 @@ func testTLSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, ser
 			name string
 			fn   func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string)
 		}{
+			{"amqp", testTLSAMQPProtocolClassification},
 			{"HTTP", testHTTPSClassification},
 			{"postgres", testPostgresProtocolClassificationWrapper(pgutils.TLSEnabled)},
 		}
@@ -1666,18 +1668,61 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	}
 }
 
+func testTLSAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	testAMQPProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, amqp.TLS)
+}
+
 func testAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfUsingNAT)
-	skipFunc(t, testContext{
+	testAMQPProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, amqp.Plaintext)
+}
+
+type amqpTestSpec struct {
+	port               string
+	classifiedStack    *protocols.Stack
+	nonClassifiedStack *protocols.Stack
+	skipFuncs          []func(*testing.T, testContext)
+}
+
+var amqpTestSpecsMap = map[bool]amqpTestSpec{
+	amqp.Plaintext: {
+		port:               amqpPort,
+		classifiedStack:    &protocols.Stack{Application: protocols.AMQP},
+		nonClassifiedStack: &protocols.Stack{},
+		skipFuncs: []func(*testing.T, testContext){
+			skipIfUsingNAT,
+		},
+	},
+	amqp.TLS: {
+		port:               amqpsPort,
+		classifiedStack:    &protocols.Stack{Encryption: protocols.TLS, Application: protocols.AMQP},
+		nonClassifiedStack: &protocols.Stack{Encryption: protocols.TLS},
+		skipFuncs: []func(*testing.T, testContext){
+			skipIfUsingNAT,
+			skipIfGoTLSNotSupported,
+		},
+	},
+}
+
+func testAMQPProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, withTLS bool) {
+	spec := amqpTestSpecsMap[withTLS]
+	composeSkips(spec.skipFuncs...)(t, testContext{
 		serverAddress: serverHost,
-		serverPort:    amqpPort,
+		serverPort:    spec.port,
 		targetAddress: targetHost,
 	})
 
-	defaultDialer := &net.Dialer{
-		LocalAddr: &net.TCPAddr{
-			IP: net.ParseIP(clientHost),
-		},
+	getAMQPClientOpts := func(ctx testContext) amqp.Options {
+		// We return options for both TLS and Plaintext. Our
+		// AMQP client wrapper will only uses the ones it needs.
+		return amqp.Options{
+			ServerAddress: ctx.serverAddress,
+			WithTLS:       withTLS,
+			Dialer: &net.Dialer{
+				LocalAddr: &net.TCPAddr{
+					IP: net.ParseIP(clientHost),
+				},
+			},
+		}
 	}
 
 	amqpTeardown := func(t *testing.T, ctx testContext) {
@@ -1687,44 +1732,48 @@ func testAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, target
 		require.NoError(t, client.DeleteQueues())
 	}
 
+	if withTLS {
+		// Our client runs in this binary. By default, USM will exclude the current process from tracing. But,
+		// we need to include it in this case. So we allowing it by setting GoTLSExcludeSelf to false and resetting it
+		// after the test.
+		require.NoError(t, usm.SetGoTLSExcludeSelf(false))
+		t.Cleanup(func() {
+			require.NoError(t, usm.SetGoTLSExcludeSelf(true))
+		})
+	}
+
 	// Setting one instance of amqp server for all tests.
-	serverAddress := net.JoinHostPort(serverHost, amqpPort)
-	targetAddress := net.JoinHostPort(targetHost, amqpPort)
-	require.NoError(t, amqp.RunServer(t, serverHost, amqpPort, amqp.Plaintext))
+	serverAddress := net.JoinHostPort(serverHost, spec.port)
+	targetAddress := net.JoinHostPort(targetHost, spec.port)
+	require.NoError(t, amqp.RunServer(t, serverHost, spec.port, withTLS))
 
 	tests := []protocolClassificationAttributes{
 		{
 			name: "connect",
 			context: testContext{
-				serverPort:    amqpPort,
+				serverPort:    spec.port,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := amqp.NewClient(amqp.Options{
-					ServerAddress: ctx.serverAddress,
-					Dialer:        defaultDialer,
-				})
+				client, err := amqp.NewClient(getAMQPClientOpts(ctx))
 				require.NoError(t, err)
 				ctx.extras["client"] = client
 			},
 			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.AMQP}),
+			validation: validateProtocolConnection(spec.classifiedStack),
 		},
 		{
 			name: "declare channel",
 			context: testContext{
-				serverPort:    amqpPort,
+				serverPort:    spec.port,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := amqp.NewClient(amqp.Options{
-					ServerAddress: ctx.serverAddress,
-					Dialer:        defaultDialer,
-				})
+				client, err := amqp.NewClient(getAMQPClientOpts(ctx))
 				require.NoError(t, err)
 				ctx.extras["client"] = client
 			},
@@ -1733,21 +1782,18 @@ func testAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, target
 				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
 			},
 			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{}),
+			validation: validateProtocolConnection(spec.nonClassifiedStack),
 		},
 		{
 			name: "publish",
 			context: testContext{
-				serverPort:    amqpPort,
+				serverPort:    spec.port,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := amqp.NewClient(amqp.Options{
-					ServerAddress: ctx.serverAddress,
-					Dialer:        defaultDialer,
-				})
+				client, err := amqp.NewClient(getAMQPClientOpts(ctx))
 				require.NoError(t, err)
 				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
 				ctx.extras["client"] = client
@@ -1757,21 +1803,18 @@ func testAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, target
 				require.NoError(t, client.Publish("test", "my msg"))
 			},
 			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.AMQP}),
+			validation: validateProtocolConnection(spec.classifiedStack),
 		},
 		{
 			name: "consume",
 			context: testContext{
-				serverPort:    amqpPort,
+				serverPort:    spec.port,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := amqp.NewClient(amqp.Options{
-					ServerAddress: ctx.serverAddress,
-					Dialer:        defaultDialer,
-				})
+				client, err := amqp.NewClient(getAMQPClientOpts(ctx))
 				require.NoError(t, err)
 				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
 				require.NoError(t, client.DeclareQueue("test", client.ConsumeChannel))
@@ -1785,10 +1828,15 @@ func testAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, target
 				require.Equal(t, []string{"my msg"}, res)
 			},
 			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.AMQP}),
+			validation: validateProtocolConnection(spec.classifiedStack),
 		},
 	}
 	for _, tt := range tests {
+		if withTLS {
+			tt.preTracerSetup = goTLSDetacherWrapper(os.Getpid(), tt.preTracerSetup)
+			tt.postTracerSetup = goTLSAttacherWrapper(os.Getpid(), tt.postTracerSetup)
+		}
+
 		t.Run(tt.name, func(t *testing.T) {
 			testProtocolClassificationInner(t, tt, tr)
 		})
