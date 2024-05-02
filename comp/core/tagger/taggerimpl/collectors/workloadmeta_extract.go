@@ -136,8 +136,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
 			case workloadmeta.KindKubernetesNode:
 				tagInfos = append(tagInfos, c.handleKubeNode(ev)...)
-			case workloadmeta.KindKubernetesNamespace:
-				tagInfos = append(tagInfos, c.handleKubeNamespace(ev)...)
 			case workloadmeta.KindECSTask:
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
 			case workloadmeta.KindContainerImageMetadata:
@@ -437,28 +435,6 @@ func (c *WorkloadMetaCollector) handleKubeNode(ev workloadmeta.Event) []*types.T
 	return tagInfos
 }
 
-func (c *WorkloadMetaCollector) handleKubeNamespace(ev workloadmeta.Event) []*types.TagInfo {
-	namespace := ev.Entity.(*workloadmeta.KubernetesNamespace)
-
-	tags := utils.NewTagList()
-
-	// Add tags for namespace here
-
-	low, orch, high, standard := tags.Compute()
-	tagInfos := []*types.TagInfo{
-		{
-			Source:               nodeSource,
-			Entity:               buildTaggerEntityID(namespace.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-		},
-	}
-
-	return tagInfos
-}
-
 func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.TagInfo {
 	task := ev.Entity.(*workloadmeta.ECSTask)
 
@@ -740,8 +716,6 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		return kubelet.PodUIDToTaggerEntityName(entityID.ID)
 	case workloadmeta.KindKubernetesNode:
 		return kubelet.NodeUIDToTaggerEntityName(entityID.ID)
-	case workloadmeta.KindKubernetesNamespace:
-		return fmt.Sprintf("namespace://%s", entityID.ID)
 	case workloadmeta.KindECSTask:
 		return fmt.Sprintf("ecs_task://%s", entityID.ID)
 	case workloadmeta.KindContainerImageMetadata:
