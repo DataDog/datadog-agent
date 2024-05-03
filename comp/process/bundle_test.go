@@ -94,6 +94,7 @@ func TestBundleOneShot(t *testing.T) {
 		eventplatformimpl.Module(),
 		fx.Supply(eventplatformimpl.NewDefaultParams()),
 		npschedulerimpl.Module(),
+		fx.Supply(npschedulerimpl.Params{}),
 		Bundle(),
 	)
 	require.NoError(t, err)

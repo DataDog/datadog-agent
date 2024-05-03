@@ -119,6 +119,8 @@ func MakeCommand(globalParams *command.GlobalParams, name string, allowlist []st
 				eventplatformimpl.Module(),
 				fx.Supply(eventplatformimpl.NewDefaultParams()),
 				npschedulerimpl.Module(),
+				fx.Supply(npschedulerimpl.Params{}),
+
 				// Provide the corresponding workloadmeta Params to configure the catalog
 				collectors.GetCatalog(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {

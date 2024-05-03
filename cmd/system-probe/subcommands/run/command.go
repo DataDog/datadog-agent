@@ -311,6 +311,22 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 			}
 		}),
 		settingsimpl.Module(),
+
+		// Provide ep forwarder bundle so fx knows where to find components
+		fx.Provide(func() hostnameinterface.Component {
+			return hostnameimpl.NewHostnameService()
+		}),
+		fx.Provide(func() eventplatformimpl.Params {
+			return eventplatformimpl.NewDefaultParams()
+		}),
+		eventplatformreceiverimpl.Module(),
+		eventplatformimpl.Module(),
+		// Provide network path scheduler bundle
+		fx.Provide(func(Syscfg sysprobeconfig.Component) npschedulerimpl.Params {
+			enabled := Syscfg.GetBool("network_path.enabled_in_system_probe")
+			return npschedulerimpl.Params{Enabled: enabled, TracerouteRunner: npschedulerimpl.SimpleTraceroute}
+		}),
+		networkpath.Bundle(),
 	)
 }
 
