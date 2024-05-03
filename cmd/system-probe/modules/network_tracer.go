@@ -354,6 +354,7 @@ func writeDisabledProtocolMessage(protocolName string, w http.ResponseWriter) {
 
 func (nt *networkTracer) scheduleNetworkPath(conns []network.ConnectionStats) {
 	if !nt.npScheduler.Enabled() {
+		log.Debug("Network Path disabled in System Probe")
 		return
 	}
 	startTime := time.Now()

@@ -521,6 +521,7 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 
 func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
 	if !c.npScheduler.Enabled() {
+		log.Debug("Network Path disabled in Process Agent")
 		return
 	}
 	startTime := time.Now()
