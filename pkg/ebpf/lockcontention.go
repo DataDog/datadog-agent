@@ -89,6 +89,7 @@ var (
 	ContentionCollector *LockContentionCollector
 )
 
+// NewLockContentionCollector creates a prometheus.Collector for eBPF lock contention metrics
 func NewLockContentionCollector() *LockContentionCollector {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
@@ -132,14 +133,19 @@ func NewLockContentionCollector() *LockContentionCollector {
 	return ContentionCollector
 }
 
+// Describe implements prometheus.Collector.Describe
 func (l *LockContentionCollector) Describe(descs chan<- *prometheus.Desc) {
 	return
 }
 
+// Collect implements prometheus.Collector.Collect
 func (l *LockContentionCollector) Collect(metrics chan<- prometheus.Metric) {
 	return
 }
 
+// Initialize will collect all the memory ranges we wish to monitor in ours lock stats eBPF programs
+// These memory ranges correspond to locks taken by eBPF programs and are collected by walking
+// fds representing the resource of interest, for example an eBPF map.
 func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
@@ -254,6 +260,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	l.links = append(l.links, tpContentionEnd)
 
 	for _, tm := range maps {
+
 		syscall.Syscall(syscall.SYS_IOCTL, uintptr(tm.fd), ioctlCollectLocksCmd, uintptr(0))
 
 		// close all dupped maps so we do not waste fds
@@ -263,6 +270,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	return fmt.Errorf("fail because I said so")
 }
 
+// Close all eBPF resources setup up the LockContentionCollector
 func (l *LockContentionCollector) Close() {
 	for _, ebpfLink := range l.links {
 		ebpfLink.Close()
