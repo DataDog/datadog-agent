@@ -18,6 +18,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -127,6 +130,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				settingsimpl.Module(),
+
+				// Provide ep forwarder bundle so fx knows where to find components
+				fx.Provide(func() eventplatformimpl.Params {
+					return eventplatformimpl.NewDefaultParams()
+				}),
+				eventplatformreceiverimpl.Module(),
+				eventplatformimpl.Module(),
+
+				// Provide network path scheduler bundle
+				networkpath.Bundle(),
 			)
 		},
 	}
