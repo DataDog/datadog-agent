@@ -442,7 +442,9 @@ func (c *WorkloadMetaCollector) handleKubeNamespace(ev workloadmeta.Event) []*ty
 
 	tags := utils.NewTagList()
 
-	// Add tags for namespace here
+	for name, value := range namespace.Labels {
+		utils.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
+	}
 
 	low, orch, high, standard := tags.Compute()
 	tagInfos := []*types.TagInfo{

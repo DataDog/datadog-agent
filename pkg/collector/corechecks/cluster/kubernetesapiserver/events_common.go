@@ -14,11 +14,14 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/patrickmn/go-cache"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/patrickmn/go-cache"
 )
 
 var (
@@ -44,7 +47,7 @@ func getDDAlertType(k8sType string) event.EventAlertType {
 	}
 }
 
-func getInvolvedObjectTags(involvedObject v1.ObjectReference) []string {
+func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tagger.Component) []string {
 	// NOTE: we now standardized on using kube_* tags, instead of
 	// non-namespaced ones, or kubernetes_*. The latter two are now
 	// considered deprecated.
@@ -64,6 +67,12 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference) []string {
 			// DEPRECATED:
 			fmt.Sprintf("namespace:%s", involvedObject.Namespace),
 		)
+
+		namespaceEntityId := fmt.Sprintf("namespace://%s", involvedObject.Namespace)
+		namespaceEntity, err := taggerInstance.GetEntity(namespaceEntityId)
+		if err == nil {
+			tags = append(tags, namespaceEntity.GetTags(types.HighCardinality)...)
+		}
 	}
 
 	kindTag := getKindTag(involvedObject.Kind, involvedObject.Name)
