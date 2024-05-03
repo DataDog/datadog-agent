@@ -9,6 +9,7 @@ package rules
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -107,11 +108,12 @@ type Scope string
 
 // SetDefinition describes the 'set' section of a rule action
 type SetDefinition struct {
-	Name   string      `yaml:"name"`
-	Value  interface{} `yaml:"value"`
-	Field  string      `yaml:"field"`
-	Append bool        `yaml:"append"`
-	Scope  Scope       `yaml:"scope"`
+	Name   string        `yaml:"name"`
+	Value  interface{}   `yaml:"value"`
+	Field  string        `yaml:"field"`
+	Append bool          `yaml:"append"`
+	Scope  Scope         `yaml:"scope"`
+	Ttl    time.Duration `yaml:"ttl"`
 }
 
 // InternalCallbackDefinition describes an internal rule action

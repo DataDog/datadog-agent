@@ -11,6 +11,9 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"time"
+
+	"github.com/hashicorp/golang-lru/v2/expirable"
 )
 
 var (
@@ -301,7 +304,7 @@ func NewMutableStringVariable() *MutableStringVariable {
 
 // MutableStringArrayVariable describes a mutable string array variable
 type MutableStringArrayVariable struct {
-	StringValues
+	*expirable.LRU[string, bool]
 }
 
 // Set the variable with the specified value
@@ -310,9 +313,8 @@ func (m *MutableStringArrayVariable) Set(_ *Context, values interface{}) error {
 		values = []string{s}
 	}
 
-	m.StringValues = StringValues{}
 	for _, v := range values.([]string) {
-		m.AppendScalarValue(v)
+		m.LRU.Add(v, true)
 	}
 	return nil
 }
@@ -321,10 +323,10 @@ func (m *MutableStringArrayVariable) Set(_ *Context, values interface{}) error {
 func (m *MutableStringArrayVariable) Append(_ *Context, value interface{}) error {
 	switch value := value.(type) {
 	case string:
-		m.AppendScalarValue(value)
+		m.LRU.Add(value, true)
 	case []string:
 		for _, v := range value {
-			m.AppendScalarValue(v)
+			m.LRU.Add(v, true)
 		}
 	default:
 		return errAppendNotSupported
@@ -336,14 +338,21 @@ func (m *MutableStringArrayVariable) Append(_ *Context, value interface{}) error
 func (m *MutableStringArrayVariable) GetEvaluator() interface{} {
 	return &StringArrayEvaluator{
 		EvalFnc: func(ctx *Context) []string {
-			return m.GetScalarValues()
+			return m.LRU.Keys()
 		},
 	}
 }
 
 // NewMutableStringArrayVariable returns a new mutable string array variable
-func NewMutableStringArrayVariable() *MutableStringArrayVariable {
-	return &MutableStringArrayVariable{}
+func NewMutableStringArrayVariable(size int, ttl time.Duration) *MutableStringArrayVariable {
+	if size == 0 {
+		size = defaultMaxVariables
+	}
+
+	lru := expirable.NewLRU[string, bool](size, nil, ttl)
+	return &MutableStringArrayVariable{
+		LRU: lru,
+	}
 }
 
 // MutableIntArrayVariable describes a mutable integer array variable
@@ -398,8 +407,13 @@ type Scoper func(ctx *Context) ScopedVariable
 // GlobalVariables holds a set of global variables
 type GlobalVariables struct{}
 
+type VariableOpts struct {
+	Size int
+	TTL  time.Duration
+}
+
 // GetVariable returns new variable of the type of the specified value
-func (v *GlobalVariables) GetVariable(_ string, value interface{}) (VariableValue, error) {
+func (v *GlobalVariables) GetVariable(_ string, value interface{}, opts VariableOpts) (VariableValue, error) {
 	switch value := value.(type) {
 	case bool:
 		return NewMutableBoolVariable(), nil
@@ -408,7 +422,7 @@ func (v *GlobalVariables) GetVariable(_ string, value interface{}) (VariableValu
 	case string:
 		return NewMutableStringVariable(), nil
 	case []string:
-		return NewMutableStringArrayVariable(), nil
+		return NewMutableStringArrayVariable(opts.Size, opts.TTL), nil
 	case []int:
 		return NewMutableIntArrayVariable(), nil
 	default:
@@ -418,59 +432,56 @@ func (v *GlobalVariables) GetVariable(_ string, value interface{}) (VariableValu
 
 // Variables holds a set of variables
 type Variables struct {
-	vars map[string]interface{}
+	lru *expirable.LRU[string, interface{}]
+	ttl time.Duration
+}
+
+func NewVariables() *Variables {
+	return &Variables{}
 }
 
 // GetBool returns the boolean value of the specified variable
 func (v *Variables) GetBool(name string) bool {
-	if _, found := v.vars[name]; !found {
-		return false
-	}
-	return v.vars[name].(bool)
+	value, _ := v.lru.Get(name)
+	return value.(bool)
 }
 
 // GetInt returns the integer value of the specified variable
 func (v *Variables) GetInt(name string) int {
-	if _, found := v.vars[name]; !found {
-		return 0
-	}
-	return v.vars[name].(int)
+	value, _ := v.lru.Get(name)
+	return value.(int)
 }
 
 // GetString returns the string value of the specified variable
 func (v *Variables) GetString(name string) string {
-	if _, found := v.vars[name]; !found {
-		return ""
-	}
-	return v.vars[name].(string)
+	value, _ := v.lru.Get(name)
+	return value.(string)
 }
 
 // GetStringArray returns the string array value of the specified variable
 func (v *Variables) GetStringArray(name string) []string {
-	if _, found := v.vars[name]; !found {
-		return nil
-	}
-	return v.vars[name].([]string)
+	value, _ := v.lru.Get(name)
+	return value.([]string)
 }
 
 // GetIntArray returns the integer array value of the specified variable
 func (v *Variables) GetIntArray(name string) []int {
-	if _, found := v.vars[name]; !found {
-		return nil
-	}
-	return v.vars[name].([]int)
+	value, _ := v.lru.Get(name)
+	return value.([]int)
 }
+
+const defaultMaxVariables = 100
 
 // Set the value of the specified variable
 func (v *Variables) Set(name string, value interface{}) bool {
 	existed := false
-	if v.vars == nil {
-		v.vars = make(map[string]interface{})
+	if v.lru == nil {
+		v.lru = expirable.NewLRU[string, interface{}](defaultMaxVariables, nil, v.ttl)
 	} else {
-		_, existed = v.vars[name]
+		_, existed = v.lru.Get(name)
 	}
 
-	v.vars[name] = value
+	v.lru.Add(name, value)
 	return !existed
 }
 
@@ -485,7 +496,8 @@ func (v *ScopedVariables) Len() int {
 	return len(v.vars)
 }
 
-func (v *ScopedVariables) GetVariable(name string, value interface{}) (VariableValue, error) {
+// GetVariable returns new variable of the type of the specified value
+func (v *ScopedVariables) GetVariable(name string, value interface{}, opts VariableOpts) (VariableValue, error) {
 	getVariables := func(ctx *Context) *Variables {
 		v := v.vars[v.scoper(ctx)]
 		return v
@@ -501,7 +513,7 @@ func (v *ScopedVariables) GetVariable(name string, value interface{}) (VariableV
 			key.SetReleaseCallback(func() {
 				v.ReleaseVariable(key)
 			})
-			vars = &Variables{}
+			vars = NewVariables()
 			v.vars[key] = vars
 		}
 		vars.Set(name, value)
