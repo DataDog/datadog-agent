@@ -109,6 +109,15 @@ func (ws WorkloadSelector) ToTags() []string {
 	}
 }
 
+// SetTags sets the tags for the provided workload
+func (ws *WorkloadSelector) FromTags(tags []string) {
+	ws.image = utils.GetNameFromTags(tags)
+	ws.tag = utils.GetVersionFromTags(tags)
+	if len(ws.image) != 0 && len(ws.tag) == 0 {
+		ws.tag = "latest"
+	}
+}
+
 // CacheEntry cgroup resolver cache entry
 type CacheEntry struct {
 	model.ContainerContext
@@ -170,18 +179,7 @@ func (cgce *CacheEntry) SetTags(tags []string) {
 	cgce.Lock()
 	defer cgce.Unlock()
 
-	cgce.Tags = tags
-	cgce.WorkloadSelector.image = utils.GetTagValue("image_name", tags)
-	if cgce.WorkloadSelector.image == "" {
-		cgce.WorkloadSelector.image = utils.GetTagValue("service", tags)
-	}
-	cgce.WorkloadSelector.tag = utils.GetTagValue("image_tag", tags)
-	if cgce.WorkloadSelector.tag == "" {
-		cgce.WorkloadSelector.tag = utils.GetTagValue("version", tags)
-	}
-	if len(cgce.WorkloadSelector.image) != 0 && len(cgce.WorkloadSelector.tag) == 0 {
-		cgce.WorkloadSelector.tag = "latest"
-	}
+	cgce.WorkloadSelector.FromTags(tags)
 }
 
 // GetWorkloadSelectorCopy returns a copy of the workload selector of this cgroup

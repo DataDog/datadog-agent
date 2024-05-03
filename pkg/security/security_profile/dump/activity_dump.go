@@ -241,10 +241,7 @@ func (ad *ActivityDump) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
 		name = utils.GetTagValue("service", ad.Tags)
 	}
 
-	version := utils.GetTagValue("image_tag", ad.Tags)
-	if version == "" {
-		name = utils.GetTagValue("version", ad.Tags)
-	}
+	version := utils.GetVersionFromTags(ad.Tags)
 
 	selector, err := cgroupModel.NewWorkloadSelector(name, version)
 	if err != nil {
@@ -531,7 +528,7 @@ func (ad *ActivityDump) Insert(event *model.Event) {
 		return
 	}
 
-	imageTag := utils.GetTagValue("image_tag", ad.Tags)
+	imageTag := utils.GetVersionFromTags(ad.Tags)
 	if ok, err := ad.ActivityTree.Insert(event, true, imageTag, activity_tree.Runtime, ad.adm.resolvers); ok && err == nil {
 		// check dump size
 		ad.checkInMemorySize()

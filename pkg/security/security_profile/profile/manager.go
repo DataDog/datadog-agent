@@ -336,7 +336,7 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 	}
 
 	// check if the workload of this selector already exists
-	profile, ok := m.profiles[selector.Key()]
+	profile, ok := m.profiles[workload.WorkloadSelector.Key()]
 	if !ok {
 		// check the cache
 		m.pendingCacheLock.Lock()
@@ -791,18 +791,19 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	if len(event.ContainerContext.Tags) == 0 {
 		return
 	}
-	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", event.ContainerContext.Tags), "*")
+	imageName := utils.GetTagValue("image_name", event.ContainerContext.Tags)
+	selector, err := cgroupModel.NewWorkloadSelector(imageName, "*")
 	if err != nil {
 		return
 	}
 
 	// lookup profile
 	profile := m.GetProfile(selector)
-	if profile == nil || profile.ActivityTree == nil {
+	if profile == nil { // || profile.ActivityTree == nil {
 		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return
 	}
-	if !profile.IsEventTypeValid(event.GetEventType()) || !profile.loadedInKernel {
+	if !profile.IsEventTypeValid(event.GetEventType()) /* || !profile.loadedInKernel */ {
 		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return
 	}
@@ -810,7 +811,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	_ = event.FieldHandlers.ResolveContainerCreatedAt(event, event.ContainerContext)
 
 	// check if the event should be injected in the profile automatically
-	imageTag := utils.GetTagValue("image_tag", event.ContainerContext.Tags)
+	imageTag := utils.GetVersionFromTags(event.ContainerContext.Tags)
 	if imageTag == "" {
 		imageTag = "latest" // not sure about this one
 	}

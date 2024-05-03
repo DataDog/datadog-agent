@@ -737,7 +737,7 @@ func (pces *processCacheEntrySearcher) SearchTracedProcessCacheEntry(entry *mode
 	}
 	slices.Reverse(ancestors)
 
-	imageTag := utils.GetTagValue("image_tag", pces.ad.Tags)
+	imageTag := utils.GetVersionFromTags(pces.ad.Tags)
 	for _, parent = range ancestors {
 		node, _, err := pces.ad.ActivityTree.CreateProcessNode(parent, imageTag, activity_tree.Snapshot, false, pces.adm.resolvers)
 		if err != nil {

@@ -97,7 +97,8 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, eventTypes []mode
 		timeResolver:    tr,
 		pathsReducer:    pathsReducer,
 	}
-	if version := selector.Version(); version != "" && version != "*" {
+	name, version := selector.Name(), selector.Version()
+	if name != "" && version != "" && version != "*" {
 		sp.versionContexts[version] = &VersionContext{
 			eventTypeState: make(map[model.EventType]*EventTypeState),
 		}
