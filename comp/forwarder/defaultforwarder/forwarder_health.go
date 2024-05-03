@@ -106,6 +106,7 @@ func (fh *forwarderHealth) init() {
 			oldAPIKey, ok1 := oldValue.(string)
 			newAPIKey, ok2 := newValue.(string)
 			if ok1 && ok2 {
+				fh.log.Debug("Updating API key in forwarder, replacing %s with %s", oldAPIKey[:5], newAPIKey[:5])
 				fh.updateAPIKey(oldAPIKey, newAPIKey)
 			}
 		})
@@ -118,6 +119,7 @@ func (fh *forwarderHealth) Start() {
 	}
 
 	fh.health = health.RegisterReadiness("forwarder")
+	fh.log.Debug("Starting forwarder health check")
 	fh.init()
 	go fh.healthCheckLoop()
 }

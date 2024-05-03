@@ -1714,6 +1714,7 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 func LoadCustom(config pkgconfigmodel.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
 	warnings := pkgconfigmodel.Warnings{}
 
+	log.Info("Starting to load the configuration")
 	if err := config.ReadInConfig(); err != nil {
 		if pkgconfigenv.IsServerless() {
 			log.Debug("No config file detected, using environment variable based configuration only")
@@ -1887,6 +1888,7 @@ func setupFipsLogsConfig(config pkgconfigmodel.Config, configPrefix string, url 
 // are identified by a value of the form "ENC[key]" where key is the secret key.
 // See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
 func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
+	log.Info("Starting to resolve secrets")
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
@@ -1916,13 +1918,14 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 				return
 			}
 			if err := configAssignAtPath(config, settingPath, newValue); err != nil {
-				log.Errorf("could not assign to config: %s", err)
+				log.Errorf("Could not assign new value of secret %s to config: %s", handle, err)
 			}
 		})
 		if _, err = secretResolver.Resolve(yamlConf, origin); err != nil {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
 		}
 	}
+	log.Info("Finished resolving secrets")
 	return nil
 }
 
