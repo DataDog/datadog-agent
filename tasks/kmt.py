@@ -242,8 +242,8 @@ def ls(_, distro=True, custom=False):
 
 
 @task
-def init(ctx: Context, lite=False):
-    init_kernel_matrix_testing_system(ctx, lite)
+def init(ctx: Context, lite=False, images: str | None = None):
+    init_kernel_matrix_testing_system(ctx, lite, images)
     config_ssh_key(ctx)
 
 
