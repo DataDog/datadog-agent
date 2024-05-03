@@ -75,11 +75,19 @@ type WindowsProbe struct {
 	filePathResolver     map[fileObjectPointer]string
 	regPathResolver      map[regObjectPointer]string
 
+	// state tracking
+	renamePreArgs renameState
+
 	// stats
 	stats stats
 	// discarders
 	discardedPaths     *lru.Cache[string, struct{}]
 	discardedBasenames *lru.Cache[string, struct{}]
+}
+
+type renameState struct {
+	fileObject uint64
+	path       string
 }
 
 type etwNotification struct {
@@ -544,7 +552,49 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 	case *createNewFileArgs:
 		ev.Type = uint32(model.CreateNewFileEventType)
 		ev.CreateNewFile = model.CreateNewFileEvent{
-			File: model.FileEvent{
+			File: model.FimFileEvent{
+				FileObject:  uint64(arg.fileObject),
+				PathnameStr: arg.fileName,
+				BasenameStr: filepath.Base(arg.fileName),
+			},
+		}
+	case *renameArgs:
+		p.renamePreArgs = renameState{
+			fileObject: uint64(arg.fileObject),
+			path:       arg.fileName,
+		}
+	case *rename29Args:
+		p.renamePreArgs = renameState{
+			fileObject: uint64(arg.fileObject),
+			path:       arg.fileName,
+		}
+	case *renamePath:
+		ev.Type = uint32(model.FileRenameEventType)
+		ev.RenameFile = model.RenameFileEvent{
+			Old: model.FimFileEvent{
+				FileObject:  p.renamePreArgs.fileObject,
+				PathnameStr: p.renamePreArgs.path,
+				BasenameStr: filepath.Base(p.renamePreArgs.path),
+			},
+			New: model.FimFileEvent{
+				FileObject:  uint64(arg.fileObject),
+				PathnameStr: arg.filePath,
+				BasenameStr: filepath.Base(arg.filePath),
+			},
+		}
+	case *setDeleteArgs:
+		ev.Type = uint32(model.DeleteFileEventType)
+		ev.DeleteFile = model.DeleteFileEvent{
+			File: model.FimFileEvent{
+				FileObject:  uint64(arg.fileObject),
+				PathnameStr: arg.fileName,
+				BasenameStr: filepath.Base(arg.fileName),
+			},
+		}
+	case *writeArgs:
+		ev.Type = uint32(model.WriteFileEventType)
+		ev.WriteFile = model.WriteFileEvent{
+			File: model.FimFileEvent{
 				FileObject:  uint64(arg.fileObject),
 				PathnameStr: arg.fileName,
 				BasenameStr: filepath.Base(arg.fileName),
@@ -585,6 +635,7 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 			ValueName: arg.valueName,
 		}
 	}
+
 	if ev.Type != uint32(model.UnknownEventType) {
 		errRes := p.setProcessContext(notif.pid, ev)
 		if errRes != nil {

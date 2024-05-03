@@ -17,10 +17,11 @@ import (
 
 const (
 	// Default openmetrics check configuration values
-	openmetricsURLPrefix   = "http://%%host%%:"
-	openmetricsDefaultPort = "%%port%%"
-	openmetricsDefaultPath = "/metrics"
-	openmetricsDefaultNS   = ""
+	openmetricsURLInfix      = "://%%host%%:"
+	openmetricsDefaultScheme = "http"
+	openmetricsDefaultPort   = "%%port%%"
+	openmetricsDefaultPath   = "/metrics"
+	openmetricsDefaultNS     = ""
 
 	// PrometheusScrapeAnnotation standard Prometheus scrape annotation key
 	PrometheusScrapeAnnotation = "prometheus.io/scrape"
@@ -28,6 +29,8 @@ const (
 	PrometheusPathAnnotation = "prometheus.io/path"
 	// PrometheusPortAnnotation standard Prometheus port annotation key
 	PrometheusPortAnnotation = "prometheus.io/port"
+	// PrometheusSchemeAnnotation standard Prometheus scheme annotation key
+	PrometheusSchemeAnnotation = "prometheus.io/scheme"
 )
 
 var (
@@ -336,7 +339,12 @@ func BuildURL(annotations map[string]string) string {
 		path = pathFromAnnotation
 	}
 
-	return openmetricsURLPrefix + port + path
+	scheme := openmetricsDefaultScheme
+	if schemeFromAnnotation, found := annotations[PrometheusSchemeAnnotation]; found {
+		scheme = schemeFromAnnotation
+	}
+
+	return scheme + openmetricsURLInfix + port + path
 }
 
 // PrometheusAnnotations abstracts a map of prometheus annotations

@@ -30,12 +30,12 @@ else
   COMPRESSION_LEVEL = 5
 end
 
-if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR")
+BUILD_OCIRU = Omnibus::Config.host_distribution == "ociru"
+
+if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR") && !BUILD_OCIRU
   Omnibus::Config.use_git_caching true
   Omnibus::Config.git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
 end
-
-BUILD_OCIRU = Omnibus::Config.host_distribution == "ociru"
 
 if windows_target?
   # Note: this is the path used by Omnibus to build the agent, the final install
@@ -222,6 +222,9 @@ end
 if with_python_runtime? "3"
   dependency 'datadog-agent-integrations-py3'
 end
+
+# Used for memory profiling with the `status py` agent subcommand
+dependency 'pympler'
 
 if linux_target?
   dependency 'datadog-security-agent-policies'

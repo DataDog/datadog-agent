@@ -3,6 +3,8 @@ tests_macos:
   # HACK: Run macOS unit tests only on full pipelines, to limit the use of macOS GitHub runners.
   rules:
     - !reference [.on_main_or_release_branch_or_all_builds_or_pkg_installer_changes]
+    - when: manual
+      allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["setup_agent_version"]

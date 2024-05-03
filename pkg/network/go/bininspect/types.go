@@ -56,6 +56,12 @@ var StructOffsetPollFdSysfd = FieldIdentifier{
 	FieldName:  "Sysfd",
 }
 
+// StructOffsetLimitListenerConnNetConn is the offset of the `net.Conn` field within `netutil/limitListenerConn`.
+var StructOffsetLimitListenerConnNetConn = FieldIdentifier{
+	StructName: "golang.org/x/net/netutil.limitListenerConn",
+	FieldName:  "Conn",
+}
+
 type elfMetadata struct {
 	file *elf.File
 	arch GoArch
