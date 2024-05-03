@@ -11,14 +11,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 
 	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // TODO(component): it might make more sense to move the store into its own
@@ -445,11 +444,32 @@ type OrchestratorContainer struct {
 	ID    string
 	Name  string
 	Image ContainerImage
+	// Limits and Requests use map[string]string as corev1.ResourceList can't be imported
+	Limits   map[string]string
+	Requests map[string]string
 }
 
 // String returns a string representation of OrchestratorContainer.
-func (o OrchestratorContainer) String(_ bool) string {
-	return fmt.Sprintln("Name:", o.Name, "ID:", o.ID)
+func (o OrchestratorContainer) String(bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Name:", o.Name, "ID:", o.ID)
+	if o.Limits == nil && o.Requests == nil {
+		return sb.String()
+	}
+	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
+	if o.Limits != nil {
+		_, _ = fmt.Fprintln(&sb, "Limits:")
+		for k, v := range o.Limits {
+			_, _ = fmt.Fprintf(&sb, "  %s: %s\n", k, v)
+		}
+	}
+	if o.Requests != nil {
+		_, _ = fmt.Fprintln(&sb, "Requests:")
+		for k, v := range o.Requests {
+			_, _ = fmt.Fprintf(&sb, "  %s: %s\n", k, v)
+		}
+	}
+	return sb.String()
 }
 
 // ECSContainer is a reference to a container running in ECS
