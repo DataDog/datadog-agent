@@ -357,6 +357,7 @@ func (nt *networkTracer) scheduleNetworkPath(conns []network.ConnectionStats) {
 		log.Debug("Network Path disabled in System Probe")
 		return
 	}
+	log.Debug("Network Path enabled in System Probe")
 	startTime := time.Now()
 	// TODO: TESTME
 	for _, conn := range conns {

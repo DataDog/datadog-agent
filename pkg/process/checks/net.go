@@ -524,6 +524,7 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
 		log.Debug("Network Path disabled in Process Agent")
 		return
 	}
+	log.Debug("Network Path enabled in Process Agent")
 	startTime := time.Now()
 	// TODO: TESTME
 	for _, conn := range conns {
