@@ -63,6 +63,11 @@ type apiServer struct {
 	rcService             optional.Option[rcservice.Component]
 	rcServiceMRF          optional.Option[rcservicemrf.Component]
 	authToken             authtoken.Component
+	taggerComp            tagger.Component
+	autoConfig            autodiscovery.Component
+	logsAgentComp         optional.Option[logsAgent.Component]
+	wmeta                 workloadmeta.Component
+	collector             optional.Option[collector.Component]
 	gui                   optional.Option[gui.Component]
 	settings              settings.Component
 	endpointProviders     []api.EndpointProvider
@@ -87,6 +92,11 @@ type dependencies struct {
 	RcService             optional.Option[rcservice.Component]
 	RcServiceMRF          optional.Option[rcservicemrf.Component]
 	AuthToken             authtoken.Component
+	Tagger                tagger.Component
+	AutoConfig            autodiscovery.Component
+	LogsAgentComp         optional.Option[logsAgent.Component]
+	WorkloadMeta          workloadmeta.Component
+	Collector             optional.Option[collector.Component]
 	Gui                   optional.Option[gui.Component]
 	Settings              settings.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
@@ -112,6 +122,11 @@ func newAPIServer(deps dependencies) api.Component {
 		rcService:             deps.RcService,
 		rcServiceMRF:          deps.RcServiceMRF,
 		authToken:             deps.AuthToken,
+		taggerComp:            deps.Tagger,
+		autoConfig:            deps.AutoConfig,
+		logsAgentComp:         deps.LogsAgentComp,
+		wmeta:                 deps.WorkloadMeta,
+		collector:             deps.Collector,
 		gui:                   deps.Gui,
 		settings:              deps.Settings,
 		endpointProviders:     deps.EndpointProviders,
@@ -120,12 +135,7 @@ func newAPIServer(deps dependencies) api.Component {
 
 // StartServer creates the router and starts the HTTP server
 func (server *apiServer) StartServer(
-	wmeta workloadmeta.Component,
-	taggerComp tagger.Component,
-	ac autodiscovery.Component,
-	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
-	collector optional.Option[collector.Component],
 ) error {
 	return StartServers(server.rcService,
 		server.rcServiceMRF,

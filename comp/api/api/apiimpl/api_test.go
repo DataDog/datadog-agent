@@ -144,6 +144,10 @@ func getTestAPIServer(deps testdeps) api.Component {
 		RcService:             deps.RcService,
 		RcServiceMRF:          deps.RcServiceMRF,
 		AuthToken:             deps.AuthToken,
+		Tagger:                deps.Tagger,
+		LogsAgentComp:         deps.Logs,
+		WorkloadMeta:          deps.WorkloadMeta,
+		Collector:             deps.Collector,
 		Settings:              deps.Settings,
 		EndpointProviders:     deps.EndpointProviders,
 	}
@@ -153,21 +157,11 @@ func getTestAPIServer(deps testdeps) api.Component {
 func TestStartServer(t *testing.T) {
 	deps := getComponentDependencies(t)
 
-	store := deps.WorkloadMeta
-	tags := deps.Tagger
-	ac := deps.Autodiscovery
 	sender := aggregator.NewNoOpSenderManager()
-	log := deps.Logs
-	col := deps.Collector
 
 	srv := getTestAPIServer(deps)
 	err := srv.StartServer(
-		store,
-		tags,
-		ac,
-		log,
 		sender,
-		col,
 	)
 	defer srv.StopServer()
 
