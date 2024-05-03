@@ -44,6 +44,7 @@ type npSchedulerImpl struct {
 	runDone                     chan struct{}
 
 	TimeNowFunction func() time.Time // Allows to mock time in tests
+	enabled         bool
 }
 
 func newNoopNpSchedulerImpl() *npSchedulerImpl {
@@ -80,6 +81,7 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 	}
 
 	return &npSchedulerImpl{
+		enabled:     true,
 		epForwarder: epForwarder,
 		logger:      logger,
 
@@ -147,6 +149,10 @@ func (s *npSchedulerImpl) Schedule(hostname string, port uint16) error {
 	default:
 		return fmt.Errorf("scheduler input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
 	}
+}
+
+func (s *npSchedulerImpl) Enabled() bool {
+	return s.enabled
 }
 
 func (s *npSchedulerImpl) runTraceroute(ptest *pathtestContext) {

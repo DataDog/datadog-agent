@@ -22,6 +22,7 @@ type dependencies struct {
 	EpForwarder eventplatform.Component
 	Logger      log.Component
 	Sysconfig   sysprobeconfig.Component
+	Params      Params
 }
 
 type provides struct {
@@ -40,7 +41,9 @@ func Module() fxutil.Module {
 func newNpScheduler(deps dependencies) provides {
 	var scheduler *npSchedulerImpl
 
-	networkPathEnabled := deps.Sysconfig.GetBool("network_path.enabled")
+	// TODO: use `network_path.enabled` instead
+	//networkPathEnabled := deps.Sysconfig.GetBool("network_path.enabled")
+	networkPathEnabled := deps.Params.Enabled
 	if networkPathEnabled {
 		scheduler = newNpSchedulerImpl(deps.EpForwarder, deps.Logger, deps.Sysconfig)
 		deps.Lc.Append(fx.Hook{

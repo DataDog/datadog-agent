@@ -98,13 +98,15 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		id := getClientID(req)
 		cs, err := nt.tracer.GetActiveConnections(id)
 
-		log.Errorf("npScheduler in NetworkTracerModule /connections: %#v", nt.npScheduler)
-		nt.scheduleNetworkPath(cs.Conns)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
 			w.WriteHeader(500)
 			return
 		}
+
+		log.Errorf("npScheduler in NetworkTracerModule /connections: %#v", nt.npScheduler)
+		nt.scheduleNetworkPath(cs.Conns)
+
 		contentType := req.Header.Get("Accept")
 		marshaler := marshal.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
@@ -351,9 +353,9 @@ func writeDisabledProtocolMessage(protocolName string, w http.ResponseWriter) {
 }
 
 func (nt *networkTracer) scheduleNetworkPath(conns []network.ConnectionStats) {
-	//if !nt.networkPathEnabled {
-	//	return
-	//}
+	if !nt.npScheduler.Enabled() {
+		return
+	}
 	startTime := time.Now()
 	// TODO: TESTME
 	for _, conn := range conns {

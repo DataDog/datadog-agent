@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -144,6 +145,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				eventplatformreceiverimpl.Module(),
 				eventplatformimpl.Module(),
 				// Provide network path scheduler bundle
+				fx.Provide(func(Syscfg sysprobeconfig.Component) npschedulerimpl.Params {
+					enabled := Syscfg.GetBool("network_path.enabled_in_system_probe")
+					return npschedulerimpl.Params{Enabled: enabled}
+				}),
 				networkpath.Bundle(),
 			)
 		},

@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/networkpath"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
@@ -39,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
-	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
@@ -144,6 +145,10 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		eventplatformimpl.Module(),
 
 		// Provide network path scheduler bundle
+		fx.Provide(func(Syscfg sysprobeconfig.Component) npschedulerimpl.Params {
+			enabled := Syscfg.GetBool("network_path.enabled_in_process_agent")
+			return npschedulerimpl.Params{Enabled: enabled}
+		}),
 		networkpath.Bundle(),
 
 		// Provide remote config client bundle

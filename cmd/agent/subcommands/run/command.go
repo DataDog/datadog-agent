@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
@@ -459,6 +460,11 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		settingsimpl.Module(),
+
+		// NETWORK PATH NEEDED FOR NORMAL AGENT?
+		fx.Provide(func(Syscfg sysprobeconfig.Component) npschedulerimpl.Params {
+			return npschedulerimpl.Params{Enabled: false}
+		}),
 		networkpath.Bundle(),
 		agenttelemetryimpl.Module(),
 	)
