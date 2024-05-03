@@ -22,15 +22,6 @@ type Provider struct{}
 
 // Name returns the name
 func (Provider) Name() string {
-	profiles := make(map[string]string)
-
-	snmpProfileErrorsVar := expvar.Get("snmpProfileErrors")
-	snmpProfileErrorsJSON := []byte(snmpProfileErrorsVar.String())
-	json.Unmarshal(snmpProfileErrorsJSON, &profiles) //nolint:errcheck
-
-	if len(profiles) == 0 {
-		return ""
-	}
 	return "SNMP Profiles"
 }
 
