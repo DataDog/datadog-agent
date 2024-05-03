@@ -610,12 +610,12 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 func TestHandleKubeNamespace(t *testing.T) {
 	const namespace = "foobar"
 
-	namespaceEntityId := workloadmeta.EntityID{
+	namespaceEntityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindKubernetesNamespace,
 		ID:   namespace,
 	}
 
-	namespaceTaggerEntityId := fmt.Sprintf("namespace://%s", namespaceEntityId.ID)
+	namespaceTaggerEntityID := fmt.Sprintf("namespace://%s", namespaceEntityID.ID)
 
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		logimpl.MockModule(),
@@ -650,7 +650,7 @@ func TestHandleKubeNamespace(t *testing.T) {
 				"ns-ownerteam": "ns-team",
 			},
 			namespace: workloadmeta.KubernetesNamespace{
-				EntityID: namespaceEntityId,
+				EntityID: namespaceEntityID,
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: namespace,
 					Labels: map[string]string{
@@ -663,12 +663,12 @@ func TestHandleKubeNamespace(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:               nodeSource,
-					Entity:               namespaceTaggerEntityId,
+					Entity:               namespaceTaggerEntityID,
 					HighCardTags:         []string{},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
-						fmt.Sprintf("ns_env:dev"),
-						fmt.Sprintf("ns-team:containers"),
+						"ns_env:dev",
+						"ns-team:containers",
 					},
 					StandardTags: []string{},
 				},

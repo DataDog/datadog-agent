@@ -68,8 +68,8 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 			fmt.Sprintf("namespace:%s", involvedObject.Namespace),
 		)
 
-		namespaceEntityId := fmt.Sprintf("namespace://%s", involvedObject.Namespace)
-		namespaceEntity, err := taggerInstance.GetEntity(namespaceEntityId)
+		namespaceEntityID := fmt.Sprintf("namespace://%s", involvedObject.Namespace)
+		namespaceEntity, err := taggerInstance.GetEntity(namespaceEntityID)
 		if err == nil {
 			tags = append(tags, namespaceEntity.GetTags(types.HighCardinality)...)
 		}

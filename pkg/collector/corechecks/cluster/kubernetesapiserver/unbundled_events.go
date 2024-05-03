@@ -112,8 +112,8 @@ func (c *unbundledTransformer) getTagsFromTagger(obj v1.ObjectReference, tagsAcc
 		// we can get high Cardinality because tags on events is seemless.
 		tagsAcc.Append(entity.GetTags(types.HighCardinality)...)
 
-		namespaceEntityId := fmt.Sprintf("namespace://%s", obj.Namespace)
-		namespaceEntity, err := c.taggerInstance.GetEntity(namespaceEntityId)
+		namespaceEntityID := fmt.Sprintf("namespace://%s", obj.Namespace)
+		namespaceEntity, err := c.taggerInstance.GetEntity(namespaceEntityID)
 		if err != nil {
 			return
 		}
