@@ -570,6 +570,7 @@ func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 	ns.Lock()
 	defer ns.Unlock()
 
+	ns.storeClosedConnections(closed)
 }
 
 // storeClosedConnection stores the given connection for every client
