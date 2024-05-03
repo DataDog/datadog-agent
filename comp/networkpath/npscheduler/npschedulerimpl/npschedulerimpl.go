@@ -45,7 +45,7 @@ func newNpScheduler(deps dependencies) provides {
 	//networkPathEnabled := deps.Sysconfig.GetBool("network_path.enabled")
 	networkPathEnabled := deps.Params.Enabled
 	if networkPathEnabled {
-		scheduler = newNpSchedulerImpl(deps.EpForwarder, deps.Logger, deps.Sysconfig)
+		scheduler = newNpSchedulerImpl(deps.EpForwarder, deps.Logger, deps.Sysconfig, deps.Params)
 		deps.Lc.Append(fx.Hook{
 			// No need for OnStart hook since NpScheduler.Init() will be called by clients when needed.
 			OnStart: func(context.Context) error {

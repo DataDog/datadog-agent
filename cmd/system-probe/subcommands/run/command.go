@@ -147,7 +147,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// Provide network path scheduler bundle
 				fx.Provide(func(Syscfg sysprobeconfig.Component) npschedulerimpl.Params {
 					enabled := Syscfg.GetBool("network_path.enabled_in_system_probe")
-					return npschedulerimpl.Params{Enabled: enabled}
+					return npschedulerimpl.Params{Enabled: enabled, TracerouteRunner: npschedulerimpl.SimpleTraceroute}
 				}),
 				networkpath.Bundle(),
 			)

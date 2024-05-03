@@ -43,15 +43,16 @@ type npSchedulerImpl struct {
 	flushLoopDone               chan struct{}
 	runDone                     chan struct{}
 
-	TimeNowFunction func() time.Time // Allows to mock time in tests
-	enabled         bool
+	TimeNowFunction  func() time.Time // Allows to mock time in tests
+	enabled          bool
+	tracerouteRunner *traceroute.Runner
 }
 
 func newNoopNpSchedulerImpl() *npSchedulerImpl {
 	return &npSchedulerImpl{}
 }
 
-func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Component, sysprobeYamlConfig config.Reader) *npSchedulerImpl {
+func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Component, sysprobeYamlConfig config.Reader, params Params) *npSchedulerImpl {
 	workers := sysprobeYamlConfig.GetInt("network_path.workers")
 	pathtestInputChanSize := sysprobeYamlConfig.GetInt("network_path.input_chan_size")
 	pathtestProcessChanSize := sysprobeYamlConfig.GetInt("network_path.process_chan_size")
@@ -65,6 +66,16 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 		pathtestTTL.String(),
 		pathtestInterval.String(),
 		excludeCIDR)
+
+	var tracerouteRunner *traceroute.Runner
+	if params.TracerouteRunner == SimpleTraceroute {
+		runner, err := traceroute.NewRunner()
+		if err != nil {
+			logger.Errorf("Unable to create traceroute Runner: %s", err)
+		} else {
+			tracerouteRunner = runner
+		}
+	}
 
 	var excludeIPManager *bogon.Bogon
 	if len(excludeCIDR) >= 1 {
@@ -81,9 +92,10 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 	}
 
 	return &npSchedulerImpl{
-		enabled:     true,
-		epForwarder: epForwarder,
-		logger:      logger,
+		enabled:          true,
+		tracerouteRunner: tracerouteRunner,
+		epForwarder:      epForwarder,
+		logger:           logger,
 
 		pathtestStore:       newPathtestStore(DefaultFlushTickerInterval, pathtestTTL, pathtestInterval, logger),
 		pathtestInputChan:   make(chan *pathtest, pathtestInputChanSize),
@@ -169,15 +181,28 @@ func (s *npSchedulerImpl) pathForConn(ptest *pathtestContext) {
 		TimeoutMs:    1000,
 	}
 
-	tr, err := traceroute.New(cfg)
-	if err != nil {
-		s.logger.Warnf("traceroute error: %+v", err)
-		return
-	}
-	path, err := tr.Run(context.TODO())
-	if err != nil {
-		s.logger.Warnf("traceroute error: %+v", err)
-		return
+	var path traceroute.NetworkPath
+	if s.tracerouteRunner != nil {
+		s.logger.Debugf("Run Simple Traceroute for %v", cfg)
+		newPath, err := s.tracerouteRunner.RunTraceroute(context.TODO(), cfg)
+		if err != nil {
+			s.logger.Warnf("traceroute error: %+v", err)
+			return
+		}
+		path = newPath
+	} else {
+		s.logger.Debugf("Run Classic Traceroute for %v", cfg)
+		tr, err := traceroute.New(cfg)
+		if err != nil {
+			s.logger.Warnf("traceroute error: %+v", err)
+			return
+		}
+		newPath, err := tr.Run(context.TODO())
+		if err != nil {
+			s.logger.Warnf("traceroute error: %+v", err)
+			return
+		}
+		path = newPath
 	}
 	s.logger.Debugf("Network Path: %+v", path)
 
