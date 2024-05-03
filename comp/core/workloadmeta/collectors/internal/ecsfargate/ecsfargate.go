@@ -96,7 +96,7 @@ func (c *collector) setTaskCollectionParser() {
 func (c *collector) Pull(ctx context.Context) error {
 	task, err := c.taskCollectionParser(ctx)
 	if err != nil {
-		return errgit
+		return err
 	}
 
 	c.store.Notify(task)
