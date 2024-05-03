@@ -42,5 +42,5 @@ exceptions:
 additional:
   # list here paths to additional licenses
   golang/go: "raw.githubusercontent.com/golang/go/master/LICENSE"
-  tailscale/tailscale: "raw.githubusercontent.com/tailscale/tailscale/main/LICENSE"
+  # tailscale/tailscale: "raw.githubusercontent.com/tailscale/tailscale/main/LICENSE"
   
