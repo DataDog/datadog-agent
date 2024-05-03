@@ -10,6 +10,7 @@ package module
 import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
