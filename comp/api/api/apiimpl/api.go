@@ -146,7 +146,6 @@ func (server *apiServer) StartServer(
 		server.pkgSigning,
 		server.statusComponent,
 		collector,
-		server.eventPlatformReceiver,
 		ac,
 		server.gui,
 		server.settings,

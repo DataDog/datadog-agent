@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -87,7 +86,6 @@ func StartServers(
 	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
-	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
 	gui optional.Option[gui.Component],
 	settings settings.Component,
@@ -140,7 +138,6 @@ func StartServers(
 		pkgSigning,
 		statusComponent,
 		collector,
-		eventPlatformReceiver,
 		ac,
 		gui,
 		settings,

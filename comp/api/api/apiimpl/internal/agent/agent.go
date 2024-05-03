@@ -12,7 +12,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -30,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -41,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -53,7 +52,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -84,7 +82,6 @@ func SetupHandlers(
 	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
-	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
 	gui optional.Option[gui.Component],
 	settings settings.Component,
@@ -103,7 +100,6 @@ func SetupHandlers(
 	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		getStatus(w, r, statusComponent, "")
 	}).Methods("GET")
-	r.HandleFunc("/stream-event-platform", streamEventPlatform(eventPlatformReceiver)).Methods("POST")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", func(w http.ResponseWriter, r *http.Request) { componentStatusGetterHandler(w, r, statusComponent) }).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
@@ -248,84 +244,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 }
 
 func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {
-	return getStreamFunc(func() messageReceiver { return logsAgent.GetMessageReceiver() }, "logs", "logs agent")
-}
-
-func streamEventPlatform(eventPlatformReceiver eventplatformreceiver.Component) func(w http.ResponseWriter, r *http.Request) {
-	return getStreamFunc(func() messageReceiver { return eventPlatformReceiver }, "event platform payloads", "agent")
-}
-
-type messageReceiver interface {
-	SetEnabled(e bool) bool
-	Filter(filters *diagnostic.Filters, done <-chan struct{}) <-chan string
-}
-
-func getStreamFunc(messageReceiverFunc func() messageReceiver, streamType, agentType string) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log.Infof("Got a request to stream %s.", streamType)
-		w.Header().Set("Transfer-Encoding", "chunked")
-
-		messageReceiver := messageReceiverFunc()
-
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			log.Errorf("Expected a Flusher type, got: %v", w)
-			return
-		}
-
-		if messageReceiver == nil {
-			http.Error(w, fmt.Sprintf("The %s is not running", agentType), 405)
-			flusher.Flush()
-			log.Infof("The %s is not running - can't stream %s", agentType, streamType)
-			return
-		}
-
-		if !messageReceiver.SetEnabled(true) {
-			http.Error(w, fmt.Sprintf("Another client is already streaming %s.", streamType), 405)
-			flusher.Flush()
-			log.Infof("%s are already streaming. Dropping connection.", streamType)
-			return
-		}
-		defer messageReceiver.SetEnabled(false)
-
-		var filters diagnostic.Filters
-
-		if r.Body != http.NoBody {
-			body, err := io.ReadAll(r.Body)
-			if err != nil {
-				http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
-				return
-			}
-
-			if err := json.Unmarshal(body, &filters); err != nil {
-				http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
-				return
-			}
-		}
-
-		// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
-		conn := GetConnection(r)
-		_ = conn.SetDeadline(time.Time{})
-
-		done := make(chan struct{})
-		defer close(done)
-		logChan := messageReceiver.Filter(&filters, done)
-		flushTimer := time.NewTicker(time.Second)
-		for {
-			// Handlers for detecting a closed connection (from either the server or client)
-			select {
-			case <-w.(http.CloseNotifier).CloseNotify(): //nolint
-				return
-			case <-r.Context().Done():
-				return
-			case line := <-logChan:
-				fmt.Fprint(w, line)
-			case <-flushTimer.C:
-				// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
-				flusher.Flush()
-			}
-		}
-	}
+	return utils.GetStreamFunc(func() utils.MessageReceiver { return logsAgent.GetMessageReceiver() }, "logs", "logs agent")
 }
 
 func getDogstatsdStats(w http.ResponseWriter, _ *http.Request, dogstatsdServer dogstatsdServer.Component, serverDebug dogstatsddebug.Component) {

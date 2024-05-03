@@ -145,7 +145,6 @@ func setupRoutes(t *testing.T) *mux.Router {
 		deps.PkgSigning,
 		deps.StatusComponent,
 		deps.Collector,
-		deps.EventPlatformReceiver,
 		deps.Ac,
 		deps.Gui,
 		deps.Settings,
@@ -171,6 +170,11 @@ func TestSetupHandlers(t *testing.T) {
 			method:   "POST",
 			wantCode: 200,
 		},
+		{
+			route:    "/stream-event-platform",
+			method:   "POST",
+			wantCode: 200,
+		},
 	}
 	router := setupRoutes(t)
 	ts := httptest.NewServer(router)
@@ -185,6 +189,6 @@ func TestSetupHandlers(t *testing.T) {
 		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 
-		assert.Equal(t, tc.wantCode, resp.StatusCode)
+		assert.Equal(t, tc.wantCode, resp.StatusCode, "%s %s failed with a %d, want %d", tc.method, tc.route, resp.StatusCode, tc.wantCode)
 	}
 }
