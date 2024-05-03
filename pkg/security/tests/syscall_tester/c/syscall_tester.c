@@ -104,16 +104,20 @@ int span_exec(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    struct thread_opts opts = {
-        .argv = argv,
-        .tls = tls,
-    };
-
-    pthread_t thread;
-    if (pthread_create(&thread, NULL, thread_span_exec, &opts) < 0) {
-        return EXIT_FAILURE;
+    int child = fork();
+    if (child == 0) {
+        struct thread_opts opts = {
+            .argv = argv,
+            .tls = tls,
+        };
+        pthread_t thread;
+        if (pthread_create(&thread, NULL, thread_span_exec, &opts) < 0) {
+            return EXIT_FAILURE;
+        }
+        pthread_join(thread, NULL);
+    } else {
+        wait(NULL);
     }
-    pthread_join(thread, NULL);
 
     return EXIT_SUCCESS;
 }

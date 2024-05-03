@@ -429,6 +429,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 				if flags := tracer.ReadArgUint64(regs, 0); flags&uint64(unix.SIGCHLD) == 0 {
 					pc.SetAsThreadOf(process, ppid)
 				} else if parent := pc.Get(ppid); parent != nil {
+					pc.HeritSpan(ppid, process.Tgid)
 					sendSyscallMsg(&ebpfless.SyscallMsg{
 						Type: ebpfless.SyscallTypeFork,
 						Fork: &ebpfless.ForkSyscallMsg{
@@ -444,6 +445,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 				if flags := binary.NativeEndian.Uint64(data); flags&uint64(unix.SIGCHLD) == 0 {
 					pc.SetAsThreadOf(process, ppid)
 				} else if parent := pc.Get(ppid); parent != nil {
+					pc.HeritSpan(ppid, process.Tgid)
 					sendSyscallMsg(&ebpfless.SyscallMsg{
 						Type: ebpfless.SyscallTypeFork,
 						Fork: &ebpfless.ForkSyscallMsg{
@@ -453,6 +455,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 				}
 			case ForkNr, VforkNr:
 				if parent := pc.Get(ppid); parent != nil {
+					pc.HeritSpan(ppid, process.Tgid)
 					sendSyscallMsg(&ebpfless.SyscallMsg{
 						Type: ebpfless.SyscallTypeFork,
 						Fork: &ebpfless.ForkSyscallMsg{

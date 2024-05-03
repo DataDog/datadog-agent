@@ -137,3 +137,8 @@ func (tc *ProcessCache) SetSpan(tgid int, span *SpanTLS) {
 func (tc *ProcessCache) UnsetSpan(tgid int) {
 	delete(tc.tgid2Span, tgid)
 }
+
+// HeritSpan will copy the TLS section from the parent to the child if any
+func (tc *ProcessCache) HeritSpan(ppid, pid int) {
+	tc.SetSpan(pid, tc.GetSpan(ppid))
+}
