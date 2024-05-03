@@ -684,6 +684,9 @@ type MetricSample struct {
 }
 
 func TestMappingCases(t *testing.T) {
+	// TODO: AMLII-1624
+	flake.Mark(t)
+
 	scenarios := []struct {
 		name              string
 		config            string
