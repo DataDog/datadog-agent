@@ -470,10 +470,10 @@ func startAgent(
 	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	wmeta workloadmeta.Component,
-	taggerComp tagger.Component,
+	_ tagger.Component,
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
-	logsAgent optional.Option[logsAgent.Component],
+	_ optional.Option[logsAgent.Component],
 	_ processAgent.Component,
 	_ defaultforwarder.Component,
 	_ serializer.MetricSerializer,
@@ -540,12 +540,7 @@ func startAgent(
 
 	// start the cmd HTTP server
 	if err = agentAPI.StartServer(
-		wmeta,
-		taggerComp,
-		ac,
-		logsAgent,
 		demultiplexer,
-		optional.NewOption(collector),
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
