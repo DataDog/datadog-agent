@@ -686,6 +686,7 @@ require (
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.0.3
 	github.com/containerd/typeurl/v2 v2.1.1
+	github.com/dvsekhvalnov/jose2go v1.6.0
 	github.com/elastic/go-seccomp-bpf v1.4.0
 	github.com/glaslos/ssdeep v0.4.0
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
@@ -798,7 +799,6 @@ require (
 	github.com/devigned/tab v0.1.1 // indirect
 	github.com/digitalocean/godo v1.109.0 // indirect
 	github.com/distribution/reference v0.5.0 // indirect
-	github.com/dvsekhvalnov/jose2go v1.6.0 // indirect
 	github.com/eapache/go-resiliency v1.6.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
@@ -822,7 +822,6 @@ require (
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/google/cel-go v0.17.7 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect

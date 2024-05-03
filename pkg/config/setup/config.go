@@ -390,6 +390,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
+	config.BindEnvAndSetDefault("GUI_session_expiration", 0)
 
 	if pkgconfigenv.IsContainerized() {
 		// In serverless-containerized environments (e.g Fargate)

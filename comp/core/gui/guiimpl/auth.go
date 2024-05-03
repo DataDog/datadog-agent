@@ -6,71 +6,87 @@
 package guiimpl
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/binary"
 	"fmt"
-
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
+	"strings"
+	"time"
 )
 
 type authenticator struct {
-	sessionID  string
+	duration   time.Duration
 	signingKey []byte
 }
 
-func newAuthenticator(authToken string) authenticator {
+func newAuthenticator(authToken string, duration time.Duration) authenticator {
 	return authenticator{
-		sessionID:  uuid.New().String(),
+		duration:   duration,
 		signingKey: []byte(authToken),
 	}
 }
 
 // This function check the reveived authToken and return an access token if valid
-func (a *authenticator) Authenticate(rawToken string) (string, error) {
-	// multiple checks on provided token
-	// - token is signed with Agent authToken using HMAC SHA256 alg
-	// - token is not expired (set to 1 minute in agent launch-gui command)
-	_, err := jwt.Parse(
-		rawToken,
-		a.getSigningKey,
-		jwt.WithExpirationRequired(),
-		jwt.WithValidMethods([]string{"HS256"}),
-	)
-	if err != nil {
-		return "", err
-	}
-
-	// Create the accessToken that the user will register as a cookie
-	// with the current session ID
-	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, &jwt.RegisteredClaims{
-		Subject: a.sessionID,
-	})
-
-	// Sign and get the complete encoded token as a string using the secret
-	accessTokenString, err := accessToken.SignedString(a.signingKey)
-	if err != nil {
-		return "", fmt.Errorf("Internal error")
-	}
-	return accessTokenString, nil
+func (a *authenticator) GenerateAccessToken() string {
+	return hmacToken(a.signingKey, time.Now())
 }
 
-func (a *authenticator) Authorize(rawToken string) error {
-	// multiple checks on provided token
-	// - token is signed with Agent authToken using HMAC SHA256 alg
-	// - token is from the same session ID as the current one
-	_, err := jwt.Parse(
-		rawToken,
-		a.getSigningKey,
-		jwt.WithSubject(a.sessionID),
-		jwt.WithValidMethods([]string{"HS256"}),
-	)
+func (a *authenticator) ValidateToken(token string) error {
+	// Split the token into the issued time and HMAC sum
+	parts := strings.Split(token, ".")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid token format")
+	}
 
+	// Decode the issued time from base64
+	unixTimeBytes, err := base64.StdEncoding.DecodeString(parts[0])
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to decode issued time")
+	}
+	unixTime := int64(binary.LittleEndian.Uint64(unixTimeBytes))
+	issuedTime := time.Unix(unixTime, 0)
+
+	// Check if the issued time is older than the duration
+	if a.duration != 0 && time.Since(issuedTime) > a.duration {
+		return fmt.Errorf("token is expired")
+	}
+
+	// Decode the HMAC sum from base64
+	hmacSum, err := base64.StdEncoding.DecodeString(parts[1])
+	if err != nil {
+		return fmt.Errorf("failed to decode HMAC sum")
+	}
+
+	// Calculate the expected HMAC sum
+	mac := hmac.New(sha256.New, a.signingKey)
+	mac.Write(unixTimeBytes)
+	expectedHmacSum := mac.Sum(nil)
+
+	// Check if the HMAC sum matches the expected HMAC sum
+	if !hmac.Equal(hmacSum, expectedHmacSum) {
+		return fmt.Errorf("invalid token signature")
 	}
 
 	return nil
 }
 
-func (a *authenticator) getSigningKey(_ *jwt.Token) (interface{}, error) {
-	return a.signingKey, nil
+func hmacToken(key []byte, issued time.Time) string {
+	// Convert the issued time to base64 unixTime format
+	unixTimeBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(unixTimeBytes, uint64(issued.Unix()))
+	unixTimeBase64 := base64.StdEncoding.EncodeToString(unixTimeBytes)
+
+	// Create the HMAC sum
+	mac := hmac.New(sha256.New, key)
+	mac.Write(unixTimeBytes)
+	hmacSum := mac.Sum(nil)
+
+	// Convert the HMAC sum to base64 format
+	hmacBase64 := base64.StdEncoding.EncodeToString(hmacSum)
+
+	// Combine the issued time and HMAC sum with a "." separator
+	token := unixTimeBase64 + "." + hmacBase64
+
+	return token
 }

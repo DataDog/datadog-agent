@@ -7,6 +7,7 @@ package guiimpl
 
 import (
 	"context"
+	"crypto/rand"
 	"embed"
 	"encoding/json"
 	"io"
@@ -23,9 +24,11 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/dvsekhvalnov/jose2go/base64url"
 	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -53,7 +56,8 @@ type gui struct {
 	listener net.Listener
 	router   *mux.Router
 
-	auth authenticator
+	auth         authenticator
+	intentTokens map[string]bool
 
 	// To compute uptime
 	startTimestamp int64
@@ -81,21 +85,33 @@ type dependencies struct {
 	Lc        fx.Lifecycle
 }
 
+type provides struct {
+	fx.Out
+
+	Comp     optional.Option[guicomp.Component]
+	Endpoint api.AgentEndpointProvider
+}
+
 // GUI component implementation constructor
 // @param deps dependencies needed to construct the gui, bundled in a struct
 // @return an optional, depending of "GUI_port" configuration value
-func newGui(deps dependencies) optional.Option[guicomp.Component] {
+func newGui(deps dependencies) provides {
 
+	p := provides{
+		Comp:     optional.NewNoneOption[guicomp.Component](),
+		Endpoint: api.NewAgentEndpointProvider(func(_ http.ResponseWriter, _ *http.Request) {}, "/gui/intent", "GET"),
+	}
 	guiPort := deps.Config.GetString("GUI_port")
 
 	if guiPort == "-1" {
 		deps.Log.Infof("GUI server port -1 specified: not starting the GUI.")
-		return optional.NewNoneOption[guicomp.Component]()
+		return p
 	}
 
 	g := gui{
-		port:   guiPort,
-		logger: deps.Log,
+		port:         guiPort,
+		logger:       deps.Log,
+		intentTokens: make(map[string]bool),
 	}
 
 	// Instantiate the gorilla/mux router
@@ -105,14 +121,15 @@ func newGui(deps dependencies) optional.Option[guicomp.Component] {
 	authToken, e := security.FetchAuthToken(deps.Config)
 	if e != nil {
 		g.logger.Errorf("GUI server initialization failed (unable to get the AuthToken): ", e)
-		return optional.NewNoneOption[guicomp.Component]()
+		return p
 	}
 
-	g.auth = newAuthenticator(authToken)
+	sessionExpiration := deps.Config.GetDuration("GUI_session_expiration")
+	g.auth = newAuthenticator(authToken, sessionExpiration)
 
 	// Serve the (secured) index page on the default endpoint
 	router.Handle("/", g.authorizeAccess(http.HandlerFunc(generateIndex)))
-	router.Handle("/auth", g.login())
+	router.HandleFunc("/auth", g.getAccessToken).Methods("GET")
 
 	// Mount our (secured) filesystem at the view/{path} route
 	router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", g.authorizeAccess(http.HandlerFunc(serveAssets))))
@@ -133,7 +150,10 @@ func newGui(deps dependencies) optional.Option[guicomp.Component] {
 		OnStart: g.start,
 		OnStop:  g.stop})
 
-	return optional.NewOption[guicomp.Component](g)
+	p.Comp = optional.NewOption[guicomp.Component](g)
+	p.Endpoint = api.NewAgentEndpointProvider(g.getIntentToken, "/gui/intent", "GET")
+
+	return p
 }
 
 // start function is provided to fx as OnStart lifecycle hook, it run the GUI server
@@ -158,6 +178,19 @@ func (g *gui) stop(_ context.Context) error {
 		g.listener.Close()
 	}
 	return nil
+}
+
+func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
+	// var profile ProfileData
+	key := make([]byte, 32)
+	_, e := rand.Read(key)
+	if e != nil {
+		http.Error(w, e.Error(), 500)
+	}
+
+	token := base64url.Encode(key)
+	g.intentTokens[token] = true
+	w.Write([]byte(token))
 }
 
 func generateIndex(w http.ResponseWriter, _ *http.Request) {
@@ -199,26 +232,31 @@ func serveAssets(w http.ResponseWriter, req *http.Request) {
 	w.Write(data)
 }
 
-func (g *gui) login() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 
-		loginToken := r.URL.Query().Get("loginToken")
-		// authToken is present in the query when the GUI is opened from the CLI
-		if loginToken == "" {
-			w.WriteHeader(http.StatusUnauthorized)
-			http.Error(w, "missing loginToken", 401)
-			return
-		}
-		accessToken, err := g.auth.Authenticate(loginToken)
-		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			http.Error(w, "invalid loginToken", 401)
-			return
-		}
-		// if authToken is valid, set the accessToken as a cookie and redirect the user to root page
-		http.SetCookie(w, &http.Cookie{Name: "accessToken", Value: accessToken, Path: "/"})
-		http.Redirect(w, r, "/", http.StatusFound)
-	})
+	intentToken := r.URL.Query().Get("intent")
+	// authToken is present in the query when the GUI is opened from the CLI
+	if intentToken == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		http.Error(w, "missing intentToken", 401)
+		return
+	}
+	if _, ok := g.intentTokens[intentToken]; !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		http.Error(w, "invalid intentToken", 401)
+		return
+	}
+
+	// Remove single use token from map
+	delete(g.intentTokens, intentToken)
+
+	// generate accessToken
+	accessToken := g.auth.GenerateAccessToken()
+
+	// accessToken, err := g.auth.Authenticate(intentToken)
+	// if authToken is valid, set the accessToken as a cookie and redirect the user to root page
+	http.SetCookie(w, &http.Cookie{Name: "accessToken", Value: accessToken, Path: "/"})
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 // Middleware which blocks access to secured files from unauthorized clients
@@ -235,10 +273,10 @@ func (g *gui) authorizeAccess(h http.Handler) http.Handler {
 		}
 
 		// check accessToken is valid (same key, same sessionId)
-		err := g.auth.Authorize(cookie.Value)
+		err := g.auth.ValidateToken(cookie.Value)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
-			http.Error(w, "invalid accessToken", 401)
+			http.Error(w, err.Error(), 401)
 			return
 		}
 
@@ -259,7 +297,7 @@ func (g *gui) authorizePOST(w http.ResponseWriter, r *http.Request, next http.Ha
 	token := strings.Split(authHeader[0], " ")[1]
 
 	// check accessToken is valid (same key, same sessionId)
-	err := g.auth.Authorize(token)
+	err := g.auth.ValidateToken(token)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		http.Error(w, "invalid accessToken", 401)
