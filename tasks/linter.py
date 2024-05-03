@@ -107,6 +107,7 @@ def go(
     golangci_lint_kwargs="",
     headless_mode=False,
     include_sds=False,
+    only_modified_packages=False,
 ):
     """
     Run go linters on the given module and targets.
@@ -141,6 +142,7 @@ def go(
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
         include_sds=include_sds,
+        only_modified_packages=only_modified_packages,
     )
 
 
@@ -161,11 +163,20 @@ def _lint_go(
     golangci_lint_kwargs,
     headless_mode,
     include_sds,
+    only_modified_packages=False,
 ):
     if not check_tools_version(ctx, ['go', 'golangci-lint']):
         print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
 
-    modules, flavor = process_input_args(module, targets, flavor, headless_mode)
+    modules, flavor = process_input_args(
+        ctx,
+        module,
+        targets,
+        flavor,
+        headless_mode,
+        build_tags=build_tags,
+        only_modified_packages=only_modified_packages,
+    )
 
     lint_results = run_lint_go(
         ctx=ctx,
