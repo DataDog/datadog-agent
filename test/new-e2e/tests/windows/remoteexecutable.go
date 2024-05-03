@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/stretchr/testify/require"
@@ -115,11 +116,15 @@ func (rs *RemoteExecutable) CopyFiles() error {
 // it captures the output, and logs it.
 func (rs *RemoteExecutable) RunTests() error {
 
+	totalstart := time.Now()
 	for _, testsuite := range rs.testfiles {
 		rs.t.Logf("Running testsuite: %s", testsuite)
 		remotePath := filepath.Join(remoteDirBase, testsuite) //, "testsuite.exe")
-		executeAndLogOutput(rs.t, rs.vm, remotePath, "\"-test.v\"")
+		localstart := time.Now()
+		executeAndLogOutput(rs.t, rs.vm, remotePath, "\"-test.v\"", "\"-test.timeout=2m\"")
+		rs.t.Logf("Testsuite %s took %s", remotePath, time.Since(localstart))
 	}
+	rs.t.Logf("Total time to run tests: %s", time.Since(totalstart))
 	return nil
 }
 
