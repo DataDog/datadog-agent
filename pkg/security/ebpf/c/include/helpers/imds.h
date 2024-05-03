@@ -20,6 +20,9 @@ __attribute__((always_inline)) struct imds_event_t *reset_imds_event(struct __sk
         return NULL;
     }
 
+    // reset event flags
+    evt->event.flags = 0;
+
     // process context
     fill_network_process_context(&evt->process, pkt);
 
