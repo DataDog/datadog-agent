@@ -38,6 +38,8 @@ var (
 	DefaultJMXFlareDirectory = "c:\\programdata\\datadog\\logs\\jmxinfo\\"
 	//DefaultDogstatsDLogFile points to the dogstatsd stats log file that will be used if not configured
 	DefaultDogstatsDLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd_info\\dogstatsd-stats.log"
+	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
+	DefaultStreamlogsLogFile = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
 )
 
 func init() {

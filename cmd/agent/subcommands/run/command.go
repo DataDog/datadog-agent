@@ -315,6 +315,7 @@ func getSharedFxOption() fx.Option {
 			path.DefaultLogFile,
 			path.DefaultJmxLogFile,
 			path.DefaultDogstatsDLogFile,
+			path.DefaultStreamlogsLogFile,
 		)),
 		flare.Module(),
 		core.Bundle(),

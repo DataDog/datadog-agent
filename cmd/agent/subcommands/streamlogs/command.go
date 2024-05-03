@@ -30,8 +30,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// cliParams are the command-line arguments for this subcommand
-type cliParams struct {
+// CliParams are the command-line arguments for this subcommand
+type CliParams struct {
 	*command.GlobalParams
 
 	filters diagnostic.Filters
@@ -41,11 +41,14 @@ type cliParams struct {
 
 	// Duration represents the duration of the log stream.
 	Duration time.Duration
+
+	//	Quiet represents whether the log stream should be quiet.
+	Quiet bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &cliParams{
+	cliParams := &CliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -67,6 +70,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd.Flags().StringVar(&cliParams.filters.Service, "service", "", "Filter by service")
 	cmd.Flags().StringVarP(&cliParams.FilePath, "output", "o", "", "Output file path to write the log stream")
 	cmd.Flags().DurationVarP(&cliParams.Duration, "duration", "d", 0, "Duration of the log stream (default: 0, infinite)")
+	cmd.Flags().BoolVarP(&cliParams.Quiet, "quiet", "q", false, "Quiet mode (no output to stdout)")
 	// PreRunE is used to validate the file path before stream-logs is run.
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
 		if cliParams.FilePath != "" {
@@ -92,7 +96,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func streamLogs(log log.Component, config config.Component, cliParams *cliParams) error {
+func streamLogs(log log.Component, config config.Component, cliParams *CliParams) error {
 	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return err
@@ -124,7 +128,9 @@ func streamLogs(log log.Component, config config.Component, cliParams *cliParams
 	}
 
 	return streamRequest(urlstr, body, cliParams.Duration, func(chunk []byte) {
-		fmt.Print(string(chunk))
+		if !cliParams.Quiet {
+			fmt.Print(string(chunk))
+		}
 
 		if bufWriter != nil {
 			if _, err = bufWriter.Write(chunk); err != nil {
@@ -165,4 +171,19 @@ func openFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
 	}
 	bufWriter := bufio.NewWriter(f) // default 4096 bytes buffer
 	return f, bufWriter, nil
+}
+
+// PublicStreamLogs is a public function that can be used by other packages to stream logs.
+func PublicStreamLogs(log log.Component, config config.Component, cliParams *CliParams) error {
+	dir := filepath.Dir(cliParams.FilePath)
+
+	// Create the directory if it does not exist
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err = os.MkdirAll(dir, 0755)
+		if err != nil {
+			return fmt.Errorf("error creating directory %s: %v", dir, err)
+		}
+	}
+
+	return streamLogs(log, config, cliParams)
 }

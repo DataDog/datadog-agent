@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
@@ -21,6 +22,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
+
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
@@ -71,6 +74,7 @@ type cliParams struct {
 	profileMutexFraction int
 	profileBlocking      bool
 	profileBlockingRate  int
+	log                  bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -106,6 +110,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					commonpath.DefaultLogFile,
 					commonpath.DefaultJmxLogFile,
 					commonpath.DefaultDogstatsDLogFile,
+					commonpath.DefaultStreamlogsLogFile,
 				)),
 				// workloadmeta setup
 				collectors.GetCatalog(),
@@ -147,6 +152,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	flareCmd.Flags().IntVarP(&cliParams.profileMutexFraction, "profile-mutex-fraction", "", 100, "Set the fraction of mutex contention events that are reported in the mutex profile")
 	flareCmd.Flags().BoolVarP(&cliParams.profileBlocking, "profile-blocking", "B", false, "Add gorouting blocking profile to the performance data in the flare")
 	flareCmd.Flags().IntVarP(&cliParams.profileBlockingRate, "profile-blocking-rate", "", 10000, "Set the fraction of goroutine blocking events that are reported in the blocking profile")
+	flareCmd.Flags().BoolVar(&cliParams.log, "log", false, "Log 60s of the stream-logs command to the agent log file")
 	flareCmd.SetArgs([]string{"caseID"})
 
 	return []*cobra.Command{flareCmd}
@@ -261,7 +267,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 }
 
 func makeFlare(flareComp flare.Component,
-	_ log.Component,
+	lc log.Component,
 	config config.Component,
 	_ sysprobeconfig.Component,
 	cliParams *cliParams,
@@ -334,6 +340,20 @@ func makeFlare(flareComp flare.Component,
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("The flare zipfile \"%s\" does not exist.", filePath)))
 		fmt.Fprintln(color.Output, color.RedString("If the agent running in a different container try the '--local' option to generate the flare locally"))
 		return err
+	}
+
+	streamLogParams := streamlogs.CliParams{
+		FilePath: commonpath.DefaultStreamlogsLogFile,
+		Duration: 10 * time.Second,
+		Quiet:    true,
+	}
+
+	if cliParams.log {
+		fmt.Fprintln(color.Output, color.GreenString("Asking the agent to log the log-stream."))
+		err := streamlogs.PublicStreamLogs(lc, config, &streamLogParams)
+		if err != nil {
+			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
+		}
 	}
 
 	fmt.Fprintf(color.Output, "%s is going to be uploaded to Datadog\n", color.YellowString(filePath))
