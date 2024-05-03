@@ -121,47 +121,15 @@ build do
     cached_wheels_dir = "#{wheel_build_dir}/.cached"
   end
 
+  # Create the array outside the block so that it can be referenced both inside and outside the block
   checks_to_install = Array.new
-
   block "Collect integrations to install" do
-    # Go through every integration package in `integrations-core`, build and install
-    Dir.glob("#{project_dir}/*").each do |check_dir|
-      check = check_dir.split('/').last
-
-      # do not install excluded integrations
-      next if !File.directory?("#{check_dir}") || excluded_folders.include?(check)
-
-      # If there is no manifest file, then we should assume the folder does not
-      # contain a working check and move onto the next
-      manifest_file_path = "#{check_dir}/manifest.json"
-
-      # If there is no manifest file, then we should assume the folder does not
-      # contain a working check and move onto the next
-      File.exist?(manifest_file_path) || next
-
-      manifest = JSON.parse(File.read(manifest_file_path))
-      if manifest.key?("supported_os")
-        manifest["supported_os"].include?(os) || next
-      else
-        if os == "mac_os"
-          tag = "Supported OS::macOS"
-        else
-          tag = "Supported OS::#{os.capitalize}"
-        end
-
-        manifest["tile"]["classifier_tags"].include?(tag) || next
-      end
-
-      File.file?("#{check_dir}/setup.py") || File.file?("#{check_dir}/pyproject.toml") || next
-      # Check if it supports Python 3.
-      support = `inv agent.check-supports-python-version #{check_dir} 3`
-      if support == "False"
-        log.info(log_key) { "Skipping '#{check}' since it does not support Python 3." }
-        next
-      end
-
-      checks_to_install.push(check)
-    end
+    tasks_dir_in = windows_safe_path(Dir.pwd)
+    to_install = (
+      shellout! "inv agent.collect-integrations #{project_dir} 3 #{os} #{excluded_folders.join(',')}",
+                :cwd => tasks_dir_in
+    ).stdout.split()
+    checks_to_install.concat(to_install)
   end
 
   installed_list = Array.new
