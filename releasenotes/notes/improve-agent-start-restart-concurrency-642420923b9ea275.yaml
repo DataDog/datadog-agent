@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    Improve agent starting and simultaneously restarting concurrency handling.
+    Improve concurrency handling for Agent start/simultaneous restart.
     Agent starting and restarting concurrent execution may happen during the
     Agent's installation or upgrade.
