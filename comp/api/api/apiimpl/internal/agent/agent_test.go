@@ -166,6 +166,36 @@ func TestSetupHandlers(t *testing.T) {
 			method:   "POST",
 			wantCode: 200,
 		},
+		{
+			route:    "/metadata/v5",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/gohai",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/inventory-agent",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/inventory-host",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/inventory-checks",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/package-signing",
+			method:   "GET",
+			wantCode: 200,
+		},
 	}
 	router := setupRoutes(t)
 	ts := httptest.NewServer(router)
@@ -180,6 +210,6 @@ func TestSetupHandlers(t *testing.T) {
 		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 
-		assert.Equal(t, tc.wantCode, resp.StatusCode)
+		assert.Equal(t, tc.wantCode, resp.StatusCode, "%s %s failed with a %d, want %d", tc.method, tc.route, resp.StatusCode, tc.wantCode)
 	}
 }
