@@ -61,7 +61,7 @@ class TestWasher:
             if not flakes:
                 return
             for package, tests in flakes.items():
-                self.known_flaky_tests[f"github.com/DataDog/datadog-agent/{package}"] = set(tests)
+                self.known_flaky_tests[f"github.com/DataDog/datadog-agent/{package}"].update(set(tests))
 
     def process_module_results(self, module_results: List[ModuleTestResult]):
         """
