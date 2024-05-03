@@ -11,7 +11,6 @@ package verifier
 
 import (
 	"fmt"
-	"regexp"
 )
 
 // BuildVerifierStats accepts a list of eBPF object files and generates a

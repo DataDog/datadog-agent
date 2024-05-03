@@ -14,7 +14,7 @@ import "regexp"
 type stat struct {
 	// `Value` must be exported to be settable
 	Value int
-	parse *regexp.Regexp
+	parse *regexp.Regexp //nolint:unused
 }
 
 // Statistics represent that statistics exposed via
