@@ -118,7 +118,10 @@ func (rs *RemoteExecutable) RunTests() error {
 	for _, testsuite := range rs.testfiles {
 		rs.t.Logf("Running testsuite: %s", testsuite)
 		remotePath := filepath.Join(remoteDirBase, testsuite) //, "testsuite.exe")
-		executeAndLogOutput(rs.t, rs.vm, remotePath, "\"-test.v\"")
+
+		// google test programs compiled in this way run with no timeout by default.
+		// don't allow an individual test to take too long
+		executeAndLogOutput(rs.t, rs.vm, remotePath, "\"-test.v\"", "\"-test.timeout=2m\"")
 	}
 	return nil
 }
