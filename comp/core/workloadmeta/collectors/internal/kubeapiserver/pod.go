@@ -47,10 +47,11 @@ func newPodStore(ctx context.Context, wlm workloadmeta.Component, client kuberne
 
 func newPodReflectorStore(wlmetaStore workloadmeta.Component) *reflectorStore {
 	annotationsExclude := config.Datadog.GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude")
-	parser, err := newPodParser(annotationsExclude)
+	autoscalingEnabled := config.Datadog.GetBool("autoscaling.workload.enabled")
+	parser, err := newPodParser(annotationsExclude, autoscalingEnabled)
 	if err != nil {
 		_ = log.Errorf("unable to parse all pod_annotations_exclude: %v, err:", err)
-		parser, _ = newPodParser(nil)
+		parser, _ = newPodParser(nil, autoscalingEnabled)
 	}
 
 	return &reflectorStore{
@@ -62,15 +63,20 @@ func newPodReflectorStore(wlmetaStore workloadmeta.Component) *reflectorStore {
 
 type podParser struct {
 	annotationsFilter []*regexp.Regexp
+
+	autoscalingEnabled bool
 }
 
-func newPodParser(annotationsExclude []string) (objectParser, error) {
+func newPodParser(annotationsExclude []string, autoscalingEnabled bool) (objectParser, error) {
 	filters, err := parseFilters(annotationsExclude)
 	if err != nil {
 		return nil, err
 	}
 
-	return podParser{annotationsFilter: filters}, nil
+	return podParser{
+		annotationsFilter:  filters,
+		autoscalingEnabled: autoscalingEnabled,
+	}, nil
 }
 
 func convertResource(c corev1.ResourceList) map[string]string {
@@ -121,6 +127,12 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		}
 	}
 
+	var containers, initContainers []workloadmeta.OrchestratorContainer
+	if p.autoscalingEnabled {
+		containers = containersToOrchestratorContainers(pod.Spec.Containers)
+		initContainers = containersToOrchestratorContainers(pod.Spec.InitContainers)
+	}
+
 	return &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
@@ -142,7 +154,7 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 
 		// The total number of containers can be significant
 		// but we need them for autoscaling
-		Containers:     containersToOrchestratorContainers(pod.Spec.Containers),
-		InitContainers: containersToOrchestratorContainers(pod.Spec.InitContainers),
+		Containers:     containers,
+		InitContainers: initContainers,
 	}
 }

@@ -25,7 +25,7 @@ import (
 func TestPodParser_Parse(t *testing.T) {
 	filterAnnotations := []string{"ignoreAnnotation"}
 
-	parser, err := newPodParser(filterAnnotations)
+	parser, err := newPodParser(filterAnnotations, true)
 	assert.NoError(t, err)
 
 	referencePod := corev1.Pod{
@@ -207,15 +207,7 @@ func Test_PodsFakeKubernetesClient(t *testing.T) {
 						Name:   objectMeta.Name,
 						Labels: objectMeta.Labels,
 					},
-					Owners:         []workloadmeta.KubernetesPodOwner{},
-					InitContainers: []workloadmeta.OrchestratorContainer{},
-					Containers: []workloadmeta.OrchestratorContainer{
-						{
-							Name:     "test-container",
-							Limits:   map[string]string{"cpu": "100m", "memory": "100Mi"},
-							Requests: map[string]string{"cpu": "100m", "memory": "100Mi"},
-						},
-					},
+					Owners: []workloadmeta.KubernetesPodOwner{},
 				},
 			},
 		},
