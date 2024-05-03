@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    [oracle] Fix missing query metrics.
