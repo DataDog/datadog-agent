@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -106,7 +107,7 @@ func (fh *forwarderHealth) init() {
 			oldAPIKey, ok1 := oldValue.(string)
 			newAPIKey, ok2 := newValue.(string)
 			if ok1 && ok2 {
-				fh.log.Debug("Updating API key in forwarder, replacing %s with %s", oldAPIKey[:5], newAPIKey[:5])
+				fh.log.Debug("Updating API key in forwarder, replacing %s with %s", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
 				fh.updateAPIKey(oldAPIKey, newAPIKey)
 			}
 		})

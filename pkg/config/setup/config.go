@@ -1918,7 +1918,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 				return
 			}
 			if err := configAssignAtPath(config, settingPath, newValue); err != nil {
-				log.Errorf("Could not assign new value of secret %s to config: %s", handle, err)
+				log.Errorf("Could not assign new value of secret %s (%+q) to config: %s", handle, settingPath, err)
 			}
 		})
 		if _, err = secretResolver.Resolve(yamlConf, origin); err != nil {
