@@ -97,12 +97,18 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, errors, err := ReadConfigFiles(GetAll)
 	require.Nil(t, err)
-	require.Equal(t, 18, len(configs))
-	require.Equal(t, 3, len(errors))
+	require.Equal(t, 19, len(configs))
+	require.Equal(t, 6, len(errors))
+
+	for _, c := range configs {
+		if c.Name == "empty" {
+			require.Fail(t, "empty config should not be returned")
+		}
+	}
 
 	configs, _, err = ReadConfigFiles(WithoutAdvancedAD)
 	require.Nil(t, err)
-	require.Equal(t, 17, len(configs))
+	require.Equal(t, 18, len(configs))
 
 	configs, _, err = ReadConfigFiles(WithAdvancedADOnly)
 	require.Nil(t, err)
