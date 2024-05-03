@@ -223,7 +223,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := int32(443)
-	timeout := config.Datadog.GetInt32("admission_controller.timeout_seconds")
+	timeout := config.Datadog().GetInt32("admission_controller.timeout_seconds")
 	webhook := func(name, path string, objSelector, nsSelector *metav1.LabelSelector, operations []admiv1beta1.OperationType, resources []string) admiv1beta1.MutatingWebhook {
 		return admiv1beta1.MutatingWebhook{
 			Name: name,
@@ -963,7 +963,7 @@ func TestGetWebhookSkeletonV1beta1(t *testing.T) {
 	defaultReinvocationPolicy := admiv1beta1.IfNeededReinvocationPolicy
 	port := int32(443)
 	path := "/bar"
-	defaultTimeout := config.Datadog.GetInt32("admission_controller.timeout_seconds")
+	defaultTimeout := config.Datadog().GetInt32("admission_controller.timeout_seconds")
 	customTimeout := int32(2)
 	namespaceSelector, _ := common.DefaultLabelSelectors(true)
 	_, objectSelector := common.DefaultLabelSelectors(false)

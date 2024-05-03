@@ -106,7 +106,7 @@ func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
 
 // Configure parses the check configuration and initializes the container_image check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
-	if !ddConfig.Datadog.GetBool("container_image.enabled") {
+	if !ddConfig.Datadog().GetBool("container_image.enabled") {
 		return errors.New("collection of container images is disabled")
 	}
 

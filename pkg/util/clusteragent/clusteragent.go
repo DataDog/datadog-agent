@@ -126,14 +126,14 @@ func (c *DCAClient) init() error {
 		return err
 	}
 
-	authToken, err := security.GetClusterAgentAuthToken(config.Datadog)
+	authToken, err := security.GetClusterAgentAuthToken(config.Datadog())
 	if err != nil {
 		return err
 	}
 
 	c.clusterAgentAPIRequestHeaders = http.Header{}
 	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, fmt.Sprintf("Bearer %s", authToken))
-	podIP := config.Datadog.GetString("clc_runner_host")
+	podIP := config.Datadog().GetString("clc_runner_host")
 	c.clusterAgentAPIRequestHeaders.Set(RealIPHeader, podIP)
 
 	if err := c.initHTTPClient(); err != nil {
@@ -141,7 +141,7 @@ func (c *DCAClient) init() error {
 	}
 
 	// Run DCA connection refresh
-	c.startReconnectHandler(time.Duration(config.Datadog.GetInt64("cluster_agent.client_reconnect_period_seconds")) * time.Second)
+	c.startReconnectHandler(time.Duration(config.Datadog().GetInt64("cluster_agent.client_reconnect_period_seconds")) * time.Second)
 
 	log.Infof("Successfully connected to the Datadog Cluster Agent %s", c.clusterAgentVersion.String())
 	return nil
@@ -228,7 +228,7 @@ func GetClusterAgentEndpoint() (string, error) {
 	const configDcaURL = "cluster_agent.url"
 	const configDcaSvcName = "cluster_agent.kubernetes_service_name"
 
-	dcaURL := config.Datadog.GetString(configDcaURL)
+	dcaURL := config.Datadog().GetString(configDcaURL)
 	if dcaURL != "" {
 		if strings.HasPrefix(dcaURL, "http://") {
 			return "", fmt.Errorf("cannot get cluster agent endpoint, not a https scheme: %s", dcaURL)
@@ -250,7 +250,7 @@ func GetClusterAgentEndpoint() (string, error) {
 
 	// Construct the URL with the Kubernetes service environment variables
 	// *_SERVICE_HOST and *_SERVICE_PORT
-	dcaSvc := config.Datadog.GetString(configDcaSvcName)
+	dcaSvc := config.Datadog().GetString(configDcaSvcName)
 	log.Debugf("Identified service for the Datadog Cluster Agent: %s", dcaSvc)
 	if dcaSvc == "" {
 		return "", fmt.Errorf("cannot get a cluster agent endpoint, both %s and %s are empty", configDcaURL, configDcaSvcName)

@@ -139,7 +139,7 @@ func streamRequest(url string, body []byte, duration time.Duration, onChunk func
 		c.Timeout = duration
 	}
 	// Set session token
-	e = util.SetAuthToken(pkgconfig.Datadog)
+	e = util.SetAuthToken(pkgconfig.Datadog())
 	if e != nil {
 		return e
 	}

@@ -7,7 +7,6 @@ package ad
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -164,10 +163,8 @@ func TestIgnoreRemoteConfigIfDisabled(t *testing.T) {
 				ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 				ClusterCheck:  false,
 			}
-
-			pkgconfig.Datadog = pkgconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-			pkgconfig.InitConfig(pkgconfig.Datadog)
-			pkgconfig.Datadog.Set("remote_configuration.agent_integrations.allow_log_config_scheduling", rcLogCfgSchedEnabled, model.SourceFile)
+			pkgconfig.Mock(t)
+			pkgconfig.Datadog().Set("remote_configuration.agent_integrations.allow_log_config_scheduling", rcLogCfgSchedEnabled, model.SourceFile)
 			scheduler.Schedule([]integration.Config{configSource})
 			if rcLogCfgSchedEnabled {
 				require.Equal(t, 1, len(spy.Events))

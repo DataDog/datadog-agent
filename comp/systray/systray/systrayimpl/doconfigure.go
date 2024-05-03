@@ -32,7 +32,7 @@ func doConfigure(s *systrayImpl) error {
 	}
 
 	// Read the authentication token: can only be done if user can read from datadog.yaml
-	authToken, err := security.FetchAuthToken(pkgconfig.Datadog)
+	authToken, err := security.FetchAuthToken(pkgconfig.Datadog())
 	if err != nil {
 		return err
 	}
@@ -44,7 +44,7 @@ func doConfigure(s *systrayImpl) error {
 		return err
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/agent/gui/csrf-token", ipcAddress, s.config.GetInt("cmd_port"))
-	err = util.SetAuthToken(pkgconfig.Datadog)
+	err = util.SetAuthToken(pkgconfig.Datadog())
 	if err != nil {
 		return err
 	}

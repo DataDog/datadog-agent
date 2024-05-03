@@ -200,7 +200,7 @@ func init() {
 // Configure prepares the configuration of the KSM check instance
 func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	k.BuildID(integrationConfigDigest, config, initConfig)
-	k.agentConfig = ddconfig.Datadog
+	k.agentConfig = ddconfig.Datadog()
 
 	err := k.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
@@ -303,7 +303,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	resyncPeriod := k.instance.ResyncPeriod
 	if resyncPeriod == 0 {
-		resyncPeriod = ddconfig.Datadog.GetInt("kubernetes_informers_resync_period")
+		resyncPeriod = ddconfig.Datadog().GetInt("kubernetes_informers_resync_period")
 	}
 
 	builder.WithResync(time.Duration(resyncPeriod) * time.Second)
@@ -478,7 +478,7 @@ func (k *KSMCheck) Run() error {
 	// we also do a safety check for dedicated runners to avoid trying the leader election
 	if !k.isCLCRunner || !k.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
-		if !ddconfig.Datadog.GetBool("leader_election") {
+		if !ddconfig.Datadog().GetBool("leader_election") {
 			return log.Error("Leader Election not enabled. The cluster-agent will not run the kube-state-metrics core check.")
 		}
 
