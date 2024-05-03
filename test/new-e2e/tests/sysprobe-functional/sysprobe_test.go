@@ -32,10 +32,13 @@ type vmSuite struct {
 }
 
 var (
-	devMode = flag.Bool("devmode", false, "run tests in dev mode")
+	devMode   = flag.Bool("devmode", false, "run tests in dev mode")
+	teststart time.Time
 )
 
 func TestVMSuite(t *testing.T) {
+	t.Log("Starting top level testvmsuite")
+	teststart = time.Now()
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(componentsos.WindowsDefault))))}
 	if *devMode {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
@@ -57,8 +60,15 @@ func (v *vmSuite) SetupSuite() {
 }
 
 func (v *vmSuite) TestSystemProbeSuite() {
-	v.BaseSuite.SetupSuite()
 	t := v.T()
+	t.Logf("Starting test took %s", time.Since(teststart))
+	tstart := time.Now()
+
+	v.BaseSuite.SetupSuite()
+
+	t.Logf("SetupSuite took %s", time.Since(tstart))
+
+	tstart = time.Now()
 	// get the remote host
 	vm := v.Env().RemoteHost
 
@@ -91,8 +101,10 @@ func (v *vmSuite) TestSystemProbeSuite() {
 	t.Logf("AssetsDir: %s", sites[0].AssetsDir)
 	err = windows.CreateIISSite(vm, sites)
 	require.NoError(t, err)
+	t.Logf("Provisioning IIS took %s", time.Since(tstart))
 	t.Log("Sites created, continuing")
 
+	tstart = time.Now()
 	rs := windows.NewRemoteExecutable(vm, t, "testsuite.exe", v.testspath)
 	err = rs.FindTestPrograms()
 	require.NoError(t, err)
@@ -102,6 +114,7 @@ func (v *vmSuite) TestSystemProbeSuite() {
 
 	err = rs.CopyFiles()
 	require.NoError(t, err)
+	t.Logf("CopyFiles took %s", time.Since(tstart))
 
 	// install the agent (just so we can get the driver(s) installed)
 	agentPackage, err := windowsAgent.GetPackageFromEnv()
@@ -109,16 +122,24 @@ func (v *vmSuite) TestSystemProbeSuite() {
 	remoteMSIPath, err := windowsCommon.GetTemporaryFile(vm)
 	require.NoError(t, err)
 	t.Logf("Getting install package %s...", agentPackage.URL)
+	tstart = time.Now()
 	err = windowsCommon.PutOrDownloadFile(vm, agentPackage.URL, remoteMSIPath)
 	require.NoError(t, err)
+	t.Logf("Download complete, took %s", time.Since(tstart))
 
+	tstart = time.Now()
 	err = windowsCommon.InstallMSI(vm, remoteMSIPath, "", "")
-	t.Log("Install complete")
+	t.Logf("Install complete, took %s", time.Since(tstart))
 	require.NoError(t, err)
 
-	time.Sleep(30 * time.Second)
+	tstart = time.Now()
 	// disable the agent, and enable the drivers for testing
-	_, err = vm.Execute("stop-service -force datadogagent")
+	require.Eventually(t, func() bool {
+		_, err = vm.Execute("stop-service -force datadogagent")
+		return err == nil
+	}, time.Minute, 5*time.Second)
+	e := time.Since(tstart)
+	t.Logf("Stop service took %s", e)
 	require.NoError(t, err)
 	_, err = vm.Execute("sc.exe config datadogagent start= disabled")
 	require.NoError(t, err)
@@ -127,5 +148,7 @@ func (v *vmSuite) TestSystemProbeSuite() {
 	_, err = vm.Execute("start-service ddnpm")
 	require.NoError(t, err)
 
+	tstart = time.Now()
 	rs.RunTests()
+	t.Logf("RunTests took %s", time.Since(tstart))
 }
