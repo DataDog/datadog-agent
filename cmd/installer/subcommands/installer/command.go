@@ -31,7 +31,7 @@ const (
 
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	return []*cobra.Command{bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand()}
+	return []*cobra.Command{bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand(), purgeCommand()}
 }
 
 type cmd struct {
@@ -199,6 +199,22 @@ func removeCommand() *cobra.Command {
 			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.Remove(i.ctx, args[0])
+		},
+	}
+	return cmd
+}
+
+func purgeCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "purge",
+		Short:   "Purge all packages installed with the installer",
+		GroupID: "installer",
+		Args:    cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
+			i := newInstallerCmd("purge")
+			defer func() { i.Stop(err) }()
+			i.Purge(i.ctx)
+			return nil
 		},
 	}
 	return cmd
