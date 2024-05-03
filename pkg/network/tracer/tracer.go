@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failed"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -294,7 +295,7 @@ func newReverseDNS(c *config.Config) dns.ReverseDNS {
 //nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
-	//failedConnMap := t.ebpfTracer.GetFailedConnections()
+	failedConnMap := t.ebpfTracer.GetFailedConnections()
 	for i := range connections {
 		cs := &connections[i]
 		cs.IsClosed = true
@@ -314,11 +315,11 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		t.addProcessInfo(cs)
 
 		tracerTelemetry.closedConns.Inc(cs.Type.String())
-		//failed.MatchFailedConn(cs, failedConnMap)
+		failed.MatchFailedConn(cs, failedConnMap)
 	}
-	//failedConnMap.Lock()
-	//clear(failedConnMap.FailedConnMap)
-	//failedConnMap.Unlock()
+	failedConnMap.Lock()
+	clear(failedConnMap.FailedConnMap)
+	failedConnMap.Unlock()
 
 	connections = connections[rejected:]
 
