@@ -12,12 +12,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	stdnet "net"
 	"net/http"
 	"os"
 	"runtime"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -46,8 +48,10 @@ const inactivityRestartDuration = 20 * time.Minute
 
 var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
 
-func createNetworkTracerModule(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component]) (module.Module, error) {
+func createNetworkTracerModule(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], npScheduler npscheduler.Component) (module.Module, error) {
 	ncfg := networkconfig.New()
+
+	log.Errorf("npScheduler in NetworkTracerModule: %#v", npScheduler)
 
 	// Checking whether the current OS + kernel version is supported by the tracer
 	if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
@@ -68,13 +72,14 @@ func createNetworkTracerModule(cfg *sysconfigtypes.Config, _ optional.Option[wor
 		startTelemetryReporter(cfg, done)
 	}
 
-	return &networkTracer{tracer: t, done: done}, err
+	return &networkTracer{tracer: t, npScheduler: npScheduler, done: done}, err
 }
 
 var _ module.Module = &networkTracer{}
 
 type networkTracer struct {
 	tracer       *tracer.Tracer
+	npScheduler  npscheduler.Component
 	done         chan struct{}
 	restartTimer *time.Timer
 }
@@ -92,6 +97,9 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		start := time.Now()
 		id := getClientID(req)
 		cs, err := nt.tracer.GetActiveConnections(id)
+
+		log.Errorf("npScheduler in NetworkTracerModule /connections: %#v", nt.npScheduler)
+		nt.scheduleNetworkPath(cs.Conns)
 		if err != nil {
 			log.Errorf("unable to retrieve connections: %s", err)
 			w.WriteHeader(500)
@@ -340,4 +348,49 @@ func writeDisabledProtocolMessage(protocolName string, w http.ResponseWriter) {
 	// We are marshaling a static string, so we can ignore the error
 	buf, _ := json.Marshal(outputString)
 	w.Write(buf)
+}
+
+func (nt *networkTracer) scheduleNetworkPath(conns []network.ConnectionStats) {
+	//if !nt.networkPathEnabled {
+	//	return
+	//}
+	startTime := time.Now()
+	// TODO: TESTME
+	for _, conn := range conns {
+		remoteAddr := conn.Dest.Addr.String()
+		// Only process outgoing traffic
+		if !shouldScheduleNetworkPathForConn(remoteAddr, conn.Direction) {
+			// TODO: TESTME
+			continue
+		}
+		remotePort := uint16(conn.DPort)
+		if stdnet.ParseIP(remoteAddr).IsLoopback() {
+			// TODO: use exclude_cidr?
+			log.Debugf("Skip loopback IP: %s", remoteAddr)
+			continue
+		}
+		err := nt.npScheduler.Schedule(remoteAddr, remotePort)
+		if err != nil {
+			log.Errorf("Error scheduling pathtests: %s", err)
+		}
+	}
+
+	scheduleDuration := time.Since(startTime)
+	statsd.Client.Gauge("datadog.network_path.connections_check.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
+}
+
+func shouldScheduleNetworkPathForConn(remoteAddr string, direction network.ConnectionDirection) bool {
+	// TODO: TESTME
+	if direction != network.OUTGOING {
+		return false
+	}
+
+	// TODO: move to exclude_cidr entry
+	// Skip IPs
+	// 169.254.169.254 is used in AWS, Azure, GCP and other cloud computing platforms to host instance metadata service.
+	// TODO: Should we skip all 169.254.0.0/16 (dynamically configured link-local addresses)
+	if remoteAddr == "169.254.169.254" {
+		return false
+	}
+	return true
 }

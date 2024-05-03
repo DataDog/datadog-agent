@@ -8,6 +8,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -18,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func restartModuleHandler(w http.ResponseWriter, r *http.Request, wmeta optional.Option[workloadmeta.Component]) {
+func restartModuleHandler(w http.ResponseWriter, r *http.Request, wmeta optional.Option[workloadmeta.Component], npScheduler npscheduler.Component) {
 	vars := mux.Vars(r)
 	moduleName := sysconfigtypes.ModuleName(vars["module-name"])
 
@@ -39,7 +40,7 @@ func restartModuleHandler(w http.ResponseWriter, r *http.Request, wmeta optional
 		return
 	}
 
-	err := module.RestartModule(target, wmeta)
+	err := module.RestartModule(target, wmeta, npScheduler)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -17,5 +17,5 @@ import (
 type Factory struct {
 	Name             sysconfigtypes.ModuleName
 	ConfigNamespaces []string
-	Fn               func(cfg *sysconfigtypes.Config, wmeta optional.Option[workloadmeta.Component]) (Module, error)
+	Fn               func(cfg *sysconfigtypes.Config, wmeta optional.Option[workloadmeta.Component], npscheduler npscheduler.Component) (Module, error)
 }
