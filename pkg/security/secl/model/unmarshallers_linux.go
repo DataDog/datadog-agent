@@ -1049,15 +1049,16 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 		// try to parse cloud provider specific data
 		if e.CloudProvider == IMDSAWSCloudProvider {
 			b := new(bytes.Buffer)
-			io.Copy(b, resp.Body)
-			_ = resp.Body.Close()
-			// we don't care about errors, this unmarshalling will only work for token responses
-			_ = e.AWS.SecurityCredentials.UnmarshalBinary(b.Bytes())
-			if len(e.AWS.SecurityCredentials.ExpirationRaw) > 0 {
-				e.AWS.SecurityCredentials.Expiration, _ = time.Parse(time.RFC3339, e.AWS.SecurityCredentials.ExpirationRaw)
+			_, err = io.Copy(b, resp.Body)
+			if err == nil {
+				_ = resp.Body.Close()
+				// we don't care about errors, this unmarshalling will only work for token responses
+				_ = e.AWS.SecurityCredentials.UnmarshalBinary(b.Bytes())
+				if len(e.AWS.SecurityCredentials.ExpirationRaw) > 0 {
+					e.AWS.SecurityCredentials.Expiration, _ = time.Parse(time.RFC3339, e.AWS.SecurityCredentials.ExpirationRaw)
+				}
 			}
 		}
-		break
 	case slices.Contains([]string{
 		http.MethodGet,
 		http.MethodHead,
@@ -1079,7 +1080,6 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 		e.URL = req.URL.String()
 		e.Host = req.Host
 		e.UserAgent = req.UserAgent()
-		break
 	default:
 		return 0, fmt.Errorf("invalid HTTP packet: unknown first word %s", firstWord[0])
 	}

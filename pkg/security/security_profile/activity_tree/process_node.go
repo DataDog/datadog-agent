@@ -38,8 +38,10 @@ type ProcessNode struct {
 	ImageTags      []string
 	MatchedRules   []*model.MatchedRule
 
-	Files    map[string]*FileNode
-	DNSNames map[string]*DNSNode
+	Files      map[string]*FileNode
+	DNSNames   map[string]*DNSNode
+	IMDSEvents map[model.IMDSEvent]*IMDSNode
+
 	Sockets  []*SocketNode
 	Syscalls []int
 	Children []*ProcessNode
@@ -59,6 +61,7 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 		GenerationType: generationType,
 		Files:          make(map[string]*FileNode),
 		DNSNames:       make(map[string]*DNSNode),
+		IMDSEvents:     make(map[model.IMDSEvent]*IMDSNode),
 	}
 }
 
@@ -304,6 +307,23 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTag string, generat
 	return true
 }
 
+// InsertIMDSEvent inserts an IMDS event in a process node
+func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
+	imdsNode, ok := pn.IMDSEvents[evt.IMDS]
+	if ok {
+		imdsNode.MatchedRules = model.AppendMatchedRule(imdsNode.MatchedRules, evt.Rules)
+		imdsNode.appendImageTag(imageTag)
+		return false
+	}
+
+	if !dryRun {
+		// create new node
+		pn.IMDSEvents[evt.IMDS] = NewIMDSNode(&evt.IMDS, evt.Rules, generationType, imageTag)
+		stats.IMDSNodes++
+	}
+	return true
+}
+
 // InsertBindEvent inserts a bind event in a process node
 func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
 	if evt.Bind.SyscallEvent.Retval != 0 {
@@ -406,6 +426,13 @@ func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys
 	for question, dns := range pn.DNSNames {
 		if shouldRemoveNode := dns.evictImageTag(imageTag, DNSNames); shouldRemoveNode {
 			delete(pn.DNSNames, question)
+		}
+	}
+
+	// Evict image tag from IMDS nodes
+	for key, imds := range pn.IMDSEvents {
+		if shouldRemoveNode := imds.evictImageTag(imageTag); shouldRemoveNode {
+			delete(pn.IMDSEvents, key)
 		}
 	}
 
