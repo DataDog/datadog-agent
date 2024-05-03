@@ -7,10 +7,14 @@ package npschedulerimpl
 
 // TODO: Remove if not needed
 
+// TracerouteRunnerType defines the type of traceroute runner (classic or simple)
 type TracerouteRunnerType int
 
 const (
+	// ClassicTraceroute correspond to the classic Traceroute Runner that depend on build tags.
 	ClassicTraceroute TracerouteRunnerType = iota
+
+	// SimpleTraceroute will instruct to run directly the plain traceroute Runner
 	SimpleTraceroute
 )
 
