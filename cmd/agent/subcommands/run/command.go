@@ -472,7 +472,7 @@ func startAgent(
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
 	ac autodiscovery.Component,
-	rcclient rcclient.Component,
+	rcClient rcclient.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	_ processAgent.Component,
 	_ defaultforwarder.Component,
@@ -521,18 +521,23 @@ func startAgent(
 	}
 	log.Infof("Hostname is: %s", hostnameDetected)
 
+	fmt.Println("starting agent ....................")
+
 	// start remote configuration management
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
 		// Subscribe to `AGENT_TASK` product
-		rcclient.SubscribeAgentTask()
+		rcClient.SubscribeAgentTask()
 
 		// Subscribe to `APM_TRACING` product
-		rcclient.SubscribeApmTracing()
+		rcClient.SubscribeApmTracing()
+
+		fmt.Println("Subscribe..................")
+		rcClient.Subscribe(data.ProductDebug, rcclient.Update)
 
 		if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
 			rcProvider := providers.NewRemoteConfigProvider()
-			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
+			rcClient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
 			// LoadAndRun is called later on
 			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
 		}

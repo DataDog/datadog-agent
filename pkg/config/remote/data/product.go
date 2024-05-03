@@ -29,6 +29,8 @@ const (
 	ProductAgentConfig = "AGENT_CONFIG"
 	// ProductAgentIntegrations is to receive integrations to schedule
 	ProductAgentIntegrations = "AGENT_INTEGRATIONS"
+	// ProductDebug is to test remote config
+	ProductDebug = "DEBUG"
 )
 
 // ProductListToString converts a product list to string list

@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"sync"
 	"unsafe"
 
@@ -51,18 +52,14 @@ type remoteConfig struct {
 func GetRemoteConfig(key *C.char, yamlPayload **C.char) {
 	goKey := C.GoString(key)
 
-	value := remoteConfig{
-		Topic:     "topic",
-		Partition: 12,
-		Offset:    20,
-	}
 	fmt.Println("key is ", goKey)
-	data, err := yaml.Marshal(value)
+	data, err := rcclient.GetYamlConfigs()
 	if err != nil {
-		log.Errorf("could not convert configuration value '%v' to YAML: %s", value, err)
+		log.Errorf("could not convert configuration value YAML: %s", err)
 		*yamlPayload = nil
 		return
 	}
+	fmt.Println("config is ", string(data))
 	// yaml Payload will be free by rtloader when it's done with it
 	*yamlPayload = TrackedCString(string(data))
 }
