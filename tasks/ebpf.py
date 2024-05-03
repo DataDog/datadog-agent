@@ -236,12 +236,12 @@ def print_complexity_legend():
 
 
 @task
-def annotate_complexity(_: Context, program: str, function: str, debug=False, show_assembly=False):
+def annotate_complexity(_: Context, object_file: str, function: str, debug=False, show_assembly=False):
     if debug:
-        program += "_debug"
+        object_file += "_debug"
 
     function = function.replace('/', '__')
-    func_name = f"{program}/{function}"
+    func_name = f"{object_file}/{function}"
     complexity_data_file = COMPLEXITY_DATA_DIR / f"{func_name}.json"
 
     if not os.path.exists(complexity_data_file):
@@ -250,7 +250,7 @@ def annotate_complexity(_: Context, program: str, function: str, debug=False, sh
             f"Complexity data for function {func_name} not found at {complexity_data_file}, trying to find it as section..."
         )
 
-        with open(COMPLEXITY_DATA_DIR / program / "mappings.json") as f:
+        with open(COMPLEXITY_DATA_DIR / object_file / "mappings.json") as f:
             mappings = json.load(f)
         if func_name not in mappings:
             raise Exit(f"Cannot find complexity data for {func_name}, neither as function nor section name")
@@ -262,7 +262,7 @@ def annotate_complexity(_: Context, program: str, function: str, debug=False, sh
             )
 
         function = funcs[0]
-        func_name = f"{program}/{function}"
+        func_name = f"{object_file}/{function}"
         complexity_data_file = COMPLEXITY_DATA_DIR / f"{func_name}.json"
 
     with open(complexity_data_file) as f:
