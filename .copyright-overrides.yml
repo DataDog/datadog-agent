@@ -236,6 +236,7 @@ github.com/santhosh-tekuri/jsonschema: Copyright (c) 2017-2024 Santhosh Kumar Te
 #  * https://github.com/godror/knownpb/blob/main/internal/writer.go
 github.com/godror/knownpb/internal: Copyright 2014, 2021 Tamás Gulácsi
 github.com/godror/knownpb/timestamppb: Copyright 2019, 2021 Tamás Gulácsi
+github.com/go4org/mem: Copyright 2020 The Go4 AUTHORS
 
 # Copyright information is in the README
 github.com/google/gnostic/compiler: Copyright 2017-2020, Google LLC.
@@ -343,5 +344,3 @@ github.com/go-jose/go-jose/v4: Copyright 2014 Square Inc.
 
 github.com/vibrantbyte/go-antpath/antpath: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
 github.com/vibrantbyte/go-antpath/extend: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
-
-github.com/go4org/mem: Copyright 2020 The Go4 AUTHORS
