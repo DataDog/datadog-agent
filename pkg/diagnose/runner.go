@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -23,11 +24,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
+	"github.com/fatih/color"
+
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
-	"github.com/fatih/color"
 )
 
 // Overall running statistics
@@ -446,7 +448,10 @@ func getSuites(diagCfg diagnosis.Config, deps SuitesDeps) []diagnosis.Suite {
 	catalog.Register("connectivity-datadog-core-endpoints", func() []diagnosis.Diagnosis { return connectivity.Diagnose(diagCfg) })
 	catalog.Register("connectivity-datadog-autodiscovery", connectivity.DiagnoseMetadataAutodiscoveryConnectivity)
 	catalog.Register("connectivity-datadog-event-platform", eventplatformimpl.Diagnose)
-	catalog.Register("port-conflict", func() []diagnosis.Diagnosis { return ports.DiagnosePortSuite(diagCfg, deps.senderManager) })
+	// port-conflict suite available in darwin only for now
+	if runtime.GOOS == "darwin" {
+		catalog.Register("port-conflict", func() []diagnosis.Diagnosis { return ports.DiagnosePortSuite(diagCfg, deps.senderManager) })
+	}
 
 	return catalog.GetSuites()
 }
