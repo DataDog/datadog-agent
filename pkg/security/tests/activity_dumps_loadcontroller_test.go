@@ -39,7 +39,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 	outputDir := t.TempDir()
 
 	expectedFormats := []string{"json", "protobuf"}
-	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
+	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind", "imds"}
 	opts := testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
@@ -104,7 +104,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 	outputDir := t.TempDir()
 
 	expectedFormats := []string{"json", "protobuf"}
-	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
+	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind", "imds"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
@@ -202,7 +202,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 	outputDir := t.TempDir()
 
 	expectedFormats := []string{"json", "protobuf"}
-	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
+	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind", "imds"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
