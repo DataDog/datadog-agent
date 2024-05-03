@@ -147,7 +147,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide network path scheduler bundle
 		fx.Provide(func(Syscfg sysprobeconfig.Component) npschedulerimpl.Params {
 			enabled := Syscfg.GetBool("network_path.enabled_in_process_agent")
-			return npschedulerimpl.Params{Enabled: enabled}
+			return npschedulerimpl.Params{Enabled: enabled, TracerouteRunner: npschedulerimpl.ClassicTraceroute}
 		}),
 		networkpath.Bundle(),
 
