@@ -111,7 +111,7 @@ use_dogstatsd: true
 dogstatsd_socket: /tmp/stable/inject/run/dsd.socket
 # END LD PRELOAD CONFIG`,
 	} {
-		output := a.setAgentConfigContent([]byte(input))
+		output, _ := a.setAgentConfigContent([]byte(input))
 		assert.Equal(t, expected, string(output))
 	}
 }
@@ -149,7 +149,7 @@ site: datad0g.com
 site: datad0g.com`: `api_key: 000000000
 site: datad0g.com`,
 	} {
-		output := a.deleteAgentConfigContent([]byte(input))
+		output, _ := a.deleteAgentConfigContent([]byte(input))
 		assert.Equal(t, expected, string(output))
 	}
 }

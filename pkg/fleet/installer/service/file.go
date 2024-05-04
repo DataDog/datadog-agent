@@ -40,7 +40,7 @@ func newFileMutator(path string, transform func(existing []byte) ([]byte, error)
 	}
 }
 
-func (ft *fileMutator) transform() (rollback func() error, err error) {
+func (ft *fileMutator) mutate() (rollback func() error, err error) {
 	defer os.Remove(ft.pathTmp)
 
 	originalFileExists := true

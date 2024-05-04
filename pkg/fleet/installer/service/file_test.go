@@ -39,7 +39,7 @@ func TestFileTransformWithRollback(t *testing.T) {
 
 	mutator := newFileMutator(originalPath, transformFunc, nil, nil)
 
-	rollback, err := mutator.transform()
+	rollback, err := mutator.mutate()
 	require.NoError(t, err)
 	require.NotNil(t, rollback)
 
@@ -60,7 +60,7 @@ func TestNoChangesNeeded(t *testing.T) {
 		return []byte(originalContent), nil
 	}, nil, nil)
 
-	rollback, err := mutator.transform()
+	rollback, err := mutator.mutate()
 	require.Nil(t, rollback)
 	require.NoError(t, err)
 	assertFile(t, originalPath, originalContent, mode)
@@ -72,7 +72,7 @@ func TestFileTransformWithRollback_No_original(t *testing.T) {
 
 	mutator := newFileMutator(originalPath, transformFunc, nil, nil)
 
-	rollback, err := mutator.transform()
+	rollback, err := mutator.mutate()
 	require.NoError(t, err)
 	require.NotNil(t, rollback)
 
@@ -90,7 +90,7 @@ func TestFileMutator_RollbackOnValidation(t *testing.T) {
 
 	mutator := newFileMutator(originalPath, transformFunc, nil, failFunc)
 
-	_, err := mutator.transform()
+	_, err := mutator.mutate()
 	require.Error(t, err)
 
 	// check already rolled back
@@ -103,7 +103,7 @@ func TestFileTransform_RollbackOnValidation_No_original(t *testing.T) {
 
 	mutator := newFileMutator(originalPath, transformFunc, nil, failFunc)
 
-	_, err := mutator.transform()
+	_, err := mutator.mutate()
 	require.Error(t, err)
 
 	assertNoExists(t, originalPath)
