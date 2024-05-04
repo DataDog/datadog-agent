@@ -82,20 +82,20 @@ func TestVMSuite(t *testing.T) {
 
 func (v *vmSuiteWithAMI) TestWithImageName() {
 	vm := v.Env().RemoteHost
-	metadata := client.NewEC2Metadata(vm)
+	metadata := client.NewEC2Metadata(v.T(), vm.Host, vm.OSFamily)
 	require.Equal(v.T(), requestedAmi, metadata.Get("ami-id"))
-	require.Equal(v.T(), "aarch64\n", vm.MustExecute("uname -m"))
+	require.Equal(v.T(), "aarch64", vm.MustExecute("uname -m"))
 	require.Contains(v.T(), vm.MustExecute("grep PRETTY_NAME /etc/os-release"), "Amazon Linux")
 }
 
 func (v *vmSuiteWithInstanceType) TestWithInstanceType() {
 	vm := v.Env().RemoteHost
-	metadata := client.NewEC2Metadata(vm)
+	metadata := client.NewEC2Metadata(v.T(), vm.Host, vm.OSFamily)
 	require.Equal(v.T(), metadata.Get("instance-type"), instanceType)
 }
 
 func (v *vmSuiteWithArch) TestWithArch() {
-	require.Equal(v.T(), "aarch64\n", v.Env().RemoteHost.MustExecute("uname -m"))
+	require.Equal(v.T(), "aarch64", v.Env().RemoteHost.MustExecute("uname -m"))
 }
 
 func (v *vmSuiteWithUserData) TestWithUserdata() {
@@ -103,5 +103,5 @@ func (v *vmSuiteWithUserData) TestWithUserdata() {
 
 	output, err := v.Env().RemoteHost.Execute("ls " + userDataPath)
 	require.NoError(v.T(), err)
-	require.Equal(v.T(), userDataPath+"\n", output)
+	require.Equal(v.T(), userDataPath, output)
 }
