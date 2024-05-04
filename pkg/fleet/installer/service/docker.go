@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
 	"os/exec"
 	"path"
 
@@ -24,6 +25,39 @@ type dockerDaemonConfig map[string]interface{}
 var (
 	dockerDaemonPath = "/etc/docker/daemon.json"
 )
+
+func (a *apmInjectorInstaller) setupDocker(ctx context.Context) (rollback func() error, err error) {
+	if !isDockerInstalled(ctx) {
+		return nil, nil
+	}
+	err = os.MkdirAll("/etc/docker", 0755)
+	if err != nil {
+		return nil, err
+	}
+
+	rollbackDockerConfig, err := a.dockerConfigInstrument.mutate()
+	if err != nil {
+		return nil, err
+	}
+
+	rollback = func() error {
+		if err := rollbackDockerConfig(); err != nil {
+			return err
+		}
+		return reloadDockerConfig(ctx)
+	}
+	return rollback, reloadDockerConfig(ctx)
+}
+
+func (a *apmInjectorInstaller) uninstallDocker(ctx context.Context) error {
+	if !isDockerInstalled(ctx) {
+		return nil
+	}
+	if _, err := a.dockerConfigUninstrument.mutate(); err != nil {
+		return err
+	}
+	return reloadDockerConfig(ctx)
+}
 
 // setDockerConfigContent sets the content of the docker daemon configuration
 func (a *apmInjectorInstaller) setDockerConfigContent(previousContent []byte) ([]byte, error) {
@@ -83,15 +117,10 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte)
 	return dockerConfigJSON, nil
 }
 
-// restartDocker reloads the docker daemon if it exists
-func restartDocker(ctx context.Context) error {
-	span, _ := tracer.StartSpanFromContext(ctx, "restart_docker")
-	defer span.Finish()
-	if !isDockerInstalled(ctx) {
-		log.Info("installer: docker is not installed, skipping reload")
-		return nil
-	}
-	return exec.CommandContext(ctx, "systemctl", "restart", "docker").Run()
+func reloadDockerConfig(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "reload_docker")
+	defer span.Finish(tracer.WithError(err))
+	return exec.CommandContext(ctx, "systemctl", "reload", "docker").Run()
 }
 
 // isDockerInstalled checks if docker is installed on the system

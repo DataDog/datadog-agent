@@ -78,7 +78,7 @@ type apmInjectorInstaller struct {
 }
 
 // Setup sets up the APM injector
-func (a *apmInjectorInstaller) Setup(_ context.Context) error {
+func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	var err error
 	var rollbackAgentConfig, rollbackLDPreload, rollbackDockerConfig func() error
 	defer func() {
@@ -112,21 +112,22 @@ func (a *apmInjectorInstaller) Setup(_ context.Context) error {
 	if err != nil {
 		return err
 	}
-	rollbackDockerConfig, err = a.dockerConfigInstrument.mutate()
-	if err != nil {
-		return err
-	}
-	return nil
+
+	// TODO only instrument docker if DD_APM_INSTRUMENTATION_ENABLED=docker
+	// is set
+	rollbackDockerConfig, err = a.setupDocker(ctx)
+	return err
 }
 
-func (a *apmInjectorInstaller) Remove(_ context.Context) {
+func (a *apmInjectorInstaller) Remove(ctx context.Context) {
 	if _, err := a.agentRemoveConfigSockets.mutate(); err != nil {
 		log.Warnf("Failed to remove agent config: %v", err)
 	}
 	if _, err := a.ldPreloadFileUninstrument.mutate(); err != nil {
 		log.Warnf("Failed to remove ld preload config: %v", err)
 	}
-	if _, err := a.dockerConfigUninstrument.mutate(); err != nil {
+	// TODO docker only on DD_APM_INSTRUMENTATION_ENABLED=docker
+	if err := a.uninstallDocker(ctx); err != nil {
 		log.Warnf("Failed to remove docker config: %v", err)
 	}
 }
