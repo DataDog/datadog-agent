@@ -14,6 +14,8 @@ import (
 	"io"
 	"os"
 	"syscall"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // fileMutator is a struct used to transform a file
@@ -103,7 +105,9 @@ func (ft *fileMutator) mutate() (rollback func() error, err error) {
 	// validate final file if validation function provided
 	if ft.validateFinal != nil {
 		if err = ft.validateFinal(); err != nil {
-			rollback()
+			if err := rollback(); err != nil {
+				log.Errorf("could not rollback file %s: %s", ft.path, err)
+			}
 			return nil, err
 		}
 	}
