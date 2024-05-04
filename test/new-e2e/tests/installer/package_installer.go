@@ -20,16 +20,5 @@ func testInstaller(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
 }
 
 func (s *packageInstallerSuite) TestBootstrap() {
-	initialState := s.host.State()
-	s.Bootstrap()
-	defer s.Purge()
-
-	diff := s.host.Diff(initialState)
-	diff.AssertGroupAdded("dd-agent")
-	diff.AssertUserAdded("dd-agent", "dd-agent")
-	diff.AssertDirCreated("/var/log/datadog", 0755, "dd-agent", "dd-agent")
-	diff.AssertDirCreated("/var/run/datadog-packages", 0777, "root", "root")
-	diff.AssertFileCreated("/usr/bin/datadog-installer", 0777, "root", "root")
-
-	diff.AssertNoOtherChanges()
+	s.RunInstallScript()
 }

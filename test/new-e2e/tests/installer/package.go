@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
@@ -48,6 +49,21 @@ func (s *packageBaseSuite) Name() string {
 func (s *packageBaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch, s.opts...)
+}
+
+func (s *packageBaseSuite) RunInstallScript() {
+	env := map[string]string{
+		"DD_API_KEY":               "deadbeefdeadbeefdeadbeefdeadbeef",
+		"DD_INSTALLER":             "true",
+		"DD_NO_AGENT_INSTALL":      "true",
+		"TESTING_KEYS_URL":         "keys.datadoghq.com",
+		"TESTING_APT_URL":          "apttesting.datad0g.com",
+		"TESTING_APT_REPO_VERSION": fmt.Sprintf("%s-i7-%s 7", s.Env().AwsEnvironment.PipelineID(), s.os.Architecture),
+		"TESTING_YUM_URL":          "yumtesting.datad0g.com",
+		"TESTING_YUM_VERSION_PATH": fmt.Sprintf("testing/%s-i7/7", s.Env().AwsEnvironment.PipelineID()),
+	}
+	s.T().Logf("Running install script with env %v", env)
+	s.Env().RemoteHost.MustExecute(`bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)`, components.WithEnvVariables(env))
 }
 
 func (s *packageBaseSuite) Bootstrap() {
