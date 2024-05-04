@@ -255,12 +255,12 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 		if err != nil {
 			return err
 		}
+
+		env.Agent.ClientOptions = params.agentClientOptions
 	} else {
 		// Suite inits all fields by default, so we need to explicitly set it to nil
 		env.Agent = nil
 	}
-
-	env.AgentClientOptions = params.agentClientOptions
 
 	return nil
 }
