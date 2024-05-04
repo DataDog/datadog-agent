@@ -8,6 +8,7 @@ package installer
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -58,9 +59,9 @@ func (s *packageBaseSuite) RunInstallScript() {
 		"DD_NO_AGENT_INSTALL":      "true",
 		"TESTING_KEYS_URL":         "keys.datadoghq.com",
 		"TESTING_APT_URL":          "apttesting.datad0g.com",
-		"TESTING_APT_REPO_VERSION": fmt.Sprintf("%s-i7-%s 7", s.Env().AwsEnvironment.PipelineID(), s.os.Architecture),
+		"TESTING_APT_REPO_VERSION": fmt.Sprintf("%s-i7-%s 7", os.Getenv("CI_PIPELINE_ID"), s.os.Architecture),
 		"TESTING_YUM_URL":          "yumtesting.datad0g.com",
-		"TESTING_YUM_VERSION_PATH": fmt.Sprintf("testing/%s-i7/7", s.Env().AwsEnvironment.PipelineID()),
+		"TESTING_YUM_VERSION_PATH": fmt.Sprintf("testing/%s-i7/7", os.Getenv("CI_PIPELINE_ID")),
 	}
 	s.T().Logf("Running install script with env %v", env)
 	s.Env().RemoteHost.MustExecute(`bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)`, components.WithEnvVariables(env))
