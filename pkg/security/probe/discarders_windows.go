@@ -5,7 +5,10 @@
 
 package probe
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+)
 
 func init() {
 	SupportedMultiDiscarder = []*rules.MultiDiscarder{
@@ -13,45 +16,45 @@ func init() {
 			Entries: []rules.MultiDiscarderEntry{
 				{
 					Field:     "create.file.path",
-					EventType: "create",
+					EventType: model.CreateNewFileEventType,
 				},
 				{
 					Field:     "rename.file.path",
-					EventType: "rename",
+					EventType: model.FileRenameEventType,
 				},
 				{
 					Field:     "delete.file.path",
-					EventType: "delete",
+					EventType: model.DeleteFileEventType,
 				},
 				{
 					Field:     "write.file.path",
-					EventType: "write",
+					EventType: model.WriteFileEventType,
 				},
 			},
 			FinalField:     "create.file.path",
-			FinalEventType: "create",
+			FinalEventType: model.CreateNewFileEventType,
 		},
 		{
 			Entries: []rules.MultiDiscarderEntry{
 				{
 					Field:     "create.file.name",
-					EventType: "create",
+					EventType: model.CreateNewFileEventType,
 				},
 				{
 					Field:     "rename.file.name",
-					EventType: "rename",
+					EventType: model.FileRenameEventType,
 				},
 				{
 					Field:     "delete.file.name",
-					EventType: "delete",
+					EventType: model.DeleteFileEventType,
 				},
 				{
 					Field:     "write.file.name",
-					EventType: "write",
+					EventType: model.WriteFileEventType,
 				},
 			},
 			FinalField:     "create.file.name",
-			FinalEventType: "create",
+			FinalEventType: model.CreateNewFileEventType,
 		},
 	}
 }

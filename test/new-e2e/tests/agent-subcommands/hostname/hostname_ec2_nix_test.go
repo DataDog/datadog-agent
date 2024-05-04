@@ -21,7 +21,7 @@ type linuxHostnameSuite struct {
 	baseHostnameSuite
 }
 
-func TestLinuxHostnameEC2Suite(t *testing.T) {
+func TestLinuxHostnameSuite(t *testing.T) {
 	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault))
 	e2e.Run(t, &linuxHostnameSuite{baseHostnameSuite: baseHostnameSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
