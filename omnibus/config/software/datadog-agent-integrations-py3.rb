@@ -121,21 +121,16 @@ build do
     cached_wheels_dir = "#{wheel_build_dir}/.cached"
   end
 
-  # Create the array outside the block so that it can be referenced both inside and outside the block
-  checks_to_install = Array.new
-  block "Collect integrations to install" do
+  block "Install integrations" do
     tasks_dir_in = windows_safe_path(Dir.pwd)
-    to_install = (
+    # Collect integrations to install
+    checks_to_install = (
       shellout! "inv agent.collect-integrations #{project_dir} 3 #{os} #{excluded_folders.join(',')}",
                 :cwd => tasks_dir_in
     ).stdout.split()
-    checks_to_install.concat(to_install)
-  end
 
-  installed_list = Array.new
-  cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
-  block "Install integrations" do
-    tasks_dir_in = windows_safe_path(Dir.pwd)
+    # Retrieving integrations from cache
+    cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
     cache_branch = (shellout! "inv release.get-release-json-value base_branch", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
     awscli = if windows_target? then '"c:\Program files\python311\scripts\aws"' else 'aws' end
@@ -161,6 +156,7 @@ build do
     end
 
     # get list of integration wheels already installed from cache
+    installed_list = Array.new
     if cache_bucket != ''
       installed_out = (shellout! "#{python} -m pip list --format json").stdout
       if $?.exitstatus == 0
