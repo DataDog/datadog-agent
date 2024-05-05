@@ -151,6 +151,10 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, params *ProvisionerP
 	if err != nil {
 		return err
 	}
+	err = manager.Export(ctx, &env.Docker.ManagerOutput)
+	if err != nil {
+		return err
+	}
 
 	// Create FakeIntake if required
 	if params.fakeintakeOptions != nil {
