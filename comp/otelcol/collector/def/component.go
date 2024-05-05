@@ -7,8 +7,6 @@
 package collector
 
 import (
-	"context"
-
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 )
 
@@ -16,7 +14,5 @@ import (
 
 // Component specifies the interface implemented by the collector module.
 type Component interface {
-	Start(ctx context.Context) error
-	Stop(ctx context.Context) error
 	Status() otlp.CollectorStatus
 }

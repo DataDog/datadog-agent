@@ -596,7 +596,7 @@ func startAgent(
 	// start dependent services
 	go startDependentServices()
 
-	return otelcollector.Start(ctx)
+	return otelcollector.Start()
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.

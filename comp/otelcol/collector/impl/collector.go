@@ -11,10 +11,10 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/otelcol"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -25,10 +25,9 @@ import (
 )
 
 type dependencies struct {
-	fx.In
-	// Lc specifies the fx lifecycle settings, used for appending startup
+	// Lc specifies the compdef lifecycle settings, used for appending startup
 	// and shutdown hooks.
-	Lc fx.Lifecycle
+	Lc compdef.Lifecycle
 
 	// Log specifies the logging component.
 	Log              corelog.Component
@@ -51,7 +50,7 @@ func New(deps dependencies) (collectordef.Component, error) {
 		BuildInfo: component.BuildInfo{
 			Version:     "0.0.1",
 			Command:     "otel-agent",
-			Description: "Datedog Agent OpenTelemetry Collector Distribution",
+			Description: "Datadog Agent OpenTelemetry Collector Distribution",
 		},
 		Factories: func() (otelcol.Factories, error) {
 			factories, err := deps.CollectorContrib.OTelComponentFactories()
@@ -77,23 +76,23 @@ func New(deps dependencies) (collectordef.Component, error) {
 		col:  col,
 	}
 
-	deps.Lc.Append(fx.Hook{
-		OnStart: c.Start,
-		OnStop:  c.Stop,
+	deps.Lc.Append(compdef.Hook{
+		OnStart: c.start,
+		OnStop:  c.stop,
 	})
 	return c, nil
 }
 
-func (c *collector) Start(context.Context) error {
+func (c *collector) start(context.Context) error {
 	go func() {
 		if err := c.col.Run(context.Background()); err != nil {
-			c.deps.Log.Errorf("Error running the OTLP ingest pipeline: %v", err)
+			c.deps.Log.Errorf("Error running the collector pipeline: %v", err)
 		}
 	}()
 	return nil
 }
 
-func (c *collector) Stop(context.Context) error {
+func (c *collector) stop(context.Context) error {
 	c.col.Shutdown()
 	return nil
 }
