@@ -158,7 +158,7 @@ build do
     # get list of integration wheels already installed from cache
     installed_list = Array.new
     if cache_bucket != ''
-      installed_out = (shellout! "#{python} -m pip list --format json").stdout
+      installed_out = `#{python} -m pip list --format json`
       if $?.exitstatus == 0
         installed = JSON.parse(installed_out)
         installed.each do |package|

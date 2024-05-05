@@ -157,11 +157,7 @@ build do
     # get list of integration wheels already installed from cache
     installed_list = Array.new
     if cache_bucket != ''
-      if windows_target?
-        installed_out = (shellout! "#{python} -m pip list --format json").stdout
-      else
-        installed_out = (shellout! "#{pip} list --format json").stdout
-      end
+      installed_out = `#{python} -m pip list --format json`
       if $?.exitstatus == 0
         installed = JSON.parse(installed_out)
         installed.each do |package|
