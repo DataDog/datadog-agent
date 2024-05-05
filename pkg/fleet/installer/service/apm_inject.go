@@ -61,7 +61,6 @@ func newAPMInjectorInstaller(path string) *apmInjectorInstaller {
 	a.ldPreloadFileInstrument = newFileMutator(ldSoPreloadPath, a.setLDPreloadConfigContent, nil, nil)
 	a.ldPreloadFileUninstrument = newFileMutator(ldSoPreloadPath, a.deleteLDPreloadConfigContent, nil, nil)
 	a.agentConfigSockets = newFileMutator(datadogConfigPath, a.setAgentConfigContent, nil, nil)
-	a.agentRemoveConfigSockets = newFileMutator(datadogConfigPath, a.deleteAgentConfigContent, nil, nil)
 	a.dockerConfigInstrument = newFileMutator(dockerDaemonPath, a.setDockerConfigContent, nil, nil)
 	a.dockerConfigUninstrument = newFileMutator(dockerDaemonPath, a.deleteDockerConfigContent, nil, nil)
 	return a
@@ -72,7 +71,6 @@ type apmInjectorInstaller struct {
 	ldPreloadFileInstrument   *fileMutator
 	ldPreloadFileUninstrument *fileMutator
 	agentConfigSockets        *fileMutator
-	agentRemoveConfigSockets  *fileMutator
 	dockerConfigInstrument    *fileMutator
 	dockerConfigUninstrument  *fileMutator
 }
@@ -101,13 +99,12 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 			}
 		}
 	}()
-	rollbackAgentConfig, err = a.agentConfigSockets.mutate()
+
+	rollbackAgentConfig, err = a.setupSockets(ctx)
 	if err != nil {
 		return err
 	}
-	if err := a.setRunPermissions(); err != nil {
-		return err
-	}
+
 	rollbackLDPreload, err = a.ldPreloadFileInstrument.mutate()
 	if err != nil {
 		return err
@@ -120,9 +117,6 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 }
 
 func (a *apmInjectorInstaller) Remove(ctx context.Context) {
-	if _, err := a.agentRemoveConfigSockets.mutate(); err != nil {
-		log.Warnf("Failed to remove agent config: %v", err)
-	}
 	if _, err := a.ldPreloadFileUninstrument.mutate(); err != nil {
 		log.Warnf("Failed to remove ld preload config: %v", err)
 	}
@@ -130,6 +124,32 @@ func (a *apmInjectorInstaller) Remove(ctx context.Context) {
 	if err := a.uninstallDocker(ctx); err != nil {
 		log.Warnf("Failed to remove docker config: %v", err)
 	}
+}
+
+// setupSockets sets up the sockets for the APM injector
+// TODO rework entirely for safe transition
+func (a *apmInjectorInstaller) setupSockets(ctx context.Context) (func() error, error) {
+	// TODO: remove sockets from run
+	if err := a.setRunPermissions(); err != nil {
+		return nil, err
+	}
+	rollbackAgentConfig, err := a.agentConfigSockets.mutate()
+	if err != nil {
+		return nil, err
+	}
+	if err := restartTraceAgent(ctx); err != nil {
+		return nil, err
+	}
+	rollback := func() error {
+		if err := rollbackAgentConfig(); err != nil {
+			return err
+		}
+		if err := restartTraceAgent(ctx); err != nil {
+			return err
+		}
+		return nil
+	}
+	return rollback, nil
 }
 
 func (a *apmInjectorInstaller) setRunPermissions() error {
@@ -206,18 +226,6 @@ func (a *apmInjectorInstaller) setAgentConfigContent(content []byte) ([]byte, er
 		content = append(content, []byte("\n")...)
 	}
 	return content, nil
-}
-
-// deleteAgentConfigContent deletes the agent configuration for the APM injector
-func (a *apmInjectorInstaller) deleteAgentConfigContent(content []byte) ([]byte, error) {
-	start := bytes.Index(content, injectorConfigPrefix)
-	end := bytes.Index(content, injectorConfigSuffix) + len(injectorConfigSuffix)
-	if start == -1 || end == -1 || start >= end {
-		// Config not found
-		return content, nil
-	}
-
-	return append(content[:start], content[end:]...), nil
 }
 
 // restartTraceAgent restarts the stable trace agent
