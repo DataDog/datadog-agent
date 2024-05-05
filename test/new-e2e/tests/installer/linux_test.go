@@ -421,8 +421,9 @@ func (v *installerSuite) TestPurgeAndInstallAPMInjector() {
 	require.NotNil(v.T(), err)
 	_, err = host.Execute(`grep "/opt/datadog-packages/datadog-apm-inject" /etc/docker/daemon.json`)
 	require.NotNil(v.T(), err)
-	res, err = host.Execute("grep \"LD PRELOAD CONFIG\" /etc/datadog-agent/datadog.yaml")
-	require.NotNil(v.T(), err, "expected no LD PRELOAD CONFIG in agent config, got:\n%s", res)
+	raw, err = host.ReadFile("/etc/datadog-agent/datadog.yaml")
+	require.Nil(v.T(), err)
+	require.True(v.T(), strings.Contains(string(raw), "# BEGIN LD PRELOAD CONFIG"), "missing LD_PRELOAD config, config:\n%s", string(raw))
 }
 
 func assertInstallMethod(v *installerSuite, t *testing.T, host *components.RemoteHost) {
