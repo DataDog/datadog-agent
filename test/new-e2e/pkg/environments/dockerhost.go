@@ -8,7 +8,6 @@ package environments
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 )
 
@@ -26,13 +25,5 @@ var _ e2e.Initializable = &DockerHost{}
 
 // Init initializes the environment
 func (e *DockerHost) Init(ctx e2e.Context) error {
-	if e.Agent != nil {
-		agent, err := client.NewDockerAgentClient(ctx.T(), e.Docker.Client, e.Agent.ContainerName, true)
-		if err != nil {
-			return err
-		}
-		e.Agent.Client = agent
-	}
-
 	return nil
 }
