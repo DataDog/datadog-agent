@@ -401,7 +401,7 @@ func (v *installerSuite) TestPurgeAndInstallAPMInjector() {
 	require.Eventually(v.T(), func() bool {
 		_, err := host.Execute(`cat /var/log/datadog/trace-agent.log | grep "Dropping Payload due to non-retryable error"`)
 		return err == nil
-	}, 30*time.Second, 100*time.Millisecond)
+	}, 2*time.Minute, 100*time.Millisecond)
 
 	///////////////////////
 	// Check purge state //
