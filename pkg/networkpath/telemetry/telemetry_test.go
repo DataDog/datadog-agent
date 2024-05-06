@@ -63,12 +63,79 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "with last hop successful",
+			path: payload.NetworkPath{
+				Hops: []payload.NetworkPathHop{
+					{Hostname: "hop_1", IPAddress: "1.1.1.1"},
+					{Hostname: "hop_2", IPAddress: "1.1.1.2", Success: true},
+				},
+			},
+			checkDuration: 10 * time.Second,
+			checkInterval: 0,
+			tags:          []string{"foo:bar", "tag2:val2"},
+			expectedMetrics: []metricsender.MockReceivedMetric{
+				{
+					MetricType: metrics.GaugeType,
+					Name:       "datadog.network_path.check_duration",
+					Value:      float64(10),
+					Tags:       []string{"foo:bar", "tag2:val2"},
+				},
+				{
+					MetricType: metrics.GaugeType,
+					Name:       "datadog.network_path.path.monitored",
+					Value:      float64(1),
+					Tags:       []string{"foo:bar", "tag2:val2"},
+				},
+				{
+					MetricType: metrics.GaugeType,
+					Name:       "datadog.network_path.path.reachable",
+					Value:      float64(1),
+					Tags:       []string{"foo:bar", "tag2:val2"},
+				},
+				{
+					MetricType: metrics.GaugeType,
+					Name:       "datadog.network_path.path.unreachable",
+					Value:      float64(0),
+					Tags:       []string{"foo:bar", "tag2:val2"},
+				},
+				{
+					MetricType: metrics.GaugeType,
+					Name:       "datadog.network_path.path.hops",
+					Value:      float64(2),
+					Tags:       []string{"foo:bar", "tag2:val2"},
+				},
+			},
+		},
+		{
+			name: "no hops and no interval",
+			path: payload.NetworkPath{
+				Hops: []payload.NetworkPathHop{},
+			},
+			checkDuration: 10 * time.Second,
+			checkInterval: 0,
+			tags:          []string{"foo:bar", "tag2:val2"},
+			expectedMetrics: []metricsender.MockReceivedMetric{
+				{
+					MetricType: metrics.GaugeType,
+					Name:       "datadog.network_path.check_duration",
+					Value:      float64(10),
+					Tags:       []string{"foo:bar", "tag2:val2"},
+				},
+				{
+					MetricType: metrics.GaugeType,
+					Name:       "datadog.network_path.path.monitored",
+					Value:      float64(1),
+					Tags:       []string{"foo:bar", "tag2:val2"},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sender := &metricsender.MockMetricSender{}
 			SubmitNetworkPathTelemetry(sender, tt.path, tt.checkDuration, tt.checkInterval, tt.tags)
-			assert.Equal(t, tt.expectedMetrics, sender.Metrics)
+			assert.ElementsMatch(t, tt.expectedMetrics, sender.Metrics)
 		})
 	}
 }
