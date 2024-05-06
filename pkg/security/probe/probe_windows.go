@@ -125,6 +125,9 @@ type stats struct {
 	//filePathResolver status
 	fileCreateSkippedDiscardedPaths     uint64
 	fileCreateSkippedDiscardedBasenames uint64
+
+	//
+	etwChannelBlocked uint64
 }
 
 /*
@@ -436,7 +439,11 @@ func (p *WindowsProbe) Start() error {
 		go func() {
 			defer p.fimwg.Done()
 			err := p.setupEtw(func(n interface{}, pid uint32) {
-				p.onETWNotification <- etwNotification{n, pid}
+				select {
+				case p.onETWNotification <- etwNotification{n, pid}:
+				default:
+					p.stats.etwChannelBlocked++
+				}
 			})
 			log.Infof("Done StartTracing %v", err)
 		}()
@@ -767,6 +774,9 @@ func (p *WindowsProbe) SendStats() error {
 		return err
 	}
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfRegistryPathResolver, float64(len(p.regPathResolver)), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsETWChannelBlockedCount, float64(p.stats.etwChannelBlocked), nil, 1); err != nil {
 		return err
 	}
 	return nil

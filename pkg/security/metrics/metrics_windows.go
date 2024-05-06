@@ -91,4 +91,7 @@ var (
 	//MetricWindowsSizeOfRegistryPathResolver is the metric for counting the size of the registry cache
 	//Tags: -
 	MetricWindowsSizeOfRegistryPathResolver = newRuntimeMetric(".windows.registry_resolver.size")
+	//MetricWindowsETWChannelBlockedCount is the metric for counting the number of blocked ETW channels
+	//Tags: -
+	MetricWindowsETWChannelBlockedCount = newRuntimeMetric(".windows.etw_channel_blocked_count")
 )
