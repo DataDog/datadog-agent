@@ -335,7 +335,7 @@ func (a *agent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, apply
 	var err error
 
 	// We received a hit that new updates arrived, but if the list of updates
-	// is empty, it means we don't have any updates applying to thsi agent anymore
+	// is empty, it means we don't have any updates applying to this agent anymore
 	// Send a reconfiguration with an empty payload, indicating that
 	// the scanners have to be dropped.
 	if len(updates) == 0 {
