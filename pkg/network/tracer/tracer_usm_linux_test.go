@@ -59,12 +59,16 @@ func classificationSupported(config *config.Config) bool {
 	return kprobe.ClassificationSupported(config)
 }
 
+func usmSupportedBuildModes(t *testing.T) []ebpftest.BuildMode {
+	return supportedBuildModes(t)
+}
+
 type USMSuite struct {
 	suite.Suite
 }
 
 func TestUSMSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmSupportedBuildModes(t), "", func(t *testing.T) {
 		suite.Run(t, new(USMSuite))
 	})
 }
