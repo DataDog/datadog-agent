@@ -2449,6 +2449,7 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sconfig v0.
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sconfig v0.100.0/go.mod h1:VS66oUydCMwiWl1BFmLs7iNy4lGsfVYsriXr/d1fpAk=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8stest v0.98.0 h1:wRD+b1q1n6lSzX7HsydCtSyqL2HqW0miyWOw87rI+L8=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8stest v0.98.0/go.mod h1:1OsbednOq+I/HsWwIhJ8J6Glv8JhWiNNPm9ReVq9Nfk=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8stest v0.100.0 h1:TTpJdnnZLrsJtsqo7JKo4fuFy9Yy6VWKu6plFaWCSLM=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.98.0 h1:G4VY01P5r26yAM+ruHnLBTpue1naxBHSSCEYbMzbbUo=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.98.0/go.mod h1:eY3VRXSzUIUSyjsxuKdY6XTzV0oYlge0MMLw7ijd/RM=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.99.0 h1:zHn/wtyS/mMTKt/JHI4N47qxPdSen5Tq21aOVtbAy2s=
@@ -2461,6 +2462,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataprovi
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders v0.100.0/go.mod h1:HBlJKnf42Mm5p2Zjymlr5wjunPz6n+iiuHslgcGTK+I=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.98.0 h1:F6ZLrCnfX4JmSQaqfpHY3k7dLjAmXOoYdWbfVkbpT/s=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.98.0/go.mod h1:jdQtG3kZnRRZ6lv/Q3iBINkMN8BfZStsLhG08okP19M=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.100.0 h1:Oy80SyQ1eRTzv4rvUz7BlHW7B1jKZ6Ohipk2XxQSnhQ=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.100.0/go.mod h1:xkbbL88jE02df8SxIQ5rIk+Zisfpa2tagCzx/6Hz01Q=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/splunk v0.98.0 h1:oRra5wW04p+Q/bjxeHww5TM0G5Eo/zNUPplk9LK2S/g=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/splunk v0.98.0/go.mod h1:AIngTy08aFnbn6MJvn4x1ofYr5b62eQQiMk2m2u89NU=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/splunk v0.99.0 h1:LBK6Q6kPg9ifEV41VHCSSP1MCUEAagG9rybadHthIxY=
@@ -2641,6 +2644,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jmxreceiver v
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jmxreceiver v0.98.0/go.mod h1:m8kdLny8qaQF9JQUt/BTjBGiJ+Akp2a8hU/d/kffGVE=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/journaldreceiver v0.98.0 h1:AlZze9NREP9uhaC+UIsBQMNAAblJYkARdDCeIaER7sA=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/journaldreceiver v0.98.0/go.mod h1:rxpSJXQyNJj5sDvz86sZCBCrGDpS+JK5qyzVNee6eeE=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver v0.100.0 h1:vPL8na93hqo6K20h/06ULTQXeou208Dne0jEAtQPP58=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver v0.100.0/go.mod h1:276YDtf8AgY1CAsyLS6CG3v/jiuSXqf9yyfGglLXSCw=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8seventsreceiver v0.98.0 h1:K6dYF20qdqn9QSlijqbTVAjCZQxzLwDdsQkdtW+Zlm8=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8seventsreceiver v0.98.0/go.mod h1:eVg5mfwmn3uk0K7o3jRe2m8i0Ldv9aenjTmyuwTJCJ0=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver v0.98.0 h1:OFI2v3A31Y7mDumVdD2F8DSNAeoazhN1gf2s5rfwT30=
@@ -3370,6 +3375,8 @@ go.opentelemetry.io/collector/featuregate v1.7.0 h1:8tNgX2VaiR9jrpZevRSvStuJrvvL
 go.opentelemetry.io/collector/featuregate v1.7.0/go.mod h1:w7nUODKxEi3FLf1HslCiE6YWtMtOOrMnSwsDam8Mg9w=
 go.opentelemetry.io/collector/filter v0.99.0 h1:8FROG1HWU8ZgN+o9f8rJQKDl+9jw5X2MUJoUWRZM16I=
 go.opentelemetry.io/collector/filter v0.99.0/go.mod h1:Js7zFx6m4vtM+s3mmPJzUX5CvheDdb79qrHM7sC8juQ=
+go.opentelemetry.io/collector/filter v0.100.0 h1:XQyhnqJSK2sw+e9yvpkvl7y8QdJwH/gAnFoZDfEZ0dQ=
+go.opentelemetry.io/collector/filter v0.100.0/go.mod h1:3xGRpZo11DMJTDtMUGsDNkxKM6LMHqROGrQ/aTvskh8=
 go.opentelemetry.io/collector/otelcol v0.99.0 h1:sQOyZQP68UqwqlNC1/hMm9lIbxS0PY9vnHubn7Qpp7w=
 go.opentelemetry.io/collector/otelcol v0.99.0/go.mod h1:MwUkATYB4wCj1gnKI+/LvC9QjE6VAjdRaa66GNZ/IS8=
 go.opentelemetry.io/collector/otelcol v0.100.0 h1:5NWoo9T5tHP0oWt3OHetYpTRaQCJuef8KDDe5tLi+BA=
