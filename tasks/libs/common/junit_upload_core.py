@@ -12,6 +12,7 @@ from subprocess import PIPE, CalledProcessError, Popen
 from invoke.exceptions import Exit
 
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.utils import collapsed_section
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
     DEFAULT_SLACK_CHANNEL,
@@ -88,14 +89,15 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
         # for each unpacked xml file, split it and submit all parts
         # NOTE: recursive=True is necessary for "**" to unpack into 0-n dirs, not just 1
         xmls = 0
-        for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml", recursive=True):
-            if not os.path.isfile(xmlfile):
-                print(f"[WARN] Matched folder named {xmlfile}")
-                continue
-            xmls += 1
-            with tempfile.TemporaryDirectory() as output_dir:
-                written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir, flaky_tests)
-                upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], process_env, tags)
+        with collapsed_section("Uploading JUnit files"):
+            for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml", recursive=True):
+                if not os.path.isfile(xmlfile):
+                    print(f"[WARN] Matched folder named {xmlfile}")
+                    continue
+                xmls += 1
+                with tempfile.TemporaryDirectory() as output_dir:
+                    written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir, flaky_tests)
+                    upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], process_env, tags)
         xmlcounts[junit_tgz] = xmls
 
     empty_tgzs = []
@@ -214,7 +216,7 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, addi
         if additional_tags:
             args.extend(additional_tags)
         args.append(junit_file_path)
-        processes.append(Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env, stderr=PIPE))
+        processes.append(Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env, stdout=PIPE, stderr=PIPE))
     for process in processes:
         _, stderr = process.communicate()
         if stderr:

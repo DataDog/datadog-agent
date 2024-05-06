@@ -29,7 +29,7 @@ from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
-from tasks.libs.common.utils import clean_nested_paths, get_build_flags
+from tasks.libs.common.utils import clean_nested_paths, get_build_flags, collapsed_section
 from tasks.linter import _lint_go
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
@@ -428,19 +428,20 @@ def test(
     if only_impacted_packages:
         modules = get_impacted_packages(ctx, build_tags=unit_tests_tags)
 
-    test_results = test_flavor(
-        ctx,
-        flavor=flavor,
-        build_tags=unit_tests_tags,
-        modules=modules,
-        cmd=cmd,
-        env=env,
-        args=args,
-        junit_tar=junit_tar,
-        save_result_json=save_result_json,
-        test_profiler=test_profiler,
-        coverage=coverage,
-    )
+    with collapsed_section("Running unit tests"):
+        test_results = test_flavor(
+            ctx,
+            flavor=flavor,
+            build_tags=unit_tests_tags,
+            modules=modules,
+            cmd=cmd,
+            env=env,
+            args=args,
+            junit_tar=junit_tar,
+            save_result_json=save_result_json,
+            test_profiler=test_profiler,
+            coverage=coverage,
+        )
 
     # Output
     if junit_tar:
@@ -463,7 +464,7 @@ def test(
     success = process_module_results(flavor=flavor, module_results=test_results)
 
     if success:
-        print(color_message("All tests passed", "green"))
+        print(f"Tests final status (including re-runs): {color_message('ALL TESTS PASSED', 'green')}")
     else:
         # Exit if any of the modules failed on any phase
         raise Exit(code=1)
