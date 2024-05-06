@@ -31,7 +31,7 @@ func (o *WindowsCreateFileSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
-		Expression: fmt.Sprintf(`create.file.name == "%s" && create.file.path == "%s"`, basename, o.filename),
+		Expression: fmt.Sprintf(`create.file.name == "%s" && create.file.device_path == "%s"`, basename, o.filename),
 	}
 }
 
