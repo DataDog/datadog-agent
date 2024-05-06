@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
@@ -308,7 +309,7 @@ func (a *agent) onUpdateSDSRules(updates map[string]state.RawConfig, applyStateC
 	var err error
 	for _, config := range updates {
 		if rerr := a.pipelineProvider.ReconfigureSDSStandardRules(config.Config); rerr != nil {
-			err = rerr
+			err = multierror.Append(err, rerr)
 		}
 	}
 
@@ -342,7 +343,7 @@ func (a *agent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, apply
 	} else {
 		for _, config := range updates {
 			if rerr := a.pipelineProvider.ReconfigureSDSAgentConfig(config.Config); rerr != nil {
-				err = rerr
+				err = multierror.Append(err, rerr)
 			}
 		}
 	}
