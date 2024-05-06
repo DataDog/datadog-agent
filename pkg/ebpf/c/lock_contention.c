@@ -145,7 +145,7 @@ static __always_inline int record_bucket_locks(u32 fd, struct bpf_map* bm) {
 
 #define log_and_ret_err(err) \
 { \
-    log_info("[%d] err: %d", __LINE__, err); \
+    log_debug("[%d] err: %d", __LINE__, err); \
     return 0; \
 }
 
@@ -234,6 +234,8 @@ static __always_inline int can_record(u64 *ctx, struct lock_range* range)
 
         if ((addr >= test_range->addr_start) && (addr <= (test_range->addr_start + test_range->range))) {
             bpf_memcpy(range, test_range, sizeof(struct lock_range));
+
+            log_info("can record lock @ 0x%llx", addr);
             return true;
         }
 
@@ -308,6 +310,8 @@ int tracepoint__contention_begin(u64 *ctx)
     pelem->lock = (u64)ctx[0];
     pelem->flags = (u32)ctx[1];
     bpf_memcpy(&pelem->lr, &range, sizeof(struct lock_range));
+
+    log_info("Start latency duration for 0x%llx", ctx[0]);
 
     return 0;
 }

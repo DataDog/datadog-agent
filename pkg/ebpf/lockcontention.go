@@ -8,8 +8,11 @@
 package ebpf
 
 import (
+	"errors"
 	"fmt"
+	"math"
 	"os"
+	"slices"
 	"sync"
 	"syscall"
 
@@ -40,7 +43,9 @@ const (
 	ioctlCollectLocksCmd = 0x70c13
 
 	// bpf global constants
-	numCpus = "num_cpus"
+	numCpus           = "num_cpus"
+	numRanges         = "num_of_ranges"
+	logTwoNumOfRanges = "log2_num_of_ranges"
 
 	disableKptrRestrict = "1"
 	enableKptrRestrict  = "2"
@@ -54,6 +59,7 @@ type bpfPrograms struct {
 
 type bpfMaps struct {
 	MapAddrFd *ebpf.Map `ebpf:"map_addr_fd"`
+	Ranges    *ebpf.Map `ebpf:"ranges"`
 }
 
 type bpfObjects struct {
@@ -80,7 +86,7 @@ type LockContentionCollector struct {
 	avgContention   *prometheus.GaugeVec
 	totalContention *prometheus.GaugeVec
 
-	trackedLockMemRanges map[string]string
+	trackedLockMemRanges map[LockRange]*targetMap
 	links                []link.Link
 	objects              *bpfObjects
 }
@@ -135,11 +141,16 @@ func NewLockContentionCollector() *LockContentionCollector {
 
 // Describe implements prometheus.Collector.Describe
 func (l *LockContentionCollector) Describe(descs chan<- *prometheus.Desc) {
-	return
+	l.maxContention.Describe(descs)
+	l.avgContention.Describe(descs)
+	l.totalContention.Describe(descs)
 }
 
 // Collect implements prometheus.Collector.Collect
 func (l *LockContentionCollector) Collect(metrics chan<- prometheus.Metric) {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+
 	return
 }
 
@@ -147,6 +158,9 @@ func (l *LockContentionCollector) Collect(metrics chan<- prometheus.Metric) {
 // These memory ranges correspond to locks taken by eBPF programs and are collected by walking
 // fds representing the resource of interest, for example an eBPF map.
 func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
+	var name string
+	var err error
+
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
@@ -154,10 +168,8 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		return nil
 	}
 
-	var name string
-	var err error
-
-	var maps []targetMap
+	l.trackedLockMemRanges = make(map[LockRange]*targetMap)
+	maps := make(map[int]*targetMap)
 
 	mapid := ebpf.MapID(0)
 	for mapid, err = ebpf.MapGetNextID(mapid); err == nil; mapid, err = ebpf.MapGetNextID(mapid) {
@@ -183,23 +195,27 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 			name = info.Name
 		}
 
-		maps = append(maps, targetMap{mp.FD(), uint32(mapid), name, mp, info})
+		maps[mp.FD()] = &targetMap{mp.FD(), uint32(mapid), name, mp, info}
 	}
 
 	constants := make(map[string]interface{})
 	l.objects = new(bpfObjects)
+
+	var ranges uint32
+	var cpus uint32
 	if err := LoadCOREAsset(bpfObjectFile, func(bc bytecode.AssetReader, managerOptions manager.Options) error {
 		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		if err != nil {
 			return fmt.Errorf("failed to load collection spec: %w", err)
 		}
 
-		cpus, err := kernel.PossibleCPUs()
+		c, err := kernel.PossibleCPUs()
 		if err != nil {
 			return fmt.Errorf("unable to get possible cpus: %w", err)
 		}
+		cpus = uint32(c)
 
-		ranges := estimateNumOfLockRanges(maps, cpus)
+		ranges = estimateNumOfLockRanges(maps, cpus)
 		collectionSpec.Maps[mapAddrFdBpfMap].MaxEntries = ranges
 		collectionSpec.Maps[lockStatBpfMap].MaxEntries = ranges
 		collectionSpec.Maps[rangesBpfMap].MaxEntries = ranges
@@ -214,6 +230,8 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		for ksym, addr := range addrs {
 			constants[ksym] = addr
 		}
+		constants[numRanges] = uint64(ranges)
+		constants[logTwoNumOfRanges] = uint64(math.Log2(float64(ranges)))
 
 		if err := collectionSpec.RewriteConstants(constants); err != nil {
 			return fmt.Errorf("failed to write constant: %w", err)
@@ -259,14 +277,54 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	l.links = append(l.links, tpContentionEnd)
 
 	for _, tm := range maps {
-
 		syscall.Syscall(syscall.SYS_IOCTL, uintptr(tm.fd), ioctlCollectLocksCmd, uintptr(0))
 
 		// close all dupped maps so we do not waste fds
 		tm.mp.Close()
+		tm.mp = nil
+		tm.mpInfo = nil
 	}
 
-	return fmt.Errorf("fail because I said so")
+	var cursor ebpf.MapBatchCursor
+	lockRanges := make([]LockRange, ranges)
+	fds := make([]uint32, ranges)
+	count, err := l.objects.MapAddrFd.BatchLookup(&cursor, lockRanges, fds, nil)
+	if !errors.Is(err, ebpf.ErrKeyNotExist) {
+		return fmt.Errorf("unable to lookup up lock ranges: %w", err)
+	}
+
+	if uint32(count) < ranges {
+		return fmt.Errorf("discovered fewer ranges than expected: %d < %d\n", count, ranges)
+	}
+
+	for i, fd := range fds {
+		tm, ok := maps[int(fd)]
+		if !ok {
+			return fmt.Errorf("map with fd %d not tracked", fd)
+		}
+		l.trackedLockMemRanges[lockRanges[i]] = tm
+	}
+
+	// sort lock ranges and write to per cpu array map
+	slices.SortFunc(lockRanges, func(a, b LockRange) int {
+		return int(int64(a.Start) - int64(b.Start))
+	})
+
+	keys := make([]uint32, ranges)
+	values := make([]LockRange, cpus*ranges)
+	var i, j uint32
+	for i = 0; i < ranges; i++ {
+		keys[i] = i
+		for j = 0; j < cpus; j++ {
+			values[(j*ranges)+i] = lockRanges[i]
+		}
+	}
+
+	if _, err := l.objects.Ranges.BatchUpdate(keys, values, nil); err != nil {
+		return fmt.Errorf("unable to perform batch update on per cpu array map: %w", err)
+	}
+
+	return nil
 }
 
 // Close all eBPF resources setup up the LockContentionCollector
@@ -281,12 +339,12 @@ func (l *LockContentionCollector) Close() {
 	l.objects.MapAddrFd.Close()
 }
 
-func hashMapLockRanges(cpu int) uint32 {
+func hashMapLockRanges(cpu uint32) uint32 {
 	// buckets locks + (cpu * htab->freelist.freelist) + htab->freelist.extralist
 	return uint32(cpu + 2)
 }
 
-func estimateNumOfLockRanges(tm []targetMap, cpu int) uint32 {
+func estimateNumOfLockRanges(tm map[int]*targetMap, cpu uint32) uint32 {
 	var num uint32
 
 	for _, m := range tm {
@@ -301,7 +359,7 @@ func estimateNumOfLockRanges(tm []targetMap, cpu int) uint32 {
 }
 
 func setKptrRestrict(val string) error {
-	kptrRestrict = "/proc/sys/kernel/kptr_restrict"
+	kptrRestrict := "/proc/sys/kernel/kptr_restrict"
 
 	if !(val == enableKptrRestrict || val == disableKptrRestrict) {
 		return fmt.Errorf("invalid value %q to write to %q", val, kptrRestrict)
