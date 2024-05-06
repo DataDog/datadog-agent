@@ -7,4 +7,4 @@
 
 package listeners
 
-var NewKubeletListener ServiceListenerFactory
+var NewKubeletListener NoopServiceListenerFactory
