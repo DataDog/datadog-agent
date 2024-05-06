@@ -107,7 +107,7 @@ func (fh *forwarderHealth) init() {
 			oldAPIKey, ok1 := oldValue.(string)
 			newAPIKey, ok2 := newValue.(string)
 			if ok1 && ok2 {
-				fh.log.Debug("Updating API key in forwarder, replacing %s with %s", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
+				fh.log.Debugf("Updating API key in forwarder, replacing `%s` with `%s`", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
 				fh.updateAPIKey(oldAPIKey, newAPIKey)
 			}
 		})
