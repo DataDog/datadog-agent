@@ -65,7 +65,7 @@ type Config interface {
 // ServiceListenerFactory builds a service listener
 type ServiceListenerFactory func(Config) (ServiceListener, error)
 
-type NoopServiceListenerFactory func(c Config, wmeta optional.Option[workloadmeta.Component]) (ServiceListener, error)
+type noopServiceListenerFactory func(c Config, wmeta optional.Option[workloadmeta.Component]) (ServiceListener, error)
 
 // Register registers a service listener factory
 func Register(name string,
