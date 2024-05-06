@@ -40,11 +40,12 @@ def python(ctx):
     if running_in_ci():
         # We want to the CI to fail if there are any issues
         ctx.run("ruff format --check .")
+        ctx.run("ruff check .")
     else:
         # Otherwise we just need to format the files
         ctx.run("ruff format .")
+        ctx.run("ruff check --fix .")
 
-    ctx.run("ruff check --fix .")
     ctx.run("vulture --ignore-decorators @task --ignore-names 'test_*,Test*' tasks")
 
 

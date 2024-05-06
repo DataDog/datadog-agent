@@ -3,7 +3,7 @@ import sys
 
 from invoke import Exit, task
 
-from tasks.libs.common.utils import color_message, environ, collapsed_section
+from tasks.libs.common.utils import collapsed_section, color_message, environ
 
 TOOL_LIST = [
     'github.com/frapposelli/wwhrd',

@@ -12,7 +12,7 @@ from tasks.libs.common.omnibus import (
     send_cache_miss_event,
     should_retry_bundle_install,
 )
-from tasks.libs.common.utils import get_version, load_release_versions, timed, collapsed_section
+from tasks.libs.common.utils import collapsed_section, get_version, load_release_versions, timed
 from tasks.ssm import get_pfx_pass, get_signing_cert
 
 

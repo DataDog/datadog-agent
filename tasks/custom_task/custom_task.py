@@ -4,12 +4,13 @@ It logs the invoke task information to the DD_INVOKE_LOGS_PATH.
 This will then be uploaded to Datadog's backend with a correct Log Agent configuration.
 """
 
-from time import perf_counter
-from getpass import getuser
-from datetime import datetime
 import logging
 import sys
 import traceback
+from datetime import datetime
+from getpass import getuser
+from time import perf_counter
+
 from invoke import Context
 
 DD_INVOKE_LOGS_PATH = "/tmp/dd_invoke.log"
