@@ -20,8 +20,8 @@ const (
 // MaxRetries = 5
 )
 
-// SchedulerController is a scheduler dispatching to all its registered schedulers
-type SchedulerController struct {
+// Controller is a scheduler dispatching to all its registered schedulers
+type Controller struct {
 	// m protects all fields in this struct.
 	m sync.Mutex
 
@@ -46,12 +46,12 @@ type workItem struct {
 	digest Digest
 }
 
-// NewSchedulerController inits a scheduler controller
-func NewSchedulerController() *SchedulerController {
-	schedulerController := SchedulerController{
+// NewController inits a scheduler controller
+func NewController() *Controller {
+	schedulerController := Controller{
 		scheduledConfigs: make(map[string]*integration.Config),
 		activeSchedulers: make(map[string]Scheduler),
-		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "SchedulerController"),
+		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Controller"),
 		stopChannel:      make(chan struct{}),
 		ConfigStateStore: NewConfigStateStore(),
 	}
@@ -59,7 +59,7 @@ func NewSchedulerController() *SchedulerController {
 	return &schedulerController
 }
 
-func (ms *SchedulerController) start() {
+func (ms *Controller) start() {
 	ms.m.Lock()
 	if ms.started {
 		return
@@ -73,7 +73,7 @@ func (ms *SchedulerController) start() {
 // Previously scheduled configurations that have not subsequently been
 // unscheduled can be replayed with the replayConfigs flag.  This replay occurs
 // immediately, before the AddScheduler call returns.
-func (ms *SchedulerController) Register(name string, s Scheduler, replayConfigs bool) {
+func (ms *Controller) Register(name string, s Scheduler, replayConfigs bool) {
 	ms.m.Lock()
 	if _, ok := ms.activeSchedulers[name]; ok {
 		log.Warnf("Scheduler %s already registered, overriding it", name)
@@ -98,7 +98,7 @@ func (ms *SchedulerController) Register(name string, s Scheduler, replayConfigs 
 }
 
 // Deregister a scheduler in the schedulerController to dispatch to
-func (ms *SchedulerController) Deregister(name string) {
+func (ms *Controller) Deregister(name string) {
 	ms.m.Lock()
 	defer ms.m.Unlock()
 	if _, ok := ms.activeSchedulers[name]; !ok {
@@ -109,25 +109,25 @@ func (ms *SchedulerController) Deregister(name string) {
 }
 
 // ApplyChanges add configDigests to the workqueue
-func (ms *SchedulerController) ApplyChanges(digests []Digest) {
+func (ms *Controller) ApplyChanges(digests []Digest) {
 	for _, configDigest := range digests {
 		ms.queue.Add(workItem{digest: configDigest})
 	}
 }
 
-// for test only
-func (ms *SchedulerController) schedule(configs []integration.Config) {
+// Schedule for test only, actual scheduling should be done by the autoconfig.applyChanges
+func (ms *Controller) Schedule(configs []integration.Config) {
 	digests := ms.ConfigStateStore.UpdateDesiredState(integration.ConfigChanges{Schedule: configs})
 	ms.ApplyChanges(digests)
 }
 
-// for test only
-func (ms *SchedulerController) unschedule(configs []integration.Config) {
+// Unschedule for test only, actual unscheduling should be done by the autoconfig.applyChanges
+func (ms *Controller) Unschedule(configs []integration.Config) {
 	digests := ms.ConfigStateStore.UpdateDesiredState(integration.ConfigChanges{Unschedule: configs})
 	ms.ApplyChanges(digests)
 }
 
-func (ms *SchedulerController) worker() {
+func (ms *Controller) worker() {
 	for ms.processNextWorkItem() {
 	}
 }
@@ -139,7 +139,7 @@ func (ms *SchedulerController) worker() {
 // Unscheduled,     Unschedule,       None
 // Scheduled,       Schedule,         None
 // Scheduled,       Unschedule,       Unschedule
-func (ms *SchedulerController) processNextWorkItem() bool {
+func (ms *Controller) processNextWorkItem() bool {
 	item, quit := ms.queue.Get()
 	if quit {
 		return false
@@ -162,7 +162,7 @@ func (ms *SchedulerController) processNextWorkItem() bool {
 		ms.queue.Done(item) // no action needed
 		return true
 	}
-	log.Tracef("SchedulerController starts processing config %s: currentState: %s, desiredState: %s", configName, currentState, desiredState)
+	log.Tracef("Controller starts processing config %s: currentState: %d, desiredState: %d", configName, currentState, desiredState)
 	ms.m.Lock() //lock on activeSchedulers
 	for _, scheduler := range ms.activeSchedulers {
 		if desiredState == Scheduled {
@@ -181,7 +181,7 @@ func (ms *SchedulerController) processNextWorkItem() bool {
 }
 
 // Stop handles clean stop of registered schedulers
-func (ms *SchedulerController) Stop() {
+func (ms *Controller) Stop() {
 	ms.m.Lock()
 	defer ms.m.Unlock()
 	for _, scheduler := range ms.activeSchedulers {
@@ -194,9 +194,9 @@ func (ms *SchedulerController) Stop() {
 }
 
 // Purge removes all scheduled configs and desired states, testing only
-func (ms *SchedulerController) Purge() {
+func (ms *Controller) Purge() {
 	ms.queue.ShutDown()
-	ms.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "SchedulerController")
+	ms.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Controller")
 	ms.m.Lock()
 	defer ms.m.Unlock()
 	ms.scheduledConfigs = make(map[string]*integration.Config)

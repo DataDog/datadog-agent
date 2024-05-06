@@ -53,7 +53,7 @@ func (c ConfigStateData) copy() ConfigStateData {
 type ConfigStateStore struct {
 	configsLock sync.Mutex
 
-	// Events to SchedulerController would update immediately configStatusMap
+	// Events to Controller would update immediately configStatusMap
 	configStateMap map[Digest]ConfigStateData
 }
 

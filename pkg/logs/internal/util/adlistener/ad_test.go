@@ -22,7 +22,7 @@ import (
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestListenersGetScheduleCalls(t *testing.T) {
-	adsched := scheduler.NewMetaScheduler()
+	adsched := scheduler.NewController()
 	ac := fxutil.Test[autodiscovery.Mock](t,
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: adsched}),
 		autodiscoveryimpl.MockModule(),

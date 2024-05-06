@@ -70,7 +70,7 @@ type AutoConfig struct {
 	listeners                []listeners.ServiceListener
 	listenerCandidates       map[string]*listenerCandidate
 	listenerRetryStop        chan struct{}
-	schedulerController      *scheduler.SchedulerController
+	schedulerController      *scheduler.Controller
 	listenerStop             chan struct{}
 	healthListening          *health.Handle
 	newService               chan listeners.Service
@@ -134,7 +134,7 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) autodiscovery.Component {
-	ac := createNewAutoConfig(scheduler.NewSchedulerController(), deps.Secrets, deps.WMeta, deps.TaggerComp)
+	ac := createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, deps.TaggerComp)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(c context.Context) error {
 			ac.Start()
@@ -149,7 +149,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.SchedulerController, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], taggerComp tagger.Component) *AutoConfig {
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], taggerComp tagger.Component) *AutoConfig {
 	cfgMgr := newReconcilingConfigManager(secretResolver)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
@@ -728,5 +728,5 @@ func newOptionalAutoConfig(deps optionalModuleDeps) optional.Option[autodiscover
 		return optional.NewNoneOption[autodiscovery.Component]()
 	}
 	return optional.NewOption[autodiscovery.Component](
-		createNewAutoConfig(scheduler.NewSchedulerController(), deps.Secrets, deps.WMeta, taggerComp))
+		createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, taggerComp))
 }
