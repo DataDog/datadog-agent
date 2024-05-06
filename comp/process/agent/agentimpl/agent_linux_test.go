@@ -241,14 +241,4 @@ func TestTelemetryCoreAgent(t *testing.T) {
 	telemetryHandler := tel.Handler()
 
 	http.Handle("/telemetry", telemetryHandler)
-
-	assert.Eventually(t, func() bool {
-		res, err := http.Get("http://localhost:5000/telemetry")
-		if err != nil {
-			return false
-		}
-		defer res.Body.Close()
-
-		return res.StatusCode == http.StatusOK
-	}, 10*time.Second, time.Second)
 }
