@@ -224,6 +224,9 @@ type RuntimeSecurityConfig struct {
 
 	// Enforcement capabilities
 	EnforcementEnabled bool
+
+	// ETWEventsChannelSize windows specific ETW channel buffer size
+	ETWEventsChannelSize int
 }
 
 // Config defines a security config
@@ -277,8 +280,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	}
 
 	rsConfig := &RuntimeSecurityConfig{
-		RuntimeEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
-		FIMEnabled:     coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
+		RuntimeEnabled:       coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
+		FIMEnabled:           coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
+		ETWEventsChannelSize: coreconfig.SystemProbe.GetInt("runtime_security_config.etw_events_channel_size"),
 
 		SocketPath:           coreconfig.SystemProbe.GetString("runtime_security_config.socket"),
 		EventServerBurst:     coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.burst"),

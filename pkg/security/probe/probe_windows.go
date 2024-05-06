@@ -130,6 +130,12 @@ type stats struct {
 	etwChannelBlocked uint64
 }
 
+var (
+	// set size of buffered channel.  Intentionally using var instead of const so that
+	// we can make it configurable if so desired.
+	etwNotificationSize = 2048
+)
+
 /*
  * callback function for every etw notification, after it's been parsed.
  * pid is provided for testing purposes, to allow filtering on pid.  it is
@@ -796,6 +802,12 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
+	cs := config.RuntimeSecurity.ETWEventsChannelSize
+	if cs != 0 {
+		etwNotificationSize = cs
+	}
+	log.Infof("Setting ETW channel size to %d", etwNotificationSize)
+
 	p := &WindowsProbe{
 		probe:             probe,
 		config:            config,
@@ -806,7 +818,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		onStart:           make(chan *procmon.ProcessStartNotification),
 		onStop:            make(chan *procmon.ProcessStopNotification),
 		onError:           make(chan bool),
-		onETWNotification: make(chan etwNotification),
+		onETWNotification: make(chan etwNotification, etwNotificationSize),
 
 		filePathResolver: make(map[fileObjectPointer]string, 0),
 		regPathResolver:  make(map[regObjectPointer]string, 0),
