@@ -1279,7 +1279,6 @@ def create_pr(title, base_branch, target_branch, version, changelog_pr=False):
     github = GithubAPI(repository=GITHUB_REPO_NAME)
 
     # Find milestone based on what the next final version is. If the milestone does not exist, fail.
-
     milestone_name = str(version)
 
     milestone = github.get_milestone_by_name(milestone_name)
@@ -1288,7 +1287,7 @@ def create_pr(title, base_branch, target_branch, version, changelog_pr=False):
         raise Exit(
             color_message(
                 f"""Could not find milestone {milestone_name} in the Github repository. Response: {milestone}
-    Make sure that milestone is open before trying again.""",
+Make sure that milestone is open before trying again.""",
                 "red",
             ),
             code=1,
@@ -1533,9 +1532,9 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
 
     # Step 2 - Create PRs with new settings in datadog-agent repository
 
-    update_branch = f"{release_branch}-updates"
-
     with ctx.cd(f"{base_directory}/{UNFREEZE_REPO_AGENT}"):
+        update_branch = f"{release_branch}-updates"
+
         ctx.run(f"git checkout {release_branch}")
         ctx.run(f"git checkout -b {update_branch}")
 
