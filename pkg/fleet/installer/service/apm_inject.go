@@ -35,6 +35,7 @@ dogstatsd_socket: %s
 	datadogConfigPath = "/etc/datadog-agent/datadog.yaml"
 	ldSoPreloadPath   = "/etc/ld.so.preload"
 	injectorPath      = "/opt/datadog-packages/datadog-apm-inject/stable"
+	oldLDPath         = "/opt/datadog/apm/inject/launcher.preload.so"
 )
 
 // SetupAPMInjector sets up the injector at bootstrap
@@ -128,6 +129,12 @@ func (a *apmInjectorInstaller) Remove(ctx context.Context) {
 // setupSockets sets up the sockets for the APM injector
 // TODO rework entirely for safe transition
 func (a *apmInjectorInstaller) setupSockets(ctx context.Context) (func() error, error) {
+
+	// don't install sockets if already in env variable
+	if os.Getenv("DD_APM_RECEIVER_SOCKET") != "" {
+		return nil, nil
+	}
+
 	// TODO: remove sockets from run
 	if err := a.setRunPermissions(); err != nil {
 		return nil, err
@@ -162,6 +169,10 @@ func (a *apmInjectorInstaller) setLDPreloadConfigContent(ldSoPreload []byte) ([]
 	if strings.Contains(string(ldSoPreload), launcherPreloadPath) {
 		// If the line of interest is already in /etc/ld.so.preload, return fast
 		return ldSoPreload, nil
+	}
+
+	if bytes.Contains(ldSoPreload, []byte(oldLDPath)) {
+		return bytes.ReplaceAll(ldSoPreload, []byte(oldLDPath), []byte(launcherPreloadPath)), nil
 	}
 
 	// Append the launcher preload path to the file
