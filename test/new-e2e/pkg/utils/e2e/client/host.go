@@ -212,32 +212,6 @@ func (h *Host) ReadFile(path string) ([]byte, error) {
 	return content.Bytes(), nil
 }
 
-// DownloadFile downloads the file from the remote host to the local host
-func (h *Host) DownloadFile(remotePath, localPath string) error {
-	remotePath = h.convertPathSeparator(remotePath)
-	sftpClient := h.getSFTPClient()
-	defer sftpClient.Close()
-
-	remoteFile, err := sftpClient.Open(remotePath)
-	if err != nil {
-		return err
-	}
-	defer remoteFile.Close()
-
-	localFile, err := os.Create(localPath)
-	if err != nil {
-		return err
-	}
-	defer localFile.Close()
-
-	_, err = io.Copy(localFile, remoteFile)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // WriteFile write content to the file and returns the number of bytes written and error if any
 func (h *Host) WriteFile(path string, content []byte) (int64, error) {
 	path = h.convertPathSeparator(path)
