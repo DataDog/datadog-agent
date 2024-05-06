@@ -88,7 +88,9 @@ func TestStatusWithError(t *testing.T) {
   foobar: error1
 error2`
 
-			assert.Equal(t, expectedTextOutput, b.String())
+			expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
+			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			assert.Equal(t, expectedResult, output)
 
 			fmt.Printf("%s", b.String())
 		}},
@@ -105,7 +107,9 @@ error2
   </span>
 </div>`
 
-			assert.Equal(t, expectedTextOutput, b.String())
+			expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
+			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			assert.Equal(t, expectedResult, output)
 
 			fmt.Printf("%s", b.String())
 
