@@ -7,14 +7,17 @@ package metricsender
 
 import "github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 
-type metricSenderAgent struct {
+// AgentMetricSender sends metrics using Agent sender.Sender
+type AgentMetricSender struct {
 	sender sender.Sender
 }
 
+// NewMetricSenderAgent creates a new AgentMetricSender
 func NewMetricSenderAgent(sender sender.Sender) MetricSender {
-	return &metricSenderAgent{sender: sender}
+	return &AgentMetricSender{sender: sender}
 }
 
-func (s *metricSenderAgent) Gauge(metricName string, value float64, tags []string) {
+// Gauge metric sender
+func (s *AgentMetricSender) Gauge(metricName string, value float64, tags []string) {
 	s.sender.Gauge(metricName, value, "", tags)
 }

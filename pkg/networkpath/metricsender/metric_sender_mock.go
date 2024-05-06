@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
+// MockReceivedMetric holds in-memory mock metrics
 type MockReceivedMetric struct {
 	MetricType metrics.MetricType
 	Name       string
@@ -18,14 +19,17 @@ type MockReceivedMetric struct {
 	Tags       []string
 }
 
+// MockMetricSender holds in-memory mock metrics
 type MockMetricSender struct {
 	Metrics []MockReceivedMetric
 }
 
+// NewMetricSenderMock constructor
 func NewMetricSenderMock() MetricSender {
 	return &MockMetricSender{}
 }
 
+// Gauge metric sender
 func (s *MockMetricSender) Gauge(metricName string, value float64, tags []string) {
 	s.Metrics = append(s.Metrics, MockReceivedMetric{
 		MetricType: metrics.GaugeType,
