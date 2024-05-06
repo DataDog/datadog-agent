@@ -47,6 +47,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -96,6 +97,7 @@ type Client struct {
 	fakeintakeID            string
 	fakeIntakeURL           string
 	strictFakeintakeIDCheck bool
+	fakeintakeIDMutex       sync.RWMutex
 
 	metricAggregator               aggregator.MetricAggregator
 	checkRunAggregator             aggregator.CheckRunAggregator
@@ -810,9 +812,16 @@ func (c *Client) get(route string) ([]byte, error) {
 		// If the fakeintake ID is not set yet we set the one we get from the first request
 		if c.strictFakeintakeIDCheck {
 			if c.fakeintakeID == "" {
+				c.fakeintakeIDMutex.Lock()
 				c.fakeintakeID = tmpResp.Header.Get("Fakeintake-ID")
-			} else if c.fakeintakeID != tmpResp.Header.Get("Fakeintake-ID") {
-				return fmt.Errorf("fakeintake probably restarted: expected fakeintake ID %s got %s", c.fakeintakeID, tmpResp.Header.Get("Fakeintake-ID"))
+				c.fakeintakeIDMutex.Unlock()
+			} else {
+				c.fakeintakeIDMutex.RLock()
+				currentFakeintakeID := c.fakeintakeID
+				c.fakeintakeIDMutex.RUnlock()
+				if currentFakeintakeID != tmpResp.Header.Get("Fakeintake-ID") {
+					return fmt.Errorf("fakeintake probably restarted: expected fakeintake ID %s got %s", currentFakeintakeID, tmpResp.Header.Get("Fakeintake-ID"))
+				}
 			}
 		}
 
