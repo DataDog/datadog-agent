@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 
@@ -62,6 +63,7 @@ func main() {
 				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
 			}
 		}),
+		taggerimpl.Module(),
 		healthprobeimpl.Module(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(tagger.NewTaggerParams()),
