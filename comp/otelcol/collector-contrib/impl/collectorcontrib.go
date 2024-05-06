@@ -12,8 +12,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector"
-
-	// "github.com/open-telemetry/opentelemetry-collector-contrib/connector/servicegraphconnector"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/servicegraphconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/fileexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/signalfxexporter"
@@ -191,7 +190,7 @@ func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, erro
 		exceptionsconnector.NewFactory(),
 		grafanacloudconnector.NewFactory(),
 		routingconnector.NewFactory(),
-		// servicegraphconnector.NewFactory(),
+		servicegraphconnector.NewFactory(),
 		spanmetricsconnector.NewFactory(),
 	}
 	connectors, err := connector.MakeFactoryMap(connectorsList...)
