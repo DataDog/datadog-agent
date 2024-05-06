@@ -39,7 +39,7 @@ type MockProvides struct {
 type inventoryagentMock struct{}
 
 // handlerFunc is a simple mocked http.Handler function
-func (ia *inventoryagentMock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
+func (m *inventoryagentMock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("OK"))
 }
 
@@ -51,14 +51,18 @@ func newMock() MockProvides {
 	}
 }
 
+// Set is an empty function on this mock
 func (m *inventoryagentMock) Set(string, interface{}) {}
 
+// GetAsJSON is a mocked function
 func (m *inventoryagentMock) GetAsJSON() ([]byte, error) {
 	return []byte("{}"), nil
 }
 
+// Get is a mocked function
 func (m *inventoryagentMock) Get() map[string]interface{} {
 	return nil
 }
 
+// Refresh is a mocked function
 func (m *inventoryagentMock) Refresh() {}

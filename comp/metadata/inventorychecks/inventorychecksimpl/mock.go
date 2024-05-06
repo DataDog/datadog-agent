@@ -40,7 +40,7 @@ func NewMock() MockProvides {
 }
 
 // handlerFunc is a simple mocked http.Handler function
-func (ic *InventorychecksMock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
+func (m *InventorychecksMock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("OK"))
 }
 
