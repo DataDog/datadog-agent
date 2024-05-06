@@ -67,6 +67,11 @@ type Resolver struct {
 	numCPU                int
 	challenge             uint32
 
+	// buffers
+	filenameParts    []string
+	keys             []model.PathKey
+	cacheNameEntries []string
+
 	hitsCounters map[counterEntry]*atomic.Int64
 	missCounters map[counterEntry]*atomic.Int64
 }
@@ -521,9 +526,7 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 	}
 
 	segmentCount := dr.computeSegmentCount()
-	filenameParts := make([]string, 0, segmentCount)
-	keys := make([]model.PathKey, 0, segmentCount)
-	cacheEntries := make([]string, 0, segmentCount)
+	dr.prepareBuffersWithCapacity(segmentCount)
 
 	i := 0
 	// make sure that we keep room for at least one pathKey + character + \0 => (sizeof(pathID) + 1 = 17)
@@ -561,18 +564,17 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 		}
 
 		segment := model.NullTerminatedString(dr.erpcSegment[i:])
-		filenameParts = append(filenameParts, segment)
+		dr.filenameParts = append(dr.filenameParts, segment)
 		i += len(segment) + 1
 
 		if !IsFakeInode(pathKey.Inode) && cache {
-			keys = append(keys, pathKey)
-
-			cacheEntries = append(cacheEntries, segment)
+			dr.keys = append(dr.keys, pathKey)
+			dr.cacheNameEntries = append(dr.cacheNameEntries, segment)
 		}
 	}
 
-	if resolutionErr == nil && len(keys) > 0 {
-		resolutionErr = dr.cacheEntries(keys, cacheEntries)
+	if resolutionErr == nil && len(dr.keys) > 0 {
+		resolutionErr = dr.cacheEntries(dr.keys, dr.cacheNameEntries)
 
 		if depth > 0 {
 			dr.hitsCounters[entry].Add(depth)
@@ -583,7 +585,7 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 		dr.missCounters[entry].Inc()
 	}
 
-	return computeFilenameFromParts(filenameParts), resolutionErr
+	return computeFilenameFromParts(dr.filenameParts), resolutionErr
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
@@ -649,6 +651,26 @@ func (dr *Resolver) GetParent(pathKey model.PathKey) (model.PathKey, error) {
 	}
 
 	return pathKey, err
+}
+
+func (dr *Resolver) prepareBuffersWithCapacity(capacity int) {
+	if cap(dr.filenameParts) < capacity {
+		dr.filenameParts = make([]string, 0, capacity)
+	} else {
+		dr.filenameParts = dr.filenameParts[:0]
+	}
+
+	if cap(dr.keys) < capacity {
+		dr.keys = make([]model.PathKey, 0, capacity)
+	} else {
+		dr.keys = dr.keys[:0]
+	}
+
+	if cap(dr.cacheNameEntries) < capacity {
+		dr.cacheNameEntries = make([]string, 0, capacity)
+	} else {
+		dr.cacheNameEntries = dr.cacheNameEntries[:0]
+	}
 }
 
 // Start the dentry resolver
