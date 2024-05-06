@@ -298,12 +298,9 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def process_test_result(test_results: ModuleTestResult, junit_tar: str, flavor: AgentFlavor, test_washer: bool):
+def process_test_result(test_results: ModuleTestResult, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
     if junit_tar:
-        junit_files = []
-        for module_test_result in test_results:
-            if module_test_result.junit_file_path:
-                junit_files.append(module_test_result.junit_file_path)
+        junit_files = [module_test_result.junit_file_path for module_test_result in test_results if module_test_result.junit_file_path]
 
         produce_junit_tar(junit_files, junit_tar)
 
