@@ -8,6 +8,8 @@ package traceroute
 
 import (
 	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 type (
@@ -28,6 +30,6 @@ type (
 	// Traceroute defines an interface for running
 	// traceroutes for the Network Path integration
 	Traceroute interface {
-		Run(context.Context) (NetworkPath, error)
+		Run(context.Context) (payload.NetworkPath, error)
 	}
 )
