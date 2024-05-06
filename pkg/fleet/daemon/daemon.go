@@ -321,11 +321,26 @@ type requestState struct {
 }
 
 func newRequestContext(request remoteAPIRequest) context.Context {
-	return context.WithValue(context.Background(), requestStateKey, &requestState{
+	ctx := context.WithValue(context.Background(), requestStateKey, &requestState{
 		Package: request.Package,
 		ID:      request.ID,
 		State:   pbgo.TaskState_RUNNING,
 	})
+
+	ctxCarrier := tracer.TextMapCarrier{
+		tracer.DefaultTraceIDHeader:  request.TraceID,
+		tracer.DefaultParentIDHeader: request.ParentSpanID,
+		tracer.DefaultPriorityHeader: "2",
+	}
+	spanCtx, err := tracer.Extract(ctxCarrier)
+	if err != nil {
+		log.Debugf("failed to extract span context from install script params: %v", err)
+		return ctx
+	}
+
+	_, ctx = tracer.StartSpanFromContext(ctx, "remote_request", tracer.ChildOf(spanCtx))
+
+	return ctx
 }
 
 func setRequestInvalid(ctx context.Context) {
