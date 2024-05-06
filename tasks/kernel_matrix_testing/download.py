@@ -13,7 +13,7 @@ from tasks.kernel_matrix_testing.vars import arch_mapping
 from tasks.kernel_matrix_testing.vmconfig import get_vmconfig_template
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import ArchOrLocal #noqa: F401
+    from tasks.kernel_matrix_testing.types import ArchOrLocal  # noqa: F401
 
 try:
     import requests
@@ -44,7 +44,13 @@ def requires_update(url_base: str, rootfs_dir: PathOrStr, image: str, branch: st
     return False
 
 
-def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name: str, arch: Arch | None = None, images: str | None = None):
+def download_rootfs(
+    ctx: Context,
+    rootfs_dir: PathOrStr,
+    vmconfig_template_name: str,
+    arch: Arch | None = None,
+    images: str | None = None,
+):
     platforms = get_platforms()
     vmconfig_template = get_vmconfig_template(vmconfig_template_name)
 
@@ -60,9 +66,10 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
     if images is not None:
         for td in images.split(","):
             id_version = td.split("-")
-            assert len(id_version) == 2, f"Invalid format for image to download: {td}. Format should be <os_id>-<os_version>"
+            assert (
+                len(id_version) == 2
+            ), f"Invalid format for image to download: {td}. Format should be <os_id>-<os_version>"
             images_to_download[id_version[0]] = id_version[1]
-
 
     for tag in platforms[arch]:
         platinfo = platforms[arch][tag]
@@ -169,7 +176,9 @@ def full_arch(arch: ArchOrLocal) -> Arch:
     return arch
 
 
-def update_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template: str, all_archs: bool = False, images: str | None = None):
+def update_rootfs(
+    ctx: Context, rootfs_dir: PathOrStr, vmconfig_template: str, all_archs: bool = False, images: str | None = None
+):
     if all_archs:
         arch_ls: list[Arch] = ["x86_64", "arm64"]
         for arch in arch_ls:

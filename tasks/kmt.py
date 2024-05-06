@@ -341,7 +341,9 @@ def config_ssh_key(ctx: Context):
         "images": "Comma separated list of images to update, instead of everything. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
     }
 )
-def update_resources(ctx: Context, vmconfig_template="system-probe", all_archs: bool = False, images: str | None = None):
+def update_resources(
+    ctx: Context, vmconfig_template="system-probe", all_archs: bool = False, images: str | None = None
+):
     kmt_os = get_kmt_os()
 
     warn("Updating resource dependencies will delete all running stacks.")
@@ -408,7 +410,6 @@ def download_gotestsum(ctx: Context, arch: Arch, fgotestsum: PathOrStr):
     )
 
     ctx.run(f"cp {paths.tools}/gotestsum {fgotestsum}")
-
 
 
 class KMTPaths:
@@ -856,7 +857,7 @@ def images_matching_ci(ctx, domains):
 
         with open(kmt_os.rootfs_dir / manifest_file) as f:
             for line in f:
-                key, value = line.strip().split('=',1)
+                key, value = line.strip().split('=', 1)
                 if key != "IMAGE_VERSION":
                     continue
 
