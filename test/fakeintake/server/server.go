@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -59,6 +60,7 @@ type Option func(*Server)
 
 // Server is a struct implementing a fakeintake server
 type Server struct {
+	uuid      uuid.UUID
 	server    http.Server
 	ready     chan bool
 	clock     clock.Clock
@@ -111,7 +113,9 @@ func NewServer(options ...Option) *Server {
 	)
 
 	mux := http.NewServeMux()
+
 	mux.HandleFunc("/", fi.handleDatadogRequest)
+	mux.HandleFunc("/fakeintake/stop", fi.handleStop)
 	mux.HandleFunc("/fakeintake/payloads", fi.handleGetPayloads)
 	mux.HandleFunc("/fakeintake/health", fi.handleFakeHealth)
 	mux.HandleFunc("/fakeintake/routestats", fi.handleGetRouteStats)
@@ -130,7 +134,12 @@ func NewServer(options ...Option) *Server {
 		Registry:          registry,
 	}))
 
-	fi.server.Handler = mux
+	fi.server.Handler = func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Fakeintake-ID", fi.uuid.String())
+			next.ServeHTTP(w, r)
+		})
+	}(mux)
 
 	return fi
 }
@@ -176,6 +185,18 @@ func WithReadyChannel(ready chan bool) Option {
 	}
 }
 
+// WithShutdownChannel assign a channel to get notified when the server is shutting down
+func WithShutdownChannel(shutdown chan struct{}) Option {
+	return func(fi *Server) {
+		if fi.IsRunning() {
+			log.Println("Fake intake is already running. Stop it and try again to change the shutdown channel.")
+			return
+		}
+
+		fi.shutdown = shutdown
+	}
+}
+
 // WithClock changes the clock used by the server
 func WithClock(clock clock.Clock) Option {
 	return func(fi *Server) {
@@ -209,6 +230,7 @@ func (fi *Server) Start() {
 		return
 	}
 	fi.shutdown = make(chan struct{})
+
 	go fi.listenRoutine()
 	go fi.cleanUpPayloadsRoutine()
 }
@@ -242,8 +264,6 @@ func (fi *Server) Stop() error {
 	if err != nil {
 		return err
 	}
-
-	fi.setURL("")
 	return nil
 }
 
@@ -287,6 +307,19 @@ func (fi *Server) cleanUpPayloadsRoutine() {
 			fi.store.CleanUpPayloadsOlderThan(retentionTimeAgo)
 		}
 	}
+}
+
+func (fi *Server) handleStop(w http.ResponseWriter, _ *http.Request) {
+	writeHTTPResponse(w, httpResponse{
+		statusCode: http.StatusOK,
+	})
+	log.Println("Fakeintake received stop instruction")
+	go func() {
+		err := fi.Stop()
+		if err != nil {
+			log.Printf("Error stopping fakeintake: %v", err)
+		}
+	}()
 }
 
 func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request) {

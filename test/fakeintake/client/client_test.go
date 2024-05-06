@@ -556,4 +556,26 @@ func TestClient(t *testing.T) {
 		assert.Equal(t, "172.199.15.1", ndmflows[0].NextHop.IP)
 		assert.Empty(t, ndmflows[0].AdditionalFields)
 	})
+
+	t.Run("test strict fakeintakeid check mode", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/fakeintake/health" {
+				w.Header().Set("Fakeintake-ID", "10000000-0000-0000-0000-000000000000")
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			w.Header().Set("Fakeintake-ID", "20000000-0000-0000-0000-000000000000")
+
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL, WithStrictFakeintakeIDCheck())
+
+		_, err := client.get("fakeintake/toto")
+		require.NoError(t, err)
+		_, err = client.get("fakeintake/hello")
+		require.NoError(t, err)
+		_, err = client.get("fakeintake/health")
+		require.Error(t, err)
+	})
 }

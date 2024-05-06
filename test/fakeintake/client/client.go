@@ -81,9 +81,21 @@ const (
 // ErrNoFlareAvailable is returned when no flare is available
 var ErrNoFlareAvailable = errors.New("no flare available")
 
+// Option is a configuration option for the client
+type Option func(*Client)
+
+// WithStrictFakeintakeIDCheck enables strict fakeintake ID check
+func WithStrictFakeintakeIDCheck() Option {
+	return func(c *Client) {
+		c.strictFakeintakeIDCheck = true
+	}
+}
+
 // Client is a fake intake client
 type Client struct {
-	fakeIntakeURL string
+	fakeintakeID            string
+	fakeIntakeURL           string
+	strictFakeintakeIDCheck bool
 
 	metricAggregator               aggregator.MetricAggregator
 	checkRunAggregator             aggregator.CheckRunAggregator
@@ -105,8 +117,8 @@ type Client struct {
 
 // NewClient creates a new fake intake client
 // fakeIntakeURL: the host of the fake Datadog intake server
-func NewClient(fakeIntakeURL string) *Client {
-	return &Client{
+func NewClient(fakeIntakeURL string, opts ...Option) *Client {
+	client := &Client{
 		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:               aggregator.NewMetricAggregator(),
 		checkRunAggregator:             aggregator.NewCheckRunAggregator(),
@@ -125,6 +137,11 @@ func NewClient(fakeIntakeURL string) *Client {
 		metadataAggregator:             aggregator.NewMetadataAggregator(),
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 	}
+	for _, opt := range opts {
+		opt(client)
+	}
+
+	return client
 }
 
 // PayloadFilter is used to filter payloads by name and resource type
@@ -787,8 +804,18 @@ func (c *Client) get(route string) ([]byte, error) {
 		}
 		defer tmpResp.Body.Close()
 		if tmpResp.StatusCode != http.StatusOK {
-			return fmt.Errorf("Expected %d got %d", http.StatusOK, tmpResp.StatusCode)
+			return fmt.Errorf("expected %d got %d", http.StatusOK, tmpResp.StatusCode)
 		}
+		// If strictFakeintakeIDCheck is enabled, we check that the fakeintake ID is the same as the one we expect
+		// If the fakeintake ID is not set yet we set the one we get from the first request
+		if c.strictFakeintakeIDCheck {
+			if c.fakeintakeID == "" {
+				c.fakeintakeID = tmpResp.Header.Get("Fakeintake-ID")
+			} else if c.fakeintakeID != tmpResp.Header.Get("Fakeintake-ID") {
+				return fmt.Errorf("fakeintake probably restarted: expected fakeintake ID %s got %s", c.fakeintakeID, tmpResp.Header.Get("Fakeintake-ID"))
+			}
+		}
+
 		body, err = io.ReadAll(tmpResp.Body)
 		return err
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
