@@ -38,7 +38,7 @@ func streamEventPlatform(eventPlatformReceiver eventplatformreceiver.Component) 
 }
 
 // NewReceiver returns a new event platform receiver.
-func NewReceiver(hostname hostnameinterface.Component) provides {
+func NewReceiver(hostname hostnameinterface.Component) provides { // nolint:revive
 	epr := diagnostic.NewBufferedMessageReceiver(&epFormatter{}, hostname)
 	return provides{
 		Comp:     epr,

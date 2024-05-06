@@ -31,6 +31,7 @@ func GetConnection(r *http.Request) net.Conn {
 	return r.Context().Value(grpc.ConnContextKey).(net.Conn)
 }
 
+// MessageReceiver is an exported interface for a valid receiver of streamed output
 type MessageReceiver interface {
 	SetEnabled(e bool) bool
 	Filter(filters *diagnostic.Filters, done <-chan struct{}) <-chan string

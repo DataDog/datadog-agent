@@ -129,7 +129,7 @@ func (demux demultiplexer) LazyGetSenderManager() (sender.SenderManager, error) 
 }
 
 func (demux demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
-	path, err := dumpDogstatsdContextsImpl(demux.Comp, demux.Log)
+	path, err := dumpDogstatsdContextsImpl(demux.Comp)
 	if err != nil {
 		utils.SetJSONError(w, demux.Log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)
 		return
@@ -145,7 +145,7 @@ func (demux demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, 
 	w.Write(resp)
 }
 
-func dumpDogstatsdContextsImpl(demux demultiplexerComp.Component, log log.Component) (string, error) {
+func dumpDogstatsdContextsImpl(demux demultiplexerComp.Component) (string, error) {
 	path := path.Join(config.Datadog.GetString("run_path"), "dogstatsd_contexts.json.zstd")
 
 	f, err := os.Create(path)
