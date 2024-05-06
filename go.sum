@@ -2728,6 +2728,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/skywalkingrec
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/skywalkingreceiver v0.98.0/go.mod h1:in3jLNJrzqtav0v8ZFCepPiljSxiDCLVW4YzaQ7IcJk=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/snmpreceiver v0.98.0 h1:LdS14ZEE/Vv6CoJxpRps2290uNRMOZxSgYIg6dDnPsw=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/snmpreceiver v0.98.0/go.mod h1:LMiKfddZA22PZ2LnpHkp1ijevhRCpZIaybg1CuBT6fQ=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/snowflakereceiver v0.100.0 h1:GSBmHejAcZ3xCUkJ3MdkrKwNS0q8q/725nTfj2gvE+o=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/snowflakereceiver v0.100.0/go.mod h1:T5DsIiBNWYqrmozarJgY+ym2XDUDaJi1bM5dfzNYvPQ=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/solacereceiver v0.98.0 h1:CfI/EpOTwuYLjQQvTcDTbMZFTUl7qfQy8crkxlLEPf8=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/solacereceiver v0.98.0/go.mod h1:xi9ej//38PmJx/4d43raw80bnM5vrOb3g7OCouroddw=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/solacereceiver v0.99.0 h1:Q+MY+0w1a3lmRaCBUz2CHiHQ+wrRZ3EC7Jy0/vAa/pU=
