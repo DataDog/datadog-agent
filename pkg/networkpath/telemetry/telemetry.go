@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
+// SubmitNetworkPathTelemetry submits Network Path related telemetry
 func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.NetworkPath, checkDuration time.Duration, checkInterval time.Duration, tags []string) {
 	newTags := utils.CopyStrings(tags)
 
