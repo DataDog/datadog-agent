@@ -61,6 +61,7 @@ import (
 )
 
 const (
+	fakeintakeIDHeader           = "Fakeintake-ID"
 	metricsEndpoint              = "/api/v2/series"
 	checkRunsEndpoint            = "/api/v1/check_run"
 	logsEndpoint                 = "/api/v2/logs"
@@ -826,14 +827,14 @@ func (c *Client) get(route string) ([]byte, error) {
 		if c.strictFakeintakeIDCheck {
 			if c.fakeintakeID == "" {
 				c.fakeintakeIDMutex.Lock()
-				c.fakeintakeID = tmpResp.Header.Get("Fakeintake-ID")
+				c.fakeintakeID = tmpResp.Header.Get(fakeintakeIDHeader)
 				c.fakeintakeIDMutex.Unlock()
 			} else {
 				c.fakeintakeIDMutex.RLock()
 				currentFakeintakeID := c.fakeintakeID
 				c.fakeintakeIDMutex.RUnlock()
-				if currentFakeintakeID != tmpResp.Header.Get("Fakeintake-ID") {
-					return fmt.Errorf("expected %s got %s: %w", currentFakeintakeID, tmpResp.Header.Get("Fakeintake-ID"), ErrFakeintakeRestarted)
+				if currentFakeintakeID != tmpResp.Header.Get(fakeintakeIDHeader) {
+					return fmt.Errorf("expected %s got %s: %w", currentFakeintakeID, tmpResp.Header.Get(fakeintakeIDHeader), ErrFakeintakeRestarted)
 				}
 			}
 		}
