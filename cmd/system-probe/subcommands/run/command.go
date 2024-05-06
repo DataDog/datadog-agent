@@ -223,11 +223,11 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
 		func(log log.Component, config config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component, settings settings.Component) error {
-			defer stopSystemProbe()
 			err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta, settings)
 			if err != nil {
 				return err
 			}
+			defer stopSystemProbe()
 
 			// notify outer that startAgent finished
 			errChan <- err
