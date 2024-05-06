@@ -9,6 +9,7 @@ from getpass import getuser
 from datetime import datetime
 import logging
 import sys
+import os
 import traceback
 from invoke import Context
 
@@ -32,6 +33,7 @@ def log_invoke_task(name: str, module: str, task_datetime: str, duration: float,
     task_info = {
         "name": name,
         "module": module,
+        "pre_commit": os.environ.get('PRE_COMMIT', 0) == "1",
         "datetime": task_datetime,
         "duration": duration,
         "user": user,
