@@ -43,6 +43,16 @@ func (fh *FieldHandlers) ResolveFileBasename(_ *model.Event, f *model.FileEvent)
 	return f.BasenameStr
 }
 
+// ResolveFimFilePath resolves the inode to a full path
+func (fh *FieldHandlers) ResolveFimFilePath(_ *model.Event, f *model.FimFileEvent) string {
+	return f.PathnameStr
+}
+
+// ResolveFimFileBasename resolves the inode to a full path
+func (fh *FieldHandlers) ResolveFimFileBasename(_ *model.Event, f *model.FimFileEvent) string {
+	return f.BasenameStr
+}
+
 // ResolveProcessEnvp resolves the envp of the event as an array
 func (fh *FieldHandlers) ResolveProcessEnvp(_ *model.Event, process *model.Process) []string {
 	return fh.resolvers.ProcessResolver.GetEnvp(process)

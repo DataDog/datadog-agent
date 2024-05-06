@@ -92,6 +92,11 @@ func (i *InstallerExec) Remove(ctx context.Context, pkg string) (err error) {
 	return cmd.Run()
 }
 
+// Purge - noop, must be called by the package manager on uninstall.
+func (i *InstallerExec) Purge(_ context.Context) {
+	panic("don't call Purge directly")
+}
+
 // InstallExperiment installs an experiment.
 func (i *InstallerExec) InstallExperiment(ctx context.Context, url string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "install-experiment", url)

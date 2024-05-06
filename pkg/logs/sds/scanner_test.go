@@ -203,6 +203,77 @@ func TestCreateScanner(t *testing.T) {
 	require.Len(s.configuredRules, 0, "The group is disabled, no rules should be configured.")
 }
 
+// TestEmptyConfiguration validates that the scanner is destroyed when receiving
+// an empty configuration.
+func TestEmptyConfiguration(t *testing.T) {
+	require := require.New(t)
+
+	standardRules := []byte(`
+        {"priority":1,"is_enabled":true,"rules":[
+            {
+                "id":"zero-0",
+                "description":"zero desc",
+                "name":"zero",
+                "definitions": [{"version":1, "pattern":"zero"}]
+            },{
+                "id":"one-1",
+                "description":"one desc",
+                "name":"one",
+                "definitions": [{"version":1, "pattern":"one"}]
+            },{
+                "id":"two-2",
+                "description":"two desc",
+                "name":"two",
+                "definitions": [{"version":1, "pattern":"two"}]
+            }
+        ]}
+    `)
+	agentConfig := []byte(`
+        {"is_enabled":true,"rules":[
+            {
+                "id": "random000",
+                "name":"zero",
+                "definition":{"standard_rule_id":"zero-0"},
+                "match_action":{"type":"Redact","placeholder":"[redacted]"},
+                "is_enabled":true
+            }
+        ]}
+    `)
+
+	s := CreateScanner(0)
+
+	require.NotNil(s, "the scanner should not be nil after a creation")
+
+	err := s.Reconfigure(ReconfigureOrder{
+		Type:   StandardRules,
+		Config: standardRules,
+	})
+
+	require.NoError(err, "configuring the standard rules should not fail")
+
+	// configure with one rule
+
+	err = s.Reconfigure(ReconfigureOrder{
+		Type:   AgentConfig,
+		Config: agentConfig,
+	})
+
+	require.NoError(err, "this one should not fail since one rule is enabled")
+	require.Len(s.configuredRules, 1, "only one rules should be part of this scanner")
+	require.NotNil(s.Scanner)
+
+	// empty reconfiguration
+
+	err = s.Reconfigure(ReconfigureOrder{
+		Type:   AgentConfig,
+		Config: []byte("{}"),
+	})
+
+	require.NoError(err)
+	require.Len(s.configuredRules, 0)
+	require.Nil(s.Scanner)
+}
+
 func TestIsReady(t *testing.T) {
 	require := require.New(t)
 

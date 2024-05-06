@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -447,6 +448,9 @@ func (suite *k8sSuite) TestRedis() {
 }
 
 func (suite *k8sSuite) TestCPU() {
+	// TODO: https://datadoghq.atlassian.net/browse/CONTINT-4143
+	flake.Mark(suite.T())
+
 	// Test CPU metrics
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
