@@ -281,6 +281,12 @@ type Config struct {
 	// Defaults to true. Setting this to false on a Kernel that supports ring
 	// buffers (>=5.8) will result in forcing the use of Perf Maps instead.
 	EnableUSMRingBuffers bool
+
+	// USM debugger options (experimental)
+	USMFilterSport int
+	USMFilterDport int
+	USMFilterSaddr string
+	USMFilterDaddr string
 }
 
 func join(pieces ...string) string {

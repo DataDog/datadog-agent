@@ -1799,3 +1799,22 @@ def save_build_outputs(ctx, destfile):
         if count == 0:
             raise Exit(message="no build outputs captured")
         ctx.run(f"tar -C {stagedir} -cJf {absdest} .")
+
+@task
+def build_usm_debugger(ctx):
+    build_object_files(ctx)
+
+    build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
+
+    # copy compilation artifacts to the debugger root directory for the purposes of embedding
+    usm_programs = [
+        os.path.join(build_dir, "co-re", "usm-debug.o"),
+        os.path.join(build_dir, "co-re", "shared-libraries-debug.o"),
+    ]
+
+    embedded_dir = os.path.join(".", "pkg", "network", "usm", "debugger", "cmd")
+
+    for p in usm_programs:
+        shutil.copy(p, embedded_dir)
+
+    ctx.run('go build -tags="linux_bpf" -o bin/usm-debugger ./pkg/network/usm/debugger/cmd/')

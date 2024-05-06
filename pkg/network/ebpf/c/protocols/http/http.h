@@ -5,6 +5,7 @@
 #include "bpf_telemetry.h"
 
 #include "protocols/sockfd.h"
+#include "protocols/debugging.h"
 
 #include "protocols/classification/common.h"
 
@@ -173,6 +174,10 @@ static __always_inline bool http_should_flush_previous_state(http_transaction_t 
 // http_process is responsible for parsing traffic and emitting events
 // representing HTTP transactions.
 static __always_inline void http_process(http_event_t *event, skb_info_t *skb_info, __u64 tags) {
+    if (!usm_should_process(&event->tuple)) {
+        return;
+    }
+
     conn_tuple_t *tuple = &event->tuple;
     http_transaction_t *http = &event->http;
     char *buffer = (char *)http->request_fragment;
