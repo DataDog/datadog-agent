@@ -2,7 +2,7 @@
 Invoke entrypoint, import here all the tasks we want to make available
 """
 
-from invoke import Collection
+from invoke import Collection, Task
 
 from tasks import (
     agent,
@@ -49,6 +49,7 @@ from tasks import (
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
+from tasks.custom_task.custom_task import custom__call__
 from tasks.fuzz import fuzz
 from tasks.go import (
     check_go_mod_replaces,
@@ -59,7 +60,6 @@ from tasks.go import (
     generate_licenses,
     generate_protobuf,
     go_fix,
-    golangci_lint,
     internal_deps_checker,
     lint_licenses,
     reset,
@@ -83,11 +83,12 @@ from tasks.unit_tests import invoke_unit_tests
 from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
 
+Task.__call__ = custom__call__
+
 # the root namespace
 ns = Collection()
 
 # add single tasks to the root
-ns.add_task(golangci_lint)
 ns.add_task(test)
 ns.add_task(codecov)
 ns.add_task(integration_tests)

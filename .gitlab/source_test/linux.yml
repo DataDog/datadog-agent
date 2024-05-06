@@ -235,3 +235,24 @@ go_mod_tidy_check:
   script:
     - inv -e check-mod-tidy
     - inv -e check-go-mod-replaces
+
+
+new-e2e-unit-tests:
+  extends: .linux_tests_with_upload
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  tags: ["arch:amd64"]
+  before_script:
+    # Setup AWS Credentials
+    - mkdir -p ~/.aws
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
+    - export AWS_PROFILE=agent-qa-ci
+    # Use S3 backend
+    - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  script:
+    - inv -e new-e2e-tests.run --targets ./pkg/utils --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
+  after_script:
+    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  variables:
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_CPU_REQUEST: 6

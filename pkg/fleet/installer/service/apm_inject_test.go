@@ -26,6 +26,8 @@ func TestSetLDPreloadConfig(t *testing.T) {
 		"/abc/def/preload.so\n": "/abc/def/preload.so\n/tmp/stable/inject/launcher.preload.so\n",
 		// File contains unrelated entries with no newline
 		"/abc/def/preload.so": "/abc/def/preload.so\n/tmp/stable/inject/launcher.preload.so\n",
+		// File contains old preload instructions
+		"banana\n/opt/datadog/apm/inject/launcher.preload.so\ntomato": "banana\n/tmp/stable/inject/launcher.preload.so\ntomato",
 	} {
 		output, err := a.setLDPreloadConfigContent([]byte(input))
 		assert.Nil(t, err)
@@ -111,45 +113,7 @@ use_dogstatsd: true
 dogstatsd_socket: /tmp/stable/inject/run/dsd.socket
 # END LD PRELOAD CONFIG`,
 	} {
-		output := a.setAgentConfigContent([]byte(input))
-		assert.Equal(t, expected, string(output))
-	}
-}
-
-func TestRemoveAgentConfig(t *testing.T) {
-	a := &apmInjectorInstaller{
-		installPath: "/tmp/stable",
-	}
-
-	for input, expected := range map[string]string{
-		// File doesn't exist
-		"": "",
-		// File only contains the agent config
-		`# BEGIN LD PRELOAD CONFIG
-        apm_config:
-          receiver_socket: /tmp/stable/inject/run/apm.socket
-        use_dogstatsd: true
-        dogstatsd_socket: /tmp/stable/inject/run/dsd.socket
-        # END LD PRELOAD CONFIG`: "",
-		// File contains unrelated entries
-		`api_key: 000000000
-site: datad0g.com
-# BEGIN LD PRELOAD CONFIG
-apm_config:
-  receiver_socket: /tmp/stable/inject/run/apm.socket
-use_dogstatsd: true
-dogstatsd_socket: /tmp/stable/inject/run/dsd.socket
-# END LD PRELOAD CONFIG
-`: `api_key: 000000000
-site: datad0g.com
-
-`,
-		// File **only** contains unrelated entries somehow
-		`api_key: 000000000
-site: datad0g.com`: `api_key: 000000000
-site: datad0g.com`,
-	} {
-		output := a.deleteAgentConfigContent([]byte(input))
+		output, _ := a.setAgentConfigContent([]byte(input))
 		assert.Equal(t, expected, string(output))
 	}
 }
