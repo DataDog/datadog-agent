@@ -176,7 +176,6 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 				if err := mp.Close(); err != nil {
 					return fmt.Errorf("failed to close map: %w", err)
 				}
-
 				continue
 			}
 
@@ -302,19 +301,21 @@ func estimateNumOfLockRanges(tm []targetMap, cpu int) uint32 {
 }
 
 func setKptrRestrict(val string) error {
+	kptrRestrict = "/proc/sys/kernel/kptr_restrict"
+
 	if !(val == enableKptrRestrict || val == disableKptrRestrict) {
-		return fmt.Errorf("invalid value %q to write to /proc/sys/kernel/kptr_restrict", val)
+		return fmt.Errorf("invalid value %q to write to %q", val, kptrRestrict)
 	}
 
-	f, err := os.OpenFile("/proc/sys/kernel/kptr_restrict", os.O_RDWR, 0)
+	f, err := os.OpenFile(kptrRestrict, os.O_RDWR, 0)
 	if err != nil {
-		return fmt.Errorf("error opening file '/proc/sys/kernel/kptr_restrict': %w", err)
+		return fmt.Errorf("error opening file %q: %w", kptrRestrict, err)
 	}
 	defer f.Close()
 
 	_, err = f.WriteString(val)
 	if err != nil {
-		return fmt.Errorf("error writing to file '/proc/sys/kernel/kptr_restrict': %w", err)
+		return fmt.Errorf("error writing to file %q: %w", kptrRestrict, err)
 	}
 
 	return nil
