@@ -400,13 +400,7 @@ def download_gotestsum(ctx: Context, arch: Arch, fgotestsum: PathOrStr):
     ctx.run(f"cp {paths.tools}/gotestsum {fgotestsum}")
 
 
-def full_arch(arch: ArchOrLocal) -> Arch:
-    if arch == "local":
-        return arch_mapping[platform.machine()]
-    return arch
-
-
-def standardize_arch(arch: str) -> Arch:
+def full_arch(arch: str) -> Arch:
     if arch == "local":
         return arch_mapping[platform.machine()]
     else:
@@ -972,7 +966,7 @@ def build(
 
     assert os.path.exists(layout), f"File {layout} does not exist"
 
-    arch = standardize_arch(arch)
+    arch = full_arch(arch)
     paths = KMTPaths(stack, arch)
     paths.arch_dir.mkdir(parents=True, exist_ok=True)
 
