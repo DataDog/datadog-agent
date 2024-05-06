@@ -378,19 +378,23 @@ func (s *StoreTestSuite) TestGetExpiredTags() {
 }
 
 func TestDuplicateSourceTags(t *testing.T) {
+	// Mock collector priorities
+	originalCollectorPriorities := collectors.CollectorPriorities
+	collectors.CollectorPriorities = map[string]types.CollectorPriority{
+		"sourceNodeOrchestrator":    types.NodeOrchestrator,
+		"sourceNodeRuntime":         types.NodeRuntime,
+		"sourceClusterOrchestrator": types.ClusterOrchestrator,
+	}
+	defer func() {
+		collectors.CollectorPriorities = originalCollectorPriorities
+	}()
+
 	etags := newEntityTags("deadbeef")
 
 	// Get empty tags and make sure cache is now set to valid
 	tags := etags.get(types.HighCardinality)
 	assert.Len(t, tags, 0)
 	assert.True(t, etags.cacheValid)
-
-	// Mock collector priorities
-	collectors.CollectorPriorities = map[string]types.CollectorPriority{
-		"sourceNodeOrchestrator":    types.NodeOrchestrator,
-		"sourceNodeRuntime":         types.NodeRuntime,
-		"sourceClusterOrchestrator": types.ClusterOrchestrator,
-	}
 
 	// Add tags but don't invalidate the cache, we should return empty arrays
 	etags.sourceTags["sourceNodeOrchestrator"] = sourceTags{
