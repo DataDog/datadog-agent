@@ -88,6 +88,9 @@ type Config struct {
 	// Memcached holds the obfuscation settings for Memcached commands.
 	Memcached MemcachedConfig
 
+	// CommandExecution holds the obfuscation settings for command execution.
+	CommandExecution CommandExecutionConfig
+
 	// Statsd specifies the statsd client to use for reporting metrics.
 	Statsd StatsClient
 
@@ -238,6 +241,12 @@ type JSONConfig struct {
 	// ObfuscateSQLValues will specify a set of keys for which their values
 	// will be passed through SQL obfuscation
 	ObfuscateSQLValues []string `mapstructure:"obfuscate_sql_values"`
+}
+
+// CommandExecutionConfig holds the configuration settings for command execution obfuscation
+type CommandExecutionConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
 }
 
 // NewObfuscator creates a new obfuscator
