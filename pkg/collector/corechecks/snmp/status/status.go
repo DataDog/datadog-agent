@@ -43,9 +43,11 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 	profiles := make(map[string]string)
 
 	snmpProfileErrorsVar := expvar.Get("snmpProfileErrors")
-	snmpProfileErrorsJSON := []byte(snmpProfileErrorsVar.String())
-	json.Unmarshal(snmpProfileErrorsJSON, &profiles) //nolint:errcheck
-	stats["snmpProfiles"] = profiles
+	if snmpProfileErrorsVar != nil {
+		snmpProfileErrorsJSON := []byte(snmpProfileErrorsVar.String())
+		json.Unmarshal(snmpProfileErrorsJSON, &profiles) //nolint:errcheck
+		stats["snmpProfiles"] = profiles
+	}
 }
 
 // JSON populates the status map

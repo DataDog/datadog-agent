@@ -7,13 +7,65 @@ package status
 
 import (
 	"bytes"
+	"expvar"
 	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStatus(t *testing.T) {
+	provider := Provider{}
+	tests := []struct {
+		name       string
+		assertFunc func(t *testing.T)
+	}{
+		{"JSON", func(t *testing.T) {
+			stats := make(map[string]interface{})
+			provider.JSON(false, stats)
+
+			assert.Empty(t, stats)
+			fmt.Printf("%v", stats)
+		}},
+		{"Text", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := provider.Text(false, b)
+
+			assert.NoError(t, err)
+
+			assert.Empty(t, b.String())
+			fmt.Printf("%s", b.String())
+		}},
+		{"HTML", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := provider.HTML(false, b)
+
+			assert.NoError(t, err)
+
+			assert.Empty(t, b.String())
+			fmt.Printf("%s", b.String())
+
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.assertFunc(t)
+		})
+	}
+}
+
+func TestStatusWithError(t *testing.T) {
+	cfg := config.Mock(t)
+	cfg.SetWithoutSource("snmp_profile_errors", "error")
+	profileExpVar := expvar.NewMap("snmpProfileErrors")
+	errors := []string{"error1", "error2"}
+	profileExpVar.Set("foobar", expvar.Func(func() interface{} {
+		return strings.Join(errors, "\n")
+	}))
+
 	provider := Provider{}
 	tests := []struct {
 		name       string
@@ -32,7 +84,12 @@ func TestStatus(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			assert.NotEmpty(t, b.String())
+			expectedTextOutput := `
+  foobar: error1
+error2`
+
+			assert.Equal(t, expectedTextOutput, b.String())
+
 			fmt.Printf("%s", b.String())
 		}},
 		{"HTML", func(t *testing.T) {
@@ -40,8 +97,16 @@ func TestStatus(t *testing.T) {
 			err := provider.HTML(false, b)
 
 			assert.NoError(t, err)
+			expectedTextOutput := `<div class="stat">
+  <span class="stat_title">SNMP Profiles</span>
+  <span class="stat_data">
+      foobar: error1
+error2
+  </span>
+</div>`
 
-			assert.NotEmpty(t, b.String())
+			assert.Equal(t, expectedTextOutput, b.String())
+
 			fmt.Printf("%s", b.String())
 
 		}},
