@@ -1124,6 +1124,12 @@ func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, e
 	return o.offsets, o.err
 }
 
+// OffsetNoTrigger returns the current offsets and error without triggering
+// offset guessing like Offsets(). Only used for testing purposes
+func (o *tracerOffsets) OffsetsNoTrigger() ([]manager.ConstantEditor, error) {
+	return o.offsets, o.err
+}
+
 func (o *tracerOffsets) Reset() {
 	o.err = nil
 	o.offsets = nil
