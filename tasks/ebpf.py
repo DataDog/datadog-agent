@@ -45,7 +45,8 @@ verifier_stat_json_keys = [
     "total_states",
 ]
 
-skip_stat_keys = ["Complexity","verification_time"]
+skip_stat_keys = ["Complexity", "verification_time"]
+
 
 def tabulate_stats(stats):
     table = list()

@@ -18,7 +18,7 @@ from tasks.libs.ciproviders.gitlab import (
     load_context,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
-from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME, color_message, is_pr_context
+from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME, color_message, is_pr_context, running_in_ci
 from tasks.libs.types.copyright import CopyrightLinter
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
@@ -37,6 +37,13 @@ def python(ctx):
         f"""Remember to set up pre-commit to lint your files before committing:
     https://github.com/DataDog/datadog-agent/blob/{DEFAULT_BRANCH}/docs/dev/agent_dev_env.md#pre-commit-hooks"""
     )
+
+    if running_in_ci():
+        # We want to the CI to fail if there are any issues
+        ctx.run("ruff format --check .")
+    else:
+        # Otherwise we just need to format the files
+        ctx.run("ruff format .")
 
     ctx.run("ruff check --fix .")
     ctx.run("vulture --ignore-decorators @task --ignore-names 'test_*,Test*' tasks")
