@@ -72,7 +72,7 @@ AGENT_CORECHECKS = [
     "telemetry",
     "orchestrator_pod",
     "orchestrator_ecs",
-    "cisco_sdwan"
+    "cisco_sdwan",
 ]
 
 WINDOWS_CORECHECKS = [
