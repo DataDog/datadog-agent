@@ -67,11 +67,18 @@ func platformInit() {
 	// linux-specific tasks here
 }
 
-func supportedBuildModes(t *testing.T) []ebpftest.BuildMode {
-	buildModes := ebpftest.SupportedBuildModes()
+func isPrecompiledTracerSupported(t *testing.T) bool {
 	if err := kprobe.IsPrecompiledTracerSupported(); err != nil {
 		require.ErrorIs(t, err, kprobe.ErrPrecompiledTracerNotSupported, "unexpected error trying to determine if precompiled tracer is supported")
+		return false
+	}
 
+	return true
+}
+
+func supportedBuildModes(t *testing.T) []ebpftest.BuildMode {
+	buildModes := ebpftest.SupportedBuildModes()
+	if prebuiltSupported := isPrecompiledTracerSupported(t); !prebuiltSupported {
 		buildModes = slices.DeleteFunc(buildModes, func(mode ebpftest.BuildMode) bool {
 			return mode == ebpftest.Prebuilt
 		})

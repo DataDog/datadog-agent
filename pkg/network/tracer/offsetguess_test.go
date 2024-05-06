@@ -127,6 +127,10 @@ func (o offsetT) String() string {
 }
 
 func TestOffsetGuess(t *testing.T) {
+	if !isPrecompiledTracerSupported(t) {
+		t.Skipf("skipping since precompiled tracer is not supported on this platform")
+	}
+
 	ebpftest.LogLevel(t, "trace")
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", testOffsetGuess)
 }
@@ -309,6 +313,10 @@ func testOffsetGuess(t *testing.T) {
 }
 
 func TestOffsetGuessPortIPv6Overlap(t *testing.T) {
+	if !isPrecompiledTracerSupported(t) {
+		t.Skipf("skipping since precompiled tracer is not supported on this platform")
+	}
+
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
 		addrs, err := offsetguess.GetIPv6LinkLocalAddress()
 		require.NoError(t, err)
