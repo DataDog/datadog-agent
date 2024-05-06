@@ -603,7 +603,7 @@ func testServer(t *testing.T, opts ...Option) {
 		assert.Equal(t, []byte(`{"errors":[]}`), responseBody)
 	})
 
-	t.Run("should contains a Fakeintake-ID header", func(t *testing.T) {
+	t.Run("should contain a Fakeintake-ID header", func(t *testing.T) {
 		fi, _ := InitialiseForTests(t, opts...)
 		defer fi.Stop()
 
