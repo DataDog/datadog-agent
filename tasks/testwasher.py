@@ -28,9 +28,11 @@ class TestWasher:
         with open(f"{module_path}/{self.test_output_json_file}", encoding='utf-8') as f:
             for line in f:
                 test_result = json.loads(line)
-                # TODO: tests can be retried we should handle that
                 if test_result["Action"] == "fail" and "Test" in test_result:
                     failing_tests[test_result["Package"]].add(test_result["Test"])
+                if test_result["Action"] == "success" and "Test" in test_result:
+                    if test_result["Test"] in failing_tests[test_result["Package"]]:
+                        failing_tests[test_result["Package"]].remove(test_result["Test"])
                 if (
                     "Output" in test_result
                     and "Test" in test_result
