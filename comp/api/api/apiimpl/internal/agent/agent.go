@@ -137,9 +137,11 @@ func SetupHandlers(
 		getDiagnose(w, r, diagnoseDeps)
 	}).Methods("POST")
 
+	// TODO: move to demux component
 	r.HandleFunc("/dogstatsd-contexts-dump", func(w http.ResponseWriter, r *http.Request) { dumpDogstatsdContexts(w, r, demux) }).Methods("POST")
 	// Some agent subcommands do not provide these dependencies (such as JMX)
 	if server != nil && serverDebug != nil {
+		// TODO: move to server/serverDebug component?
 		r.HandleFunc("/dogstatsd-stats", func(w http.ResponseWriter, r *http.Request) { getDogstatsdStats(w, r, server, serverDebug) }).Methods("GET")
 	}
 
@@ -243,6 +245,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	w.Write(s)
 }
 
+// TODO: logsAgent is a module so have to make the api component a module too
 func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {
 	return utils.GetStreamFunc(func() utils.MessageReceiver { return logsAgent.GetMessageReceiver() }, "logs", "logs agent")
 }

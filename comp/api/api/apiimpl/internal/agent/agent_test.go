@@ -175,6 +175,16 @@ func TestSetupHandlers(t *testing.T) {
 			method:   "POST",
 			wantCode: 200,
 		},
+		{
+			route:    "/dogstatsd-contexts-dump",
+			method:   "POST",
+			wantCode: 200,
+		},
+		{
+			route:    "/dogstatsd-stats",
+			method:   "GET",
+			wantCode: 200,
+		},
 	}
 	router := setupRoutes(t)
 	ts := httptest.NewServer(router)
