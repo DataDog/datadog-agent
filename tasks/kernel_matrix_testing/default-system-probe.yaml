@@ -11,3 +11,5 @@ network_config:
 service_monitoring_config:
   enabled: true
   enable_http2_monitoring: true
+runtime_security_config:
+  enabled: true

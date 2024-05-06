@@ -406,6 +406,16 @@ def full_arch(arch: ArchOrLocal) -> Arch:
     return arch
 
 
+def standardize_arch(arch: str) -> Arch:
+    if arch == "local":
+        return arch_mapping[platform.machine()]
+    else:
+        try:
+            return arch_mapping[arch]
+        except KeyError:
+            raise Exit(f"Invalid architecture {arch}, valid values are {', '.join(arch_mapping.keys())}")
+
+
 class KMTPaths:
     def __init__(self, stack: str | None, arch: Arch):
         self.stack = stack
@@ -941,12 +951,13 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
 )
 def build(
     ctx: Context,
-    vms: str,
+    vms: str | None = None,
     stack: str | None = None,
     ssh_key: str | None = None,
     verbose=True,
-    arch: ArchOrLocal | None = None,
-    layout: str | None = "tasks/kernel_matrix_testing/build-layout.json",
+    arch: str | None = None,
+    component: Component = "system-probe",
+    layout: str = "tasks/kernel_matrix_testing/build-layout.json",
 ):
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
@@ -956,9 +967,12 @@ def build(
     if arch is None:
         arch = "local"
 
+    if vms is None:
+        vms = ",".join(stacks.get_all_vms_in_stack(stack))
+
     assert os.path.exists(layout), f"File {layout} does not exist"
 
-    arch = full_arch(arch)
+    arch = standardize_arch(arch)
     paths = KMTPaths(stack, arch)
     paths.arch_dir.mkdir(parents=True, exist_ok=True)
 
@@ -970,16 +984,20 @@ def build(
     assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e system-probe.build --no-bundle",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.build --no-bundle",
     )
+
+    if component == "security-agent":  # security-agent build does not build ebpf files by default
+        cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
+
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
 
     build_layout(ctx, domains, layout, verbose)
     for d in domains:
-        d.copy(ctx, "./bin/system-probe", "/root/")
+        d.copy(ctx, f"./bin/{component}", "/root/")
         d.copy(ctx, f"kmt-deps/{stack}/build-embedded-dir.tar", "/")
         d.run_cmd(ctx, "tar xf /build-embedded-dir.tar -C /", verbose=verbose)
-        info(f"[+] system-probe built for {d.name} @ /root")
+        info(f"[+] {component} built for {d.name} @ /root")
 
 
 @task
