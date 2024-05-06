@@ -124,7 +124,6 @@ def get_components_and_bundles():
 
         component_directory = pathlib.Path(component_file)
         for component_entry in component_directory.iterdir():
-
             # If we encounter a file at the first level it could be a bundle
             if component_entry.is_file() and component_entry.name == "bundle.go":
                 content = list(component_entry.open())
@@ -183,7 +182,7 @@ def get_components_and_bundles():
     return sorted(sorted_bundles), sorted(components_without_bundle), ok
 
 
-class ComponentRoot(object):
+class ComponentRoot:
     def __init__(self, file, dir, version):
         self.file = file
         self.dir = dir
