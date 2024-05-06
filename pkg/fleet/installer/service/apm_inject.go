@@ -175,12 +175,15 @@ func (a *apmInjectorInstaller) setLDPreloadConfigContent(ldSoPreload []byte) ([]
 		return bytes.ReplaceAll(ldSoPreload, []byte(oldLDPath), []byte(launcherPreloadPath)), nil
 	}
 
+	var buf bytes.Buffer
+	buf.Write(ldSoPreload)
 	// Append the launcher preload path to the file
 	if len(ldSoPreload) > 0 && ldSoPreload[len(ldSoPreload)-1] != '\n' {
-		ldSoPreload = append(ldSoPreload, '\n')
+		buf.WriteByte('\n')
 	}
-	ldSoPreload = append(ldSoPreload, []byte(launcherPreloadPath+"\n")...)
-	return ldSoPreload, nil
+	buf.WriteString(launcherPreloadPath)
+	buf.WriteByte('\n')
+	return buf.Bytes(), nil
 }
 
 // deleteLDPreloadConfigContent deletes the content of the LD preload configuration
