@@ -140,6 +140,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/webhookeventreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/windowseventlogreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/windowsperfcountersreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zookeeperreceiver"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/connector/forwardconnector"
@@ -163,7 +164,6 @@ import (
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awscontainerinsightreceiver"
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/datadogreceiver"
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
-	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
 )
 
 type collectorcontribImpl struct{}
@@ -309,7 +309,7 @@ func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, erro
 		webhookeventreceiver.NewFactory(),
 		windowseventlogreceiver.NewFactory(),
 		windowsperfcountersreceiver.NewFactory(),
-		// zipkinreceiver.NewFactory(),
+		zipkinreceiver.NewFactory(),
 		zookeeperreceiver.NewFactory(),
 	}
 	receivers, err := receiver.MakeFactoryMap(receiverList...)
