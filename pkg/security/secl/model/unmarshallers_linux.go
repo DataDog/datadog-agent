@@ -8,6 +8,7 @@ package model
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/bits"
 	"strings"
@@ -515,6 +516,10 @@ func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	p.NetNS = binary.NativeEndian.Uint32(data[8:12])
 	p.IsKworker = binary.NativeEndian.Uint32(data[12:16]) > 0
 	p.ExecInode = binary.NativeEndian.Uint64(data[16:24])
+
+	if p.Pid == 0 {
+		return 0, errors.New("invalid pid context")
+	}
 
 	return 24, nil
 }

@@ -111,45 +111,7 @@ use_dogstatsd: true
 dogstatsd_socket: /tmp/stable/inject/run/dsd.socket
 # END LD PRELOAD CONFIG`,
 	} {
-		output := a.setAgentConfigContent([]byte(input))
-		assert.Equal(t, expected, string(output))
-	}
-}
-
-func TestRemoveAgentConfig(t *testing.T) {
-	a := &apmInjectorInstaller{
-		installPath: "/tmp/stable",
-	}
-
-	for input, expected := range map[string]string{
-		// File doesn't exist
-		"": "",
-		// File only contains the agent config
-		`# BEGIN LD PRELOAD CONFIG
-        apm_config:
-          receiver_socket: /tmp/stable/inject/run/apm.socket
-        use_dogstatsd: true
-        dogstatsd_socket: /tmp/stable/inject/run/dsd.socket
-        # END LD PRELOAD CONFIG`: "",
-		// File contains unrelated entries
-		`api_key: 000000000
-site: datad0g.com
-# BEGIN LD PRELOAD CONFIG
-apm_config:
-  receiver_socket: /tmp/stable/inject/run/apm.socket
-use_dogstatsd: true
-dogstatsd_socket: /tmp/stable/inject/run/dsd.socket
-# END LD PRELOAD CONFIG
-`: `api_key: 000000000
-site: datad0g.com
-
-`,
-		// File **only** contains unrelated entries somehow
-		`api_key: 000000000
-site: datad0g.com`: `api_key: 000000000
-site: datad0g.com`,
-	} {
-		output := a.deleteAgentConfigContent([]byte(input))
+		output, _ := a.setAgentConfigContent([]byte(input))
 		assert.Equal(t, expected, string(output))
 	}
 }

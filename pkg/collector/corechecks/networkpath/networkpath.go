@@ -61,6 +61,7 @@ func (c *Check) Run() error {
 	if err != nil {
 		return fmt.Errorf("failed to trace path: %w", err)
 	}
+	path.Namespace = c.config.Namespace
 
 	// Add tags to path
 	commonTags := c.getCommonTags()
