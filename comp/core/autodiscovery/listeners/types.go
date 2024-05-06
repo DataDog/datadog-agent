@@ -8,10 +8,11 @@ package listeners
 import (
 	"context"
 	"errors"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // ContainerPort represents a network port in a Service.
@@ -63,6 +64,8 @@ type Config interface {
 
 // ServiceListenerFactory builds a service listener
 type ServiceListenerFactory func(Config) (ServiceListener, error)
+
+type NoopServiceListenerFactory func(c Config, wmeta optional.Option[workloadmeta.Component]) (ServiceListener, error)
 
 // Register registers a service listener factory
 func Register(name string,
