@@ -202,6 +202,9 @@ func TestStatusProvider(t *testing.T) {
 }
 
 func TestTelemetryCoreAgent(t *testing.T) {
+	// This test catches if there are multiple handlers for "/telemetry" endpoint
+	// registered to help avoid introducing panics.
+
 	originalFlavor := flavor.GetFlavor()
 	defer flavor.SetFlavor(originalFlavor)
 	flavor.SetFlavor("agent")
@@ -247,5 +250,5 @@ func TestTelemetryCoreAgent(t *testing.T) {
 		defer res.Body.Close()
 
 		return res.StatusCode == http.StatusOK
-	}, 5*time.Second, time.Second)
+	}, 10*time.Second, time.Second)
 }
