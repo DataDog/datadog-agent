@@ -7,7 +7,7 @@ import re
 import tarfile
 import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, overload
-from gitlab.v4.objects import ProjectJob
+from gitlab.v4.objects import ProjectJob, Project
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 
@@ -20,8 +20,8 @@ if TYPE_CHECKING:
 class KMTJob:
     """Abstract class representing a Kernel Matrix Testing job, with common properties and methods for all job types"""
 
-    def __init__(self, job: ProjectJob):
-        self.gitlab = get_gitlab_repo()
+    def __init__(self, job: ProjectJob, gitlab: Project | None = None):
+        self.gitlab = gitlab or get_gitlab_repo()
         self.job = job
 
     def __str__(self):
@@ -102,8 +102,8 @@ class KMTSetupEnvJob(KMTJob):
     the job name and output artifacts
     """
 
-    def __init__(self, job: ProjectJob):
-        super().__init__(job)
+    def __init__(self, job: ProjectJob, gitlab: Project | None = None):
+        super().__init__(job, gitlab)
         self.associated_test_jobs: list[KMTTestRunJob] = []
 
     @property
@@ -160,8 +160,8 @@ class KMTTestRunJob(KMTJob):
     the job name and output artifacts
     """
 
-    def __init__(self, job: ProjectJob):
-        super().__init__(job)
+    def __init__(self, job: ProjectJob, gitlab: Project | None = None):
+        super().__init__(job, gitlab)
         self.setup_job: KMTSetupEnvJob | None = None
 
     @property
@@ -231,9 +231,9 @@ def get_all_jobs_for_pipeline(pipeline_id: int | str) -> tuple[list[KMTSetupEnvJ
     for job in jobs:
         name = job.name
         if name.startswith("kmt_setup_env"):
-            setup_jobs.append(KMTSetupEnvJob(job))
+            setup_jobs.append(KMTSetupEnvJob(job, gitlab))
         elif name.startswith("kmt_run_"):
-            test_jobs.append(KMTTestRunJob(job))
+            test_jobs.append(KMTTestRunJob(job, gitlab))
 
     # link setup jobs
     for job in test_jobs:
