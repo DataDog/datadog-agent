@@ -30,10 +30,11 @@ def log_invoke_task(name: str, module: str, task_datetime: str, duration: float,
     """
     logging.basicConfig(filename=DD_INVOKE_LOGS_PATH, level=logging.INFO, format='%(message)s')
     user = getuser()
+    running_mode = "pre_commit" if os.environ.get("PRE_COMMIT", 0) == "1" else "manual"
     task_info = {
         "name": name,
         "module": module,
-        "pre_commit": os.environ.get('PRE_COMMIT', 0) == "1",
+        "running_mode": running_mode,
         "datetime": task_datetime,
         "duration": duration,
         "user": user,
