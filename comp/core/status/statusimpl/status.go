@@ -207,8 +207,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 					}
 				}
 
-				if sectionBuffer.Len() == 0 && len(errs) == 0 {
-					// If there is an error, we still want to display the header
+				if sectionBuffer.Len() == 0 {
 					continue
 				}
 
