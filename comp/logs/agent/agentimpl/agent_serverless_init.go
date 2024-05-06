@@ -33,12 +33,12 @@ import (
 // dependency on autodiscovery, file launchers, and some schedulers
 // thereby decreasing the binary size.
 
-// NewAgent returns a Logs Agent instance to run in a serverless environment.
+// SetupPipeline returns a Logs Agent instance to run in a serverless environment.
 // The Serverless Logs Agent has only one input being the channel to receive the logs to process.
 // It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
 func (a *logAgent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
-	_ optional.Option[workloadmeta.Component],
+	wmeta optional.Option[workloadmeta.Component],
 ) {
 	health := health.RegisterLiveness("logs-agent")
 
@@ -63,7 +63,7 @@ func (a *logAgent) SetupPipeline(
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	lnchrs.AddLauncher(container.NewLauncher(a.sources))
+	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta))
 
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.destinationsCtx = destinationsCtx
