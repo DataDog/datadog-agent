@@ -15,6 +15,7 @@ if [ "$1" -ne 0 ]; then
     exit 0
 fi
 
+datadog-installer purge || true
 rm -f "/usr/bin/datadog-bootstrap"
 echo "Force-deleting $INSTALL_DIR $PACKAGES_DIR $PACKAGES_LOCK_DIR"
 rm -rf $PACKAGES_DIR

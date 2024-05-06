@@ -558,11 +558,11 @@ def kmt_secagent_prepare(
         bundle_ebpf=False,
         race=True,
         debug=True,
-        output=f"{kmt_paths.secagent_tests}/testsuite",
+        output=f"{kmt_paths.secagent_tests}/pkg/security/testsuite",
         skip_linters=True,
         skip_object_files=True,
     )
-    build_stress_tests(ctx, output=f"{kmt_paths.secagent_tests}/stresssuite", skip_linters=True)
+    build_stress_tests(ctx, output=f"{kmt_paths.secagent_tests}/pkg/security/stresssuite", skip_linters=True)
 
     go_path = "go"
     go_root = os.getenv("GOROOT")
@@ -1351,7 +1351,7 @@ def explain_ci_failure(_, pipeline: str):
             failreason = testfail  # By default, we assume it's a test failure
 
             # Now check the artifacts, we'll guess why the job failed based on the size
-            for artifact in job.job_data.get("artifacts", []):
+            for artifact in job.job.artifacts:
                 if artifact.get("filename") == "artifacts.zip":
                     fsize = artifact.get("size", 0)
                     if fsize < 1500:

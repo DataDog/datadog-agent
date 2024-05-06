@@ -34,20 +34,32 @@ type SourceLine struct {
 	Line     string `json:"line"`
 }
 
+// RegisterState holds the state for a given register
+type RegisterState struct {
+	Register int    `json:"register"`
+	Live     string `json:"live"`
+	Type     string `json:"type"`
+	Value    string `json:"value"`
+	Precise  bool   `json:"precise"`
+}
+
 // InstructionInfo holds information about an eBPF instruction extracted from the verifier
 type InstructionInfo struct {
-	TimesProcessed int         `json:"times_processed"`
-	Source         *SourceLine `json:"source"`
-	Code           string      `json:"code"`
+	Index            int                    `json:"index"`
+	TimesProcessed   int                    `json:"times_processed"`
+	Source           *SourceLine            `json:"source"`
+	Code             string                 `json:"code"`
+	RegisterState    map[int]*RegisterState `json:"register_state"`
+	RegisterStateRaw string                 `json:"register_state_raw"`
 }
 
 // SourceLineStats holds the aggregate verifier statistics for a given C source line
 type SourceLineStats struct {
-	NumInstructions            int      `json:"num_instructions"`
-	MaxPasses                  int      `json:"max_passes"`
-	MinPasses                  int      `json:"min_passes"`
-	TotalInstructionsProcessed int      `json:"total_instructions_processed"`
-	AssemblyInsns              []string `json:"assembly_insns"`
+	NumInstructions            int   `json:"num_instructions"`
+	MaxPasses                  int   `json:"max_passes"`
+	MinPasses                  int   `json:"min_passes"`
+	TotalInstructionsProcessed int   `json:"total_instructions_processed"`
+	AssemblyInsns              []int `json:"assembly_insns"`
 }
 
 // ComplexityInfo holds the complexity information for a given eBPF program, with assembly

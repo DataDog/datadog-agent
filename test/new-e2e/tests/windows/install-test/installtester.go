@@ -218,6 +218,12 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 		assert.ErrorIs(tt, err, fs.ErrNotExist, "uninstall should remove %s example config files", examplePath)
 	}
 
+	_, err = t.host.Lstat(filepath.Join(t.expectedConfigRoot, "auth_token"))
+	assert.ErrorIs(tt, err, fs.ErrNotExist, "uninstall should remove auth_token")
+
+	_, err = t.host.Lstat(filepath.Join(t.expectedConfigRoot, "checks.d"))
+	assert.ErrorIs(tt, err, fs.ErrNotExist, "uninstall should remove checks.d")
+
 	_, err = windows.GetSIDForUser(t.host,
 		windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
 	)
