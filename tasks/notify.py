@@ -262,7 +262,9 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.json"):
     # The jobs dictionary contains the consecutive and cumulative failures for each job
     # The consecutive failures are reset to 0 when the job is not failing, and are raising an alert when reaching the CONSECUTIVE_THRESHOLD (3)
     # The cumulative failures list contains 1 for failures, 0 for succes. They contain only then CUMULATIVE_LENGTH(10) last executions and raise alert when 50% failure rate is reached
-    job_executions = retrieve_job_executions(ctx, job_failures_file)
+    # TODO
+    # job_executions = retrieve_job_executions(ctx, job_failures_file)
+    job_executions = {"jobs": {}}
 
     # By-pass if the pipeline chronological order is not respected
     if job_executions.get("pipeline_id", 0) > int(os.getenv("CI_PIPELINE_ID")):
@@ -273,10 +275,11 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.json"):
 
     send_notification(alert_jobs)
 
-    # Upload document
-    with open(job_failures_file, "w") as f:
-        json.dump(job_executions, f)
-    ctx.run(f"{AWS_S3_CP_CMD} {job_failures_file} {S3_CI_BUCKET_URL}/{job_failures_file} ", hide="stdout")
+    # TODO
+    # # Upload document
+    # with open(job_failures_file, "w") as f:
+    #     json.dump(job_executions, f)
+    # ctx.run(f"{AWS_S3_CP_CMD} {job_failures_file} {S3_CI_BUCKET_URL}/{job_failures_file} ", hide="stdout")
 
 
 def retrieve_job_executions(ctx, job_failures_file):
@@ -306,12 +309,20 @@ def update_statistics(job_executions):
     # Update statistics and collect consecutive failed jobs
     alert_jobs = {"consecutive": [], "cumulative": []}
     failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
+
+    # TODO : Custom set / use a dict ?
     failed_set = {job.name for job in failed_jobs.all_failures()}
+
+    print()
+    print('failed_jobs', failed_jobs.all_failures())
+
     current_set = set(job_executions["jobs"].keys())
+
     # Insert data for newly failing jobs
     new_failed_jobs = failed_set - current_set
     for job in new_failed_jobs:
         job_executions["jobs"][job] = {"consecutive_failures": 1, "cumulative_failures": [1]}
+
     # Reset information for no-more failing jobs
     solved_jobs = current_set - failed_set
     for job in solved_jobs:
@@ -320,6 +331,7 @@ def update_statistics(job_executions):
         # Truncate the cumulative failures list
         if len(job_executions["jobs"][job]["cumulative_failures"]) > CUMULATIVE_LENGTH:
             job_executions["jobs"][job]["cumulative_failures"].pop(0)
+
     # Update information for still failing jobs and save them if they hit the threshold
     consecutive_failed_jobs = failed_set & current_set
     for job in consecutive_failed_jobs:
@@ -333,6 +345,13 @@ def update_statistics(job_executions):
             alert_jobs["consecutive"].append(job)
         if sum(job_executions["jobs"][job]["cumulative_failures"]) == CUMULATIVE_THRESHOLD:
             alert_jobs["cumulative"].append(job)
+
+    print()
+    print('alert_jobs', alert_jobs)
+    print()
+    print('job_executions', job_executions)
+    print()
+
     return alert_jobs, job_executions
 
 
@@ -344,8 +363,10 @@ def send_notification(alert_jobs):
     if len(alert_jobs["cumulative"]) > 0:
         jobs = ", ".join(f"`{j}`" for j in alert_jobs["cumulative"])
         message += f"Job(s) {jobs} failed {CUMULATIVE_THRESHOLD} times in last {CUMULATIVE_LENGTH} executions.\n"
-    if message:
-        send_slack_message("#agent-platform-ops", message)
+
+    # TODO
+    # if message:
+    #     send_slack_message("#agent-platform-ops", message)
 
 
 @task
