@@ -8,7 +8,7 @@
 #include "protocols/kafka/usm-events.h"
 
 // forward declaration
-static __always_inline bool kafka_allow_packet(conn_tuple_t *tup, struct __sk_buff* skb, skb_info_t *skb_info);
+static __always_inline bool kafka_allow_packet(conn_tuple_t *tup, skb_info_t *skb_info);
 static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt);
 static __always_inline bool kafka_process_response(void *ctx, conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, skb_info_t *skb_info);
 
@@ -30,6 +30,7 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
         }                                                                                                                                   \
     }                                                                                                                                       \
 
+#define EXTRA_DEBUG
 #ifdef EXTRA_DEBUG
 #define extra_debug(fmt, ...) log_debug("kafka: " fmt, ##__VA_ARGS__)
 #else
@@ -45,14 +46,19 @@ static void __always_inline kafka_tcp_termination(conn_tuple_t *tup)
     bpf_map_delete_elem(&kafka_response, tup);
 }
 
-SEC("socket/kafka_filter")
+static __always_inline  int sockops_kafka_termination(conn_tuple_t *tup) {
+    kafka_tcp_termination(tup);
+    return 0;
+}
+
+SEC("sk_skb/stream_verdict/kafka_filter")
 int socket__kafka_filter(struct __sk_buff* skb) {
     const u32 zero = 0;
     skb_info_t skb_info;
     kafka_info_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
     if (kafka == NULL) {
         log_debug("socket__kafka_filter: kafka_transaction state is NULL");
-        return 0;
+        return SK_PASS;
     }
     bpf_memset(&kafka->event.transaction, 0, sizeof(kafka_transaction_t));
 
@@ -63,26 +69,67 @@ int socket__kafka_filter(struct __sk_buff* skb) {
 
     if (!fetch_dispatching_arguments(&tup, &skb_info)) {
         log_debug("socket__kafka_filter failed to fetch arguments for tail call");
-        return 0;
+        return SK_PASS;
     }
 
-    if (!kafka_allow_packet(&tup, skb, &skb_info)) {
-        return 0;
+    if (!kafka_allow_packet(&tup, &skb_info)) {
+        return SK_PASS;
     }
 
     if (is_tcp_termination(&skb_info)) {
         kafka_tcp_termination(&tup);
-        return 0;
+        return SK_PASS;
     }
 
     pktbuf_t pkt = pktbuf_from_skb(skb, &skb_info);
 
-    if (kafka_process_response(skb, &tup, kafka, pkt, &skb_info)) {
-        return 0;
+    // Don't pass in skb_info to avoid TCP sequence number checks
+    if (kafka_process_response(skb, &tup, kafka, pkt, NULL)) {
+        return SK_PASS;
     }
 
     (void)kafka_process(&tup, kafka, pkt);
-    return 0;
+    return SK_PASS;
+}
+
+SEC("sk_msg/kafka_filter")
+int sk_msg__kafka_filter(struct sk_msg_md *msg) {
+    const u32 zero = 0;
+    skb_info_t skb_info;
+    kafka_info_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
+    if (kafka == NULL) {
+        return SK_PASS;
+    }
+    bpf_memset(&kafka->event.transaction, 0, sizeof(kafka_transaction_t));
+
+    // Put this on the stack instead of using the one in in kafka_info_t.event
+    // since it's used for map lookups in a few different places and 4.14 complains
+    // if it's not on the stack.
+    conn_tuple_t tup;
+
+    if (!fetch_dispatching_arguments(&tup, &skb_info)) {
+        log_debug("sk_msg__kafka_filter failed to fetch arguments for tail call");
+        return SK_PASS;
+    }
+
+    if (!kafka_allow_packet(&tup, &skb_info)) {
+        return SK_PASS;
+    }
+
+    if (is_tcp_termination(&skb_info)) {
+        kafka_tcp_termination(&tup);
+        return SK_PASS;
+    }
+
+    pktbuf_t pkt = pktbuf_from_sk_msg_md(msg);
+
+    // Don't pass in skb_info to avoid TCP sequence number checks
+    if (kafka_process_response(msg, &tup, kafka, pkt, NULL)) {
+        return SK_PASS;
+    }
+
+    (void)kafka_process(&tup, kafka, pkt);
+    return SK_PASS;
 }
 
 SEC("uprobe/kafka_tls_filter")
@@ -568,6 +615,9 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
     case PKTBUF_TLS:
         bpf_tail_call_compat(ctx, &tls_process_progs, TLS_KAFKA_RESPONSE_PARSER);
         break;
+    case PKTBUF_SK_MSG:
+        bpf_tail_call_compat(ctx, &skmsg_protocols_progs, PROG_KAFKA_RESPONSE_PARSER);
+        break;
     }
 
     // The only reason we would get here if the tail call failed due to too
@@ -616,23 +666,43 @@ static __always_inline void kafka_response_parser(kafka_info_t *kafka, void *ctx
     }
 }
 
-SEC("socket/kafka_response_parser")
+//SEC("socket/kafka_response_parser")
+SEC("sk_skb/stream_verdict/kafka_response_parser")
 int socket__kafka_response_parser(struct __sk_buff *skb) {
     const __u32 zero = 0;
     kafka_info_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
     if (kafka == NULL) {
-        return 0;
+        return SK_PASS;
     }
 
     skb_info_t skb_info;
     conn_tuple_t tup;
     if (!fetch_dispatching_arguments(&tup, &skb_info)) {
-        return 0;
+        return SK_PASS;
     }
 
     kafka_response_parser(kafka, skb, &tup, pktbuf_from_skb(skb, &skb_info));
 
-    return 0;
+    return SK_PASS;
+}
+
+SEC("sk_msg/kafka_response_parser")
+int sk_msg__kafka_response_parser(struct sk_msg_md *msg) {
+    const __u32 zero = 0;
+    kafka_info_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
+    if (kafka == NULL) {
+        return SK_PASS;
+    }
+
+    skb_info_t skb_info;
+    conn_tuple_t tup;
+    if (!fetch_dispatching_arguments(&tup, &skb_info)) {
+        return SK_PASS;
+    }
+
+    kafka_response_parser(kafka, msg, &tup, pktbuf_from_sk_msg_md(msg));
+
+    return SK_PASS;
 }
 
 SEC("uprobe/kafka_tls_response_parser")
@@ -922,7 +992,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 // this function is called by the socket-filter program to decide whether or not we should inspect
 // the contents of a certain packet, in order to avoid the cost of processing packets that are not
 // of interest such as empty ACKs, UDP data or encrypted traffic.
-static __always_inline bool kafka_allow_packet(conn_tuple_t *tup, struct __sk_buff* skb, skb_info_t *skb_info) {
+static __always_inline bool kafka_allow_packet(conn_tuple_t *tup, skb_info_t *skb_info) {
     // we're only interested in TCP traffic
     if (!(tup->metadata&CONN_TYPE_TCP)) {
         return false;
@@ -930,7 +1000,7 @@ static __always_inline bool kafka_allow_packet(conn_tuple_t *tup, struct __sk_bu
 
     // if payload data is empty or if this is an encrypted packet, we only
     // process it if the packet represents a TCP termination
-    bool empty_payload = skb_info->data_off == skb->len;
+    bool empty_payload = skb_info->data_off == skb_info->data_end;
     if (empty_payload) {
         return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
     }
