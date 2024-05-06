@@ -209,9 +209,6 @@ check_pkg_size-amd64-a7:
     - agent_suse-x64-a7
     - dogstatsd_suse-x64
     - iot_agent_suse-x64
-    - agentless_scanner_deb-x64
-    - agentless_scanner_rpm-x64
-    - agentless_scanner_suse-x64
   variables:
     MAJOR_VERSION: 7
     FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd datadog-heroku-agent"
@@ -226,7 +223,6 @@ check_pkg_size-amd64-a7:
           ["datadog-iot-agent"]="10000000"
           ["datadog-dogstatsd"]="10000000"
           ["datadog-heroku-agent"]="70000000"
-          ["datadog-agentless-scanner"]="10000000"
       )
 
 check_pkg_size-arm64-a7:
@@ -238,8 +234,6 @@ check_pkg_size-arm64-a7:
     - dogstatsd_deb-arm64
     - agent_rpm-arm64-a7
     - iot_agent_rpm-arm64
-    - agentless_scanner_deb-arm64
-    - agentless_scanner_rpm-arm64
   variables:
     MAJOR_VERSION: 7
     FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd"
@@ -252,5 +246,4 @@ check_pkg_size-arm64-a7:
           ["datadog-agent"]="140000000"
           ["datadog-iot-agent"]="10000000"
           ["datadog-dogstatsd"]="10000000"
-          ["datadog-agentless-scanner"]="10000000"
       )

@@ -166,9 +166,9 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap
 			log.Debugf("Successfully guessed %v with offset of %d bytes", "ino", c.status.Offset_ino)
 			return c.setReadyState(mp)
 		}
+		log.Tracef("%v %d does not match expected %d, incrementing offset netns: %d, ino: %d",
+			whatString[GuessWhat(c.status.What)], c.status.Netns, expected.netns, c.status.Offset_netns, c.status.Offset_ino)
 		c.status.Offset_ino++
-		log.Tracef("%v %d does not match expected %d, incrementing offset %d",
-			whatString[GuessWhat(c.status.What)], c.status.Netns, expected.netns, c.status.Offset_netns)
 		if c.status.Err != 0 || c.status.Offset_ino >= threshold {
 			c.status.Offset_ino = 0
 			c.status.Offset_netns++

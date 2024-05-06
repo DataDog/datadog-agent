@@ -141,7 +141,7 @@ def print_verification_stats(
             write_verifier_stats(verifier_stats, f, jsonfmt)
         return
 
-    with open(base, 'r') as f:
+    with open(base) as f:
         base_verifier_stats = json.load(f)
 
     stats_diff = dict()

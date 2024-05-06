@@ -35,3 +35,11 @@ func (s *etwImpl) NewSession(sessionName string) (etw.Session, error) {
 	}
 	return session, nil
 }
+
+func (s *etwImpl) NewWellKnownSession(sessionName string) (etw.Session, error) {
+	session, err := createWellKnownEtwSession(sessionName)
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
+}

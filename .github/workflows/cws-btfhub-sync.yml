@@ -2,6 +2,17 @@ name: "CWS BTFHub constants sync"
 
 on:
   workflow_dispatch:
+    inputs:
+      base_branch:
+        description: 'Base branch to target'
+        required: false
+        default: 'main'
+        type: string
+      force_refresh:
+        description: 'Force refresh of the constants'
+        required: false
+        default: 'false'
+        type: boolean
   schedule:
     - cron: '30 4 * * 5' # at 4:30 UTC on Friday
 
@@ -16,11 +27,12 @@ jobs:
 
       - name: Checkout datadog-agent repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.base_branch || 'main' }}
 
       - name: Checkout btfhub-archive repository
         uses: actions/checkout@v4
         with:
-          ref: no-kmod
           repository: DataDog/btfhub-archive
           path: dev/dist/archive
 
@@ -47,7 +59,7 @@ jobs:
 
       - name: Sync constants
         run: |
-          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive
+          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive ${{ inputs.force_refresh && '--force-refresh' || '' }}
 
       - uses: stefanzweifel/git-auto-commit-action@v5
         id: commit-creator
@@ -69,7 +81,7 @@ jobs:
               owner,
               repo,
               head: '${{ steps.branch-name.outputs.BRANCH_NAME }}',
-              base: 'main',
+              base: '${{ inputs.base_branch || 'main' }}',
               body: [
                 '### What does this PR do?',
                 'This PR syncs the BTFHub constants used by CWS',

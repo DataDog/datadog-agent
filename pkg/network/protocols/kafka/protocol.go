@@ -9,10 +9,13 @@ package kafka
 
 import (
 	"io"
+	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/davecgh/go-spew/spew"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
@@ -21,18 +24,28 @@ import (
 )
 
 type protocol struct {
-	cfg            *config.Config
-	telemetry      *Telemetry
-	statkeeper     *StatKeeper
-	eventsConsumer *events.Consumer[EbpfTx]
+	cfg                *config.Config
+	telemetry          *Telemetry
+	statkeeper         *StatKeeper
+	inFlightMapCleaner *ddebpf.MapCleaner[KafkaTransactionKey, KafkaTransaction]
+	eventsConsumer     *events.Consumer[EbpfTx]
 }
 
 const (
 	eventStreamName                          = "kafka"
 	filterTailCall                           = "socket__kafka_filter"
+	responseParserTailCall                   = "socket__kafka_response_parser"
 	dispatcherTailCall                       = "socket__protocol_dispatcher_kafka"
 	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
 	kafkaHeapMap                             = "kafka_heap"
+	inFlightMap                              = "kafka_in_flight"
+	responseMap                              = "kafka_response"
+
+	tlsFilterTailCall                           = "uprobe__kafka_tls_filter"
+	tlsResponseParserTailCall                   = "uprobe__kafka_tls_response_parser"
+	tlsTerminationTailCall                      = "uprobe__kafka_tls_termination"
+	tlsDispatcherTailCall                       = "uprobe__tls_protocol_dispatcher_kafka"
+	tlsProtocolDispatcherClassificationPrograms = "tls_dispatcher_classification_progs"
 )
 
 // Spec is the protocol spec for the kafka protocol.
@@ -43,7 +56,16 @@ var Spec = &protocols.ProtocolSpec{
 			Name: protocolDispatcherClassificationPrograms,
 		},
 		{
+			Name: tlsProtocolDispatcherClassificationPrograms,
+		},
+		{
 			Name: kafkaHeapMap,
+		},
+		{
+			Name: inFlightMap,
+		},
+		{
+			Name: responseMap,
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -55,10 +77,45 @@ var Spec = &protocols.ProtocolSpec{
 			},
 		},
 		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaResponseParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: responseParserTailCall,
+			},
+		},
+		{
 			ProgArrayName: protocolDispatcherClassificationPrograms,
 			Key:           uint32(protocols.DispatcherKafkaProg),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: dispatcherTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSKakfa),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsFilterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSKakfaResponseParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsResponseParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSKafkaTermination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsTerminationTailCall,
+			},
+		},
+		{
+			ProgArrayName: tlsProtocolDispatcherClassificationPrograms,
+			Key:           uint32(protocols.TLSDispatcherKafkaProg),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsDispatcherTailCall,
 			},
 		},
 	},
@@ -84,6 +141,14 @@ func (p *protocol) Name() string {
 // Configuring the kafka event stream with the manager and its options, and enabling the kafka_monitoring_enabled eBPF
 // option.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
+	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[responseMap] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
+		EditorFlag: manager.EditMaxEntries,
+	}
 	events.Configure(p.cfg, eventStreamName, mgr, opts)
 	utils.EnableOption(opts, "kafka_monitoring_enabled")
 }
@@ -106,27 +171,68 @@ func (p *protocol) PreStart(mgr *manager.Manager) error {
 	return nil
 }
 
-// PostStart empty implementation.
-func (p *protocol) PostStart(*manager.Manager) error {
-	return nil
+// PostStart starts the map cleaner.
+func (p *protocol) PostStart(mgr *manager.Manager) error {
+	return p.setupInFlightMapCleaner(mgr)
 }
 
-// Stop stops the kafka events consumer.
+// Stop stops the kafka events consumer and the map cleaner.
 func (p *protocol) Stop(*manager.Manager) {
+	// inFlightMapCleaner handles nil receiver pointers.
+	p.inFlightMapCleaner.Stop()
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
 	}
 }
 
-// DumpMaps empty implementation.
-func (p *protocol) DumpMaps(io.Writer, string, *ebpf.Map) {}
+// DumpMaps dumps map contents for debugging.
+func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
+	switch mapName {
+	case inFlightMap:
+		var key KafkaTransactionKey
+		var value KafkaTransaction
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
+		iter := currentMap.Iterate()
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+	case responseMap:
+		var key ConnTuple
+		var value KafkaResponseContext
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
+		iter := currentMap.Iterate()
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+	}
+}
 
 func (p *protocol) processKafka(events []EbpfTx) {
 	for i := range events {
 		tx := &events[i]
-		p.telemetry.Count(tx)
+		p.telemetry.Count(&tx.Transaction)
 		p.statkeeper.Process(tx)
 	}
+}
+
+func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) error {
+	inFlightMap, _, err := mgr.GetMap(inFlightMap)
+	if err != nil {
+		return err
+	}
+	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](inFlightMap, 1024)
+	if err != nil {
+		return err
+	}
+
+	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
+	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, key KafkaTransactionKey, val KafkaTransaction) bool {
+		started := int64(val.Request_started)
+		return started > 0 && (now-started) > ttl
+	})
+
+	p.inFlightMapCleaner = mapCleaner
+	return nil
 }
 
 // GetStats returns a map of Kafka stats stored in the following format:

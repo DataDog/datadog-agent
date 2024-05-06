@@ -13,12 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // setupConfigHandlers adds the specific handlers for /config endpoints
 func setupConfigHandlers(r *mux.Router, settings settings.Component) {
-	r.HandleFunc("/config", settings.GetFullConfig(pkgconfig.SystemProbe, getAggregatedNamespaces()...)).Methods("GET")
+	r.HandleFunc("/config", settings.GetFullConfig(getAggregatedNamespaces()...)).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)

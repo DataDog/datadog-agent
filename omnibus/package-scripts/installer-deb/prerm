@@ -1,0 +1,17 @@
+#!/bin/sh
+#
+#
+# .deb: STEP 1 of 5
+
+readonly INSTALL_DIR=/opt/datadog-installer
+
+set -e
+
+case "$1" in
+    remove | purge)
+        $INSTALL_DIR/bin/installer/installer purge --package=datadog-installer
+    ;;
+    *)
+    ;;
+esac
+exit 0

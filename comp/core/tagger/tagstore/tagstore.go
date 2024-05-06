@@ -263,9 +263,7 @@ func (s *TagStore) Prune() {
 	}
 }
 
-// LookupHashed gets tags from the store and returns them as a HashedTags instance. It
-// returns the source names in the second slice to allow the client to trigger manual
-// lookups on missing sources.
+// LookupHashed gets tags from the store and returns them as a HashedTags instance.
 func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) tagset.HashedTags {
 	s.RLock()
 	defer s.RUnlock()
@@ -277,9 +275,7 @@ func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardina
 	return storedTags.getHashedTags(cardinality)
 }
 
-// Lookup gets tags from the store and returns them concatenated in a string slice. It
-// returns the source names in the second slice to allow the client to trigger manual
-// lookups on missing sources.
+// Lookup gets tags from the store and returns them concatenated in a string slice.
 func (s *TagStore) Lookup(entity string, cardinality collectors.TagCardinality) []string {
 	return s.LookupHashed(entity, cardinality).Get()
 }

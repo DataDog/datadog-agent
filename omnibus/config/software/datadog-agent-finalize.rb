@@ -14,6 +14,8 @@ default_version "1.0.0"
 
 skip_transitive_dependency_licensing true
 
+always_build true
+
 build do
     license :project_license
 

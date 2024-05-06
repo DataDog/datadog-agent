@@ -202,6 +202,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	syscallHandlers := make(map[int]syscallHandler)
 	PtracedSyscalls := registerFIMHandlers(syscallHandlers)
 	PtracedSyscalls = append(PtracedSyscalls, registerProcessHandlers(syscallHandlers)...)
+	PtracedSyscalls = append(PtracedSyscalls, registerSpanHandlers(syscallHandlers)...)
 
 	tracerOpts := TracerOpts{
 		Syscalls: PtracedSyscalls,
@@ -302,6 +303,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		go func() {
 			defer wg.Done()
 
+			// introduce a delay before starting to scan procfs to let the tracer event first
+			time.Sleep(2 * time.Second)
+
 			scanProcfs(ctx, tracer.PID, send, every, logger)
 		}()
 	}
@@ -319,6 +323,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 			}
 			msg.PID = uint32(process.Tgid)
 			msg.Timestamp = uint64(time.Now().UnixNano())
+			msg.ContainerID = containerID
 			send(&ebpfless.Message{
 				Type:    ebpfless.MessageTypeSyscall,
 				Syscall: msg,
@@ -343,6 +348,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 					return
 				}
 			}
+
+			// if available, gather span
+			syscallMsg.SpanContext = fillSpanContext(tracer, process.Tgid, pid, pc.GetSpan(process.Tgid))
 
 			/* internal special cases */
 			switch nr {
@@ -386,6 +394,8 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 				if process.Pid != process.Tgid {
 					pc.Add(process.Tgid, process)
 				}
+			case IoctlNr:
+				pc.SetSpan(process.Tgid, handleIoctl(tracer, process, regs))
 
 			}
 		case CallbackPostType:
@@ -411,6 +421,8 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 			case ExecveNr, ExecveatNr:
 				// now the pid is the tgid
 				process.Pid = process.Tgid
+				// remove previously registered TLS
+				pc.UnsetSpan(process.Tgid)
 			case CloneNr:
 				if flags := tracer.ReadArgUint64(regs, 0); flags&uint64(unix.SIGCHLD) == 0 {
 					pc.SetAsThreadOf(process, ppid)

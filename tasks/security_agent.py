@@ -940,10 +940,13 @@ def sync_secl_win_pkg(ctx):
     ctx.run("rm -r pkg/security/seclwin/model")
     ctx.run("mkdir -p pkg/security/seclwin/model")
 
-    for (ffrom, fto) in files_to_copy:
+    for ffrom, fto in files_to_copy:
         if not fto:
             fto = ffrom
 
         ctx.run(f"cp pkg/security/secl/model/{ffrom} pkg/security/seclwin/model/{fto}")
-        ctx.run(f"sed -i '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
+        if sys.platform == "darwin":
+            ctx.run(f"sed -i '' '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
+        else:
+            ctx.run(f"sed -i '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
         ctx.run(f"gofmt -s -w pkg/security/seclwin/model/{fto}")

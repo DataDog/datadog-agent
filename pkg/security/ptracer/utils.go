@@ -74,8 +74,8 @@ func getProcControlGroupsFromFile(path string) ([]controlGroup, error) {
 
 }
 
-func getCurrentProcContainerID() (string, error) {
-	cgroups, err := getProcControlGroupsFromFile("/proc/self/cgroup")
+func getContainerIDFromProcFS(cgroupPath string) (string, error) {
+	cgroups, err := getProcControlGroupsFromFile(cgroupPath)
 	if err != nil {
 		return "", err
 	}
@@ -87,6 +87,14 @@ func getCurrentProcContainerID() (string, error) {
 		}
 	}
 	return "", nil
+}
+
+func getCurrentProcContainerID() (string, error) {
+	return getContainerIDFromProcFS("/proc/self/cgroup")
+}
+
+func getProcContainerID(pid int) (string, error) {
+	return getContainerIDFromProcFS(fmt.Sprintf("/proc/%d/cgroup", pid))
 }
 
 func getNSID() uint64 {

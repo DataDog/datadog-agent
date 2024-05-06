@@ -31,6 +31,7 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,8 +42,6 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	rc "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -1723,12 +1722,11 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	stats := ebpftelemetry.GetProbeStats()
 	require.NotNil(t, stats)
 
-	//nolint:revive // TODO(NET) Fix revive linter
-	p_tcp_sendmsg, ok := stats["p_tcp_sendmsg_hits"]
+	pTCPSendmsg, ok := stats["p_tcp_sendmsg_hits"]
 	require.True(t, ok)
-	fmt.Printf("p_tcp_sendmsg_hits = %d\n", p_tcp_sendmsg)
+	fmt.Printf("p_tcp_sendmsg_hits = %d\n", pTCPSendmsg)
 
-	assert.Greater(t, p_tcp_sendmsg, uint64(0))
+	assert.Greater(t, pTCPSendmsg, uint64(0))
 }
 
 func (s *TracerSuite) TestBlockingReadCounts() {
@@ -2052,11 +2050,23 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {
-	skipEbpfConntrackerTestOnUnsupportedKernel(t)
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	prebuiltErrorValues := []bool{true}
+	if ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
+		prebuiltErrorValues = []bool{false, true}
+	}
+	coreErrorValues := []bool{true}
+	if ebpfCOREConntrackerSupportedOnKernelT(t) {
+		coreErrorValues = []bool{false, true}
+	}
 
 	type testCase struct {
+		enableCORE               bool
+		allowRuntimeFallback     bool
 		enableRuntimeCompiler    bool
 		allowPrecompiledFallback bool
+		coreError                bool
 		rcError                  bool
 		prebuiltError            bool
 
@@ -2064,23 +2074,62 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 		isPrebuilt bool
 	}
 
-	var tests = []testCase{
-		{false, false, false, false, nil, true},
-		{false, false, false, true, assert.AnError, false},
-		{false, false, true, false, nil, true},
-		{false, false, true, true, assert.AnError, false},
-		{false, true, false, false, nil, true},
-		{false, true, false, true, assert.AnError, false},
-		{false, true, true, false, nil, true},
-		{false, true, true, true, assert.AnError, false},
-		{true, false, false, false, nil, false},
-		{true, false, false, true, nil, false},
-		{true, false, true, false, assert.AnError, false},
-		{true, false, true, true, assert.AnError, false},
-		{true, true, false, false, nil, false},
-		{true, true, false, true, nil, false},
-		{true, true, true, false, nil, true},
-		{true, true, true, true, assert.AnError, false},
+	var dtests []testCase
+	for _, enableCORE := range []bool{false, true} {
+		for _, allowRuntimeFallback := range []bool{false, true} {
+			for _, enableRuntimeCompiler := range []bool{false, true} {
+				for _, allowPrecompiledFallback := range []bool{false, true} {
+					for _, coreError := range coreErrorValues {
+						for _, rcError := range []bool{false, true} {
+							for _, prebuiltError := range prebuiltErrorValues {
+								tc := testCase{
+									enableCORE:               enableCORE,
+									allowRuntimeFallback:     allowRuntimeFallback,
+									enableRuntimeCompiler:    enableRuntimeCompiler,
+									allowPrecompiledFallback: allowPrecompiledFallback,
+									coreError:                coreError,
+									rcError:                  rcError,
+									prebuiltError:            prebuiltError,
+
+									isPrebuilt: !prebuiltError,
+								}
+
+								cerr := coreError
+								if !enableCORE {
+									cerr = true // not enabled, so assume always failed
+								}
+
+								rcEnabled := enableRuntimeCompiler
+								rcerr := rcError
+								if !enableRuntimeCompiler {
+									rcerr = true // not enabled, so assume always failed
+								}
+								if enableCORE && !allowRuntimeFallback {
+									rcEnabled = false
+									rcerr = true // not enabled, so assume always failed
+								}
+
+								pberr := prebuiltError
+								if (enableCORE || rcEnabled) && !allowPrecompiledFallback {
+									pberr = true // not enabled, so assume always failed
+									tc.isPrebuilt = false
+								}
+
+								if cerr && rcerr && pberr {
+									tc.err = assert.AnError
+									tc.isPrebuilt = false
+								}
+
+								if (enableCORE && !coreError) || (rcEnabled && !rcError) {
+									tc.isPrebuilt = false
+								}
+								dtests = append(dtests, tc)
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	cfg := config.New()
@@ -2089,25 +2138,36 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
-		ebpfConntrackerRCCreator = getRuntimeCompiledConntracker
+		ebpfConntrackerRCCreator = getRCConntracker
+		ebpfConntrackerCORECreator = getCOREConntracker
 	})
 
-	for _, te := range tests {
+	for _, te := range dtests {
 		t.Run("", func(t *testing.T) {
 			t.Logf("%+v", te)
 
+			cfg.EnableCORE = te.enableCORE
+			cfg.AllowRuntimeCompiledFallback = te.allowRuntimeFallback
 			cfg.EnableRuntimeCompiler = te.enableRuntimeCompiler
 			cfg.AllowPrecompiledFallback = te.allowPrecompiledFallback
 
 			ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
-			ebpfConntrackerRCCreator = getRuntimeCompiledConntracker
+			ebpfConntrackerRCCreator = getRCConntracker
+			ebpfConntrackerCORECreator = getCOREConntracker
 			if te.prebuiltError {
-				ebpfConntrackerPrebuiltCreator = func(c *config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) {
-					return nil, nil, assert.AnError
+				ebpfConntrackerPrebuiltCreator = func(_ *config.Config) (*manager.Manager, error) {
+					return nil, assert.AnError
 				}
 			}
 			if te.rcError {
-				ebpfConntrackerRCCreator = func(cfg *config.Config) (rc.CompiledOutput, error) { return nil, assert.AnError }
+				ebpfConntrackerRCCreator = func(_ *config.Config) (*manager.Manager, error) {
+					return nil, assert.AnError
+				}
+			}
+			if te.coreError {
+				ebpfConntrackerCORECreator = func(_ *config.Config) (*manager.Manager, error) {
+					return nil, assert.AnError
+				}
 			}
 
 			conntracker, err := NewEBPFConntracker(cfg)
@@ -2123,7 +2183,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 
 			assert.NoError(t, err)
 			require.NotNil(t, conntracker)
-			assert.Equal(t, te.isPrebuilt, conntracker.(*ebpfConntracker).isPrebuilt)
+			assert.Equal(t, te.isPrebuilt, conntracker.(*ebpfConntracker).isPrebuilt, "is prebuilt")
 		})
 	}
 }
@@ -2224,18 +2284,26 @@ LOOP:
 	// get connections, the client connection will still
 	// not be in the closed state, so duration will the
 	// timestamp of when it was created
-	conns := getConnections(t, tr)
-	conn, found := findConnection(c.LocalAddr(), srv.ln.Addr(), conns)
-	require.True(t, found)
+	var conn *network.ConnectionStats
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		conns := getConnections(t, tr)
+		var found bool
+		conn, found = findConnection(c.LocalAddr(), srv.ln.Addr(), conns)
+		assert.True(collect, found, "could not find connection")
+
+	}, 3*time.Second, 100*time.Millisecond, "could not find connection")
 	// all we can do is verify it is > 0
 	assert.Greater(t, conn.Duration, time.Duration(0))
 
 	require.NoError(t, c.Close(), "error closing client connection")
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		var found bool
+		conn, found = findConnection(c.LocalAddr(), srv.ln.Addr(), getConnections(t, tr))
+		assert.True(collect, found, "could not find closed connection")
+	}, 3*time.Second, 100*time.Millisecond, "could not find closed connection")
+
 	// after closing the client connection, the duration should be
-	// updated to a value between 1s and 1.1s
-	conn, found = findConnection(c.LocalAddr(), srv.ln.Addr(), getConnections(t, tr))
-	require.True(t, found)
-	t.Log(conn.Duration)
-	assert.GreaterOrEqual(t, conn.Duration, time.Second, "connection duration should be between 1 and 1.1 seconds")
-	assert.Less(t, conn.Duration, 1100*time.Millisecond, "connection duration should be between 1 and 1.1 seconds")
+	// updated to a value between 1s and 2s
+	assert.Greater(t, conn.Duration, time.Second, "connection duration should be between 1 and 2 seconds")
+	assert.Less(t, conn.Duration, 2*time.Second, "connection duration should be between 1 and 2 seconds")
 }

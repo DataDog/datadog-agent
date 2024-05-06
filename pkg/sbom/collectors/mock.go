@@ -10,10 +10,12 @@ package collectors
 
 import (
 	"context"
+
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+
 	"github.com/stretchr/testify/mock"
 )
 

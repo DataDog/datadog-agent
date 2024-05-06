@@ -22,6 +22,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConnectionGoOra(t *testing.T) {
@@ -32,14 +33,16 @@ func TestConnectionGoOra(t *testing.T) {
 
 	err = conn.Ping()
 	assert.NoError(t, err)
-
+	conn.Close()
 }
 
 func TestConnection(t *testing.T) {
 	var err error
 
 	c, _ := newDefaultCheck(t, "", "")
-	_, err = c.Connect()
+	defer c.Teardown()
+	c.db, err = c.Connect()
+	assertConnectionCount(t, &c, expectedSessionsDefault)
 	assert.NoError(t, err)
 }
 
@@ -71,8 +74,9 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 	return db, nil
 }
 
-func getUsedPGA(c *Check) (float64, error) {
+func getUsedPGA(t *testing.T, c *Check) (float64, error) {
 	var pga float64
+	require.NotEqual(t, "", c.config.InstanceConfig.Username, "username is nil")
 	err := c.db.Get(&pga, `SELECT
 	sum(p.pga_used_mem)
 FROM   v$session s,
@@ -104,8 +108,9 @@ func getTemporaryLobs(c *Check) (int, error) {
 
 func TestChkRun(t *testing.T) {
 	c, _ := newDefaultCheck(t, "", "")
+	defer c.Teardown()
+
 	c.dbmEnabled = true
-	c.config.InstanceConfig.OracleClient = false
 
 	// This is to ensure that query samples return rows
 	c.config.QuerySamples.IncludeAllSessions = true
@@ -114,15 +119,14 @@ func TestChkRun(t *testing.T) {
 		N int `db:"N"`
 	}
 
-	c.db = nil
-
 	c.statementsLastRun = time.Now().Add(-48 * time.Hour)
 	err := c.Run()
 	assert.NoError(t, err, "check run")
+	assertConnectionCount(t, &c, expectedSessionsDefault)
 
 	sessionBefore, _ := getSession(&c)
 
-	pgaBefore, err := getUsedPGA(&c)
+	pgaBefore, err := getUsedPGA(t, &c)
 	assert.NoError(t, err, "get used pga")
 	c.statementsLastRun = time.Now().Add(-48 * time.Hour)
 
@@ -142,7 +146,7 @@ func TestChkRun(t *testing.T) {
 
 	c.Run()
 
-	pgaAfter1StRun, _ := getUsedPGA(&c)
+	pgaAfter1StRun, _ := getUsedPGA(t, &c)
 	diff1 := (pgaAfter1StRun - pgaBefore) / 1024
 	var extremePGAUsage float64
 	if isDbVersionGreaterOrEqualThan(&c, "12.2") {
@@ -155,10 +159,12 @@ func TestChkRun(t *testing.T) {
 	c.statementsLastRun = time.Now().Add(-48 * time.Hour)
 	c.Run()
 
-	pgaAfter2ndRun, _ := getUsedPGA(&c)
+	assertConnectionCount(t, &c, expectedSessionsDefault)
+
+	pgaAfter2ndRun, _ := getUsedPGA(t, &c)
 	diff2 := (pgaAfter2ndRun - pgaAfter1StRun) / 1024
-	percGrowth := (diff2 - diff1) * 100 / diff1
-	assert.Less(t, percGrowth, float64(10), "PGA memory leak (%f %% increase between two consecutive runs)", percGrowth)
+	percGrowth := diff2 * 100 / pgaAfter1StRun
+	assert.Less(t, percGrowth, float64(10), "PGA memory leak (%f %% increase between two consecutive runs %d bytes)", percGrowth, diff2)
 
 	tempLobsAfter, _ := getTemporaryLobs(&c)
 	diffTempLobs := tempLobsAfter - tempLobsBefore
@@ -311,11 +317,13 @@ func TestLegacyMode(t *testing.T) {
 		"only_custom_queries: true",
 	} {
 		c, s := newLegacyCheck(t, config, "")
+		defer c.Teardown()
 		err := c.Run()
 		assert.NoError(t, err)
 		expectedServerTag := fmt.Sprintf("server:%s", c.config.InstanceConfig.Server)
-		s.AssertServiceCheck(t, canConnectServiceCheckName, servicecheck.ServiceCheckOK, "", []string{expectedServerTag}, "")
-		s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, "", []string{expectedServerTag}, "")
+		host := c.dbHostname
+		s.AssertServiceCheck(t, canConnectServiceCheckName, servicecheck.ServiceCheckOK, host, []string{expectedServerTag}, "")
+		s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, host, []string{expectedServerTag}, "")
 	}
 }
 

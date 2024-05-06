@@ -129,7 +129,15 @@ def get_job_failure_context(job_log):
     return FailedJobType.JOB_FAILURE, FailedJobReason.FAILED_JOB_SCRIPT
 
 
+# These jobs are allowed to have their full name in the data.
+# They are often matrix/parallel jobs where the dimension values are important.
+jobs_allowed_to_have_full_names = [re.compile(r'kmt_run_.+_tests_.*')]
+
+
 def truncate_job_name(job_name, max_char_per_job=48):
+    if any(pattern.fullmatch(job_name) for pattern in jobs_allowed_to_have_full_names):
+        return job_name
+
     # Job header should be before the colon, if there is no colon this won't change job_name
     truncated_job_name = job_name.split(":")[0]
     # We also want to avoid it being too long

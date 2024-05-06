@@ -10,12 +10,11 @@ package languagedetection
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,9 +23,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
-	"reflect"
-	"testing"
-	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -463,6 +466,7 @@ func TestRun(t *testing.T) {
 	defer lp.cancel()
 
 	deploymentName := "test-deployment"
+	longContNameDeploymentName := "test-deployment-long-cont-name"
 	ns := "test-namespace"
 
 	// Create target deployment
@@ -483,8 +487,25 @@ func TestRun(t *testing.T) {
 			"spec": map[string]interface{}{},
 		},
 	}
+
+	// Create  long container name deployment
+	longContNameDeployment := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata": map[string]interface{}{
+				"name":        longContNameDeploymentName,
+				"namespace":   ns,
+				"annotations": map[string]interface{}{},
+			},
+			"spec": map[string]interface{}{},
+		},
+	}
 	gvr := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 	_, err := mockK8sClient.Resource(gvr).Namespace(ns).Create(context.TODO(), deploymentObject, metav1.CreateOptions{})
+	assert.NoError(t, err)
+
+	_, err = mockK8sClient.Resource(gvr).Namespace(ns).Create(context.TODO(), longContNameDeployment, metav1.CreateOptions{})
 	assert.NoError(t, err)
 
 	////////////////////////////////
@@ -506,7 +527,26 @@ func TestRun(t *testing.T) {
 			},
 		}})
 
-	mockDeploymentEvent := workloadmeta.Event{
+	mockDeploymentEventToFail := workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesDeployment{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesDeployment,
+				ID:   "test-namespace/" + longContNameDeploymentName,
+			},
+			DetectedLanguages: map[langUtil.Container]langUtil.LanguageSet{
+				*langUtil.NewContainer("some-cont"):            {"java": {}, "python": {}},
+				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
+				// The max allowed annotation key name length in kubernetes is 63
+				// To test that validation works, we are using a container name of length 69
+				*langUtil.NewInitContainer(strings.Repeat("x", 69)): {"ruby": {}, "python": {}},
+			},
+		},
+	}
+
+	mockStore.Push(workloadmeta.SourceLanguageDetectionServer, mockDeploymentEventToFail)
+
+	mockDeploymentEventToSucceed := workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
 		Entity: &workloadmeta.KubernetesDeployment{
 			EntityID: workloadmeta.EntityID{
@@ -520,7 +560,7 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	mockStore.Push(workloadmeta.SourceLanguageDetectionServer, mockDeploymentEvent)
+	mockStore.Push(workloadmeta.SourceLanguageDetectionServer, mockDeploymentEventToSucceed)
 
 	expectedAnnotations := map[string]string{
 		"internal.dd.datadoghq.com/some-cont.detected_langs":             "java,python",
@@ -551,8 +591,22 @@ func TestRun(t *testing.T) {
 		"deployment should be patched with the correct annotations",
 	)
 
+	// Check that the deployment with long container name was not patched
+	// This is correct since workloadmeta events are processed sequentially, which means that since the second event has been asserted first
+	// the first event has already been processed and its side-effect can be asserted instantly
+	assert.Truef(t, func() bool {
+		// Check the patch
+		got, err := lp.k8sClient.Resource(gvr).Namespace(ns).Get(context.TODO(), longContNameDeploymentName, metav1.GetOptions{})
+		if err != nil {
+			return false
+		}
+		annotations := got.GetAnnotations()
+
+		return len(annotations) == 0
+	}(), "Deployment should not be patched with language annotations since one of the containers has a very long name")
+
 	// Simulate kubeapiserver collector (i.e. update injectable languages in wlm)
-	mockDeploymentEvent = workloadmeta.Event{
+	mockDeploymentEvent := workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
 		Entity: &workloadmeta.KubernetesDeployment{
 			EntityID: workloadmeta.EntityID{
