@@ -22,12 +22,12 @@ jobs:
       sha: ${{ steps.prepare.outputs.sha }}
     steps:
       - name: Checkout ${{ github.base_ref }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           ref: ${{ github.base_ref }}
 
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: stable
 
@@ -43,7 +43,7 @@ jobs:
               ./pkg/serverless/... | tee ${{runner.temp}}/benchmark.log
 
       - name: Upload result artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         with:
           name: baseline.log
           path: ${{runner.temp}}/benchmark.log
@@ -58,12 +58,12 @@ jobs:
 
     steps:
       - name: Checkout ${{ github.ref }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           ref: ${{ github.sha }}
 
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: stable
 
@@ -79,7 +79,7 @@ jobs:
               ./pkg/serverless/... | tee ${{runner.temp}}/benchmark.log
 
       - name: Upload result artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         with:
           name: current.log
           path: ${{runner.temp}}/benchmark.log
@@ -92,7 +92,7 @@ jobs:
 
     steps:
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: stable
           cache: false
@@ -102,12 +102,12 @@ jobs:
           go install golang.org/x/perf/cmd/benchstat@latest
 
       - name: Download baseline artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
         with:
           name: baseline.log
           path: baseline
       - name: Download current artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
         with:
           name: current.log
           path: current
@@ -121,7 +121,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Post comment
-        uses: marocchino/sticky-pull-request-comment@v2.9.0
+        uses: marocchino/sticky-pull-request-comment@331f8f5b4215f0445d3c07b4967662a32a2d3e31 # v2.9.0
         with:
           recreate: true
           message: |
