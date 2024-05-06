@@ -9,6 +9,7 @@ import sys
 
 from invoke import task
 from invoke.exceptions import Exit
+from tasks.libs.common.utils import collapsed_section
 
 
 def get_rtloader_path():
@@ -26,7 +27,7 @@ def get_dev_path():
 
 
 def run_make_command(ctx, command=""):
-    ctx.run(f"make -C {get_rtloader_build_path()} {command}")
+    ctx.run(f"make -C {get_rtloader_build_path()} {command}", err_stream=sys.stdout)
 
 
 def get_cmake_cache_path(rtloader_path):
@@ -97,8 +98,9 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
         else:
             raise
 
-    ctx.run(f"cd {rtloader_build_path} && cmake {cmake_args} {get_rtloader_path()}")
-    run_make_command(ctx)
+    with collapsed_section("Build rtloader"):
+        ctx.run(f"cd {rtloader_build_path} && cmake {cmake_args} {get_rtloader_path()}", err_stream=sys.stdout)
+        run_make_command(ctx)
 
 
 @task
@@ -122,17 +124,20 @@ def clean(_):
 
 @task
 def install(ctx):
-    run_make_command(ctx, "install")
+    with collapsed_section("Install rtloader"):
+        run_make_command(ctx, "install")
 
 
 @task
 def test(ctx):
-    ctx.run(f"make -C {get_rtloader_build_path()}/test run")
+    with collapsed_section("Run rtloader tests"):
+        ctx.run(f"make -C {get_rtloader_build_path()}/test run", err_stream=sys.stdout)
 
 
 @task
 def format(ctx, raise_if_changed=False):
-    run_make_command(ctx, "clang-format")
+    with collapsed_section("Run clang-format on rtloader"):
+        run_make_command(ctx, "clang-format")
 
     if raise_if_changed:
         changed_files = [line for line in ctx.run("git ls-files -m rtloader").stdout.strip().split("\n") if line]
