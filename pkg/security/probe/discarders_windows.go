@@ -15,23 +15,23 @@ func init() {
 		{
 			Entries: []rules.MultiDiscarderEntry{
 				{
-					Field:     "create.file.path",
+					Field:     "create.file.device_path",
 					EventType: model.CreateNewFileEventType,
 				},
 				{
-					Field:     "rename.file.path",
+					Field:     "rename.file.device_path",
 					EventType: model.FileRenameEventType,
 				},
 				{
-					Field:     "delete.file.path",
+					Field:     "delete.file.device_path",
 					EventType: model.DeleteFileEventType,
 				},
 				{
-					Field:     "write.file.path",
+					Field:     "write.file.device_path",
 					EventType: model.WriteFileEventType,
 				},
 			},
-			FinalField:     "create.file.path",
+			FinalField:     "create.file.device_path",
 			FinalEventType: model.CreateNewFileEventType,
 		},
 		{
