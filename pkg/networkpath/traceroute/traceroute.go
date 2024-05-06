@@ -62,6 +62,7 @@ type (
 	// path between two hosts as mapped by the agent
 	NetworkPath struct {
 		Timestamp   int64                  `json:"timestamp"`
+		Namespace   string                 `json:"namespace"` // namespace used to resolve NDM resources
 		PathID      string                 `json:"path_id"`
 		Source      NetworkPathSource      `json:"source"`
 		Destination NetworkPathDestination `json:"destination"`
