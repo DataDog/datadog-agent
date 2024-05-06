@@ -77,7 +77,6 @@ type apmInjectorInstaller struct {
 
 // Setup sets up the APM injector
 func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
-	var err error
 	var rollbackAgentConfig, rollbackLDPreload, rollbackDockerConfig func() error
 	defer func() {
 		if err != nil {

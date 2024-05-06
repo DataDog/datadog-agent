@@ -77,8 +77,7 @@ func (ft *fileMutator) mutate() (rollback func() error, err error) {
 		return nil, nil
 	}
 
-	// permissions are set only if the file is created
-	if err := os.WriteFile(ft.pathTmp, res, 0644); err != nil {
+	if err := writeFile(ft.pathTmp, res); err != nil {
 		return nil, fmt.Errorf("could not write file %s: %s", ft.pathTmp, err)
 
 	}
@@ -112,6 +111,23 @@ func (ft *fileMutator) mutate() (rollback func() error, err error) {
 		}
 	}
 	return rollback, nil
+}
+
+func writeFile(path string, data []byte) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.Write(data)
+	if err != nil {
+		return err
+	}
+	// flush in-memory file system to disk
+	if err = f.Sync(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func copyFile(src, dst string) (err error) {
@@ -157,5 +173,11 @@ func copyFile(src, dst string) (err error) {
 	if err = os.Chown(dst, int(stat.Uid), int(stat.Gid)); err != nil {
 		return err
 	}
+
+	// flush in-memory file system to disk
+	if err = dstFile.Sync(); err != nil {
+		return err
+	}
+
 	return nil
 }
