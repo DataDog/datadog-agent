@@ -34,6 +34,7 @@ func newAgentHostExecutor(context e2e.Context, hostOutput remote.HostOutput, par
 		if len(installPath) == 0 {
 			installPath = defaultWindowsAgentInstallPath(host)
 		}
+		fmt.Printf("Using default install path: %s\n", installPath)
 		baseCommand = fmt.Sprintf(`& "%s\bin\agent.exe"`, installPath)
 	case os.LinuxFamily:
 		baseCommand = "sudo datadog-agent"
@@ -67,5 +68,5 @@ func defaultWindowsAgentInstallPath(host *Host) string {
 	if err != nil {
 		path = wincommand.DefaultInstallPath
 	}
-	return path
+	return strings.TrimSpace(path)
 }
