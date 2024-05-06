@@ -10,6 +10,7 @@ package service
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"testing"
 
@@ -107,6 +108,24 @@ func TestFileTransform_RollbackOnValidation_No_original(t *testing.T) {
 	require.Error(t, err)
 
 	assertNoExists(t, originalPath)
+}
+
+func TestCleanup(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalPath := tmpDir + "/original.txt"
+	mode := fs.FileMode(0744)
+	os.WriteFile(originalPath, []byte(originalContent), mode)
+	mutator := newFileMutator(originalPath, nil, nil, nil)
+	os.WriteFile(mutator.pathTmp, []byte(originalContent), mode)
+	os.WriteFile(mutator.pathBackup, []byte(originalContent), mode)
+	assert.FileExists(t, mutator.pathTmp)
+	assert.FileExists(t, mutator.pathBackup)
+	assert.FileExists(t, mutator.path)
+
+	mutator.cleanup()
+	assert.FileExists(t, mutator.path)
+	assert.NoFileExists(t, mutator.pathTmp)
+	assert.NoFileExists(t, mutator.pathBackup)
 }
 
 func assertNoExists(t *testing.T, path string) {

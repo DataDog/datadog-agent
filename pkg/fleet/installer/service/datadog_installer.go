@@ -8,6 +8,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -20,8 +21,11 @@ import (
 )
 
 const (
-	installerUnit    = "datadog-installer.service"
-	installerUnitExp = "datadog-installer-exp.service"
+	installerUnit       = "datadog-installer.service"
+	installerUnitExp    = "datadog-installer-exp.service"
+	apmDefaultSocket    = "/var/run/datadog/apm.socket"
+	statsdDefaultSocket = "/var/run/datadog/dsd.socket"
+	datadogConfigPath   = "/etc/datadog-agent/datadog.yaml"
 )
 
 var installerUnits = []string{installerUnit, installerUnitExp}
@@ -77,6 +81,10 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error creating /var/log/datadog: %w", err)
 	}
+	err = os.MkdirAll("/var/run/datadog", 0755)
+	if err != nil {
+		return fmt.Errorf("error creating /var/run/datadog: %w", err)
+	}
 	err = os.MkdirAll("/var/run/datadog-packages", 0777)
 	if err != nil {
 		return fmt.Errorf("error creating /var/run/datadog-packages: %w", err)
@@ -90,6 +98,10 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error changing owner of /var/log/datadog: %w", err)
 	}
+	err = os.Chown("/var/run/datadog", ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("error changing owner of /var/run/datadog: %w", err)
+	}
 	err = os.Chown("/opt/datadog-packages/datadog-installer/stable/run", ddAgentUID, ddAgentGID)
 	if err != nil {
 		return fmt.Errorf("error changing owner of /opt/datadog-packages/datadog-installer/stable/run: %w", err)
@@ -101,6 +113,11 @@ func SetupInstaller(ctx context.Context) (err error) {
 		log.Info("Installer symlink already exists, skipping")
 	} else if err != nil {
 		return fmt.Errorf("error creating symlink to /usr/bin/datadog-installer: %w", err)
+	}
+
+	err = configureSockets()
+	if err != nil {
+		return fmt.Errorf("error configuring sockets: %w", err)
 	}
 
 	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the system probe
@@ -195,4 +212,22 @@ func StartInstallerExperiment(ctx context.Context) error {
 // StopInstallerExperiment starts the stable systemd units for the installer
 func StopInstallerExperiment(ctx context.Context) error {
 	return startUnit(ctx, installerUnit)
+}
+
+func configureSockets() error {
+	envFile := newFileMutator("/etc/environment", setSocketEnvs, nil, nil)
+	defer envFile.cleanup()
+	_, err := envFile.mutate()
+	return err
+}
+
+func setSocketEnvs(envFile []byte) ([]byte, error) {
+	var buffer bytes.Buffer
+	buffer.Write(envFile)
+
+	if len(envFile) > 0 && envFile[len(envFile)-1] != '\n' {
+		buffer.WriteByte('\n')
+	}
+	buffer.WriteString(fmt.Sprintf("DD_APM_RECEIVER_SOCKET=%s\nDD_DOGSTATSD_SOCKET=%s\n", apmDefaultSocket, statsdDefaultSocket))
+	return buffer.Bytes(), nil
 }

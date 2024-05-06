@@ -42,6 +42,11 @@ func newFileMutator(path string, transform func(existing []byte) ([]byte, error)
 	}
 }
 
+func (ft *fileMutator) cleanup() {
+	_ = os.Remove(ft.pathTmp)
+	_ = os.Remove(ft.pathBackup)
+}
+
 func (ft *fileMutator) mutate() (rollback func() error, err error) {
 	defer os.Remove(ft.pathTmp)
 
