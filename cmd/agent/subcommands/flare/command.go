@@ -152,7 +152,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	flareCmd.Flags().IntVarP(&cliParams.profileMutexFraction, "profile-mutex-fraction", "", 100, "Set the fraction of mutex contention events that are reported in the mutex profile")
 	flareCmd.Flags().BoolVarP(&cliParams.profileBlocking, "profile-blocking", "B", false, "Add gorouting blocking profile to the performance data in the flare")
 	flareCmd.Flags().IntVarP(&cliParams.profileBlockingRate, "profile-blocking-rate", "", 10000, "Set the fraction of goroutine blocking events that are reported in the blocking profile")
-	flareCmd.Flags().BoolVar(&cliParams.log, "log", false, "Log 60s of the stream-logs command to the agent log file")
+	flareCmd.Flags().BoolVarP(&cliParams.log, "with-stream-logs", "L", false, "Log 60s of the stream-logs command to the agent log file")
 	flareCmd.SetArgs([]string{"caseID"})
 
 	return []*cobra.Command{flareCmd}
@@ -344,7 +344,7 @@ func makeFlare(flareComp flare.Component,
 
 	streamLogParams := streamlogs.CliParams{
 		FilePath: commonpath.DefaultStreamlogsLogFile,
-		Duration: 10 * time.Second,
+		Duration: 60 * time.Second, // default duration
 		Quiet:    true,
 	}
 
