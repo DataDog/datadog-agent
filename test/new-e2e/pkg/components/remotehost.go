@@ -139,7 +139,7 @@ func (h *RemoteHost) DownloadAgentLogs(localPath string) error {
 	if h.OSFamily == osComp.WindowsFamily {
 		agentLogsPath = "C:/ProgramData/Datadog/Logs/agent.log"
 	}
-	return clients.DownloadFile(h.client, agentLogsPath, localPath)
+	return clients.GetFile(h.client, agentLogsPath, localPath)
 }
 
 // Lstat returns a FileInfo structure describing path.

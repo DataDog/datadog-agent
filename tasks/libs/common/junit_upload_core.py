@@ -7,11 +7,13 @@ import re
 import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
+from shutil import which
 from subprocess import PIPE, CalledProcessError, Popen
 
 from invoke.exceptions import Exit
 
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.utils import collapsed_section
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
     DEFAULT_SLACK_CHANNEL,
@@ -22,7 +24,10 @@ from tasks.libs.pipeline.notifications import (
 E2E_INTERNAL_ERROR_STRING = "E2E INTERNAL ERROR"
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
 REPO_NAME_PREFIX = "github.com/DataDog/datadog-agent/"
-DATADOG_CI_COMMAND = ["datadog-ci", "junit", "upload"]
+if platform.system() == "Windows":
+    DATADOG_CI_COMMAND = [r"c:\devtools\datadog-ci\datadog-ci", "junit", "upload"]
+else:
+    DATADOG_CI_COMMAND = [which("datadog-ci"), "junit", "upload"]
 JOB_URL_FILE_NAME = "job_url.txt"
 JOB_ENV_FILE_NAME = "job_env.txt"
 TAGS_FILE_NAME = "tags.txt"
@@ -88,14 +93,15 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
         # for each unpacked xml file, split it and submit all parts
         # NOTE: recursive=True is necessary for "**" to unpack into 0-n dirs, not just 1
         xmls = 0
-        for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml", recursive=True):
-            if not os.path.isfile(xmlfile):
-                print(f"[WARN] Matched folder named {xmlfile}")
-                continue
-            xmls += 1
-            with tempfile.TemporaryDirectory() as output_dir:
-                written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir, flaky_tests)
-                upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], process_env, tags)
+        with collapsed_section("Uploading JUnit files"):
+            for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml", recursive=True):
+                if not os.path.isfile(xmlfile):
+                    print(f"[WARN] Matched folder named {xmlfile}")
+                    continue
+                xmls += 1
+                with tempfile.TemporaryDirectory() as output_dir:
+                    written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir, flaky_tests)
+                    upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], process_env, tags)
         xmlcounts[junit_tgz] = xmls
 
     empty_tgzs = []
@@ -214,7 +220,7 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, addi
         if additional_tags:
             args.extend(additional_tags)
         args.append(junit_file_path)
-        processes.append(Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env, stderr=PIPE))
+        processes.append(Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env, stdout=PIPE, stderr=PIPE))
     for process in processes:
         _, stderr = process.communicate()
         if stderr:
@@ -226,7 +232,7 @@ def is_e2e_internal_failure(xml_path):
     """
     Check if the given JUnit XML file contains E2E INTERAL ERROR string.
     """
-    with open(xml_path) as f:
+    with open(xml_path, encoding="utf8") as f:
         filecontent = f.read()
     return E2E_INTERNAL_ERROR_STRING in filecontent
 
