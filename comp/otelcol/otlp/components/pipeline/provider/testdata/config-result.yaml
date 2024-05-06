@@ -1,0 +1,60 @@
+Connectors:
+    nop/connector: {}
+Exporters:
+    nop: {}
+Extensions:
+    nop: {}
+Processors:
+    nop: {}
+Receivers:
+    nop: {}
+Service:
+    extensions:
+        - nop
+    pipelines:
+        traces:
+            receivers:
+                - nop
+            processors:
+                - nop
+            exporters:
+                - nop
+        logs:
+            receivers:
+                - nop
+            processors:
+                - nop
+            exporters:
+                - nop
+        metrics:
+            receivers:
+                - nop
+            processors:
+                - nop
+            exporters:
+                - nop
+    telemetry:
+        logs:
+            development: false
+            disable_caller: false
+            disable_stacktrace: false
+            encoding: console
+            error_output_paths:
+                - stderr
+            initial_fields: {}
+            level: info
+            output_paths:
+                - stderr
+            sampling:
+                enabled: true
+                initial: 10
+                thereafter: 100
+                tick: 10s
+        metrics:
+            address: :8888
+            level: Normal
+            readers: []
+        resource: {}
+        traces:
+            processors: []
+            propagators: []

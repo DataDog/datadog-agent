@@ -30,6 +30,7 @@ import (
 	"go.opentelemetry.io/collector/service/pipelines"
 	"go.opentelemetry.io/collector/service/telemetry"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/yaml.v3"
 )
 
 func nopConfig() *otelcol.Config {
@@ -138,6 +139,55 @@ func TestConfigProviderShutdown(t *testing.T) {
 
 	err = provider.Shutdown(context.Background())
 	assert.NoError(t, err)
+}
+
+func TestGetConfDump(t *testing.T) {
+	uriLocation, err := uriFromFile("config.yaml")
+	assert.NoError(t, err)
+
+	provider, err := NewConfigProvider([]string{uriLocation})
+	assert.NoError(t, err)
+
+	factories, err := nopFactories()
+	assert.NoError(t, err)
+
+	conf, err := provider.Get(context.Background(), factories)
+	assert.NoError(t, err)
+
+	err = conf.Validate()
+	assert.NoError(t, err)
+
+	// we cannot compare the raw configs, as the config contains maps which are marshalled in
+	// random order. Instead we unmarshal to a string map to compare.
+	t.Run("provided", func(t *testing.T) {
+		yamlBytesConf := provider.GetProvidedConf()
+		var stringMap = map[string]interface{}{}
+		err = yaml.Unmarshal(yamlBytesConf, stringMap)
+		assert.NoError(t, err)
+
+		resultYamlBytesConf, err := os.ReadFile(filepath.Join("testdata", "config-result.yaml"))
+		assert.NoError(t, err)
+		var resultStringMap = map[string]interface{}{}
+		err = yaml.Unmarshal(resultYamlBytesConf, resultStringMap)
+		assert.NoError(t, err)
+
+		assert.Equal(t, resultStringMap, stringMap)
+	})
+
+	t.Run("enhanced", func(t *testing.T) {
+		yamlBytesConf := provider.GetEnhancedConf()
+		var stringMap = map[string]interface{}{}
+		err = yaml.Unmarshal(yamlBytesConf, stringMap)
+		assert.NoError(t, err)
+
+		resultYamlBytesConf, err := os.ReadFile(filepath.Join("testdata", "config-result.yaml"))
+		assert.NoError(t, err)
+		var resultStringMap = map[string]interface{}{}
+		err = yaml.Unmarshal(resultYamlBytesConf, resultStringMap)
+		assert.NoError(t, err)
+
+		assert.Equal(t, resultStringMap, stringMap)
+	})
 }
 
 func nopFactories() (otelcol.Factories, error) {
