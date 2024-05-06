@@ -333,9 +333,17 @@ func (a *agent) onUpdateSDSRules(updates map[string]state.RawConfig, applyStateC
 func (a *agent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
 	var err error
 
-	for _, config := range updates {
-		if rerr := a.pipelineProvider.ReconfigureSDSAgentConfig(config.Config); rerr != nil {
-			err = rerr
+	// We received a hit that new updates arrived, but if the list of updates
+	// is empty, it means we don't have any updates applying to thsi agent anymore
+	// Send a reconfiguration with an empty payload, indicating that
+	// the scanners have to be dropped.
+	if len(updates) == 0 {
+		err = a.pipelineProvider.ReconfigureSDSAgentConfig([]byte("{}"))
+	} else {
+		for _, config := range updates {
+			if rerr := a.pipelineProvider.ReconfigureSDSAgentConfig(config.Config); rerr != nil {
+				err = rerr
+			}
 		}
 	}
 
