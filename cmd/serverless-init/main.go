@@ -81,7 +81,7 @@ func main() {
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(_ secrets.Component, _ autodiscovery.Component) {
+func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobe.Component) {
 	_, modeRunner := mode.SetupMode()
 	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup()
 
