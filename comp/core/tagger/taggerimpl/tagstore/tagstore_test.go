@@ -12,6 +12,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
@@ -241,6 +242,82 @@ func (s *StoreTestSuite) TestPrune__emptyEntries() {
 	assert.Len(s.T(), emptyTags1, 0)
 	emptyTags2 := s.store.Lookup("emptyEntity2", types.HighCardinality)
 	assert.Len(s.T(), emptyTags2, 0)
+}
+
+func (s *StoreTestSuite) TestList() {
+	s.store.ProcessTagInfo(
+		[]*types.TagInfo{
+			{
+				Source:               "source-1",
+				Entity:               "entity-1",
+				HighCardTags:         []string{"h1:v1", "h2:v2"},
+				OrchestratorCardTags: []string{"o1:v1", "o2:v2"},
+				LowCardTags:          []string{"l1:v1", "l2:v2", "service:s1"},
+				StandardTags:         []string{"service:s1"},
+			},
+			{
+				Source:               "source-1",
+				Entity:               "entity-2",
+				HighCardTags:         []string{"h3:v3", "h4:v4"},
+				OrchestratorCardTags: []string{"o3:v3", "o4:v4"},
+				LowCardTags:          []string{"l3:v3", "l4:v4", "service:s1"},
+				StandardTags:         []string{"service:s1"},
+			},
+		},
+	)
+
+	resultList := s.store.List()
+	require.Equal(s.T(), 2, len(resultList.Entities))
+
+	entity1, ok := resultList.Entities["entity-1"]
+	require.True(s.T(), ok)
+	require.Equal(s.T(), 1, len(entity1.Tags))
+	require.ElementsMatch( // Tags order is not important
+		s.T(),
+		entity1.Tags["source-1"],
+		[]string{"l1:v1", "l2:v2", "service:s1", "o1:v1", "o2:v2", "h1:v1", "h2:v2"},
+	)
+
+	entity2, ok := resultList.Entities["entity-2"]
+	require.True(s.T(), ok)
+	require.Equal(s.T(), 1, len(entity2.Tags))
+	require.ElementsMatch( // Tags order is not important
+		s.T(),
+		entity2.Tags["source-1"],
+		[]string{"l3:v3", "l4:v4", "service:s1", "o3:v3", "o4:v4", "h3:v3", "h4:v4"},
+	)
+}
+
+func (s *StoreTestSuite) TestGetEntity() {
+	_, err := s.store.GetEntity("entity-1")
+	require.Error(s.T(), err)
+
+	s.store.ProcessTagInfo(
+		[]*types.TagInfo{
+			{
+				Source:               "source-1",
+				Entity:               "entity-1",
+				HighCardTags:         []string{"h1:v1", "h2:v2"},
+				OrchestratorCardTags: []string{"o1:v1", "o2:v2"},
+				LowCardTags:          []string{"l1:v1", "l2:v2", "service:s1"},
+				StandardTags:         []string{"service:s1"},
+			},
+		},
+	)
+
+	entity, err := s.store.GetEntity("entity-1")
+	require.NoError(s.T(), err)
+	assert.Equal(
+		s.T(),
+		&types.Entity{
+			ID:                          "entity-1",
+			HighCardinalityTags:         []string{"h1:v1", "h2:v2"},
+			OrchestratorCardinalityTags: []string{"o1:v1", "o2:v2"},
+			LowCardinalityTags:          []string{"l1:v1", "l2:v2", "service:s1"},
+			StandardTags:                []string{"service:s1"},
+		},
+		entity,
+	)
 }
 
 func TestStoreSuite(t *testing.T) {
