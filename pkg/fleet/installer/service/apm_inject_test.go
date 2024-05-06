@@ -26,6 +26,8 @@ func TestSetLDPreloadConfig(t *testing.T) {
 		"/abc/def/preload.so\n": "/abc/def/preload.so\n/tmp/stable/inject/launcher.preload.so\n",
 		// File contains unrelated entries with no newline
 		"/abc/def/preload.so": "/abc/def/preload.so\n/tmp/stable/inject/launcher.preload.so\n",
+		// File contains old preload instructions
+		"banana\n/opt/datadog/apm/inject/launcher.preload.so\ntomato": "banana\n/tmp/stable/inject/launcher.preload.so\ntomato",
 	} {
 		output, err := a.setLDPreloadConfigContent([]byte(input))
 		assert.Nil(t, err)
