@@ -824,7 +824,8 @@ func (c *Client) get(route string) ([]byte, error) {
 		}
 		// If strictFakeintakeIDCheck is enabled, we check that the fakeintake ID is the same as the one we expect
 		// If the fakeintake ID is not set yet we set the one we get from the first request
-		if c.strictFakeintakeIDCheck {
+		// If the fakeintake does not return its id in the header we do not check it
+		if c.strictFakeintakeIDCheck && tmpResp.Header.Get(fakeintakeIDHeader) != "" {
 			if c.fakeintakeID == "" {
 				c.fakeintakeIDMutex.Lock()
 				c.fakeintakeID = tmpResp.Header.Get(fakeintakeIDHeader)
