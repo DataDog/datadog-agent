@@ -387,7 +387,8 @@ def test(
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
     rerun_coverage_fix = '--raw-command {cov_test_path}' if coverage else ""
     gotestsum_flags = (
-        '{junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" ' + rerun_coverage_fix
+        '{junit_file_flag} {json_flag} --format {gotestsum_format} {rerun_fails} --packages="{packages}" '
+        + rerun_coverage_fix
     )
     gobuild_flags = (
         '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
@@ -410,6 +411,7 @@ def test(
         "json_flag": f'--jsonfile "{GO_TEST_RESULT_TMP_JSON}" ',
         "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
         "skip_flakes": "--skip-flake" if skip_flakes else "",
+        "gotestsum_format": "standard-verbose" if verbose else "pkgname",
     }
 
     # Test
