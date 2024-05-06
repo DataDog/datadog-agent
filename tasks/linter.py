@@ -119,7 +119,7 @@ def go(
     headless_mode=False,
     include_sds=False,
     only_modified_packages=False,
-    platform=None,  # noqa: U100. Used by the run_on_devcontainer decorator
+    run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
     Run go linters on the given module and targets.
