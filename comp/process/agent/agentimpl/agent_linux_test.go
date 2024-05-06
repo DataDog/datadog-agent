@@ -214,7 +214,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 		Module(),
 		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
 			"process_config.run_in_core_agent.enabled": true,
-			"telemetry.enabled": true,
+			"telemetry.enabled":                        true,
 		}}),
 		processcheckimpl.MockModule(),
 		fx.Provide(func() func(c *checkMocks.Check) {
