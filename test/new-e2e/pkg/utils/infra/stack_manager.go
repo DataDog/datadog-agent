@@ -344,10 +344,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 
 	//initialize datadog event sender
 	if datadodatadogEventSender == nil {
-		datadodatadogEventSender, err = newDatadogEventSender(logger)
-		if err != nil {
-			fmt.Fprintf(logger, "error when creating datadog event sender: %v\n", err)
-		}
+		datadodatadogEventSender = newDatadogEventSender(logger)
 	}
 
 	var upResult auto.UpResult
