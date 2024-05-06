@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	FxVersion    = "APPSVC_RUN_ZIP"
+	FxVersion    = "LINUX_FX_VERSION"
 	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 )
 
