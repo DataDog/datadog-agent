@@ -1400,6 +1400,8 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 		return
 	}
 
+	log.Infof("Loading proxy settings")
+
 	lookupEnvCaseInsensitive := func(key string) (string, bool) {
 		value, found := os.LookupEnv(key)
 		if !found {
