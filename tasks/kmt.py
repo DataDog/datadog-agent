@@ -977,12 +977,12 @@ def build(
 
     assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
+    if component == "security-agent":  # security-agent build does not build ebpf files by default
+        cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
+
     cc.exec(
         f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.build --no-bundle",
     )
-
-    if component == "security-agent":  # security-agent build does not build ebpf files by default
-        cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
 
