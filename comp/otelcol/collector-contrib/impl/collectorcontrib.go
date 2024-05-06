@@ -134,6 +134,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/splunkhecreceiver"
 
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sqlqueryreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sqlserverreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sshcheckreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/statsdreceiver"
@@ -164,7 +165,6 @@ import (
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.uber.org/multierr"
 	// temporarily disabled
-	//"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awscontainerinsightreceiver"
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/datadogreceiver"
@@ -186,7 +186,7 @@ func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, erro
 	connectorsList := []connector.Factory{
 		forwardconnector.NewFactory(),
 		countconnector.NewFactory(),
-		// datadogconnector.NewFactory(),
+		datadogconnector.NewFactory(),
 		exceptionsconnector.NewFactory(),
 		grafanacloudconnector.NewFactory(),
 		routingconnector.NewFactory(),
