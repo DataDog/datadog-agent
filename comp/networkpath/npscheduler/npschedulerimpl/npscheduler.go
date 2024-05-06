@@ -8,40 +8,11 @@ package npschedulerimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-type dependencies struct {
-	fx.In
-
-	EpForwarder eventplatform.Component
-}
-
-type provides struct {
-	fx.Out
-
-	Comp npscheduler.Component
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newNpScheduler),
-	)
-}
-
-func newNpScheduler(deps dependencies) provides {
-	// Component initialization
-	return provides{
-		Comp: newNpSchedulerImpl(deps.EpForwarder),
-	}
-}
 
 type npSchedulerImpl struct {
 	epForwarder eventplatform.Component
+	enabled     bool
 }
 
 func (s *npSchedulerImpl) Schedule(_ string, _ uint16) error {
@@ -49,8 +20,19 @@ func (s *npSchedulerImpl) Schedule(_ string, _ uint16) error {
 	return nil
 }
 
+func (s *npSchedulerImpl) Enabled() bool {
+	return s.enabled
+}
+
+func newNoopNpSchedulerImpl() *npSchedulerImpl {
+	return &npSchedulerImpl{
+		enabled: false,
+	}
+}
+
 func newNpSchedulerImpl(epForwarder eventplatform.Component) *npSchedulerImpl {
 	return &npSchedulerImpl{
+		enabled:     true,
 		epForwarder: epForwarder,
 	}
 }

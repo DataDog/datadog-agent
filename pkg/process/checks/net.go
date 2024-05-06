@@ -122,8 +122,6 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
 
-	c.networkPathEnabled = c.sysprobeYamlConfig.GetBool("network_path.enabled")
-
 	// LocalResolver is a singleton LocalResolver
 	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(c.wmeta), clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
 	c.localresolver.Run()
@@ -516,7 +514,7 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 }
 
 func (c *ConnectionsCheck) scheduleNetworkPath(_ []*model.Connection) {
-	if !c.networkPathEnabled {
+	if !c.npScheduler.Enabled() {
 		return
 	}
 	// TODO: IMPLEMENTATION IN SEPARATE PR (to make PRs easier to review)
