@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Package payload contains Network Path payload
 package payload
 
 import "github.com/DataDog/datadog-agent/pkg/network"
