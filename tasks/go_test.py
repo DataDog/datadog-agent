@@ -345,7 +345,7 @@ def test(
     """
     sanitize_env_vars()
 
-    modules, flavor = process_input_args(module, targets, flavor)
+    modules, flavor = process_input_args(ctx, module, targets, flavor)
 
     unit_tests_tags = compute_build_tags_for_flavor(
         flavor=flavor,
@@ -476,7 +476,7 @@ def codecov(
     targets=None,
     flavor=None,
 ):
-    modules, flavor = process_input_args(module, targets, flavor)
+    modules, flavor = process_input_args(ctx, module, targets, flavor)
 
     codecov_flavor(ctx, flavor, modules)
 
