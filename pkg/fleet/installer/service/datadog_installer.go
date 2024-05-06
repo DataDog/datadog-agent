@@ -165,6 +165,12 @@ func startInstallerStable(ctx context.Context) (err error) {
 func RemoveInstaller(ctx context.Context) {
 	for _, unit := range installerUnits {
 		if err := stopUnit(ctx, unit); err != nil {
+			exitErr, ok := err.(*exec.ExitError)
+			// unit is not installed, avoid noisy warn logs
+			// https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#Process%20Exit%20Codes
+			if ok && exitErr.ExitCode() == 5 {
+				continue
+			}
 			log.Warnf("Failed stop unit %s: %s", unit, err)
 		}
 		if err := disableUnit(ctx, unit); err != nil {
