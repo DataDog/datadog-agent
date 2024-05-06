@@ -1,7 +1,6 @@
 import base64
 import os
 import platform
-import re
 import subprocess
 from typing import List
 
@@ -14,8 +13,6 @@ except ImportError:
 from invoke.exceptions import Exit
 
 __all__ = ["GithubAPI"]
-
-errno_regex = re.compile(r".*\[Errno (\d+)\] (.*)")
 
 
 class GithubAPI:
@@ -212,18 +209,21 @@ class GithubAPI:
             if content in comment.body:
                 return comment
 
+    def get_pr(self, pr_id: int):
+        return self._repository.get_pull(pr_id)
+
     def add_pr_label(self, pr_id: int, label: str) -> None:
         """
         Tries to add a label to the pull request
         """
-        pr = self._repository.get_pull(pr_id)
+        pr = self.get_pr(pr_id)
         pr.add_to_labels(label)
 
     def get_pr_labels(self, pr_id: int) -> List[str]:
         """
         Returns the labels of a pull request
         """
-        pr = self._repository.get_pull(pr_id)
+        pr = self.get_pr(pr_id)
 
         return [label.name for label in pr.get_labels()]
 
@@ -231,7 +231,7 @@ class GithubAPI:
         """
         Returns the files involved in the PR
         """
-        pr = self._repository.get_pull(pr_id)
+        pr = self.get_pr(pr_id)
 
         return [f.filename for f in pr.get_files()]
 
