@@ -692,7 +692,7 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
         with open(manifest_file_path) as f:
             manifest = json.load(f)
 
-        # Figure out whether the integration is supported on the target oS
+        # Figure out whether the integration is supported on the target OS
         if 'supported_os' in manifest:
             if target_os not in manifest['supported_os']:
                 continue
