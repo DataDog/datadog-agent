@@ -231,6 +231,6 @@ func PackageURL(site string, pkg string, version string) string {
 	case "datad0g.com":
 		return fmt.Sprintf("oci://docker.io/datadog/%s-package-dev:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	default:
-		return fmt.Sprintf("oci://public.ecr.aws/datadog/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+		return fmt.Sprintf("oci://gcr.io/datadoghq/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	}
 }
