@@ -19,7 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -46,6 +48,7 @@ func (c *Check) Run() error {
 	if err != nil {
 		return err
 	}
+	metricSender := metricsender.NewMetricSenderAgent(senderInstance)
 
 	cfg := traceroute.Config{
 		DestHostname: c.config.DestHostname,
@@ -76,7 +79,8 @@ func (c *Check) Run() error {
 
 	metricTags := c.getCommonTagsForMetrics()
 	metricTags = append(metricTags, commonTags...)
-	c.submitTelemetryMetrics(senderInstance, path, startTime, metricTags)
+
+	c.submitTelemetry(metricSender, path, metricTags, startTime)
 
 	senderInstance.Commit()
 	return nil
@@ -121,27 +125,14 @@ func (c *Check) SendNetPathMDToEP(sender sender.Sender, path payload.NetworkPath
 	return nil
 }
 
-func (c *Check) submitTelemetryMetrics(senderInstance sender.Sender, path payload.NetworkPath, startTime time.Time, tags []string) {
-	newTags := utils.CopyStrings(tags)
-
-	checkDuration := time.Since(startTime)
-	senderInstance.Gauge("datadog.network_path.check_duration", checkDuration.Seconds(), "", newTags)
-
+func (c *Check) submitTelemetry(metricSender metricsender.MetricSender, path payload.NetworkPath, metricTags []string, startTime time.Time) {
+	var checkInterval time.Duration
 	if !c.lastCheckTime.IsZero() {
-		checkInterval := startTime.Sub(c.lastCheckTime)
-		senderInstance.Gauge("datadog.network_path.check_interval", checkInterval.Seconds(), "", newTags)
+		checkInterval = startTime.Sub(c.lastCheckTime)
 	}
 	c.lastCheckTime = startTime
-
-	senderInstance.Gauge("datadog.network_path.path.monitored", float64(1), "", newTags)
-	if len(path.Hops) > 0 {
-		lastHop := path.Hops[len(path.Hops)-1]
-		if lastHop.Success {
-			senderInstance.Gauge("datadog.network_path.path.hops", float64(len(path.Hops)), "", newTags)
-		}
-		senderInstance.Gauge("datadog.network_path.path.reachable", float64(utils.BoolToFloat64(lastHop.Success)), "", newTags)
-		senderInstance.Gauge("datadog.network_path.path.unreachable", float64(utils.BoolToFloat64(!lastHop.Success)), "", newTags)
-	}
+	checkDuration := time.Since(startTime)
+	telemetry.SubmitNetworkPathTelemetry(metricSender, path, checkDuration, checkInterval, metricTags)
 }
 
 // Interval returns the scheduling time for the check
