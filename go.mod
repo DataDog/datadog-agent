@@ -267,7 +267,7 @@ require (
 	go.opentelemetry.io/collector/confmap v0.100.0
 	go.opentelemetry.io/collector/exporter v0.100.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.97.0
-	go.opentelemetry.io/collector/exporter/otlpexporter v0.98.0
+	go.opentelemetry.io/collector/exporter/otlpexporter v0.100.0
 	go.opentelemetry.io/collector/pdata v1.7.0
 	go.opentelemetry.io/collector/processor/batchprocessor v0.100.0
 	go.opentelemetry.io/collector/receiver v0.100.0
@@ -981,6 +981,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/remotetapprocessor v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor v0.99.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.98.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanprocessor v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/sumologicprocessor v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.100.0 // indirect

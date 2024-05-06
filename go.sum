@@ -2557,6 +2557,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedete
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor v0.99.0/go.mod h1:ZEfo92OtOsUC8A85caKlUWP3sXULpAfJphxAJYAmVXA=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.98.0 h1:+xPdlUjZiMTRrZK059U8zPP/IlhYoDt8jT+WpdT+9WE=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.98.0/go.mod h1:8+Kko3psy8Wmkc1q8dpnxzaw9ZbzYHeFovb8ozyr5FM=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor v0.100.0 h1:8PqhG3bht/NuDHRlR7vBomNIv3WvaavnnumzKGoh6GU=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor v0.100.0/go.mod h1:ekISZC9Z+ZUEOa53Ja7aDuo0gfA4RqFUKtGQlPS1r+U=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanprocessor v0.98.0 h1:ldjSfqmbmiv0MuUdp3ey/pLxo9fPyLNW7qozl/EtcHQ=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanprocessor v0.98.0/go.mod h1:7m75cmrBbgROWDE+CSg6gB4qtPTGEt0kEMiG8hHaVA8=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/sumologicprocessor v0.98.0 h1:4GymMpunrq4Z0lv+K1bl1v4X1GYAK29UAX0NTWSHpSc=
@@ -3340,6 +3342,8 @@ go.opentelemetry.io/collector/exporter/loggingexporter v0.97.0 h1:avSUMkwU3b7Olr
 go.opentelemetry.io/collector/exporter/loggingexporter v0.97.0/go.mod h1:wT/uTcbmw01Uxgsb370KVffXIGypXikZxk7KQDynLnk=
 go.opentelemetry.io/collector/exporter/otlpexporter v0.98.0 h1:uhiR/luaJCwMnvvkIS/gIxBbSAp+/vbqeC3AXmuc/kg=
 go.opentelemetry.io/collector/exporter/otlpexporter v0.98.0/go.mod h1:1ySnK/6Cl+67FTP6ty04PX9nrXPYFPuBqZ+Xn9Jzz6Y=
+go.opentelemetry.io/collector/exporter/otlpexporter v0.100.0 h1:mafUk/1VLhPyGgCeGHDNNbpSOqE14ijy4S3oYL8vDMA=
+go.opentelemetry.io/collector/exporter/otlpexporter v0.100.0/go.mod h1:j9b9/HTwRR4VEPEnhoV9hiXf4tyUekz8d0KOlY2XqzE=
 go.opentelemetry.io/collector/exporter/otlphttpexporter v0.95.0 h1:qYwzbWoO0+lo8ZCvlJnejTLaidnPmfNB4JbIzQ5isHY=
 go.opentelemetry.io/collector/exporter/otlphttpexporter v0.95.0/go.mod h1:GuZWJMiyHXmLQTKMdniu4uNScrAuUSkp2RSW7+zDjpY=
 go.opentelemetry.io/collector/exporter/otlphttpexporter v0.96.0 h1:c7pBEGYxlsnPPfs4ECIr2E+mEh25OTV+v20tv3pCIyU=
