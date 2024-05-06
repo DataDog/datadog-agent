@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, cast
 import yaml
 
 from tasks.kernel_matrix_testing.tool import Exit
-from tasks.pipeline import GitlabYamlLoader
+from tasks.libs.ciproviders.gitlab import ReferenceTag
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import (
@@ -39,8 +39,9 @@ def filter_by_ci_component(platforms: Platforms, component: Component) -> Platfo
     target_file = (
         Path(__file__).parent.parent.parent / ".gitlab" / "kernel_matrix_testing" / f"{component.replace('-', '_')}.yml"
     )
+    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     with open(target_file) as f:
-        ci_config = yaml.load(f, Loader=GitlabYamlLoader())
+        ci_config = yaml.safe_load(f)
 
     arch_ls: list[Arch] = ["x86_64", "arm64"]
     for arch in arch_ls:

@@ -76,7 +76,7 @@ jobs:
           TEST_VERSION_FLAG: ${{ inputs.test_version && '--test-version' || '--no-test-version' }}
         run: |
           if [ "${{ steps.current_go_version.outputs.GO_VERSION }}" = "${{ inputs.go_version }}" ]; then
-            inv -e buildimages.update --image-tag ${{ inputs.images_id }} $TEST_VERSION_FLAG
+            inv -e buildimages.update --version ${{ inputs.images_id }} $TEST_VERSION_FLAG
             echo 'MESSAGE=Update buildimages ID to ${{ inputs.images_id }}' >> $GITHUB_OUTPUT
           else
             inv -e update-go --image-tag ${{ inputs.images_id }} $TEST_VERSION_FLAG -v "${{ inputs.go_version }}"

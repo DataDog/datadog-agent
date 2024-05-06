@@ -4,7 +4,7 @@ unit_tests_arm64_windows_junit_upload:
   rules:
     - !reference [.except_mergequeue]
     - when: always
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64_VERSION
   tags: ["arch:amd64"]
   allow_failure: true
   needs:
@@ -22,7 +22,7 @@ kmt_arm64_junit_upload:
   rules:
     - !reference [.except_mergequeue]
     - when: always
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64_VERSION
   tags: ["arch:amd64"]
   allow_failure: true
   needs:
