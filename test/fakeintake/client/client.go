@@ -44,6 +44,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"regexp"
 	"strings"
@@ -82,13 +83,19 @@ const (
 // ErrNoFlareAvailable is returned when no flare is available
 var ErrNoFlareAvailable = errors.New("no flare available")
 
+// ErrFakeintakeRestarted is returned when fakeintake is restarted
+var ErrFakeintakeRestarted = errors.New("fakeintake restarted")
+
+// ErrFakeintakeTimeout is returned when fakeintake times out
+var ErrFakeintakeTimeout = errors.New("fakeintake timeout")
+
 // Option is a configuration option for the client
 type Option func(*Client)
 
-// WithStrictFakeintakeIDCheck enables strict fakeintake ID check
-func WithStrictFakeintakeIDCheck() Option {
+// WithoutStrictFakeintakeIDCheck disables strict fakeintake ID check
+func WithoutStrictFakeintakeIDCheck() Option {
 	return func(c *Client) {
-		c.strictFakeintakeIDCheck = true
+		c.strictFakeintakeIDCheck = false
 	}
 }
 
@@ -121,6 +128,7 @@ type Client struct {
 // fakeIntakeURL: the host of the fake Datadog intake server
 func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 	client := &Client{
+		strictFakeintakeIDCheck:        true,
 		fakeintakeIDMutex:              sync.RWMutex{},
 		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:               aggregator.NewMetricAggregator(),
@@ -802,9 +810,13 @@ func (c *Client) get(route string) ([]byte, error) {
 	var body []byte
 	err := backoff.Retry(func() error {
 		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
+		if err, ok := err.(net.Error); ok && err.Timeout() {
+			return ErrFakeintakeTimeout
+		}
 		if err != nil {
 			return err
 		}
+
 		defer tmpResp.Body.Close()
 		if tmpResp.StatusCode != http.StatusOK {
 			return fmt.Errorf("expected %d got %d", http.StatusOK, tmpResp.StatusCode)
@@ -821,7 +833,7 @@ func (c *Client) get(route string) ([]byte, error) {
 				currentFakeintakeID := c.fakeintakeID
 				c.fakeintakeIDMutex.RUnlock()
 				if currentFakeintakeID != tmpResp.Header.Get("Fakeintake-ID") {
-					return fmt.Errorf("fakeintake probably restarted: expected fakeintake ID %s got %s", currentFakeintakeID, tmpResp.Header.Get("Fakeintake-ID"))
+					return fmt.Errorf("expected %s got %s: %w", currentFakeintakeID, tmpResp.Header.Get("Fakeintake-ID"), ErrFakeintakeRestarted)
 				}
 			}
 		}
