@@ -130,11 +130,10 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/snmpreceiver"
 
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/snowflakereceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/solacereceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/splunkhecreceiver"
-
-	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sqlqueryreceiver"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sqlqueryreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sqlserverreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sshcheckreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/statsdreceiver"
@@ -302,7 +301,7 @@ func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, erro
 		// snowflakereceiver.NewFactory(),
 		solacereceiver.NewFactory(),
 		splunkhecreceiver.NewFactory(),
-		// sqlqueryreceiver.NewFactory(),
+		sqlqueryreceiver.NewFactory(),
 		sqlserverreceiver.NewFactory(),
 		sshcheckreceiver.NewFactory(),
 		statsdreceiver.NewFactory(),
