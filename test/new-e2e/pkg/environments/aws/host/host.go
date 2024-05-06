@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
 	"github.com/DataDog/test-infra-definitions/common/utils"
@@ -35,22 +36,24 @@ const (
 type ProvisionerParams struct {
 	name string
 
-	instanceOptions   []ec2.VMOption
-	agentOptions      []agentparams.Option
-	fakeintakeOptions []fakeintake.Option
-	extraConfigParams runner.ConfigMap
-	installDocker     bool
-	installUpdater    bool
+	instanceOptions    []ec2.VMOption
+	agentOptions       []agentparams.Option
+	agentClientOptions []agentclientparams.Option
+	fakeintakeOptions  []fakeintake.Option
+	extraConfigParams  runner.ConfigMap
+	installDocker      bool
+	installUpdater     bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
 	// We use nil arrays to decide if we should create or not
 	return &ProvisionerParams{
-		name:              defaultVMName,
-		instanceOptions:   []ec2.VMOption{},
-		agentOptions:      []agentparams.Option{},
-		fakeintakeOptions: []fakeintake.Option{},
-		extraConfigParams: runner.ConfigMap{},
+		name:               defaultVMName,
+		instanceOptions:    []ec2.VMOption{},
+		agentOptions:       []agentparams.Option{},
+		agentClientOptions: []agentclientparams.Option{},
+		fakeintakeOptions:  []fakeintake.Option{},
+		extraConfigParams:  runner.ConfigMap{},
 	}
 }
 
@@ -87,6 +90,14 @@ func WithEC2InstanceOptions(opts ...ec2.VMOption) ProvisionerOption {
 func WithAgentOptions(opts ...agentparams.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = append(params.agentOptions, opts...)
+		return nil
+	}
+}
+
+// WithAgentClientOptions adds options to the Agent client.
+func WithAgentClientOptions(opts ...agentclientparams.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.agentClientOptions = append(params.agentClientOptions, opts...)
 		return nil
 	}
 }
@@ -248,6 +259,8 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 		// Suite inits all fields by default, so we need to explicitly set it to nil
 		env.Agent = nil
 	}
+
+	env.AgentClientOptions = params.agentClientOptions
 
 	return nil
 }

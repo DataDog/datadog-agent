@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	dto "github.com/prometheus/client_model/go"
 	promOtel "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.uber.org/fx"
 
@@ -100,7 +99,7 @@ func (t *telemetryImpl) UnregisterCollector(c prometheus.Collector) bool {
 	return registry.Unregister(c)
 }
 
-func (t *telemetryImpl) Meter(name string, opts ...metric.MeterOption) metric.Meter {
+func (t *telemetryImpl) Meter(name string, opts ...telemetry.MeterOption) metric.Meter {
 	return t.meterProvider.Meter(name, opts...)
 }
 
@@ -248,7 +247,7 @@ func (t *telemetryImpl) mustRegister(c prometheus.Collector, opts telemetry.Opti
 	}
 }
 
-func (t *telemetryImpl) Gather(defaultGather bool) ([]*dto.MetricFamily, error) {
+func (t *telemetryImpl) Gather(defaultGather bool) ([]*telemetry.MetricFamily, error) {
 	if defaultGather {
 		return t.defaultRegistry.Gather()
 	}

@@ -6,6 +6,12 @@
 // Package traceroute adds traceroute functionality to the agent
 package traceroute
 
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
+)
+
 type (
 	// Config specifies the configuration of an instance
 	// of Traceroute
@@ -24,7 +30,7 @@ type (
 	// Traceroute defines an interface for running
 	// traceroutes for the Network Path integration
 	Traceroute interface {
-		Run() (NetworkPath, error)
+		Run(context.Context) (NetworkPath, error)
 	}
 
 	// NetworkPathHop encapsulates the data for a single
@@ -40,7 +46,9 @@ type (
 	// NetworkPathSource encapsulates information
 	// about the source of a path
 	NetworkPathSource struct {
-		Hostname string `json:"hostname"`
+		Hostname  string       `json:"hostname"`
+		Via       *network.Via `json:"via"`
+		NetworkID string       `json:"network_id"` // Today this will be a VPC ID since we only resolve AWS resources
 	}
 
 	// NetworkPathDestination encapsulates information
@@ -54,6 +62,7 @@ type (
 	// path between two hosts as mapped by the agent
 	NetworkPath struct {
 		Timestamp   int64                  `json:"timestamp"`
+		Namespace   string                 `json:"namespace"` // namespace used to resolve NDM resources
 		PathID      string                 `json:"path_id"`
 		Source      NetworkPathSource      `json:"source"`
 		Destination NetworkPathDestination `json:"destination"`
