@@ -259,21 +259,6 @@ func setupLambdaAgentOverrides() {
 	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
 }
 
-func startColdStartSpanCreator(lambdaSpanChan chan *pb.Span, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric, serverlessDaemon *daemon.Daemon, coldStartSpanId uint64) {
-	coldStartSpanCreator := &trace.ColdStartSpanCreator{
-		LambdaSpanChan:       lambdaSpanChan,
-		LambdaInitMetricChan: lambdaInitMetricChan,
-		TraceAgent:           serverlessDaemon.TraceAgent,
-		StopChan:             make(chan struct{}),
-		ColdStartSpanId:      coldStartSpanId,
-	}
-
-	log.Debug("Starting ColdStartSpanCreator")
-	coldStartSpanCreator.Run()
-	log.Debug("Setting ColdStartSpanCreator on Daemon")
-	serverlessDaemon.SetColdStartSpanCreator(coldStartSpanCreator)
-}
-
 func startAppSec(serverlessDaemon *daemon.Daemon) *httpsec.ProxyLifecycleProcessor {
 	appsecProxyProcessor, err := appsec.New(serverlessDaemon.MetricAgent.Demux)
 	if err != nil {
