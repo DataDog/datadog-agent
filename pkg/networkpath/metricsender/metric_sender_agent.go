@@ -13,7 +13,7 @@ type agentMetricSender struct {
 }
 
 // Compile-time check to ensure that agentMetricSender conforms to the MetricSender interface
-var _ MetricSender = &agentMetricSender{}
+var _ MetricSender = (*agentMetricSender)(nil)
 
 // NewMetricSenderAgent creates a new agentMetricSender
 func NewMetricSenderAgent(sender sender.Sender) MetricSender {

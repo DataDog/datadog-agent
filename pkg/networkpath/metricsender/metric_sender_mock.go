@@ -25,7 +25,7 @@ type MockMetricSender struct {
 }
 
 // Compile-time check to ensure that MockMetricSender conforms to the MetricSender interface
-var _ MetricSender = &MockMetricSender{}
+var _ MetricSender = (*MockMetricSender)(nil)
 
 // NewMetricSenderMock constructor
 func NewMetricSenderMock() MetricSender {

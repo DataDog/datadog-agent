@@ -15,7 +15,7 @@ func NewMetricSenderStatsd() MetricSender {
 }
 
 // Compile-time check to ensure that metricSenderStatsd conforms to the MetricSender interface
-var _ MetricSender = &metricSenderStatsd{}
+var _ MetricSender = (*metricSenderStatsd)(nil)
 
 // Gauge metric sender
 func (s metricSenderStatsd) Gauge(metricName string, value float64, tags []string) {
