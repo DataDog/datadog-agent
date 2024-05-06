@@ -45,18 +45,6 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    struct bpf_sock *sk = skb->sk;
-    log_debug("skb %p sk %p", skb, sk);
-    log_debug("skb %p sport %u dport %u", skb, kafka->tup.sport, kafka->tup.dport);
-    if (sk) {
-        int ret = bpf_map_update_elem(&kafka_sockmap, &zero, sk, BPF_ANY);
-        log_debug("map update ret %d", ret);
-        if (ret == 1000) {
-            return 0;
-        }
-    }
-
-
     if (!kafka_allow_packet(kafka, skb, &skb_info)) {
         return 0;
     }

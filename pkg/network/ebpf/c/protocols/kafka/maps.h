@@ -31,6 +31,5 @@
     BPF_PERCPU_ARRAY_MAP(kafka_topic_name, char [TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE], 1)
 #endif
                                                                                                           
-BPF_MAP(kafka_sockmap, BPF_MAP_TYPE_SOCKMAP, int, int, 20, 0, 0);
 
 #endif

@@ -33,7 +33,6 @@ const (
 	dispatcherTailCall                       = "socket__protocol_dispatcher_kafka"
 	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
 	kafkaHeapMap                             = "kafka_heap"
-	kafkaSockMap                             = "kafka_sockmap"
 	kafkaStreamParser                        = "sk_skb__kafka_stream_parser"
 )
 
@@ -46,9 +45,6 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: kafkaHeapMap,
-		},
-		{
-			Name: kafkaSockMap,
 		},
 	},
 	Probes: []*manager.Probe{
@@ -109,16 +105,6 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 
 // PreStart creates the kafka events consumer and starts it.
 func (p *protocol) PreStart(mgr *manager.Manager) error {
-	// probe, found := mgr.GetProbe(manager.ProbeIdentificationPair{
-	// 	EBPFFuncName: kafkaStreamParser,
-	// })
-	// if found {
-	// 	sockmap, found, _ := mgr.GetMap(kafkaSockMap)
-	// 	if found {
-	// 		probe.SockMap = sockmap
-	// 	}
-	// }
-
 	var err error
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStreamName,
