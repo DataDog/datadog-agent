@@ -8,7 +8,9 @@
 package agentimpl
 
 import (
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -16,6 +18,8 @@ import (
 
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
@@ -195,4 +199,53 @@ func TestStatusProvider(t *testing.T) {
 			assert.IsType(t, tc.expected, provides.StatusProvider.Provider)
 		})
 	}
+}
+
+func TestTelemetryCoreAgent(t *testing.T) {
+	originalFlavor := flavor.GetFlavor()
+	defer flavor.SetFlavor(originalFlavor)
+	flavor.SetFlavor("agent")
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		runnerimpl.Module(),
+		hostinfoimpl.MockModule(),
+		submitterimpl.MockModule(),
+		taggerimpl.MockModule(),
+		Module(),
+		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
+			"process_config.run_in_core_agent.enabled": true,
+			"telemetry.enabled": true,
+		}}),
+		processcheckimpl.MockModule(),
+		fx.Provide(func() func(c *checkMocks.Check) {
+			return func(c *checkMocks.Check) {
+				c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
+				c.On("Name").Return(checks.ProcessCheckName).Maybe()
+				c.On("SupportsRunOptions").Return(false).Maybe()
+				c.On("Realtime").Return(false).Maybe()
+				c.On("Cleanup").Maybe()
+				c.On("Run", mock.Anything, mock.Anything).Return(&checks.StandardRunResult{}, nil).Maybe()
+				c.On("ShouldSaveLastRun").Return(false).Maybe()
+				c.On("IsEnabled").Return(true).Maybe()
+			}
+		}),
+	))
+	_ = newProcessAgent(deps)
+
+	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	tel.Reset()
+	// Setup expvar server
+	telemetryHandler := tel.Handler()
+
+	http.Handle("/telemetry", telemetryHandler)
+
+	assert.Eventually(t, func() bool {
+		res, err := http.Get("http://localhost:5000/telemetry")
+		if err != nil {
+			return false
+		}
+		defer res.Body.Close()
+
+		return res.StatusCode == http.StatusOK
+	}, 5*time.Second, time.Second)
 }
