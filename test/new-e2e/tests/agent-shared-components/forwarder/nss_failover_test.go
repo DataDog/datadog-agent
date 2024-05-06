@@ -95,7 +95,7 @@ func multiFakeIntakeAWS(agentOptions ...agentparams.Option) e2e.Provisioner {
 		}
 		host.Export(ctx, &env.Host.HostOutput)
 
-		agent, err := agent.NewHostAgent(awsEnv.CommonEnvironment, host, agentOptions...)
+		agent, err := agent.NewHostAgent(&awsEnv, host, agentOptions...)
 		if err != nil {
 			return err
 		}
