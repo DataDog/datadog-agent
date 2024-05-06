@@ -15,11 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"go.uber.org/atomic"
 	"os"
@@ -53,8 +54,14 @@ func main() {
 		run,
 		autodiscoveryimpl.Module(),
 		workloadmeta.Module(),
+		fx.Provide(func(config coreconfig.Component) healthprobe.Options {
+			return healthprobe.Options{
+				Port:           config.GetInt("health_port"),
+				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
+			}
+		}),
+		healthprobeimpl.Module(),
 		fx.Supply(workloadmeta.NewParams()),
-		tagger.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
 		fx.Supply(core.BundleParams{
 			ConfigParams: coreconfig.NewParams("", coreconfig.WithConfigMissingOK(true)),
@@ -108,8 +115,6 @@ func setup() (cloudservice.CloudService, *serverlessInitLog.Config, *trace.Serve
 	}
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags)
 
-	setupHealthCheck()
-
 	traceAgent := &trace.ServerlessTraceAgent{}
 	go setupTraceAgent(traceAgent, tags)
 
@@ -121,18 +126,6 @@ func setup() (cloudservice.CloudService, *serverlessInitLog.Config, *trace.Serve
 	go flushMetricsAgent(metricAgent)
 	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
 }
-
-func setupHealthCheck() {
-	healthPort := pkgconfig.Datadog.GetInt("health_port")
-	if healthPort > 0 {
-		err := healthprobe.Serve(context.Background(), pkgconfig.Datadog, healthPort)
-		if err != nil {
-			log.Errorf("Error starting health port, exiting: %v", err)
-		}
-		log.Debugf("Health check listening on port %d", healthPort)
-	}
-}
-
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
 	traceAgent.Start(pkgconfig.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
 	traceAgent.SetTags(tag.GetBaseTagsMapWithMetadata(tags))
