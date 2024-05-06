@@ -10,14 +10,16 @@ package usm
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uptrace/bun"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 )
@@ -54,8 +56,8 @@ func getPostgresDefaultTestConfiguration() *config.Config {
 func prepareTestDB(t *testing.T, ctx testContext) {
 	postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
 	postgres.RunCreateQuery(t, ctx.extras)
-	for i := 0; i < 50; i++ {
-		postgres.RunInsertQueryWithString(t, fmt.Sprintf("val-%d", i), ctx.extras)
+	for i := 0; i < 20; i++ {
+		postgres.RunInsertMultiQueryWithString(t, fmt.Sprintf("value-%d-", i+1), 5, ctx.extras)
 	}
 }
 
@@ -76,6 +78,30 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 			setupUSMTLSMonitor(t, cfg)
 		})
 	}
+}
+
+func getAndValidatePostgresStats(t *testing.T, monitor *Monitor, expectedStatsCount int) map[postgres.Key]*postgres.RequestStat {
+	statsCount := PrintableInt(0)
+	postgresStats := make(map[postgres.Key]*postgres.RequestStat)
+	require.Eventually(t, func() bool {
+		protocolStats := monitor.GetProtocolStats()
+		postgresProtocolStats, exists := protocolStats[protocols.Postgres]
+		// We might not have postgres stats, and it might be the expected case (to capture 0).
+		if exists {
+			currentStats := postgresProtocolStats.(map[postgres.Key]*postgres.RequestStat)
+			for key, stats := range currentStats {
+				prevStats, ok := postgresStats[key]
+				if ok && prevStats != nil {
+					prevStats.CombineWith(stats)
+				} else {
+					postgresStats[key] = currentStats[key]
+				}
+			}
+		}
+		statsCount = PrintableInt(len(postgresStats))
+		return expectedStatsCount == len(postgresStats)
+	}, time.Second*5, time.Millisecond*100, "Expected to find a %d stats, instead captured %v", expectedStatsCount, &statsCount)
+	return postgresStats
 }
 
 func (s *postgresProtocolParsingSuite) TestDecoding() {
@@ -113,9 +139,23 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			},
 			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				prepareTestDB(t, ctx)
-				postgres.RunSelectQuery(t, ctx.extras)
-
-				// TODO: Add validation
+				postgres.RunSelectQuery(t, ctx.extras, 50)
+				postgres.RunUpdateQuery(t, ctx.extras)
+				// 1 create, 1 inserts, 1 select, 1 update
+				stats := getAndValidatePostgresStats(t, monitor, 2*(1+1+1+1))
+				for key, stat := range stats {
+					require.Equal(t, "dummy", key.TableName)
+					switch key.Operation {
+					case "SELECT":
+						require.Equal(t, 1, stat.Count)
+					case "UPDATE":
+						require.Equal(t, 1, stat.Count)
+					case "INSERT":
+						require.Equal(t, 20, stat.Count)
+					case "CREATE":
+						require.Equal(t, 1, stat.Count)
+					}
+				}
 			},
 			teardown:      postgresTeardown,
 			configuration: getPostgresDefaultTestConfiguration,

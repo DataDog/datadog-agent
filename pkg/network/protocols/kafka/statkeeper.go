@@ -56,6 +56,7 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 		requestStats = new(RequestStat)
 		statKeeper.stats[key] = requestStats
 	}
+	// TODO: Use combine with
 	requestStats.Count += int(tx.RecordsCount())
 }
 

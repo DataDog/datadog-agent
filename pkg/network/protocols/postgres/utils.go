@@ -8,6 +8,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -127,12 +128,24 @@ func RunInsertQueryWithString(t *testing.T, val string, extras map[string]interf
 	require.NoError(t, err)
 }
 
-// RunSelectQuery runs a SELECT query on the test DB.
-func RunSelectQuery(t *testing.T, extras map[string]interface{}) {
+func RunInsertMultiQueryWithString(t *testing.T, template string, len int, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
 
-	_, err := db.NewSelect().Model(dummyModel).Exec(ctx)
+	values := make([]DummyTable, len)
+	for i := 0; i < len; i++ {
+		values[i] = DummyTable{Foo: fmt.Sprintf(template, i+1)}
+	}
+	_, err := db.NewInsert().Model(&values).Exec(ctx)
+	require.NoError(t, err)
+}
+
+// RunSelectQuery runs a SELECT query on the test DB.
+func RunSelectQuery(t *testing.T, extras map[string]interface{}, limit int) {
+	t.Helper()
+	db, ctx := getCtx(extras)
+
+	_, err := db.NewSelect().Limit(limit).Model(dummyModel).Exec(ctx)
 	require.NoError(t, err)
 }
 

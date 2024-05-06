@@ -9,22 +9,49 @@ package postgres
 
 import (
 	"io"
+	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/davecgh/go-spew/spew"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	inFlightMap     = "postgres_in_flight"
+	processTailCall = "socket__postgres_process"
+	eventStream     = "postgres"
 )
 
 // protocol holds the state of the postgres protocol monitoring.
 // Currently, it is an empty struct.
-type protocol struct{}
+type protocol struct {
+	cfg            *config.Config
+	eventsConsumer *events.Consumer[EbpfEvent]
+	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
+	statskeeper    *StatKeeper
+}
 
 // Spec is the protocol spec for the postgres protocol.
 var Spec = &protocols.ProtocolSpec{
 	Factory: newPostgresProtocol,
+	TailCalls: []manager.TailCallRoute{
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramPostgres),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: processTailCall,
+			},
+		},
+	},
 }
 
 func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
@@ -32,7 +59,10 @@ func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
 		return nil, nil
 	}
 
-	return &protocol{}, nil
+	return &protocol{
+		cfg:         cfg,
+		statskeeper: NewStatkeeper(cfg),
+	}, nil
 }
 
 // Name returns the name of the protocol.
@@ -41,40 +71,105 @@ func (p *protocol) Name() string {
 }
 
 // ConfigureOptions add the necessary options for the postgres monitoring to work, to be used by the manager.
-// Currently, a no-op.
-func (p *protocol) ConfigureOptions(*manager.Manager, *manager.Options) {
+func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
+	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	utils.EnableOption(opts, "postgres_monitoring_enabled")
+	// Configure event stream
+	events.Configure(p.cfg, eventStream, mgr, opts)
 }
 
 // PreStart runs setup required before starting the protocol.
-// Currently, a no-op.
-func (p *protocol) PreStart(*manager.Manager) error {
-	return nil
+func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
+	p.eventsConsumer, err = events.NewConsumer(
+		eventStream,
+		mgr,
+		p.processPostgres,
+	)
+	if err != nil {
+		return
+	}
+
+	p.eventsConsumer.Start()
+
+	return
 }
 
 // PostStart starts the map cleaner.
-// Currently, a no-op.
-func (p *protocol) PostStart(*manager.Manager) error {
+func (p *protocol) PostStart(mgr *manager.Manager) error {
+	// Setup map cleaner after manager start.
+	p.setupMapCleaner(mgr)
 	return nil
 }
 
 // Stop stops all resources associated with the protocol.
-// Currently, a no-op.
-func (p *protocol) Stop(*manager.Manager) {}
+func (p *protocol) Stop(*manager.Manager) {
+	// mapCleaner handles nil pointer receivers
+	p.mapCleaner.Stop()
+
+	if p.eventsConsumer != nil {
+		p.eventsConsumer.Stop()
+	}
+}
 
 // DumpMaps dumps map contents for debugging.
-// Currently, a no-op.
-func (p *protocol) DumpMaps(io.Writer, string, *ebpf.Map) {}
+func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
+	if mapName == inFlightMap { // maps/http_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
+		var key netebpf.ConnTuple
+		var value EbpfTx
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
+		iter := currentMap.Iterate()
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+	}
+}
 
-// GetStats returns a map of Postgres stats.
-// Currently, a no-op.
+// GetStats returns a map of Postgres statskeeper.
 func (p *protocol) GetStats() *protocols.ProtocolStats {
+	p.eventsConsumer.Sync()
+
 	return &protocols.ProtocolStats{
 		Type:  protocols.Postgres,
-		Stats: nil,
+		Stats: p.statskeeper.GetAndResetAllStats(),
 	}
 }
 
 // IsBuildModeSupported returns always true, as postgres module is supported by all modes.
 func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
+}
+
+func (p *protocol) processPostgres(events []EbpfEvent) {
+	for i := range events {
+		tx := &events[i]
+		p.statskeeper.Process(tx)
+	}
+}
+
+func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
+	postgresInflight, _, err := mgr.GetMap(inFlightMap)
+	if err != nil {
+		log.Errorf("error getting %s map: %s", inFlightMap, err)
+		return
+	}
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, EbpfTx](postgresInflight, 1024)
+	if err != nil {
+		log.Errorf("error creating map cleaner: %s", err)
+		return
+	}
+
+	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
+	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, key netebpf.ConnTuple, val EbpfTx) bool {
+		if updated := int64(val.Response_last_seen); updated > 0 {
+			return (now - updated) > ttl
+		}
+
+		started := int64(val.Request_started)
+		return started > 0 && (now-started) > ttl
+	})
+
+	p.mapCleaner = mapCleaner
 }
