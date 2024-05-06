@@ -124,12 +124,9 @@ build do
     copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
   end
 
-  # Build the process-agent with the correct go version for windows
-  arch_arg = windows_target? ? "--arch " + (windows_arch_i386? ? "x86" : "x64") : ""
-
   # Process agent
   if not bundled_agents.include? "process-agent"
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg} #{arch_arg} --no-bundle", :env => env
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg} --no-bundle", :env => env
   end
 
   if windows_target?
