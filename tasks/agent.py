@@ -693,14 +693,10 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
             manifest = json.load(f)
 
         # Figure out whether the integration is supported on the target OS
-        if 'supported_os' in manifest:
-            if target_os not in manifest['supported_os']:
-                continue
+        if target_os == 'mac_os':
+            tag = 'Supported OS::macOS'
         else:
-            if target_os == 'mac_os':
-                tag = 'Supported OS::macOS'
-            else:
-                tag = f'Supported OS::{target_os.capitalize()}'
+            tag = f'Supported OS::{target_os.capitalize()}'
 
         if tag not in manifest['tile']['classifier_tags']:
             continue
