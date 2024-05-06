@@ -40,8 +40,10 @@ func newNpScheduler(deps dependencies) provides {
 
 	networkPathEnabled := deps.Sysconfig.GetBool("network_path.enabled")
 	if networkPathEnabled {
+		deps.Logger.Debugf("Network Path Scheduler enabled")
 		scheduler = newNpSchedulerImpl(deps.EpForwarder)
 	} else {
+		deps.Logger.Debugf("Network Path Scheduler disabled")
 		scheduler = newNoopNpSchedulerImpl()
 	}
 
