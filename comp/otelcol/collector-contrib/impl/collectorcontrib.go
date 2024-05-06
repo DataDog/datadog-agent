@@ -122,8 +122,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/riakreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sapmreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/signalfxreceiver"
-
-	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/simpleprometheusreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/simpleprometheusreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/skywalkingreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/snmpreceiver"
 
@@ -294,7 +293,7 @@ func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, erro
 		riakreceiver.NewFactory(),
 		sapmreceiver.NewFactory(),
 		signalfxreceiver.NewFactory(),
-		// simpleprometheusreceiver.NewFactory(),
+		simpleprometheusreceiver.NewFactory(),
 		skywalkingreceiver.NewFactory(),
 		// snowflakereceiver.NewFactory(),
 		solacereceiver.NewFactory(),

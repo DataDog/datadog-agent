@@ -823,7 +823,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.1 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
-	github.com/go-resty/resty/v2 v2.11.0 // indirect
+	github.com/go-resty/resty/v2 v2.12.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.0.0-alpha.1 // indirect
 	github.com/go-zookeeper/zk v1.0.3 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
@@ -887,7 +887,7 @@ require (
 	github.com/lib/pq v1.10.9 // indirect
 	github.com/lightstep/go-expohisto v1.0.0 // indirect
 	github.com/linkedin/goavro/v2 v2.9.8 // indirect
-	github.com/linode/linodego v1.30.0 // indirect
+	github.com/linode/linodego v1.33.0 // indirect
 	github.com/mattn/go-shellwords v1.0.12 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/microsoft/go-mssqldb v1.7.1 // indirect
@@ -962,7 +962,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.98.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.98.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/signalfx v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/skywalking v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.98.0 // indirect
@@ -1038,7 +1038,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/otlpjsonfilereceiver v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/podmanreceiver v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/postgresqlreceiver v0.98.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.98.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/pulsarreceiver v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/purefareceiver v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/purefbreceiver v0.98.0 // indirect
@@ -1048,6 +1048,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/riakreceiver v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sapmreceiver v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/signalfxreceiver v0.98.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/simpleprometheusreceiver v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/skywalkingreceiver v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/snmpreceiver v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/solacereceiver v0.99.0 // indirect
