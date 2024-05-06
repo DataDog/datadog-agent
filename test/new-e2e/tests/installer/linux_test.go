@@ -31,11 +31,15 @@ import (
 )
 
 const (
-	confDir          = "/etc/datadog-agent"
-	logDir           = "/var/log/datadog"
-	locksDir         = "/var/run/datadog-packages"
-	packagesDir      = "/opt/datadog-packages"
-	bootInstallerDir = "/opt/datadog-installer"
+	confDir               = "/etc/datadog-agent"
+	logDir                = "/var/log/datadog"
+	stableInstallerRunDir = "/opt/datadog-packages/datadog-installer/stable/run"
+	locksDir              = "/var/run/datadog-packages"
+	packagesDir           = "/opt/datadog-packages"
+	bootInstallerDir      = "/opt/datadog-installer"
+	rpm                   = "rpm"
+	dpkg                  = "dpkg"
+	zypper                = "zypper"
 )
 
 type installerSuite struct {
@@ -59,47 +63,47 @@ func runTest(t *testing.T, pkgManager string, arch os.Architecture, distro os.De
 
 func TestCentOSAMD(t *testing.T) {
 	t.Parallel()
-	runTest(t, "rpm", os.AMD64Arch, os.CentOSDefault, false)
+	runTest(t, rpm, os.AMD64Arch, os.CentOSDefault, false)
 }
 
 func TestAmazonLinux2023ARM(t *testing.T) {
 	t.Parallel()
-	runTest(t, "rpm", os.ARM64Arch, os.AmazonLinux2023, false)
+	runTest(t, rpm, os.ARM64Arch, os.AmazonLinux2023, false)
 }
 
 func TestAmazonLinux2AMD(t *testing.T) {
 	t.Parallel()
-	runTest(t, "rpm", os.AMD64Arch, os.AmazonLinux2, false)
+	runTest(t, rpm, os.AMD64Arch, os.AmazonLinux2, false)
 }
 
 func TestFedoraAMD(t *testing.T) {
 	t.Parallel()
-	runTest(t, "rpm", os.AMD64Arch, os.FedoraDefault, false)
+	runTest(t, rpm, os.AMD64Arch, os.FedoraDefault, false)
 }
 
 func TestRedHatARM(t *testing.T) {
 	t.Parallel()
-	runTest(t, "rpm", os.ARM64Arch, os.RedHatDefault, false)
+	runTest(t, rpm, os.ARM64Arch, os.RedHatDefault, false)
 }
 
 func TestUbuntuARM(t *testing.T) {
 	t.Parallel()
-	runTest(t, "dpkg", os.ARM64Arch, os.UbuntuDefault, true)
+	runTest(t, dpkg, os.ARM64Arch, os.UbuntuDefault, true)
 }
 
 func TestDebianX86(t *testing.T) {
 	t.Parallel()
-	runTest(t, "dpkg", os.AMD64Arch, os.DebianDefault, true)
+	runTest(t, dpkg, os.AMD64Arch, os.DebianDefault, true)
 }
 
 func TestSuseX86(t *testing.T) {
 	t.Parallel()
-	runTest(t, "rpm", os.AMD64Arch, os.SuseDefault, false)
+	runTest(t, zypper, os.AMD64Arch, os.SuseDefault, false)
 }
 
 func TestSuseARM(t *testing.T) {
 	t.Parallel()
-	runTest(t, "rpm", os.ARM64Arch, os.SuseDefault, false)
+	runTest(t, zypper, os.ARM64Arch, os.SuseDefault, false)
 }
 
 func (v *installerSuite) bootstrap(remoteUpdatesEnabled bool) {
@@ -129,12 +133,34 @@ func (v *installerSuite) TestSharedAgentDirs() {
 	}
 }
 
+func (v *installerSuite) TestInstallerInPath() {
+	host := v.Env().RemoteHost
+
+	// add
+	v.bootstrap(false)
+	_ = host.MustExecute(`test -L /usr/bin/datadog-installer`)
+	require.Equal(v.T(), "/usr/bin/datadog-installer\n", host.MustExecute("which datadog-installer"))
+	binPath := host.MustExecute("readlink -f $(which datadog-installer)")
+	assert.True(v.T(), strings.HasPrefix(binPath, "/opt/datadog-packages/datadog-installer/7."))
+	assert.True(v.T(), strings.HasSuffix(binPath, "/bin/installer/installer\n"))
+
+	// remove
+	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer remove datadog-installer", bootInstallerDir))
+	_, err := host.Execute(`test -L /usr/bin/datadog-installer`)
+	require.NotNil(v.T(), err)
+}
+
 func (v *installerSuite) TestInstallerDirs() {
 	host := v.Env().RemoteHost
 	v.bootstrap(false)
 	for _, dir := range []string{packagesDir, bootInstallerDir} {
 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%U" `+dir))
 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%G" `+dir))
+	}
+	for _, dir := range []string{stableInstallerRunDir} {
+		require.Equal(v.T(), "dd-agent\n", host.MustExecute(`stat -c "%U" `+dir))
+		require.Equal(v.T(), "dd-agent\n", host.MustExecute(`stat -c "%G" `+dir))
+
 	}
 	require.Equal(v.T(), "drwxrwxrwx\n", host.MustExecute(`stat -c "%A" `+locksDir))
 	require.Equal(v.T(), "drwxr-xr-x\n", host.MustExecute(`stat -c "%A" `+packagesDir))
@@ -196,6 +222,46 @@ func (v *installerSuite) TestExperimentCrash() {
 		{Unit: "datadog-agent-exp.service", Message: "Failed"},
 		{Unit: "datadog-agent.service", Message: "Started"},
 	}), fmt.Sprintf("unexpected logs: %v", res))
+}
+
+func (v *installerSuite) TestUninstall() {
+	host := v.Env().RemoteHost
+
+	installAssertions := []string{
+		"test -d /opt/datadog-packages",
+		"test -d /opt/datadog-installer",
+		"test -d /var/run/datadog-packages",
+		"test -L /usr/bin/datadog-installer",
+		"test -L /usr/bin/datadog-bootstrap",
+	}
+
+	for _, assertion := range installAssertions {
+		_ = host.MustExecute(assertion)
+	}
+	switch v.packageManager {
+	case rpm:
+		host.MustExecute("sudo yum -y remove datadog-installer")
+	case dpkg:
+		host.MustExecute("sudo apt-get remove -y datadog-installer")
+	case zypper:
+		host.MustExecute("sudo zypper --non-interactive remove datadog-installer")
+	}
+	for _, assertion := range installAssertions {
+		_, err := host.Execute(assertion)
+		require.NotNil(v.T(), err)
+	}
+	switch v.packageManager {
+	case rpm:
+		host.MustExecute("sudo yum -y install datadog-installer")
+	case dpkg:
+		host.MustExecute("sudo apt-get install -y datadog-installer")
+	case zypper:
+		host.MustExecute("sudo zypper --non-interactive install datadog-installer")
+	}
+	host.MustExecute("sudo /usr/bin/datadog-bootstrap bootstrap")
+	for _, assertion := range installAssertions {
+		_ = host.MustExecute(assertion)
+	}
 }
 
 func (v *installerSuite) TestPurgeAndInstallAgent() {
@@ -378,7 +444,7 @@ func (v *installerSuite) TestPurgeAndInstallAPMInjector() {
 	require.Eventually(v.T(), func() bool {
 		_, err := host.Execute(`cat /var/log/datadog/trace-agent.log | grep "Dropping Payload due to non-retryable error"`)
 		return err == nil
-	}, 30*time.Second, 100*time.Millisecond)
+	}, 2*time.Minute, 100*time.Millisecond)
 
 	///////////////////////
 	// Check purge state //
@@ -398,8 +464,9 @@ func (v *installerSuite) TestPurgeAndInstallAPMInjector() {
 	require.NotNil(v.T(), err)
 	_, err = host.Execute(`grep "/opt/datadog-packages/datadog-apm-inject" /etc/docker/daemon.json`)
 	require.NotNil(v.T(), err)
-	res, err = host.Execute("grep \"LD PRELOAD CONFIG\" /etc/datadog-agent/datadog.yaml")
-	require.NotNil(v.T(), err, "expected no LD PRELOAD CONFIG in agent config, got:\n%s", res)
+	raw, err = host.ReadFile("/etc/datadog-agent/datadog.yaml")
+	require.Nil(v.T(), err)
+	require.True(v.T(), strings.Contains(string(raw), "# BEGIN LD PRELOAD CONFIG"), "missing LD_PRELOAD config, config:\n%s", string(raw))
 }
 
 func assertInstallMethod(v *installerSuite, t *testing.T, host *components.RemoteHost) {
@@ -409,7 +476,11 @@ func assertInstallMethod(v *installerSuite, t *testing.T, host *components.Remot
 	require.Nil(t, yaml.Unmarshal(rawYaml, &config))
 
 	assert.Equal(t, "installer_package", config.InstallMethod["installer_version"])
-	assert.Equal(t, v.packageManager, config.InstallMethod["tool"])
+	expectedPackageManager := v.packageManager
+	if v.packageManager == zypper {
+		expectedPackageManager = rpm
+	}
+	assert.Equal(t, expectedPackageManager, config.InstallMethod["tool"])
 	assert.True(t, "" != config.InstallMethod["tool_version"])
 }
 

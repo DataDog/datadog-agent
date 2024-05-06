@@ -33,8 +33,10 @@ from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
+from tasks.kernel_matrix_testing.vars import arch_ls
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import get_build_flags
+from tasks.security_agent import build_functional_tests, build_stress_tests
 from tasks.system_probe import (
     BPF_TAG,
     EMBEDDED_SHARE_DIR,
@@ -46,8 +48,6 @@ from tasks.system_probe import (
     go_package_dirs,
     ninja_generate,
 )
-from tasks.security_agent import build_functional_tests, build_stress_tests
-from tasks.kernel_matrix_testing.vars import arch_ls
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import (  # noqa: F401
@@ -83,6 +83,7 @@ LLC_PATH_CI = "/tmp/llc-bpf"
 
 CLANG_PATH_LOCAL = "/opt/datadog-agent/embedded/bin/clang-bpf"
 LLC_PATH_LOCAL = "/opt/datadog-agent/embedded/bin/llc-bpf"
+
 
 @task
 def create_stack(ctx, stack=None):
@@ -455,6 +456,7 @@ class KMTPaths:
 def is_root():
     return os.getuid() == 0
 
+
 def ninja_define_rules(nw: NinjaWriter):
     # go build does not seem to be designed to run concurrently on the same
     # source files. To make go build work with ninja we create a pool to force
@@ -526,10 +528,12 @@ def ninja_build_dependencies(nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str)
     )
 
 
-def ninja_copy_ebpf_files(nw, component, kmt_paths, filter_fn = lambda _: True):
+def ninja_copy_ebpf_files(nw, component, kmt_paths, filter_fn=lambda _: True):
     # copy ebpf files
     ebpf_files = [
-        os.path.abspath(i) for i in glob("pkg/ebpf/bytecode/build/**/*", recursive=True) if os.path.isfile(i) and Path(i).suffix in ['.c', '.o'] and filter_fn(i)
+        os.path.abspath(i)
+        for i in glob("pkg/ebpf/bytecode/build/**/*", recursive=True)
+        if os.path.isfile(i) and Path(i).suffix in ['.c', '.o'] and filter_fn(i)
     ]
 
     output = kmt_paths.secagent_tests if component == "security-agent" else kmt_paths.sysprobe_tests
@@ -559,11 +563,11 @@ def kmt_secagent_prepare(
         bundle_ebpf=False,
         race=True,
         debug=True,
-        output=f"{kmt_paths.secagent_tests}/testsuite",
+        output=f"{kmt_paths.secagent_tests}/pkg/security/testsuite",
         skip_linters=True,
         skip_object_files=True,
     )
-    build_stress_tests(ctx, output=f"{kmt_paths.secagent_tests}/stresssuite", skip_linters=True)
+    build_stress_tests(ctx, output=f"{kmt_paths.secagent_tests}/pkg/security/stresssuite", skip_linters=True)
 
     go_path = "go"
     go_root = os.getenv("GOROOT")
@@ -576,9 +580,12 @@ def kmt_secagent_prepare(
 
         ninja_define_rules(nw)
         ninja_build_dependencies(nw, kmt_paths, go_path)
-        ninja_copy_ebpf_files(nw, "security-agent", kmt_paths, filter_fn = lambda x: os.path.basename(x).startswith("runtime-security"))
+        ninja_copy_ebpf_files(
+            nw, "security-agent", kmt_paths, filter_fn=lambda x: os.path.basename(x).startswith("runtime-security")
+        )
 
     ctx.run(f"ninja -d explain -v -f {nf_path}")
+
 
 @task
 def prepare(
@@ -594,7 +601,9 @@ def prepare(
 ):
     if not ci:
         stack = check_and_get_stack(stack)
-        assert stacks.stack_exists(stack), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
+        assert stacks.stack_exists(
+            stack
+        ), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
     else:
         stack = "ci"
 
@@ -626,7 +635,10 @@ def prepare(
     else:
         raise Exit(f"Component can only be 'system-probe' or 'security-agent'. {component} not supported.")
 
-    go_root = os.getenv("GOROOT")
+    go_root = os.getenv("GOPATH")
+    if go_root is None:
+        raise Exit("GOPATH is not set, cannot continue.")
+
     if not ci:
         download_gotestsum(ctx, arch, f"{go_root}/bin/gotestsum")
 
@@ -892,7 +904,9 @@ def test(
     test_extra_arguments=None,
 ):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(stack), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
 
     if vms is None:
         vms = ",".join(stacks.get_all_vms_in_stack(stack))
@@ -989,7 +1003,9 @@ def build(
     layout: str | None = "tasks/kernel_matrix_testing/build-layout.json",
 ):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(stack), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
 
     if arch is None:
         arch = "local"
@@ -1027,7 +1043,9 @@ def build(
 @task
 def clean(ctx: Context, stack: str | None = None, container=False, image=False):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(stack), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
     cc = get_compiler(ctx, full_arch("local"))
     cc.exec("inv -e system-probe.clean", run_dir=CONTAINER_AGENT_PATH)
@@ -1391,7 +1409,7 @@ def explain_ci_failure(_, pipeline: str):
             failreason = testfail  # By default, we assume it's a test failure
 
             # Now check the artifacts, we'll guess why the job failed based on the size
-            for artifact in job.job_data.get("artifacts", []):
+            for artifact in job.job.artifacts:
                 if artifact.get("filename") == "artifacts.zip":
                     fsize = artifact.get("size", 0)
                     if fsize < 1500:
