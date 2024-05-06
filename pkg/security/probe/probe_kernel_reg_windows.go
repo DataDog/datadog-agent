@@ -69,9 +69,15 @@ type deleteKeyArgs struct {
 	keyName          string
 	computedFullPath string
 }
+
+// nolint: unused
 type flushKeyArgs deleteKeyArgs
 type closeKeyArgs deleteKeyArgs
+
+// nolint: unused
 type querySecurityKeyArgs deleteKeyArgs
+
+// nolint: unused
 type setSecurityKeyArgs deleteKeyArgs
 
 /*
@@ -225,6 +231,7 @@ func (wp *WindowsProbe) parseDeleteRegistryKey(e *etw.DDEventRecord) (*deleteKey
 	return dka, nil
 }
 
+// nolint: unused
 func (wp *WindowsProbe) parseFlushKey(e *etw.DDEventRecord) (*flushKeyArgs, error) {
 	dka, err := wp.parseDeleteRegistryKey(e)
 	if err != nil {
@@ -233,6 +240,7 @@ func (wp *WindowsProbe) parseFlushKey(e *etw.DDEventRecord) (*flushKeyArgs, erro
 	return (*flushKeyArgs)(dka), nil
 }
 
+// nolint: unused
 func (wp *WindowsProbe) parseCloseKeyArgs(e *etw.DDEventRecord) (*closeKeyArgs, error) {
 	dka, err := wp.parseDeleteRegistryKey(e)
 	if err != nil {
@@ -240,6 +248,8 @@ func (wp *WindowsProbe) parseCloseKeyArgs(e *etw.DDEventRecord) (*closeKeyArgs, 
 	}
 	return (*closeKeyArgs)(dka), nil
 }
+
+// nolint: unused
 func (wp *WindowsProbe) parseQuerySecurityKeyArgs(e *etw.DDEventRecord) (*querySecurityKeyArgs, error) {
 	dka, err := wp.parseDeleteRegistryKey(e)
 	if err != nil {
@@ -247,6 +257,8 @@ func (wp *WindowsProbe) parseQuerySecurityKeyArgs(e *etw.DDEventRecord) (*queryS
 	}
 	return (*querySecurityKeyArgs)(dka), nil
 }
+
+// nolint: unused
 func (wp *WindowsProbe) parseSetSecurityKeyArgs(e *etw.DDEventRecord) (*setSecurityKeyArgs, error) {
 	dka, err := wp.parseDeleteRegistryKey(e)
 	if err != nil {
@@ -268,9 +280,12 @@ func (dka *deleteKeyArgs) String() string {
 
 }
 
+// nolint: unused
 func (fka *flushKeyArgs) String() string {
 	return (*deleteKeyArgs)(fka).String()
 }
+
+// nolint: unused
 func (cka *closeKeyArgs) String() string {
 	return (*deleteKeyArgs)(cka).String()
 }

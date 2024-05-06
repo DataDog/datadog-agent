@@ -244,6 +244,8 @@ type setInformationArgs struct {
 type setDeleteArgs setInformationArgs
 type renameArgs setInformationArgs
 type rename29Args setInformationArgs
+
+// nolint: unused
 type fsctlArgs setInformationArgs
 
 // nolint: unused
@@ -476,6 +478,8 @@ func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
 	ra := &readArgs{
 		DDEventHeader: e.EventHeader,
 	}
+	isread := e.EventHeader.EventDescriptor.ID == idRead
+
 	data := etwimpl.GetUserData(e)
 	if e.EventHeader.EventDescriptor.Version == 0 {
 		ra.ByteOffset = data.GetUint64(0)
@@ -499,6 +503,17 @@ func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
 	}
 	// lru is thread safe, has its own locking
 	if s, ok := wp.filePathResolver.Get(fileObjectPointer(ra.fileObject)); ok {
+		if isread {
+			if s.readProcessed {
+				return nil, errDiscardedPath
+			}
+			s.readProcessed = true
+		} else {
+			if s.writeProcessed {
+				return nil, errDiscardedPath
+			}
+			s.writeProcessed = true
+		}
 		ra.fileName = s.fileName
 	}
 	return ra, nil
@@ -648,14 +663,17 @@ func (sla *setLinkPath) String() string {
 	return (*deletePathArgs)(sla).string("SET_LINK_PATH")
 }
 
+// nolint: unused
 type nameCreateArgs struct {
 	etw.DDEventHeader
 	fileKey  fileObjectPointer
 	fileName string
 }
 
+// nolint: unused
 type nameDeleteArgs nameCreateArgs
 
+// nolint: unused
 func (wp *WindowsProbe) parseNameCreateArgs(e *etw.DDEventRecord) (*nameCreateArgs, error) {
 	ca := &nameCreateArgs{
 		DDEventHeader: e.EventHeader,
@@ -693,6 +711,7 @@ func (nd *nameDeleteArgs) String() string {
 	return (*nameCreateArgs)(nd).string("NAME_DELETE")
 }
 
+// nolint: unused
 func (wp *WindowsProbe) parseNameDeleteArgs(e *etw.DDEventRecord) (*nameDeleteArgs, error) {
 	ca, err := wp.parseNameCreateArgs(e)
 	if err != nil {
