@@ -467,7 +467,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
-					// We have a wide range here as the test is flaky due to TCP out of order packets.
+					// incident-27158: We have a wide range here as the test is flaky due to TCP out of order packets.
 					lower: 3,
 					upper: 7,
 				},
@@ -504,7 +504,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 		},
 	}
 	for _, tt := range tests {
-		// Currently patching the number of clients we test, to reduce the number of runs we have of the test as
+		// incident-27158: Currently patching the number of clients we test, to reduce the number of runs we have of the test as
 		// the test is flaky (due to TCP out of order packets).
 		for _, clientCount := range []int{1} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
