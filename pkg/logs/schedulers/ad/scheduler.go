@@ -81,7 +81,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				s.mgr.AddSource(source)
 			}
 		default:
-			log.Debugf("Invalid integration config: %s", config)
+			log.Debugf("Invalid integration config: %s, ignoring it", s.configName(config))
 			continue
 		}
 	}
