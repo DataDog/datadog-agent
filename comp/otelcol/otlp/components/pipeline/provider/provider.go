@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/mitchellh/mapstructure"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -17,15 +18,28 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
+	"gopkg.in/yaml.v3"
 )
 
+type ExtendedConfigProvider interface {
+	otelcol.ConfigProvider
+	GetProvidedConf() []byte
+	GetEnhancedConf() []byte
+}
+
 type configProvider struct {
-	base otelcol.ConfigProvider
+	base     otelcol.ConfigProvider
+	confDump confDump
+}
+
+type confDump struct {
+	provided []byte
+	enhanced []byte
 }
 
 var _ otelcol.ConfigProvider = (*configProvider)(nil)
 
-func NewConfigProvider(uris []string) (otelcol.ConfigProvider, error) {
+func NewConfigProvider(uris []string) (ExtendedConfigProvider, error) {
 	ocp, err := otelcol.NewConfigProvider(newDefaultConfigProviderSettings(uris))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create configprovider: %w", err)
@@ -57,10 +71,67 @@ func (cp *configProvider) Get(ctx context.Context, factories otelcol.Factories) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config: %w", err)
 	}
+
+	err = cp.addProvidedConf(conf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add provided conf: %w", err)
+	}
+
 	//
 	// TODO: modify conf (add datadogconnector if not present ...etc)
 	//
+
+	err = cp.addEnhancedConf(conf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add enhanced conf: %w", err)
+	}
+
 	return conf, nil
+}
+
+func (cp *configProvider) addProvidedConf(conf *otelcol.Config) error {
+	bytesConf, err := confToBytes(conf)
+	if err != nil {
+		return err
+	}
+
+	cp.confDump.provided = bytesConf
+	return nil
+}
+
+func (cp *configProvider) addEnhancedConf(conf *otelcol.Config) error {
+	bytesConf, err := confToBytes(conf)
+	if err != nil {
+		return err
+	}
+
+	cp.confDump.enhanced = bytesConf
+	return nil
+}
+
+// GetProvidedConf returns a []byte representing the collector configuration passed
+// by the user. Should not be called concurrently with Get.
+func (cp *configProvider) GetProvidedConf() []byte {
+	return cp.confDump.provided
+}
+
+// GetEnhancedConf returns a []byte representing the ehnhanced collector configuration.
+// Should not be called concurrently with Get.
+func (cp *configProvider) GetEnhancedConf() []byte {
+	return cp.confDump.enhanced
+}
+
+func confToBytes(conf *otelcol.Config) ([]byte, error) {
+	stringMap := map[string]interface{}{}
+	if err := mapstructure.Decode(conf, &stringMap); err != nil {
+		return nil, err
+	}
+
+	bytesConf, err := yaml.Marshal(stringMap)
+	if err != nil {
+		return nil, err
+	}
+	return bytesConf, nil
 }
 
 // Watch is a no-op which returns a nil chan.
