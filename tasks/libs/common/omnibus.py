@@ -5,6 +5,7 @@ import sys
 from datetime import datetime
 
 import requests
+
 from tasks.release import _get_release_json_value
 
 

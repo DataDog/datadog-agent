@@ -29,7 +29,7 @@ from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
-from tasks.libs.common.utils import clean_nested_paths, get_build_flags, collapsed_section
+from tasks.libs.common.utils import clean_nested_paths, collapsed_section, get_build_flags
 from tasks.linter import _lint_go
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
