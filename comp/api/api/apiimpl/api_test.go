@@ -129,23 +129,20 @@ func getComponentDependencies(t *testing.T) testdeps {
 
 func getTestAPIServer(deps testdeps) api.Component {
 	apideps := dependencies{
-		DogstatsdServer:       deps.DogstatsdServer,
-		Capture:               deps.Capture,
-		ServerDebug:           deps.ServerDebug,
-		HostMetadata:          deps.HostMetadata,
-		InvAgent:              deps.InvAgent,
-		Demux:                 deps.Demux,
-		InvHost:               deps.InvHost,
-		SecretResolver:        deps.SecretResolver,
-		InvChecks:             deps.InvChecks,
-		PkgSigning:            deps.PkgSigning,
-		StatusComponent:       deps.StatusComponent,
-		EventPlatformReceiver: deps.EventPlatformReceiver,
-		RcService:             deps.RcService,
-		RcServiceMRF:          deps.RcServiceMRF,
-		AuthToken:             deps.AuthToken,
-		Settings:              deps.Settings,
-		EndpointProviders:     deps.EndpointProviders,
+		DogstatsdServer:   deps.DogstatsdServer,
+		Capture:           deps.Capture,
+		HostMetadata:      deps.HostMetadata,
+		InvAgent:          deps.InvAgent,
+		InvHost:           deps.InvHost,
+		SecretResolver:    deps.SecretResolver,
+		InvChecks:         deps.InvChecks,
+		PkgSigning:        deps.PkgSigning,
+		StatusComponent:   deps.StatusComponent,
+		RcService:         deps.RcService,
+		RcServiceMRF:      deps.RcServiceMRF,
+		AuthToken:         deps.AuthToken,
+		Settings:          deps.Settings,
+		EndpointProviders: deps.EndpointProviders,
 	}
 	return newAPIServer(apideps)
 }

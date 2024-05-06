@@ -131,14 +131,11 @@ func setupRoutes(t *testing.T) *mux.Router {
 	router := mux.NewRouter()
 	SetupHandlers(
 		router,
-		deps.Server,
-		deps.ServerDebug,
 		deps.Wmeta,
 		deps.LogsAgent,
 		sender,
 		deps.HostMetadata,
 		deps.InvAgent,
-		deps.Demux,
 		deps.InvHost,
 		deps.SecretResolver,
 		deps.InvChecks,

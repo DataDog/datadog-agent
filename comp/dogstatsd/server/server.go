@@ -8,15 +8,19 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"net"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -79,6 +83,13 @@ type dependencies struct {
 	PidMap pidmap.Component
 	Params Params
 	WMeta  optional.Option[workloadmeta.Component]
+}
+
+type provides struct {
+	fx.Out
+
+	Comp     Component
+	Endpoint api.AgentEndpointProvider
 }
 
 // When the internal telemetry is enabled, used to tag the origin
@@ -198,7 +209,7 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 }
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
-func newServer(deps dependencies) Component {
+func newServer(deps dependencies) provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap)
 
 	if config.Datadog.GetBool("use_dogstatsd") {
@@ -208,7 +219,10 @@ func newServer(deps dependencies) Component {
 		})
 	}
 
-	return s
+	return provides{
+		Comp:     s,
+		Endpoint: api.NewAgentEndpointProvider(s.writeStats, "/dogstatsd-stats", "GET"),
+	}
 
 }
 
@@ -521,6 +535,49 @@ func (s *server) handleMessages() {
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}
+}
+
+func (s *server) writeStats(w http.ResponseWriter, _ *http.Request) {
+	s.log.Info("Got a request for the Dogstatsd stats.")
+
+	if !config.Datadog.GetBool("use_dogstatsd") {
+		w.Header().Set("Content-Type", "application/json")
+		body, _ := json.Marshal(map[string]string{
+			"error":      "Dogstatsd not enabled in the Agent configuration",
+			"error_type": "no server",
+		})
+		w.WriteHeader(400)
+		w.Write(body)
+		return
+	}
+
+	if !config.Datadog.GetBool("dogstatsd_metrics_stats_enable") {
+		w.Header().Set("Content-Type", "application/json")
+		body, _ := json.Marshal(map[string]string{
+			"error":      "Dogstatsd metrics stats not enabled in the Agent configuration",
+			"error_type": "not enabled",
+		})
+		w.WriteHeader(400)
+		w.Write(body)
+		return
+	}
+
+	// Weird state that should not happen: dogstatsd is enabled
+	// but the server has not been successfully initialized.
+	// Return no data.
+	if !s.IsRunning() {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{}`))
+		return
+	}
+
+	jsonStats, err := s.Debug.GetJSONDebugStats()
+	if err != nil {
+		utils.SetJSONError(w, s.log.Errorf("Error getting marshalled Dogstatsd stats: %s", err), 500)
+		return
+	}
+
+	w.Write(jsonStats)
 }
 
 func (s *server) UDPLocalAddr() string {

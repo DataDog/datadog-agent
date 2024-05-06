@@ -11,7 +11,6 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -25,8 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -47,74 +44,65 @@ func Module() fxutil.Module {
 }
 
 type apiServer struct {
-	dogstatsdServer       dogstatsdServer.Component
-	capture               replay.Component
-	pidMap                pidmap.Component
-	serverDebug           dogstatsddebug.Component
-	hostMetadata          host.Component
-	invAgent              inventoryagent.Component
-	demux                 demultiplexer.Component
-	invHost               inventoryhost.Component
-	secretResolver        secrets.Component
-	invChecks             inventorychecks.Component
-	pkgSigning            packagesigning.Component
-	statusComponent       status.Component
-	eventPlatformReceiver eventplatformreceiver.Component
-	rcService             optional.Option[rcservice.Component]
-	rcServiceMRF          optional.Option[rcservicemrf.Component]
-	authToken             authtoken.Component
-	gui                   optional.Option[gui.Component]
-	settings              settings.Component
-	endpointProviders     []api.EndpointProvider
+	dogstatsdServer   dogstatsdServer.Component
+	capture           replay.Component
+	pidMap            pidmap.Component
+	hostMetadata      host.Component
+	invAgent          inventoryagent.Component
+	invHost           inventoryhost.Component
+	secretResolver    secrets.Component
+	invChecks         inventorychecks.Component
+	pkgSigning        packagesigning.Component
+	statusComponent   status.Component
+	rcService         optional.Option[rcservice.Component]
+	rcServiceMRF      optional.Option[rcservicemrf.Component]
+	authToken         authtoken.Component
+	gui               optional.Option[gui.Component]
+	settings          settings.Component
+	endpointProviders []api.EndpointProvider
 }
 
 type dependencies struct {
 	fx.In
 
-	DogstatsdServer       dogstatsdServer.Component
-	Capture               replay.Component
-	PidMap                pidmap.Component
-	ServerDebug           dogstatsddebug.Component
-	HostMetadata          host.Component
-	InvAgent              inventoryagent.Component
-	Demux                 demultiplexer.Component
-	InvHost               inventoryhost.Component
-	SecretResolver        secrets.Component
-	InvChecks             inventorychecks.Component
-	PkgSigning            packagesigning.Component
-	StatusComponent       status.Component
-	EventPlatformReceiver eventplatformreceiver.Component
-	RcService             optional.Option[rcservice.Component]
-	RcServiceMRF          optional.Option[rcservicemrf.Component]
-	AuthToken             authtoken.Component
-	Gui                   optional.Option[gui.Component]
-	Settings              settings.Component
-	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
+	DogstatsdServer   dogstatsdServer.Component
+	Capture           replay.Component
+	PidMap            pidmap.Component
+	HostMetadata      host.Component
+	InvAgent          inventoryagent.Component
+	InvHost           inventoryhost.Component
+	SecretResolver    secrets.Component
+	InvChecks         inventorychecks.Component
+	PkgSigning        packagesigning.Component
+	StatusComponent   status.Component
+	RcService         optional.Option[rcservice.Component]
+	RcServiceMRF      optional.Option[rcservicemrf.Component]
+	AuthToken         authtoken.Component
+	Gui               optional.Option[gui.Component]
+	Settings          settings.Component
+	EndpointProviders []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 var _ api.Component = (*apiServer)(nil)
 
 func newAPIServer(deps dependencies) api.Component {
 	return &apiServer{
-		dogstatsdServer:       deps.DogstatsdServer,
-		capture:               deps.Capture,
-		pidMap:                deps.PidMap,
-		serverDebug:           deps.ServerDebug,
-		hostMetadata:          deps.HostMetadata,
-		invAgent:              deps.InvAgent,
-		demux:                 deps.Demux,
-		invHost:               deps.InvHost,
-		secretResolver:        deps.SecretResolver,
-		invChecks:             deps.InvChecks,
-		pkgSigning:            deps.PkgSigning,
-		statusComponent:       deps.StatusComponent,
-		eventPlatformReceiver: deps.EventPlatformReceiver,
-		rcService:             deps.RcService,
-		rcServiceMRF:          deps.RcServiceMRF,
-		authToken:             deps.AuthToken,
-		gui:                   deps.Gui,
-		settings:              deps.Settings,
-		endpointProviders:     deps.EndpointProviders,
+		dogstatsdServer:   deps.DogstatsdServer,
+		capture:           deps.Capture,
+		pidMap:            deps.PidMap,
+		hostMetadata:      deps.HostMetadata,
+		invAgent:          deps.InvAgent,
+		invHost:           deps.InvHost,
+		secretResolver:    deps.SecretResolver,
+		invChecks:         deps.InvChecks,
+		pkgSigning:        deps.PkgSigning,
+		statusComponent:   deps.StatusComponent,
+		rcService:         deps.RcService,
+		rcServiceMRF:      deps.RcServiceMRF,
+		authToken:         deps.AuthToken,
+		gui:               deps.Gui,
+		settings:          deps.Settings,
+		endpointProviders: deps.EndpointProviders,
 	}
 }
 
@@ -132,14 +120,12 @@ func (server *apiServer) StartServer(
 		server.dogstatsdServer,
 		server.capture,
 		server.pidMap,
-		server.serverDebug,
 		wmeta,
 		taggerComp,
 		logsAgent,
 		senderManager,
 		server.hostMetadata,
 		server.invAgent,
-		server.demux,
 		server.invHost,
 		server.secretResolver,
 		server.invChecks,

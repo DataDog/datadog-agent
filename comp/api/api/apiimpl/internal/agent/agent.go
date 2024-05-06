@@ -9,24 +9,19 @@
 package agent
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"io"
 	"net"
 	"net/http"
-	"os"
-	"path"
 	"sort"
 	"time"
 
-	"github.com/DataDog/zstd"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
@@ -39,8 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -68,14 +61,11 @@ var mimeTypeMap = map[string]string{
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(
 	r *mux.Router,
-	server dogstatsdServer.Component,
-	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
-	demux demultiplexer.Component,
 	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
 	invChecks inventorychecks.Component,
@@ -136,14 +126,6 @@ func SetupHandlers(
 		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption(wmeta), optional.NewOption[autodiscovery.Component](ac))
 		getDiagnose(w, r, diagnoseDeps)
 	}).Methods("POST")
-
-	// TODO: move to demux component
-	r.HandleFunc("/dogstatsd-contexts-dump", func(w http.ResponseWriter, r *http.Request) { dumpDogstatsdContexts(w, r, demux) }).Methods("POST")
-	// Some agent subcommands do not provide these dependencies (such as JMX)
-	if server != nil && serverDebug != nil {
-		// TODO: move to server/serverDebug component?
-		r.HandleFunc("/dogstatsd-stats", func(w http.ResponseWriter, r *http.Request) { getDogstatsdStats(w, r, server, serverDebug) }).Methods("GET")
-	}
 
 	if logsAgent, ok := logsAgent.Get(); ok {
 		r.HandleFunc("/stream-logs", streamLogs(logsAgent)).Methods("POST")
@@ -248,49 +230,6 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 // TODO: logsAgent is a module so have to make the api component a module too
 func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {
 	return utils.GetStreamFunc(func() utils.MessageReceiver { return logsAgent.GetMessageReceiver() }, "logs", "logs agent")
-}
-
-func getDogstatsdStats(w http.ResponseWriter, _ *http.Request, dogstatsdServer dogstatsdServer.Component, serverDebug dogstatsddebug.Component) {
-	log.Info("Got a request for the Dogstatsd stats.")
-
-	if !config.Datadog.GetBool("use_dogstatsd") {
-		w.Header().Set("Content-Type", "application/json")
-		body, _ := json.Marshal(map[string]string{
-			"error":      "Dogstatsd not enabled in the Agent configuration",
-			"error_type": "no server",
-		})
-		w.WriteHeader(400)
-		w.Write(body)
-		return
-	}
-
-	if !config.Datadog.GetBool("dogstatsd_metrics_stats_enable") {
-		w.Header().Set("Content-Type", "application/json")
-		body, _ := json.Marshal(map[string]string{
-			"error":      "Dogstatsd metrics stats not enabled in the Agent configuration",
-			"error_type": "not enabled",
-		})
-		w.WriteHeader(400)
-		w.Write(body)
-		return
-	}
-
-	// Weird state that should not happen: dogstatsd is enabled
-	// but the server has not been successfully initialized.
-	// Return no data.
-	if !dogstatsdServer.IsRunning() {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{}`))
-		return
-	}
-
-	jsonStats, err := serverDebug.GetJSONDebugStats()
-	if err != nil {
-		setJSONError(w, log.Errorf("Error getting marshalled Dogstatsd stats: %s", err), 500)
-		return
-	}
-
-	w.Write(jsonStats)
 }
 
 func getHealth(w http.ResponseWriter, _ *http.Request) {
@@ -497,47 +436,4 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 // GetConnection returns the connection for the request
 func GetConnection(r *http.Request) net.Conn {
 	return r.Context().Value(grpc.ConnContextKey).(net.Conn)
-}
-
-func dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request, demux demultiplexer.Component) {
-	if demux == nil {
-		setJSONError(w, log.Errorf("Unable to stream dogstatsd contexts, demultiplexer is not initialized"), 404)
-		return
-	}
-
-	path, err := dumpDogstatsdContextsImpl(demux)
-	if err != nil {
-		setJSONError(w, log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)
-		return
-	}
-
-	resp, err := json.Marshal(path)
-	if err != nil {
-		setJSONError(w, log.Errorf("Failed to serialize response: %v", err), 500)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(resp)
-}
-
-func dumpDogstatsdContextsImpl(demux demultiplexer.Component) (string, error) {
-	path := path.Join(config.Datadog.GetString("run_path"), "dogstatsd_contexts.json.zstd")
-
-	f, err := os.Create(path)
-	if err != nil {
-		return "", err
-	}
-
-	c := zstd.NewWriter(f)
-
-	w := bufio.NewWriter(c)
-
-	for _, err := range []error{demux.DumpDogstatsdContexts(w), w.Flush(), c.Close(), f.Close()} {
-		if err != nil {
-			return "", err
-		}
-	}
-
-	return path, nil
 }
