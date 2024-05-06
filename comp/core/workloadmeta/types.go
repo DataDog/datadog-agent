@@ -7,10 +7,11 @@ package workloadmeta
 
 import (
 	"fmt"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"io"
 	"strings"
 	"time"
+
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 
 	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
@@ -31,7 +32,6 @@ import (
 // unit of work being done by a piece of software, like a process, a container,
 // a kubernetes pod, or a task in any cloud provider.
 //
-// Typically there is only one instance, accessed via GetGlobalStore.
 
 // Kind is the kind of an entity.
 type Kind string
@@ -45,6 +45,7 @@ const (
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
+	KindHost                   Kind = "host"
 )
 
 // Source is the source name of an entity.
@@ -82,6 +83,9 @@ const (
 	// SourceLanguageDetectionServer represents container languages
 	// detected by node agents
 	SourceLanguageDetectionServer Source = "language_detection_server"
+
+	// SourceHost represents entities detected by the host such as host tags.
+	SourceHost Source = "host"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -243,13 +247,20 @@ func (e EntityMeta) String(verbose bool) string {
 }
 
 // ContainerImage is the an image used by a container.
+// For historical reason, The imageId from containerd runtime and kubernetes refer to different fields.
+// For containerd, it is the digest of the image config.
+// For kubernetes, it referres to repo digest of the image (at least before CRI-O v1.28)
+// See https://github.com/kubernetes/kubernetes/issues/46255
+// To avoid confusion, an extra field of repo digest is added to the struct, if it is available, it
+// will also be added to the container tags in tagger.
 type ContainerImage struct {
-	ID        string
-	RawName   string
-	Name      string
-	Registry  string
-	ShortName string
-	Tag       string
+	ID         string
+	RawName    string
+	Name       string
+	Registry   string
+	ShortName  string
+	Tag        string
+	RepoDigest string
 }
 
 // NewContainerImage builds a ContainerImage from an image name and its id
@@ -287,6 +298,7 @@ func (c ContainerImage) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "ID:", c.ID)
 		_, _ = fmt.Fprintln(&sb, "Raw Name:", c.RawName)
 		_, _ = fmt.Fprintln(&sb, "Short Name:", c.ShortName)
+		_, _ = fmt.Fprintln(&sb, "Repo Digest:", c.RepoDigest)
 	}
 
 	return sb.String()
@@ -327,6 +339,7 @@ type ContainerPort struct {
 	Name     string
 	Port     int
 	Protocol string
+	HostPort uint16
 }
 
 // String returns a string representation of ContainerPort.
@@ -337,6 +350,63 @@ func (c ContainerPort) String(verbose bool) string {
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Name:", c.Name)
 		_, _ = fmt.Fprintln(&sb, "Protocol:", c.Protocol)
+		_, _ = fmt.Fprintln(&sb, "Host Port:", c.HostPort)
+	}
+
+	return sb.String()
+}
+
+// ContainerNetwork is the network attached to the container.
+type ContainerNetwork struct {
+	NetworkMode   string
+	IPv4Addresses []string
+	IPv6Addresses []string
+}
+
+// String returns a string representation of ContainerPort.
+func (c ContainerNetwork) String(_ bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Network Mode:", c.NetworkMode)
+	_, _ = fmt.Fprintln(&sb, "IPv4 Addresses:", c.IPv4Addresses)
+	_, _ = fmt.Fprintln(&sb, "IPv6 Addresses:", c.IPv6Addresses)
+
+	return sb.String()
+}
+
+// ContainerVolume is a volume mounted in the container.
+type ContainerVolume struct {
+	Name        string
+	Source      string
+	Destination string
+}
+
+// String returns a string representation of ContainerVolume.
+func (c ContainerVolume) String(_ bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Name:", c.Name)
+	_, _ = fmt.Fprintln(&sb, "Source:", c.Source)
+	_, _ = fmt.Fprintln(&sb, "Destination:", c.Destination)
+
+	return sb.String()
+}
+
+// ContainerHealthStatus is the health status of a container
+type ContainerHealthStatus struct {
+	Status   string
+	Since    *time.Time
+	ExitCode *uint32
+	Output   string
+}
+
+// String returns a string representation of ContainerHealthStatus.
+func (c ContainerHealthStatus) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Status:", c.Status)
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Since:", c.Since)
+		_, _ = fmt.Fprintln(&sb, "ExitCode:", c.ExitCode)
+		_, _ = fmt.Fprintln(&sb, "Output:", c.Output)
 	}
 
 	return sb.String()
@@ -345,7 +415,9 @@ func (c ContainerPort) String(verbose bool) string {
 // ContainerResources is resources requests or limitations for a container
 type ContainerResources struct {
 	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
-	MemoryRequest *uint64  // Bytes
+	CPULimit      *float64
+	MemoryRequest *uint64 // Bytes
+	MemoryLimit   *uint64
 }
 
 // String returns a string representation of ContainerPort.
@@ -354,8 +426,14 @@ func (cr ContainerResources) String(bool) string {
 	if cr.CPURequest != nil {
 		_, _ = fmt.Fprintln(&sb, "TargetCPUUsage:", *cr.CPURequest)
 	}
+	if cr.CPULimit != nil {
+		_, _ = fmt.Fprintln(&sb, "TargetCPULimit:", *cr.CPULimit)
+	}
 	if cr.MemoryRequest != nil {
 		_, _ = fmt.Fprintln(&sb, "TargetMemoryUsage:", *cr.MemoryRequest)
+	}
+	if cr.MemoryLimit != nil {
+		_, _ = fmt.Fprintln(&sb, "TargetMemoryLimit:", *cr.MemoryLimit)
 	}
 	return sb.String()
 }
@@ -373,10 +451,60 @@ func (o OrchestratorContainer) String(_ bool) string {
 	return fmt.Sprintln("Name:", o.Name, "ID:", o.ID)
 }
 
+// ECSContainer is a reference to a container running in ECS
+type ECSContainer struct {
+	DisplayName   string
+	Networks      []ContainerNetwork
+	Volumes       []ContainerVolume
+	Health        *ContainerHealthStatus
+	DesiredStatus string
+	KnownStatus   string
+	Type          string
+	LogDriver     string
+	LogOptions    map[string]string
+	ContainerARN  string
+	Snapshotter   string
+}
+
+// String returns a string representation of ECSContainer.
+func (e ECSContainer) String(verbose bool) string {
+	var sb strings.Builder
+
+	if len(e.Volumes) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Volumes -----------")
+		for _, v := range e.Volumes {
+			_, _ = fmt.Fprint(&sb, v.String(verbose))
+		}
+	}
+
+	if len(e.Networks) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Networks -----------")
+		for _, n := range e.Networks {
+			_, _ = fmt.Fprint(&sb, n.String(verbose))
+		}
+	}
+
+	if e.Health != nil {
+		_, _ = fmt.Fprintln(&sb, "----------- ECS Container Health -----------")
+		_, _ = fmt.Fprint(&sb, e.Health.String(verbose))
+	}
+	_, _ = fmt.Fprintln(&sb, "----------- ECS Container Priorities -----------")
+	_, _ = fmt.Fprintln(&sb, "DesiredStatus:", e.DesiredStatus)
+	_, _ = fmt.Fprintln(&sb, "KnownStatus:", e.KnownStatus)
+	_, _ = fmt.Fprintln(&sb, "Type:", e.Type)
+	_, _ = fmt.Fprintln(&sb, "LogDriver:", e.LogDriver)
+	_, _ = fmt.Fprintln(&sb, "LogOptions:", e.LogOptions)
+	_, _ = fmt.Fprintln(&sb, "Snapshotter:", e.Snapshotter)
+
+	return sb.String()
+}
+
 // Container is an Entity representing a containerized workload.
 type Container struct {
 	EntityID
 	EntityMeta
+	// ECSContainer contains properties specific to container running in ECS
+	*ECSContainer
 	// EnvVars are limited to variables included in pkg/util/containers/env_vars_filter.go
 	EnvVars       map[string]string
 	Hostname      string
@@ -406,8 +534,12 @@ func (c *Container) Merge(e Entity) error {
 	if !ok {
 		return fmt.Errorf("cannot merge Container with different kind %T", e)
 	}
-
-	return merge(c, cc)
+	err := merge(c, cc)
+	if cc.ECSContainer != nil {
+		ec := deepcopy.Copy(*cc.ECSContainer).(ECSContainer)
+		cc.ECSContainer = &ec
+	}
+	return err
 }
 
 // DeepCopy implements Entity#DeepCopy.
@@ -467,6 +599,10 @@ func (c Container) String(verbose bool) string {
 				_, _ = fmt.Fprintln(&sb, "Localhost Profile:", c.SecurityContext.SeccompProfile.LocalhostProfile)
 			}
 		}
+	}
+
+	if c.ECSContainer != nil {
+		_, _ = fmt.Fprint(&sb, c.ECSContainer.String(verbose))
 	}
 
 	return sb.String()
@@ -769,19 +905,35 @@ func (d KubernetesDeployment) String(verbose bool) string {
 
 var _ Entity = &KubernetesDeployment{}
 
+// ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
+const ECSTaskKnownStatusStopped = "STOPPED"
+
+// MapTags is a map of tags
+type MapTags map[string]string
+
 // ECSTask is an Entity representing an ECS Task.
 type ECSTask struct {
 	EntityID
 	EntityMeta
-	Tags                  map[string]string
-	ContainerInstanceTags map[string]string
-	ClusterName           string
-	Region                string
-	AvailabilityZone      string
-	Family                string
-	Version               string
-	LaunchType            ECSLaunchType
-	Containers            []OrchestratorContainer
+	Tags                    MapTags
+	ContainerInstanceTags   MapTags
+	ClusterName             string
+	AWSAccountID            int
+	Region                  string
+	AvailabilityZone        string
+	Family                  string
+	Version                 string
+	DesiredStatus           string
+	KnownStatus             string
+	PullStartedAt           *time.Time
+	PullStoppedAt           *time.Time
+	ExecutionStoppedAt      *time.Time
+	VPCID                   string
+	ServiceName             string
+	EphemeralStorageMetrics map[string]int64
+	Limits                  map[string]float64
+	LaunchType              ECSLaunchType
+	Containers              []OrchestratorContainer
 }
 
 // GetID implements Entity#GetID.
@@ -829,6 +981,21 @@ func (t ECSTask) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Family:", t.Family)
 		_, _ = fmt.Fprintln(&sb, "Version:", t.Version)
 		_, _ = fmt.Fprintln(&sb, "Launch Type:", t.LaunchType)
+		_, _ = fmt.Fprintln(&sb, "AWS Account ID:", t.AWSAccountID)
+		_, _ = fmt.Fprintln(&sb, "Desired Status:", t.DesiredStatus)
+		_, _ = fmt.Fprintln(&sb, "Known Status:", t.KnownStatus)
+		_, _ = fmt.Fprintln(&sb, "VPC ID:", t.VPCID)
+		_, _ = fmt.Fprintln(&sb, "Ephemeral Storage Metrics:", t.EphemeralStorageMetrics)
+		_, _ = fmt.Fprintln(&sb, "Limits:", t.Limits)
+		if t.PullStartedAt != nil {
+			_, _ = fmt.Fprintln(&sb, "Pull Started At:", *t.PullStartedAt)
+		}
+		if t.PullStoppedAt != nil {
+			_, _ = fmt.Fprintln(&sb, "Pull Stopped At:", *t.PullStoppedAt)
+		}
+		if t.ExecutionStoppedAt != nil {
+			_, _ = fmt.Fprintln(&sb, "Execution Stopped At:", *t.ExecutionStoppedAt)
+		}
 	}
 
 	return sb.String()
@@ -1003,6 +1170,47 @@ func (p Process) String(verbose bool) string { //nolint:revive // TODO fix reviv
 	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
 	_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+
+	return sb.String()
+}
+
+// HostTags is an Entity that represents host tags
+type HostTags struct {
+	EntityID
+
+	HostTags []string
+}
+
+var _ Entity = &HostTags{}
+
+// GetID implements Entity#GetID.
+func (p HostTags) GetID() EntityID {
+	return p.EntityID
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (p HostTags) DeepCopy() Entity {
+	cp := deepcopy.Copy(p).(HostTags)
+	return &cp
+}
+
+// Merge implements Entity#Merge.
+func (p *HostTags) Merge(e Entity) error {
+	otherHost, ok := e.(*HostTags)
+	if !ok {
+		return fmt.Errorf("cannot merge Host metadata with different kind %T", e)
+	}
+
+	return merge(p, otherHost)
+}
+
+// String implements Entity#String.
+func (p HostTags) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, p.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "Host Tags:", sliceToString(p.HostTags))
 
 	return sb.String()
 }

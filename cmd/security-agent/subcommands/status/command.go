@@ -10,20 +10,19 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -57,9 +56,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 
-	statusCmd.Flags().BoolVarP(&cliParams.json, flags.JSON, "j", false, "print out raw json")
-	statusCmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, flags.PrettyJSON, "p", false, "pretty print JSON")
-	statusCmd.Flags().StringVarP(&cliParams.file, flags.File, "o", "", "Output the status command to a file")
+	statusCmd.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
+	statusCmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
+	statusCmd.Flags().StringVarP(&cliParams.file, "file", "o", "", "Output the status command to a file")
 
 	return []*cobra.Command{statusCmd}
 }
@@ -69,7 +68,20 @@ func runStatus(_ log.Component, config config.Component, _ secrets.Component, pa
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/status", config.GetInt("security_agent.cmd_port"))
+
+	v := url.Values{}
+	if params.prettyPrintJSON || params.json {
+		v.Set("format", "json")
+	} else {
+		v.Set("format", "text")
+	}
+
+	url := url.URL{
+		Scheme:   "https",
+		Host:     fmt.Sprintf("localhost:%v", config.GetInt("security_agent.cmd_port")),
+		Path:     "/agent/status",
+		RawQuery: v.Encode(),
+	}
 
 	// Set session token
 	e = util.SetAuthToken(config)
@@ -77,7 +89,7 @@ func runStatus(_ log.Component, config config.Component, _ secrets.Component, pa
 		return e
 	}
 
-	r, e := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
+	r, e := util.DoGet(c, url.String(), util.LeaveConnectionOpen)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck
@@ -98,14 +110,8 @@ func runStatus(_ log.Component, config config.Component, _ secrets.Component, pa
 		var prettyJSON bytes.Buffer
 		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
-	} else if params.json {
-		s = string(r)
 	} else {
-		formattedStatus, err := render.FormatSecurityAgentStatus(r)
-		if err != nil {
-			return err
-		}
-		s = formattedStatus
+		s = string(r)
 	}
 
 	if params.file != "" {

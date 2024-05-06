@@ -53,6 +53,7 @@ type context struct {
 	NetworkModule                    bool // Sub-module of System Probe
 	UniversalServiceMonitoringModule bool // Sub-module of System Probe
 	DataStreamsModule                bool // Sub-module of System Probe
+	PingModule                       bool // Sub-module of System Probe
 	PrometheusScrape                 bool
 	OTLP                             bool
 	APMInjection                     bool
@@ -113,6 +114,7 @@ func mkContext(buildType string) context {
 			UniversalServiceMonitoringModule: true,
 			DataStreamsModule:                true,
 			SecurityModule:                   true,
+			PingModule:                       true,
 		}
 	case "dogstatsd":
 		return context{

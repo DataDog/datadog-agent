@@ -5,6 +5,7 @@
 
 //go:build !kubeapiserver
 
+// Package clusteragent fetch information about the cluster agent
 package clusteragent
 
 import (
@@ -13,20 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func getLeaderElectionDetails() map[string]string {
-	log.Info("Not implemented")
-	return nil
-}
-
 // GetDCAStatus empty function for agents not running in a  k8s environment
 func GetDCAStatus(_ map[string]interface{}) {
 	log.Info("Not implemented")
 }
 
-// GetProvider returns NoopProvider
+// GetProvider returns nil
 func GetProvider(_ config.Component) status.Provider {
-	return status.NoopProvider{}
+	return nil
 }
-
-// Provider provides the functionality to populate the status output
-type Provider status.NoopProvider

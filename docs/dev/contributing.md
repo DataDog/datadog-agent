@@ -8,18 +8,19 @@ To propose improvements, feel free to submit a PR.
 
 <!-- vim-markdown-toc GFM -->
 
-* [Submitting issues](#submitting-issues)
-* [Pull Requests](#pull-requests)
-	- [Keep it small, focused](#keep-it-small-focused)
-	- [Commit Messages](#commit-messages)
-	- [Pull request workflow](#pull-request-workflow)
-    + [Before the first PR review](#before-the-first-pr-review)
-    + [After the first review](#after-the-first-review)
-    + [How to merge to `main`](#how-to-merge-to-main)
-	- [Reno](#reno)
-		+ [Reno sections](#reno-sections)
-* [PR labels](#pr-labels)
-* [Integrations](#integrations)
+- [Contributing to Datadog Agent](#contributing-to-datadog-agent)
+  - [Submitting issues](#submitting-issues)
+  - [Pull Requests](#pull-requests)
+    - [Keep it small, focused](#keep-it-small-focused)
+    - [Commit Messages](#commit-messages)
+    - [Pull request workflow](#pull-request-workflow)
+      - [Before the first PR review](#before-the-first-pr-review)
+      - [After the first review](#after-the-first-review)
+      - [How to merge to `main`](#how-to-merge-to-main)
+    - [Reno](#reno)
+      - [Reno sections](#reno-sections)
+  - [PR labels](#pr-labels)
+  - [Integrations](#integrations)
 
 <!-- vim-markdown-toc -->
 
@@ -282,14 +283,26 @@ labels that can be use:
 - `community`: for community PRs.
 - `changelog/no-changelog`: for PRs that don't require a reno releasenote
   (useful for PRs only changing documentation or tests).
-- `qa/done`, `qa/no-code-change`: if either the `qa/no-code-change` label or the
-  `qa/done` label is set, it will skip the creation of a QA card related to this
-  PR during next release process (example: documentation-only PRs).
+- `qa/done` or `qa/no-code-change`: used to skip the QA week:
+  - `qa/done` label is recommended in case of code changes **and** manual / automated qa done before merge.
+  - `qa/no-code-change` is recommended if there's no code changes in the Agent binary code.
 - `major_change`: to flag the PR as a major change impacting many/all teams
   working on the agent and will require deeper QA (example: when we change the
   Python version shipped in the agent).
 - `need-change/operator`, `need-change/helm`: indicate that the configuration needs to be modified in the operator / helm chart as well.
 - `k8s/<min-version>`: indicate the lowest Kubernetes version compatible with the PR's feature.
+- `backport/<branch-name>`: Add this label to automatically create a PR against the `<branch-name>` branch with your backported changes. The backport PR creation is triggered:
+  - When a PR with the label is merged
+  - When an already-merged PR gets the label
+
+  If there is a conflict, the bot prompts you with a list of instructions to follow ([example](https://github.com/DataDog/datadog-agent/pull/23316#issuecomment-1973207164)) to manually backport your PR.
+
+> [!NOTE]
+> Use `qa/no-code-change` if your PR only changes tests or a module/package that does not end up in the agent build
+> All of the following do not require QA:
+> - Changing the CI configuration without impacting the Agent packaging.
+> - Changing the documentation.
+> - Changing the developer tooling.
 
 ## Integrations
 

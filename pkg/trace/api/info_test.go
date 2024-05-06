@@ -34,15 +34,13 @@ func ensureKeys(expect, result map[string]interface{}, prefix string) error {
 			if prefix != "" {
 				path = prefix + "." + k
 			}
-			//nolint:revive // TODO(APM) Fix revive linter
-			return fmt.Errorf("Expected key %s, but it is not present in the output.\n", path)
+			return fmt.Errorf("expected key %s, but it is not present in the output", path)
 		}
 
 		if em, ok := ev.(map[string]interface{}); ok {
 			rm, ok := rv.(map[string]interface{})
 			if !ok {
-				//nolint:revive // TODO(APM) Fix revive linter
-				return fmt.Errorf("Expected key %s to be a map, but it is '%#v'.\n", k, rv)
+				return fmt.Errorf("expected key %s to be a map, but it is '%#v'", k, rv)
 			}
 			if prefix != "" {
 				prefix = prefix + "." + k
@@ -61,8 +59,7 @@ func ensureKeys(expect, result map[string]interface{}, prefix string) error {
 			if prefix != "" {
 				path = prefix + "." + k
 			}
-			//nolint:revive // TODO(APM) Fix revive linter
-			return fmt.Errorf("Found key %s, but it is not expected in the output. If you've added a new key to the /info endpoint, please add it to the tests.\n", path)
+			return fmt.Errorf("found key %s, but it is not expected in the output. If you've added a new key to the /info endpoint, please add it to the tests", path)
 		}
 	}
 	return nil
@@ -247,18 +244,17 @@ func TestInfoHandler(t *testing.T) {
 			Host:    "https://target-intake.datadoghq.com",
 			NoProxy: true,
 		}},
-		BucketInterval:         time.Second,
-		ExtraAggregators:       []string{"agg:val"},
-		PeerServiceAggregation: true,
-		ExtraSampleRate:        2.4,
-		TargetTPS:              11,
-		MaxEPS:                 12,
-		ReceiverHost:           "localhost",
-		ReceiverPort:           8111,
-		ReceiverSocket:         "/sock/path",
-		ConnectionLimit:        12,
-		ReceiverTimeout:        100,
-		MaxRequestBytes:        123,
+		BucketInterval:   time.Second,
+		ExtraAggregators: []string{"agg:val"},
+		ExtraSampleRate:  2.4,
+		TargetTPS:        11,
+		MaxEPS:           12,
+		ReceiverHost:     "localhost",
+		ReceiverPort:     8111,
+		ReceiverSocket:   "/sock/path",
+		ConnectionLimit:  12,
+		ReceiverTimeout:  100,
+		MaxRequestBytes:  123,
 		StatsWriter: &config.WriterConfig{
 			ConnectionLimit:    20,
 			QueueSize:          12,
@@ -272,7 +268,6 @@ func TestInfoHandler(t *testing.T) {
 		StatsdHost:                  "stastd.localhost",
 		StatsdPort:                  123,
 		LogFilePath:                 "/path/to/logfile",
-		LogThrottling:               false,
 		MaxMemory:                   1000000,
 		MaxCPU:                      12345,
 		WatchdogInterval:            time.Minute,

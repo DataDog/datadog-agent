@@ -2,7 +2,7 @@
 # syntax=docker/dockerfile:1
 
 ## Build
-FROM golang:1.21.7-alpine3.18 AS build
+FROM golang:1.21.9-alpine3.18 AS build
 
 # need gcc to build with CGO_ENABLED=1
 # need musl-dev to get stdlib.h
@@ -14,6 +14,7 @@ COPY test/fakeintake/go.mod test/fakeintake/go.sum ./
 
 # every datadog-agent module imported by the fakeintake has to be copied in the build image
 COPY pkg/proto /pkg/proto
+COPY comp/netflow/payload /comp/netflow/payload
 
 RUN go mod download
 

@@ -26,7 +26,9 @@ var (
 	DefaultProcessAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\process-agent.log"
 
 	// defaultSystemProbeAddress is the default address to be used for connecting to the system probe
-	defaultSystemProbeAddress     = "localhost:3333"
+	defaultSystemProbeAddress = "localhost:3333"
+	// defaultEventMonitorAddress is the default address to be used for connecting to the event monitor
+	defaultEventMonitorAddress    = "localhost:3335"
 	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"

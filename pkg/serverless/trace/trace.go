@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -67,6 +68,9 @@ const dnsNonRoutableAddressURLPrefix = "0.0.0.0"
 // dnsLocalHostAddressURLPrefix is the first part of a URL from the localhost address for DNS traces
 const dnsLocalHostAddressURLPrefix = "127.0.0.1"
 
+// awsXrayDaemonAddressURLPrefix is the first part of a URL from the _AWS_XRAY_DAEMON_ADDRESS for DNS traces
+const awsXrayDaemonAddressURLPrefix = "169.254.79.129"
+
 const invocationSpanResource = "dd-tracer-serverless-span"
 
 // Load loads the config from a file path
@@ -101,6 +105,7 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, lambdaSpanCh
 			s.spanModifier = &spanModifier{
 				coldStartSpanId: coldStartSpanId,
 				lambdaSpanChan:  lambdaSpanChan,
+				ddOrigin:        getDDOrigin(),
 			}
 
 			s.ta.ModifySpan = s.spanModifier.ModifySpan
@@ -190,12 +195,9 @@ func filterSpanFromLambdaLibraryOrRuntime(span *pb.Span) bool {
 
 	// Filters out DNS spans
 	if dnsAddress, ok := span.Meta[dnsAddressMetaKey]; ok {
-		if strings.HasPrefix(dnsAddress, dnsNonRoutableAddressURLPrefix) {
-			log.Debugf("Detected span with dns url %s, removing it", dnsAddress)
-			return true
-		}
-
-		if strings.HasPrefix(dnsAddress, dnsLocalHostAddressURLPrefix) {
+		if strings.HasPrefix(dnsAddress, dnsNonRoutableAddressURLPrefix) ||
+			strings.HasPrefix(dnsAddress, dnsLocalHostAddressURLPrefix) ||
+			strings.HasPrefix(dnsAddress, awsXrayDaemonAddressURLPrefix) {
 			log.Debugf("Detected span with dns url %s, removing it", dnsAddress)
 			return true
 		}
@@ -207,4 +209,13 @@ func filterSpanFromLambdaLibraryOrRuntime(span *pb.Span) bool {
 		return true
 	}
 	return false
+}
+
+// getDDOrigin returns the value for the _dd.origin tag based on the cloud service type
+func getDDOrigin() string {
+	origin := ddOriginTagValue
+	if cloudServiceOrigin := cloudservice.GetCloudServiceType().GetOrigin(); cloudServiceOrigin != "local" {
+		origin = cloudServiceOrigin
+	}
+	return origin
 }

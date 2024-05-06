@@ -9,19 +9,21 @@
 package collectors
 
 import (
+	"go.uber.org/fx"
+
 	cf_container "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/container"
 	cf_vm "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/containerd"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/docker"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecs"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecsfargate"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/host"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubeapiserver"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubelet"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubemetadata"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
-	"go.uber.org/fx"
 )
 
 // GetCatalog returns the set of FX options to populate the catalog
@@ -39,6 +41,7 @@ func GetCatalog() fx.Option {
 		podman.GetFxOptions(),
 		workloadmeta.GetFxOptions(),
 		processcollector.GetFxOptions(),
+		host.GetFxOptions(),
 	}
 
 	// remove nil options

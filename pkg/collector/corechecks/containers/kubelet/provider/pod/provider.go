@@ -12,14 +12,13 @@ package pod
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
-	"golang.org/x/exp/slices"
-
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -40,6 +39,8 @@ var includeContainerStateReason = map[string][]string{
 	},
 	"terminated": {"oomkilled", "containercannotrun", "error"},
 }
+
+const kubeNamespaceTag = "kube_namespace"
 
 // Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
 type Provider struct {
@@ -75,7 +76,12 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 
 	for _, pod := range pods.Items {
 		p.podUtils.PopulateForPod(pod)
-		for _, cStatus := range pod.Status.Containers {
+		// Combine regular containers with init containers for easier iteration
+		allContainers := make([]kubelet.ContainerSpec, 0, len(pod.Spec.InitContainers)+len(pod.Spec.Containers))
+		allContainers = append(allContainers, pod.Spec.InitContainers...)
+		allContainers = append(allContainers, pod.Spec.Containers...)
+
+		for _, cStatus := range pod.Status.AllContainers {
 			if cStatus.ID == "" {
 				// no container ID means we could not find the matching container status for this container, which will make fetching tags difficult.
 				continue
@@ -87,8 +93,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			}
 
 			var container kubelet.ContainerSpec
-			// for _, status := range pod.Status.Containers {
-			for _, c := range pod.Spec.Containers {
+			for _, c := range allContainers {
 				if cStatus.Name == c.Name {
 					container = c
 					break
@@ -115,9 +120,14 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	if pod.Status.Phase != "Running" && pod.Status.Phase != "Pending" {
 		return
 	}
+	// Filter out containers which have completed, as their resources should be freed
+	if cStatus.State.Terminated != nil && cStatus.State.Terminated.Reason == "Completed" {
+		return
+	}
 
-	tags, _ := tagger.Tag(containerID, collectors.HighCardinality)
-	if len(tags) == 0 {
+	tags, _ := tagger.Tag(containerID, types.HighCardinality)
+	// Skip recording containers without kubelet information in tagger or if there are no tags
+	if !isTagKeyPresent(kubeNamespaceTag, tags) || len(tags) == 0 {
 		return
 	}
 	tags = utils.ConcatenateTags(tags, p.config.Tags)
@@ -135,8 +145,9 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kub
 		return
 	}
 
-	tags, _ := tagger.Tag(containerID, collectors.OrchestratorCardinality)
-	if len(tags) == 0 {
+	tags, _ := tagger.Tag(containerID, types.OrchestratorCardinality)
+	// Skip recording containers without kubelet information in tagger or if there are no tags
+	if !isTagKeyPresent(kubeNamespaceTag, tags) || len(tags) == 0 {
 		return
 	}
 	tags = utils.ConcatenateTags(tags, p.config.Tags)
@@ -178,8 +189,9 @@ func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStat
 		return
 	}
 	r.podHasRunningContainers[pod.Metadata.UID] = true
-	tags, _ := tagger.Tag(containerID, collectors.LowCardinality)
-	if len(tags) == 0 {
+	tags, _ := tagger.Tag(containerID, types.LowCardinality)
+	// Skip recording containers without kubelet information in tagger or if there are no tags
+	if !isTagKeyPresent(kubeNamespaceTag, tags) || len(tags) == 0 {
 		return
 	}
 	hashTags := generateTagHash(tags)
@@ -198,7 +210,7 @@ func (r *runningAggregator) recordPod(p *Provider, pod *kubelet.Pod) {
 		log.Debug("skipping pod with no uid")
 		return
 	}
-	tags, _ := tagger.Tag(fmt.Sprintf("kubernetes_pod_uid://%s", podID), collectors.LowCardinality)
+	tags, _ := tagger.Tag(fmt.Sprintf("kubernetes_pod_uid://%s", podID), types.LowCardinality)
 	if len(tags) == 0 {
 		return
 	}
@@ -229,4 +241,13 @@ func generateTagHash(tags []string) string {
 	copy(sortedTags, tags)
 	sort.Strings(sortedTags)
 	return strings.Join(sortedTags, ",")
+}
+
+func isTagKeyPresent(key string, tags []string) bool {
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, key+":") {
+			return true
+		}
+	}
+	return false
 }

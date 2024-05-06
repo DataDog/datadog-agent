@@ -152,15 +152,15 @@ CONNECT: // Outer loop handles re-connecting in case the docker daemon closes th
 func eventFilters() filters.Args {
 	res := filters.NewArgs()
 
-	res.Add("type", events.ContainerEventType)
+	res.Add("type", string(events.ContainerEventType))
 	for _, containerEventAction := range containerEventActions {
-		res.Add("event", containerEventAction)
+		res.Add("event", string(containerEventAction))
 	}
 
 	if config.Datadog.GetBool("container_image.enabled") {
-		res.Add("type", events.ImageEventType)
+		res.Add("type", string(events.ImageEventType))
 		for _, imageEventAction := range imageEventActions {
-			res.Add("event", imageEventAction)
+			res.Add("event", string(imageEventAction))
 		}
 	}
 

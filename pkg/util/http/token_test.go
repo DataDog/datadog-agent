@@ -39,7 +39,7 @@ func TestGetNewToken(t *testing.T) {
 
 	token := NewAPIToken(cb)
 	val, err := token.Get(context.Background())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "test", val)
 	assert.Equal(t, expireReturnValue, token.ExpirationDate)
 	assert.Equal(t, 1, nbCbCall)
@@ -48,7 +48,7 @@ func TestGetNewToken(t *testing.T) {
 	tokenReturnValue = "test2"
 
 	val, err = token.Get(context.Background())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "test", val)
 	assert.Equal(t, expireReturnValue, token.ExpirationDate)
 	assert.Equal(t, 1, nbCbCall)
@@ -56,7 +56,7 @@ func TestGetNewToken(t *testing.T) {
 	// expire token
 	token.ExpirationDate = time.Now().Add(-10 * time.Minute)
 	val, err = token.Get(context.Background())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "test2", val)
 	assert.Equal(t, expireReturnValue, token.ExpirationDate)
 	assert.Equal(t, 2, nbCbCall)

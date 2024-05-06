@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
 
-//go:build zlib
-
 package stream
 
 import (
 	"bytes"
+	"errors"
 	"expvar"
 	"sync"
 	"time"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -68,10 +68,11 @@ type JSONPayloadBuilder struct {
 	input, output                 *bytes.Buffer
 	mu                            sync.Mutex
 	config                        config.Component
+	compressor                    compression.Component
 }
 
 // NewJSONPayloadBuilder returns a new JSONPayloadBuilder
-func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component) *JSONPayloadBuilder {
+func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component, compressor compression.Component) *JSONPayloadBuilder {
 	if shareAndLockBuffers {
 		return &JSONPayloadBuilder{
 			inputSizeHint:       4096,
@@ -80,6 +81,7 @@ func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component) *J
 			input:               bytes.NewBuffer(make([]byte, 0, 4096)),
 			output:              bytes.NewBuffer(make([]byte, 0, 4096)),
 			config:              config,
+			compressor:          compressor,
 		}
 	}
 	return &JSONPayloadBuilder{
@@ -87,6 +89,7 @@ func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component) *J
 		outputSizeHint:      4096,
 		shareAndLockBuffers: false,
 		config:              config,
+		compressor:          compressor,
 	}
 }
 
@@ -157,7 +160,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	compressor, err := NewCompressor(
 		input, output,
 		maxPayloadSize, maxUncompressedSize,
-		header.Bytes(), footer.Bytes(), []byte(","))
+		header.Bytes(), footer.Bytes(), []byte(","), b.compressor)
 	if err != nil {
 		return nil, err
 	}
@@ -177,12 +180,13 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			continue
 		}
 
-		switch compressor.AddItem(jsonStream.Buffer()) {
-		case ErrPayloadFull:
+		switch err = compressor.AddItem(jsonStream.Buffer()); {
+		case errors.Is(err, ErrPayloadFull):
 			expvarsPayloadFulls.Add(1)
 			tlmPayloadFull.Inc()
 			// payload is full, we need to create a new one
-			payload, err := compressor.Close()
+			var payload []byte
+			payload, err = compressor.Close()
 			if err != nil {
 				return payloads, err
 			}
@@ -193,18 +197,18 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			compressor, err = NewCompressor(
 				input, output,
 				maxPayloadSize, maxUncompressedSize,
-				header.Bytes(), footer.Bytes(), []byte(","))
+				header.Bytes(), footer.Bytes(), []byte(","), b.compressor)
 			if err != nil {
 				return nil, err
 			}
-		case nil:
+		case err == nil:
 			// All good, continue to next item
 			pointCount += m.GetCurrentItemPointCount()
 			ok = m.MoveNext()
 			expvarsTotalItems.Add(1)
 			tlmTotalItems.Inc()
 			continue
-		case ErrItemTooBig:
+		case errors.Is(err, ErrItemTooBig):
 			if policy == FailOnErrItemTooBig {
 				return nil, ErrItemTooBig
 			}

@@ -8,13 +8,17 @@ package sender
 import (
 	"sync"
 
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // DestinationSender wraps a destination to send messages blocking on a full buffer, but not blocking when
 // a destination is retrying
 type DestinationSender struct {
+	config            pkgconfigmodel.Reader
+	sendEnabled       bool
 	input             chan *message.Payload
 	destination       client.Destination
 	retryReader       chan bool
@@ -26,12 +30,14 @@ type DestinationSender struct {
 }
 
 // NewDestinationSender creates a new DestinationSender
-func NewDestinationSender(destination client.Destination, output chan *message.Payload, bufferSize int) *DestinationSender {
+func NewDestinationSender(config pkgconfigmodel.Reader, destination client.Destination, output chan *message.Payload, bufferSize int) *DestinationSender {
 	inputChan := make(chan *message.Payload, bufferSize)
 	retryReader := make(chan bool, 1)
 	stopChan := destination.Start(inputChan, output, retryReader)
 
 	d := &DestinationSender{
+		config:            config,
+		sendEnabled:       true,
 		input:             inputChan,
 		destination:       destination,
 		retryReader:       retryReader,
@@ -69,6 +75,26 @@ func (d *DestinationSender) Stop() {
 	close(d.retryReader)
 }
 
+func (d *DestinationSender) canSend() bool {
+	if d.destination.IsMRF() {
+		if !d.sendEnabled {
+			if d.config.GetBool("multi_region_failover.enabled") && d.config.GetBool("multi_region_failover.failover_logs") {
+				d.sendEnabled = true
+				log.Infof("Forwarder for domain %v has been failed over to, enabling it for MRF.", d.destination.Target())
+			} else {
+				log.Debugf("Forwarder for domain %v is disabled; dropping transaction for this domain.", d.destination.Target())
+			}
+		} else {
+			if !d.config.GetBool("multi_region_failover.enabled") || !d.config.GetBool("multi_region_failover.failover_logs") {
+				d.sendEnabled = false
+				log.Infof("Forwarder for domain %v was disabled; transactions will be dropped for this domain.", d.destination.Target())
+			}
+		}
+	}
+
+	return d.sendEnabled
+}
+
 // Send sends a payload and blocks if the input is full. It will not block if the destination
 // is retrying payloads and will cancel the blocking attempt if the retry state changes
 func (d *DestinationSender) Send(payload *message.Payload) bool {
@@ -86,6 +112,13 @@ func (d *DestinationSender) Send(payload *message.Payload) bool {
 	}()
 
 	if !isRetrying {
+		// if we can't send, we consider the send call as successful because we don't want to block the
+		// pipeline when HA failover is knowingly disabled
+		if !d.canSend() {
+			d.lastSendSucceeded = true
+			return true
+		}
+
 		select {
 		case d.input <- payload:
 			d.lastSendSucceeded = true

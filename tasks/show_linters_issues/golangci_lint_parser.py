@@ -7,7 +7,7 @@ import re
 from collections import defaultdict
 from typing import Dict
 
-from tasks.libs.pipeline_notifications import read_owners
+from tasks.libs.owners.parsing import read_owners
 
 # Example lint message
 # "pointer.go:6:1: package-comments: should have a package comment (revive)"

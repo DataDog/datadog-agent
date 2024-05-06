@@ -8,6 +8,8 @@ package provider
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/stretchr/testify/assert"
 )
@@ -46,7 +48,7 @@ func TestRuntimeMetadataString(t *testing.T) {
 }
 
 func TestGenericProvider(t *testing.T) {
-	provider := newProvider()
+	provider := newProvider(optional.NewNoneOption[workloadmeta.Component]())
 
 	// First collector is going to be priority 1 on stats and 2 on network
 	statsCollector := &dummyCollector{

@@ -13,6 +13,10 @@
               <option name="containerPath" value="/home/datadog/go/src/github.com/DataDog/datadog-agent" />
               <option name="hostPath" value="$PROJECT_DIR$" />
             </DockerVolumeBindingImpl>
+            <DockerVolumeBindingImpl>
+              <option name="containerPath" value="/var/run/docker.sock" />
+              <option name="hostPath" value="/var/run/docker.sock" />
+            </DockerVolumeBindingImpl>
           </list>
         </option>
       </settings>

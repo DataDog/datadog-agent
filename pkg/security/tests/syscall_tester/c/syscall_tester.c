@@ -80,6 +80,18 @@ void register_span(struct span_tls_t *tls, unsigned trace_id, unsigned span_id) 
     base[offset + 1] = trace_id;
 }
 
+static void *thread_span_exec(void *data) {
+    struct thread_opts *opts = (struct thread_opts *)data;
+
+    unsigned trace_id = atoi(opts->argv[1]);
+    unsigned span_id = atoi(opts->argv[2]);
+
+    register_span(opts->tls, trace_id, span_id);
+
+    execv(opts->argv[3], opts->argv + 3);
+    return NULL;
+}
+
 int span_exec(int argc, char **argv) {
     if (argc < 4) {
         fprintf(stderr, "Please pass a span Id and a trace Id to exec_span and a command\n");
@@ -92,12 +104,16 @@ int span_exec(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    unsigned trace_id = atoi(argv[1]);
-    unsigned span_id = atoi(argv[2]);
+    struct thread_opts opts = {
+        .argv = argv,
+        .tls = tls,
+    };
 
-    register_span(tls, trace_id, span_id);
-
-    execv(argv[3], argv + 3);
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_span_exec, &opts) < 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_join(thread, NULL);
 
     return EXIT_SUCCESS;
 }
@@ -212,7 +228,7 @@ int test_signal(int argc, char **argv) {
         }
     }
 
-    if (!strcmp(argv[1], "sigusr"))
+    if (!strcmp(argv[1], "sigusr1"))
         return test_signal_sigusr(pid, SIGUSR1);
     else if (!strcmp(argv[1], "sigusr2"))
         return test_signal_sigusr(pid, SIGUSR2);
@@ -553,21 +569,30 @@ int test_unlink(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
-sigset_t set;
-int test_set_signal_handler(int argc, char** argv) {
-    sigemptyset(&set);
-    sigaddset(&set, SIGUSR2);
-    int ret = sigprocmask( SIG_BLOCK, &set, NULL );
+int usr2_received = 0;
 
-    return ret;
+void usr2_handler(int v) {
+    usr2_received = 1;
+}
+
+int test_set_signal_handler(int argc, char** argv) {
+
+    struct sigaction act;
+    act.sa_handler = usr2_handler;
+    act.sa_flags = 0;
+    sigemptyset(&act.sa_mask);
+    if (sigaction(SIGUSR2, &act, NULL) < 0) {
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
 }
 
 int test_wait_signal(int argc, char** argv) {
-    int sig;
-    int *sigptr = &sig;
-    int ret_val;
-
-    return sigwait(&set, sigptr);
+    while(!usr2_received) {
+        sleep(1);
+    }
+    return EXIT_SUCCESS;
 }
 
 void *thread_exec(void *arg) {
@@ -666,6 +691,8 @@ int test_new_netns_exec(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+    setbuf(stdout, NULL);
+
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
         return EXIT_FAILURE;

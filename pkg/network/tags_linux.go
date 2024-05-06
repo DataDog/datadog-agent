@@ -22,6 +22,10 @@ const (
 	ConnTagJava = http.Java
 	//nolint:revive // TODO(NET) Fix revive linter
 	ConnTagTLS = http.TLS
+	//nolint:revive // TODO(NET) Fix revive linter
+	ConnTagIstio = http.Istio
+	// ConnTagNodeJS is the tag for NodeJS TLS connections
+	ConnTagNodeJS = http.NodeJS
 )
 
 // GetStaticTags return the string list of static tags from network.ConnectionStats.Tags
@@ -36,5 +40,5 @@ func GetStaticTags(staticTags uint64) (tags []string) {
 
 //nolint:revive // TODO(NET) Fix revive linter
 func IsTLSTag(staticTags uint64) bool {
-	return staticTags&(ConnTagGnuTLS|ConnTagOpenSSL|ConnTagGo|ConnTagJava|ConnTagTLS) > 0
+	return staticTags&(ConnTagGnuTLS|ConnTagOpenSSL|ConnTagGo|ConnTagJava|ConnTagTLS|ConnTagIstio|ConnTagNodeJS) > 0
 }

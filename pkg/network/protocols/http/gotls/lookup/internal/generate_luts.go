@@ -20,9 +20,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-delve/delve/pkg/goversion"
-
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
 	"github.com/DataDog/datadog-agent/pkg/network/go/lutgen"
 )
 
@@ -48,6 +47,7 @@ var (
 		bininspect.StructOffsetNetConnFd,
 		bininspect.StructOffsetNetFdPfd,
 		bininspect.StructOffsetPollFdSysfd,
+		bininspect.StructOffsetLimitListenerConnNetConn,
 	}
 )
 
@@ -71,8 +71,8 @@ func main() {
 		log.Fatalf("unable to get absolute path to %q: %s", *outFlag, err)
 	}
 
-	minGoVersion, ok := goversion.Parse(fmt.Sprintf("go%s", *minGoVersionFlag))
-	if !ok {
+	minGoVersion, err := goversion.NewGoVersion(*minGoVersionFlag)
+	if err != nil {
 		log.Fatalf("unable to parse min Go version %q", *minGoVersionFlag)
 	}
 
@@ -206,6 +206,15 @@ func run(
 				DocComment:      `GetFD_SysfdOffset gets the offset of the "Sysfd" field in the "internal/poll.FD" struct`,
 				ExtractValue: func(r interface{}) interface{} {
 					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetPollFdSysfd]
+				},
+			},
+			{
+				Name:            "GetLimitListenerConn_NetConnOffset",
+				OutputType:      "uint64",
+				OutputZeroValue: "0",
+				DocComment:      `GetLimitListenerConn_NetConnOffset gets the offset of the "net.Conn" field in the "netutil/limitListenerConn" struct`,
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetLimitListenerConnNetConn]
 				},
 			},
 		},

@@ -76,6 +76,7 @@ const (
 	Cri                      = env.Cri
 	Containerd               = env.Containerd
 	KubeOrchestratorExplorer = env.KubeOrchestratorExplorer
+	ECSOrchestratorExplorer  = env.ECSOrchestratorExplorer
 )
 
 var (
@@ -188,8 +189,6 @@ type (
 	Listeners = pkgconfigsetup.Listeners
 	// MappingProfile Alias
 	MappingProfile = pkgconfigsetup.MappingProfile
-	// Endpoint Alias
-	Endpoint = pkgconfigsetup.Endpoint
 )
 
 // GetObsPipelineURL Alias using Datadog config

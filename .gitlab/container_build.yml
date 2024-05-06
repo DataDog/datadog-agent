@@ -1,7 +1,0 @@
----
-# container_build stage
-# Contains jobs to build container images of the Agent.
-
-include:
-  - /.gitlab/container_build/docker_linux.yml
-  - /.gitlab/container_build/docker_windows.yml

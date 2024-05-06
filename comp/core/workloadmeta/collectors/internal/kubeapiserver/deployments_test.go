@@ -269,7 +269,7 @@ func Test_Deployment_FilteredOut(t *testing.T) {
 				},
 				Env: "",
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "nil maps",
@@ -279,7 +279,7 @@ func Test_Deployment_FilteredOut(t *testing.T) {
 					Kind: workloadmeta.KindKubernetesDeployment,
 				},
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name:       "nil",

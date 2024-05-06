@@ -27,11 +27,12 @@ const (
 // UserV3 contains the definition of one SNMPv3 user with its username and its auth
 // parameters.
 type UserV3 struct {
-	Username     string `mapstructure:"user" yaml:"user"`
-	AuthKey      string `mapstructure:"authKey" yaml:"authKey"`
-	AuthProtocol string `mapstructure:"authProtocol" yaml:"authProtocol"`
-	PrivKey      string `mapstructure:"privKey" yaml:"privKey"`
-	PrivProtocol string `mapstructure:"privProtocol" yaml:"privProtocol"`
+	Username       string `mapstructure:"user" yaml:"user"`
+	UsernameLegacy string `mapstructure:"username" yaml:"username"`
+	AuthKey        string `mapstructure:"authKey" yaml:"authKey"`
+	AuthProtocol   string `mapstructure:"authProtocol" yaml:"authProtocol"`
+	PrivKey        string `mapstructure:"privKey" yaml:"privKey"`
+	PrivProtocol   string `mapstructure:"privProtocol" yaml:"privProtocol"`
 }
 
 // TrapsConfig contains configuration for SNMP trap listeners.
@@ -122,6 +123,11 @@ func (c *TrapsConfig) BuildSNMPParams(logger log.Component) (*gosnmp.GoSNMP, err
 	// Set up user security params table from config
 	usmTable := gosnmp.NewSnmpV3SecurityParametersTable(snmpLogger)
 	for _, user := range c.Users {
+		// Backward compatibility
+		if user.Username == "" {
+			user.Username = user.UsernameLegacy
+		}
+
 		authProtocol, err := gosnmplib.GetAuthProtocol(user.AuthProtocol)
 		if err != nil {
 			return nil, err

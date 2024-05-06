@@ -6,7 +6,7 @@
 // Package packagesigning implements a component to generate the 'signing' metadata payload for DD inventory (REDAPL).
 package packagesigning
 
-// team: agent-platform
+// team: agent-build-and-releases
 
 // Component is the component type.
 type Component interface {

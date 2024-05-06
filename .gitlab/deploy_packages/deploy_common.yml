@@ -1,0 +1,107 @@
+---
+.deploy_packages_deb:
+  resource_group: deb_bucket
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "*_${MAJOR_VERSION}.*${PACKAGE_ARCH}.deb" "$OMNIBUS_PACKAGE_DIR" "$S3_RELEASE_ARTIFACTS_URI/deb/${PACKAGE_ARCH}/"
+
+.deploy_packages_deb-6:
+  extends: .deploy_packages_deb
+  stage: deploy_packages
+  rules:
+    !reference [.on_deploy]
+  variables:
+    MAJOR_VERSION: 6
+
+.deploy_packages_deb-7:
+  extends: .deploy_packages_deb
+  stage: deploy_packages
+  rules:
+    !reference [.on_deploy]
+  variables:
+    MAJOR_VERSION: 7
+
+.deploy_packages_rpm:
+  resource_group: rpm_bucket
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  variables:
+    ARTIFACTS_PREFIX: ""
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "*-${MAJOR_VERSION}.*${PACKAGE_ARCH}.rpm" "$OMNIBUS_PACKAGE_DIR" "$S3_RELEASE_ARTIFACTS_URI/${ARTIFACTS_PREFIX}rpm/${PACKAGE_ARCH}/"
+
+.deploy_packages_rpm-6:
+  extends: .deploy_packages_rpm
+  stage: deploy_packages
+  rules:
+    !reference [.on_deploy]
+  variables:
+    MAJOR_VERSION: 6
+
+.deploy_packages_rpm-7:
+  extends: .deploy_packages_rpm
+  stage: deploy_packages
+  rules:
+    !reference [.on_deploy]
+  variables:
+    MAJOR_VERSION: 7
+
+.deploy_packages_suse_rpm:
+  extends: .deploy_packages_rpm
+  variables:
+    ARTIFACTS_PREFIX: suse_
+    OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
+
+.deploy_packages_suse_rpm-6:
+  extends: .deploy_packages_suse_rpm
+  stage: deploy_packages
+  rules:
+    !reference [.on_deploy]
+  variables:
+    MAJOR_VERSION: 6
+
+.deploy_packages_suse_rpm-7:
+  extends: .deploy_packages_suse_rpm
+  stage: deploy_packages
+  rules:
+    !reference [.on_deploy]
+  variables:
+    MAJOR_VERSION: 7
+
+# Datadog Installer
+
+# The installer is a special case because it's built by the datadog-agent pipeline, but
+# is expected to be deployed in a dedicated folder, so we need to define a special base which
+# fetches packages from a custom value of S3_RELEASE_ARTIFACTS_URI as the default value
+# include datadog-agent as a product
+.deploy_installer_deb:
+  rules:
+    !reference [.on_deploy]
+  resource_group: deb_bucket
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: deploy_packages
+  tags: ["arch:amd64"]
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "*_7.*${PACKAGE_ARCH}.deb" "$OMNIBUS_PACKAGE_DIR" "${S3_RELEASE_INSTALLER_ARTIFACTS_URI}/deb/${PACKAGE_ARCH}/"
+
+.deploy_installer_rpm:
+  rules:
+    !reference [.on_deploy]
+  resource_group: rpm_bucket
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: deploy_packages
+  tags: ["arch:amd64"]
+  variables:
+    ARTIFACTS_PREFIX: ""
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "*-7.*${PACKAGE_ARCH}.rpm" "$OMNIBUS_PACKAGE_DIR" "${S3_RELEASE_INSTALLER_ARTIFACTS_URI}/${ARTIFACTS_PREFIX}rpm/${PACKAGE_ARCH}/"
+

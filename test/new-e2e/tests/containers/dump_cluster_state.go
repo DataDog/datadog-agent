@@ -164,7 +164,7 @@ func dumpKindClusterState(ctx context.Context, name string) (ret string) {
 	}
 
 	sshClient, err := ssh.Dial("tcp", *instanceIP+":22", &ssh.ClientConfig{
-		User:            "ubuntu",
+		User:            "ec2-user",
 		Auth:            auth,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	})

@@ -1,0 +1,19 @@
+---
+# software_composition_analysis stage
+# Contains jobs to generate SBOMs for the repository,
+# upload them to Datadog, and scan them for vulnerabilities.
+
+datadog-sca-ci:
+  stage: software_composition_analysis
+  tags: ["arch:amd64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-static-analyzer:2024031801
+  when: always
+  # We don't want to disrupt the pipeline so let's fail silently.
+  allow_failure: true
+  # This specifies the job does not have any dependency, meaning it can start as soon as it can.
+  needs: []
+  script:
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh "$API_KEY_ORG2_SSM_NAME")
+    - export DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh "$APP_KEY_ORG2_SSM_NAME")
+    - osv-scanner --skip-git --recursive --experimental-only-packages --format=cyclonedx-1-4 --output=/tmp/sbom.json .
+    - datadog-ci sbom upload --service integrations-core --env ci /tmp/sbom.json

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
+	"time"
 )
 
 ////////////////////////////////
@@ -18,49 +19,70 @@ import (
 //                            //
 ////////////////////////////////
 
-func TestLanguageSetOperations(t *testing.T) {
+func TestAddToLanguageSet(t *testing.T) {
+	s := LanguageSet{}
+
+	added := s.Add("cpp")
+	assert.True(t, added)
+
+	expectedAfterAdd := LanguageSet{"cpp": {}}
+	assert.Truef(t, reflect.DeepEqual(s, expectedAfterAdd), "Expected %v, found %v", expectedAfterAdd, s)
+
+	added = s.Add("cpp")
+	assert.False(t, added)
+	assert.Truef(t, reflect.DeepEqual(s, expectedAfterAdd), "Expected %v, found %v", expectedAfterAdd, s)
+}
+
+////////////////////////////////
+//                            //
+//    TimedLanguageSet Set    //
+//                            //
+////////////////////////////////
+
+func TestTimedLanguageSetOperations(t *testing.T) {
+	mockExpiration := time.Now()
 
 	tests := []struct {
 		name      string
-		baseSet   LanguageSet
-		operation func(LanguageSet)
-		expected  LanguageSet
+		baseSet   TimedLanguageSet
+		operation func(TimedLanguageSet)
+		expected  TimedLanguageSet
 	}{
 		{
 			name:      "add item to language set",
-			baseSet:   LanguageSet{},
-			operation: func(set LanguageSet) { set.Add("java") },
-			expected:  LanguageSet{"java": struct{}{}},
+			baseSet:   TimedLanguageSet{},
+			operation: func(set TimedLanguageSet) { set.Add("java", mockExpiration) },
+			expected:  TimedLanguageSet{"java": mockExpiration},
 		},
 		{
 			name:    "add multiple items to language set",
-			baseSet: LanguageSet{},
-			operation: func(set LanguageSet) {
-				set.Add("java")
-				set.Add("cpp")
+			baseSet: TimedLanguageSet{"java": mockExpiration.Add(-2 * time.Second)},
+			operation: func(set TimedLanguageSet) {
+				set.Add("java", mockExpiration)
+				set.Add("cpp", mockExpiration)
 			},
-			expected: LanguageSet{"java": struct{}{}, "cpp": struct{}{}},
+			expected: TimedLanguageSet{"java": mockExpiration, "cpp": mockExpiration},
 		},
 		{
 			name:      "delete existing language from language set",
-			baseSet:   LanguageSet{"java": struct{}{}},
-			operation: func(set LanguageSet) { set.Remove("java") },
-			expected:  LanguageSet{},
+			baseSet:   TimedLanguageSet{"java": mockExpiration},
+			operation: func(set TimedLanguageSet) { set.Remove("java") },
+			expected:  TimedLanguageSet{},
 		},
 		{
 			name:      "delete a non existing language from language set should not return an error",
-			baseSet:   LanguageSet{},
-			operation: func(set LanguageSet) { set.Remove("java") },
-			expected:  LanguageSet{},
+			baseSet:   TimedLanguageSet{},
+			operation: func(set TimedLanguageSet) { set.Remove("java") },
+			expected:  TimedLanguageSet{},
 		},
 		{
 			name:    "merge with another languageset",
-			baseSet: LanguageSet{},
-			operation: func(set LanguageSet) {
-				other := LanguageSet{"java": struct{}{}, "cpp": struct{}{}}
+			baseSet: TimedLanguageSet{"java": mockExpiration.Add(-2 * time.Second)},
+			operation: func(set TimedLanguageSet) {
+				other := TimedLanguageSet{"java": mockExpiration, "cpp": mockExpiration}
 				set.Merge(other)
 			},
-			expected: LanguageSet{"java": struct{}{}, "cpp": struct{}{}},
+			expected: TimedLanguageSet{"java": mockExpiration, "cpp": mockExpiration},
 		},
 	}
 
@@ -76,19 +98,19 @@ func TestHas(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		baseSet    LanguageSet
+		baseSet    TimedLanguageSet
 		target     Language
 		shouldHave bool
 	}{
 		{
 			name:       "has existing item",
-			baseSet:    LanguageSet{"java": {}},
+			baseSet:    TimedLanguageSet{"java": {}},
 			target:     "java",
 			shouldHave: true,
 		},
 		{
 			name:       "should not have missing item",
-			baseSet:    LanguageSet{"java": {}},
+			baseSet:    TimedLanguageSet{"java": {}},
 			target:     "cpp",
 			shouldHave: false,
 		},
@@ -104,4 +126,14 @@ func TestHas(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRemoveExpired(t *testing.T) {
+	mockTime := time.Now()
+	langset := TimedLanguageSet{"java": mockTime.Add(10 * time.Minute), "cpp": mockTime.Add(-10 * time.Minute)}
+	removedAny := langset.RemoveExpired()
+	assert.True(t, removedAny)
+
+	expectedLangset := TimedLanguageSet{"java": mockTime.Add(10 * time.Minute)}
+	assert.Truef(t, reflect.DeepEqual(langset, expectedLangset), "Expected %v, found %v", expectedLangset, langset)
 }

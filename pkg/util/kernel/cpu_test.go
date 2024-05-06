@@ -29,10 +29,10 @@
 package kernel
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 )
 
 func TestParseCPUSingleRange(t *testing.T) {

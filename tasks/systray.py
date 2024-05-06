@@ -2,7 +2,6 @@
 systray tasks
 """
 
-
 import os
 import sys
 

@@ -33,11 +33,13 @@ func newCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		check:              chk,
 		inventory:          inventory.NewCollectorInventory(),
 		runCfg: &collectors.CollectorRunConfig{
-			APIClient:                   chk.apiClient,
-			ClusterID:                   chk.clusterID,
-			Config:                      chk.orchestratorConfig,
-			MsgGroupRef:                 chk.groupID,
-			OrchestratorInformerFactory: chk.orchestratorInformerFactory,
+			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+				APIClient:                   chk.apiClient,
+				OrchestratorInformerFactory: chk.orchestratorInformerFactory,
+			},
+			ClusterID:   chk.clusterID,
+			Config:      chk.orchestratorConfig,
+			MsgGroupRef: chk.groupID,
 		},
 		stopCh:              chk.stopCh,
 		manifestBuffer:      NewManifestBuffer(chk),

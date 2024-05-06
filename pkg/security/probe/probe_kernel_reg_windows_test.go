@@ -25,7 +25,7 @@ import (
 
 func processUntilRegOpen(t *testing.T, et *etwTester) {
 
-	skippedObjects := make(map[fileObjectPointer]struct{})
+	//skippedObjects := make(map[fileObjectPointer]struct{})
 	defer func() {
 		et.loopExited <- struct{}{}
 	}()
@@ -39,47 +39,20 @@ func processUntilRegOpen(t *testing.T, et *etwTester) {
 		case n := <-et.notify:
 
 			switch n.(type) {
+			case *openKeyArgs:
+				if strings.HasPrefix(n.(*openKeyArgs).computedFullPath, "HKEY_USERS\\") {
+					et.notifications = append(et.notifications, n)
+				}
+				continue
+
 			case *createKeyArgs:
-				et.notifications = append(et.notifications, n)
-				return
-			case *createHandleArgs:
-				ca := n.(*createHandleArgs)
-				// we get all sorts of notifications of DLLs being loaded.
-				// skip those
-
-				// check the last 4 chars of the filename
-				if l := len(ca.fileName); l >= 4 {
-					// see if it's a .dll
-					ext := ca.fileName[l-4:]
-
-					// check to see if it's a dll
-					if strings.EqualFold(ext, ".dll") {
-						skippedObjects[ca.fileObject] = struct{}{}
-						// don't add
-						continue
-					}
+				if strings.HasPrefix(n.(*createKeyArgs).computedFullPath, "HKEY_USERS\\") {
+					et.notifications = append(et.notifications, n)
+					return
 				}
-			case *cleanupArgs:
-				ca := n.(*cleanupArgs)
-
-				// check to see if we already saw the createHandle for this, and if
-				// so, just skip
-				if _, ok := skippedObjects[ca.fileObject]; ok {
-					continue
-				}
-			case *closeArgs:
-				ca := n.(*closeArgs)
-				// check to see if we already saw the createHandle for this, and if
-				// so, just skip
-				if _, ok := skippedObjects[ca.fileObject]; ok {
-					// remove it from the map, since it's being closed.  it could be
-					// reused.
-					delete(skippedObjects, ca.fileObject)
-					continue
-				}
+				continue
 
 			}
-			et.notifications = append(et.notifications, n)
 		}
 	}
 
@@ -138,8 +111,8 @@ func TestETWRegistryNotifications(t *testing.T) {
 	<-et.loopStarted
 
 	keyname := "Software\\Test"
-	expected := "\\REGISTRY\\USER\\" + sidstr + "\\" + keyname
-	// create the key
+	expectedBase := "HKEY_USERS\\" + sidstr
+	expected := expectedBase + "\\" + keyname
 	key, _, err := registry.CreateKey(windows.HKEY_CURRENT_USER, keyname, windows.KEY_READ|windows.KEY_WRITE)
 	assert.NoError(t, err)
 	if err == nil {
@@ -150,17 +123,23 @@ func TestETWRegistryNotifications(t *testing.T) {
 		select {
 		case <-et.loopExited:
 			return true
+		default:
+			return false
 		}
-		return false
 	}, 4*time.Second, 250*time.Millisecond, "did not get notification")
 
 	stopLoop(et, &wg)
 
-	assert.Equal(t, 1, len(et.notifications), "expected 1 notifications, got %d", len(et.notifications))
+	assert.Equal(t, 2, len(et.notifications), "expected 2 notifications, got %d", len(et.notifications))
 
-	if c, ok := et.notifications[0].(*createKeyArgs); ok {
-		assert.Equal(t, expected, c.computedFullPath, "expected %s, got %s", expected, c.computedFullPath)
+	if c, ok := et.notifications[0].(*openKeyArgs); ok {
+		assert.Equal(t, expectedBase, c.computedFullPath, "expected %s, got %s", expectedBase, c.computedFullPath)
 	} else {
 		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+	}
+	if c, ok := et.notifications[1].(*createKeyArgs); ok {
+		assert.Equal(t, expected, c.computedFullPath, "expected %s, got %s", expected, c.computedFullPath)
+	} else {
+		t.Errorf("expected createKeyArgs, got %T", et.notifications[1])
 	}
 }

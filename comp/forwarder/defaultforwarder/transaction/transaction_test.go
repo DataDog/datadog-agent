@@ -56,7 +56,7 @@ func TestProcess(t *testing.T) {
 	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	err := transaction.Process(context.Background(), mockConfig, log, client)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestProcessInvalidDomain(t *testing.T) {
@@ -71,7 +71,7 @@ func TestProcessInvalidDomain(t *testing.T) {
 	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	err := transaction.Process(context.Background(), mockConfig, log, client)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestProcessNetworkError(t *testing.T) {
@@ -113,16 +113,16 @@ func TestProcessHTTPError(t *testing.T) {
 
 	errorCode = http.StatusBadRequest
 	err = transaction.Process(context.Background(), mockConfig, log, client)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	errorCode = http.StatusRequestEntityTooLarge
 	err = transaction.Process(context.Background(), mockConfig, log, client)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusForbidden
 	err = transaction.Process(context.Background(), mockConfig, log, client)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 }
 
@@ -140,7 +140,7 @@ func TestProcessCancel(t *testing.T) {
 	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	err := transaction.Process(ctx, mockConfig, log, client)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func Test_truncateBodyForLog(t *testing.T) {

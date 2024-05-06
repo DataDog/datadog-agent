@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(APM) Fix revive linter
+// Package remote implements the HTTP handler for remote configs
 package remote
 
 import (
@@ -46,11 +46,11 @@ func putBuffer(buffer *bytes.Buffer) {
 }
 
 // ConfigHandler is the HTTP handler for configs
-func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) http.Handler {
+func ConfigHandler(r *api.HTTPReceiver, cf rcclient.ConfigFetcher, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) http.Handler {
 	cidProvider := api.NewIDProvider(cfg.ContainerProcRoot)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
-		tags := r.TagStats(api.V07, req.Header).AsTags()
+		tags := r.TagStats(api.V07, req.Header, "").AsTags()
 		statusCode := http.StatusOK
 		defer func() {
 			tags = append(tags, fmt.Sprintf("status_code:%d", statusCode))
@@ -78,7 +78,7 @@ func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *conf
 			}
 			configsRequest.Client.ClientTracer.Tags = append(configsRequest.Client.ClientTracer.Tags, getContainerTags(req, cfg, cidProvider)...)
 		}
-		cfgResponse, err := client.ClientGetConfigs(req.Context(), &configsRequest)
+		cfgResponse, err := cf.ClientGetConfigs(req.Context(), &configsRequest)
 		if err != nil {
 			statusCode = http.StatusInternalServerError
 			if e, ok := status.FromError(err); ok {

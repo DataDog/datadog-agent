@@ -933,6 +933,24 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "event.origin":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.Origin
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "event.os":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.Os
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "event.service":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -16423,6 +16441,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"dns.question.name.length",
 		"dns.question.type",
 		"event.async",
+		"event.origin",
+		"event.os",
 		"event.service",
 		"event.timestamp",
 		"exec.args",
@@ -17800,6 +17820,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.DNS.Type), nil
 	case "event.async":
 		return ev.FieldHandlers.ResolveAsync(ev), nil
+	case "event.origin":
+		return ev.BaseEvent.Origin, nil
+	case "event.os":
+		return ev.BaseEvent.Os, nil
 	case "event.service":
 		return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent), nil
 	case "event.timestamp":
@@ -24106,6 +24130,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "dns", nil
 	case "event.async":
 		return "*", nil
+	case "event.origin":
+		return "*", nil
+	case "event.os":
+		return "*", nil
 	case "event.service":
 		return "*", nil
 	case "event.timestamp":
@@ -26659,6 +26687,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "event.async":
 		return reflect.Bool, nil
+	case "event.origin":
+		return reflect.String, nil
+	case "event.os":
+		return reflect.String, nil
 	case "event.service":
 		return reflect.String, nil
 	case "event.timestamp":
@@ -29677,6 +29709,20 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Async"}
 		}
 		ev.Async = rv
+		return nil
+	case "event.origin":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Origin"}
+		}
+		ev.BaseEvent.Origin = rv
+		return nil
+	case "event.os":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Os"}
+		}
+		ev.BaseEvent.Os = rv
 		return nil
 	case "event.service":
 		rv, ok := value.(string)

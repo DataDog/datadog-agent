@@ -8,6 +8,7 @@
 package model
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"path"
@@ -283,9 +284,9 @@ func (d NetDevice) GetKey() string {
 }
 
 func (p *PathKey) Write(buffer []byte) {
-	ByteOrder.PutUint64(buffer[0:8], p.Inode)
-	ByteOrder.PutUint32(buffer[8:12], p.MountID)
-	ByteOrder.PutUint32(buffer[12:16], p.PathID)
+	binary.NativeEndian.PutUint64(buffer[0:8], p.Inode)
+	binary.NativeEndian.PutUint32(buffer[8:12], p.MountID)
+	binary.NativeEndian.PutUint32(buffer[12:16], p.PathID)
 }
 
 // IsNull returns true if a key is invalid
@@ -340,7 +341,7 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 
 	pl.Parent.Write(buff)
 	copy(buff[16:], pl.Name[:])
-	ByteOrder.PutUint16(buff[16+len(pl.Name):], pl.Len)
+	binary.NativeEndian.PutUint16(buff[16+len(pl.Name):], pl.Len)
 
 	return buff, nil
 }

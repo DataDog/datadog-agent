@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -33,7 +34,6 @@ var (
 	hostCacheKey        = cache.BuildAgentKey("host", "utils", "host")
 	systemStatsCacheKey = cache.BuildAgentKey("host", "utils", "systemStats")
 	hostInfoCacheKey    = cache.BuildAgentKey("host", "utils", "hostInfo")
-	guidCacheKey        = cache.BuildAgentKey("host", "utils", "uuid")
 
 	// for testing
 	otlpIsEnabled  = otlp.IsEnabled
@@ -90,7 +90,7 @@ type Payload struct {
 	PythonVersion string            `json:"python"`
 	SystemStats   *systemStats      `json:"systemStats"`
 	Meta          *Meta             `json:"meta"`
-	HostTags      *Tags             `json:"host-tags"`
+	HostTags      *hosttags.Tags    `json:"host-tags"`
 	ContainerMeta map[string]string `json:"container-meta,omitempty"`
 	NetworkMeta   *NetworkMeta      `json:"network"`
 	LogsMeta      *LogsMeta         `json:"logs"`
@@ -184,7 +184,7 @@ func GetPayload(ctx context.Context, conf config.Reader) *Payload {
 		PythonVersion: python.GetPythonInfo(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
-		HostTags:      GetHostTags(ctx, false, conf),
+		HostTags:      hosttags.Get(ctx, false, conf),
 		ContainerMeta: containerMetadata.Get(1 * time.Second),
 		NetworkMeta:   getNetworkMeta(ctx),
 		LogsMeta:      getLogsMeta(conf),

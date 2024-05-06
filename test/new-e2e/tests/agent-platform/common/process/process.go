@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
+	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 )
 

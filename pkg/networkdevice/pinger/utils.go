@@ -13,7 +13,7 @@ import (
 
 // RunPing creates a pinger for the requested host and sends the requested number of packets to it
 func RunPing(cfg *Config, host string) (*Result, error) {
-	log.Infof("Running ping for host: %s, useRawSocket: %t\n", host, cfg.UseRawSocket)
+	log.Debugf("Running ping for host: %s, useRawSocket: %t\n", host, cfg.UseRawSocket)
 	pinger, err := probing.NewPinger(host)
 	if err != nil {
 		return &Result{}, err

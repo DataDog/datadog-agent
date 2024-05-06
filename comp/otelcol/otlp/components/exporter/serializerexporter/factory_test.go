@@ -43,7 +43,7 @@ func TestNewFactory(t *testing.T) {
 	factory := newFactory()
 	cfg := factory.CreateDefaultConfig()
 	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
-	_, ok := factory.CreateDefaultConfig().(*exporterConfig)
+	_, ok := factory.CreateDefaultConfig().(*ExporterConfig)
 	assert.True(t, ok)
 }
 
@@ -60,7 +60,7 @@ func TestNewMetricsExporterInvalid(t *testing.T) {
 	factory := newFactory()
 	cfg := factory.CreateDefaultConfig()
 
-	expCfg := cfg.(*exporterConfig)
+	expCfg := cfg.(*ExporterConfig)
 	expCfg.Metrics.HistConfig.Mode = "InvalidMode"
 
 	set := exportertest.NewNopCreateSettings()

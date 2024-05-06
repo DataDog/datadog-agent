@@ -10,6 +10,7 @@ package reorderer
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"sync"
@@ -95,8 +96,8 @@ func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
 	}
 
 	return QuickInfo{
-		CPU:       model.ByteOrder.Uint64(record.RawSample[0:8]),
-		Timestamp: model.ByteOrder.Uint64(record.RawSample[8:16]),
+		CPU:       binary.NativeEndian.Uint64(record.RawSample[0:8]),
+		Timestamp: binary.NativeEndian.Uint64(record.RawSample[8:16]),
 	}, nil
 }
 

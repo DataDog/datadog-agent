@@ -1024,8 +1024,6 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers7(i
 				}
 				in.Delim(']')
 			}
-		case "origin":
-			out.Origin = string(in.String())
 		case "variables":
 			(out.Variables).UnmarshalEasyJSON(in)
 		default:
@@ -1096,16 +1094,6 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers7(o
 			}
 			out.RawByte(']')
 		}
-	}
-	if in.Origin != "" {
-		const prefix string = ",\"origin\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.String(string(in.Origin))
 	}
 	if len(in.Variables) != 0 {
 		const prefix string = ",\"variables\":"

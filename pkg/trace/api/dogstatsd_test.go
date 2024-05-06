@@ -37,7 +37,7 @@ func TestDogStatsDReverseProxy(t *testing.T) {
 		{
 			"bad statsd host",
 			func(cfg *config.AgentConfig) {
-				cfg.StatsdHost = "this is invalid"
+				cfg.StatsdHost = "this[is[invalid"
 			},
 			http.StatusInternalServerError,
 		},

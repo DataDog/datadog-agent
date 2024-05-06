@@ -17,9 +17,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -347,6 +347,8 @@ profiles:
       ],
       "tags": [
         "agent_version:%s",
+		"device_id:profile-metadata:1.2.3.4",
+		"device_ip:1.2.3.4",
         "device_namespace:profile-metadata",
         "device_vendor:f5",
         "snmp_device:1.2.3.4",

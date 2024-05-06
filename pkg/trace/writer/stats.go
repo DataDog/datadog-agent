@@ -62,7 +62,8 @@ func NewStatsWriter(
 	in <-chan *pb.StatsPayload,
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
-	timing timing.Reporter) *StatsWriter {
+	timing timing.Reporter,
+) *StatsWriter {
 	sw := &StatsWriter{
 		in:        in,
 		stats:     &info.StatsWriterInfo{},
@@ -238,6 +239,10 @@ func (w *StatsWriter) resolveContainerTags(p *pb.ClientStatsPayload) {
 		p.Tags = nil
 		return
 	}
+	if p.ContainerID != "" && p.Tags != nil {
+		// We already have tags, no need to resolve them.
+		return
+	}
 	ctags, err := w.conf.ContainerTags(p.ContainerID)
 	switch {
 	case err != nil:
@@ -247,6 +252,8 @@ func (w *StatsWriter) resolveContainerTags(p *pb.ClientStatsPayload) {
 	case len(ctags) == 0:
 		p.Tags = nil
 	default:
+		// TODO: Once we can deprecate the `enable_cid_stats` feature flag, let's make sure to not duplicate
+		// the addition of `image_sha` to these tags since it'll already be in a separate field in the payload.
 		p.Tags = ctags
 	}
 }

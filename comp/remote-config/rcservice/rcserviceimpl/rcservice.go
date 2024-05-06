@@ -63,25 +63,41 @@ func newRemoteConfigServiceOptional(deps dependencies) optional.Option[rcservice
 
 // newRemoteConfigServiceOptional creates and configures a new remote config service
 func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
-	apiKey := config.Datadog.GetString("api_key")
-	if config.Datadog.IsSet("remote_configuration.api_key") {
-		apiKey = config.Datadog.GetString("remote_configuration.api_key")
+	apiKey := deps.Cfg.GetString("api_key")
+	if deps.Cfg.IsSet("remote_configuration.api_key") {
+		apiKey = deps.Cfg.GetString("remote_configuration.api_key")
 	}
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
-	baseRawURL := configUtils.GetMainEndpoint(config.Datadog, "https://config.", "remote_configuration.rc_dd_url")
-	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(config.Datadog)
-	configuredTags := configUtils.GetConfiguredTags(config.Datadog, false)
+	baseRawURL := configUtils.GetMainEndpoint(deps.Cfg, "https://config.", "remote_configuration.rc_dd_url")
+	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(deps.Cfg)
+	configuredTags := configUtils.GetConfiguredTags(deps.Cfg, false)
 
 	options := []remoteconfig.Option{
+		remoteconfig.WithAPIKey(apiKey),
 		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
+		remoteconfig.WithConfigRootOverride(deps.Cfg.GetString("site"), deps.Cfg.GetString("remote_configuration.config_root")),
+		remoteconfig.WithDirectorRootOverride(deps.Cfg.GetString("site"), deps.Cfg.GetString("remote_configuration.director_root")),
+		remoteconfig.WithRcKey(deps.Cfg.GetString("remote_configuration.key")),
 	}
 	if deps.Params != nil {
 		options = append(options, deps.Params.Options...)
 	}
+	if deps.Cfg.IsSet("remote_configuration.refresh_interval") {
+		options = append(options, remoteconfig.WithRefreshInterval(deps.Cfg.GetDuration("remote_configuration.refresh_interval"), "remote_configuration.refresh_interval"))
+	}
+	if deps.Cfg.IsSet("remote_configuration.max_backoff_interval") {
+		options = append(options, remoteconfig.WithMaxBackoffInterval(deps.Cfg.GetDuration("remote_configuration.max_backoff_interval"), "remote_configuration.max_backoff_interval"))
+	}
+	if deps.Cfg.IsSet("remote_configuration.clients.ttl_seconds") {
+		options = append(options, remoteconfig.WithClientTTL(deps.Cfg.GetDuration("remote_configuration.clients.ttl_seconds"), "remote_configuration.clients.ttl_seconds"))
+	}
+	if deps.Cfg.IsSet("remote_configuration.clients.cache_bypass_limit") {
+		options = append(options, remoteconfig.WithClientCacheBypassLimit(deps.Cfg.GetInt("remote_configuration.clients.cache_bypass_limit"), "remote_configuration.clients.cache_bypass_limit"))
+	}
 
 	configService, err := remoteconfig.NewService(
-		config.Datadog,
-		apiKey,
+		deps.Cfg,
+		"Remote Config",
 		baseRawURL,
 		deps.Hostname.GetSafe(context.Background()),
 		configuredTags,

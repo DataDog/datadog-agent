@@ -1,4 +1,4 @@
-{{- range $name, $value := .meta -}}
+{{- range $name, $value := .metadata.meta -}}
   {{- if and (ne $name "timezones") ($value) }}
   {{$name}}: {{$value}}
   {{- end }}

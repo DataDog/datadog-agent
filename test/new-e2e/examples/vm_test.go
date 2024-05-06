@@ -25,7 +25,7 @@ type vmSuite struct {
 
 // TestVMSuite runs tests for the VM interface to ensure its implementation is correct.
 func TestVMSuite(t *testing.T) {
-	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))))}
+	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))))}
 	if *devMode {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
@@ -43,7 +43,8 @@ func (v *vmSuite) TestExecute() {
 
 func (v *vmSuite) TestFileOperations() {
 	vm := v.Env().RemoteHost
-	testFilePath := "test"
+	// Use drive letter path with forward slashes to ensure Windows paths are handled correctly
+	testFilePath := "C:\\testFile"
 
 	v.T().Cleanup(func() {
 		_ = vm.Remove(testFilePath)
@@ -96,8 +97,9 @@ func (v *vmSuite) TestFileOperations() {
 
 func (v *vmSuite) TestDirectoryOperations() {
 	vm := v.Env().RemoteHost
-	testDirPath := "testDirectory"
-	testSubDirPath := "testDirectory/testSubDirectory"
+	// Use drive letter path with forward slashes to ensure Windows paths are handled correctly
+	testDirPath := "C:\\testDirectory"
+	testSubDirPath := "C:\\testDirectory\\testSubDirectory"
 
 	v.T().Cleanup(func() {
 		_ = vm.RemoveAll(testDirPath)

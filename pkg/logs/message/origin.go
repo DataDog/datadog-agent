@@ -31,12 +31,12 @@ func NewOrigin(source *sources.LogSource) *Origin {
 // Tags returns the tags of the origin.
 //
 // The returned slice must not be modified by the caller.
-func (o *Origin) Tags() []string {
-	return o.tagsToStringArray()
+func (o *Origin) Tags(processingTags []string) []string {
+	return o.tagsToStringArray(processingTags)
 }
 
 // TagsPayload returns the raw tag payload of the origin.
-func (o *Origin) TagsPayload() []byte {
+func (o *Origin) TagsPayload(processingTags []string) []byte {
 	var tagsPayload []byte
 
 	source := o.Source()
@@ -51,6 +51,7 @@ func (o *Origin) TagsPayload() []byte {
 	var tags []string
 	tags = append(tags, o.LogSource.Config.Tags...)
 	tags = append(tags, o.tags...)
+	tags = append(tags, processingTags...)
 
 	if len(tags) > 0 {
 		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+strings.Join(tags, ",")+"\"]")...)
@@ -62,8 +63,8 @@ func (o *Origin) TagsPayload() []byte {
 }
 
 // TagsToString encodes tags to a single string, in a comma separated format
-func (o *Origin) TagsToString() string {
-	tags := o.tagsToStringArray()
+func (o *Origin) TagsToString(processingTags []string) string {
+	tags := o.tagsToStringArray(processingTags)
 
 	if tags == nil {
 		return ""
@@ -72,7 +73,7 @@ func (o *Origin) TagsToString() string {
 	return strings.Join(tags, ",")
 }
 
-func (o *Origin) tagsToStringArray() []string {
+func (o *Origin) tagsToStringArray(processingTags []string) []string {
 	tags := o.tags
 
 	sourceCategory := o.LogSource.Config.SourceCategory
@@ -81,6 +82,7 @@ func (o *Origin) tagsToStringArray() []string {
 	}
 
 	tags = append(tags, o.LogSource.Config.Tags...)
+	tags = append(tags, processingTags...)
 
 	return tags
 }

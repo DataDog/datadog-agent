@@ -39,7 +39,7 @@ func newAsset(filename, hash string) *asset {
 
 // Compile compiles the asset to an object file, writes it to the configured output directory, and
 // then opens and returns the compiled output
-func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client statsd.ClientInterface) (CompiledOutput, error) {
+func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, llcFlags []string, client statsd.ClientInterface) (CompiledOutput, error) {
 	log.Debugf("starting runtime compilation of %s", a.filename)
 
 	start := time.Now()
@@ -93,7 +93,7 @@ func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client st
 		return nil, fmt.Errorf("error reading input file: %s", err)
 	}
 
-	out, result, err := compileToObjectFile(protectedFile.Name(), outputDir, a.filename, a.hash, additionalFlags, kernelHeaders)
+	out, result, err := compileToObjectFile(protectedFile.Name(), outputDir, a.filename, a.hash, additionalFlags, llcFlags, kernelHeaders)
 	a.tm.compilationResult = result
 
 	return out, err

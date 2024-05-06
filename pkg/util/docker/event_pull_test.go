@@ -218,7 +218,7 @@ func TestProcessImageEvent(t *testing.T) {
 			name: "standard case",
 			message: events.Message{
 				Type:   events.ImageEventType,
-				Action: ImageEventActionPull,
+				Action: events.ActionPull,
 				Actor: events.Actor{
 					ID: "agent:latest",
 				},
@@ -227,7 +227,7 @@ func TestProcessImageEvent(t *testing.T) {
 			},
 			expectedImageEvent: &ImageEvent{
 				ImageID:   "agent:latest",
-				Action:    ImageEventActionPull,
+				Action:    events.ActionPull,
 				Timestamp: timestamp,
 			},
 		},

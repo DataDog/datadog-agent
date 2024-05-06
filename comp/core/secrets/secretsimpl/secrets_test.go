@@ -7,13 +7,14 @@ package secretsimpl
 
 import (
 	"fmt"
+	"os"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 )
 
 var (
@@ -738,4 +739,138 @@ func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
 	_, err = resolver.Refresh()
 	require.NoError(t, err)
 	assert.Equal(t, changedPaths, []string{"instances/0/password"})
+}
+
+// test that adding to the audit file stops working when the file gets too large
+func TestRefreshAddsToAuditFile(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "")
+	assert.NoError(t, err)
+
+	originalAllowlistPaths := allowlistPaths
+	allowlistPaths = map[string]struct{}{"another/config/setting": {}}
+	defer func() { allowlistPaths = originalAllowlistPaths }()
+
+	resolver := newEnabledSecretResolver()
+	resolver.backendCommand = "some_command"
+	resolver.cache = map[string]string{"handle": "value"}
+	resolver.origin = handleToContext{
+		"handle": []secretContext{
+			{
+				origin: "test",
+				path:   []string{"another", "config", "setting"},
+			},
+		},
+	}
+	resolver.auditFilename = tmpfile.Name()
+	resolver.auditFileMaxSize = 1000 // enough to add a few rows
+
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		return map[string]string{
+			"handle": "second_value",
+		}, nil
+	}
+
+	// Refresh the secrets, which will add to the audit file
+	_, err = resolver.Refresh()
+	require.NoError(t, err)
+	assert.Equal(t, auditFileNumRows(tmpfile.Name()), 1)
+
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		return map[string]string{
+			"handle": "third_value",
+		}, nil
+	}
+
+	// Refresh secrets again, which will add another row the audit file
+	_, err = resolver.Refresh()
+	require.NoError(t, err)
+	assert.Equal(t, auditFileNumRows(tmpfile.Name()), 2)
+
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		return map[string]string{
+			"handle": "fourth_value",
+		}, nil
+	}
+}
+
+// helper to read number of rows in the audit file
+func auditFileNumRows(filename string) int {
+	data, _ := os.ReadFile(filename)
+	return len(strings.Split(strings.Trim(string(data), "\n"), "\n"))
+}
+
+func TestIsLikelyAPIOrAppKey(t *testing.T) {
+	type testCase struct {
+		name        string
+		handle      string
+		secretValue string
+		origin      handleToContext
+		expect      bool
+	}
+
+	testCases := []testCase{
+		{
+			name:        "looks like an api_key",
+			handle:      "vault://userToken",
+			secretValue: "0123456789abcdef0123456789abcdef",
+			origin: map[string][]secretContext{
+				"vault://userToken": {
+					{
+						origin: "conf.yaml",
+						path:   []string{"provider", "credentials", "apiKey"},
+					},
+				},
+			},
+			expect: true,
+		},
+		{
+			name:        "wrong length",
+			handle:      "vault://userToken",
+			secretValue: "0123456789abcdef0123456789abc",
+			origin: map[string][]secretContext{
+				"vault://userToken": {
+					{
+						origin: "conf.yaml",
+						path:   []string{"provider", "credentials", "apiKey"},
+					},
+				},
+			},
+			expect: false,
+		},
+		{
+			name:        "not hex",
+			handle:      "vault://userToken",
+			secretValue: "0123456789stuvwx0123456789stuvwx",
+			origin: map[string][]secretContext{
+				"vault://userToken": {
+					{
+						origin: "conf.yaml",
+						path:   []string{"provider", "credentials", "apiKey"},
+					},
+				},
+			},
+			expect: false,
+		},
+		{
+			name:        "likely password",
+			handle:      "vault://secretPassword",
+			secretValue: "0123456789abcdef0123456789abcdef",
+			origin: map[string][]secretContext{
+				"vault://userToken": {
+					{
+						origin: "conf.yaml",
+						path:   []string{"provider", "credentials", "password"},
+					},
+				},
+			},
+			expect: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := isLikelyAPIOrAppKey(tc.handle, tc.secretValue, tc.origin)
+			assert.Equal(t, tc.expect, result)
+		})
+	}
 }

@@ -7,7 +7,7 @@ package boundport
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
+	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
 func boundPortsWindows(host *components.RemoteHost) ([]BoundPort, error) {

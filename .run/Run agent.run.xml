@@ -15,7 +15,7 @@
       <env name="SCRIPT_TO_RUN" value=".run/run.sh" />
       <env name="BINARY_TO_RUN" value="./bin/agent/agent" />
       <env name="DLV_PORT_TO_BIND" value="2346" />
-      <env name="BINARY_ARGUMENTS" value="run -c  ./dev/dist/datadog.yaml --sysprobe-config ./dev/dist/datadog.yaml" />
+      <env name="BINARY_ARGUMENTS" value="run -c  ./dev/dist/datadog.yaml" />
     </envs>
     <method v="2" />
   </configuration>

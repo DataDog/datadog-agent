@@ -3,7 +3,7 @@ import sys
 
 from invoke import Exit, task
 
-from tasks.libs.common.utils import color_message, environ
+from tasks.libs.common.utils import color_message, environ, collapsed_section
 
 TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
@@ -58,11 +58,12 @@ def install_tools(ctx):
             )
         )
 
-    with environ({'GO111MODULE': 'on'}):
-        for path, tools in TOOLS.items():
-            with ctx.cd(path):
-                for tool in tools:
-                    ctx.run(f"go install {tool}")
+    with collapsed_section("Installing Go tools"):
+        with environ({'GO111MODULE': 'on'}):
+            for path, tools in TOOLS.items():
+                with ctx.cd(path):
+                    for tool in tools:
+                        ctx.run(f"go install {tool}")
 
 
 @task
@@ -85,3 +86,11 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
     )
     ctx.run(f"cp \"/tmp/shellcheck-v{version}/shellcheck\" {destination}")
     ctx.run(f"rm -rf \"/tmp/shellcheck-v{version}\"")
+
+
+@task
+def install_devcontainer_cli(ctx):
+    """
+    Install the devcontainer CLI
+    """
+    ctx.run("npm install -g @devcontainers/cli")

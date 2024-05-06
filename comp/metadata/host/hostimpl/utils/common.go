@@ -8,6 +8,7 @@ package utils
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -26,7 +27,7 @@ func GetCommonPayload(hostname string, conf config.Reader) *CommonPayload {
 		// is not actually used by the backend
 		AgentVersion:     version.AgentVersion,
 		APIKey:           configUtils.SanitizeAPIKey(conf.GetString("api_key")),
-		UUID:             getUUID(),
+		UUID:             uuid.GetUUID(),
 		InternalHostname: hostname,
 	}
 }

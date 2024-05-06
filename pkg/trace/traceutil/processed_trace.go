@@ -5,7 +5,9 @@
 
 package traceutil
 
-import pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+import (
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+)
 
 // ProcessedTrace represents a trace being processed in the agent.
 type ProcessedTrace struct {
@@ -15,6 +17,8 @@ type ProcessedTrace struct {
 	AppVersion             string
 	TracerHostname         string
 	ClientDroppedP0sWeight float64
+	GitCommitSha           string
+	ImageTag               string
 }
 
 // Clone creates a copy of ProcessedTrace, cloning p, p.TraceChunk, and p.Root. This means it is

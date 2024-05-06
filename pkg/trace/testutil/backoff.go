@@ -21,9 +21,7 @@ func NewTestBackoffTimer() *TestBackoffTimer {
 }
 
 // ScheduleRetry on a TestBackoffTimer is a no-op.
-//
-//nolint:revive // TODO(APM) Fix revive linter
-func (t *TestBackoffTimer) ScheduleRetry(err error) (int, time.Duration) {
+func (t *TestBackoffTimer) ScheduleRetry(_ error) (int, time.Duration) {
 	// Do nothing, we'll trigger whenever we want
 	return 0, 0
 }

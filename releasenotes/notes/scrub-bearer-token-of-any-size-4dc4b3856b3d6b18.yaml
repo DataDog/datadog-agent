@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Scrub authentication bearer token of any size, even invalid, from integration configuration (when being printed
+    through the `checksconfig` CLI command or other).

@@ -16,22 +16,22 @@ import (
 
 func TestIsAffirmative(t *testing.T) {
 	value, err := isAffirmative("yes")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, value)
 
 	value, err = isAffirmative("True")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, value)
 
 	value, err = isAffirmative("1")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, value)
 
 	_, err = isAffirmative("")
 	assert.NotNil(t, err)
 
 	value, err = isAffirmative("ok")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, value)
 }
 
@@ -60,7 +60,7 @@ func TestBuildProxySettings(t *testing.T) {
 	}
 
 	value, err := BuildProxySettings(agentConfig)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Empty(t, value)
 
 	// malformed url
@@ -71,32 +71,32 @@ func TestBuildProxySettings(t *testing.T) {
 	agentConfig["proxy_host"] = "foobar.baz"
 
 	value, err = BuildProxySettings(agentConfig)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, proxyOnlyHost, value)
 
 	agentConfig["proxy_port"] = "8080"
 
 	value, err = BuildProxySettings(agentConfig)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, proxyNoUser, value)
 
 	// the password alone should not be considered without an user
 	agentConfig["proxy_password"] = "mypass"
 	value, err = BuildProxySettings(agentConfig)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, proxyOnlyPass, value)
 
 	// the user alone is ok
 	agentConfig["proxy_password"] = ""
 	agentConfig["proxy_user"] = "myuser"
 	value, err = BuildProxySettings(agentConfig)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, proxyOnlyUser, value)
 
 	agentConfig["proxy_password"] = "mypass"
 	agentConfig["proxy_user"] = "myuser"
 	value, err = BuildProxySettings(agentConfig)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, proxyWithUser, value)
 }
 
@@ -125,7 +125,7 @@ func TestBuildConfigProviders(t *testing.T) {
 	agentConfig["sd_backend_username"] = "user"
 	agentConfig["sd_backend_password"] = "pass"
 	providers, err := buildConfigProviders(agentConfig)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Len(t, providers, 1)
 	p := providers[0]
 	assert.Equal(t, "etcd", p.Name)
@@ -140,7 +140,7 @@ func TestBuildConfigProviders(t *testing.T) {
 	agentConfig["sd_config_backend"] = "consul"
 	agentConfig["consul_token"] = "123456"
 	providers, err = buildConfigProviders(agentConfig)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Len(t, providers, 1)
 	p = providers[0]
 	assert.Equal(t, "consul", p.Name)
@@ -270,7 +270,6 @@ func TestConverter(t *testing.T) {
 		"apm_config.apm_non_local_traffic": true,
 		"dogstatsd_non_local_traffic":      true,
 		"skip_ssl_validation":              false,
-		"apm_config.log_throttling":        true, // trace.config.log_throttling
 	} {
 		require.True(c.IsSet(k), k)
 		require.Equal(v, c.GetBool(k), k)
@@ -331,7 +330,7 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	agentConfig["dd_url"] = ""
 	agentConfig["api_key"] = ""
 	err := extractURLAPIKeys(agentConfig, configConverter)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "", config.Datadog.GetString("dd_url"))
 	assert.Equal(t, "", config.Datadog.GetString("api_key"))
 	assert.Empty(t, config.Datadog.GetStringMapStringSlice("additional_endpoints"))
@@ -340,7 +339,7 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	agentConfig["dd_url"] = "https://datadoghq.com"
 	agentConfig["api_key"] = "123456789"
 	err = extractURLAPIKeys(agentConfig, configConverter)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "https://datadoghq.com", config.Datadog.GetString("dd_url"))
 	assert.Equal(t, "123456789", config.Datadog.GetString("api_key"))
 	assert.Empty(t, config.Datadog.GetStringMapStringSlice("additional_endpoints"))
@@ -349,7 +348,7 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	agentConfig["dd_url"] = "https://datadoghq.com,https://datadoghq.com,https://datadoghq.com,https://staging.com"
 	agentConfig["api_key"] = "123456789,abcdef,secret_key,secret_key2"
 	err = extractURLAPIKeys(agentConfig, configConverter)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "https://datadoghq.com", config.Datadog.GetString("dd_url"))
 	assert.Equal(t, "123456789", config.Datadog.GetString("api_key"))
 

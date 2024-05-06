@@ -5,7 +5,7 @@
 
 //go:build apm && !windows && !linux
 
-//nolint:revive // TODO(APM) Fix revive linter
+// Package apm contains the APM check
 package apm
 
 import (
@@ -19,8 +19,8 @@ import (
 	"go.uber.org/atomic"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -151,10 +151,8 @@ func (c *APMCheck) run() error {
 	return err
 }
 
-// Configure the APMCheck
-//
-//nolint:revive // TODO(APM) Fix revive linter
-func (c *APMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+// Configure configures the APM check with the provided configuration
+func (c *APMCheck) Configure(_ sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
 	var checkConf apmCheckConf
 	if err := yaml.Unmarshal(data, &checkConf); err != nil {
 		return err

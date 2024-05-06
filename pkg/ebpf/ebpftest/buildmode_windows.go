@@ -13,7 +13,7 @@ func SupportedBuildModes() []BuildMode {
 }
 
 // TestBuildModes runs the test under all the provided build modes
-func TestBuildModes(t *testing.T, modes []BuildMode, name string, fn func(t *testing.T)) { //nolint:revive // TODO fix revive unused-parameter
+func TestBuildModes(t *testing.T, _ []BuildMode, name string, fn func(t *testing.T)) {
 	// ignore provided modes and only use prebuilt
 	TestBuildMode(t, Prebuilt, name, fn)
 }

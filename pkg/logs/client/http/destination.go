@@ -40,11 +40,12 @@ const (
 
 // HTTP errors.
 var (
-	errClient = errors.New("client error")
-	errServer = errors.New("server error")
-	tlmSend   = telemetry.NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
-	tlmInUse  = telemetry.NewCounter("logs_client_http_destination", "in_use_ms", []string{"sender"}, "Time spent sending payloads in ms")
-	tlmIdle   = telemetry.NewCounter("logs_client_http_destination", "idle_ms", []string{"sender"}, "Time spent idle while not sending payloads in ms")
+	errClient  = errors.New("client error")
+	errServer  = errors.New("server error")
+	tlmSend    = telemetry.NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
+	tlmInUse   = telemetry.NewCounter("logs_client_http_destination", "in_use_ms", []string{"sender"}, "Time spent sending payloads in ms")
+	tlmIdle    = telemetry.NewCounter("logs_client_http_destination", "idle_ms", []string{"sender"}, "Time spent idle while not sending payloads in ms")
+	tlmDropped = telemetry.NewCounterWithOpts("logs_client_http_destination", "payloads_dropped", []string{}, "Number of payloads dropped because of unrecoverable errors", telemetry.Options{DefaultMetric: true})
 
 	expVarIdleMsMapKey  = "idleMs"
 	expVarInUseMsMapKey = "inUseMs"
@@ -59,13 +60,14 @@ var emptyJsonPayload = message.Payload{Messages: []*message.Message{}, Encoded: 
 type Destination struct {
 	// Config
 	url                 string
-	apiKey              string
+	endpoint            config.Endpoint
 	contentType         string
 	host                string
 	client              *httputils.ResetClient
 	destinationsContext *client.DestinationsContext
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
+	isMRF               bool
 
 	// Concurrency
 	climit chan struct{} // semaphore for limiting concurrent background sends
@@ -74,7 +76,6 @@ type Destination struct {
 	// Retry
 	backoff        backoff.Policy
 	nbErrors       int
-	blockedUntil   time.Time
 	retryLock      sync.Mutex
 	shouldRetry    bool
 	lastRetryError error
@@ -136,7 +137,7 @@ func newDestination(endpoint config.Endpoint,
 	return &Destination{
 		host:                endpoint.Host,
 		url:                 buildURL(endpoint),
-		apiKey:              endpoint.APIKey,
+		endpoint:            endpoint,
 		contentType:         contentType,
 		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout, cfg)),
 		destinationsContext: destinationsContext,
@@ -150,6 +151,7 @@ func newDestination(endpoint config.Endpoint,
 		shouldRetry:         shouldRetry,
 		expVars:             expVars,
 		telemetryName:       telemetryName,
+		isMRF:               endpoint.IsMRF,
 	}
 }
 
@@ -161,6 +163,16 @@ func errorToTag(err error) string {
 	} else {
 		return "non-retryable"
 	}
+}
+
+// IsMRF indicates that this destination is a Multi-Region Failover destination.
+func (d *Destination) IsMRF() bool {
+	return d.isMRF
+}
+
+// Target is the address of the destination.
+func (d *Destination) Target() string {
+	return d.url
 }
 
 // Start starts reading the input channel
@@ -210,20 +222,30 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 	for {
 
 		d.retryLock.Lock()
-		backoffDuration := d.backoff.GetBackoffDuration(d.nbErrors)
-		d.blockedUntil = time.Now().Add(backoffDuration)
-		if d.blockedUntil.After(time.Now()) {
-			log.Debugf("%s: sleeping until %v before retrying. Backoff duration %s due to %d errors", d.url, d.blockedUntil, backoffDuration.String(), d.nbErrors)
-			d.waitForBackoff()
-		}
+		nbErrors := d.nbErrors
 		d.retryLock.Unlock()
+		backoffDuration := d.backoff.GetBackoffDuration(nbErrors)
+		blockedUntil := time.Now().Add(backoffDuration)
+		if blockedUntil.After(time.Now()) {
+			log.Warnf("%s: sleeping until %v before retrying. Backoff duration %s due to %d errors", d.url, blockedUntil, backoffDuration.String(), nbErrors)
+			d.waitForBackoff(blockedUntil)
+			metrics.RetryTimeSpent.Add(int64(backoffDuration))
+			metrics.RetryCount.Add(1)
+			metrics.TlmRetryCount.Add(1)
+		}
 
 		err := d.unconditionalSend(payload)
 
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()
-			log.Debugf("Could not send payload: %v", err)
+
+			// shouldRetry is false for serverless. This log line is too verbose for serverless so make it debug only.
+			if d.shouldRetry {
+				log.Warnf("Could not send payload: %v", err)
+			} else {
+				log.Debugf("Could not send payload: %v", err)
+			}
 		}
 
 		if err == context.Canceled {
@@ -265,8 +287,10 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		// this can happen when the method or the url are valid.
 		return err
 	}
-	req.Header.Set("DD-API-KEY", d.apiKey)
+	req.Header.Set("DD-API-KEY", d.endpoint.GetAPIKey())
 	req.Header.Set("Content-Type", d.contentType)
+	req.Header.Set("User-Agent", fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+
 	if payload.Encoding != "" {
 		req.Header.Set("Content-Encoding", payload.Encoding)
 	}
@@ -317,6 +341,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		resp.StatusCode == http.StatusRequestEntityTooLarge {
 		// the logs-agent is likely to be misconfigured,
 		// the URL or the API key may be wrong.
+		tlmDropped.Inc()
 		return errClient
 	} else if resp.StatusCode > http.StatusBadRequest {
 		// the server could not serve the request, most likely because of an
@@ -363,7 +388,7 @@ func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() 
 // buildURL buils a url from a config endpoint.
 func buildURL(endpoint config.Endpoint) string {
 	var scheme string
-	if endpoint.GetUseSSL() {
+	if endpoint.UseSSL() {
 		scheme = "https"
 	} else {
 		scheme = "http"
@@ -427,8 +452,8 @@ func CheckConnectivityDiagnose(endpoint config.Endpoint, cfg pkgconfigmodel.Read
 	return destination.url, completeCheckConnectivity(ctx, destination)
 }
 
-func (d *Destination) waitForBackoff() {
-	ctx, cancel := context.WithDeadline(d.destinationsContext.Context(), d.blockedUntil)
+func (d *Destination) waitForBackoff(blockedUntil time.Time) {
+	ctx, cancel := context.WithDeadline(d.destinationsContext.Context(), blockedUntil)
 	defer cancel()
 	<-ctx.Done()
 }

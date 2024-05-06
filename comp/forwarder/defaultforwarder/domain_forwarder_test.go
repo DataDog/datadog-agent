@@ -49,7 +49,7 @@ func TestDomainForwarderStart(t *testing.T) {
 	forwarder := newDomainForwarderForTest(mockConfig, log, 0, false)
 	err := forwarder.Start()
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	requireLenForwarderRetryQueue(t, forwarder, 0)
 	require.Len(t, forwarder.workers, 1)
 	assert.Equal(t, Started, forwarder.State())
@@ -124,9 +124,9 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 func TestDomainForwarderHAPreFailover(t *testing.T) {
 
 	datadogYaml := `
-ha:
+multi_region_failover:
   enabled: true
-  failover: false
+  failover_metrics: false
   apikey: foo
   site: bar.ddhq.com
 `
@@ -172,9 +172,9 @@ ha:
 func TestDomainForwarderHAFailover(t *testing.T) {
 
 	datadogYaml := `
-ha:
+multi_region_failover:
   enabled: true
-  failover: true
+  failover_metrics: true
   apikey: foo
   site: bar.ddhq.com
 `

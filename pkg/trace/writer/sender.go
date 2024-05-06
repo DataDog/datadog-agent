@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(APM) Fix revive linter
+// Package writer contains the logic for sending payloads to the Datadog intake.
 package writer
 
 import (
@@ -269,7 +269,7 @@ func (s *sender) sendPayload(p *payload) {
 			log.Warnf("Retried payload %d times: %s", r, err.Error())
 		}
 		if p.retries.Load() >= s.maxRetries {
-			log.Warnf("Dropping Payload after %d retries.\n", p.retries.Load())
+			log.Warnf("Dropping Payload after %d retries, due to: %v.\n", p.retries.Load(), err)
 			// queue is full; since this is the oldest payload, we drop it
 			s.releasePayload(p, eventTypeDropped, stats)
 			return
@@ -279,7 +279,7 @@ func (s *sender) sendPayload(p *payload) {
 			s.recordEvent(eventTypeRetry, stats)
 			return
 		case <-time.After(10 * time.Millisecond):
-			log.Warnf("Sender queue full. Failed payload dropped after only %d retries.\n", p.retries.Load())
+			log.Warnf("Sender queue full. Failed payload dropped after only %d retries, due to %v.\n", p.retries.Load(), err)
 			// queue is full; since this is the oldest payload, we drop it
 			s.releasePayload(p, eventTypeDropped, stats)
 		}
@@ -296,6 +296,7 @@ func (s *sender) sendPayload(p *payload) {
 		s.releasePayload(p, eventTypeSent, stats)
 	default:
 		// this is a fatal error, we have to drop this payload
+		log.Warnf("Dropping Payload due to non-retryable error: %v.\n", err)
 		s.releasePayload(p, eventTypeRejected, stats)
 	}
 }

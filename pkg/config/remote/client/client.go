@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -39,11 +41,13 @@ const (
 	maxMessageSize = 1024 * 1024 * 110 // 110MB, current backend limit
 )
 
-// ConfigUpdater defines the interface that an agent client uses to get config updates
-// from the core remote-config service
-type ConfigUpdater interface {
+// ConfigFetcher defines the interface that an agent client uses to get config updates
+type ConfigFetcher interface {
 	ClientGetConfigs(context.Context, *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error)
 }
+
+// fetchConfigs defines the function that an agent client uses to get config updates
+type fetchConfigs func(context.Context, *pbgo.ClientGetConfigsRequest, ...grpc.CallOption) (*pbgo.ClientGetConfigsResponse, error)
 
 // Client is a remote-configuration client to obtain configurations from the local API
 type Client struct {
@@ -57,17 +61,21 @@ type Client struct {
 	ctx         context.Context
 	closeFn     context.CancelFunc
 
-	cwsWorkloads []string
-
 	lastUpdateError   error
 	backoffPolicy     backoff.Policy
 	backoffErrorCount int
 
-	updater ConfigUpdater
+	configFetcher ConfigFetcher
 
 	state *state.Repository
 
 	listeners map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
+
+	// Elements that can be changed during the execution of listeners
+	// They are atomics so that they don't have to share the top-level mutex
+	// when in use
+	updaterPackagesState *atomic.Value // []*pbgo.PackageState
+	cwsWorkloads         *atomic.Value // []string
 }
 
 // Options describes the client options
@@ -78,6 +86,7 @@ type Options struct {
 	agentName            string
 	products             []string
 	directorRootOverride string
+	site                 string
 	pollInterval         time.Duration
 	clusterName          string
 	clusterID            string
@@ -92,26 +101,47 @@ type TokenFetcher func() (string, error)
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
 // datadog-agent's secure GRPC client
 type agentGRPCConfigFetcher struct {
-	client           pbgo.AgentSecureClient
 	authTokenFetcher func() (string, error)
+	fetchConfigs     fetchConfigs
 }
 
 // NewAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent client
-func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigUpdater, error) {
+func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigFetcher, error) {
+	c, err := newAgentGRPCClient(ipcAddress, cmdPort)
+	if err != nil {
+		return nil, err
+	}
+
+	return &agentGRPCConfigFetcher{
+		authTokenFetcher: authTokenFetcher,
+		fetchConfigs:     c.ClientGetConfigs,
+	}, nil
+}
+
+// NewMRFAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent MRF client
+func NewMRFAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigFetcher, error) {
+	c, err := newAgentGRPCClient(ipcAddress, cmdPort)
+	if err != nil {
+		return nil, err
+	}
+
+	return &agentGRPCConfigFetcher{
+		authTokenFetcher: authTokenFetcher,
+		fetchConfigs:     c.ClientGetConfigsHA,
+	}, nil
+}
+
+func newAgentGRPCClient(ipcAddress string, cmdPort string) (pbgo.AgentSecureClient, error) {
 	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), ipcAddress, cmdPort, grpc.WithDefaultCallOptions(
 		grpc.MaxCallRecvMsgSize(maxMessageSize),
 	))
 	if err != nil {
 		return nil, err
 	}
-
-	return &agentGRPCConfigFetcher{
-		client:           c,
-		authTokenFetcher: authTokenFetcher,
-	}, nil
+	return c, nil
 }
 
-// ClientGetConfigs implements the ConfigUpdater interface for agentGRPCConfigFetcher
+// ClientGetConfigs implements the ConfigFetcher interface for agentGRPCConfigFetcher
 func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	// When communicating with the core service via grpc, the auth token is handled
 	// by the core-agent, which runs independently. It's not guaranteed it starts before us,
@@ -127,11 +157,14 @@ func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *
 
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	return g.client.ClientGetConfigs(ctx, request)
+	return g.fetchConfigs(ctx, request)
 }
 
+// Handler is a function that is called when a config update is received.
+type Handler func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
+
 // NewClient creates a new client
-func NewClient(updater ConfigUpdater, opts ...func(o *Options)) (*Client, error) {
+func NewClient(updater ConfigFetcher, opts ...func(o *Options)) (*Client, error) {
 	return newClient(updater, opts...)
 }
 
@@ -142,6 +175,17 @@ func NewGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetc
 		return nil, err
 	}
 
+	return newClient(grpcClient, opts...)
+}
+
+// NewUnverifiedMRFGRPCClient creates a new client that does not perform any TUF verification and gets failover configs via gRPC
+func NewUnverifiedMRFGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewMRFAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
+	if err != nil {
+		return nil, err
+	}
+
+	opts = append(opts, WithoutTufVerification())
 	return newClient(grpcClient, opts...)
 }
 
@@ -179,8 +223,11 @@ func WithoutTufVerification() func(opts *Options) {
 }
 
 // WithDirectorRootOverride specifies the director root to
-func WithDirectorRootOverride(directorRootOverride string) func(opts *Options) {
-	return func(opts *Options) { opts.directorRootOverride = directorRootOverride }
+func WithDirectorRootOverride(site string, directorRootOverride string) func(opts *Options) {
+	return func(opts *Options) {
+		opts.site = site
+		opts.directorRootOverride = directorRootOverride
+	}
 }
 
 // WithAgent specifies the client name and version
@@ -196,7 +243,7 @@ func WithUpdater(tags ...string) func(opts *Options) {
 	}
 }
 
-func newClient(updater ConfigUpdater, opts ...func(opts *Options)) (*Client, error) {
+func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 	var options = defaultOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -206,7 +253,7 @@ func newClient(updater ConfigUpdater, opts ...func(opts *Options)) (*Client, err
 	var err error
 
 	if !options.skipTufVerification {
-		repository, err = state.NewRepository(meta.RootsDirector(options.directorRootOverride).Last())
+		repository, err = state.NewRepository(meta.RootsDirector(options.site, options.directorRootOverride).Last())
 	} else {
 		repository, err = state.NewUnverifiedRepository()
 	}
@@ -226,17 +273,24 @@ func newClient(updater ConfigUpdater, opts ...func(opts *Options)) (*Client, err
 
 	ctx, cloneFn := context.WithCancel(context.Background())
 
+	cwsWorkloads := &atomic.Value{}
+	cwsWorkloads.Store([]string{})
+
+	updaterPackagesState := &atomic.Value{}
+	updaterPackagesState.Store([]*pbgo.PackageState{})
+
 	return &Client{
-		Options:       options,
-		ID:            generateID(),
-		startupSync:   sync.Once{},
-		ctx:           ctx,
-		closeFn:       cloneFn,
-		cwsWorkloads:  make([]string, 0),
-		state:         repository,
-		backoffPolicy: backoffPolicy,
-		listeners:     make(map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))),
-		updater:       updater,
+		Options:              options,
+		ID:                   generateID(),
+		startupSync:          sync.Once{},
+		ctx:                  ctx,
+		closeFn:              cloneFn,
+		cwsWorkloads:         cwsWorkloads,
+		updaterPackagesState: updaterPackagesState,
+		state:                repository,
+		backoffPolicy:        backoffPolicy,
+		listeners:            make(map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))),
+		configFetcher:        cf,
 	}, nil
 }
 
@@ -299,9 +353,12 @@ func (c *Client) GetConfigs(product string) map[string]state.RawConfig {
 
 // SetCWSWorkloads updates the list of workloads that needs cws profiles
 func (c *Client) SetCWSWorkloads(workloads []string) {
-	c.m.Lock()
-	defer c.m.Unlock()
-	c.cwsWorkloads = workloads
+	c.cwsWorkloads.Store(workloads)
+}
+
+// SetUpdaterPackagesState sets the updater package state
+func (c *Client) SetUpdaterPackagesState(packages []*pbgo.PackageState) {
+	c.updaterPackagesState.Store(packages)
 }
 
 func (c *Client) startFn() {
@@ -334,6 +391,7 @@ func (c *Client) pollLoop() {
 		successfulFirstRun = true
 	}
 
+	logLimit := log.NewLogLimit(5, time.Minute)
 	for {
 		interval := c.pollInterval + c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
 		if !successfulFirstRun && interval > time.Second {
@@ -361,7 +419,9 @@ func (c *Client) pollLoop() {
 				if !successfulFirstRun {
 					// As some clients may start before the core-agent server is up, we log the first error
 					// as an Info log as the race is expected. If the error persists, we log with error logs
-					log.Infof("retrying the first update of remote-config state (%v)", err)
+					if logLimit.ShouldLog() {
+						log.Infof("retrying the first update of remote-config state (%v)", err)
+					}
 				} else {
 					c.lastUpdateError = err
 					c.backoffPolicy.IncError(c.backoffErrorCount)
@@ -385,7 +445,7 @@ func (c *Client) update() error {
 		return err
 	}
 
-	response, err := c.updater.ClientGetConfigs(c.ctx, req)
+	response, err := c.configFetcher.ClientGetConfigs(c.ctx, req)
 	if err != nil {
 		return err
 	}
@@ -475,6 +535,7 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 			Version:    f.Version,
 			Product:    f.Product,
 			ApplyState: uint64(f.ApplyStatus.State),
+			ApplyError: f.ApplyStatus.Error,
 		})
 	}
 
@@ -499,24 +560,29 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 
 	switch c.Options.isUpdater {
 	case true:
+		updaterPackagesState, ok := c.updaterPackagesState.Load().([]*pbgo.PackageState)
+		if !ok {
+			return nil, errors.New("could not load updaterPackagesState")
+		}
+
 		req.Client.IsUpdater = true
 		req.Client.ClientUpdater = &pbgo.ClientUpdater{
-			Tags: c.Options.updaterTags,
-			Packages: []*pbgo.PackageState{
-				{
-					Package:       "datadog-agent",
-					StableVersion: "7.50.0",
-				},
-			},
+			Tags:     c.Options.updaterTags,
+			Packages: updaterPackagesState,
 		}
 	case false:
+		cwsWorkloads, ok := c.cwsWorkloads.Load().([]string)
+		if !ok {
+			return nil, errors.New("could not load cwsWorkloads")
+		}
+
 		req.Client.IsAgent = true
 		req.Client.ClientAgent = &pbgo.ClientAgent{
 			Name:         c.agentName,
 			Version:      c.agentVersion,
 			ClusterName:  c.clusterName,
 			ClusterId:    c.clusterID,
-			CwsWorkloads: c.cwsWorkloads,
+			CwsWorkloads: cwsWorkloads,
 		}
 	}
 

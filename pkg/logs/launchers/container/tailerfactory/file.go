@@ -12,6 +12,7 @@ package tailerfactory
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,10 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,6 +60,8 @@ func (tf *factory) makeFileSource(source *sources.LogSource) (*sources.LogSource
 		// container runtime
 		switch source.Config.Type {
 		case "docker":
+			return tf.makeDockerFileSource(source)
+		case "podman":
 			return tf.makeDockerFileSource(source)
 		default:
 			return nil, fmt.Errorf("file tailing is not supported for source type %s", source.Config.Type)
@@ -171,7 +174,11 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSource, error) {
 	containerID := source.Config.Identifier
 
-	pod, err := tf.workloadmetaStore.GetKubernetesPodForContainer(containerID)
+	wmeta, ok := tf.workloadmetaStore.Get()
+	if !ok {
+		return nil, errors.New("workloadmeta store is not initialized")
+	}
+	pod, err := wmeta.GetKubernetesPodForContainer(containerID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find pod for container %q: %w", containerID, err)
 	}

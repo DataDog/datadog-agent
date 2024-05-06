@@ -7,7 +7,7 @@
   needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   before_script:
-    - $vcpkgBlobSaSUrl = (aws ssm get-parameter --region us-east-1 --name ci.datadog-agent-buildimages.vcpkg_blob_sas_url --with-decryption --query "Parameter.Value" --out text)
+    - $vcpkgBlobSaSUrl = (aws ssm get-parameter --region us-east-1 --name $VCPKG_BLOB_SAS_URL_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
   script:
     - $ErrorActionPreference = "Stop"
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'

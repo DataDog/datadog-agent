@@ -10,10 +10,15 @@ package flare
 import (
 	"testing"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	// Required to initialize the "dogstatsd" expvar
 	_ "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -23,6 +28,11 @@ import (
 func TestCreateSecurityAgentArchive(t *testing.T) {
 	common.SetupConfigForTest("./test")
 	mockConfig := config.Mock(t)
+
+	statusComponent := fxutil.Test[status.Mock](t, fx.Options(
+		statusimpl.MockModule(),
+	))
+
 	mockConfig.SetWithoutSource("compliance_config.dir", "./test/compliance.d")
 	logFilePath := "./test/logs/agent.log"
 
@@ -62,7 +72,7 @@ func TestCreateSecurityAgentArchive(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mock := flarehelpers.NewFlareBuilderMock(t, test.local)
-			createSecurityAgentArchive(mock.Fb, logFilePath, nil, nil)
+			createSecurityAgentArchive(mock.Fb, logFilePath, statusComponent)
 
 			for _, f := range test.expectedFiles {
 				mock.AssertFileExists(f)

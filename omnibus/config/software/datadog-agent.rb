@@ -18,13 +18,14 @@ dependency 'datadog-agent-dependencies'
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
+always_build true
+
 build do
   license :project_license
 
   bundled_agents = []
-  if linux_target?
+  if heroku_target?
     bundled_agents = ["process-agent"]
-    bundled_agents << "security-agent" << "system-probe" unless heroku_target?
   end
 
   # set GOPATH on the omnibus source dir for this software
@@ -81,7 +82,16 @@ build do
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0 -I#{install_dir}/embedded/include\" -DCMAKE_C_FLAGS:=\"-I#{install_dir}/embedded/include\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
     command "inv -e rtloader.install"
     bundle_arg = bundled_agents ? bundled_agents.map { |k| "--bundle #{k}" }.join(" ") : "--bundle agent"
-    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
+
+    include_sds = ""
+    if linux_target?
+        include_sds = "--include-sds" # we only support SDS on Linux targets for now
+    end
+    command "inv -e agent.build --exclude-rtloader #{include_sds} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
+
+    if heroku_target?
+      command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent --bundle agent", env: env
+    end
   end
 
   if osx_target?
@@ -273,10 +283,14 @@ build do
         mode: 0644,
         vars: { install_dir: install_dir }
 
+    erb source: "gui.launchd.plist.erb",
+        dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
+        mode: 0644
+
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
     mkdir "#{app_temp_dir}/MacOS"
-    systray_build_dir = "#{project_dir}/cmd/agent/gui/systray"
+    systray_build_dir = "#{project_dir}/comp/core/gui/guiimpl/systray"
     # Target OSX 10.10 (it brings significant changes to Cocoa and Foundation APIs, and older versions of OSX are EOL'ed)
     # Add @executable_path/../Frameworks to rpath to find the swift libs in the Frameworks folder.
     command 'swiftc -O -swift-version "5" -target "x86_64-apple-macosx10.10" -Xlinker \'-rpath\' -Xlinker \'@executable_path/../Frameworks\' Sources/*.swift -o gui', cwd: systray_build_dir

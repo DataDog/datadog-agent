@@ -5,10 +5,12 @@
 
 package common
 
-import "golang.org/x/exp/constraints"
+import (
+	"cmp"
+)
 
 // Min returns the smaller of two items, for any ordered type.
-func Min[T constraints.Ordered](a T, b T) T {
+func Min[T cmp.Ordered](a T, b T) T {
 	if a < b {
 		return a
 	}
@@ -16,7 +18,7 @@ func Min[T constraints.Ordered](a T, b T) T {
 }
 
 // Max returns the larger of two items, for any ordered type.
-func Max[T constraints.Ordered](a T, b T) T {
+func Max[T cmp.Ordered](a T, b T) T {
 	if a > b {
 		return a
 	}
