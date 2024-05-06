@@ -121,6 +121,7 @@ type Client struct {
 // fakeIntakeURL: the host of the fake Datadog intake server
 func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 	client := &Client{
+		fakeintakeIDMutex:              sync.RWMutex{},
 		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:               aggregator.NewMetricAggregator(),
 		checkRunAggregator:             aggregator.NewCheckRunAggregator(),
