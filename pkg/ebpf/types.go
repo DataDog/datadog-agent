@@ -13,3 +13,4 @@ package ebpf
 import "C"
 
 type LockRange C.lock_range_t
+type ContentionData C.contention_data_t

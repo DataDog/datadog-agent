@@ -193,10 +193,11 @@ int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
 
 struct tstamp_data {
     struct lock_range lr;
-    __u64 timestamp;
-    __u64 lock;
-    __u32 flags;
+    u64 timestamp;
+    u64 lock;
+    u32 flags;
 };
+
 
 BPF_HASH_MAP(tstamp, int, struct tstamp_data, 0);
 BPF_PERCPU_ARRAY_MAP(tstamp_cpu, struct tstamp_data, 1);
@@ -315,14 +316,6 @@ int tracepoint__contention_begin(u64 *ctx)
 
     return 0;
 }
-
-struct contention_data {
-    u64 total_time;
-    u64 min_time;
-    u64 max_time;
-    u32 count;
-    u32 flags;
-};
 
 SEC("tp_btf/contention_end")
 int tracepoint__contention_end(u64 *ctx)

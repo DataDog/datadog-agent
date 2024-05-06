@@ -18,11 +18,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -60,6 +61,7 @@ type bpfPrograms struct {
 type bpfMaps struct {
 	MapAddrFd *ebpf.Map `ebpf:"map_addr_fd"`
 	Ranges    *ebpf.Map `ebpf:"ranges"`
+	LockStats *ebpf.Map `ebpf:"lock_stat"`
 }
 
 type bpfObjects struct {
@@ -84,11 +86,13 @@ type LockContentionCollector struct {
 	mtx             sync.Mutex
 	maxContention   *prometheus.GaugeVec
 	avgContention   *prometheus.GaugeVec
-	totalContention *prometheus.GaugeVec
+	totalContention *prometheus.CounterVec
 
 	trackedLockMemRanges map[LockRange]*targetMap
 	links                []link.Link
 	objects              *bpfObjects
+	cpus                 uint32
+	ranges               uint32
 }
 
 var (
@@ -126,8 +130,8 @@ func NewLockContentionCollector() *LockContentionCollector {
 			},
 			[]string{"name"},
 		),
-		totalContention: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
+		totalContention: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
 				Subsystem: "ebpf_locks",
 				Name:      "_total",
 				Help:      "gauge tracking total time a tracked lock was contended for",
@@ -151,7 +155,35 @@ func (l *LockContentionCollector) Collect(metrics chan<- prometheus.Metric) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	return
+	var cursor ebpf.MapBatchCursor
+	lockRanges := make([]LockRange, l.ranges)
+	contention := make([]ContentionData, l.ranges)
+	if _, err := l.objects.LockStats.BatchLookup(&cursor, lockRanges, contention, nil); !errors.Is(err, ebpf.ErrKeyNotExist) {
+		log.Errorf("failed to perform batch lookup for lock stats: %v", err)
+		return
+	}
+
+	for i, data := range contention {
+		lr := lockRanges[i]
+		if lr.Start == 0 {
+			continue
+		}
+		mp, ok := l.trackedLockMemRanges[lr]
+		if !ok {
+			log.Errorf("found untracked lock range [0x%d, 0x%d+0x%d]", lr.Start, lr.Start, lr.Range)
+			continue
+		}
+
+		if data.Total_time > 0 {
+			avgTime := data.Total_time / uint64(data.Count)
+			l.maxContention.WithLabelValues(mp.name).Set(float64(data.Max_time))
+			l.avgContention.WithLabelValues(mp.name).Set(float64(avgTime))
+			//l.totalContention.WithLabelValues(mp.Name).Sub(data.Total_time)
+		}
+	}
+
+	l.maxContention.Collect(metrics)
+	l.avgContention.Collect(metrics)
 }
 
 // Initialize will collect all the memory ranges we wish to monitor in ours lock stats eBPF programs
@@ -214,8 +246,10 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 			return fmt.Errorf("unable to get possible cpus: %w", err)
 		}
 		cpus = uint32(c)
+		l.cpus = cpus
 
 		ranges = estimateNumOfLockRanges(maps, cpus)
+		l.ranges = ranges
 		collectionSpec.Maps[mapAddrFdBpfMap].MaxEntries = ranges
 		collectionSpec.Maps[lockStatBpfMap].MaxEntries = ranges
 		collectionSpec.Maps[rangesBpfMap].MaxEntries = ranges

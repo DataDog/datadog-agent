@@ -7,3 +7,10 @@ type LockRange struct {
 	Start uint64
 	Range uint64
 }
+type ContentionData struct {
+	Total_time uint64
+	Min_time   uint64
+	Max_time   uint64
+	Count      uint32
+	Flags      uint32
+}
