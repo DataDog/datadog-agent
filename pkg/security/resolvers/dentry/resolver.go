@@ -366,17 +366,14 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 
 	depth := int64(0)
 
-	var keys []model.PathKey
-	var cacheEntries []string
-
-	filenameParts := make([]string, 0, 128)
+	dr.prepareBuffersWithCapacity(128)
 
 	// Fetch path recursively
 	for i := 0; i <= model.MaxPathDepth; i++ {
 		var pathLeaf model.PathLeaf
 		pathKey.Write(keyBuffer)
 		if err := dr.pathnames.Lookup(keyBuffer, &pathLeaf); err != nil {
-			filenameParts = nil
+			dr.filenameParts = dr.filenameParts[:0]
 			resolutionErr = &ErrDentryPathKeyNotFound{PathKey: pathKey}
 			break
 		}
@@ -397,13 +394,13 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 			name = "/"
 		} else {
 			name = model.NullTerminatedString(pathLeaf.Name[:])
-			filenameParts = append(filenameParts, name)
+			dr.filenameParts = append(dr.filenameParts, name)
 		}
 
 		// do not cache fake path keys in the case of rename events
 		if !IsFakeInode(pathKey.Inode) && cache {
-			keys = append(keys, pathKey)
-			cacheEntries = append(cacheEntries, name)
+			dr.keys = append(dr.keys, pathKey)
+			dr.cacheNameEntries = append(dr.cacheNameEntries, name)
 		}
 
 		if pathLeaf.Parent.Inode == 0 {
@@ -414,15 +411,15 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 		pathKey = pathLeaf.Parent
 	}
 
-	filename := computeFilenameFromParts(filenameParts)
+	filename := computeFilenameFromParts(dr.filenameParts)
 
 	entry := counterEntry{
 		resolutionType: metrics.KernelMapsTag,
 		resolution:     metrics.PathResolutionTag,
 	}
 
-	if resolutionErr == nil && len(keys) > 0 {
-		resolutionErr = dr.cacheEntries(keys, cacheEntries)
+	if resolutionErr == nil && len(dr.keys) > 0 {
+		resolutionErr = dr.cacheEntries(dr.keys, dr.cacheNameEntries)
 
 		if depth > 0 {
 			dr.hitsCounters[entry].Add(depth)
