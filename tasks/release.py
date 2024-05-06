@@ -1273,29 +1273,26 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
         )
 
 
-def create_pr(title, base_branch, target_branch, version=None, changelog_pr=False):
+def create_pr(title, base_branch, target_branch, version, changelog_pr=False):
     print(color_message("Creating PR", "bold"))
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
 
-    # If version is provided, find milestone based on what the next final version is. If the milestone does not exist, fail.
-    milestone_number = None
-    if version:
-        milestone_name = str(version)
+    # Find milestone based on what the next final version is. If the milestone does not exist, fail.
 
-        milestone = github.get_milestone_by_name(milestone_name)
+    milestone_name = str(version)
 
-        if not milestone or not milestone.number:
-            raise Exit(
-                color_message(
-                    f"""Could not find milestone {milestone_name} in the Github repository. Response: {milestone}
+    milestone = github.get_milestone_by_name(milestone_name)
+
+    if not milestone or not milestone.number:
+        raise Exit(
+            color_message(
+                f"""Could not find milestone {milestone_name} in the Github repository. Response: {milestone}
     Make sure that milestone is open before trying again.""",
-                    "red",
-                ),
-                code=1,
-            )
-
-        milestone_number = milestone.number
+                "red",
+            ),
+            code=1,
+        )
 
     pr = github.create_pr(
         pr_title=title,
@@ -1325,7 +1322,7 @@ def create_pr(title, base_branch, target_branch, version=None, changelog_pr=Fals
 
     updated_pr = github.update_pr(
         pull_number=pr.number,
-        milestone_number=milestone_number,
+        milestone_number=milestone.number,
         labels=labels,
     )
 
@@ -1336,7 +1333,7 @@ def create_pr(title, base_branch, target_branch, version=None, changelog_pr=Fals
         )
 
     print(color_message(f"Set labels and milestone for PR #{updated_pr.number}", "bold"))
-    print(color_message(f"Done preparing release PR. The PR is available here: {updated_pr.html_url}", "bold"))
+    print(color_message(f"Done creating new PR. Link: {updated_pr.html_url}", "bold"))
 
     return updated_pr.html_url
 
@@ -1460,30 +1457,30 @@ def _get_release_json_value(key):
     return release_json
 
 
-# def create_and_update_release_branch(ctx, repo, release_branch, base_directory="~/dd", upstream="origin"):
-#     # Perform branch out in all required repositories
-#     with ctx.cd(f"{base_directory}/{repo}"):
-#         # Step 1 - Create a local branch out from the default branch
+def create_and_update_release_branch(ctx, repo, release_branch, base_directory="~/dd", upstream="origin"):
+    # Perform branch out in all required repositories
+    with ctx.cd(f"{base_directory}/{repo}"):
+        # Step 1 - Create a local branch out from the default branch
 
-#         print(color_message(f"Working repository: {repo}", "bold"))
-#         main_branch = ctx.run(f"git remote show {upstream} | grep \"HEAD branch\" | sed 's/.*: //'").stdout.strip()
-#         ctx.run(f"git checkout {main_branch}")
-#         ctx.run("git pull")
-#         print(color_message(f"Branching out to {release_branch}", "bold"))
-#         ctx.run(f"git checkout -b {release_branch}")
+        print(color_message(f"Working repository: {repo}", "bold"))
+        main_branch = ctx.run(f"git remote show {upstream} | grep \"HEAD branch\" | sed 's/.*: //'").stdout.strip()
+        ctx.run(f"git checkout {main_branch}")
+        ctx.run("git pull")
+        print(color_message(f"Branching out to {release_branch}", "bold"))
+        ctx.run(f"git checkout -b {release_branch}")
 
-#         # Step 2 - Push newly created release branch to the remote repository
+        # Step 2 - Push newly created release branch to the remote repository
 
-#         print(color_message("Pushing new branch to the upstream repository", "bold"))
-#         res = ctx.run(f"git push --set-upstream {upstream} {release_branch}", warn=True)
-#         if res.exited is None or res.exited > 0:
-#             raise Exit(
-#                 color_message(
-#                     f"Could not push branch {release_branch} to the upstream '{upstream}'. Please push it manually.",
-#                     "red",
-#                 ),
-#                 code=1,
-#             )
+        print(color_message("Pushing new branch to the upstream repository", "bold"))
+        res = ctx.run(f"git push --set-upstream {upstream} {release_branch}", warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    f"Could not push branch {release_branch} to the upstream '{upstream}'. Please push it manually.",
+                    "red",
+                ),
+                code=1,
+            )
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
@@ -1508,7 +1505,6 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     list_major_versions = parse_major_versions(major_versions)
 
     current = current_version(ctx, max(list_major_versions))
-    current.devel = False  # PULARDA
     next = current.next_version(bump_minor=True)
     next.devel = True
 
@@ -1520,8 +1516,8 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     print(color_message("Checking repository state", "bold"))
     ctx.run("git fetch")
 
-    # github = GithubAPI(repository=GITHUB_REPO_NAME)
-    # check_clean_branch_state(ctx, github, release_branch)
+    github = GithubAPI(repository=GITHUB_REPO_NAME)
+    check_clean_branch_state(ctx, github, release_branch)
 
     if not yes_no_question(
         f"This task will create new branches with the name '{release_branch}' in repositories: {', '.join(UNFREEZE_REPOS)}. Is this OK?",
@@ -1532,8 +1528,8 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
 
     # Step 1 - Create release branches in all required repositories
 
-    # for repo in UNFREEZE_REPOS:
-    #     create_and_update_release_branch(ctx, repo, release_branch, base_directory=base_directory, upstream=upstream)
+    for repo in UNFREEZE_REPOS:
+        create_and_update_release_branch(ctx, repo, release_branch, base_directory=base_directory, upstream=upstream)
 
     # Step 2 - Create PRs with new settings in datadog-agent repository
 
@@ -1592,14 +1588,12 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
                 code=1,
             )
 
-        pr_url = create_pr(
+        create_pr(
             f"[release] Update release.json and gitlab files for {release_branch} branch",
             release_branch,
             update_branch,
             current,
         )
-
-        print(color_message(f"PR created - {pr_url}", "bold"))
 
 
 def _update_last_stable(_, version, major_versions="6,7"):
