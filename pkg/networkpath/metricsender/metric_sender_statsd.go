@@ -7,17 +7,17 @@ package metricsender
 
 import "github.com/DataDog/datadog-agent/pkg/process/statsd"
 
-type metricSenderStatsd struct{}
+type statsdMetricSender struct{}
 
 // NewMetricSenderStatsd constructor
 func NewMetricSenderStatsd() MetricSender {
-	return &metricSenderStatsd{}
+	return &statsdMetricSender{}
 }
 
-// Compile-time check to ensure that metricSenderStatsd conforms to the MetricSender interface
-var _ MetricSender = (*metricSenderStatsd)(nil)
+// Compile-time check to ensure that statsdMetricSender conforms to the MetricSender interface
+var _ MetricSender = (*statsdMetricSender)(nil)
 
 // Gauge metric sender
-func (s metricSenderStatsd) Gauge(metricName string, value float64, tags []string) {
+func (s statsdMetricSender) Gauge(metricName string, value float64, tags []string) {
 	statsd.Client.Gauge(metricName, value, tags, 1) //nolint:errcheck
 }
