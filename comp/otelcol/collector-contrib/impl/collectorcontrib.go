@@ -90,6 +90,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/httpcheckreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/iisreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/influxdbreceiver"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jmxreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/journaldreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver"
@@ -162,7 +163,6 @@ import (
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awscontainerinsightreceiver"
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/datadogreceiver"
-	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 )
 
 type collectorcontribImpl struct{}
@@ -258,7 +258,7 @@ func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, erro
 		httpcheckreceiver.NewFactory(),
 		influxdbreceiver.NewFactory(),
 		iisreceiver.NewFactory(),
-		// jaegerreceiver.NewFactory(),
+		jaegerreceiver.NewFactory(),
 		jmxreceiver.NewFactory(),
 		journaldreceiver.NewFactory(),
 		k8sclusterreceiver.NewFactory(),

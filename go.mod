@@ -961,7 +961,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.98.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.98.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/loki v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.100.0 // indirect
@@ -1020,6 +1020,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/httpcheckreceiver v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/iisreceiver v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/influxdbreceiver v0.98.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jmxreceiver v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/journaldreceiver v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver v0.100.0 // indirect

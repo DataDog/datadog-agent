@@ -2523,6 +2523,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.98.0/go.mod h1:3zw5nWtjNyojk1rOPfJ3TTNNPfRUqEUgJUbytsS3f5c=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.98.0 h1:lSP0bTkEMMFa5DeA0QLwgxA7zAIbq2NeLRioAS4qKVE=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.98.0/go.mod h1:ErAJvPIFFMeb9nL1ePsYbIK18BaVyitIaz3zAlA+msY=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.100.0 h1:wle0dUPe1FhxJkoJhweM2KNuKDgKW5PMIH8glSVQo0w=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.100.0/go.mod h1:TT9TPkG6Db7J/XEYFgHngP1WKab20jj/PqlT+I0Doy4=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/loki v0.100.0 h1:1+3sHOEk3SE6P8P6D5Me4iANYl00By5oyfJHqg0JHJ0=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/loki v0.100.0/go.mod h1:02AIBm7aAk60QMibMnDZvK8CdPP9bC/HzhIonp/GFQM=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.98.0 h1:/kVGG8UW5xR+BrLFj9X3q1wwYZSe90LWVzK/qkHjjJc=
@@ -2658,6 +2660,10 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/iisreceiver v
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/iisreceiver v0.98.0/go.mod h1:FlVLTrPXs68qXuUSUw/fbhJQUp6ZOVemxR0NozSAlMY=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/influxdbreceiver v0.98.0 h1:A6eJiRVs8nss7SVGAlhlsTiOThbap8Gevx0zV4mlEfY=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/influxdbreceiver v0.98.0/go.mod h1:mVeEzkgkB09GZmPKuYngf1Fm49g9dV7AH/h0xzejGqA=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.97.0 h1:vPQQQezde/dqG/UzWFVeWPUE5YUU3neybTWtF6dSSLM=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.97.0/go.mod h1:oC3rBafNReIB/XZDshYZjjFulwOF1Feu3ZmY7aYJ4P4=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.100.0 h1:+Lz9cVebf/n0MwBLNM7Xp/keSxEcU4pIyWwx6a046ZE=
+github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.100.0/go.mod h1:9/I5kva/fGRx9vfBja80hjxJpRrWFUBh4jtzztEbBxI=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jmxreceiver v0.98.0 h1:oW5LNEwGbnfL9yTPwJ6iDuyYr8InC1ifBTFIk6gEHY0=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jmxreceiver v0.98.0/go.mod h1:m8kdLny8qaQF9JQUt/BTjBGiJ+Akp2a8hU/d/kffGVE=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/journaldreceiver v0.98.0 h1:AlZze9NREP9uhaC+UIsBQMNAAblJYkARdDCeIaER7sA=
