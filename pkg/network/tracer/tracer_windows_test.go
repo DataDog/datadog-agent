@@ -8,7 +8,10 @@
 package tracer
 
 import (
+	"testing"
+
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
@@ -29,4 +32,8 @@ func classificationSupported(config *config.Config) bool {
 func testConfig() *config.Config {
 	cfg := config.New()
 	return cfg
+}
+
+func supportedBuildModes(_ *testing.T) []ebpftest.BuildMode {
+	return ebpftest.SupportedBuildModes()
 }

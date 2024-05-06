@@ -20,7 +20,6 @@ import (
 	nethttp "net/http"
 	"os"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -37,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -65,16 +63,7 @@ type TracerSuite struct {
 }
 
 func TestTracerSuite(t *testing.T) {
-	buildModes := ebpftest.SupportedBuildModes()
-	if err := kprobe.IsPrecompiledTracerSupported(); err != nil {
-		require.ErrorIs(t, err, kprobe.ErrPrecompiledTracerNotSupported, "unexpected error trying to determine if precompiled tracer is supported")
-
-		buildModes = slices.DeleteFunc(buildModes, func(mode ebpftest.BuildMode) bool {
-			return mode == ebpftest.Prebuilt
-		})
-	}
-
-	ebpftest.TestBuildModes(t, buildModes, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, supportedBuildModes(t), "", func(t *testing.T) {
 		suite.Run(t, new(TracerSuite))
 	})
 }

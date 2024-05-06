@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
@@ -37,8 +39,6 @@ import (
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
-
-	manager "github.com/DataDog/ebpf-manager"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -51,6 +51,7 @@ import (
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
@@ -64,6 +65,19 @@ var kv = kernel.MustHostVersion()
 
 func platformInit() {
 	// linux-specific tasks here
+}
+
+func supportedBuildModes(t *testing.T) []ebpftest.BuildMode {
+	buildModes := ebpftest.SupportedBuildModes()
+	if err := kprobe.IsPrecompiledTracerSupported(); err != nil {
+		require.ErrorIs(t, err, kprobe.ErrPrecompiledTracerNotSupported, "unexpected error trying to determine if precompiled tracer is supported")
+
+		buildModes = slices.DeleteFunc(buildModes, func(mode ebpftest.BuildMode) bool {
+			return mode == ebpftest.Prebuilt
+		})
+	}
+
+	return buildModes
 }
 
 func (s *TracerSuite) TestTCPRemoveEntries() {
