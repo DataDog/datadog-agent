@@ -7,6 +7,8 @@
 package telemetry
 
 import (
+	"sort"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
@@ -15,8 +17,19 @@ import (
 )
 
 // SubmitNetworkPathTelemetry submits Network Path related telemetry
-func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.NetworkPath, checkDuration time.Duration, checkInterval time.Duration, tags []string) {
-	newTags := utils.CopyStrings(tags)
+func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.NetworkPath, pathSource string, checkDuration time.Duration, checkInterval time.Duration, tags []string) {
+	destPortTag := "unspecified"
+	if path.Destination.Port > 0 {
+		destPortTag = strconv.Itoa(int(path.Destination.Port))
+	}
+	newTags := append(utils.CopyStrings(tags), []string{
+		"source:" + pathSource,
+		"protocol:udp", // TODO: Update to protocol from config when we support tcp/icmp
+		"destination_hostname:" + path.Destination.Hostname,
+		"destination_port:" + destPortTag,
+	}...)
+
+	sort.Strings(newTags)
 
 	sender.Gauge("datadog.network_path.check_duration", checkDuration.Seconds(), newTags)
 

@@ -16,6 +16,15 @@ import (
 )
 
 func TestSubmitNetworkPathTelemetry(t *testing.T) {
+	metricTags := []string{"foo:bar", "tag2:val2"}
+	expectedTags := append([]string{
+		"destination_hostname:abc",
+		"destination_port:unspecified",
+		"foo:bar",
+		"protocol:udp",
+		"source:network_path_integration",
+		"tag2:val2",
+	})
 	tests := []struct {
 		name            string
 		path            payload.NetworkPath
@@ -27,6 +36,7 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 		{
 			name: "with hops and interval",
 			path: payload.NetworkPath{
+				Destination: payload.NetworkPathDestination{Hostname: "abc"},
 				Hops: []payload.NetworkPathHop{
 					{Hostname: "hop_1", IPAddress: "1.1.1.1"},
 					{Hostname: "hop_2", IPAddress: "1.1.1.2"},
@@ -34,43 +44,44 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 			},
 			checkDuration: 10 * time.Second,
 			checkInterval: 20 * time.Second,
-			tags:          []string{"foo:bar", "tag2:val2"},
+			tags:          metricTags,
 			expectedMetrics: []metricsender.MockReceivedMetric{
 				{
 					MetricType: metrics.GaugeType,
 					Name:       "datadog.network_path.check_duration",
 					Value:      float64(10),
-					Tags:       []string{"foo:bar", "tag2:val2"},
+					Tags:       expectedTags,
 				},
 				{
 					MetricType: metrics.GaugeType,
 					Name:       "datadog.network_path.check_interval",
 					Value:      float64(20),
-					Tags:       []string{"foo:bar", "tag2:val2"},
+					Tags:       expectedTags,
 				},
 				{
 					MetricType: metrics.GaugeType,
 					Name:       "datadog.network_path.path.monitored",
 					Value:      float64(1),
-					Tags:       []string{"foo:bar", "tag2:val2"},
+					Tags:       expectedTags,
 				},
 				{
 					MetricType: metrics.GaugeType,
 					Name:       "datadog.network_path.path.reachable",
 					Value:      float64(0),
-					Tags:       []string{"foo:bar", "tag2:val2"},
+					Tags:       expectedTags,
 				},
 				{
 					MetricType: metrics.GaugeType,
 					Name:       "datadog.network_path.path.unreachable",
 					Value:      float64(1),
-					Tags:       []string{"foo:bar", "tag2:val2"},
+					Tags:       expectedTags,
 				},
 			},
 		},
 		{
 			name: "with last hop successful",
 			path: payload.NetworkPath{
+				Destination: payload.NetworkPathDestination{Hostname: "abc"},
 				Hops: []payload.NetworkPathHop{
 					{Hostname: "hop_1", IPAddress: "1.1.1.1"},
 					{Hostname: "hop_2", IPAddress: "1.1.1.2", Success: true},
@@ -78,60 +89,61 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 			},
 			checkDuration: 10 * time.Second,
 			checkInterval: 0,
-			tags:          []string{"foo:bar", "tag2:val2"},
+			tags:          metricTags,
 			expectedMetrics: []metricsender.MockReceivedMetric{
 				{
 					MetricType: metrics.GaugeType,
 					Name:       "datadog.network_path.check_duration",
 					Value:      float64(10),
-					Tags:       []string{"foo:bar", "tag2:val2"},
+					Tags:       expectedTags,
 				},
 				{
 					MetricType: metrics.GaugeType,
 					Name:       "datadog.network_path.path.monitored",
 					Value:      float64(1),
-					Tags:       []string{"foo:bar", "tag2:val2"},
-				},
-				{
-					MetricType: metrics.GaugeType,
-					Name:       "datadog.network_path.path.reachable",
-					Value:      float64(1),
-					Tags:       []string{"foo:bar", "tag2:val2"},
-				},
-				{
-					MetricType: metrics.GaugeType,
-					Name:       "datadog.network_path.path.unreachable",
-					Value:      float64(0),
-					Tags:       []string{"foo:bar", "tag2:val2"},
+					Tags:       expectedTags,
 				},
 				{
 					MetricType: metrics.GaugeType,
 					Name:       "datadog.network_path.path.hops",
 					Value:      float64(2),
-					Tags:       []string{"foo:bar", "tag2:val2"},
+					Tags:       expectedTags,
+				},
+				{
+					MetricType: metrics.GaugeType,
+					Name:       "datadog.network_path.path.reachable",
+					Value:      float64(1),
+					Tags:       expectedTags,
+				},
+				{
+					MetricType: metrics.GaugeType,
+					Name:       "datadog.network_path.path.unreachable",
+					Value:      float64(0),
+					Tags:       expectedTags,
 				},
 			},
 		},
 		{
 			name: "no hops and no interval",
 			path: payload.NetworkPath{
-				Hops: []payload.NetworkPathHop{},
+				Destination: payload.NetworkPathDestination{Hostname: "abc"},
+				Hops:        []payload.NetworkPathHop{},
 			},
 			checkDuration: 10 * time.Second,
 			checkInterval: 0,
-			tags:          []string{"foo:bar", "tag2:val2"},
+			tags:          metricTags,
 			expectedMetrics: []metricsender.MockReceivedMetric{
 				{
 					MetricType: metrics.GaugeType,
 					Name:       "datadog.network_path.check_duration",
 					Value:      float64(10),
-					Tags:       []string{"foo:bar", "tag2:val2"},
+					Tags:       expectedTags,
 				},
 				{
 					MetricType: metrics.GaugeType,
 					Name:       "datadog.network_path.path.monitored",
 					Value:      float64(1),
-					Tags:       []string{"foo:bar", "tag2:val2"},
+					Tags:       expectedTags,
 				},
 			},
 		},
@@ -139,8 +151,8 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sender := &metricsender.MockMetricSender{}
-			SubmitNetworkPathTelemetry(sender, tt.path, tt.checkDuration, tt.checkInterval, tt.tags)
-			assert.ElementsMatch(t, tt.expectedMetrics, sender.Metrics)
+			SubmitNetworkPathTelemetry(sender, tt.path, "network_path_integration", tt.checkDuration, tt.checkInterval, tt.tags)
+			assert.Equal(t, tt.expectedMetrics, sender.Metrics)
 		})
 	}
 }

@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -22,11 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 )
 
@@ -77,41 +74,10 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to send network path metadata: %w", err)
 	}
 
-	metricTags := c.getCommonTagsForMetrics()
-	metricTags = append(metricTags, commonTags...)
-
-	c.submitTelemetry(metricSender, path, metricTags, startTime)
+	c.submitTelemetry(metricSender, path, commonTags, startTime)
 
 	senderInstance.Commit()
 	return nil
-}
-
-func (c *Check) getCommonTags() []string {
-	tags := utils.CopyStrings(c.config.Tags)
-
-	agentHost, err := hostname.Get(context.TODO())
-	if err != nil {
-		log.Warnf("Error getting the hostname: %v", err)
-	} else {
-		tags = append(tags, "agent_host:"+agentHost)
-	}
-
-	tags = append(tags, utils.GetAgentVersionTag())
-
-	return tags
-}
-
-func (c *Check) getCommonTagsForMetrics() []string {
-	destPortTag := "unspecified"
-	if c.config.DestPort > 0 {
-		destPortTag = strconv.Itoa(int(c.config.DestPort))
-	}
-	tags := []string{
-		"protocol:udp", // TODO: Update to protocol from config when we support tcp/icmp
-		"destination_hostname:" + c.config.DestHostname,
-		"destination_port:" + destPortTag,
-	}
-	return tags
 }
 
 // SendNetPathMDToEP sends a traced network path to EP
@@ -132,7 +98,8 @@ func (c *Check) submitTelemetry(metricSender metricsender.MetricSender, path pay
 	}
 	c.lastCheckTime = startTime
 	checkDuration := time.Since(startTime)
-	telemetry.SubmitNetworkPathTelemetry(metricSender, path, checkDuration, checkInterval, metricTags)
+
+	telemetry.SubmitNetworkPathTelemetry(metricSender, path, NPIntegrationPathSource, checkDuration, checkInterval, metricTags)
 }
 
 // Interval returns the scheduling time for the check
