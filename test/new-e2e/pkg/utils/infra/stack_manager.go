@@ -133,7 +133,7 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 
 	stack, upResult, err := sm.getStack(ctx, name, config, deployFunc, failOnMissing, nil, nil)
 	if err != nil {
-		errDestroy := sm.deleteStack(ctx, name, stack, nil)
+		errDestroy := sm.deleteStack(ctx, name, stack, nil, nil)
 		if errDestroy != nil {
 			return stack, upResult, errors.Join(err, errDestroy)
 		}
@@ -179,7 +179,7 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string, logWriter 
 		stack = &newStack
 	}
 
-	return sm.deleteStack(ctx, name, stack, logWriter)
+	return sm.deleteStack(ctx, name, stack, logWriter, nil)
 }
 
 // ForceRemoveStackConfiguration removes the configuration files pulumi creates for managing a stack.
@@ -206,7 +206,7 @@ func (sm *StackManager) Cleanup(ctx context.Context) []error {
 	var errors []error
 
 	sm.stacks.Range(func(stackID string, stack *auto.Stack) {
-		err := sm.deleteStack(ctx, stackID, stack, nil)
+		err := sm.deleteStack(ctx, stackID, stack, nil, nil)
 		if err != nil {
 			errors = append(errors, internalError{err})
 		}
