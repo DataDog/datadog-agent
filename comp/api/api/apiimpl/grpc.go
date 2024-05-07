@@ -22,8 +22,8 @@ import (
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/replay"
-	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/replay"
+	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"

@@ -449,11 +449,18 @@ func (c *Check) StatementMetrics() (int, error) {
 				log.Infof("%s qm_tracker queried: %+v", c.logPrompt, statementMetricRow)
 			}
 
-			newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
-			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
+			// For ForceMatchingSignature != "" the selected SQL_ID is random,
+			// so we must set SQL_ID to "" to ensure the consistent cache key
+			cacheKey := statementMetricRow.StatementMetricsKeyDB
+			if cacheKey.ForceMatchingSignature != "" {
+				cacheKey.SQLID = ""
+			}
+
+			newCache[cacheKey] = statementMetricRow.StatementMetricsMonotonicCountDB
+			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[cacheKey]
 			if exists {
 				if trace {
-					log.Infof("%s qm_tracker previous: %+v %+v", c.logPrompt, statementMetricRow.StatementMetricsKeyDB, previousMonotonic)
+					log.Infof("%s qm_tracker previous: %+v %+v", c.logPrompt, cacheKey, previousMonotonic)
 				}
 				diff = OracleRowMonotonicCount{}
 				if diff.ParseCalls = statementMetricRow.ParseCalls - previousMonotonic.ParseCalls; diff.ParseCalls < 0 {

@@ -44,7 +44,7 @@ type multiFakeIntakeEnv struct {
 
 func (e *multiFakeIntakeEnv) Init(ctx e2e.Context) error {
 	if e.Agent != nil {
-		agent, err := client.NewHostAgentClient(ctx.T(), e.Host, true)
+		agent, err := client.NewHostAgentClient(ctx, e.Host.HostOutput, true)
 		if err != nil {
 			return err
 		}
@@ -95,7 +95,7 @@ func multiFakeIntakeAWS(agentOptions ...agentparams.Option) e2e.Provisioner {
 		}
 		host.Export(ctx, &env.Host.HostOutput)
 
-		agent, err := agent.NewHostAgent(awsEnv.CommonEnvironment, host, agentOptions...)
+		agent, err := agent.NewHostAgent(&awsEnv, host, agentOptions...)
 		if err != nil {
 			return err
 		}
