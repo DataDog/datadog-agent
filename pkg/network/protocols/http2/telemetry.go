@@ -146,10 +146,10 @@ func (t *HTTP2Telemetry) Sub(other HTTP2Telemetry) *HTTP2Telemetry {
 	}
 }
 
-func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [8]uint64) [8]uint64 {
-	var result [8]uint64
+func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [http2PathBuckets + 1]uint64) [http2PathBuckets + 1]uint64 {
+	var result [http2PathBuckets + 1]uint64
 
-	for i := 0; i < 8; i++ {
+	for i := 0; i < http2PathBuckets+1; i++ {
 		result[i] = pathSizeBucket[i] - otherPathSizeBucket[i]
 	}
 

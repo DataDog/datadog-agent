@@ -155,7 +155,7 @@ collect_bfd_session_status: true
 	})
 
 	// Assert OMP Peer metrics
-	sender.AssertMetric(t, "Gauge", "cisco_sdwan.omp_peer.status", 1, "", []string{"system_ip:10.10.1.5", "remote_system_ip:10.10.1.13", "legit:yes", "refresh:supported", "type:vedge", "state:up"})
+	sender.AssertMetric(t, "Gauge", "cisco_sdwan.omp_peer.status", 1, "", []string{"system_ip:10.10.1.5", "remote_system_ip:10.10.1.13", "legit:yes", "refresh:supported", "state:up"})
 
 	// Assert BFD Session metrics
 	sender.AssertMetric(t, "Gauge", "cisco_sdwan.bfd_session.status", 1, "", []string{"system_ip:10.10.1.11", "remote_system_ip:10.10.1.13", "local_color:public-internet", "remote_color:public-internet", "proto:ipsec", "state:up"})
@@ -176,6 +176,7 @@ collect_bfd_session_status: true
     {
       "id": "test:10.10.1.1",
       "id_tags": [
+        "device_namespace:test",
         "system_ip:10.10.1.1"
       ],
       "tags": [

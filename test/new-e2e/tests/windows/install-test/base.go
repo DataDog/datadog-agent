@@ -85,7 +85,7 @@ func (s *baseAgentMSISuite) newTester(vm *components.RemoteHost, options ...Test
 		WithAgentPackage(s.AgentPackage),
 	}
 	testerOpts = append(testerOpts, options...)
-	t, err := NewTester(s.T(), vm, testerOpts...)
+	t, err := NewTester(s, vm, testerOpts...)
 	s.Require().NoError(err, "should create tester")
 	return t
 }

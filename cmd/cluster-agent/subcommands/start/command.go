@@ -72,7 +72,6 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
-	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -158,7 +157,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.Params{
 						PythonVersionGetFunc: python.GetPythonVersion,
 					},
-					status.NewInformationProvider(collectorStatus.Provider{}),
 					status.NewInformationProvider(leaderelection.Provider{}),
 					status.NewInformationProvider(clusteragentMetricsStatus.Provider{}),
 					status.NewInformationProvider(admissionpkg.Provider{}),
