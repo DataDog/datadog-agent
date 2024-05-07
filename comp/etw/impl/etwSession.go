@@ -218,6 +218,19 @@ func createEtwSession(name string, f etw.SessionConfigurationFunc) (*etwSession,
 	if err != nil {
 		return nil, fmt.Errorf("incorrect session name; %w", err)
 	}
+<<<<<<< HEAD
+=======
+
+	// get any caller supplied configuration
+	cfg := &etw.SessionConfiguration{}
+	if f != nil {
+		f(cfg)
+	}
+
+	sessionNameSize := (len(utf16SessionName) * int(unsafe.Sizeof(utf16SessionName[0])))
+	bufSize := int(unsafe.Sizeof(C.EVENT_TRACE_PROPERTIES{})) + sessionNameSize
+	propertiesBuf := make([]byte, bufSize)
+>>>>>>> 66cd601430 ([windows] Update ETW with new functions; add ability to get ETW stats)
 
 	// get any caller supplied configuration
 	if f != nil {
@@ -229,6 +242,9 @@ func createEtwSession(name string, f etw.SessionConfigurationFunc) (*etwSession,
 
 	propertiesBuf, pProperties := initializeRealtimeSessionProperties(s)
 
+	if cfg.MaxBuffers > 0 {
+		pProperties.MaximumBuffers = C.ulong(cfg.MaxBuffers)
+	}
 	ret := windows.Errno(C.StartTraceW(
 		&s.hSession,
 		C.LPWSTR(unsafe.Pointer(&s.utf16name[0])),
@@ -261,6 +277,7 @@ func createWellKnownEtwSession(name string, f etw.SessionConfigurationFunc) (*et
 	}
 
 	// get any caller supplied configuration
+<<<<<<< HEAD
 	if f != nil {
 		f(&s.sessionConfig)
 		if s.sessionConfig.MaxBuffers != 0 && s.sessionConfig.MaxBuffers < s.sessionConfig.MinBuffers {
@@ -274,6 +291,13 @@ func createWellKnownEtwSession(name string, f etw.SessionConfigurationFunc) (*et
 
 func initializeRealtimeSessionProperties(s *etwSession) ([]byte, C.PEVENT_TRACE_PROPERTIES) {
 	sessionNameSize := (len(s.utf16name) * int(unsafe.Sizeof(s.utf16name[0])))
+=======
+	cfg := &etw.SessionConfiguration{}
+	if f != nil {
+		f(cfg)
+	}
+	sessionNameSize := (len(utf16SessionName) * int(unsafe.Sizeof(utf16SessionName[0])))
+>>>>>>> 66cd601430 ([windows] Update ETW with new functions; add ability to get ETW stats)
 	bufSize := int(unsafe.Sizeof(C.EVENT_TRACE_PROPERTIES{})) + sessionNameSize
 	propertiesBuf := make([]byte, bufSize)
 
@@ -283,6 +307,7 @@ func initializeRealtimeSessionProperties(s *etwSession) ([]byte, C.PEVENT_TRACE_
 	pProperties.Wnode.Flags = C.WNODE_FLAG_TRACED_GUID
 
 	pProperties.LogFileMode = C.EVENT_TRACE_REAL_TIME_MODE
+<<<<<<< HEAD
 	if s.sessionConfig.MaxBuffers > 0 {
 		pProperties.MaximumBuffers = C.ulong(s.sessionConfig.MaxBuffers)
 	}
@@ -290,4 +315,12 @@ func initializeRealtimeSessionProperties(s *etwSession) ([]byte, C.PEVENT_TRACE_
 		pProperties.MinimumBuffers = C.ulong(s.sessionConfig.MinBuffers)
 	}
 	return propertiesBuf, pProperties
+=======
+	if cfg.MaxBuffers > 0 {
+		pProperties.MaximumBuffers = C.ulong(cfg.MaxBuffers)
+	}
+
+	s.propertiesBuf = propertiesBuf
+	return s, nil
+>>>>>>> 66cd601430 ([windows] Update ETW with new functions; add ability to get ETW stats)
 }
