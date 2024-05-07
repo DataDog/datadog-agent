@@ -17,14 +17,14 @@ import (
 
 func TestSubmitNetworkPathTelemetry(t *testing.T) {
 	metricTags := []string{"foo:bar", "tag2:val2"}
-	expectedTags := append([]string{
+	expectedTags := []string{
 		"destination_hostname:abc",
 		"destination_port:unspecified",
 		"foo:bar",
 		"protocol:udp",
 		"source:network_path_integration",
 		"tag2:val2",
-	})
+	}
 	tests := []struct {
 		name            string
 		path            payload.NetworkPath
