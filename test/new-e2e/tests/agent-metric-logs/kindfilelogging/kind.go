@@ -147,7 +147,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return fmt.Errorf("ec2.InstallECRCredentialsHelper %w", err)
 	}
 
-	kindCluster, err := kubeComp.NewKindCluster(*awsEnv.CommonEnvironment, host, awsEnv.CommonNamer.ResourceName("kind"), params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, awsEnv.CommonNamer().ResourceName("kind"), params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	if err != nil {
 		return fmt.Errorf("kubeComp.NewKindCluster: %w", err)
 	}
@@ -199,7 +199,7 @@ agents:
 
 		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
 		params.agentOptions = append(newOpts, params.agentOptions...)
-		agent, err := agent.NewKubernetesAgent(*awsEnv.CommonEnvironment, kindClusterName, kubeProvider, params.agentOptions...)
+		agent, err := agent.NewKubernetesAgent(&awsEnv, kindClusterName, kubeProvider, params.agentOptions...)
 		if err != nil {
 			return fmt.Errorf("agent.NewKubernetesAgent: %w", err)
 		}
