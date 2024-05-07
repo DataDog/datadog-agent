@@ -99,6 +99,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getPipeInodeInfoStructRingsize(f.kernelVersion)
 	case OffsetNameNetDeviceStructIfIndex:
 		value = getNetDeviceIfindexOffset(f.kernelVersion)
+	case OffsetNameNetDeviceStructName:
+		value = getNetDeviceNameOffset(f.kernelVersion)
 	case OffsetNameNetStructNS:
 		value = getNetNSOffset(f.kernelVersion)
 	case OffsetNameNetStructProcInum:
@@ -1026,4 +1028,8 @@ func getMountIDOffset(kv *kernel.Version) uint64 {
 	default:
 		return 284
 	}
+}
+
+func getNetDeviceNameOffset(_ *kernel.Version) uint64 {
+	return 0
 }

@@ -61,6 +61,7 @@ const (
 
 	// network related constants
 	OffsetNameNetDeviceStructIfIndex    = "net_device_ifindex_offset"
+	OffsetNameNetDeviceStructName       = "net_device_name_offset"
 	OffsetNameNetStructNS               = "net_ns_offset"
 	OffsetNameNetStructProcInum         = "net_proc_inum_offset"
 	OffsetNameDeviceStructNdNet         = "device_nd_net_net_offset"
