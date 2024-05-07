@@ -533,7 +533,7 @@ func (fh *EBPFFieldHandlers) ResolveK8SGroups(_ *model.Event, evtCtx *model.User
 	return evtCtx.K8SGroups
 }
 
-// ResolveCmdline resolves the command line
+// ResolveProcessCmdArgv resolves the command line
 func (fh *EBPFFieldHandlers) ResolveProcessCmdArgv(ev *model.Event, process *model.Process) []string {
 	cmdline := []string{fh.ResolveProcessArgv0(ev, process)}
 	return append(cmdline, fh.ResolveProcessArgv(ev, process)...)
