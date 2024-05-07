@@ -19,6 +19,12 @@ func testInstaller(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
 	}
 }
 
-func (s *packageInstallerSuite) TestBootstrap() {
+func (s *packageInstallerSuite) TestInstallOnNewHost() {
 	s.RunInstallScript()
+	defer s.RemoveInstallerPackage()
+
+	state := s.host.State()
+	state.AssertGroupExists("dd-agent")
+	state.AssertUserExists("dd-agent")
+	state.AssertUserHasGroup("dd-agent", "dd-agent")
 }
