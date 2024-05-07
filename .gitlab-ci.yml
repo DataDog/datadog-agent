@@ -925,6 +925,7 @@ workflow:
         - cmd/process-agent/**/*
         - comp/process/**/*
         - pkg/process/**/*
+        - pkg/config/setup/process.go
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
