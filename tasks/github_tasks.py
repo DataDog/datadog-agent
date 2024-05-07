@@ -291,8 +291,9 @@ def handle_community_pr(_, repo='', pr_id=-1, labels=''):
     """
     Will set labels and notify teams about a newly opened community PR
     """
-    from tasks.libs.ciproviders.github_api import GithubAPI
     from slack_sdk import WebClient
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
     # Get review teams / channels
     gh = GithubAPI()

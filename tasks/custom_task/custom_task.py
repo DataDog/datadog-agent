@@ -4,12 +4,14 @@ It logs the invoke task information to the DD_INVOKE_LOGS_PATH.
 This will then be uploaded to Datadog's backend with a correct Log Agent configuration.
 """
 
-from time import perf_counter
-from getpass import getuser
-from datetime import datetime
 import logging
+import os
 import sys
 import traceback
+from datetime import datetime
+from getpass import getuser
+from time import perf_counter
+
 from invoke import Context
 
 DD_INVOKE_LOGS_PATH = "/tmp/dd_invoke.log"
@@ -29,9 +31,11 @@ def log_invoke_task(name: str, module: str, task_datetime: str, duration: float,
     """
     logging.basicConfig(filename=DD_INVOKE_LOGS_PATH, level=logging.INFO, format='%(message)s')
     user = getuser()
+    running_mode = "pre_commit" if os.environ.get("PRE_COMMIT", 0) == "1" else "manual"
     task_info = {
         "name": name,
         "module": module,
+        "running_mode": running_mode,
         "datetime": task_datetime,
         "duration": duration,
         "user": user,
