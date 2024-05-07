@@ -114,7 +114,7 @@ func (is *installScriptSuite) testUninstall(client *common.TestClient, flavor st
 func (is *installScriptSuite) AgentTest(flavor string) {
 	host := is.Env().RemoteHost
 	fileManager := filemanager.NewUnix(host)
-	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
+	agentClient, err := client.NewHostAgentClient(is, host.HostOutput, false)
 	require.NoError(is.T(), err)
 
 	unixHelper := helpers.NewUnix()
@@ -146,7 +146,7 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 func (is *installScriptSuite) IotAgentTest() {
 	host := is.Env().RemoteHost
 	fileManager := filemanager.NewUnix(host)
-	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
+	agentClient, err := client.NewHostAgentClient(is, host.HostOutput, false)
 	require.NoError(is.T(), err)
 
 	unixHelper := helpers.NewUnix()
@@ -167,7 +167,7 @@ func (is *installScriptSuite) IotAgentTest() {
 func (is *installScriptSuite) DogstatsdAgentTest() {
 	host := is.Env().RemoteHost
 	fileManager := filemanager.NewUnix(host)
-	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
+	agentClient, err := client.NewHostAgentClient(is, host.HostOutput, false)
 	require.NoError(is.T(), err)
 
 	unixHelper := helpers.NewUnixDogstatsd()

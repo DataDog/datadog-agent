@@ -610,10 +610,6 @@ Collector
 =========
  text from b
 
-=============
-Error Section
-=============
-
 ====================
 Status render errors
 ====================
