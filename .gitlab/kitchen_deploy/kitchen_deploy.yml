@@ -20,12 +20,14 @@
   - chmod a+r /usr/share/keyrings/datadog-archive-keyring.gpg
   - curl https://keys.datadoghq.com/DATADOG_APT_KEY_CURRENT.public | gpg --no-default-keyring --keyring /usr/share/keyrings/datadog-archive-keyring.gpg --import --batch
 
-  - apt-get update
+  -
+
+  - apt-get -o Acquire::Retries="5" update
   # Note: it's fine to overwrite the datadog-signing-keys package during each pipeline run, as the package in the
   # pool will remain the same for a given version (the hashsums of the package won't change as long as we
   # upload the same package, which is always going to be the case except if we overwrite a datadog-signing-keys package
   # in the prod repo).
-  - apt-get -o "Dir::Cache::archives=$OMNIBUS_PACKAGE_DIR" install --download-only datadog-signing-keys
+  - apt-get -o Acquire::Retries="5" -o "Dir::Cache::archives=$OMNIBUS_PACKAGE_DIR" install --download-only datadog-signing-keys
 
   # Rename the package name to a name unique to the pipeline & Agent version, to avoid collisions
   # between packages in the pool.
