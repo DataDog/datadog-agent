@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"strings"
 
@@ -59,10 +60,10 @@ func newAPMInjectorInstaller(path string) *apmInjectorInstaller {
 	a := &apmInjectorInstaller{
 		installPath: path,
 	}
-	a.ldPreloadFileInstrument = newFileMutator(ldSoPreloadPath, a.setLDPreloadConfigContent, nil, nil)
+	a.ldPreloadFileInstrument = newFileMutator(ldSoPreloadPath, a.setLDPreloadConfigContent, a.verifyLDPreloadFile, nil)
 	a.ldPreloadFileUninstrument = newFileMutator(ldSoPreloadPath, a.deleteLDPreloadConfigContent, nil, nil)
 	a.agentConfigSockets = newFileMutator(datadogConfigPath, a.setAgentConfigContent, nil, nil)
-	a.dockerConfigInstrument = newFileMutator(dockerDaemonPath, a.setDockerConfigContent, nil, nil)
+	a.dockerConfigInstrument = newFileMutator(dockerDaemonPath, a.setDockerConfigContent, a.verifyDockerConfig, nil)
 	a.dockerConfigUninstrument = newFileMutator(dockerDaemonPath, a.deleteDockerConfigContent, nil, nil)
 	return a
 }
@@ -214,6 +215,27 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(ldSoPreload []byte) 
 	}
 
 	return nil, fmt.Errorf("failed to remove %s from %s", launcherPreloadPath, ldSoPreloadPath)
+}
+
+// verifyLDPreloadFile verifies the LD preload file by:
+// 1. Parsing it
+// 2. Using the LD_PRELOAD env var, checking every single lib in the file to open a simple shell
+func (a *apmInjectorInstaller) verifyLDPreloadFile(path string) error {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	libs := strings.Fields(string(file))
+	for _, lib := range libs {
+		cmd := exec.Command("sh", "-c", "/bin/echo 1")
+		cmd.Env = append(os.Environ(), "LD_PRELOAD="+lib)
+		buf := new(bytes.Buffer)
+		cmd.Stderr = buf
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to verify injected lib %s (%w): %s", lib, err, buf.String())
+		}
+	}
+	return nil
 }
 
 // setAgentConfigContent adds the agent configuration for the APM injector if it is not there already

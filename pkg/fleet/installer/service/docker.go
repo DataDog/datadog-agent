@@ -12,9 +12,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -115,6 +118,39 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte)
 	}
 
 	return dockerConfigJSON, nil
+}
+
+// verifyDockerConfig validates the docker daemon configuration for latest
+// docker versions (>23.0.0)
+func (a *apmInjectorInstaller) verifyDockerConfig(path string) error {
+	// Get docker version
+	cmd := exec.Command("docker", "version", "-f", "'{{.Client.Version}}'")
+	versionBuffer := new(bytes.Buffer)
+	cmd.Stdout = versionBuffer
+	err := cmd.Run()
+	if err != nil {
+		log.Warnf("failed to get docker version: %s, skipping verification", err)
+		return nil
+	}
+	majorDockerVersion := strings.Split(versionBuffer.String(), ".")[0]
+	majorDockerVersionInt, err := strconv.Atoi(majorDockerVersion)
+	if err != nil {
+		log.Warnf("failed to parse docker version %s: %s, skipping verification", majorDockerVersion, err)
+		return nil
+	}
+	if majorDockerVersionInt < 23 {
+		log.Warnf("docker version %s is not supported for verification, skipping", majorDockerVersion)
+		return nil
+	}
+
+	cmd = exec.Command("dockerd", "--validate", "--config-file", path)
+	buf := new(bytes.Buffer)
+	cmd.Stderr = buf
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to validate docker config (%v): %s", err, buf.String())
+	}
+	return nil
 }
 
 func reloadDockerConfig(ctx context.Context) (err error) {
