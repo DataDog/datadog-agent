@@ -131,7 +131,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				DnsStatsByDomain:            dnsByDomain,
 				DnsStatsByDomainByQueryType: dnsByDomainByQuerytype,
 				DnsSuccessfulResponses:      1, // TODO: verify why this was needed
-				TcpFailuresByErrCode:        map[string]int32{"ECONNRESET": 1},
+				TcpFailuresByErrCode:        map[int32]int32{110: 1},
 				RouteIdx:                    -1,
 				Protocol: &model.ProtocolStack{
 					Stack: []model.ProtocolType{model.ProtocolType_protocolTLS, model.ProtocolType_protocolHTTP2},
@@ -266,8 +266,8 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 							},
 						},
 					},
-					TCPFailures: map[network.TCPFailure]uint32{
-						network.TCPFailureConnectionReset: 1,
+					TCPFailures: map[uint32]uint32{
+						110: 1,
 					},
 				},
 			},

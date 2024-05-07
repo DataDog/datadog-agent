@@ -49,20 +49,6 @@ func (c ConnectionType) String() string {
 // TCPFailure represents the type of TCP Failure that occurred in a connection
 type TCPFailure string
 
-const (
-	// TCPFailureUnknown is the default value, failure was not detected
-	TCPFailureUnknown TCPFailure = "EUNKNOWN"
-
-	// TCPFailureConnectionReset indicates a connection reset
-	TCPFailureConnectionReset TCPFailure = "ECONNRESET"
-
-	// TCPFailureConnectionRefused indicates a connection refused
-	TCPFailureConnectionRefused TCPFailure = "ECONNREFUSED"
-
-	// TCPFailureConnectionTimeout indicates a connection timeout
-	TCPFailureConnectionTimeout TCPFailure = "ETIMEDOUT"
-)
-
 func (f TCPFailure) String() string {
 	return string(f)
 }
@@ -305,7 +291,7 @@ type ConnectionStats struct {
 
 	ProtocolStack protocols.Stack
 
-	TCPFailures map[TCPFailure]uint32
+	TCPFailures map[uint32]uint32
 	DNSStats    map[dns.Hostname]map[dns.QueryType]dns.Stats
 }
 

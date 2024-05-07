@@ -1,4 +1,11 @@
-package failed
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
+
+package failure
 
 import (
 	"fmt"
@@ -7,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
@@ -44,22 +50,9 @@ func MatchFailedConn(conn *network.ConnectionStats, failedConnMap *FailedConns) 
 	failedConnMap.RLock()
 	defer failedConnMap.RUnlock()
 	if failedConn, ok := failedConnMap.FailedConnMap[connTuple]; ok {
-		conn.TCPFailures = make(map[network.TCPFailure]uint32)
+		conn.TCPFailures = make(map[uint32]uint32)
 		for errCode, count := range failedConn.CountByErrCode {
-			switch errCode {
-			case 104:
-				log.Infof("Incrementing TCP Failed Reset counter for connection: %+v", conn)
-				conn.TCPFailures[network.TCPFailureConnectionReset] += count
-			case 110:
-				log.Infof("Incrementing TCP Failed Timeout counter for connection: %+v", conn)
-				conn.TCPFailures[network.TCPFailureConnectionTimeout] += count
-			case 111:
-				log.Infof("Incrementing TCP Failed Refused counter for connection: %+v", conn)
-				conn.TCPFailures[network.TCPFailureConnectionRefused] += count
-			default:
-				log.Infof("Incrementing TCP Failed Default counter for connection: %+v", conn)
-				conn.TCPFailures[network.TCPFailureUnknown] += count
-			}
+			conn.TCPFailures[errCode] += count
 		}
 	}
 }

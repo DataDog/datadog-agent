@@ -35,7 +35,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failed"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -75,7 +75,7 @@ type Tracer interface {
 	// FlushPending forces any closed connections waiting for batching to be processed immediately.
 	FlushPending()
 	// GetFailedConnections returns the underlying map used to store failed connections
-	GetFailedConnections() *failed.FailedConns
+	GetFailedConnections() *failure.FailedConns
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error
@@ -168,7 +168,7 @@ type tracer struct {
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
 	// tcp failure events
-	failedConnConsumer *failed.TcpFailedConnConsumer
+	failedConnConsumer *failure.TcpFailedConnConsumer
 
 	removeTuple *netebpf.ConnTuple
 
@@ -265,7 +265,7 @@ func NewTracer(config *config.Config) (Tracer, error) {
 
 	closeConsumer := newTCPCloseConsumer(connCloseEventHandler, batchMgr)
 
-	failedConnConsumer := failed.NewFailedConnConsumer(failedConnsHandler)
+	failedConnConsumer := failure.NewFailedConnConsumer(failedConnsHandler)
 
 	tr := &tracer{
 		m:                  m,
@@ -349,7 +349,7 @@ func (t *tracer) FlushPending() {
 	t.closeConsumer.FlushPending()
 }
 
-func (t *tracer) GetFailedConnections() *failed.FailedConns {
+func (t *tracer) GetFailedConnections() *failure.FailedConns {
 	return t.failedConnConsumer.FailedConns
 }
 

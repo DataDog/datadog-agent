@@ -36,7 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failed"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -315,7 +315,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		t.addProcessInfo(cs)
 
 		tracerTelemetry.closedConns.Inc(cs.Type.String())
-		failed.MatchFailedConn(cs, failedConnMap)
+		failure.MatchFailedConn(cs, failedConnMap)
 	}
 	failedConnMap.Lock()
 	clear(failedConnMap.FailedConnMap)
