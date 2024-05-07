@@ -2,15 +2,15 @@ name: dev docs
 
 on:
   push:
-    # branches:
-    # - main
-    # paths:
-    # - docs/**
+    branches:
+    - main
+    paths:
+    - docs/**
   pull_request:
-    # branches:
-    # - main
-    # paths:
-    # - docs/**
+    branches:
+    - main
+    paths:
+    - docs/**
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
