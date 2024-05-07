@@ -151,6 +151,35 @@ func (e *etwSession) StopTracing() error {
 	return globalError
 }
 
+func (e *etwSession) GetSessionStatistics() (etw.SessionStatistics, error) {
+	var stats etw.SessionStatistics
+	// it is not clear if we can safely reuse the properties buffer here
+	// so we allocate a new one
+	tmpBuf := make([]byte, len(e.propertiesBuf))
+
+	sessionptp := (C.PEVENT_TRACE_PROPERTIES)(unsafe.Pointer(&e.propertiesBuf[0]))
+	ptp := (C.PEVENT_TRACE_PROPERTIES)(unsafe.Pointer(&tmpBuf[0]))
+
+	*ptp = *sessionptp
+
+	ret := windows.Errno(C.ControlTraceW(
+		e.hSession,
+		nil,
+		ptp,
+		C.EVENT_TRACE_CONTROL_QUERY))
+	if ret != windows.ERROR_SUCCESS {
+		return stats, ret
+	}
+
+	stats.NumberOfBuffers = uint32(ptp.NumberOfBuffers)
+	stats.FreeBuffers = uint32(ptp.FreeBuffers)
+	stats.EventsLost = uint32(ptp.EventsLost)
+	stats.BuffersWritten = uint32(ptp.BuffersWritten)
+	stats.LogBuffersLost = uint32(ptp.LogBuffersLost)
+	stats.RealTimeBuffersLost = uint32(ptp.RealTimeBuffersLost)
+	return stats, nil
+}
+
 // deleteEtwSession deletes an ETW session by name, typically after a crash since we don't have access to the session
 // handle anymore.
 func deleteEtwSession(name string) error {
@@ -179,7 +208,7 @@ func deleteEtwSession(name string) error {
 	return ret
 }
 
-func createEtwSession(name string) (*etwSession, error) {
+func createEtwSession(name string, f etw.SessionConfigurationFunc) (*etwSession, error) {
 	_ = deleteEtwSession(name)
 
 	utf16SessionName, err := windows.UTF16FromString(name)
@@ -193,6 +222,13 @@ func createEtwSession(name string) (*etwSession, error) {
 	if err != nil {
 		return nil, fmt.Errorf("incorrect session name; %w", err)
 	}
+
+	// get any caller supplied configuration
+	cfg := &etw.SessionConfiguration{}
+	if f != nil {
+		f(cfg)
+	}
+
 	sessionNameSize := (len(utf16SessionName) * int(unsafe.Sizeof(utf16SessionName[0])))
 	bufSize := int(unsafe.Sizeof(C.EVENT_TRACE_PROPERTIES{})) + sessionNameSize
 	propertiesBuf := make([]byte, bufSize)
@@ -204,6 +240,9 @@ func createEtwSession(name string) (*etwSession, error) {
 
 	pProperties.LogFileMode = C.EVENT_TRACE_REAL_TIME_MODE
 
+	if cfg.MaxBuffers > 0 {
+		pProperties.MaximumBuffers = C.ulong(cfg.MaxBuffers)
+	}
 	ret := windows.Errno(C.StartTraceW(
 		&s.hSession,
 		C.LPWSTR(unsafe.Pointer(&s.utf16name[0])),
@@ -223,7 +262,7 @@ func createEtwSession(name string) (*etwSession, error) {
 	return nil, fmt.Errorf("StartTraceW failed; %w", err)
 }
 
-func createWellKnownEtwSession(name string) (*etwSession, error) {
+func createWellKnownEtwSession(name string, f etw.SessionConfigurationFunc) (*etwSession, error) {
 	utf16SessionName, err := windows.UTF16FromString(name)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect session name; %w", err)
@@ -233,6 +272,12 @@ func createWellKnownEtwSession(name string) (*etwSession, error) {
 		Name:      name,
 		utf16name: utf16SessionName,
 		wellKnown: true,
+	}
+
+	// get any caller supplied configuration
+	cfg := &etw.SessionConfiguration{}
+	if f != nil {
+		f(cfg)
 	}
 	sessionNameSize := (len(utf16SessionName) * int(unsafe.Sizeof(utf16SessionName[0])))
 	bufSize := int(unsafe.Sizeof(C.EVENT_TRACE_PROPERTIES{})) + sessionNameSize
@@ -244,6 +289,10 @@ func createWellKnownEtwSession(name string) (*etwSession, error) {
 	pProperties.Wnode.Flags = C.WNODE_FLAG_TRACED_GUID
 
 	pProperties.LogFileMode = C.EVENT_TRACE_REAL_TIME_MODE
+	if cfg.MaxBuffers > 0 {
+		pProperties.MaximumBuffers = C.ulong(cfg.MaxBuffers)
+	}
+
 	s.propertiesBuf = propertiesBuf
 	return s, nil
 }
