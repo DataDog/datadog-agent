@@ -4,4 +4,4 @@
 -r requirements_release_tasks.txt
 -r requirements_docs.txt
 
-gitlab==4.4.0
+python-gitlab==4.4.0
