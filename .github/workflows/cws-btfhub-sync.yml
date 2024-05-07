@@ -26,11 +26,14 @@ jobs:
           - centos
           - debian
           - fedora
-          - ol
+          - ol/7
+          - ol/8
           - opensuse-leap
           - rhel
           - sles
-          - ubuntu
+          - ubuntu/16.04
+          - ubuntu/18.04
+          - ubuntu/20.04
     steps:
       - name: Checkout datadog-agent repository
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
@@ -64,10 +67,15 @@ jobs:
         run: |
           inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./constants-${{ matrix.cone }}.json ${{ inputs.force_refresh && '--force-refresh' || '' }}
 
+      - name: Compute name
+        id: artifact-name
+        run: |
+          echo "ARTIFACT_NAME=constants-${{ matrix.cone }}" | tr '/' '-' >> $GITHUB_OUTPUT
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: constants-${{ matrix.cone }}
+          name: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
           path: ./constants-${{ matrix.cone }}.json
 
   combine:
