@@ -7,11 +7,14 @@ package checks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	stdnet "net"
 	"runtime"
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/benbjohnson/clock"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -189,6 +192,10 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	c.notifyProcessConnRates(c.config, conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
+
+	// TODO: REMOVE ME
+	jsonStr, _ := json.Marshal(conns)
+	log.Debugf("Collected Conns: %s", jsonStr)
 
 	c.scheduleNetworkPath(conns.Conns)
 
@@ -513,9 +520,47 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 	return tagsStr
 }
 
-func (c *ConnectionsCheck) scheduleNetworkPath(_ []*model.Connection) {
+func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
 	if !c.npScheduler.Enabled() {
 		return
 	}
-	// TODO: IMPLEMENTATION IN SEPARATE PR (to make PRs easier to review)
+	startTime := time.Now()
+	// TODO: TESTME
+	for _, conn := range conns {
+		// Only process outgoing traffic
+		if !c.shouldScheduleNetworkPathForConn(conn) {
+			// TODO: TESTME
+			continue
+		}
+		remoteAddr := conn.Raddr
+		remotePort := uint16(conn.Raddr.Port)
+		if stdnet.ParseIP(remoteAddr.Ip).IsLoopback() {
+			// TODO: use exclude_cidr?
+			log.Debugf("Skip loopback IP: %s", remoteAddr.Ip)
+			continue
+		}
+		err := c.npScheduler.Schedule(remoteAddr.Ip, remotePort)
+		if err != nil {
+			log.Errorf("Error scheduling pathtests: %s", err)
+		}
+	}
+
+	scheduleDuration := time.Since(startTime)
+	statsd.Client.Gauge("datadog.network_path.connections_check.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
+}
+
+func (c *ConnectionsCheck) shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
+	// TODO: TESTME
+	if conn.Direction != model.ConnectionDirection_outgoing {
+		return false
+	}
+
+	// TODO: move to exclude_cidr entry
+	// Skip IPs
+	// 169.254.169.254 is used in AWS, Azure, GCP and other cloud computing platforms to host instance metadata service.
+	// TODO: Should we skip all 169.254.0.0/16 (dynamically configured link-local addresses)
+	if conn.Raddr.Ip == "169.254.169.254" {
+		return false
+	}
+	return true
 }

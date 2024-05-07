@@ -6,6 +6,8 @@
 package npschedulerimpl
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -41,7 +43,18 @@ func newNpScheduler(deps dependencies) provides {
 	networkPathEnabled := deps.Sysconfig.GetBool("network_path.enabled")
 	if networkPathEnabled {
 		deps.Logger.Debugf("Network Path Scheduler enabled")
-		scheduler = newNpSchedulerImpl(deps.EpForwarder)
+		scheduler = newNpSchedulerImpl(deps.EpForwarder, deps.Logger, deps.Sysconfig)
+		deps.Lc.Append(fx.Hook{
+			// No need for OnStart hook since NpScheduler.Init() will be called by clients when needed.
+			OnStart: func(context.Context) error {
+				scheduler.start()
+				return nil
+			},
+			OnStop: func(context.Context) error {
+				scheduler.stop()
+				return nil
+			},
+		})
 	} else {
 		deps.Logger.Debugf("Network Path Scheduler disabled")
 		scheduler = newNoopNpSchedulerImpl()
