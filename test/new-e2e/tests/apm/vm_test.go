@@ -13,12 +13,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/stretchr/testify/assert"
 )
 
 type VMFakeintakeSuite struct {
@@ -39,7 +40,7 @@ func NewVMFakeintakeSuite(tr transport) *VMFakeintakeSuite {
 	}
 }
 
-func vmSuiteOpts(tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOption {
+func vmProvisionerOpts(opts ...awshost.ProvisionerOption) []awshost.ProvisionerOption {
 	setupScript := `#!/bin/bash
 # /var/run/datadog directory is necessary for UDS socket creation
 sudo mkdir -p /var/run/datadog
@@ -59,7 +60,11 @@ sudo usermod -a -G docker dd-agent
 		// unix sockets for the UDS transport and communicate with the docker socket.
 		awshost.WithEC2InstanceOptions(ec2.WithUserData(setupScript)),
 	)
+	return opts
+}
 
+func vmSuiteOpts(tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOption {
+	opts = vmProvisionerOpts(opts...)
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(opts...)),
 		e2e.WithStackName(fmt.Sprintf("apm-vm-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
@@ -67,29 +72,36 @@ sudo usermod -a -G docker dd-agent
 	return options
 }
 
-// TestVMFakeintakeSuiteUDS runs basic Trace Agent tests over the UDS transport
-func TestVMFakeintakeSuiteUDS(t *testing.T) {
-	cfg := `
+func vmAgentConfig(tr transport, extra string) string {
+	var cfg string
+	switch tr {
+	case uds:
+		cfg = `
 apm_config.enabled: true
 apm_config.receiver_socket: /var/run/datadog/apm.socket
 `
+	case tcp:
+		cfg = `
+apm_config.enabled: true
+`
+	}
+	return cfg + extra
+}
 
+// TestVMFakeintakeSuiteUDS runs basic Trace Agent tests over the UDS transport
+func TestVMFakeintakeSuiteUDS(t *testing.T) {
 	options := vmSuiteOpts(uds,
 		// Enable the UDS receiver in the trace-agent
-		awshost.WithAgentOptions(agentparams.WithAgentConfig(cfg)))
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(uds, ""))))
 	e2e.Run(t, NewVMFakeintakeSuite(uds), options...)
 }
 
 // TestVMFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
 func TestVMFakeintakeSuiteTCP(t *testing.T) {
-	cfg := `
-apm_config.enabled: true
-`
-
 	options := vmSuiteOpts(tcp,
 		awshost.WithAgentOptions(
 			// Enable the UDS receiver in the trace-agent
-			agentparams.WithAgentConfig(cfg),
+			agentparams.WithAgentConfig(vmAgentConfig(tcp, "")),
 		),
 		awshost.WithEC2InstanceOptions(),
 	)
@@ -178,7 +190,7 @@ func (s *VMFakeintakeSuite) TestAutoVersionTraces() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
-	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+	service := fmt.Sprintf("tracegen-traces-%s", s.transport)
 
 	// Wait for agent to be live
 	s.T().Log("Waiting for Trace Agent to be live.")
@@ -194,7 +206,7 @@ func (s *VMFakeintakeSuite) TestAutoVersionTraces() {
 		s.logStatus()
 		testAutoVersionTraces(s.T(), c, s.Env().FakeIntake)
 		s.logJournal()
-	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
+	}, 3*time.Minute, 10*time.Second, "Failed finding traces")
 }
 
 func (s *VMFakeintakeSuite) TestAutoVersionStats() {
@@ -216,6 +228,29 @@ func (s *VMFakeintakeSuite) TestAutoVersionStats() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testAutoVersionStats(s.T(), c, s.Env().FakeIntake)
+		s.logJournal()
+	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
+}
+
+func (s *VMFakeintakeSuite) TestIsTraceRootTag() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testIsTraceRootTag(s.T(), c, s.Env().FakeIntake)
 		s.logJournal()
 	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }
@@ -244,6 +279,34 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
 }
 
+func (s *VMFakeintakeSuite) TestProbabilitySampler() {
+	s.UpdateEnv(awshost.Provisioner(vmProvisionerOpts(awshost.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(s.transport, `
+apm_config.probabilistic_sampler.enabled: true
+apm_config.probabilistic_sampler.sampling_percentage: 50
+apm_config.probabilistic_sampler.hash_seed: 22
+`))))...))
+
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-probability-sampler-%s", s.transport)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		tracesSampledByProbabilitySampler(s.T(), c, s.Env().FakeIntake)
+	}, 2*time.Minute, 10*time.Second, "Failed to find traces sampled by the probability sampler")
+}
+
 type statusReporter struct {
 	v *VMFakeintakeSuite
 }
@@ -269,7 +332,7 @@ func waitRemotePort(v *VMFakeintakeSuite, port uint16) error {
 	v.Eventually(func() bool {
 		v.T().Logf("Waiting for remote:%v", port)
 		// TODO: Use the e2e context
-		c, err = v.Env().RemoteHost.DialRemotePort(port)
+		c, err = v.Env().RemoteHost.DialPort(port)
 		if err != nil {
 			v.T().Logf("Failed to dial remote:%v: %s\n", port, err)
 			return false

@@ -37,6 +37,7 @@ type Config struct {
 }
 
 type instanceConfig struct {
+	DDSecurityEvents  optional.Option[string]        `yaml:"dd_security_events"`
 	ChannelPath       optional.Option[string]        `yaml:"path"`
 	Query             optional.Option[string]        `yaml:"query"`
 	Start             optional.Option[string]        `yaml:"start"`

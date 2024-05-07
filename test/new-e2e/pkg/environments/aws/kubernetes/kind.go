@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+	"github.com/DataDog/test-infra-definitions/common/utils"
 
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
@@ -113,7 +114,7 @@ func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
 }
 
 // WorkloadAppFunc is a function that deploys a workload app to a kube provider
-type WorkloadAppFunc func(e config.CommonEnvironment, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error)
+type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error)
 
 // WithWorkloadApp adds a workload app to the environment
 func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
@@ -154,10 +155,16 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	kindCluster, err := kubeComp.NewKindCluster(*awsEnv.CommonEnvironment, host, awsEnv.CommonNamer.ResourceName("kind"), params.name, awsEnv.KubernetesVersion())
+	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
 	if err != nil {
 		return err
 	}
+
+	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, awsEnv.CommonNamer().ResourceName("kind"), params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	if err != nil {
+		return err
+	}
+
 	err = kindCluster.Export(ctx, &env.KubernetesCluster.ClusterOutput)
 	if err != nil {
 		return err
@@ -204,7 +211,7 @@ agents:
 
 		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
 		params.agentOptions = append(newOpts, params.agentOptions...)
-		agent, err := agent.NewKubernetesAgent(*awsEnv.CommonEnvironment, kindClusterName, kubeProvider, params.agentOptions...)
+		agent, err := agent.NewKubernetesAgent(&awsEnv, kindClusterName, kubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -218,7 +225,7 @@ agents:
 	}
 
 	for _, appFunc := range params.workloadAppFuncs {
-		_, err := appFunc(*awsEnv.CommonEnvironment, kubeProvider)
+		_, err := appFunc(&awsEnv, kubeProvider)
 		if err != nil {
 			return err
 		}

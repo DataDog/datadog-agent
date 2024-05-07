@@ -51,6 +51,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getTTYNameOffset(f.kernelVersion)
 	case OffsetNameCredStructUID:
 		value = getCredsUIDOffset(f.kernelVersion)
+	case OffsetNameCredStructCapInheritable:
+		value = getCredCapInheritableOffset(f.kernelVersion)
 	case OffsetNameBPFMapStructID:
 		value = getBpfMapIDOffset(f.kernelVersion)
 	case OffsetNameBPFMapStructName:
@@ -135,6 +137,10 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getFileFinodeOffset(f.kernelVersion)
 	case OffsetNameFileFpath:
 		value = getFileFpathOffset(f.kernelVersion)
+	case OffsetNameSchedProcessForkChildPid:
+		value = getSchedProcessForkChildPidOffset(f.kernelVersion)
+	case OffsetNameSchedProcessForkParentPid:
+		value = getSchedProcessForkParentPidOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -322,6 +328,10 @@ func getCredsUIDOffset(kv *kernel.Version) uint64 {
 	default:
 		return 4
 	}
+}
+
+func getCredCapInheritableOffset(kv *kernel.Version) uint64 {
+	return getCredsUIDOffset(kv) + 36
 }
 
 func getBpfMapIDOffset(kv *kernel.Version) uint64 {
@@ -987,4 +997,20 @@ func getFileFpathOffset(kv *kernel.Version) uint64 {
 	default:
 		return 16
 	}
+}
+
+func getSchedProcessForkParentPidOffset(kv *kernel.Version) uint64 {
+	if kv.IsInRangeCloseOpen(kernel.Kernel5_14, kernel.Kernel5_15) && kv.IsRH9_3Kernel() {
+		return 28
+	}
+
+	return 24 // for regular kernels
+}
+
+func getSchedProcessForkChildPidOffset(kv *kernel.Version) uint64 {
+	if kv.IsInRangeCloseOpen(kernel.Kernel5_14, kernel.Kernel5_15) && kv.IsRH9_3Kernel() {
+		return 48
+	}
+
+	return 44 // for regular kernels
 }

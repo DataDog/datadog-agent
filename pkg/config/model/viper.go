@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/viper"
+	"github.com/mohae/deepcopy"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
 	"golang.org/x/exp/slices"
@@ -271,7 +272,7 @@ func (c *safeConfig) Get(key string) interface{} {
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
-	return val
+	return deepcopy.Copy(val)
 }
 
 // GetAllSources returns the value of a key for each source
@@ -283,7 +284,7 @@ func (c *safeConfig) GetAllSources(key string) []ValueWithSource {
 	for i, source := range sources {
 		vals[i] = ValueWithSource{
 			Source: source,
-			Value:  c.configSources[source].Get(key),
+			Value:  deepcopy.Copy(c.configSources[source].Get(key)),
 		}
 	}
 	return vals
@@ -394,7 +395,7 @@ func (c *safeConfig) GetStringSlice(key string) []string {
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
-	return val
+	return slices.Clone(val)
 }
 
 // GetFloat64SliceE loads a key as a []float64
@@ -429,7 +430,7 @@ func (c *safeConfig) GetStringMap(key string) map[string]interface{} {
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
-	return val
+	return deepcopy.Copy(val).(map[string]interface{})
 }
 
 // GetStringMapString wraps Viper for concurrent access
@@ -441,7 +442,7 @@ func (c *safeConfig) GetStringMapString(key string) map[string]string {
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
-	return val
+	return deepcopy.Copy(val).(map[string]string)
 }
 
 // GetStringMapStringSlice wraps Viper for concurrent access
@@ -453,7 +454,7 @@ func (c *safeConfig) GetStringMapStringSlice(key string) map[string][]string {
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
-	return val
+	return deepcopy.Copy(val).(map[string][]string)
 }
 
 // GetSizeInBytes wraps Viper for concurrent access

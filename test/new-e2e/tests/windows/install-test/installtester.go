@@ -12,17 +12,19 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	agentClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	agentClientParams "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	commonHelper "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
+	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
+
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 // Tester is a test helper for testing agent installations
@@ -48,8 +50,9 @@ type Tester struct {
 type TesterOption func(*Tester)
 
 // NewTester creates a new Tester
-func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption) (*Tester, error) {
+func NewTester(context e2e.Context, host *components.RemoteHost, opts ...TesterOption) (*Tester, error) {
 	t := &Tester{}
+	tt := context.T()
 
 	var err error
 
@@ -58,7 +61,7 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 	if err != nil {
 		return nil, err
 	}
-	t.expectedUserName = "ddagentuser"
+	t.expectedUserName = windowsAgent.DefaultAgentUserName
 	t.expectedUserDomain = windows.NameToNetBIOSName(t.hostInfo.Hostname)
 	t.expectedInstallPath = windowsAgent.DefaultInstallPath
 	t.expectedConfigRoot = windowsAgent.DefaultConfigRoot
@@ -80,9 +83,11 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 		tt.FailNow()
 	}
 
-	t.InstallTestClient = common.NewWindowsTestClient(tt, t.host)
+	t.InstallTestClient = common.NewWindowsTestClient(context, t.host)
 	t.InstallTestClient.Helper = commonHelper.NewWindowsHelperWithCustomPaths(t.expectedInstallPath, t.expectedConfigRoot)
-	t.InstallTestClient.AgentClient, err = agentClient.NewHostAgentClientWithParams(tt, t.host,
+	t.InstallTestClient.AgentClient, err = agentClient.NewHostAgentClientWithParams(
+		context,
+		t.host.HostOutput,
 		agentClientParams.WithSkipWaitForAgentReady(),
 		agentClientParams.WithAgentInstallPath(t.expectedInstallPath),
 	)
@@ -209,11 +214,7 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 	_, err = t.host.Lstat(t.expectedConfigRoot)
 	assert.NoError(tt, err, "uninstall should not remove config root")
 
-	configPaths := []string{
-		"datadog.yaml",
-		"system-probe.yaml",
-	}
-	for _, configPath := range configPaths {
+	for _, configPath := range getExpectedConfigFiles() {
 		configPath := filepath.Join(t.expectedConfigRoot, configPath)
 		_, err = t.host.Lstat(configPath)
 		assert.NoError(tt, err, "uninstall should not remove %s config file", configPath)
@@ -222,10 +223,30 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 		assert.ErrorIs(tt, err, fs.ErrNotExist, "uninstall should remove %s example config files", examplePath)
 	}
 
+	_, err = t.host.Lstat(filepath.Join(t.expectedConfigRoot, "auth_token"))
+	assert.ErrorIs(tt, err, fs.ErrNotExist, "uninstall should remove auth_token")
+
+	_, err = t.host.Lstat(filepath.Join(t.expectedConfigRoot, "checks.d"))
+	assert.ErrorIs(tt, err, fs.ErrNotExist, "uninstall should remove checks.d")
+
 	_, err = windows.GetSIDForUser(t.host,
 		windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
 	)
 	assert.NoError(tt, err, "uninstall should not remove agent user")
+
+	for _, serviceName := range servicetest.ExpectedInstalledServices() {
+		conf, err := windows.GetServiceConfig(t.host, serviceName)
+		if err == nil && windows.IsKernelModeServiceType(conf.ServiceType) {
+			// TODO WKINT-410: kernel mode services are not removed on install rollback
+			tt.Logf("WKINT-410: Skipping known failure, kernel mode service not removed: %s", serviceName)
+			continue
+		}
+		assert.Errorf(tt, err, "uninstall should remove service %s", serviceName)
+	}
+
+	registryKeyExists, err := windows.RegistryKeyExists(t.host, windowsAgent.RegistryKeyPath)
+	assert.NoError(tt, err, "should check registry key exists")
+	assert.False(tt, registryKeyExists, "uninstall should remove registry key")
 }
 
 // Only do some basic checks on the agent since it's a previous version
@@ -267,11 +288,7 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	})
 
 	tt.Run("creates config files", func(tt *testing.T) {
-		configPaths := []string{
-			"datadog.yaml",
-			"system-probe.yaml",
-		}
-		for _, configPath := range configPaths {
+		for _, configPath := range getExpectedConfigFiles() {
 			configPath := filepath.Join(t.expectedConfigRoot, configPath)
 			_, err := t.host.Lstat(configPath)
 			assert.NoError(tt, err, "install should create %s config file", configPath)
@@ -281,11 +298,28 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 		}
 	})
 
+	tt.Run("creates bin files", func(tt *testing.T) {
+		expected := getExpectedBinFilesForAgentMajorVersion(t.expectedAgentMajorVersion)
+		for _, binPath := range expected {
+			binPath = filepath.Join(t.expectedInstallPath, binPath)
+			_, err := t.host.Lstat(binPath)
+			assert.NoError(tt, err, "install should create %s bin file", binPath)
+		}
+	})
+
 	serviceTester, err := servicetest.NewTester(t.host,
 		servicetest.WithExpectedAgentUser(t.expectedUserDomain, t.expectedUserName),
+		servicetest.WithExpectedInstallPath(t.expectedInstallPath),
+		servicetest.WithExpectedConfigRoot(t.expectedConfigRoot),
 	)
 	require.NoError(tt, err)
-	serviceTester.TestInstall(tt)
+	tt.Run("service config", func(tt *testing.T) {
+		actual, err := windows.GetServiceConfigMap(t.host, servicetest.ExpectedInstalledServices())
+		require.NoError(tt, err)
+		expected, err := serviceTester.ExpectedServiceConfig()
+		require.NoError(tt, err)
+		servicetest.AssertEqualServiceConfigValues(tt, expected, actual)
+	})
 
 	tt.Run("user is a member of expected groups", func(tt *testing.T) {
 		AssertAgentUserGroupMembership(tt, t.host,

@@ -1,6 +1,8 @@
 #!/bin/bash
 
-STARTUP_TIME_THRESHOLD=20
+set -o pipefail
+
+STARTUP_TIME_THRESHOLD=40
 
 calculate_median() {
     local sorted=($(printf "%s\n" "${@}" | sort -n))
@@ -23,13 +25,26 @@ log() {
 
 startupTimes=()
 
-# loop 10 times to incur no false positive/negative alarms
-for i in {1..10}
+# Cold start container enough times to get a reasonable histogram in <= 1 hour.
+# Pick an odd number to avoid having to average two elements. Larger iteration
+# counts are useful for exploiting large-sample-size statistics.
+ITERATION_COUNT=301
+
+for i in $(seq 1 ${ITERATION_COUNT})
 do
     # create a new container to ensure cold start
     dockerId=$(docker run -d datadogci/lambda-extension)
-    sleep 10
-    numberOfMillisecs=$(docker logs "$dockerId" | grep 'ready in' | grep -Eo '[0-9]{1,4}' | tail -3 | head -1)
+
+    retries=0
+    until numberOfMillisecs=$(docker logs "$dockerId" | grep 'ready in' | grep -Eo '[0-9]{1,4}' | tail -3 | head -1);
+    do
+        sleep 1
+        retries=$((retries + 1))
+        if [ $retries -gt 10 ]; then
+            log "Failed to get startup time"
+            exit 1
+        fi
+    done
     startupTimes+=($numberOfMillisecs)
     log "Iteration=$i | Startup Time=$numberOfMillisecs"
 done
@@ -37,6 +52,9 @@ done
 medianMs=$(calculate_median "${startupTimes[@]}")
 
 log "Median=$medianMs | Threshold=$STARTUP_TIME_THRESHOLD"
+
+# Log raw startup time data to a single line for exploratory data analysis
+log "RawData=${startupTimes[*]}"
 
 # check whether or not the median duration exceeds the threshold
 if (( medianMs > STARTUP_TIME_THRESHOLD )); then

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
@@ -61,12 +62,13 @@ const (
 type dependencies struct {
 	fx.In
 
-	Lc             fx.Lifecycle
-	Log            logComponent.Component
-	Config         configComponent.Component
-	InventoryAgent inventoryagent.Component
-	Hostname       hostname.Component
-	WMeta          optional.Option[workloadmeta.Component]
+	Lc                 fx.Lifecycle
+	Log                logComponent.Component
+	Config             configComponent.Component
+	InventoryAgent     inventoryagent.Component
+	Hostname           hostname.Component
+	WMeta              optional.Option[workloadmeta.Component]
+	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 }
 
 type provides struct {
@@ -100,6 +102,7 @@ type agent struct {
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 	flarecontroller           *flareController.FlareController
 	wmeta                     optional.Option[workloadmeta.Component]
+	schedulerProviders        []schedulers.Scheduler
 
 	// started is true if the logs agent is running
 	started *atomic.Bool
@@ -118,11 +121,12 @@ func newLogsAgent(deps dependencies) provides {
 			hostname:       deps.Hostname,
 			started:        atomic.NewBool(false),
 
-			sources:         sources.NewLogSources(),
-			services:        service.NewServices(),
-			tracker:         tailers.NewTailerTracker(),
-			flarecontroller: flareController.NewFlareController(),
-			wmeta:           deps.WMeta,
+			sources:            sources.NewLogSources(),
+			services:           service.NewServices(),
+			tracker:            tailers.NewTailerTracker(),
+			flarecontroller:    flareController.NewFlareController(),
+			wmeta:              deps.WMeta,
+			schedulerProviders: deps.SchedulerProviders,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -175,6 +179,10 @@ func (a *agent) start(context.Context) error {
 
 	a.startPipeline()
 	a.log.Info("logs-agent started")
+
+	for _, scheduler := range a.schedulerProviders {
+		a.AddScheduler(scheduler)
+	}
 
 	return nil
 }
@@ -301,7 +309,7 @@ func (a *agent) onUpdateSDSRules(updates map[string]state.RawConfig, applyStateC
 	var err error
 	for _, config := range updates {
 		if rerr := a.pipelineProvider.ReconfigureSDSStandardRules(config.Config); rerr != nil {
-			err = rerr
+			err = multierror.Append(err, rerr)
 		}
 	}
 
@@ -326,9 +334,17 @@ func (a *agent) onUpdateSDSRules(updates map[string]state.RawConfig, applyStateC
 func (a *agent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
 	var err error
 
-	for _, config := range updates {
-		if rerr := a.pipelineProvider.ReconfigureSDSAgentConfig(config.Config); rerr != nil {
-			err = rerr
+	// We received a hit that new updates arrived, but if the list of updates
+	// is empty, it means we don't have any updates applying to this agent anymore
+	// Send a reconfiguration with an empty payload, indicating that
+	// the scanners have to be dropped.
+	if len(updates) == 0 {
+		err = a.pipelineProvider.ReconfigureSDSAgentConfig([]byte("{}"))
+	} else {
+		for _, config := range updates {
+			if rerr := a.pipelineProvider.ReconfigureSDSAgentConfig(config.Config); rerr != nil {
+				err = multierror.Append(err, rerr)
+			}
 		}
 	}
 

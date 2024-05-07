@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -74,6 +75,9 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath)),
 		secretsimpl.Module(),
+		fx.Provide(func(comp secrets.Component) optional.Option[secrets.Component] {
+			return optional.NewOption[secrets.Component](comp)
+		}),
 		fx.Supply(secrets.NewEnabledParams()),
 		coreconfig.Module(),
 		fx.Provide(func() corelogimpl.Params {
@@ -94,7 +98,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			}
 			return tagger.NewTaggerParams()
 		}),
-		tagger.Module(),
+		taggerimpl.Module(),
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),

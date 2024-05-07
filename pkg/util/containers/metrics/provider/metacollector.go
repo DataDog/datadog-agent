@@ -31,6 +31,9 @@ func (mc *metaCollector) collectorsUpdatedCallback(collectorsCatalog CollectorCa
 	mc.selfContainerIDcollectors = buildUniqueCollectors(collectorsCatalog, func(c *Collectors) CollectorRef[SelfContainerIDRetriever] { return c.SelfContainerID })
 	mc.containerIDFromPIDcollectors = buildUniqueCollectors(collectorsCatalog, func(c *Collectors) CollectorRef[ContainerIDForPIDRetriever] { return c.ContainerIDForPID })
 	mc.containerIDFromInodeCollectors = buildUniqueCollectors(collectorsCatalog, func(c *Collectors) CollectorRef[ContainerIDForInodeRetriever] { return c.ContainerIDForInode })
+	mc.ContainerIDForPodUIDAndContNameCollectors = buildUniqueCollectors(collectorsCatalog, func(c *Collectors) CollectorRef[ContainerIDForPodUIDAndContNameRetriever] {
+		return c.ContainerIDForPodUIDAndContName
+	})
 }
 
 // GetSelfContainerID returns the container ID for current container.

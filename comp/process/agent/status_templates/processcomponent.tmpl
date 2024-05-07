@@ -1,0 +1,58 @@
+{{- with .processComponentStatus }}
+{{- if .error }}
+  Status: Not running or unreachable
+{{- else }}
+
+  Enabled Checks: {{ .expvars.process_agent.enabled_checks }}
+  {{- if .expvars.process_agent.system_probe_process_module_enabled }}
+  System Probe Process Module Status: Running
+  {{- else}}
+  System Probe Process Module Status: Not running
+  {{- end}}
+  Process Language Detection Enabled: {{ if .expvars.process_agent.language_detection_enabled }}True{{ else }}False{{ end }}
+
+  =================
+  Process Endpoints
+  =================
+  {{- with .expvars.process_agent.endpoints}}
+    {{- range $key, $value := .}}
+    {{$key}} - API Key{{ if gt (len $value) 1}}s{{end}} ending with:
+      {{- range $idx, $apikey := $value }}
+        - {{$apikey}}
+      {{- end}}
+    {{- end}}
+  {{- else }}
+
+    No endpoints information. The agent may be misconfigured.
+  {{- end }}
+
+  =========
+  Collector
+  =========
+    Last collection time: {{.expvars.process_agent.last_collect_time}}
+    Docker socket: {{.expvars.process_agent.docker_socket}}
+    Number of processes: {{.expvars.process_agent.process_count}}
+    Number of containers: {{.expvars.process_agent.container_count}}
+    Process Queue length: {{.expvars.process_agent.process_queue_size}}
+    RTProcess Queue length: {{.expvars.process_agent.rtprocess_queue_size}}
+    Connections Queue length: {{.expvars.process_agent.connections_queue_size}}
+    Event Queue length: {{.expvars.process_agent.event_queue_size}}
+    Pod Queue length: {{.expvars.process_agent.pod_queue_size}}
+    Process Bytes enqueued: {{.expvars.process_agent.process_queue_bytes}}
+    RTProcess Bytes enqueued: {{.expvars.process_agent.rtprocess_queue_bytes}}
+    Connections Bytes enqueued: {{.expvars.process_agent.connections_queue_bytes}}
+    Event Bytes enqueued: {{.expvars.process_agent.event_queue_bytes}}
+    Pod Bytes enqueued: {{.expvars.process_agent.pod_queue_bytes}}
+    Drop Check Payloads: {{.expvars.process_agent.drop_check_payloads}}
+
+  ==========
+  Extractors
+  ==========
+
+    Workloadmeta
+    ============
+      Cache size: {{.expvars.process_agent.workloadmeta_extractor_cache_size}}
+      Stale diffs discarded: {{.expvars.process_agent.workloadmeta_extractor_stale_diffs}}
+      Diffs dropped: {{.expvars.process_agent.workloadmeta_extractor_diffs_dropped}}
+{{- end }}
+{{- end }}

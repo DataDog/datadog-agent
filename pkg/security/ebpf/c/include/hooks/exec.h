@@ -162,9 +162,14 @@ int hook__do_fork(ctx_t *ctx) {
 
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
+    u64 sched_process_fork_parent_pid_offset;
+    LOAD_CONSTANT("sched_process_fork_parent_pid_offset", sched_process_fork_parent_pid_offset);
+    u64 sched_process_fork_child_pid_offset;
+    LOAD_CONSTANT("sched_process_fork_child_pid_offset", sched_process_fork_child_pid_offset);
+
     u32 pid = 0, parent_pid = 0;
-    bpf_probe_read(&pid, sizeof(pid), &args->child_pid);
-    bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->parent_pid);
+    bpf_probe_read(&pid, sizeof(pid), (void *)args + sched_process_fork_child_pid_offset);
+    bpf_probe_read(&parent_pid, sizeof(parent_pid), (void *)args + sched_process_fork_parent_pid_offset);
     // ignore the rest if kworker
     struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
     if (!syscall || syscall->fork.is_kthread || parent_pid == 2) {
@@ -725,6 +730,9 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
+
+    // as previously registered memory will become unreachable, we'll have to unregister the TLS
+    unregister_span_memory();
 
     return 0;
 }
