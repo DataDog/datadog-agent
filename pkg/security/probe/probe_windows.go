@@ -282,79 +282,87 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
-			case idNameCreate:
-				if ca, err := p.parseNameCreateArgs(e); err == nil {
-					log.Tracef("Received nameCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
-					ecb(ca, e.EventHeader.ProcessID)
-				}
-
-			case idNameDelete:
-				if ca, err := p.parseNameDeleteArgs(e); err == nil {
-					log.Tracef("Received nameDelete event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
-					ecb(ca, e.EventHeader.ProcessID)
-				}
-
+			/*
+				case idNameCreate:
+					if ca, err := p.parseNameCreateArgs(e); err == nil {
+						log.Tracef("Received nameCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+						ecb(ca, e.EventHeader.ProcessID)
+					}
+			*/
+			/*
+				case idNameDelete:
+					if ca, err := p.parseNameDeleteArgs(e); err == nil {
+						log.Tracef("Received nameDelete event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+						ecb(ca, e.EventHeader.ProcessID)
+					}
+			*/
 			case idCreate:
 				if ca, err := p.parseCreateHandleArgs(e); err == nil {
-					log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					//log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 				p.stats.fileCreate++
 			case idCreateNewFile:
 				if ca, err := p.parseCreateNewFileArgs(e); err == nil {
-					log.Tracef("Received idCreateNewFile event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					//log.Tracef("Received idCreateNewFile event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 				p.stats.fileCreateNew++
 			case idCleanup:
-				if ca, err := p.parseCleanupArgs(e); err == nil {
-					log.Tracef("Received cleanup event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
-					ecb(ca, e.EventHeader.ProcessID)
-				}
+				/*
+					if ca, err := p.parseCleanupArgs(e); err == nil {
+						log.Tracef("Received cleanup event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+						ecb(ca, e.EventHeader.ProcessID)
+					}
+				*/
 				p.stats.fileCleanup++
 			case idClose:
 				if ca, err := p.parseCloseArgs(e); err == nil {
-					log.Tracef("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					//log.Tracef("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
-					if e.EventHeader.EventDescriptor.ID == idClose {
-						p.filePathResolverLock.Lock()
-						delete(p.filePathResolver, ca.fileObject)
-						p.filePathResolverLock.Unlock()
-					}
+					p.filePathResolverLock.Lock()
+					delete(p.filePathResolver, ca.fileObject)
+					p.filePathResolverLock.Unlock()
 				}
 				p.stats.fileClose++
 			case idFlush:
-				if fa, err := p.parseFlushArgs(e); err == nil {
-					ecb(fa, e.EventHeader.ProcessID)
-				}
+				/*
+					if fa, err := p.parseFlushArgs(e); err == nil {
+						ecb(fa, e.EventHeader.ProcessID)
+					}
+				*/
 				p.stats.fileFlush++
 
 			case idWrite:
 				if wa, err := p.parseWriteArgs(e); err == nil {
 					//fmt.Printf("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
-					log.Tracef("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
+					//log.Tracef("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
 					ecb(wa, e.EventHeader.ProcessID)
 				}
 
-			case idSetInformation:
-				if si, err := p.parseInformationArgs(e); err == nil {
-					log.Tracef("Received SetInformation event %d %s\n", e.EventHeader.EventDescriptor.ID, si)
-					ecb(si, e.EventHeader.ProcessID)
-				}
+				/*
+					case idSetInformation:
+						if si, err := p.parseInformationArgs(e); err == nil {
+							log.Tracef("Received SetInformation event %d %s\n", e.EventHeader.EventDescriptor.ID, si)
+							ecb(si, e.EventHeader.ProcessID)
+						}
+				*/
 				p.stats.fileSetInformation++
 
 			case idSetDelete:
 				if sd, err := p.parseSetDeleteArgs(e); err == nil {
-					log.Tracef("Received SetDelete event %d %s\n", e.EventHeader.EventDescriptor.ID, sd)
+					//log.Tracef("Received SetDelete event %d %s\n", e.EventHeader.EventDescriptor.ID, sd)
 					ecb(sd, e.EventHeader.ProcessID)
 				}
 				p.stats.fileSetDelete++
 
-			case idDeletePath:
-				if dp, err := p.parseDeletePathArgs(e); err == nil {
-					log.Tracef("Received DeletePath event %d %s\n", e.EventHeader.EventDescriptor.ID, dp)
-					ecb(dp, e.EventHeader.ProcessID)
-				}
+				/*
+					case idDeletePath:
+						if dp, err := p.parseDeletePathArgs(e); err == nil {
+							log.Tracef("Received DeletePath event %d %s\n", e.EventHeader.EventDescriptor.ID, dp)
+							ecb(dp, e.EventHeader.ProcessID)
+						}
+				*/
 
 			case idRename:
 				if rn, err := p.parseRenameArgs(e); err == nil {
@@ -371,15 +379,17 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			case idQueryInformation:
 				p.stats.fileidQueryInformation++
 			case idFSCTL:
-				if fs, err := p.parseFsctlArgs(e); err == nil {
-					log.Tracef("Received FSCTL event %d %s\n", e.EventHeader.EventDescriptor.ID, fs)
-					ecb(fs, e.EventHeader.ProcessID)
-				}
+				/*
+					if fs, err := p.parseFsctlArgs(e); err == nil {
+						log.Tracef("Received FSCTL event %d %s\n", e.EventHeader.EventDescriptor.ID, fs)
+						ecb(fs, e.EventHeader.ProcessID)
+					}
+				*/
 				p.stats.fileidFSCTL++
 
 			case idRename29:
 				if rn, err := p.parseRename29Args(e); err == nil {
-					log.Tracef("Received Rename29 event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
+					//log.Tracef("Received Rename29 event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
 					ecb(rn, e.EventHeader.ProcessID)
 				}
 				p.stats.fileidRename29++
@@ -389,44 +399,51 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			switch e.EventHeader.EventDescriptor.ID {
 			case idRegCreateKey:
 				if cka, err := p.parseCreateRegistryKey(e); err == nil {
-					log.Tracef("Got idRegCreateKey %s", cka)
+					//log.Tracef("Got idRegCreateKey %s", cka)
 					ecb(cka, e.EventHeader.ProcessID)
 				}
 				p.stats.regCreateKey++
 			case idRegOpenKey:
 				if cka, err := p.parseOpenRegistryKey(e); err == nil {
-					log.Tracef("Got idRegOpenKey %s", cka)
+					//log.Tracef("Got idRegOpenKey %s", cka)
 					ecb(cka, e.EventHeader.ProcessID)
 				}
 				p.stats.regOpenKey++
 			case idRegDeleteKey:
 				if dka, err := p.parseDeleteRegistryKey(e); err == nil {
-					log.Tracef("Got idRegDeleteKey %v", dka)
+					//log.Tracef("Got idRegDeleteKey %v", dka)
 					ecb(dka, e.EventHeader.ProcessID)
 				}
 				p.stats.regDeleteKey++
+
 			case idRegFlushKey:
-				if dka, err := p.parseFlushKey(e); err == nil {
-					log.Tracef("Got idRegFlushKey %v", dka)
-				}
+				/*
+					if dka, err := p.parseFlushKey(e); err == nil {
+						log.Tracef("Got idRegFlushKey %v", dka)
+					}
+				*/
 				p.stats.regFlushKey++
 			case idRegCloseKey:
 				if dka, err := p.parseCloseKeyArgs(e); err == nil {
-					log.Tracef("Got idRegCloseKey %s", dka)
+					//log.Tracef("Got idRegCloseKey %s", dka)
 					delete(p.regPathResolver, dka.keyObject)
 				}
 				p.stats.regCloseKey++
-			case idQuerySecurityKey:
-				if dka, err := p.parseQuerySecurityKeyArgs(e); err == nil {
-					log.Tracef("Got idQuerySecurityKey %v", dka.keyName)
-				}
-			case idSetSecurityKey:
-				if dka, err := p.parseSetSecurityKeyArgs(e); err == nil {
-					log.Tracef("Got idSetSecurityKey %v", dka.keyName)
-				}
+				/*
+					case idQuerySecurityKey:
+						if dka, err := p.parseQuerySecurityKeyArgs(e); err == nil {
+							log.Tracef("Got idQuerySecurityKey %v", dka.keyName)
+						}
+				*/
+				/*
+					case idSetSecurityKey:
+						if dka, err := p.parseSetSecurityKeyArgs(e); err == nil {
+							log.Tracef("Got idSetSecurityKey %v", dka.keyName)
+						}
+				*/
 			case idRegSetValueKey:
 				if svk, err := p.parseSetValueKey(e); err == nil {
-					log.Tracef("Got idRegSetValueKey %s", svk)
+					//log.Tracef("Got idRegSetValueKey %s", svk)
 					ecb(svk, e.EventHeader.ProcessID)
 
 				}
