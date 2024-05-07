@@ -64,7 +64,7 @@ var (
 	regexMapper = map[Operation]*regexp.Regexp{
 		CreateTableOP: regexp.MustCompile(`CREATE TABLE (\S+)`),
 		InsertOP:      regexp.MustCompile(`INSERT INTO (\S+)`),
-		DropTableOP:   regexp.MustCompile(`DROP TABLE (\S+)`),
+		DropTableOP:   regexp.MustCompile(`DROP TABLE(\s*IF\s+EXISTS\s+)?(\S+)`),
 		UpdateOP:      regexp.MustCompile(`UPDATE (\S+)`),
 		SelectOP:      regexp.MustCompile(`SELECT .* FROM (\S+)`),
 	}
@@ -77,7 +77,7 @@ func (e *EventWrapper) extractTableName() string {
 		if matches := regex.FindSubmatch(e.Tx.getFragment()); len(matches) > 1 {
 			return string(
 				bytes.Trim( // Remove leading and trailing quotes from the table name
-					bytes.ReplaceAll(matches[1], []byte{0}, []byte{}), // Remove null bytes
+					bytes.ReplaceAll(matches[len(matches)-1], []byte{0}, []byte{}), // Remove null bytes
 					"\""),
 			)
 		}
