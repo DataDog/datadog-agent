@@ -621,8 +621,7 @@ def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod",
         ctx.run(f"{go_cmd} {prefix}")
 
 
-@task
-def check_supports_python_version(_, check_dir, python):
+def check_supports_python_version(check_dir, python):
     """
     Check if a Python project states support for a given major Python version.
     """
@@ -640,17 +639,15 @@ def check_supports_python_version(_, check_dir, python):
 
         project_metadata = data['project']
         if 'requires-python' not in project_metadata:
-            print('True', end='')
-            return
+            return True
 
         specifier = SpecifierSet(project_metadata['requires-python'])
         # It might be e.g. `>=3.8` which would not immediatelly contain `3`
         for minor_version in range(100):
             if specifier.contains(f'{python}.{minor_version}'):
-                print('True', end='')
-                return
+                return True
         else:
-            print('False', end='')
+            return False
     elif os.path.isfile(setup_file):
         with open(setup_file) as f:
             tree = ast.parse(f.read(), filename=setup_file)
@@ -659,12 +656,55 @@ def check_supports_python_version(_, check_dir, python):
         for node in ast.walk(tree):
             if isinstance(node, ast.keyword) and node.arg == 'classifiers':
                 classifiers = ast.literal_eval(node.value)
-                print(any(cls.startswith(prefix) for cls in classifiers), end='')
-                return
+                return any(cls.startswith(prefix) for cls in classifiers)
         else:
-            print('False', end='')
+            return False
     else:
-        raise Exit('not a Python project', code=1)
+        return False
+
+
+@task
+def collect_integrations(_, integrations_dir, python_version, target_os, excluded):
+    """
+    Collect and print the list of integrations to install.
+
+    `excluded` is a comma-separated list of directories that don't contain an actual integration
+    """
+    import json
+
+    excluded = excluded.split(',')
+    integrations = []
+
+    for entry in os.listdir(integrations_dir):
+        int_path = os.path.join(integrations_dir, entry)
+        if not os.path.isdir(int_path) or entry in excluded:
+            continue
+
+        manifest_file_path = os.path.join(int_path, "manifest.json")
+
+        # If there is no manifest file, then we should assume the folder does not
+        # contain a working check and move onto the next
+        if not os.path.exists(manifest_file_path):
+            continue
+
+        with open(manifest_file_path) as f:
+            manifest = json.load(f)
+
+        # Figure out whether the integration is supported on the target OS
+        if target_os == 'mac_os':
+            tag = 'Supported OS::macOS'
+        else:
+            tag = f'Supported OS::{target_os.capitalize()}'
+
+        if tag not in manifest['tile']['classifier_tags']:
+            continue
+
+        if not check_supports_python_version(int_path, python_version):
+            continue
+
+        integrations.append(entry)
+
+    print(' '.join(sorted(integrations)))
 
 
 @task

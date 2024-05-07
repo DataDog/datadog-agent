@@ -19,6 +19,10 @@ on:
         description: 'Whether the images are test images'
         required: true
         type: boolean
+      include_otel_modules:
+        description: 'Whether to also bump the Go version in modules used by OpenTelemetry'
+        required: true
+        type: boolean
 
 jobs:
   open-go-update-pr:
@@ -74,12 +78,13 @@ jobs:
         id: update_build_images
         env:
           TEST_VERSION_FLAG: ${{ inputs.test_version && '--test-version' || '--no-test-version' }}
+          INCLUDE_OTEL_MODULES: ${{ inputs.include_otel_modules && '--include-otel-modules' || '' }}
         run: |
           if [ "${{ steps.current_go_version.outputs.GO_VERSION }}" = "${{ inputs.go_version }}" ]; then
             inv -e buildimages.update --image-tag ${{ inputs.images_id }} $TEST_VERSION_FLAG
             echo 'MESSAGE=Update buildimages ID to ${{ inputs.images_id }}' >> $GITHUB_OUTPUT
           else
-            inv -e update-go --image-tag ${{ inputs.images_id }} $TEST_VERSION_FLAG -v "${{ inputs.go_version }}"
+            inv -e update-go --image-tag ${{ inputs.images_id }} $TEST_VERSION_FLAG $INCLUDE_OTEL_MODULES -v "${{ inputs.go_version }}"
             echo 'MESSAGE=Update Go version to ${{ inputs.go_version }}' >> $GITHUB_OUTPUT
           fi
 
