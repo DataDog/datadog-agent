@@ -289,7 +289,7 @@ def retrieve_job_executions(ctx, job_failures_file):
     Retrieve the stored document in aws s3, or create it
     """
     try:
-        ctx.run(f"{AWS_S3_CP_CMD}  {S3_CI_BUCKET_URL}/{job_failures_file} {job_failures_file}", hide=True)
+        ctx.run(f"{AWS_S3_CP_CMD} {S3_CI_BUCKET_URL}/{job_failures_file} {job_failures_file}", hide=True)
         with open(job_failures_file) as f:
             job_executions = json.load(f)
     except UnexpectedExit as e:
@@ -433,7 +433,7 @@ class CumulativeJobAlert:
             return ''
 
         job_list = ', '.join(f'<{ExecutionsJobInfo.ci_visibility_url(name)}|{name}>' for name in self.failures)
-        message = f'Job(s) {job_list} failed {CUMULATIVE_THRESHOLD} times in last {CUMULATIVE_LENGTH} executions.'
+        message = f'Job(s) {job_list} failed {CUMULATIVE_THRESHOLD} times in last {CUMULATIVE_LENGTH} executions.\n'
 
         return message
 
@@ -478,8 +478,8 @@ class ConsecutiveJobAlert:
 def update_statistics(job_executions):
     # TODO : Not here
     job_executions = Executions.from_json(job_executions)
-    print(job_executions)
-    print()
+    # print(job_executions)
+    # print()
     consecutive_alerts = {}
     cumulative_alerts = {}
 
@@ -489,8 +489,8 @@ def update_statistics(job_executions):
     # TODO : Clean code
     failed_dict = {job.name: ExecutionsJobInfo(job.id, True) for job in failed_jobs.all_failures()}
 
-    print()
-    print('failed_jobs', failed_jobs.all_failures())
+    # print()
+    # print('failed_jobs', failed_jobs.all_failures())
 
     # TODO : Useless
     # current_dict = dict(job_executions["jobs"].items())
@@ -524,16 +524,16 @@ def update_statistics(job_executions):
         if sum(1 for job in job_executions.jobs[job_name].jobs_info if job.failing) == CUMULATIVE_THRESHOLD:
             cumulative_alerts[job_name] = [job for job in job_executions.jobs[job_name].jobs_info if job.failing]
 
-    print(job_executions)
+    # print(job_executions)
 
-    print()
-    print('consecutive_alerts', consecutive_alerts)
-    print()
-    print('cumulative_alerts', cumulative_alerts)
-    print()
-    print(ConsecutiveJobAlert(consecutive_alerts).message(Context()))
-    print(CumulativeJobAlert(cumulative_alerts).message())
-    print()
+    # print()
+    # print('consecutive_alerts', consecutive_alerts)
+    # print()
+    # print('cumulative_alerts', cumulative_alerts)
+    # print()
+    # print(ConsecutiveJobAlert(consecutive_alerts).message(Context()))
+    # print(CumulativeJobAlert(cumulative_alerts).message())
+    # print()
 
     # return
 
@@ -554,18 +554,20 @@ def update_statistics(job_executions):
     }, job_executions
 
 
-def send_notification(alert_jobs):
-    message = ""
-    if len(alert_jobs["consecutive"]) > 0:
-        jobs = ", ".join(f"`{j}`" for j in alert_jobs["consecutive"])
-        # TODO : <https://path/to/job|jobname>
-        message += f"Job(s) {jobs} failed {CONSECUTIVE_THRESHOLD} times in a row.\n"
-    if len(alert_jobs["cumulative"]) > 0:
-        jobs = ", ".join(f"`{j}`" for j in alert_jobs["cumulative"])
-        message += f"Job(s) {jobs} failed {CUMULATIVE_THRESHOLD} times in last {CUMULATIVE_LENGTH} executions.\n"
+def send_notification(ctx: Context, alert_jobs):
+    # message = ""
+    # if len(alert_jobs["consecutive"]) > 0:
+    #     jobs = ", ".join(f"`{j}`" for j in alert_jobs["consecutive"])
+    #     # TODO : <https://path/to/job|jobname>
+    #     message += f"Job(s) {jobs} failed {CONSECUTIVE_THRESHOLD} times in a row.\n"
+    # if len(alert_jobs["cumulative"]) > 0:
+    #     jobs = ", ".join(f"`{j}`" for j in alert_jobs["cumulative"])
+    #     message += f"Job(s) {jobs} failed {CUMULATIVE_THRESHOLD} times in last {CUMULATIVE_LENGTH} executions.\n"
 
-    print('\nsend_notification message:\n')
-    print(message)
+    message = alert_jobs["consecutive"].message(ctx) + alert_jobs["cumulative"].message()
+    if len(message):
+        print('\nsend_notification message:\n')
+        print(message)
 
     # TODO
     # if message:
