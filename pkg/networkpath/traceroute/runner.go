@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -91,11 +92,11 @@ func NewRunner() (*Runner, error) {
 //
 // This code is experimental and will be replaced with a more
 // complete implementation.
-func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (NetworkPath, error) {
+func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.NetworkPath, error) {
 	rawDest := cfg.DestHostname
 	dests, err := net.DefaultResolver.LookupIP(ctx, "ip4", rawDest)
 	if err != nil || len(dests) == 0 {
-		return NetworkPath{}, fmt.Errorf("cannot resolve %s: %v", rawDest, err)
+		return payload.NetworkPath{}, fmt.Errorf("cannot resolve %s: %v", rawDest, err)
 	}
 
 	//TODO: should we get smarter about IP address resolution?
@@ -136,17 +137,17 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (NetworkPath, er
 	if err != nil {
 		tracerouteRunnerTelemetry.runs.Inc()
 		tracerouteRunnerTelemetry.failedRuns.Inc()
-		return NetworkPath{}, fmt.Errorf("traceroute run failed: %s", err.Error())
+		return payload.NetworkPath{}, fmt.Errorf("traceroute run failed: %s", err.Error())
 	}
 
 	hname, err := hostname.Get(ctx)
 	if err != nil {
-		return NetworkPath{}, err
+		return payload.NetworkPath{}, err
 	}
 
 	pathResult, err := r.processResults(results, hname, rawDest, dest)
 	if err != nil {
-		return NetworkPath{}, err
+		return payload.NetworkPath{}, err
 	}
 	log.Debugf("Processed Results: %+v", results)
 
@@ -172,7 +173,7 @@ func getPorts(configDestPort uint16) (uint16, uint16, bool) {
 	return destPort, srcPort, useSourcePort
 }
 
-func (r *Runner) processResults(res *results.Results, hname string, destinationHost string, destinationIP net.IP) (NetworkPath, error) {
+func (r *Runner) processResults(res *results.Results, hname string, destinationHost string, destinationIP net.IP) (payload.NetworkPath, error) {
 	type node struct {
 		node  string
 		probe *results.Probe
@@ -180,14 +181,14 @@ func (r *Runner) processResults(res *results.Results, hname string, destinationH
 
 	pathID := uuid.New().String()
 
-	traceroutePath := NetworkPath{
+	traceroutePath := payload.NetworkPath{
 		PathID:    pathID,
 		Timestamp: time.Now().UnixMilli(),
-		Source: NetworkPathSource{
+		Source: payload.NetworkPathSource{
 			Hostname:  hname,
 			NetworkID: r.networkID,
 		},
-		Destination: NetworkPathDestination{
+		Destination: payload.NetworkPathDestination{
 			Hostname:  destinationHost,
 			IPAddress: destinationIP.String(),
 		},
@@ -287,7 +288,7 @@ func (r *Runner) processResults(res *results.Results, hname string, destinationH
 			ip := cur.node
 			durationMs := float64(cur.probe.RttUsec) / 1000
 
-			hop := NetworkPathHop{
+			hop := payload.NetworkPathHop{
 				TTL:       idx,
 				IPAddress: ip,
 				Hostname:  getHostname(cur.node),

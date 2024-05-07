@@ -2,6 +2,7 @@ import os
 import sys
 
 from invoke import task
+from invoke.exceptions import UnexpectedExit
 
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
@@ -12,7 +13,7 @@ from tasks.libs.common.omnibus import (
     send_cache_miss_event,
     should_retry_bundle_install,
 )
-from tasks.libs.common.utils import get_version, load_release_versions, timed, collapsed_section
+from tasks.libs.common.utils import collapsed_section, get_version, load_release_versions, timed
 from tasks.ssm import get_pfx_pass, get_signing_cert
 
 
@@ -99,7 +100,7 @@ def get_omnibus_env(
     if int(major_version) > 6:
         env['OMNIBUS_OPENSSL_SOFTWARE'] = 'openssl3'
 
-    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_SOFTWARE_VERSION']
+    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_RUBY_VERSION', 'OMNIBUS_SOFTWARE_VERSION']
     for key in env_override:
         value = os.environ.get(key)
         # Only overrides the env var if the value is a non-empty string.
@@ -265,9 +266,13 @@ def build(
                 with timed(quiet=True) as restore_cache:
                     # Allow failure in case the cache was evicted
                     if ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
-                        print(f'Successfully restored cache {cache_key}')
-                        ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}", err_stream=sys.stdout)
-                        cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
+                        print(f'Successfully retrieved cache {cache_key}')
+                        try:
+                            ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}")
+                        except UnexpectedExit as exc:
+                            print(f"An error occurring while cloning the cache repo: {exc}")
+                        else:
+                            cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
                     else:
                         print(f'Failed to restore cache from key {cache_key}')
                         send_cache_miss_event(

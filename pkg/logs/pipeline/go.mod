@@ -64,6 +64,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/status/health v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.54.0-rc.2
+	github.com/hashicorp/go-multierror v1.1.1
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/atomic v1.11.0
 )
@@ -109,6 +110,7 @@ require (
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

@@ -35,6 +35,7 @@ dogstatsd_socket: %s
 	datadogConfigPath = "/etc/datadog-agent/datadog.yaml"
 	ldSoPreloadPath   = "/etc/ld.so.preload"
 	injectorPath      = "/opt/datadog-packages/datadog-apm-inject/stable"
+	oldLDPath         = "/opt/datadog/apm/inject/launcher.preload.so"
 )
 
 // SetupAPMInjector sets up the injector at bootstrap
@@ -128,6 +129,12 @@ func (a *apmInjectorInstaller) Remove(ctx context.Context) {
 // setupSockets sets up the sockets for the APM injector
 // TODO rework entirely for safe transition
 func (a *apmInjectorInstaller) setupSockets(ctx context.Context) (func() error, error) {
+
+	// don't install sockets if already in env variable
+	if os.Getenv("DD_APM_RECEIVER_SOCKET") != "" {
+		return nil, nil
+	}
+
 	// TODO: remove sockets from run
 	if err := a.setRunPermissions(); err != nil {
 		return nil, err
@@ -164,12 +171,19 @@ func (a *apmInjectorInstaller) setLDPreloadConfigContent(ldSoPreload []byte) ([]
 		return ldSoPreload, nil
 	}
 
+	if bytes.Contains(ldSoPreload, []byte(oldLDPath)) {
+		return bytes.ReplaceAll(ldSoPreload, []byte(oldLDPath), []byte(launcherPreloadPath)), nil
+	}
+
+	var buf bytes.Buffer
+	buf.Write(ldSoPreload)
 	// Append the launcher preload path to the file
 	if len(ldSoPreload) > 0 && ldSoPreload[len(ldSoPreload)-1] != '\n' {
-		ldSoPreload = append(ldSoPreload, '\n')
+		buf.WriteByte('\n')
 	}
-	ldSoPreload = append(ldSoPreload, []byte(launcherPreloadPath+"\n")...)
-	return ldSoPreload, nil
+	buf.WriteString(launcherPreloadPath)
+	buf.WriteByte('\n')
+	return buf.Bytes(), nil
 }
 
 // deleteLDPreloadConfigContent deletes the content of the LD preload configuration
