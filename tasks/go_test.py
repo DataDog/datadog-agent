@@ -265,7 +265,6 @@ def codecov_flavor(
     ctx,
     flavor: AgentFlavor,
     modules: List[GoModule],
-    token: str,
 ):
     """
     Uploads coverage data of all modules for the given flavor.
@@ -284,7 +283,7 @@ def codecov_flavor(
         # codecov gets confused and merges the roots of all modules, resulting in a
         # nonsensical directory tree in the codecov app
         path = os.path.normpath(os.path.join(module.path, PROFILE_COV))
-        ctx.run(f"codecov -f {path} -F {tag} -t {token}", warn=True)
+        ctx.run(f"codecov -f {path} -F {tag}", warn=True)
 
     return test_core(modules, flavor, None, "codecov upload", command, skip_module_class=True)
 
@@ -500,11 +499,10 @@ def codecov(
     module=None,
     targets=None,
     flavor=None,
-    token=None,
 ):
     modules, flavor = process_input_args(ctx, module, targets, flavor)
 
-    codecov_flavor(ctx, flavor, modules, token)
+    codecov_flavor(ctx, flavor, modules)
 
 
 @task
