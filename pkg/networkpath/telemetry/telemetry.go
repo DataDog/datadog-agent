@@ -16,20 +16,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
-// NetworkPathSourceType represent the source of the network path data e.g. network_path_integration
-type NetworkPathSourceType string
+// NetworkPathCollectorType represent the source of the network path data e.g. network_path_integration
+type NetworkPathCollectorType string
 
-// SourceTypeNetworkPathIntegration correspond to the Network Path Integration source type
-const SourceTypeNetworkPathIntegration NetworkPathSourceType = "network_path_integration"
+// CollectorTypeNetworkPathIntegration correspond to the Network Path Integration source type
+const CollectorTypeNetworkPathIntegration NetworkPathCollectorType = "network_path_integration"
 
 // SubmitNetworkPathTelemetry submits Network Path related telemetry
-func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.NetworkPath, pathSource NetworkPathSourceType, checkDuration time.Duration, checkInterval time.Duration, tags []string) {
+func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.NetworkPath, pathSource NetworkPathCollectorType, checkDuration time.Duration, checkInterval time.Duration, tags []string) {
 	destPortTag := "unspecified"
 	if path.Destination.Port > 0 {
 		destPortTag = strconv.Itoa(int(path.Destination.Port))
 	}
 	newTags := append(utils.CopyStrings(tags), []string{
-		"path_source:" + string(pathSource),
+		"collector:" + string(pathSource),
 		"protocol:udp", // TODO: Update to protocol from config when we support tcp/icmp
 		"destination_hostname:" + path.Destination.Hostname,
 		"destination_port:" + destPortTag,

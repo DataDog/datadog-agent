@@ -21,7 +21,7 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 		"destination_hostname:abc",
 		"destination_port:unspecified",
 		"foo:bar",
-		"path_source:network_path_integration",
+		"collector:network_path_integration",
 		"protocol:udp",
 		"tag2:val2",
 	}
@@ -151,7 +151,7 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sender := &metricsender.MockMetricSender{}
-			SubmitNetworkPathTelemetry(sender, tt.path, SourceTypeNetworkPathIntegration, tt.checkDuration, tt.checkInterval, tt.tags)
+			SubmitNetworkPathTelemetry(sender, tt.path, CollectorTypeNetworkPathIntegration, tt.checkDuration, tt.checkInterval, tt.tags)
 			assert.Equal(t, tt.expectedMetrics, sender.Metrics)
 		})
 	}
