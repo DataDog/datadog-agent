@@ -16,6 +16,7 @@ import (
 
 	"github.com/prometheus/procfs"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicedetector"
 	"github.com/DataDog/datadog-agent/pkg/process/portlist"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -161,6 +162,8 @@ func (i *linuxImpl) DiscoverServices() error {
 	for pid, pInfo := range i.alive.m {
 		_, ok := aliveProcesses[pid]
 		if !ok {
+			// TODO: if there is a start and a stop for the same process name in this iteration, it means the process
+			// 	has been restarted. In that case we should only send one of the events.
 			i.sender.sendEndServiceEvent(pInfo)
 			i.alive.delete(pid)
 		}
@@ -203,6 +206,21 @@ func (i *linuxImpl) scanProcess(pid int, openPorts portlist.List) {
 		log.Infof("[pid: %d | name: %s]: process has no open ports, ignoring...", pid, pInfo.ShortName)
 		i.ignore.set(pid, pInfo.Name)
 		return
+	}
+
+	dCtx := servicedetector.New(pInfo.CmdLine, pInfo.Env)
+	meta, ok := dCtx.Detect()
+	if !ok {
+		log.Warnf("failed to detect service (pid: %d, name: %s)", pInfo.PID, pInfo.ShortName)
+		return
+	}
+
+	if len(meta.AdditionalNames) > 0 {
+		for _, n := range meta.AdditionalNames {
+			pInfo.Services = append(pInfo.Services, &serviceInfo{Name: n})
+		}
+	} else {
+		pInfo.Services = append(pInfo.Services, &serviceInfo{Name: meta.Name})
 	}
 
 	i.alive.set(pid, pInfo)
@@ -251,6 +269,7 @@ func getProcessInfo(p procfs.Proc, openPorts portlist.List) (*processInfo, error
 		CmdLine:   cmdline,
 		Env:       env,
 		Cwd:       cwd,
+		Services:  nil,
 		Stat: &procStat{
 			StartTime: stat.Starttime,
 		},

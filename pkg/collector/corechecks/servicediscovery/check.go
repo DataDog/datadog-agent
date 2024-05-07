@@ -50,10 +50,17 @@ type procStat struct {
 	StartTime uint64
 }
 
+type serviceInfo struct {
+	Name     string
+	Language int
+	Type     int
+}
+
 type processInfo struct {
 	PID              int
 	Name             string
 	ShortName        string
+	Services         []*serviceInfo
 	CmdLine          []string
 	Env              []string
 	Cwd              string
