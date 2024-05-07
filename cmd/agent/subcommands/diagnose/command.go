@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
@@ -102,7 +103,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				workloadmeta.Module(),
-				tagger.Module(),
+				taggerimpl.Module(),
 				fx.Provide(func(config config.Component) tagger.Params { return tagger.NewTaggerParamsForCoreAgent(config) }),
 				autodiscoveryimpl.Module(),
 				compressionimpl.Module(),

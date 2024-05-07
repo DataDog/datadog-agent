@@ -4,12 +4,12 @@
 # Copyright 2016-present Datadog, Inc.
 
 name 'openscap'
-default_version '1.3.9'
+default_version '1.3.10'
 
 license "LGPL-3.0-or-later"
 license_file "COPYING"
 
-version("1.3.9") { source sha256: "2d8450b6b6ef068991e1292cd3989e8a1d81f2bcda0a2644dcb2943c2de1a20d" }
+version("1.3.10") { source sha256: "0d023ff3fbdec617768ea5977fd3bb6702dfef4ae595da9a5bbc6ecc6ac9e575" }
 
 ship_source_offer true
 
@@ -36,35 +36,15 @@ relative_path "openscap-#{version}"
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
-  # Fixes since release 1.3.9
-  patch source: "0005-Fix-partition-probe-for-PCRE2.patch", env: env
-  patch source: "0006-Implement-xccdf_session_get_rule_results-function-in.patch", env: env
-  patch source: "0007-Be-able-to-delete-temporary-files-on-a-different-mou.patch", env: env
-  patch source: "0009-Use-the-OSCAP_PCRE_ERR_NOMATCH.patch", env: env
-  patch source: "0010-Implement-xccdf_session_result_reset-function-in-XCC.patch", env: env
-  patch source: "0011-Fix-memory-leaks-reported-by-Coverity.patch", env: env
-  patch source: "0012-Fix-deadlocks-reported-by-Coverity.patch", env: env
-  patch source: "0013-Fix-out-of-bounds-access-reported-by-Coverity.patch", env: env
-  patch source: "0014-Fix-incorrect-expressions-reported-by-Coverity.patch", env: env
-  patch source: "0015-Fix-uninitialized-variables-reported-by-Coverity.patch", env: env
-  patch source: "0016-Fix-incorrect-openscap-cpe-oval-result-filename.patch", env: env
-  patch source: "0041-Fix-probe_reset.patch", env: env
-  patch source: "0043-Fix-various-issues-reported-by-Coverity.patch", env: env
-  patch source: "0046-Rewrite-dpkginfo-probe-without-using-APT.patch", env: env
-
-  patch source: "010_perlpm_install_fix.patch", env: env # fix build of perl bindings
   patch source: "fsdev-ignore-host.patch", env: env # ignore /host directory in fsdev probe
   patch source: "systemd-dbus-address.patch", env: env # fix dbus address in systemd probe
   patch source: "rpm-verbosity-err.patch", env: env # decrease rpmlog verbosity level to ERR
   patch source: "session-print-syschar.patch", env: env # add a function to print system characteristics
   patch source: "memusage-cgroup.patch", env: env # consider cgroup when determining memory usage
-  patch source: "dpkginfo-status-fix.patch", env: env # fix parsing of status in dpkginfo probe
 
   patch source: "oval_probe_session_reset.patch", env: env # use oval_probe_session_reset instead of oval_probe_session_reinit
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
-
-  patch source: "int-min-max.patch", env: env # fix implicit declaration of INT_MIN/INT_MAX
 
   env["CXXFLAGS"] += " -static-libstdc++ -std=c++11 -DDPKG_DATADIR=/usr/share/dpkg"
 

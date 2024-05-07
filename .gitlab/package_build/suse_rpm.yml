@@ -5,6 +5,7 @@
     - !reference [.setup_ruby_mirror_linux]
     - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
@@ -21,6 +22,7 @@
     # use --skip-deps since the deps are installed by `before_script`
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe ${OMNIBUS_TASK_EXTRA_PARAMS}
     - ls -la $OMNIBUS_PACKAGE_DIR
+    - !reference [.lint_linux_packages]
     # Copy to a different directory to avoid collisions if a job downloads both the RPM and SUSE RPM artifacts
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE
     - !reference [.upload_sbom_artifacts]
@@ -32,6 +34,8 @@
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR_SUSE
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
 
 # build Agent package for suse-x64
 agent_suse-x64-a6:
@@ -53,6 +57,7 @@ agent_suse-x64-a6:
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: "2,3"
     PACKAGE_ARCH: amd64
+    DD_PKG_ARCH: "x86_64"
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_6
@@ -77,6 +82,7 @@ agent_suse-x64-a7:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: "3"
     PACKAGE_ARCH: amd64
+    DD_PKG_ARCH: "x86_64"
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
@@ -104,6 +110,7 @@ agent_suse-arm64-a7:
     PYTHON_RUNTIMES: "3"
     PACKAGE_ARCH: arm64
     OMNIBUS_TASK_EXTRA_PARAMS: "--host-distribution=suse"
+    DD_PKG_ARCH: "arm64"
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
@@ -117,7 +124,8 @@ iot_agent_suse-x64:
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
-    UBERNETES_CPU_REQUEST: 4
+    KUBERNETES_CPU_REQUEST: 4
+    DD_PKG_ARCH: "x86_64"
   before_script:
     - source /root/.bashrc
   script:
@@ -138,6 +146,7 @@ iot_agent_suse-x64:
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e omnibus.build --flavor iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
+    - !reference [.lint_linux_packages]
     # Copy to a different directory to avoid collisions if a job downloads both the RPM and SUSE RPM artifacts
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE
     - !reference [.upload_sbom_artifacts]
@@ -154,6 +163,8 @@ dogstatsd_suse-x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
+  variables:
+    DD_PKG_ARCH: "x86_64"
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
@@ -170,6 +181,7 @@ dogstatsd_suse-x64:
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e omnibus.build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project=dogstatsd
     - ls -la $OMNIBUS_PACKAGE_DIR
+    - !reference [.lint_linux_packages]
     # Copy to a different directory to avoid collisions if a job downloads both the RPM and SUSE RPM artifacts
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE
     - !reference [.upload_sbom_artifacts]
@@ -177,4 +189,3 @@ dogstatsd_suse-x64:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR_SUSE
-

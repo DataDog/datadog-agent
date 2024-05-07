@@ -23,8 +23,8 @@ const (
 	// TypeStr defines the logsagent exporter type string.
 	TypeStr   = "logsagent"
 	stability = component.StabilityLevelStable
-	// logSourceName specifies the Datadog source tag value to be added to logs sent by the logs agent exporter.
-	logSourceName = "OTLP log ingestion"
+	// LogSourceName specifies the Datadog source tag value to be added to logs sent by the logs agent exporter.
+	LogSourceName = "otlp_log_ingestion"
 	// otelSource specifies a source to be added to all logs sent by the logs agent exporter. The tag has key `otel_source` and the value specified on this constant.
 	otelSource = "datadog_agent"
 )
@@ -49,7 +49,7 @@ func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
 		func() component.Config {
 			return &Config{
 				OtelSource:    otelSource,
-				LogSourceName: logSourceName,
+				LogSourceName: LogSourceName,
 			}
 		},
 		exp.WithLogs(f.createLogsExporter, stability),

@@ -1776,10 +1776,21 @@ func getDoForkInput(kernelVersion *kernel.Version) uint64 {
 }
 
 func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
-	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_0 {
-		return 1
+	if val, err := constantfetch.GetHasUsernamespaceFirstArgWithBtf(); err == nil {
+		if val {
+			return 1
+		}
+		return 0
 	}
-	return 0
+
+	switch {
+	case kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_0:
+		return 1
+	case kernelVersion.IsInRangeCloseOpen(kernel.Kernel5_14, kernel.Kernel5_15) && kernelVersion.IsRH9_3Kernel():
+		return 1
+	default:
+		return 0
+	}
 }
 
 func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
@@ -1858,6 +1869,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags", "linux/mm_types.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFinode, "struct file", "f_inode", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFpath, "struct file", "f_path", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSchedProcessForkChildPid, "trace_event_raw_sched_process_fork", "child_pid", "")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSchedProcessForkParentPid, "trace_event_raw_sched_process_fork", "parent_pid", "")
 	if kv.Code >= kernel.Kernel5_3 {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal", "linux/sched/task.h")
 	}
