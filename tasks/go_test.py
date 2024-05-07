@@ -29,10 +29,11 @@ from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
-from tasks.libs.common.utils import clean_nested_paths, get_build_flags, collapsed_section
+from tasks.libs.common.utils import clean_nested_paths, collapsed_section, get_build_flags
 from tasks.linter import _lint_go
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
+from tasks.testwasher import TestWasher
 from tasks.trace_agent import integration_tests as trace_integration_tests
 
 PROFILE_COV = "coverage.out"
@@ -193,6 +194,7 @@ def test_flavor(
     """
     args["go_build_tags"] = " ".join(build_tags)
 
+    args["json_flag"] = "--jsonfile " + GO_TEST_RESULT_TMP_JSON
     junit_file = f"junit-out-{flavor.name}.xml"
     junit_file_flag = "--junitfile " + junit_file if junit_tar else ""
     args["junit_file_flag"] = junit_file_flag
@@ -296,6 +298,34 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
+def process_test_result(test_results: ModuleTestResult, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
+    if junit_tar:
+        junit_files = [
+            module_test_result.junit_file_path
+            for module_test_result in test_results
+            if module_test_result.junit_file_path
+        ]
+
+        produce_junit_tar(junit_files, junit_tar)
+
+    success = process_module_results(flavor=flavor, module_results=test_results)
+
+    if success:
+        print(color_message("All tests passed", "green"))
+        return True
+
+    if test_washer:
+        tw = TestWasher()
+        should_succeed = tw.process_module_results(test_results)
+        if should_succeed:
+            print(
+                color_message("All failing tests are known to be flaky, marking the test job as successful", "orange")
+            )
+            return True
+
+    return False
+
+
 @task
 def test(
     ctx,
@@ -328,6 +358,7 @@ def test(
     include_sds=False,
     skip_flakes=False,
     build_stdlib=False,
+    test_washer=False,
 ):
     """
     Run go tests on the given module and targets.
@@ -408,7 +439,6 @@ def test(
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
         # Used to print failed tests at the end of the go test command
-        "json_flag": f'--jsonfile "{GO_TEST_RESULT_TMP_JSON}" ',
         "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
         "skip_flakes": "--skip-flake" if skip_flakes else "",
         "gotestsum_format": "standard-verbose" if verbose else "pkgname",
@@ -446,13 +476,6 @@ def test(
         )
 
     # Output
-    if junit_tar:
-        junit_files = []
-        for module_test_result in test_results:
-            if module_test_result.junit_file_path:
-                junit_files.append(module_test_result.junit_file_path)
-
-        produce_junit_tar(junit_files, junit_tar)
 
     if coverage and print_coverage:
         coverage_flavor(ctx, flavor, modules)
@@ -463,13 +486,11 @@ def test(
         # print("\n--- Top 15 packages sorted by run time:")
         test_profiler.print_sorted(15)
 
-    success = process_module_results(flavor=flavor, module_results=test_results)
-
-    if success:
-        print(f"Tests final status (including re-runs): {color_message('ALL TESTS PASSED', 'green')}")
-    else:
-        # Exit if any of the modules failed on any phase
+    success = process_test_result(test_results, junit_tar, flavor, test_washer)
+    if not success:
         raise Exit(code=1)
+
+    print(f"Tests final status (including re-runs): {color_message('ALL TESTS PASSED', 'green')}")
 
 
 @task(iterable=['flavors'])

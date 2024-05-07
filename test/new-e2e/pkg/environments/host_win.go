@@ -34,7 +34,7 @@ var _ e2e.Initializable = &WindowsHost{}
 // Init initializes the environment
 func (e *WindowsHost) Init(ctx e2e.Context) error {
 	if e.Agent != nil {
-		agent, err := client.NewHostAgentClientWithParams(ctx.T(), e.RemoteHost, e.AgentClientOptions...)
+		agent, err := client.NewHostAgentClientWithParams(ctx, e.RemoteHost.HostOutput, e.AgentClientOptions...)
 		if err != nil {
 			return err
 		}
