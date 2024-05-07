@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"path"
 	"strings"
 
@@ -99,10 +98,6 @@ func (a *apmInjectorInstaller) Remove(ctx context.Context) {
 	if err := a.uninstallDocker(ctx); err != nil {
 		log.Warnf("Failed to remove docker config: %v", err)
 	}
-}
-
-func (a *apmInjectorInstaller) setRunPermissions() error {
-	return os.Chmod(path.Join(a.installPath, "inject", "run"), 0777)
 }
 
 // setLDPreloadConfigContent sets the content of the LD preload configuration
