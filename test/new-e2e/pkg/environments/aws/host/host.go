@@ -191,7 +191,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 	}
 
 	if params.installDocker {
-		_, dockerRes, err := docker.NewManager(&awsEnv, host)
+		dockerManager, err := docker.NewManager(&awsEnv, host)
 		if err != nil {
 			return err
 		}
@@ -202,7 +202,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 			// at the same time.
 			params.agentOptions = append(params.agentOptions,
 				agentparams.WithPulumiResourceOptions(
-					utils.PulumiDependsOn(dockerRes)))
+					utils.PulumiDependsOn(dockerManager)))
 		}
 	}
 
