@@ -59,7 +59,7 @@ jobs:
           inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation --timeout=600 --build-stdlib --test-washer
 
       - name: Upload Codecov results
-        uses: codecov/codecov-action@ab904c41d6ece82784817410c45d8b8c02684457 # v3.1.6
+        uses: codecov/codecov-action@5ecb98a3c6b747ed38dc09f787459979aebb39be # v4.3.1
         with:
           flags: windows
           name: codecov-windows
