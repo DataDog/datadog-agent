@@ -78,8 +78,7 @@ type ConnectionsCheck struct {
 	localresolver *resolver.LocalResolver
 	wmeta         workloadmeta.Component
 
-	npScheduler        npscheduler.Component
-	networkPathEnabled bool
+	npScheduler npscheduler.Component
 }
 
 // ProcessConnRates describes connection rates for processes
