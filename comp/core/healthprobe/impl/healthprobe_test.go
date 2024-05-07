@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package healthprobeimpl implements the healthprobe component interface
-package healthprobeimpl
+// Package impl implements the healthprobe component interface
+package impl
 
 import (
 	"context"
@@ -13,33 +13,33 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe"
+	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
-	"go.uber.org/fx/fxtest"
 )
 
 func TestServer(t *testing.T) {
-	lc := fxtest.NewLifecycle(t)
 
-	probe, err := newHealthProbe(lc,
-		fxutil.Test[dependencies](
-			t,
-			logimpl.MockModule(),
-			fx.Provide(func() healthprobeComponent.Options {
-				return healthprobeComponent.Options{
-					Port: 7869,
-				}
-			}),
-		),
-	)
+	lc := compdef.NewTestLifecycle()
+	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
+
+	requires := Requires{
+		Lc:  lc,
+		Log: logComponent,
+		Options: healthprobeComponent.Options{
+			Port: 7869,
+		},
+	}
+
+	provides, err := NewComponent(requires)
+
 	assert.NoError(t, err)
 
-	assert.NotNil(t, probe)
+	assert.NotNil(t, provides.Comp)
 
 	ctx := context.Background()
 	assert.NoError(t, lc.Start(ctx))
@@ -48,20 +48,22 @@ func TestServer(t *testing.T) {
 }
 
 func TestServerNoHealthPort(t *testing.T) {
-	probe, err := newHealthProbe(fxtest.NewLifecycle(t),
-		fxutil.Test[dependencies](
-			t,
-			logimpl.MockModule(),
-			fx.Provide(func() healthprobeComponent.Options {
-				return healthprobeComponent.Options{
-					Port: 0,
-				}
-			}),
-		),
-	)
+	lc := compdef.NewTestLifecycle()
+	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
+
+	requires := Requires{
+		Lc:  lc,
+		Log: logComponent,
+		Options: healthprobeComponent.Options{
+			Port: 0,
+		},
+	}
+
+	provides, err := NewComponent(requires)
+
 	assert.NoError(t, err)
 
-	assert.Nil(t, probe)
+	assert.Nil(t, provides.Comp)
 }
 
 func TestLiveHandler(t *testing.T) {

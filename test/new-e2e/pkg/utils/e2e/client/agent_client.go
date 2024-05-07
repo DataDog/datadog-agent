@@ -6,12 +6,12 @@
 package client
 
 import (
-	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/remote"
 )
 
@@ -52,10 +52,12 @@ func NewHostAgentClientWithParams(context e2e.Context, hostOutput remote.HostOut
 }
 
 // NewDockerAgentClient creates an Agent client for a Docker install
-func NewDockerAgentClient(t *testing.T, docker *Docker, agentContainerName string, waitForAgentReady bool) (agentclient.Agent, error) {
-	commandRunner := newAgentCommandRunner(t, newAgentDockerExecutor(docker, agentContainerName))
+func NewDockerAgentClient(context e2e.Context, dockerAgentOutput agent.DockerAgentOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
+	params := agentclientparams.NewParams(options...)
+	ae := newAgentDockerExecutor(context, dockerAgentOutput)
+	commandRunner := newAgentCommandRunner(context.T(), ae)
 
-	if waitForAgentReady {
+	if params.ShouldWaitForReady {
 		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
 			return nil, err
 		}
