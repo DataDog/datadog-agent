@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	stdnet "net"
 	"runtime"
 	"sort"
 	"time"
@@ -533,11 +532,6 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
 		}
 		remoteAddr := conn.Raddr
 		remotePort := uint16(conn.Raddr.Port)
-		if stdnet.ParseIP(remoteAddr.Ip).IsLoopback() {
-			// TODO: use exclude_cidr?
-			log.Debugf("Skip loopback IP: %s", remoteAddr.Ip)
-			continue
-		}
 		err := c.npScheduler.Schedule(remoteAddr.Ip, remotePort)
 		if err != nil {
 			log.Errorf("Error scheduling pathtests: %s", err)
