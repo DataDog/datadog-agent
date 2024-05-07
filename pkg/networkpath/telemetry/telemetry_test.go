@@ -151,7 +151,7 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sender := &metricsender.MockMetricSender{}
-			SubmitNetworkPathTelemetry(sender, tt.path, "network_path_integration", tt.checkDuration, tt.checkInterval, tt.tags)
+			SubmitNetworkPathTelemetry(sender, tt.path, SourceTypeNetworkPathIntegration, tt.checkDuration, tt.checkInterval, tt.tags)
 			assert.Equal(t, tt.expectedMetrics, sender.Metrics)
 		})
 	}
