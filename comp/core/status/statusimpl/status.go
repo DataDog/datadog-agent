@@ -193,17 +193,26 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 			}
 
 			if len(section) > 0 {
+				headerBuffer := new(bytes.Buffer)
+				sectionBuffer := new(bytes.Buffer)
 
 				for i, provider := range s.sortedProvidersBySection[section] {
+
 					if i == 0 {
-						printHeader(b, provider.Section())
-						newLine(b)
+						printHeader(headerBuffer, provider.Section())
+						newLine(headerBuffer)
 					}
-					if err := provider.Text(verbose, b); err != nil {
+					if err := provider.Text(verbose, sectionBuffer); err != nil {
 						errs = append(errs, err)
 					}
 				}
 
+				if sectionBuffer.Len() == 0 {
+					continue
+				}
+
+				b.Write(headerBuffer.Bytes())
+				b.Write(sectionBuffer.Bytes())
 				newLine(b)
 			}
 		}

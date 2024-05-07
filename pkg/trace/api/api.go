@@ -758,6 +758,7 @@ func traceChunksFromSpans(spans []*pb.Span) []*pb.TraceChunk {
 		traceChunks = append(traceChunks, &pb.TraceChunk{
 			Priority: int32(sampler.PriorityNone),
 			Spans:    t,
+			Tags:     make(map[string]string),
 		})
 	}
 	return traceChunks
@@ -769,6 +770,7 @@ func traceChunksFromTraces(traces pb.Traces) []*pb.TraceChunk {
 		traceChunks = append(traceChunks, &pb.TraceChunk{
 			Priority: int32(sampler.PriorityNone),
 			Spans:    trace,
+			Tags:     make(map[string]string),
 		})
 	}
 

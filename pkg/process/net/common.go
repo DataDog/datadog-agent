@@ -58,6 +58,7 @@ type RemoteSysProbeUtil struct {
 
 	path                  string
 	httpClient            http.Client
+	pprofClient           http.Client
 	extendedTimeoutClient http.Client
 }
 
@@ -293,6 +294,13 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 				ExpectContinueTimeout: 50 * time.Millisecond,
 			},
 		},
+		pprofClient: http.Client{
+			Transport: &http.Transport{
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial(netType, path)
+				},
+			},
+		},
 		extendedTimeoutClient: http.Client{
 			Timeout: 25 * time.Second,
 			Transport: &http.Transport{
@@ -350,6 +358,24 @@ func (r *RemoteSysProbeUtil) DetectLanguage(pids []int32) ([]languagemodels.Lang
 		}
 	}
 	return langs, nil
+}
+
+// GetPprof queries the pprof endpoint for system-probe
+func (r *RemoteSysProbeUtil) GetPprof(path string) ([]byte, error) {
+	var buf bytes.Buffer
+	req, err := http.NewRequest(http.MethodGet, pprofURL+path, &buf)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := r.pprofClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer res.Body.Close()
+
+	return io.ReadAll(res.Body)
 }
 
 func (r *RemoteSysProbeUtil) init() error {

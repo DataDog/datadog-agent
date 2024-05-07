@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -53,11 +54,15 @@ func (c *Check) Run() error {
 		TimeoutMs:    c.config.TimeoutMs,
 	}
 
-	tr := traceroute.New(cfg)
-	path, err := tr.Run()
+	tr, err := traceroute.New(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to initialize traceroute: %w", err)
+	}
+	path, err := tr.Run(context.TODO())
 	if err != nil {
 		return fmt.Errorf("failed to trace path: %w", err)
 	}
+	path.Namespace = c.config.Namespace
 
 	// Add tags to path
 	commonTags := c.getCommonTags()
@@ -106,7 +111,7 @@ func (c *Check) getCommonTagsForMetrics() []string {
 }
 
 // SendNetPathMDToEP sends a traced network path to EP
-func (c *Check) SendNetPathMDToEP(sender sender.Sender, path traceroute.NetworkPath) error {
+func (c *Check) SendNetPathMDToEP(sender sender.Sender, path payload.NetworkPath) error {
 	payloadBytes, err := json.Marshal(path)
 	if err != nil {
 		return fmt.Errorf("error marshalling device metadata: %s", err)
@@ -116,7 +121,7 @@ func (c *Check) SendNetPathMDToEP(sender sender.Sender, path traceroute.NetworkP
 	return nil
 }
 
-func (c *Check) submitTelemetryMetrics(senderInstance sender.Sender, path traceroute.NetworkPath, startTime time.Time, tags []string) {
+func (c *Check) submitTelemetryMetrics(senderInstance sender.Sender, path payload.NetworkPath, startTime time.Time, tags []string) {
 	newTags := utils.CopyStrings(tags)
 
 	checkDuration := time.Since(startTime)

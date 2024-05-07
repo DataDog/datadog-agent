@@ -388,6 +388,7 @@ func getProcessStartTimeAsNs(pid uint64) (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("Error opening process %v", err)
 	}
+	defer windows.Close(h)
 	var creation windows.Filetime
 	var exit windows.Filetime
 	var krn windows.Filetime

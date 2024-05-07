@@ -65,7 +65,6 @@ sudo systemctl start docker`,
 			"/tmp/install-docker.sh",
 			[]byte(`
 set -e
-sudo yum update
 sudo yum -y install docker
 sudo systemctl start docker`,
 			),

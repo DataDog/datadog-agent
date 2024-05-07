@@ -105,6 +105,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_hash_burst", 1000)
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.hash_algorithms", []string{"sha1", "sha256", "ssdeep"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.cache_size", 500)
+	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.replace", map[string]string{})
 
 	// CWS - UserSessions
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.cache_size", 1024)

@@ -11,23 +11,10 @@ package verifier
 
 import (
 	"fmt"
-	"regexp"
 )
-
-// Statistics represent that statistics exposed via
-// the eBPF verifier when  LogLevelStats is enabled
-type Statistics struct {
-	VerificationTime           int `json:"verification_time"`
-	StackDepth                 int `json:"stack_usage"`
-	InstructionsProcessed      int `json:"instruction_processed"`
-	InstructionsProcessedLimit int `json:"limit"`
-	MaxStatesPerInstruction    int `json:"max_states_per_insn"`
-	TotalStates                int `json:"total_states"`
-	PeakStates                 int `json:"peak_states"`
-}
 
 // BuildVerifierStats accepts a list of eBPF object files and generates a
 // map of all programs and their Statistics
-func BuildVerifierStats(_ []string, _ []*regexp.Regexp) (map[string]*Statistics, error) {
-	return nil, fmt.Errorf("not implemented")
+func BuildVerifierStats(_ *StatsOptions) (*StatsResult, map[string]struct{}, error) {
+	return nil, nil, fmt.Errorf("not implemented")
 }
