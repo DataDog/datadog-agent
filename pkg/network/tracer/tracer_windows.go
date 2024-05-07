@@ -118,7 +118,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 				})
 				closedConnStats := tr.closedBuffer.Connections()
 
-				tr.state.StoreClosedConnections(closedConnStats, make(network.FailedConnMap))
+				tr.state.StoreClosedConnections(closedConnStats)
 
 			case windows.WAIT_FAILED:
 				break waitloop
@@ -177,7 +177,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
 
-	t.state.StoreClosedConnections(closedConnStats, make(network.FailedConnMap))
+	t.state.StoreClosedConnections(closedConnStats)
 
 	var delta network.Delta
 	if t.usmMonitor != nil { //nolint
