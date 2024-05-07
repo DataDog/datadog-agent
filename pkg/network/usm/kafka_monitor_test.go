@@ -819,6 +819,16 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 	skipTestIfKernelNotSupported(t)
 	topic := "test-topic"
 
+	fixCount := func(count int) int {
+		if tls {
+			return count
+		}
+
+		// Double since both sides of the connection are seen separately in
+		// sk_msg/sk_skb.
+		return count * 2
+	}
+
 	req := generateFetchRequest(topic)
 	tests := []struct {
 		name              string
@@ -980,7 +990,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 
 			kafkaStats := getAndValidateKafkaStats(t, monitor, 1)
 			validateProduceFetchCount(t, kafkaStats, topic, kafkaParsingValidation{
-				expectedNumberOfFetchRequests: tt.numFetchedRecords,
+				expectedNumberOfFetchRequests: fixCount(tt.numFetchedRecords),
 				expectedAPIVersionFetch:       11,
 			})
 		})
@@ -1037,7 +1047,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 			kafkaStats := getAndValidateKafkaStats(t, monitor, 1)
 
 			validateProduceFetchCount(t, kafkaStats, topic, kafkaParsingValidation{
-				expectedNumberOfFetchRequests: tt.numFetchedRecords * splitIdx,
+				expectedNumberOfFetchRequests: fixCount(tt.numFetchedRecords * splitIdx),
 				expectedAPIVersionFetch:       11,
 			})
 		})

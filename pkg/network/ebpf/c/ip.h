@@ -210,13 +210,30 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb_cgroup(struct __
 
     // TCP ack, termination, etc, cannot be captured(?)
 
-        tup->saddr_l = skb->local_ip4;
+    // Ingress
+        tup->saddr_l = skb->remote_ip4;
         tup->saddr_h = 0;
-        tup->daddr_l = skb->remote_ip4;
+        tup->daddr_l = skb->local_ip4;
         tup->daddr_h = 0;
-        tup->sport = skb->local_port;
-        tup->dport = bpf_htonl(skb->remote_port);
+        tup->sport = bpf_htonl(skb->remote_port);
+        tup->dport = skb->local_port;
         tup->metadata |= CONN_V4 | CONN_TYPE_TCP;
+        u64 cookie = bpf_get_socket_cookie(skb);
+
+        tup->pid = cookie >> 32;
+        tup->netns = cookie;
+
+        log_debug("skb cookie %llu", bpf_get_socket_cookie(skb));
+
+        // u64 sk = (u64) skb->sk;
+        // if (sk) {
+        // bpf_memcpy(&tup->pid, &sk, sizeof(sk));
+        // }
+        // // u64 skaddr = (u64)skb->sk & 0xfffffffffffffffe;
+        // // if (skaddr) {
+        // // tup->pid = (skaddr >> 32) & 0xfffffffe;
+        // // tup->netns = skaddr & 0xfffffffe;
+        // // }
 
     // Assume that empty packets arriving at the streamparser are TCP FINs. FIXME is this valid?
     // Is there some other way to get at the metadata of the packet?
@@ -254,6 +271,7 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_sk_msg(struct sk_msg
 
     // TCP ack, termination, etc, cannot be captured(?)
 
+    // Egress
         tup->saddr_l = msg->local_ip4;
         tup->saddr_h = 0;
         tup->daddr_l = msg->remote_ip4;
@@ -261,6 +279,12 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_sk_msg(struct sk_msg
         tup->sport = msg->local_port;
         tup->dport = bpf_htonl(msg->remote_port);
         tup->metadata |= CONN_V4 | CONN_TYPE_TCP;
+
+        // u64 skaddr = (u64)msg->sk& 0xfffffffffffffffe;
+        // if (skaddr) {
+        // tup->pid = (skaddr >> 32) & 0xfffffffe;
+        // tup->netns = skaddr & 0xfffffffe;
+        // }
 
     // Assume that empty packets arriving at the streamparser are TCP FINs. FIXME is this valid?
     // Is there some other way to get at the metadata of the packet?

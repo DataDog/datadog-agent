@@ -183,6 +183,22 @@ static __always_inline void protocol_dispatcher_entrypoint_sk_msg(struct sk_msg_
         log_debug("dispatch no read conn");
         return;
     }
+
+        struct sockhash_key key = {
+        .remote_ip4 = msg->remote_ip4,
+        .local_ip4 = msg->local_ip4,
+        .remote_port = msg->remote_port,
+        .local_port = msg->local_port,
+    };
+
+    u64 *cookie = bpf_map_lookup_elem(&socket_cookie_hash, &key);
+    if (!cookie) {
+        log_debug("protocol_dispatcher_entrypoint_sk_msg: no cookie");
+        return;
+    }
+
+    skb_tup.pid = *cookie >> 32;
+    skb_tup.netns = *cookie;
  
     bool tcp_termination = is_tcp_termination(&skb_info);
     // We don't process non tcp packets, nor empty tcp packets which are not tcp termination packets.
@@ -316,6 +332,24 @@ static __always_inline void sk_msg_dispatch_kafka(struct sk_msg_md *msg) {
     if (!read_conn_tuple_sk_msg(msg, &skb_info, &skb_tup)) {
         return;
     }
+
+            struct sockhash_key key = {
+        .remote_ip4 = msg->remote_ip4,
+        .local_ip4 = msg->local_ip4,
+        .remote_port = msg->remote_port,
+        .local_port = msg->local_port,
+    };
+
+    u64 *cookie = bpf_map_lookup_elem(&socket_cookie_hash, &key);
+    if (!cookie) {
+        log_debug("sk_msg_dispatch_kafka: no cookie");
+        return;
+    }
+
+    log_debug("sk_msg_dispatch_kafka: cookie %llu", *cookie);
+
+    skb_tup.pid = *cookie >> 32;
+    skb_tup.netns = *cookie;
 
     char request_fragment[CLASSIFICATION_MAX_BUFFER];
     bpf_memset(request_fragment, 0, sizeof(request_fragment));

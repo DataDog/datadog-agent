@@ -15,6 +15,8 @@
 
 BPF_MAP(sockhash, BPF_MAP_TYPE_SOCKHASH, struct sockhash_key, struct bpf_sock *, 5000, 0, 0);
 
+BPF_HASH_MAP(socket_cookie_hash, struct sockhash_key, u64, 10000); // should be sized based on number of connections
+
 // Maps a connection tuple to latest tcp segment we've processed. Helps to detect same packets that travels multiple
 // interfaces or retransmissions.
 BPF_HASH_MAP(connection_states, conn_tuple_t, u32, 0)

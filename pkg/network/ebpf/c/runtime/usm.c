@@ -60,7 +60,7 @@ int sk_skb__kafka_stream_parser(struct __sk_buff* skb) {
 
 SEC("sk_skb/stream_verdict/verdict")
 int sk_skb__protocol_dispatcher(struct __sk_buff* skb) {
-    log_debug("sk_skb__protocol_dispatcher: sockops stream verdict skb %p skb->sk %p len %u", skb, skb->sk, skb->len);
+    log_debug("sk_skb__protocol_dispatcher: skb %p skb->sk %p len %u", skb, skb->sk, skb->len);
     // u32 val  = 0xdead;
     // long ret = bpf_skb_load_bytes(skb, skb->len - sizeof(val), &val, sizeof(val));
     // if (ret != 1000) {
@@ -72,7 +72,7 @@ int sk_skb__protocol_dispatcher(struct __sk_buff* skb) {
 
 SEC("sk_msg/protocol_dispatcher")
 int sk_msg__protocol_dispatcher(struct sk_msg_md *msg) {
-    log_debug("sk_msg__protocol_dispatcher: msg %p size %u", msg, msg->size);
+    log_debug("sk_msg__protocol_dispatcher: msg %p msg->sk %p size %u", msg, msg->sk, msg->size);
     protocol_dispatcher_entrypoint_sk_msg(msg);
 
     return SK_PASS;
@@ -99,9 +99,23 @@ int sockops__sockops(struct bpf_sock_ops *skops) {
             tup.sport = skops->local_port;
             tup.dport = bpf_ntohl(skops->remote_port);
 
+            u64 cookie = bpf_get_socket_cookie(skops);
+            tup.pid = cookie >> 32;
+            tup.netns = cookie;
+
             sockops_http_termination(&tup);
             sockops_kafka_termination(&tup);
             sockops_http2_termination(&tup);
+
+                struct sockhash_key key = {
+        .remote_ip4 = skops->remote_ip4,
+        .local_ip4 = skops->local_ip4,
+        .remote_port = skops->remote_port,
+        .local_port = skops->local_port,
+    };
+
+            bpf_map_delete_elem(&socket_cookie_hash, &key);
+
             return 0;
         }
     }
@@ -120,13 +134,15 @@ int sockops__sockops(struct bpf_sock_ops *skops) {
     log_debug("sockops! op %u", skops->op);
     log_debug("sockops local_port %u", skops->local_port);
     log_debug("sockops remote_port %u", bpf_ntohl(skops->remote_port));
-
-
+    log_debug("sockops! cookie %llu", bpf_get_socket_cookie(skops));
 
     long ret = bpf_sock_hash_update(skops, &sockhash, &key, BPF_NOEXIST);
     if (ret != 1000) {
         log_debug("sockops ret %ld", ret);
     }
+
+    u64 cookie = bpf_get_socket_cookie(skops);
+    bpf_map_update_elem(&socket_cookie_hash, &key, &cookie, BPF_NOEXIST);
 
     bpf_sock_ops_cb_flags_set(skops, BPF_SOCK_OPS_STATE_CB_FLAG);
 
