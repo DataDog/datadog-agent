@@ -314,7 +314,8 @@ def build(
     print(f"Omnibus: {omnibus_elapsed.duration}")
     if use_omnibus_git_cache and use_remote_cache:
         print(f"Restoring omnibus cache: {restore_cache.duration}")
-        print(f"Updating omnibus cache: {update_cache.duration}")
+        # Temporarly commented out to handle a failure in the CI
+        # print(f"Updating omnibus cache: {update_cache.duration}")
     send_build_metrics(ctx, omnibus_elapsed.duration)
 
 
