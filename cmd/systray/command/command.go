@@ -31,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/comp/systray/systray"
-	"github.com/DataDog/datadog-agent/comp/systray/systray/systrayimpl"
+	systrayimpl "github.com/DataDog/datadog-agent/comp/systray/systray/systrayimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -104,6 +104,7 @@ func MakeCommand() *cobra.Command {
 					path.DefaultLogFile,
 					path.DefaultJmxLogFile,
 					path.DefaultDogstatsDLogFile,
+					path.DefaultStreamlogsLogFile,
 				)),
 				fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
 				flare.Module(),

@@ -173,8 +173,8 @@ func openFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
 	return f, bufWriter, nil
 }
 
-// PublicStreamLogs is a public function that can be used by other packages to stream logs.
-func PublicStreamLogs(log log.Component, config config.Component, cliParams *CliParams) error {
+// StreamLogs is a public function that can be used by other packages to stream logs.
+func StreamLogs(log log.Component, config config.Component, cliParams *CliParams) error {
 	dir := filepath.Dir(cliParams.FilePath)
 
 	// Create the directory if it does not exist

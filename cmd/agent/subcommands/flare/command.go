@@ -74,7 +74,7 @@ type cliParams struct {
 	profileMutexFraction int
 	profileBlocking      bool
 	profileBlockingRate  int
-	log                  bool
+	withStreamLog        bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -152,7 +152,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	flareCmd.Flags().IntVarP(&cliParams.profileMutexFraction, "profile-mutex-fraction", "", 100, "Set the fraction of mutex contention events that are reported in the mutex profile")
 	flareCmd.Flags().BoolVarP(&cliParams.profileBlocking, "profile-blocking", "B", false, "Add gorouting blocking profile to the performance data in the flare")
 	flareCmd.Flags().IntVarP(&cliParams.profileBlockingRate, "profile-blocking-rate", "", 10000, "Set the fraction of goroutine blocking events that are reported in the blocking profile")
-	flareCmd.Flags().BoolVarP(&cliParams.log, "with-stream-logs", "L", false, "Log 60s of the stream-logs command to the agent log file")
+	flareCmd.Flags().BoolVarP(&cliParams.withStreamLog, "with-stream-logs", "L", false, "Log 60s of the stream-logs command to the agent log file")
 	flareCmd.SetArgs([]string{"caseID"})
 
 	return []*cobra.Command{flareCmd}
@@ -348,9 +348,9 @@ func makeFlare(flareComp flare.Component,
 		Quiet:    true,
 	}
 
-	if cliParams.log {
+	if cliParams.withStreamLog {
 		fmt.Fprintln(color.Output, color.GreenString("Asking the agent to log the log-stream."))
-		err := streamlogs.PublicStreamLogs(lc, config, &streamLogParams)
+		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
 		if err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
 		}
