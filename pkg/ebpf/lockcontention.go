@@ -15,6 +15,7 @@ import (
 	"slices"
 	"sync"
 	"syscall"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -69,6 +70,11 @@ type bpfObjects struct {
 	bpfMaps
 }
 
+type mapStats struct {
+	targetMap
+	totalTime uint64
+}
+
 type targetMap struct {
 	fd     int
 	id     uint32
@@ -88,7 +94,7 @@ type LockContentionCollector struct {
 	avgContention   *prometheus.GaugeVec
 	totalContention *prometheus.CounterVec
 
-	trackedLockMemRanges map[LockRange]*targetMap
+	trackedLockMemRanges map[LockRange]*mapStats
 	links                []link.Link
 	objects              *bpfObjects
 	cpus                 uint32
@@ -134,7 +140,7 @@ func NewLockContentionCollector() *LockContentionCollector {
 			prometheus.CounterOpts{
 				Subsystem: "ebpf_locks",
 				Name:      "_total",
-				Help:      "gauge tracking total time a tracked lock was contended for",
+				Help:      "counter tracking total time a tracked lock was contended for",
 			},
 			[]string{"name"},
 		),
@@ -174,11 +180,14 @@ func (l *LockContentionCollector) Collect(metrics chan<- prometheus.Metric) {
 			continue
 		}
 
-		if data.Total_time > 0 {
+		if (data.Total_time > 0) && (mp.totalTime != data.Total_time) {
 			avgTime := data.Total_time / uint64(data.Count)
 			l.maxContention.WithLabelValues(mp.name).Set(float64(data.Max_time))
 			l.avgContention.WithLabelValues(mp.name).Set(float64(avgTime))
-			//l.totalContention.WithLabelValues(mp.Name).Sub(data.Total_time)
+
+			// TODO: should we consider overflows. u64 overflow seems very unlikely?
+			l.totalContention.WithLabelValues(mp.name).Add(float64(data.Total_time - mp.totalTime))
+			mp.totalTime = data.Total_time
 		}
 	}
 
@@ -200,8 +209,8 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		return nil
 	}
 
-	l.trackedLockMemRanges = make(map[LockRange]*targetMap)
-	maps := make(map[int]*targetMap)
+	l.trackedLockMemRanges = make(map[LockRange]*mapStats)
+	maps := make(map[uint32]*targetMap)
 
 	mapid := ebpf.MapID(0)
 	for mapid, err = ebpf.MapGetNextID(mapid); err == nil; mapid, err = ebpf.MapGetNextID(mapid) {
@@ -227,7 +236,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 			name = info.Name
 		}
 
-		maps[mp.FD()] = &targetMap{mp.FD(), uint32(mapid), name, mp, info}
+		maps[uint32(mapid)] = &targetMap{mp.FD(), uint32(mapid), name, mp, info}
 	}
 
 	constants := make(map[string]interface{})
@@ -311,7 +320,8 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	l.links = append(l.links, tpContentionEnd)
 
 	for _, tm := range maps {
-		syscall.Syscall(syscall.SYS_IOCTL, uintptr(tm.fd), ioctlCollectLocksCmd, uintptr(0))
+		mapidPtr := unsafe.Pointer(&tm.id)
+		syscall.Syscall(syscall.SYS_IOCTL, uintptr(tm.fd), ioctlCollectLocksCmd, uintptr(mapidPtr))
 
 		// close all dupped maps so we do not waste fds
 		tm.mp.Close()
@@ -321,8 +331,8 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 
 	var cursor ebpf.MapBatchCursor
 	lockRanges := make([]LockRange, ranges)
-	fds := make([]uint32, ranges)
-	count, err := l.objects.MapAddrFd.BatchLookup(&cursor, lockRanges, fds, nil)
+	mapids := make([]uint32, ranges)
+	count, err := l.objects.MapAddrFd.BatchLookup(&cursor, lockRanges, mapids, nil)
 	if !errors.Is(err, ebpf.ErrKeyNotExist) {
 		return fmt.Errorf("unable to lookup up lock ranges: %w", err)
 	}
@@ -331,12 +341,12 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		return fmt.Errorf("discovered fewer ranges than expected: %d < %d\n", count, ranges)
 	}
 
-	for i, fd := range fds {
-		tm, ok := maps[int(fd)]
+	for i, id := range mapids {
+		tm, ok := maps[id]
 		if !ok {
-			return fmt.Errorf("map with fd %d not tracked", fd)
+			return fmt.Errorf("map with id %d not tracked", id)
 		}
-		l.trackedLockMemRanges[lockRanges[i]] = tm
+		l.trackedLockMemRanges[lockRanges[i]] = &mapStats{*tm, 0}
 	}
 
 	// sort lock ranges and write to per cpu array map
@@ -378,7 +388,7 @@ func hashMapLockRanges(cpu uint32) uint32 {
 	return uint32(cpu + 2)
 }
 
-func estimateNumOfLockRanges(tm map[int]*targetMap, cpu uint32) uint32 {
+func estimateNumOfLockRanges(tm map[uint32]*targetMap, cpu uint32) uint32 {
 	var num uint32
 
 	for _, m := range tm {

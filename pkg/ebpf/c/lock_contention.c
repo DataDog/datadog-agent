@@ -77,7 +77,7 @@ static __always_inline u64 per_cpu_ptr(u64 ptr, u64 cpu) {
     return ptr + cpu_per_cpu_region;
 }
 
-static __always_inline int record_pcpu_freelist_locks(u32 fd, struct bpf_map* bm) {
+static __always_inline int record_pcpu_freelist_locks(u32 fd, struct bpf_map* bm, u32 mapid) {
     struct pcpu_freelist freelist;
     u64 region;
     int err;
@@ -95,7 +95,7 @@ static __always_inline int record_pcpu_freelist_locks(u32 fd, struct bpf_map* bm
 
         struct lock_range lr = { .addr_start =  region, .range = sizeof(struct pcpu_freelist_head) };
 
-        err = bpf_map_update_elem(&map_addr_fd, &lr, &fd, BPF_NOEXIST);
+        err = bpf_map_update_elem(&map_addr_fd, &lr, &mapid, BPF_NOEXIST);
         if (err < 0)
             return err;
     }
@@ -103,14 +103,14 @@ static __always_inline int record_pcpu_freelist_locks(u32 fd, struct bpf_map* bm
     // this regions contains the lock htab->freelist.extralist.lock
     struct lock_range lr = { .addr_start = (u64)(&htab->freelist), .range = sizeof(struct pcpu_freelist) };
 
-    err = bpf_map_update_elem(&map_addr_fd, &lr, &fd, BPF_NOEXIST);
+    err = bpf_map_update_elem(&map_addr_fd, &lr, &mapid, BPF_NOEXIST);
     if (err < 0)
         return err;
 
     return 0;
 }
 
-static __always_inline int record_bucket_locks(u32 fd, struct bpf_map* bm) {
+static __always_inline int record_bucket_locks(u32 fd, struct bpf_map* bm, u32 mapid) {
     u64 buckets;
     u32 n_buckets;
     int err;
@@ -128,14 +128,14 @@ static __always_inline int record_bucket_locks(u32 fd, struct bpf_map* bm) {
     u64 memsz = n_buckets * sizeof(struct bucket);
     struct lock_range lr = { .addr_start = buckets, .range = memsz};
 
-    err = bpf_map_update_elem(&map_addr_fd, &lr, &fd, BPF_NOEXIST);
+    err = bpf_map_update_elem(&map_addr_fd, &lr, &mapid, BPF_NOEXIST);
     if (err < 0)
         return err;
 
     return 0;
 }
 
-#define HAS_HASH_MAP_BUCKET_LOCKS(mtype) \
+#define HAS_HASH_MAP_LOCKS(mtype) \
     ((mtype == BPF_MAP_TYPE_HASH) \
      || (mtype == BPF_MAP_TYPE_LRU_HASH) \
      || (mtype == BPF_MAP_TYPE_LRU_PERCPU_HASH) \
@@ -166,6 +166,18 @@ int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
     if (!is_bpf_map(fd, &bpf_map_file))
         log_and_ret_err(-EINVAL);
 
+    u64 *mapid_ptr = (u64 *)PT_REGS_PARM4(ctx);
+    if (!mapid_ptr)
+        log_and_ret_err(-EINVAL);
+
+    u32 mapid = 0;
+    err = bpf_probe_read_user(&mapid, sizeof(u32), mapid_ptr);
+    if (err < 0)
+        log_and_ret_err(err);
+
+    if (mapid == 0)
+        log_and_ret_err(-EINVAL);
+
     err = bpf_core_read(&bm, sizeof(struct bpf_map *), &bpf_map_file->private_data);
     if (err < 0)
         log_and_ret_err(err);
@@ -177,15 +189,14 @@ int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
     if (mtype == BPF_MAP_TYPE_UNSPEC)
         log_and_ret_err(-EINVAL);
 
-    if (HAS_HASH_MAP_BUCKET_LOCKS(mtype)) {
-        err = record_bucket_locks(fd, bm);
+    if (HAS_HASH_MAP_LOCKS(mtype)) {
+        err = record_bucket_locks(fd, bm, mapid);
         if (err < 0)
             log_and_ret_err(err);
 
-        err = record_pcpu_freelist_locks(fd, bm);
+        err = record_pcpu_freelist_locks(fd, bm, mapid);
         if (err < 0)
             log_and_ret_err(err);
-
     }
 
     return 0;
@@ -235,8 +246,6 @@ static __always_inline int can_record(u64 *ctx, struct lock_range* range)
 
         if ((addr >= test_range->addr_start) && (addr <= (test_range->addr_start + test_range->range))) {
             bpf_memcpy(range, test_range, sizeof(struct lock_range));
-
-            log_info("can record lock @ 0x%llx", addr);
             return true;
         }
 
@@ -311,8 +320,6 @@ int tracepoint__contention_begin(u64 *ctx)
     pelem->lock = (u64)ctx[0];
     pelem->flags = (u32)ctx[1];
     bpf_memcpy(&pelem->lr, &range, sizeof(struct lock_range));
-
-    log_info("Start latency duration for 0x%llx", ctx[0]);
 
     return 0;
 }

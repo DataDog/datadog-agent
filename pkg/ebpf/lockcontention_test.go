@@ -67,7 +67,7 @@ func TestLockRanges(t *testing.T) {
 		{
 			name:      "Hashmap",
 			mtype:     ebpf.Hash,
-			lockCount: hashMapLockRanges(cpu),
+			lockCount: hashMapLockRanges(uint32(cpu)),
 			alloc: func(spec *ebpf.MapSpec) *ebpf.Map {
 				m, err := ebpf.NewMap(spec)
 				require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestLockRanges(t *testing.T) {
 		{
 			name:      "Percpu-Hashmap",
 			mtype:     ebpf.PerCPUHash,
-			lockCount: hashMapLockRanges(cpu),
+			lockCount: hashMapLockRanges(uint32(cpu)),
 			alloc: func(spec *ebpf.MapSpec) *ebpf.Map {
 				m, err := ebpf.NewMap(spec)
 				require.NoError(t, err)
