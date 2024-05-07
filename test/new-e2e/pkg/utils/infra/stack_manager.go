@@ -258,12 +258,10 @@ func (sm *StackManager) getProgressStreamsOnDestroy(logger io.Writer) optdestroy
 	return optdestroy.ErrorProgressStreams(logger)
 }
 
-func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *auto.Stack, logWriter io.Writer) error {
+func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *auto.Stack, logWriter io.Writer, ddEventSender datadogEventSender) error {
 	if stack == nil {
 		return fmt.Errorf("unable to find stack, skipping deletion of: %s", stackID)
 	}
-
-	destroyContext, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
 
 	loggingOptions, err := sm.getLoggingOptions()
 	if err != nil {
@@ -277,11 +275,27 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 		logger = logWriter
 	}
 	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
+	//initialize datadog event sender
+	if ddEventSender == nil {
+		ddEventSender = newDatadogEventSender(logger)
+	}
 
-	_, err = stack.Destroy(destroyContext, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
-	cancel()
-	if err != nil {
-		return err
+	downCount := 0
+	var destroyErr error
+	for {
+		downCount++
+		destroyContext, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
+		_, destroyErr = stack.Destroy(destroyContext, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
+		cancel()
+		if err == nil {
+			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack destroy", stackID), "", []string{"operation:destroy", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", downCount)})
+			break
+		}
+		sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack destroy", stackID), destroyErr.Error(), []string{"operation:destroy", "result:fail", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", downCount)})
+	}
+
+	if destroyErr != nil {
+		return destroyErr
 	}
 
 	deleteContext, cancel := context.WithTimeout(ctx, stackDeleteTimeout)
@@ -290,7 +304,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	return err
 }
 
-func (sm *StackManager) getStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool, logWriter io.Writer, datadodatadogEventSender datadogEventSender) (*auto.Stack, auto.UpResult, error) {
+func (sm *StackManager) getStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool, logWriter io.Writer, ddEventSender datadogEventSender) (*auto.Stack, auto.UpResult, error) {
 	// Build configuration from profile
 	profile := runner.GetProfile()
 	stackName := buildStackName(profile.NamePrefix(), name)
@@ -343,8 +357,8 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
 
 	//initialize datadog event sender
-	if datadodatadogEventSender == nil {
-		datadodatadogEventSender = newDatadogEventSender(logger)
+	if ddEventSender == nil {
+		ddEventSender = newDatadogEventSender(logger)
 	}
 
 	var upResult auto.UpResult
@@ -358,12 +372,12 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		cancel()
 
 		if upError == nil {
-			sendEventToDatadog(datadodatadogEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", name), "", []string{"operation:up", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)})
+			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", name), "", []string{"operation:up", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)})
 			break
 		}
 
 		retryStrategy := sm.getRetryStrategyFrom(upError, upCount)
-		sendEventToDatadog(datadodatadogEventSender, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), upError.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)})
+		sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), upError.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)})
 
 		switch retryStrategy {
 		case reUp:
