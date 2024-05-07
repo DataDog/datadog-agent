@@ -74,6 +74,21 @@ func TestGetNTPPoolsFromChronyConfig(t *testing.T) {
 		})
 	})
 }
+
+func TestGetNTPPoolsAndServersFromChronyConfig(t *testing.T) {
+	config1 := "pool  aaa.bbb.ccc.ddd"
+	config2 := "server  127.0.0.1"
+
+	createTempFile(t, config1, func(f1 string) {
+		createTempFile(t, config2, func(f2 string) {
+			servers, err := getNTPServersFromFiles([]string{f1, f2})
+			assert.NoError(t, err)
+			sort.Strings(servers)
+			assert.Equal(t, []string{"127.0.0.1", "aaa.bbb.ccc.ddd"}, servers)
+		})
+	})
+}
+
 func TestGetNTPServersFromFileNoDuplicate(t *testing.T) {
 	config := `
 server  aaa.bbb.ccc.ddd
