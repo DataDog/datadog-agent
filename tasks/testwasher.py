@@ -1,7 +1,9 @@
-from collections import defaultdict
 import json
-import yaml
+from collections import defaultdict
 from typing import List
+
+import yaml
+
 from tasks.test_core import ModuleTestResult
 
 

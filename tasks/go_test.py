@@ -33,8 +33,8 @@ from tasks.libs.common.utils import clean_nested_paths, collapsed_section, get_b
 from tasks.linter import _lint_go
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
-from tasks.trace_agent import integration_tests as trace_integration_tests
 from tasks.testwasher import TestWasher
+from tasks.trace_agent import integration_tests as trace_integration_tests
 
 PROFILE_COV = "coverage.out"
 TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
