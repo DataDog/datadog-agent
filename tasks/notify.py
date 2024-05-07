@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Dict
 
 from invoke import task
+from invoke.context import Context
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.common.datadog_api import create_count, send_metrics
@@ -21,6 +22,7 @@ from tasks.libs.pipeline.notifications import (
     find_job_owners,
     get_failed_tests,
     get_git_author,
+    get_pr_from_commit,
     send_slack_message,
 )
 from tasks.libs.pipeline.stats import get_failed_jobs_stats
@@ -426,7 +428,7 @@ class CumulativeJobAlert:
 
         self.failures = failures
 
-    def __str__(self) -> str:
+    def message(self) -> str:
         if len(self.failures) == 0:
             return ''
 
@@ -446,13 +448,21 @@ class ConsecutiveJobAlert:
 
         self.failures = failures
 
-    def __str__(self) -> str:
+    def message(self, ctx: Context) -> str:
         if len(self.failures) == 0:
             return ''
 
+        # Find initial PR
+        initial_pr_sha = ctx.run(f'git rev-parse HEAD~{CONSECUTIVE_THRESHOLD - 1}', hide=True).stdout.strip()
+        initial_pr_info = get_pr_from_commit(initial_pr_sha, PROJECT_NAME)
+        if initial_pr_info:
+            pr_id, pr_url = initial_pr_info
+            initial_pr = f'<{pr_url}|{pr_id}>'
+        else:
+            # Cannot find PR, display the commit sha
+            initial_pr = initial_pr_sha[:8]
+
         job_list = ', '.join(self.failures)
-        # TODO : Initial PR
-        initial_pr = '<https://path/to/pr|PR Title>'
         details = '\n'.join(
             [
                 f'- <{ExecutionsJobInfo.ci_visibility_url(name)}|{name}>: '
@@ -521,8 +531,8 @@ def update_statistics(job_executions):
     print()
     print('cumulative_alerts', cumulative_alerts)
     print()
-    print(ConsecutiveJobAlert(consecutive_alerts))
-    print(CumulativeJobAlert(cumulative_alerts))
+    print(ConsecutiveJobAlert(consecutive_alerts).message(Context()))
+    print(CumulativeJobAlert(cumulative_alerts).message())
     print()
 
     # return
