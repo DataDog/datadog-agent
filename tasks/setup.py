@@ -13,24 +13,9 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
+from tasks.libs.common.status import Status
 
 PYTHON_VERSION = "3.9"
-
-
-class Status:
-    OK = "OK"
-    WARN = "WARN"
-    FAIL = "FAIL"
-
-    @staticmethod
-    def color(status):
-        if status == Status.OK:
-            return "green"
-
-        if status == Status.WARN:
-            return "orange"
-
-        return "red"
 
 
 @dataclass
