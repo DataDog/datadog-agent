@@ -30,66 +30,6 @@ import (
 	"github.com/cilium/ebpf/asm"
 )
 
-// stats holds the value of a verifier statistics and a regular expression
-// to parse it from the verifier log.
-type stat struct {
-	// `Value` must be exported to be settable
-	Value int
-	parse *regexp.Regexp
-}
-
-// Statistics represent that statistics exposed via
-// the eBPF verifier when  LogLevelStats is enabled
-type Statistics struct {
-	StackDepth                 stat `json:"stack_usage" kernel:"4.15"`
-	InstructionsProcessed      stat `json:"instruction_processed" kernel:"4.15"`
-	InstructionsProcessedLimit stat `json:"limit" kernel:"4.15"`
-	MaxStatesPerInstruction    stat `json:"max_states_per_insn" kernel:"5.2"`
-	TotalStates                stat `json:"total_states" kernel:"5.2"`
-	PeakStates                 stat `json:"peak_states" kernel:"5.2"`
-}
-
-// SourceLine holds the information about a C source line
-type SourceLine struct {
-	LineInfo string `json:"line_info"`
-	Line     string `json:"line"`
-}
-
-// RegisterState holds the state for a given register
-type RegisterState struct {
-	Register int    `json:"register"`
-	Live     string `json:"live"`
-	Type     string `json:"type"`
-	Value    string `json:"value"`
-	Precise  bool   `json:"precise"`
-}
-
-// InstructionInfo holds information about an eBPF instruction extracted from the verifier
-type InstructionInfo struct {
-	Index            int                    `json:"index"`
-	TimesProcessed   int                    `json:"times_processed"`
-	Source           *SourceLine            `json:"source"`
-	Code             string                 `json:"code"`
-	RegisterState    map[int]*RegisterState `json:"register_state"`
-	RegisterStateRaw string                 `json:"register_state_raw"`
-}
-
-// SourceLineStats holds the aggregate verifier statistics for a given C source line
-type SourceLineStats struct {
-	NumInstructions            int   `json:"num_instructions"`
-	MaxPasses                  int   `json:"max_passes"`
-	MinPasses                  int   `json:"min_passes"`
-	TotalInstructionsProcessed int   `json:"total_instructions_processed"`
-	AssemblyInsns              []int `json:"assembly_insns"`
-}
-
-// ComplexityInfo holds the complexity information for a given eBPF program, with assembly
-// and source line information
-type ComplexityInfo struct {
-	InsnMap   map[int]*InstructionInfo    `json:"insn_map"`
-	SourceMap map[string]*SourceLineStats `json:"source_map"`
-}
-
 var (
 	stackUsage          = regexp.MustCompile(`stack depth\s+(?P<usage>\d+).*\n`)
 	insnProcessed       = regexp.MustCompile(`processed (?P<processed>\d+) insns`)
@@ -107,70 +47,69 @@ func isCOREAsset(path string) bool {
 	return filepath.Base(filepath.Dir(path)) == "co-re"
 }
 
-// StatsOptions holds the options for the function BuildVerifierStats
-type StatsOptions struct {
-	ObjectFiles        []string
-	FilterPrograms     []*regexp.Regexp
-	DetailedComplexity bool
-	VerifierLogsDir    string
-}
-
 // BuildVerifierStats accepts a list of eBPF object files and generates a
 // map of all programs and their Statistics, and a map of their detailed complexity info (only filled if DetailedComplexity is true)
-func BuildVerifierStats(opts *StatsOptions) (map[string]*Statistics, map[string]*ComplexityInfo, map[string]struct{}, error) {
+func BuildVerifierStats(opts *StatsOptions) (*StatsResult, map[string]struct{}, error) {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to get host kernel version: %w", err)
+		return nil, nil, fmt.Errorf("failed to get host kernel version: %w", err)
 	}
 	if kversion < kernel.VersionCode(4, 15, 0) {
-		return nil, nil, nil, fmt.Errorf("Kernel %s does not expose verifier statistics", kversion)
+		return nil, nil, fmt.Errorf("Kernel %s does not expose verifier statistics", kversion)
 	}
 
 	failedToLoad := make(map[string]struct{})
-	stats := make(map[string]*Statistics)
-	compl := make(map[string]*ComplexityInfo)
+	results := &StatsResult{
+		Stats:           make(map[string]*Statistics),
+		Complexity:      make(map[string]*ComplexityInfo),
+		FuncsPerSection: make(map[string]map[string][]string),
+	}
 
 	for _, file := range opts.ObjectFiles {
 		if !isCOREAsset(file) {
 			bc, err := os.Open(file)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("couldn't open asset %s: %v", file, err)
+				return nil, nil, fmt.Errorf("couldn't open asset %s: %v", file, err)
 			}
 			defer bc.Close()
 
-			if err := generateLoadFunction(file, opts, stats, compl, failedToLoad)(bc, manager.Options{}); err != nil {
-				return nil, nil, nil, fmt.Errorf("failed to load non-core asset %s: %w", file, err)
+			if err := generateLoadFunction(file, opts, results, failedToLoad)(bc, manager.Options{}); err != nil {
+				return nil, nil, fmt.Errorf("failed to load non-core asset %s: %w", file, err)
 			}
 
 			continue
 		}
 
-		if err := ddebpf.LoadCOREAsset(file, generateLoadFunction(file, opts, stats, compl, failedToLoad)); err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to load core asset %s: %w", file, err)
+		if err := ddebpf.LoadCOREAsset(file, generateLoadFunction(file, opts, results, failedToLoad)); err != nil {
+			return nil, nil, fmt.Errorf("failed to load core asset %s: %w", file, err)
 		}
 	}
 
-	return stats, compl, failedToLoad, nil
+	return results, failedToLoad, nil
 }
 
-func getSourceMap(file string) (map[string]map[int]*SourceLine, error) {
+func getSourceMap(file string) (map[string]map[int]*SourceLine, map[string][]string, error) {
 	// call llvm-objdump to get the source map in the shell
 	// We cannot use the go DWARF library because it doesn't support certain features
 	// (replications) for eBPF programs.
 	cmd := exec.Command("llvm-objdump", "-Sl", file)
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("failed to run llvm-objdump on %s: %w", file, err)
+		return nil, nil, fmt.Errorf("failed to run llvm-objdump on %s: %w", file, err)
 	}
 
 	sourceMap := make(map[string]map[int]*SourceLine)
+	funcsPerSection := make(map[string][]string)
 	lines := strings.Split(string(out), "\n")
 	nextLineInfo := ""
 	currLineInfo, currLine := "", ""
-	currSect := ""
+	currSect, currFunc := "", ""
 
 	sectionRegex := regexp.MustCompile("Disassembly of section (.*):")
+	functionRegex := regexp.MustCompile("^[0-9a-fA-F]{16} <([a-zA-Z_][a-zA-Z0-9_]+)>:$")
 	lineInfoRegex := regexp.MustCompile("^; [^:]+:[0-9]+")
+	functionJustStarted := false
+	insnOffset := 0
 
 	// Very ad-hoc parsing but enough for our purposes
 	for _, line := range lines {
@@ -201,17 +140,33 @@ func getSourceMap(file string) (map[string]map[int]*SourceLine, error) {
 
 		// Check for section headers
 		sectionMatch := sectionRegex.FindStringSubmatch(line)
-		if len(sectionMatch) > 0 {
+		if len(sectionMatch) >= 2 {
 			currSect = strings.ReplaceAll(sectionMatch[1], "/", "__") // match naming convention
 			log.Printf("Found section %s\n", currSect)
-			if _, ok := sourceMap[currSect]; !ok {
-				sourceMap[currSect] = make(map[int]*SourceLine)
-			}
 			continue
 		}
 
-		// We should have a section at this point, ignore the line if we don't
-		if currSect == "" {
+		// Check for function names
+		functionMatch := functionRegex.FindStringSubmatch(line)
+		if len(functionMatch) >= 2 && !strings.HasPrefix(functionMatch[1], "LBB") { // Ignore block labels
+			currFunc = functionMatch[1]
+			log.Printf("Found function %s\n", currFunc)
+
+			if currSect == "" {
+				log.Printf("WARN: Found function %s without section, line=%v\n", currFunc, line)
+			} else {
+				funcsPerSection[currSect] = append(funcsPerSection[currSect], currFunc)
+			}
+
+			if _, ok := sourceMap[currFunc]; !ok {
+				sourceMap[currFunc] = make(map[int]*SourceLine)
+			}
+			functionJustStarted = true // Mark that this function just started so we have the instruction offset of the start
+			continue
+		}
+
+		// We should have a section and function at this point, ignore the line if we don't
+		if currSect == "" || currFunc == "" {
 			continue
 		}
 
@@ -222,16 +177,24 @@ func getSourceMap(file string) (map[string]map[int]*SourceLine, error) {
 			continue
 		}
 
-		sourceMap[currSect][insn] = &SourceLine{
+		if functionJustStarted {
+			// llvm-objdump counts instructions since the start of the section, but the verifier
+			// counts from the start of the function. We need to account for that offset
+			insnOffset = insn
+			functionJustStarted = false
+		}
+		insn -= insnOffset
+
+		sourceMap[currFunc][insn] = &SourceLine{
 			LineInfo: currLineInfo,
 			Line:     currLine,
 		}
 	}
 
-	return sourceMap, nil
+	return sourceMap, funcsPerSection, nil
 }
 
-func generateLoadFunction(file string, opts *StatsOptions, stats map[string]*Statistics, complexity map[string]*ComplexityInfo, failedToLoad map[string]struct{}) func(bytecode.AssetReader, manager.Options) error {
+func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult, failedToLoad map[string]struct{}) func(bytecode.AssetReader, manager.Options) error {
 	return func(bc bytecode.AssetReader, managerOptions manager.Options) error {
 		kversion, err := kernel.HostVersion()
 		if err != nil {
@@ -287,17 +250,18 @@ func generateLoadFunction(file string, opts *StatsOptions, stats map[string]*Sta
 		}
 
 		var sourceMap map[string]map[int]*SourceLine
-
-		if opts.DetailedComplexity {
-			sourceMap, err = getSourceMap(file)
-			if err != nil {
-				return fmt.Errorf("failed to get llvm-objdump data for %v: %w", file, err)
-			}
-		}
-
+		var funcsPerSect map[string][]string
 		objectFileName := strings.ReplaceAll(
 			strings.Split(filepath.Base(file), ".")[0], "-", "_",
 		)
+
+		if opts.DetailedComplexity {
+			sourceMap, funcsPerSect, err = getSourceMap(file)
+			if err != nil {
+				return fmt.Errorf("failed to get llvm-objdump data for %v: %w", file, err)
+			}
+			results.FuncsPerSection[objectFileName] = funcsPerSect
+		}
 		for _, progSpec := range collectionSpec.Programs {
 			if len(opts.FilterPrograms) > 0 {
 				found := false
@@ -364,7 +328,7 @@ func generateLoadFunction(file string, opts *StatsOptions, stats map[string]*Sta
 						return fmt.Errorf("failed to unmarshal verifier log for program %s: %w", progSpec.Name, err)
 					}
 					progName := fmt.Sprintf("%s/%s", objectFileName, progSpec.Name)
-					stats[progName] = stat
+					results.Stats[progName] = stat
 
 					if opts.DetailedComplexity {
 						progSourceMap := sourceMap[progSpec.Name]
@@ -376,7 +340,7 @@ func generateLoadFunction(file string, opts *StatsOptions, stats map[string]*Sta
 							return fmt.Errorf("failed to unmarshal complexity info for program %s: %w", progSpec.Name, err)
 						}
 
-						complexity[progName] = compl
+						results.Complexity[progName] = compl
 					}
 				default:
 					return fmt.Errorf("Unexpected type %T", field)
