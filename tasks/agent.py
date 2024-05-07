@@ -706,6 +706,7 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
 
     print(' '.join(sorted(integrations)))
 
+
 @task
 def clean(ctx):
     """
