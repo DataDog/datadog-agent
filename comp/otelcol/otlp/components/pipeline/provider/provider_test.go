@@ -160,9 +160,9 @@ func TestGetConfDump(t *testing.T) {
 	// we cannot compare the raw configs, as the config contains maps which are marshalled in
 	// random order. Instead we unmarshal to a string map to compare.
 	t.Run("provided", func(t *testing.T) {
-		yamlBytesConf := provider.GetProvidedConf()
+		yamlStringConf := provider.GetProvidedConf()
 		var stringMap = map[string]interface{}{}
-		err = yaml.Unmarshal(yamlBytesConf, stringMap)
+		err = yaml.Unmarshal([]byte(yamlStringConf), stringMap)
 		assert.NoError(t, err)
 
 		resultYamlBytesConf, err := os.ReadFile(filepath.Join("testdata", "config-result.yaml"))
@@ -175,9 +175,9 @@ func TestGetConfDump(t *testing.T) {
 	})
 
 	t.Run("enhanced", func(t *testing.T) {
-		yamlBytesConf := provider.GetEnhancedConf()
+		yamlStringConf := provider.GetEnhancedConf()
 		var stringMap = map[string]interface{}{}
-		err = yaml.Unmarshal(yamlBytesConf, stringMap)
+		err = yaml.Unmarshal([]byte(yamlStringConf), stringMap)
 		assert.NoError(t, err)
 
 		resultYamlBytesConf, err := os.ReadFile(filepath.Join("testdata", "config-result.yaml"))

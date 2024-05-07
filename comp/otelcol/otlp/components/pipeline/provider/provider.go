@@ -23,8 +23,8 @@ import (
 
 type ExtendedConfigProvider interface {
 	otelcol.ConfigProvider
-	GetProvidedConf() []byte
-	GetEnhancedConf() []byte
+	GetProvidedConf() string
+	GetEnhancedConf() string
 }
 
 type configProvider struct {
@@ -33,8 +33,8 @@ type configProvider struct {
 }
 
 type confDump struct {
-	provided []byte
-	enhanced []byte
+	provided string
+	enhanced string
 }
 
 var _ otelcol.ConfigProvider = (*configProvider)(nil)
@@ -90,7 +90,7 @@ func (cp *configProvider) Get(ctx context.Context, factories otelcol.Factories) 
 }
 
 func (cp *configProvider) addProvidedConf(conf *otelcol.Config) error {
-	bytesConf, err := confToBytes(conf)
+	bytesConf, err := confToString(conf)
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func (cp *configProvider) addProvidedConf(conf *otelcol.Config) error {
 }
 
 func (cp *configProvider) addEnhancedConf(conf *otelcol.Config) error {
-	bytesConf, err := confToBytes(conf)
+	bytesConf, err := confToString(conf)
 	if err != nil {
 		return err
 	}
@@ -109,29 +109,29 @@ func (cp *configProvider) addEnhancedConf(conf *otelcol.Config) error {
 	return nil
 }
 
-// GetProvidedConf returns a []byte representing the collector configuration passed
+// GetProvidedConf returns a string representing the collector configuration passed
 // by the user. Should not be called concurrently with Get.
-func (cp *configProvider) GetProvidedConf() []byte {
+func (cp *configProvider) GetProvidedConf() string {
 	return cp.confDump.provided
 }
 
-// GetEnhancedConf returns a []byte representing the ehnhanced collector configuration.
+// GetEnhancedConf returns a string representing the ehnhanced collector configuration.
 // Should not be called concurrently with Get.
-func (cp *configProvider) GetEnhancedConf() []byte {
+func (cp *configProvider) GetEnhancedConf() string {
 	return cp.confDump.enhanced
 }
 
-func confToBytes(conf *otelcol.Config) ([]byte, error) {
+func confToString(conf *otelcol.Config) (string, error) {
 	stringMap := map[string]interface{}{}
 	if err := mapstructure.Decode(conf, &stringMap); err != nil {
-		return nil, err
+		return "", err
 	}
 
 	bytesConf, err := yaml.Marshal(stringMap)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return bytesConf, nil
+	return string(bytesConf), nil
 }
 
 // Watch is a no-op which returns a nil chan.
