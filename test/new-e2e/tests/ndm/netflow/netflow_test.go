@@ -85,6 +85,10 @@ func netflowDockerProvisioner() e2e.Provisioner {
 		if err != nil {
 			return err
 		}
+		err = dockerManager.Export(ctx, &env.Docker.ManagerOutput)
+		if err != nil {
+			return err
+		}
 
 		envVars := pulumi.StringMap{"CONFIG_DIR": pulumi.String(configPath)}
 		composeDependencies := []pulumi.Resource{configCommand}
