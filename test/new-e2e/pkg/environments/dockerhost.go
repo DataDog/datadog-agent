@@ -24,6 +24,6 @@ type DockerHost struct {
 var _ e2e.Initializable = &DockerHost{}
 
 // Init initializes the environment
-func (e *DockerHost) Init(ctx e2e.Context) error {
+func (e *DockerHost) Init(_ e2e.Context) error {
 	return nil
 }
