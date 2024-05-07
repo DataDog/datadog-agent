@@ -7,4 +7,11 @@
 
 package listeners
 
+import (
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+)
+
+type noopServiceListenerFactory func(c Config, wmeta optional.Option[workloadmeta.Component]) (ServiceListener, error)
+
 var NewContainerListener noopServiceListenerFactory
