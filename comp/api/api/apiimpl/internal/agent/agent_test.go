@@ -171,6 +171,26 @@ func TestSetupHandlers(t *testing.T) {
 			method:   "POST",
 			wantCode: 200,
 		},
+		{
+			route:    "/config",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/list-runtime",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/log_level",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/log_level",
+			method:   "POST",
+			wantCode: 200,
+		},
 	}
 	router := setupRoutes(t)
 	ts := httptest.NewServer(router)
@@ -185,6 +205,6 @@ func TestSetupHandlers(t *testing.T) {
 		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 
-		assert.Equal(t, tc.wantCode, resp.StatusCode)
+		assert.Equal(t, tc.wantCode, resp.StatusCode, "%s %s failed with a %d, want %d", tc.method, tc.route, resp.StatusCode, tc.wantCode)
 	}
 }
