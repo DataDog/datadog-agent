@@ -30,6 +30,7 @@ const (
 	OffsetNameFileFpath                 = "file_f_path_offset"
 	OffsetNameSchedProcessForkParentPid = "sched_process_fork_parent_pid_offset"
 	OffsetNameSchedProcessForkChildPid  = "sched_process_fork_child_pid_offset"
+	OffsetNameMountMntID                = "mount_id_offset"
 
 	// bpf offsets
 	OffsetNameBPFMapStructID                  = "bpf_map_id_offset"

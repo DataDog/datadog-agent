@@ -1570,10 +1570,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 			Value: getOvlPathInOvlInode(p.kernelVersion),
 		},
 		manager.ConstantEditor{
-			Name:  "mount_id_offset",
-			Value: mount.GetMountIDOffset(p.kernelVersion),
-		},
-		manager.ConstantEditor{
 			Name:  "getattr2",
 			Value: getAttr2(p.kernelVersion),
 		},
@@ -1871,6 +1867,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFpath, "struct file", "f_path", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSchedProcessForkChildPid, "trace_event_raw_sched_process_fork", "child_pid", "")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSchedProcessForkParentPid, "trace_event_raw_sched_process_fork", "parent_pid", "")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameMountMntId, "struct mount", "mnt_id", "")
 	if kv.Code >= kernel.Kernel5_3 {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal", "linux/sched/task.h")
 	}

@@ -486,20 +486,6 @@ func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, cont
 	return nil, &ErrMountNotFound{MountID: mountID}
 }
 
-// GetMountIDOffset returns the mount id offset
-func GetMountIDOffset(kernelVersion *skernel.Version) uint64 {
-	offset := uint64(284)
-
-	switch {
-	case kernelVersion.IsSuseKernel() || kernelVersion.Code >= skernel.Kernel5_12:
-		offset = 292
-	case kernelVersion.Code != 0 && kernelVersion.Code < skernel.Kernel4_13:
-		offset = 268
-	}
-
-	return offset
-}
-
 // GetVFSLinkDentryPosition gets VFS link dentry position
 func GetVFSLinkDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(2)
