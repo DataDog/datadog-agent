@@ -24,6 +24,8 @@ import (
 func TestTracerFallback(t *testing.T) {
 	if err := isCORETracerSupported(); err == errCORETracerNotSupported {
 		t.Skip("CORE tracer not supported on this platform")
+	} else if err = IsPrecompiledTracerSupported(); err == ErrPrecompiledTracerNotSupported {
+		t.Skip("prebuilt tracer not supported on this platform")
 	} else {
 		require.NoError(t, err)
 	}
@@ -307,6 +309,7 @@ func TestDefaultKprobeMaxActiveSet(t *testing.T) {
 	})
 
 	t.Run("prebuilt", func(t *testing.T) {
+		skipIfPrebuiltNotSupported(t)
 		cfg := config.New()
 		cfg.EnableCORE = false
 		cfg.AllowRuntimeCompiledFallback = false
@@ -317,8 +320,18 @@ func TestDefaultKprobeMaxActiveSet(t *testing.T) {
 	t.Run("runtime_compiled", func(t *testing.T) {
 		cfg := config.New()
 		cfg.EnableCORE = false
-		cfg.AllowRuntimeCompiledFallback = true
+		cfg.AllowRuntimeCompiledFallback = false
+		cfg.EnableRuntimeCompiler = true
+		cfg.AllowPrecompiledFallback = false
 		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil)
 		require.NoError(t, err)
 	})
+}
+
+func skipIfPrebuiltNotSupported(t *testing.T) {
+	if err := IsPrecompiledTracerSupported(); err == ErrPrecompiledTracerNotSupported {
+		t.Skip("prebuilt tracer not supported on this platform")
+	} else {
+		require.NoError(t, err, "error while checking if prebuilt tracer is supported")
+	}
 }
