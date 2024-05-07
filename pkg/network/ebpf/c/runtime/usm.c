@@ -52,11 +52,11 @@ int sk_msg__protocol_dispatcher_kafka(struct sk_msg_md *msg) {
     return SK_PASS;
 }
 
-SEC("sk_skb/stream_parser/parser")
-int sk_skb__kafka_stream_parser(struct __sk_buff* skb) {
-    log_debug("%s: sockops stream parser skb len %p %u", __func__, skb, skb->len);
-    return skb->len;
-}
+// SEC("sk_skb/stream_parser/parser")
+// int sk_skb__kafka_stream_parser(struct __sk_buff* skb) {
+//     log_debug("%s: sockops stream parser skb len %p %u", __func__, skb, skb->len);
+//     return skb->len;
+// }
 
 SEC("sk_skb/stream_verdict/verdict")
 int sk_skb__protocol_dispatcher(struct __sk_buff* skb) {
