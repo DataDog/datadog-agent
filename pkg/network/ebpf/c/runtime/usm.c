@@ -42,14 +42,14 @@ SEC("sk_skb/stream_verdict/verdict")
 int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
     log_debug("socket__protocol_dispatcher_kafka");
     dispatch_kafka(skb);
-    return 0;
+    return SK_PASS;
 }
 
 
 SEC("sk_msg/protocol_dispatcher_kafka")
 int sk_msg__protocol_dispatcher_kafka(struct sk_msg_md *msg) {
     sk_msg_dispatch_kafka(msg);
-    return 0;
+    return SK_PASS;
 }
 
 SEC("sk_skb/stream_parser/parser")
