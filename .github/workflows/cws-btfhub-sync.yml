@@ -19,6 +19,11 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cone:
+          - fedora
+          - sles
     steps:
       - name: Checkout datadog-agent repository
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
@@ -30,7 +35,7 @@ jobs:
         with:
           repository: DataDog/btfhub-archive
           path: dev/dist/archive
-          sparse-checkout: 'fedora'
+          sparse-checkout: ${{ matrix.cone }}
 
       - name: Install python
         uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
@@ -48,17 +53,12 @@ jobs:
         run: |
           inv -e deps
 
-      - name: Compute branch name
-        id: branch-name
-        run: |
-          echo "BRANCH_NAME=cws/constants-sync-$(date +%s)" >> $GITHUB_OUTPUT
-
       - name: Sync constants
         run: |
-          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./constants-fedora.json ${{ inputs.force_refresh && '--force-refresh' || '' }}
+          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./constants-${{ matrix.cone }}.json ${{ inputs.force_refresh && '--force-refresh' || '' }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: constants-fedora
-          path: ./constants-fedora.json
+          path: ./constants-${{ matrix.cone }}.json
