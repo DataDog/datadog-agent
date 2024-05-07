@@ -4,6 +4,7 @@
 '@datadog/agent-platform': APL
 '@datadog/documentation': DOCS
 '@datadog/container-integrations': CONTINT
+'@datadog/container-platform': CONTP
 '@datadog/container-ecosystems': CECO
 '@datadog/platform-integrations': PLINT
 '@datadog/agent-security': CWS

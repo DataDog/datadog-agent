@@ -46,6 +46,7 @@ type ColdStartSpanCreator struct {
 	initDuration          float64
 	StopChan              chan struct{}
 	initStartTime         time.Time
+	ColdStartRequestID    string
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
@@ -143,7 +144,14 @@ func (c *ColdStartSpanCreator) create() {
 		Type:     "serverless",
 	}
 
-	c.createSpan.Do(func() { c.processSpan(coldStartSpan) })
+	c.createSpan.Do(func() {
+		// An unexpected shutdown will reset this sync.Once counter, so we check whether a cold start has already occurred
+		if len(c.ColdStartRequestID) > 0 {
+			log.Debugf("[ColdStartCreator] Cold start span already created for request ID %s", c.ColdStartRequestID)
+			return
+		}
+		c.processSpan(coldStartSpan)
+	})
 }
 
 func (c *ColdStartSpanCreator) processSpan(coldStartSpan *pb.Span) {

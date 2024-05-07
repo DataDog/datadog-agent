@@ -172,6 +172,7 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
 
     conn_tuple_t *t = conn_tup_from_tls_conn(od, (void*)call_data_ptr->conn_pointer, pid_tgid);
     if (t == NULL) {
+        log_debug("[go-tls-write-return] failed getting conn tup from tls conn for pid %llu", pid);
         bpf_map_delete_elem(&go_tls_write_args, &call_key);
         return 0;
     }
@@ -274,6 +275,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 
     conn_tuple_t* t = conn_tup_from_tls_conn(od, (void*) call_data_ptr->conn_pointer, pid_tgid);
     if (t == NULL) {
+        log_debug("[go-tls-read-return] failed getting conn tup from tls conn for pid %llu", pid);
         bpf_map_delete_elem(&go_tls_read_args, &call_key);
         return 0;
     }

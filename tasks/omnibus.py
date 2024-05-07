@@ -2,6 +2,7 @@ import os
 import sys
 
 from invoke import task
+from invoke.exceptions import UnexpectedExit
 
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
@@ -9,9 +10,10 @@ from tasks.libs.common.omnibus import (
     install_dir_for_project,
     omnibus_compute_cache_key,
     send_build_metrics,
+    send_cache_miss_event,
     should_retry_bundle_install,
 )
-from tasks.libs.common.utils import get_version, load_release_versions, timed
+from tasks.libs.common.utils import collapsed_section, get_version, load_release_versions, timed
 from tasks.ssm import get_pfx_pass, get_signing_cert
 
 
@@ -48,7 +50,8 @@ def omnibus_run_task(
             "populate_s3_cache": populate_s3_cache,
         }
 
-        ctx.run(cmd.format(**args), env=env)
+        with collapsed_section(f"Running omnibus task {task}"):
+            ctx.run(cmd.format(**args), env=env, err_stream=sys.stdout)
 
 
 def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
@@ -63,13 +66,14 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
         if gem_path:
             cmd += f" --path {gem_path}"
 
-        for trial in range(max_try):
-            res = ctx.run(cmd, env=env, warn=True)
-            if res.ok:
-                return
-            if not should_retry_bundle_install(res):
-                return
-            print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
+        with collapsed_section("Bundle install omnibus"):
+            for trial in range(max_try):
+                res = ctx.run(cmd, env=env, warn=True, err_stream=sys.stdout)
+                if res.ok:
+                    return
+                if not should_retry_bundle_install(res):
+                    return
+                print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
 
 
 def get_omnibus_env(
@@ -231,7 +235,7 @@ def build(
         bundle_install_omnibus(ctx, gem_path, env)
 
     omnibus_cache_dir = os.environ.get('OMNIBUS_GIT_CACHE_DIR')
-    use_omnibus_git_cache = omnibus_cache_dir is not None
+    use_omnibus_git_cache = omnibus_cache_dir is not None and target_project == "agent" and host_distribution != "ociru"
     if use_omnibus_git_cache:
         # The cache will be written in the provided cache dir (see omnibus.rb) but
         # the git repository itself will be located in a subfolder that replicates
@@ -250,22 +254,30 @@ def build(
         # Individual developers are still able to leverage the cache by providing
         # the OMNIBUS_GIT_CACHE_DIR env variable, but they won't pull from the CI
         # generated one.
-        use_remote_cache = remote_cache_name is not None
-        if use_remote_cache:
-            cache_state = None
-            cache_key = omnibus_compute_cache_key(ctx)
-            git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
-            bundle_path = (
-                "/tmp/omnibus-git-cache-bundle" if sys.platform != 'win32' else "C:\\TEMP\\omnibus-git-cache-bundle"
-            )
-            with timed(quiet=True) as restore_cache:
-                # Allow failure in case the cache was evicted
-                if ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
-                    print(f'Successfully restored cache {cache_key}')
-                    ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}")
-                    cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
-                else:
-                    print(f'Failed to restore cache from key {cache_key}')
+        with collapsed_section("Manage omnibus cache"):
+            use_remote_cache = remote_cache_name is not None
+            if use_remote_cache:
+                cache_state = None
+                cache_key = omnibus_compute_cache_key(ctx)
+                git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
+                bundle_path = (
+                    "/tmp/omnibus-git-cache-bundle" if sys.platform != 'win32' else "C:\\TEMP\\omnibus-git-cache-bundle"
+                )
+                with timed(quiet=True) as restore_cache:
+                    # Allow failure in case the cache was evicted
+                    if ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
+                        print(f'Successfully retrieved cache {cache_key}')
+                        try:
+                            ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}")
+                        except UnexpectedExit as exc:
+                            print(f"An error occurring while cloning the cache repo: {exc}")
+                        else:
+                            cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
+                    else:
+                        print(f'Failed to restore cache from key {cache_key}')
+                        send_cache_miss_event(
+                            ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
+                        )
 
     with timed(quiet=True) as omnibus_elapsed:
         omnibus_run_task(

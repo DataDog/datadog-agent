@@ -8,9 +8,10 @@
 #include "protocols/kafka/usm-events.h"
 
 // forward declaration
-static __always_inline bool kafka_allow_packet(conn_tuple_t *tup, struct __sk_buff* skb, skb_info_t *skb_info);
-static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt);
+static __always_inline bool kafka_allow_packet(skb_info_t *skb_info);
+static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, kafka_telemetry_t *kafka_tel);
 static __always_inline bool kafka_process_response(void *ctx, conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, skb_info_t *skb_info);
+static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size);
 
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
 // The iterations reads up to MIN(max_buffer_size, real_size).
@@ -66,7 +67,12 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    if (!kafka_allow_packet(&tup, skb, &skb_info)) {
+    if (!kafka_allow_packet(&skb_info)) {
+        return 0;
+    }
+
+    kafka_telemetry_t *kafka_tel = bpf_map_lookup_elem(&kafka_telemetry, &zero);
+    if (kafka_tel == NULL) {
         return 0;
     }
 
@@ -81,7 +87,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    (void)kafka_process(&tup, kafka, pkt);
+    (void)kafka_process(&tup, kafka, pkt, kafka_tel);
     return 0;
 }
 
@@ -99,6 +105,11 @@ int uprobe__kafka_tls_filter(struct pt_regs *ctx) {
         return 0;
     }
 
+    kafka_telemetry_t *kafka_tel = bpf_map_lookup_elem(&kafka_telemetry, &zero);
+    if (kafka_tel == NULL) {
+        return 0;
+    }    
+
     // On stack for 4.14
     conn_tuple_t tup = args->tup;
 
@@ -108,7 +119,7 @@ int uprobe__kafka_tls_filter(struct pt_regs *ctx) {
         return 0;
     }
 
-    kafka_process(&tup, kafka, pkt);
+    kafka_process(&tup, kafka, pkt, kafka_tel);
     return 0;
 }
 
@@ -782,7 +793,7 @@ static __always_inline bool kafka_process_response(void *ctx, conn_tuple_t *tup,
     return kafka_process_new_response(ctx, tup, kafka, pkt, skb_info);
 }
 
-static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt) {
+static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, kafka_telemetry_t *kafka_tel) {
     /*
         We perform Kafka request validation as we can get kafka traffic that is not relevant for parsing (unsupported requests, responses, etc)
     */
@@ -838,8 +849,10 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     offset += sizeof(s32);
     PKTBUF_READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, pkt, offset);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+        // Since topic_name_size doesn't adhere to the protocol, there's no need to update our telemetry, as it's not a valid Kafka field
         return false;
     }
+    update_topic_name_size_telemetry(kafka_tel, topic_name_size);
     bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
     pktbuf_read_into_buffer_topic_name_parser((char *)kafka_transaction->topic_name, pkt, offset);
     offset += topic_name_size;
@@ -921,21 +934,26 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
 // this function is called by the socket-filter program to decide whether or not we should inspect
 // the contents of a certain packet, in order to avoid the cost of processing packets that are not
-// of interest such as empty ACKs, UDP data or encrypted traffic.
-static __always_inline bool kafka_allow_packet(conn_tuple_t *tup, struct __sk_buff* skb, skb_info_t *skb_info) {
-    // we're only interested in TCP traffic
-    if (!(tup->metadata&CONN_TYPE_TCP)) {
-        return false;
-    }
-
-    // if payload data is empty or if this is an encrypted packet, we only
-    // process it if the packet represents a TCP termination
-    bool empty_payload = skb_info->data_off == skb->len;
-    if (empty_payload) {
+// of interest such as empty ACKs.
+static __always_inline bool kafka_allow_packet(skb_info_t *skb_info) {
+    // if payload data is empty, we only process it if the packet represents a TCP termination
+    if (is_payload_empty(skb_info)) {
         return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
     }
 
     return true;
+}
+
+// update_path_size_telemetry updates the topic name size telemetry.
+static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size) {
+    // We have 10 buckets in the ranges of: 1 - 10, 11 - 20, ... , 71 - 80, 81 - 90, 91 - 100, 101 - 255
+    __u8 bucket_idx = (size - 1) / KAFKA_TELEMETRY_TOPIC_NAME_BUCKET_SIZE;
+
+    // Ensure that the bucket index falls within the valid range.
+    bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
+    bucket_idx = bucket_idx > (KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS - 1) ? (KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS - 1) : bucket_idx;
+
+    __sync_fetch_and_add(&kafka_tel->topic_name_size_buckets[bucket_idx], 1);
 }
 
 #endif

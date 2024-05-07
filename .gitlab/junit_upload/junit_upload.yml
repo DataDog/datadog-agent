@@ -1,5 +1,5 @@
 ---
-unit_tests_arm64_windows_junit_upload:
+unit_tests_arm64_junit_upload:
   stage: junit_upload
   rules:
     - !reference [.except_mergequeue]
@@ -10,11 +10,11 @@ unit_tests_arm64_windows_junit_upload:
   needs:
     - tests_deb-arm64-py3
     - tests_rpm-arm64-py3
-    - tests_windows-x64
-    - integration_tests_windows-x64
   script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
 
+# The corresponding upload for the x86 tests is in the test jobs themselves, we have to upload
+# the ARM64 test results here as we need an x86 image to run the upload.
 kmt_arm64_junit_upload:
   stage: junit_upload
   rules:
@@ -25,41 +25,8 @@ kmt_arm64_junit_upload:
   allow_failure: true
   needs:
     - job: kmt_run_sysprobe_tests_arm64
-      parallel:
-        matrix:
-          - TAG:
-            - "ubuntu_18.04"
-            - "ubuntu_20.04"
-            - "ubuntu_22.04"
-            - "ubuntu_23.10"
-            - "amzn_4.14"
-            - "amzn_5.4"
-            - "amzn_5.10"
-            - "fedora_37"
-            - "fedora_38"
-            - "debian_10"
-            - "debian_11"
-            - "debian_12"
-            - "centos_79"
-            - "centos_8"
-            TEST_SET: ["no_tracersuite", "only_tracersuite"]
       optional: true
     - job: kmt_run_secagent_tests_arm64
-      parallel:
-        matrix:
-          - TAG:
-              - "ubuntu_18.04"
-              - "ubuntu_20.04"
-              - "ubuntu_22.04"
-              - "ubuntu_23.10"
-              - "amzn_5.4"
-              - "amzn_5.10"
-              - "fedora_37"
-              - "fedora_38"
-              - "debian_10"
-              - "debian_11"
-              - "debian_12"
-            TEST_SET: ["all_tests"]
       optional: true
   script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "$DD_AGENT_TESTING_DIR/junit-*.tar.gz"

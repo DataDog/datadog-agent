@@ -13,7 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -110,7 +110,7 @@ func (c *unbundledTransformer) getTagsFromTagger(obj v1.ObjectReference, tagsAcc
 			return
 		}
 		// we can get high Cardinality because tags on events is seemless.
-		tagsAcc.Append(entity.GetTags(collectors.HighCardinality)...)
+		tagsAcc.Append(entity.GetTags(types.HighCardinality)...)
 	default:
 		return
 	}

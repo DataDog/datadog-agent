@@ -19,6 +19,7 @@ import (
 	nethttp "net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 	"unsafe"
@@ -554,6 +555,86 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
 				})
+			},
+			teardown:      kafkaTeardown,
+			configuration: getConfig,
+		},
+		{
+			name: "Kafka Kernel Telemetry",
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        map[string]interface{}{},
+			},
+			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+				tests := []struct {
+					name                string
+					topicName           string
+					expectedBucketIndex int
+				}{
+					{name: "Topic size is 1", topicName: strings.Repeat("a", 1), expectedBucketIndex: 0},
+					{name: "Topic size is 10", topicName: strings.Repeat("a", 10), expectedBucketIndex: 0},
+					{name: "Topic size is 20", topicName: strings.Repeat("a", 20), expectedBucketIndex: 1},
+					{name: "Topic size is 30", topicName: strings.Repeat("a", 30), expectedBucketIndex: 2},
+					{name: "Topic size is 40", topicName: strings.Repeat("a", 40), expectedBucketIndex: 3},
+					{name: "Topic size is 10 again", topicName: strings.Repeat("a", 10), expectedBucketIndex: 0},
+					{name: "Topic size is 50", topicName: strings.Repeat("a", 50), expectedBucketIndex: 4},
+					{name: "Topic size is 60", topicName: strings.Repeat("a", 60), expectedBucketIndex: 5},
+					{name: "Topic size is 70", topicName: strings.Repeat("a", 70), expectedBucketIndex: 6},
+					{name: "Topic size is 79", topicName: strings.Repeat("a", 79), expectedBucketIndex: 7},
+					{name: "Topic size is 80", topicName: strings.Repeat("a", 80), expectedBucketIndex: 7},
+					{name: "Topic size is 81", topicName: strings.Repeat("a", 81), expectedBucketIndex: 8},
+					{name: "Topic size is 90", topicName: strings.Repeat("a", 90), expectedBucketIndex: 8},
+					{name: "Topic size is 100", topicName: strings.Repeat("a", 100), expectedBucketIndex: 9},
+					{name: "Topic size is 120", topicName: strings.Repeat("a", 120), expectedBucketIndex: 9},
+				}
+
+				currentRawKernelTelemetry := &kafka.RawKernelTelemetry{}
+				for _, tt := range tests {
+					t.Run(tt.name, func(t *testing.T) {
+						client, err := kafka.NewClient(kafka.Options{
+							ServerAddress: ctx.targetAddress,
+							DialFn:        dialFn,
+							CustomOptions: []kgo.Opt{
+								kgo.MaxVersions(kversion.V2_5_0()),
+								kgo.ConsumeTopics(tt.topicName),
+								kgo.ClientID("test-client"),
+							},
+						})
+						require.NoError(t, err)
+						ctx.extras["client"] = client
+						require.NoError(t, client.CreateTopic(tt.topicName))
+
+						record := &kgo.Record{Topic: tt.topicName, Value: []byte("Hello Kafka!")}
+						ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+						defer cancel()
+						require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+
+						// To prevent races, we introduce a small delay to allow kgo to send fetch requests for the new topic.
+						time.Sleep(100 * time.Millisecond)
+						telemetryMap, err := kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
+						require.NoError(t, err)
+
+						// Ensure that the other buckets remain unchanged before verifying the expected bucket.
+						for idx := 0; idx < kafka.TopicNameBuckets; idx++ {
+							if idx != tt.expectedBucketIndex {
+								require.Equal(t, currentRawKernelTelemetry.Name_size_buckets[idx],
+									telemetryMap.Name_size_buckets[idx],
+									"Expected bucket (%d) to remain unchanged", idx)
+							}
+						}
+
+						// Verify that the expected bucket contains the correct number of occurrences.
+						expectedNumberOfOccurrences := fixCount(2) // (1 produce request + 1 fetch request)
+						require.Equal(t,
+							uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Name_size_buckets[tt.expectedBucketIndex],
+							telemetryMap.Name_size_buckets[tt.expectedBucketIndex])
+
+						// Update the current raw kernel telemetry for the next iteration
+						currentRawKernelTelemetry = telemetryMap
+					})
+				}
 			},
 			teardown:      kafkaTeardown,
 			configuration: getConfig,

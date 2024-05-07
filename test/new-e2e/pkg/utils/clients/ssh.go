@@ -255,7 +255,6 @@ func AppendFile(client *ssh.Client, os, path string, content []byte) (int64, err
 		return appendWithSudo(client, path, content)
 	}
 	return appendWithSftp(client, path, content)
-
 }
 
 // appendWithSudo appends content to the file using sudo tee for Linux environment
