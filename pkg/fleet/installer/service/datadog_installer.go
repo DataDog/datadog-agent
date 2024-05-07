@@ -18,6 +18,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -25,7 +26,10 @@ const (
 	installerUnitExp    = "datadog-installer-exp.service"
 	apmDefaultSocket    = "/var/run/datadog/apm.socket"
 	statsdDefaultSocket = "/var/run/datadog/dsd.socket"
-	datadogConfigPath   = "/etc/datadog-agent/datadog.yaml"
+	agentConfigPath     = "/etc/datadog-agent/datadog.yaml"
+	apmInjectOldPath    = "/opt/datadog/apm/inject"
+	injectOldAPMsock    = "/opt/datadog/apm/inject/run/apm.socket"
+	injectOldStatsdSock = "/opt/datadog/apm/inject/run/dsd.socket"
 )
 
 var installerUnits = []string{installerUnit, installerUnitExp}
@@ -215,19 +219,83 @@ func StopInstallerExperiment(ctx context.Context) error {
 }
 
 func configureSockets() error {
+	// TODO: release sockets by default on agent 7.55 and skip this logic
+	// for 7.55+ agents
 	envFile := newFileMutator("/etc/environment", setSocketEnvs, nil, nil)
 	defer envFile.cleanup()
 	_, err := envFile.mutate()
 	return err
 }
 
+type env struct {
+	key   string
+	value string
+}
+
 func setSocketEnvs(envFile []byte) ([]byte, error) {
+	apmSocket, statsdSocket := getSocketsPath(agentConfigPath, apmInjectOldPath)
+	envs := []env{
+		{key: "DD_APM_RECEIVER_SOCKET", value: apmSocket},
+		{key: "DD_DOGSTATSD_SOCKET", value: statsdSocket},
+		{key: "DD_USE_DOGSTATSD", value: "true"},
+	}
+	return addEnvsIfNotSet(envs, envFile)
+}
+
+func addEnvsIfNotSet(envs []env, envFile []byte) ([]byte, error) {
 	var buffer bytes.Buffer
 	buffer.Write(envFile)
 
 	if len(envFile) > 0 && envFile[len(envFile)-1] != '\n' {
 		buffer.WriteByte('\n')
 	}
-	buffer.WriteString(fmt.Sprintf("DD_APM_RECEIVER_SOCKET=%s\nDD_DOGSTATSD_SOCKET=%s\n", apmDefaultSocket, statsdDefaultSocket))
+	for _, env := range envs {
+		if !bytes.Contains(envFile, []byte(env.key)) {
+			buffer.WriteString(env.key)
+			buffer.WriteByte('=')
+			buffer.WriteString(env.value)
+			buffer.WriteByte('\n')
+		}
+	}
 	return buffer.Bytes(), nil
+}
+
+func getSocketsPath(agentConfigPath, apmOldPath string) (string, string) {
+	apmSocket := apmDefaultSocket
+	statsdSocket := statsdDefaultSocket
+
+	// default path: this directory only exists if deb/rpm apm-inject are already setup on host
+	if _, err := os.Stat(apmOldPath); err == os.ErrNotExist {
+		return apmSocket, statsdSocket
+	}
+
+	// fallback mode, if the deb/rpm apm-inject is setup, has configured datadog.yaml
+	// use the sockets configured there to avoid dropping spans from configured services
+	rawCfg, err := os.ReadFile(agentConfigPath)
+	if err != nil {
+		return apmSocket, statsdSocket
+	}
+	var cfg socketConfig
+	if err := yaml.Unmarshal(rawCfg, &cfg); err != nil {
+		return apmSocket, statsdSocket
+	}
+	if cfg.ApmSocketConfig.ReceiverSocket == injectOldAPMsock {
+		apmSocket = injectOldAPMsock
+	}
+	if cfg.DogstatsdSocket == injectOldStatsdSock {
+		statsdSocket = injectOldStatsdSock
+	}
+	return apmSocket, statsdSocket
+}
+
+// socketConfig is a subset of the agent configuration
+type socketConfig struct {
+	ApmSocketConfig ApmSocketConfig `yaml:"apm_config"`
+	UseDogstatsd    bool            `yaml:"use_dogstatsd"`
+	DogstatsdSocket string          `yaml:"dogstatsd_socket"`
+}
+
+// ApmSocketConfig is a subset of the agent configuration
+type ApmSocketConfig struct {
+	ReceiverSocket string `yaml:"receiver_socket"`
 }

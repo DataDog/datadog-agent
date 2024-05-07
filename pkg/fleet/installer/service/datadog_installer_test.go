@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	insertedEnvs = "DD_APM_RECEIVER_SOCKET=/var/run/datadog/apm.socket\nDD_DOGSTATSD_SOCKET=/var/run/datadog/dsd.socket\n"
+	insertedEnvs = "DD_APM_RECEIVER_SOCKET=/var/run/datadog/apm.socket\nDD_DOGSTATSD_SOCKET=/var/run/datadog/dsd.socket\nDD_USE_DOGSTATSD=true\n"
 )
 
 func TestSetEnvs(t *testing.T) {
@@ -22,12 +22,12 @@ func TestSetEnvs(t *testing.T) {
 			expected: insertedEnvs,
 		},
 		{
-			name:     "keep previous - missing newline",
+			name:     "keep other envs - missing newline",
 			input:    "banana=true",
 			expected: "banana=true\n" + insertedEnvs,
 		},
 		{
-			name:     "keep previous - with newline",
+			name:     "keep other envs - with newline",
 			input:    "apple=false\nat=home\n",
 			expected: "apple=false\nat=home\n" + insertedEnvs,
 		},
