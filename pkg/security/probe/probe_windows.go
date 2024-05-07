@@ -169,10 +169,10 @@ func (p *WindowsProbe) initEtwFIM() error {
 		return err
 	}
 	p.fimSession, err = etwcomp.NewSession(etwSessionName, func(cfg *etw.SessionConfiguration) {
-		// commented out for isolated checking
-		//if p.config.RuntimeSecurity.ETWEventsMaxBuffers > 0 {
-		//	cfg.MaxBuffers = uint32(p.config.RuntimeSecurity.ETWEventsMaxBuffers)
-		//}
+		if p.config.RuntimeSecurity.ETWEventsMaxBuffers > 0 {
+			log.Infof("Setting ETW Max buffers to %d", p.config.RuntimeSecurity.ETWEventsMaxBuffers)
+			cfg.MaxBuffers = uint32(p.config.RuntimeSecurity.ETWEventsMaxBuffers)
+		}
 	})
 
 	if err != nil {

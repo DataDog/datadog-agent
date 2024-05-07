@@ -227,6 +227,9 @@ type RuntimeSecurityConfig struct {
 
 	// ETWEventsChannelSize windows specific ETW channel buffer size
 	ETWEventsChannelSize int
+
+	//ETWEventsMaxBuffers sets the maximumbuffers aregument to ETW
+	ETWEventsMaxBuffers int
 }
 
 // Config defines a security config
@@ -283,6 +286,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		RuntimeEnabled:       coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
 		FIMEnabled:           coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
 		ETWEventsChannelSize: coreconfig.SystemProbe.GetInt("runtime_security_config.etw_events_channel_size"),
+		ETWEventsMaxBuffers:  coreconfig.SystemProbe.GetInt("runtime_security_config.etw_events_max_buffers"),
 
 		SocketPath:           coreconfig.SystemProbe.GetString("runtime_security_config.socket"),
 		EventServerBurst:     coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.burst"),
