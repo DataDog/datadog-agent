@@ -165,18 +165,18 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 				fakeintake.WithMatchingTags[*aggregator.MetricSeries](regexTags),
 			)
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+			if !assert.NoErrorf(c, err, "%s\tFailed to query fake intake", time.Now()) {
 				return
 			}
 			// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NotEmptyf(c, metrics, "No `%s` metrics yet", prettyMetricQuery) {
+			if !assert.NotEmptyf(c, metrics, "%s\tNo `%s` metrics yet", time.Now(), prettyMetricQuery) {
 				return
 			}
 
 			// Check tags
 			if expectedTags != nil {
 				err := assertTags(metrics[len(metrics)-1].GetTags(), expectedTags, args.Expect.AcceptUnexpectedTags)
-				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyMetricQuery)
+				assert.NoErrorf(c, err, "%s\tTags mismatch on `%s`", time.Now(), prettyMetricQuery)
 			}
 
 			// Check value
@@ -184,7 +184,8 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 				assert.NotEmptyf(c, lo.Filter(metrics[len(metrics)-1].GetPoints(), func(v *gogen.MetricPayload_MetricPoint, _ int) bool {
 					return v.GetValue() >= args.Expect.Value.Min &&
 						v.GetValue() <= args.Expect.Value.Max
-				}), "No value of `%s` is in the range [%f;%f]: %v",
+				}), "%s\tNo value of `%s` is in the range [%f;%f]: %v",
+					time.Now(),
 					prettyMetricQuery,
 					args.Expect.Value.Min,
 					args.Expect.Value.Max,
@@ -193,7 +194,7 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 					}),
 				)
 			}
-		}, 2*time.Minute, 10*time.Second, "Failed finding `%s` with proper tags and value", prettyMetricQuery)
+		}, 2*time.Minute, 10*time.Second, "%s\tFailed finding `%s` with proper tags and value", time.Now(), prettyMetricQuery)
 	})
 }
 
@@ -294,25 +295,26 @@ func (suite *baseSuite) testLog(args *testLogArgs) {
 				fakeintake.WithMatchingTags[*aggregator.Log](regexTags),
 			)
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+			if !assert.NoErrorf(c, err, "%s\tFailed to query fake intake", time.Now()) {
 				return
 			}
 			// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NotEmptyf(c, logs, "No `%s` logs yet", prettyLogQuery) {
+			if !assert.NotEmptyf(c, logs, "%s\tNo `%s` logs yet", time.Now(), prettyLogQuery) {
 				return
 			}
 
 			// Check tags
 			if expectedTags != nil {
 				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, false)
-				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyLogQuery)
+				assert.NoErrorf(c, err, "%s\tTags mismatch on `%s`", time.Now(), prettyLogQuery)
 			}
 
 			// Check message
 			if args.Expect.Message != "" {
 				assert.NotEmptyf(c, lo.Filter(logs, func(m *aggregator.Log, _ int) bool {
 					return expectedMessage.MatchString(m.Message)
-				}), "No log of `%s` is matching %q",
+				}), "%s\tNo log of `%s` is matching %q",
+					time.Now(),
 					prettyLogQuery,
 					args.Expect.Message,
 				)

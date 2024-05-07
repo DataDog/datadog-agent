@@ -119,7 +119,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "linux").String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list Linux nodes") {
+			if !assert.NoErrorf(c, err, "%s\tFailed to list Linux nodes", time.Now()) {
 				return
 			}
 
@@ -127,7 +127,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "windows").String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list Windows nodes") {
+			if !assert.NoErrorf(c, err, "%s\tFailed to list Windows nodes", time.Now()) {
 				return
 			}
 
@@ -135,7 +135,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog").String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list Linux datadog agent pods") {
+			if !assert.NoErrorf(c, err, "%s\tFailed to list Linux datadog agent pods", time.Now()) {
 				return
 			}
 
@@ -143,7 +143,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentWindowsHelmInstallName+"-datadog").String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list Windows datadog agent pods") {
+			if !assert.NoErrorf(c, err, "%s\tFailed to list Windows datadog agent pods", time.Now()) {
 				return
 			}
 
@@ -151,7 +151,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog-cluster-agent").String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list datadog cluster agent pods") {
+			if !assert.NoErrorf(c, err, "%s\tFailed to list datadog cluster agent pods", time.Now()) {
 				return
 			}
 
@@ -159,7 +159,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog-clusterchecks").String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list datadog cluster checks runner pods") {
+			if !assert.NoErrorf(c, err, "%s\tFailed to list datadog cluster checks runner pods", time.Now()) {
 				return
 			}
 
@@ -167,7 +167,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 				LabelSelector: fields.OneTermEqualSelector("app", "dogstatsd-standalone").String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list dogstatsd standalone pods") {
+			if !assert.NoErrorf(c, err, "%s\tFailed to list dogstatsd standalone pods", time.Now()) {
 				return
 			}
 
@@ -180,12 +180,12 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 			for _, podList := range []*corev1.PodList{linuxPods, windowsPods, clusterAgentPods, clusterChecksPods, dogstatsdPods} {
 				for _, pod := range podList.Items {
 					for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
-						assert.Truef(c, containerStatus.Ready, "Container %s of pod %s isn’t ready", containerStatus.Name, pod.Name)
-						assert.Zerof(c, containerStatus.RestartCount, "Container %s of pod %s has restarted", containerStatus.Name, pod.Name)
+						assert.Truef(c, containerStatus.Ready, "%s\tContainer %s of pod %s isn’t ready", time.Now(), containerStatus.Name, pod.Name)
+						assert.Zerof(c, containerStatus.RestartCount, "%s\tContainer %s of pod %s has restarted", time.Now(), containerStatus.Name, pod.Name)
 					}
 				}
 			}
-		}, waitFor, 10*time.Second, "Not all agents eventually became ready in time.")
+		}, waitFor, 10*time.Second, "%s\tNot all agents eventually became ready in time.", time.Now())
 	})
 }
 
@@ -224,21 +224,21 @@ func (suite *k8sSuite) TestVersion() {
 				LabelSelector: fields.OneTermEqualSelector("app", tt.appSelector).String(),
 				Limit:         1,
 			})
-			if suite.NoError(err) && len(linuxPods.Items) >= 1 {
+			if suite.NoErrorf(err, "%s\tFailed to get one %s pod", time.Now(), tt.podType) && len(linuxPods.Items) >= 1 {
 				stdout, stderr, err := suite.podExec("datadog", linuxPods.Items[0].Name, tt.container, []string{"agent", "version"})
 				if suite.NoError(err) {
-					suite.Emptyf(stderr, "Standard error of `agent version` should be empty,")
+					suite.Emptyf(stderr, "%s\tStandard error of `agent version` should be empty,", time.Now())
 					match := versionExtractor.FindStringSubmatch(stdout)
-					if suite.Equalf(2, len(match), "'Commit' not found in the output of `agent version`.") {
-						if suite.Greaterf(len(GitCommit), 6, "Couldn’t guess the expected version of the agent.") &&
-							suite.Greaterf(len(match[1]), 6, "Couldn’t find the version of the agent.") {
+					if suite.Equalf(2, len(match), "%s\t'Commit' not found in the output of `agent version`.", time.Now()) {
+						if suite.Greaterf(len(GitCommit), 6, "%s\tCouldn’t guess the expected version of the agent.", time.Now()) &&
+							suite.Greaterf(len(match[1]), 6, "%s\tCouldn’t find the version of the agent.", time.Now()) {
 
 							size2compare := len(GitCommit)
 							if len(match[1]) < size2compare {
 								size2compare = len(match[1])
 							}
 
-							suite.Equalf(GitCommit[:size2compare], match[1][:size2compare], "Agent isn’t running the expected version")
+							suite.Equalf(GitCommit[:size2compare], match[1][:size2compare], "%s\tAgent isn’t running the expected version", time.Now())
 						}
 					}
 				}
@@ -752,15 +752,15 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 					break
 				}
 			}
-			assert.True(c, detectedLangsLabelIsSet)
-		}, 5*time.Minute, 10*time.Second, "The deployment with name %s in namespace %s does not exist or does not have the auto detected languages annotation", name, namespace)
+			assert.Truef(c, detectedLangsLabelIsSet, "%s\tFailed to witness the auto detected languages annotation on the deployment with name %s in namespace %s", time.Now(), name, namespace)
+		}, 5*time.Minute, 10*time.Second, "%s\tThe deployment with name %s in namespace %s does not exist or does not have the auto detected languages annotation", time.Now(), name, namespace)
 	}
 
 	// Delete the pod to ensure it is recreated after the admission controller is deployed
 	err := suite.K8sClient.CoreV1().Pods(namespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", name).String(),
 	})
-	suite.Require().NoError(err)
+	suite.Require().NoErrorf(err, "%s\tFailed to delete pods with label app=%s in namespace %s", time.Now(), name, namespace)
 
 	// Wait for the fresh pod to be created
 	var pod corev1.Pod
@@ -775,7 +775,7 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			return
 		}
 		pod = pods.Items[0]
-	}, 2*time.Minute, 10*time.Second, "Failed to witness the creation of pod with name %s in namespace %s", name, namespace)
+	}, 2*time.Minute, 10*time.Second, "%s\tFailed to witness the creation of pod with name %s in namespace %s", time.Now(), name, namespace)
 
 	suite.Require().Len(pod.Spec.Containers, 1)
 
@@ -848,11 +848,11 @@ func (suite *k8sSuite) TestContainerImage() {
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		images, err := suite.Fakeintake.FilterContainerImages("ghcr.io/datadog/apps-nginx-server")
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+		if !assert.NoErrorf(c, err, "%s\tFailed to query fake intake", time.Now()) {
 			return
 		}
 		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No container_image yet") {
+		if !assert.NotEmptyf(c, images, "%s\tNo container_image yet", time.Now()) {
 			return
 		}
 
@@ -868,14 +868,14 @@ func (suite *k8sSuite) TestContainerImage() {
 		}
 		err = assertTags(images[len(images)-1].GetTags(), expectedTags, false)
 		assert.NoErrorf(c, err, "Tags mismatch")
-	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
+	}, 2*time.Minute, 10*time.Second, "%s\tFailed finding the container image payload", time.Now())
 }
 
 func (suite *k8sSuite) TestSBOM() {
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+		if !assert.NoErrorf(c, err, "%s\tFailed to query fake intake", time.Now()) {
 			return
 		}
 
@@ -884,18 +884,18 @@ func (suite *k8sSuite) TestSBOM() {
 		})
 
 		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, sbomIDs, "No SBOM for ghcr.io/datadog/apps-nginx-server yet") {
+		if !assert.NotEmptyf(c, sbomIDs, "%s\tNo SBOM for ghcr.io/datadog/apps-nginx-server yet", time.Now()) {
 			return
 		}
 
 		images := lo.FlatMap(sbomIDs, func(id string, _ int) []*aggregator.SBOMPayload {
 			images, err := suite.Fakeintake.FilterSBOMs(id)
-			assert.NoErrorf(c, err, "Failed to query fake intake")
+			assert.NoErrorf(c, err, "%s\tFailed to query fake intake", time.Now())
 			return images
 		})
 
 		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No SBOM payload yet") {
+		if !assert.NotEmptyf(c, images, "%s\tNo SBOM payload yet", time.Now()) {
 			return
 		}
 
@@ -904,7 +904,7 @@ func (suite *k8sSuite) TestSBOM() {
 		})
 
 		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No successful SBOM yet") {
+		if !assert.NotEmptyf(c, images, "%s\tNo successful SBOM yet", time.Now()) {
 			return
 		}
 
@@ -916,7 +916,7 @@ func (suite *k8sSuite) TestSBOM() {
 		})
 
 		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No SBOM with complete CycloneDX") {
+		if !assert.NotEmptyf(c, images, "%s\tNo SBOM with complete CycloneDX", time.Now()) {
 			return
 		}
 
@@ -950,7 +950,7 @@ func (suite *k8sSuite) TestSBOM() {
 				assert.Contains(c, properties["aquasecurity:trivy:RepoDigest"], "ghcr.io/datadog/apps-nginx-server@sha256:")
 			}
 		}
-	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
+	}, 2*time.Minute, 10*time.Second, "%s\tFailed finding the container image payload", time.Now())
 }
 
 func (suite *k8sSuite) TestContainerLifecycleEvents() {
@@ -961,23 +961,23 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			LabelSelector: fields.OneTermEqualSelector("app", "nginx").String(),
 		})
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, err, "Failed to list nginx pods") {
+		if !assert.NoErrorf(c, err, "%s\tFailed to list nginx pods", time.Now()) {
 			return
 		}
-		if !assert.NotEmptyf(c, pods, "Failed to find an nginx pod") {
+		if !assert.NotEmptyf(c, pods, "%s\tFailed to find an nginx pod", time.Now()) {
 			return
 		}
 
 		nginxPod = pods.Items[0]
-	}, 1*time.Minute, 10*time.Second, "Failed to find an nginx pod")
+	}, 1*time.Minute, 10*time.Second, "%s\tFailed to find an nginx pod", time.Now())
 
 	err := suite.K8sClient.CoreV1().Pods("workload-nginx").Delete(context.Background(), nginxPod.Name, metav1.DeleteOptions{})
-	suite.Require().NoError(err)
+	suite.Require().NoErrorf(err, "%s\tFailed to delete the nginx pod", time.Now())
 
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		events, err := suite.Fakeintake.GetContainerLifecycleEvents()
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+		if !assert.NoErrorf(c, err, "%s\tFailed to query fake intake", time.Now()) {
 			return
 		}
 
@@ -992,8 +992,8 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			}
 		}
 
-		assert.Truef(c, foundPodEvent, "Failed to find the pod lifecycle event")
-	}, 2*time.Minute, 10*time.Second, "Failed to find the container lifecycle events")
+		assert.Truef(c, foundPodEvent, "%s\tFailed to find the pod lifecycle event", time.Now())
+	}, 2*time.Minute, 10*time.Second, "%s\tFailed to find the container lifecycle events", time.Now())
 }
 
 func (suite *k8sSuite) testHPA(namespace, deployment string) {
@@ -1036,11 +1036,11 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 				}),
 			)
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+			if !assert.NoErrorf(c, err, "%s\tFailed to query fake intake", time.Now()) {
 				return
 			}
-			if !assert.NotEmptyf(c, metrics, "No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment) {
-				sendEvent("warning", fmt.Sprintf("No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment), nil)
+			if !assert.NotEmptyf(c, metrics, "%s\tNo `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", time.Now(), namespace, deployment) {
+				sendEvent("warning", fmt.Sprintf("%s\tNo `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", time.Now(), namespace, deployment), nil)
 				return
 			}
 
@@ -1073,14 +1073,14 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 					prevValue = point.Value
 				}
 			}
-			assert.Truef(c, scaleUp, "No scale up detected")
-			assert.Truef(c, scaleDown, "No scale down detected")
+			assert.Truef(c, scaleUp, "%s\tNo scale up detected", time.Now())
+			assert.Truef(c, scaleDown, "%s\tNo scale down detected", time.Now())
 			// The deployments that have an HPA configured (nginx and redis)
 			// exhibit a traffic pattern that follows a sine wave with a
 			// 20-minute period. This is defined in the test-infra-definitions
 			// repo. For this reason, the timeout for this test needs to be a
 			// bit higher than 20 min to capture the scale down event.
-		}, 25*time.Minute, 10*time.Second, "Failed to witness scale up and scale down of %s.%s", namespace, deployment)
+		}, 25*time.Minute, 10*time.Second, "%s\tFailed to witness scale up and scale down of %s.%s", time.Now(), namespace, deployment)
 	})
 }
 
@@ -1165,6 +1165,6 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 				break
 			}
 		}
-		require.NoErrorf(c, err, "Failed finding trace with proper tags")
-	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
+		require.NoErrorf(c, err, "%s\tFailed finding trace with proper tags", time.Now())
+	}, 2*time.Minute, 10*time.Second, "%s\tFailed finding trace with proper tags", time.Now())
 }

@@ -111,7 +111,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 	ctx := context.Background()
 
 	cfg, err := awsconfig.LoadDefaultConfig(ctx)
-	suite.Require().NoErrorf(err, "Failed to load AWS config")
+	suite.Require().NoErrorf(err, "%s\tFailed to load AWS config", time.Now())
 
 	client := awsecs.NewFromConfig(cfg)
 
@@ -129,7 +129,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 					NextToken:  nextToken,
 				})
 				// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-				if !assert.NoErrorf(c, err, "Failed to list ECS services") {
+				if !assert.NoErrorf(c, err, "%s\tFailed to list ECS services", time.Now()) {
 					return
 				}
 
@@ -139,12 +139,12 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 					Cluster:  &suite.ecsClusterName,
 					Services: servicesList.ServiceArns,
 				})
-				if !assert.NoErrorf(c, err, "Failed to describe ECS services %v", servicesList.ServiceArns) {
+				if !assert.NoErrorf(c, err, "%s\tFailed to describe ECS services %v", time.Now(), servicesList.ServiceArns) {
 					continue
 				}
 
 				for _, serviceDescription := range servicesDescription.Services {
-					assert.NotZerof(c, serviceDescription.DesiredCount, "ECS service %s has no task", *serviceDescription.ServiceName)
+					assert.NotZerof(c, serviceDescription.DesiredCount, "%s\tECS service %s has no task", time.Now(), *serviceDescription.ServiceName)
 
 					for nextToken := &initToken; nextToken != nil; {
 						if nextToken == &initToken {
@@ -158,7 +158,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 							MaxResults:    pointer.Ptr(int32(100)), // Because `DescribeTasks` takes at most 100 tasks in input
 							NextToken:     nextToken,
 						})
-						if !assert.NoErrorf(c, err, "Failed to list ECS tasks for service %s", *serviceDescription.ServiceName) {
+						if !assert.NoErrorf(c, err, "%s\tFailed to list ECS tasks for service %s", time.Now(), *serviceDescription.ServiceName) {
 							break
 						}
 
@@ -168,20 +168,20 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 							Cluster: &suite.ecsClusterName,
 							Tasks:   tasksList.TaskArns,
 						})
-						if !assert.NoErrorf(c, err, "Failed to describe ECS tasks %v", tasksList.TaskArns) {
+						if !assert.NoErrorf(c, err, "%s\tFailed to describe ECS tasks %v", time.Now(), tasksList.TaskArns) {
 							continue
 						}
 
 						for _, taskDescription := range tasksDescription.Tasks {
 							assert.Equalf(c, string(awsecstypes.DesiredStatusRunning), *taskDescription.LastStatus,
-								"Task %s of service %s is not running", *taskDescription.TaskArn, *serviceDescription.ServiceName)
+								"%s\tTask %s of service %s is not running", time.Now(), *taskDescription.TaskArn, *serviceDescription.ServiceName)
 							assert.NotEqualf(c, awsecstypes.HealthStatusUnhealthy, taskDescription.HealthStatus,
-								"Task %s of service %s is unhealthy", *taskDescription.TaskArn, *serviceDescription.ServiceName)
+								"%s\tTask %s of service %s is unhealthy", time.Now(), *taskDescription.TaskArn, *serviceDescription.ServiceName)
 						}
 					}
 				}
 			}
-		}, 5*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
+		}, 5*time.Minute, 10*time.Second, "%s\tNot all tasks became ready in time.", time.Now())
 	})
 }
 
@@ -494,7 +494,7 @@ func (suite *ecsSuite) testTrace(taskName string) {
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, cerr, "Failed to query fake intake") {
+		if !assert.NoErrorf(c, cerr, "%s\tFailed to query fake intake", time.Now()) {
 			return
 		}
 
@@ -527,6 +527,6 @@ func (suite *ecsSuite) testTrace(taskName string) {
 				break
 			}
 		}
-		require.NoErrorf(c, err, "Failed finding trace with proper tags")
-	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
+		require.NoErrorf(c, err, "%s\tFailed finding trace with proper tags", time.Now()) {
+		}, 2*time.Minute, 10*time.Second, "%s\tFailed finding trace with proper tags", time.Now()}
 }
