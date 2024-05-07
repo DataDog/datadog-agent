@@ -62,46 +62,60 @@ func TestGetNTPServersFromFileTwoConfigs(t *testing.T) {
 }
 
 func TestGetNTPPoolsFromChronyConfig(t *testing.T) {
-	config1 := "pool  aaa.bbb.ccc.ddd"
-	config2 := "pool  127.0.0.1"
-
-	createTempFile(t, config1, func(f1 string) {
-		createTempFile(t, config2, func(f2 string) {
-			servers, err := getNTPServersFromFiles([]string{f1, f2})
-			assert.NoError(t, err)
-			sort.Strings(servers)
-			assert.Equal(t, []string{"127.0.0.1", "aaa.bbb.ccc.ddd"}, servers)
-		})
+	config := `
+pool  127.0.0.1
+pool  aaa.bbb.ccc.ddd
+`
+	createTempFile(t, config, func(f1 string) {
+		servers, err := getNTPServersFromFiles([]string{f1})
+		assert.NoError(t, err)
+		sort.Strings(servers)
+		assert.Equal(t, []string{"127.0.0.1", "aaa.bbb.ccc.ddd"}, servers)
 	})
 }
 
 func TestGetNTPPoolsAndServersFromChronyConfig(t *testing.T) {
-	config1 := "pool  aaa.bbb.ccc.ddd"
-	config2 := "server  127.0.0.1"
+	config := `
+server  127.0.0.1
+pool  aaa.bbb.ccc.ddd
+`
 
-	createTempFile(t, config1, func(f1 string) {
-		createTempFile(t, config2, func(f2 string) {
-			servers, err := getNTPServersFromFiles([]string{f1, f2})
-			assert.NoError(t, err)
-			sort.Strings(servers)
-			assert.Equal(t, []string{"127.0.0.1", "aaa.bbb.ccc.ddd"}, servers)
-		})
+	createTempFile(t, config, func(f1 string) {
+		servers, err := getNTPServersFromFiles([]string{f1})
+		assert.NoError(t, err)
+		sort.Strings(servers)
+		assert.Equal(t, []string{"127.0.0.1", "aaa.bbb.ccc.ddd"}, servers)
 	})
 }
 
 func TestGetNTPPeersFromChronyConfig(t *testing.T) {
-	config1 := "peer  aaa.bbb.ccc.ddd"
-	config2 := "peer  127.0.0.1"
-
-	createTempFile(t, config1, func(f1 string) {
-		createTempFile(t, config2, func(f2 string) {
-			servers, err := getNTPServersFromFiles([]string{f1, f2})
-			assert.NoError(t, err)
-			sort.Strings(servers)
-			assert.Equal(t, []string{"127.0.0.1", "aaa.bbb.ccc.ddd"}, servers)
-		})
+	config := `
+peer  127.0.0.1
+peer  aaa.bbb.ccc.ddd
+`
+	createTempFile(t, config, func(f1 string) {
+		servers, err := getNTPServersFromFiles([]string{f1})
+		assert.NoError(t, err)
+		sort.Strings(servers)
+		assert.Equal(t, []string{"127.0.0.1", "aaa.bbb.ccc.ddd"}, servers)
 	})
 }
+
+func TestGetNTPPoolsAndServersAndPeersFromChronyConfig(t *testing.T) {
+	config := `
+peer  127.0.0.1
+server  aaa.bbb.ccc.ddd
+pool 10.0.0.1
+`
+
+	createTempFile(t, config, func(f1 string) {
+		servers, err := getNTPServersFromFiles([]string{f1})
+		assert.NoError(t, err)
+		sort.Strings(servers)
+		assert.Equal(t, []string{"10.0.0.1", "127.0.0.1", "aaa.bbb.ccc.ddd"}, servers)
+	})
+}
+
 func TestGetNTPServersFromFileNoDuplicate(t *testing.T) {
 	config := `
 server  aaa.bbb.ccc.ddd
