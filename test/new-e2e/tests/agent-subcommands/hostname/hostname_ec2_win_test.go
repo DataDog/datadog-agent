@@ -42,7 +42,7 @@ ec2_use_windows_prefix_detection: true`
 
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig(config))))
 	// e2e metadata provider already uses IMDSv2
-	metadata := client.NewEC2Metadata(v.Env().RemoteHost)
+	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 
 	hostname := v.Env().Agent.Client.Hostname()
 	resourceID := metadata.Get("instance-id")

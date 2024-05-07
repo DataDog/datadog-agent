@@ -12,10 +12,11 @@ import (
 	"time"
 
 	osComp "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 )
@@ -25,12 +26,17 @@ const (
 )
 
 // NewHostAgentClient creates an Agent client for host install
-func NewHostAgentClient(t *testing.T, host *components.RemoteHost, waitForAgentReady bool) (agentclient.Agent, error) {
-	params := agentclientparams.NewParams(host.OSFamily)
+func NewHostAgentClient(context e2e.Context, hostOutput remote.HostOutput, waitForAgentReady bool) (agentclient.Agent, error) {
+	params := agentclientparams.NewParams(hostOutput.OSFamily)
 	params.ShouldWaitForReady = waitForAgentReady
 
-	ae := newAgentHostExecutor(host, params)
-	commandRunner := newAgentCommandRunner(t, ae)
+	host, err := NewHost(context, hostOutput)
+	if err != nil {
+		return nil, err
+	}
+
+	ae := newAgentHostExecutor(hostOutput.OSFamily, host, params)
+	commandRunner := newAgentCommandRunner(context.T(), ae)
 
 	if params.ShouldWaitForReady {
 		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
@@ -42,18 +48,23 @@ func NewHostAgentClient(t *testing.T, host *components.RemoteHost, waitForAgentR
 }
 
 // NewHostAgentClientWithParams creates an Agent client for host install with custom parameters
-func NewHostAgentClientWithParams(t *testing.T, host *components.RemoteHost, options ...agentclientparams.Option) (agentclient.Agent, error) {
-	params := agentclientparams.NewParams(host.OSFamily, options...)
+func NewHostAgentClientWithParams(context e2e.Context, hostOutput remote.HostOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
+	params := agentclientparams.NewParams(hostOutput.OSFamily, options...)
 
-	ae := newAgentHostExecutor(host, params)
-	commandRunner := newAgentCommandRunner(t, ae)
+	host, err := NewHost(context, hostOutput)
+	if err != nil {
+		return nil, err
+	}
+
+	ae := newAgentHostExecutor(hostOutput.OSFamily, host, params)
+	commandRunner := newAgentCommandRunner(context.T(), ae)
 
 	if params.ShouldWaitForReady {
 		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
 			return nil, err
 		}
 	}
-	waitForAgentsReady(t, host, params)
+	waitForAgentsReady(context.T(), hostOutput.OSFamily, host, params)
 
 	return commandRunner, nil
 }
@@ -79,16 +90,16 @@ func NewDockerAgentClient(t *testing.T, docker *Docker, agentContainerName strin
 // If the timeout is reached, an error is returned.
 //
 // As of now this is only implemented for Linux.
-func waitForAgentsReady(tt *testing.T, host *components.RemoteHost, params *agentclientparams.Params) {
+func waitForAgentsReady(tt *testing.T, osFamily osComp.Family, host *Host, params *agentclientparams.Params) {
 	require.EventuallyWithT(tt, func(t *assert.CollectT) {
-		agentReadyCmds := map[string]func(*agentclientparams.Params, *components.RemoteHost) (string, bool, error){
+		agentReadyCmds := map[string]func(*agentclientparams.Params, osComp.Family, *Host) (string, bool, error){
 			"process-agent":  processAgentCommand,
 			"trace-agent":    traceAgentCommand,
 			"security-agent": securityAgentCommand,
 		}
 
 		for name, getReadyCmd := range agentReadyCmds {
-			cmd, ok, err := getReadyCmd(params, host)
+			cmd, ok, err := getReadyCmd(params, osFamily, host)
 			if !assert.NoErrorf(t, err, "could not build ready command for %s", name) {
 				continue
 			}
@@ -104,7 +115,7 @@ func waitForAgentsReady(tt *testing.T, host *components.RemoteHost, params *agen
 	}, params.WaitForDuration, params.WaitForTick)
 }
 
-func ensureAuthToken(params *agentclientparams.Params, host *components.RemoteHost) error {
+func ensureAuthToken(params *agentclientparams.Params, _ osComp.Family, host *Host) error {
 	if params.AuthToken != "" {
 		return nil
 	}
@@ -118,29 +129,29 @@ func ensureAuthToken(params *agentclientparams.Params, host *components.RemoteHo
 	return nil
 }
 
-func processAgentCommand(params *agentclientparams.Params, host *components.RemoteHost) (string, bool, error) {
-	return makeStatusEndpointCommand(params, host, "http://localhost:%d/agent/status", params.ProcessAgentPort)
+func processAgentCommand(params *agentclientparams.Params, osFamily osComp.Family, host *Host) (string, bool, error) {
+	return makeStatusEndpointCommand(params, osFamily, host, "http://localhost:%d/agent/status", params.ProcessAgentPort)
 }
 
-func traceAgentCommand(params *agentclientparams.Params, host *components.RemoteHost) (string, bool, error) {
-	return makeStatusEndpointCommand(params, host, "http://localhost:%d/info", params.TraceAgentPort)
+func traceAgentCommand(params *agentclientparams.Params, osFamily osComp.Family, host *Host) (string, bool, error) {
+	return makeStatusEndpointCommand(params, osFamily, host, "http://localhost:%d/info", params.TraceAgentPort)
 }
 
-func securityAgentCommand(params *agentclientparams.Params, host *components.RemoteHost) (string, bool, error) {
-	return makeStatusEndpointCommand(params, host, "https://localhost:%d/agent/status", params.SecurityAgentPort)
+func securityAgentCommand(params *agentclientparams.Params, osFamily osComp.Family, host *Host) (string, bool, error) {
+	return makeStatusEndpointCommand(params, osFamily, host, "https://localhost:%d/agent/status", params.SecurityAgentPort)
 }
 
-func makeStatusEndpointCommand(params *agentclientparams.Params, host *components.RemoteHost, url string, port int) (string, bool, error) {
+func makeStatusEndpointCommand(params *agentclientparams.Params, osFamily osComp.Family, host *Host, url string, port int) (string, bool, error) {
 	if port == 0 {
 		return "", false, nil
 	}
 
-	if host.OSFamily != osComp.LinuxFamily {
-		return "", true, fmt.Errorf("waiting for non-core agents is not implemented for OS family %d", host.OSFamily)
+	if osFamily != osComp.LinuxFamily {
+		return "", true, fmt.Errorf("waiting for non-core agents is not implemented for OS family %d", osFamily)
 	}
 
 	// we want to fetch the auth token only if we actually need it
-	if err := ensureAuthToken(params, host); err != nil {
+	if err := ensureAuthToken(params, osFamily, host); err != nil {
 		return "", true, err
 	}
 

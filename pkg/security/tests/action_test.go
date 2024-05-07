@@ -128,7 +128,7 @@ func TestActionKill(t *testing.T) {
 
 			return nil
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("kill-action-kill", func(t *testing.T) {
@@ -183,6 +183,6 @@ func TestActionKill(t *testing.T) {
 
 			return nil
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 }
