@@ -49,6 +49,7 @@ func init() {
 		DefaultLogFile = filepath.Join(pd, "logs", "agent.log")
 		DefaultDCALogFile = filepath.Join(pd, "logs", "cluster-agent.log")
 		DefaultDogstatsDLogFile = filepath.Join(pd, "logs", "dogstatsd_info", "dogstatsd-stats.log")
+		DefaultStreamlogsLogFile = filepath.Join(pd, "logs", "streamlogs_info", "streamlogs.log")
 	}
 }
 
