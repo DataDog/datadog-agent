@@ -113,7 +113,7 @@ type SetDefinition struct {
 	Field  string        `yaml:"field"`
 	Append bool          `yaml:"append"`
 	Scope  Scope         `yaml:"scope"`
-	Ttl    time.Duration `yaml:"ttl"`
+	TTL    time.Duration `yaml:"ttl"`
 }
 
 // InternalCallbackDefinition describes an internal rule action

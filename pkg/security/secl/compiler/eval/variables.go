@@ -407,6 +407,7 @@ type Scoper func(ctx *Context) ScopedVariable
 // GlobalVariables holds a set of global variables
 type GlobalVariables struct{}
 
+// VariableOpts holds a set of variables
 type VariableOpts struct {
 	Size int
 	TTL  time.Duration
@@ -436,6 +437,7 @@ type Variables struct {
 	ttl time.Duration
 }
 
+// NewVariables returns a new set of variables
 func NewVariables() *Variables {
 	return &Variables{}
 }
@@ -497,7 +499,7 @@ func (v *ScopedVariables) Len() int {
 }
 
 // GetVariable returns new variable of the type of the specified value
-func (v *ScopedVariables) GetVariable(name string, value interface{}, opts VariableOpts) (VariableValue, error) {
+func (v *ScopedVariables) GetVariable(name string, value interface{}, _ VariableOpts) (VariableValue, error) {
 	getVariables := func(ctx *Context) *Variables {
 		v := v.vars[v.scoper(ctx)]
 		return v
