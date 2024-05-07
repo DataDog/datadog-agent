@@ -105,7 +105,17 @@ func (p *ProcessConsumer) HandleEvent(event any) {
 	}
 
 	// transcode event type
-	e.EventType = model.NewEventType(e.SModelEventType.String())
+	switch e.EMEventType {
+	case uint32(smodel.ExecEventType):
+		e.EventType = model.Exec
+	case uint32(smodel.ExitEventType):
+		e.EventType = model.Exit
+	case uint32(smodel.ForkEventType):
+		e.EventType = model.Fork
+	default:
+		log.Errorf("Event is not a Process Lifecycle Event")
+		return
+	}
 
 	data, err := e.MarshalMsg(nil)
 	if err != nil {

@@ -18,8 +18,8 @@ var _ = intern.Value{}
 func (p *ProcessConsumer) Copy(event *smodel.Event) any {
 	var result model.ProcessEvent
 
-	valueSModelEventType := event.GetEventType()
-	result.SModelEventType = valueSModelEventType
+	valueEMEventType := uint32(event.GetEventType())
+	result.EMEventType = valueEMEventType
 
 	valueCollectionTime := event.GetTimestamp()
 	result.CollectionTime = valueCollectionTime
