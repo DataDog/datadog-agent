@@ -12,15 +12,16 @@ package config
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
+	"github.com/samber/lo"
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
@@ -36,16 +37,17 @@ const (
 	ddEntityIDEnvVarName   = "DD_ENTITY_ID"
 	traceURLEnvVarName     = "DD_TRACE_AGENT_URL"
 	dogstatsdURLEnvVarName = "DD_DOGSTATSD_URL"
+	podUIDEnvVarName       = "DD_INTERNAL_POD_UID"
 
 	// Config injection modes
 	hostIP  = "hostip"
 	socket  = "socket"
 	service = "service"
 
-	// Volume name
-	datadogVolumeName = "datadog"
+	// DatadogVolumeName is the name of the volume used to mount the socket
+	DatadogVolumeName = "datadog"
 
-	webhookName = "config"
+	webhookName = "agent_config"
 )
 
 var (
@@ -64,7 +66,7 @@ var (
 		Value: config.Datadog.GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
 	}
 
-	ddEntityIDEnvVar = corev1.EnvVar{
+	defaultDdEntityIDEnvVar = corev1.EnvVar{
 		Name:  ddEntityIDEnvVarName,
 		Value: "",
 		ValueFrom: &corev1.EnvVarSource{
@@ -85,25 +87,36 @@ var (
 	}
 )
 
+// conf is the configuration for the webhook
+type conf struct {
+	injectContName bool
+}
+
 // Webhook is the webhook that injects DD_AGENT_HOST and DD_ENTITY_ID into a pod
 type Webhook struct {
 	name       string
+	config     conf
 	isEnabled  bool
 	endpoint   string
 	resources  []string
 	operations []admiv1.OperationType
 	mode       string
+	wmeta      workloadmeta.Component
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook() *Webhook {
+func NewWebhook(wmeta workloadmeta.Component) *Webhook {
 	return &Webhook{
-		name:       webhookName,
+		name: webhookName,
+		config: conf{
+			injectContName: config.Datadog.GetBool("admission_controller.inject_config.inject_container_name"),
+		},
 		isEnabled:  config.Datadog.GetBool("admission_controller.inject_config.enabled"),
 		endpoint:   config.Datadog.GetString("admission_controller.inject_config.endpoint"),
 		resources:  []string{"pods"},
 		operations: []admiv1.OperationType{admiv1.Create},
 		mode:       config.Datadog.GetString("admission_controller.inject_config.mode"),
+		wmeta:      wmeta,
 	}
 }
 
@@ -147,23 +160,20 @@ func (w *Webhook) MutateFunc() admission.WebhookFunc {
 
 // mutate adds the DD_AGENT_HOST and DD_ENTITY_ID env vars to the pod template if they don't exist
 func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
-	return common.Mutate(request.Raw, request.Namespace, w.inject, request.DynamicClient)
+	return common.Mutate(request.Raw, request.Namespace, w.Name(), w.inject, request.DynamicClient)
 }
 
 // inject injects DD_AGENT_HOST and DD_ENTITY_ID into a pod template if needed
-func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
+func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	var injectedConfig, injectedEntity bool
-	defer func() {
-		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injectedConfig || injectedEntity), "", "")
-	}()
 
 	if pod == nil {
-		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "nil pod", "", "")
-		return errors.New("cannot inject config into nil pod")
+		return false, errors.New(metrics.InvalidInput)
+
 	}
 
-	if !autoinstrumentation.ShouldInject(pod) {
-		return nil
+	if !autoinstrumentation.ShouldInject(pod, w.wmeta) {
+		return false, nil
 	}
 
 	switch injectionMode(pod, w.mode) {
@@ -172,19 +182,23 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	case service:
 		injectedConfig = common.InjectEnv(pod, agentHostServiceEnvVar)
 	case socket:
-		volume, volumeMount := buildVolume(datadogVolumeName, config.Datadog.GetString("admission_controller.inject_config.socket_path"), true)
+		volume, volumeMount := buildVolume(DatadogVolumeName, config.Datadog.GetString("admission_controller.inject_config.socket_path"), true)
 		injectedVol := common.InjectVolume(pod, volume, volumeMount)
 		injectedEnv := common.InjectEnv(pod, traceURLSocketEnvVar)
 		injectedEnv = common.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedEnv || injectedVol
 	default:
-		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "unknown mode", "", "")
-		return fmt.Errorf("invalid injection mode %q", w.mode)
+		log.Errorf("invalid injection mode %q", w.mode)
+		return false, errors.New(metrics.InvalidInput)
 	}
 
-	injectedEntity = common.InjectEnv(pod, ddEntityIDEnvVar)
+	if w.config.injectContName {
+		injectedEntity = injectFullIdentity(pod)
+	} else {
+		injectedEntity = common.InjectEnv(pod, defaultDdEntityIDEnvVar)
+	}
 
-	return nil
+	return injectedConfig || injectedEntity, nil
 }
 
 // injectionMode returns the injection mode based on the global mode and pod labels
@@ -201,6 +215,56 @@ func injectionMode(pod *corev1.Pod, globalMode string) string {
 	}
 
 	return globalMode
+}
+
+func injectIdentityInContainer(container *corev1.Container, prefix, podStr string) bool {
+	if container == nil {
+		_ = log.Errorf("Cannot inject identity into nil container")
+		return false
+	}
+	// Do not override DD_ENTITY_ID if it's already set
+	if lo.ContainsBy(container.Env, func(v corev1.EnvVar) bool { return v.Name == ddEntityIDEnvVarName }) {
+		log.Debugf("Ignoring container '%s' in pod %s: env var '%s' already exist", container.Name, podStr, ddEntityIDEnvVarName)
+		return false
+	}
+
+	// We can and should override DD_INTERNAL_* variables if they are already set
+	container.Env = lo.Filter(container.Env, func(v corev1.EnvVar, _ int) bool { return v.Name != podUIDEnvVarName })
+	addedEnv := []corev1.EnvVar{
+		// DD_INTERNAL_POD_UID must precede DD_ENTITY_ID to be referenced in the latter.
+		// See https://kubernetes.io/docs/tasks/inject-data-application/define-interdependent-environment-variables/
+		{
+			Name: podUIDEnvVarName,
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.uid",
+				},
+			},
+		},
+		{
+			Name:  ddEntityIDEnvVarName,
+			Value: fmt.Sprintf("en-%s$(%s)/%s", prefix, podUIDEnvVarName, container.Name),
+		},
+	}
+
+	// prepend rather than append so that our new vars precede container vars in the final list, so that they
+	// can be referenced in other env vars downstream.  (see:  Kubernetes dependent environment variables.)
+	container.Env = append(addedEnv, container.Env...)
+	return true
+}
+
+// injectFullIdentity injects `DD_INTERNAL_CONTAINER_NAME`, `DD_INTERNAL_POD_UID` and `DD_ENTITY_ID`
+// as `en-(init.)$(DD_INTERNAL_POD_UID)/$(DD_INTERNAL_CONTAINER_NAME)`.
+func injectFullIdentity(pod *corev1.Pod) bool {
+	injected := false
+	podStr := common.PodString(pod)
+	for i := range pod.Spec.Containers {
+		injected = injectIdentityInContainer(&pod.Spec.Containers[i], "", podStr) || injected
+	}
+	for i := range pod.Spec.InitContainers {
+		injected = injectIdentityInContainer(&pod.Spec.InitContainers[i], "init.", podStr) || injected
+	}
+	return injected
 }
 
 func buildVolume(volumeName, path string, readOnly bool) (corev1.Volume, corev1.VolumeMount) {

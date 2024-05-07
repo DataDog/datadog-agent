@@ -32,6 +32,11 @@ end
 
 BUILD_OCIRU = Omnibus::Config.host_distribution == "ociru"
 
+if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR") && !BUILD_OCIRU
+  Omnibus::Config.use_git_caching true
+  Omnibus::Config.git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
+end
+
 if windows_target?
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
@@ -67,6 +72,7 @@ else
     if redhat_target?
       runtime_script_dependency :pre, "glibc-common"
       runtime_script_dependency :pre, "shadow-utils"
+      conflict "glibc-common < 2.17"
     else
       runtime_script_dependency :pre, "glibc"
       runtime_script_dependency :pre, "shadow"
@@ -181,11 +187,10 @@ package :msi do
   skip_packager true
 end
 
-package :ociru do
+package :xz do
   skip_packager !BUILD_OCIRU
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
-  compression_algorithm "gzip"
 end
 
 # ------------------------------------
@@ -217,6 +222,9 @@ end
 if with_python_runtime? "3"
   dependency 'datadog-agent-integrations-py3'
 end
+
+# Used for memory profiling with the `status py` agent subcommand
+dependency 'pympler'
 
 if linux_target?
   dependency 'datadog-security-agent-policies'

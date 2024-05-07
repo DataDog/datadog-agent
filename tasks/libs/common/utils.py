@@ -2,7 +2,6 @@
 Miscellaneous functions, no tasks here
 """
 
-
 import json
 import os
 import re
@@ -18,6 +17,7 @@ from tasks.libs.common.color import color_message
 
 # constants
 DEFAULT_BRANCH = "main"
+DEFAULT_INTEGRATIONS_CORE_BRANCH = "master"
 GITHUB_ORG = "DataDog"
 REPO_NAME = "datadog-agent"
 GITHUB_REPO_NAME = f"{GITHUB_ORG}/{REPO_NAME}"
@@ -57,6 +57,10 @@ def running_in_gitlab_ci():
 
 def running_in_circleci():
     return os.environ.get("CIRCLECI") == "true"
+
+
+def running_in_ci():
+    return running_in_circleci() or running_in_github_actions() or running_in_gitlab_ci()
 
 
 def bin_name(name):
@@ -135,6 +139,26 @@ def get_embedded_path(ctx):
     return embedded_path
 
 
+def get_xcode_version(ctx):
+    """
+    Get the version of XCode used depending on how it's installed.
+    """
+    if sys.platform != "darwin":
+        raise ValueError("The get_xcode_version function is only available on macOS")
+    xcode_path = ctx.run("xcode-select -p", hide=True).stdout.strip()
+    if xcode_path == "/Library/Developer/CommandLineTools":
+        xcode_version = ctx.run("pkgutil --pkg-info=com.apple.pkg.CLTools_Executables", hide=True).stdout.strip()
+        xcode_version = re.search(r"version: ([0-9.]+)", xcode_version).group(1)
+        xcode_version = re.search(r"([0-9]+.[0-9]+)", xcode_version).group(1)
+    elif xcode_path.startswith("/Applications/Xcode.app"):
+        xcode_version = ctx.run(
+            "xcodebuild -version | grep -Eo 'Xcode [0-9.]+' | awk '{print $2}'", hide=True
+        ).stdout.strip()
+    else:
+        raise ValueError(f"Unknown XCode installation at {xcode_path}.")
+    return xcode_version
+
+
 def get_build_flags(
     ctx,
     static=False,
@@ -155,7 +179,7 @@ def get_build_flags(
     Context object.
     """
     gcflags = ""
-    ldflags = get_version_ldflags(ctx, prefix, major_version=major_version)
+    ldflags = get_version_ldflags(ctx, prefix, major_version=major_version, install_path=install_path)
     # External linker flags; needs to be handled separately to avoid overrides
     extldflags = ""
     env = {"GO111MODULE": "on"}
@@ -228,10 +252,24 @@ def get_build_flags(
     elif os.environ.get("NO_GO_OPT"):
         gcflags = "-N -l"
 
-    # On macOS work around https://github.com/golang/go/issues/38824
-    # as done in https://go-review.googlesource.com/c/go/+/372798
     if sys.platform == "darwin":
-        extldflags += "-Wl,-bind_at_load "
+        # On macOS work around https://github.com/golang/go/issues/38824
+        # as done in https://go-review.googlesource.com/c/go/+/372798
+        extldflags += "-Wl,-bind_at_load"
+
+        # On macOS when using XCode 15 the -no_warn_duplicate_libraries linker flag is needed to avoid getting ld warnings
+        # for duplicate libraries: `ld: warning: ignoring duplicate libraries: '-ldatadog-agent-rtloader', '-ldl'`.
+        # Gotestsum sees the ld warnings as errors, breaking the test invoke task, so we have to remove them.
+        # See https://indiestack.com/2023/10/xcode-15-duplicate-library-linker-warnings/
+        try:
+            xcode_version = get_xcode_version(ctx)
+            if int(xcode_version.split('.')[0]) >= 15:
+                extldflags += ",-no_warn_duplicate_libraries "
+        except ValueError:
+            print(
+                "Could not determine XCode version, not adding -no_warn_duplicate_libraries to extldflags",
+                file=sys.stderr,
+            )
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
@@ -274,7 +312,7 @@ def get_payload_version():
     raise Exception("Could not find valid version for agent-payload in go.mod file")
 
 
-def get_version_ldflags(ctx, prefix=None, major_version='7'):
+def get_version_ldflags(ctx, prefix=None, major_version='7', install_path=None):
     """
     Compute the version from the git tags, and set the appropriate compiler
     flags
@@ -285,6 +323,10 @@ def get_version_ldflags(ctx, prefix=None, major_version='7'):
     ldflags = f"-X {REPO_PATH}/pkg/version.Commit={commit} "
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersion={get_version(ctx, include_git=True, prefix=prefix, major_version=major_version)} "
     ldflags += f"-X {REPO_PATH}/pkg/serializer.AgentPayloadVersion={payload_v} "
+    if install_path:
+        package_version = os.path.basename(install_path)
+        if package_version != "datadog-agent":
+            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
 
     return ldflags
 
@@ -356,14 +398,14 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
     cmd = "git describe --tags --candidates=50"
-    if prefix and type(prefix) == str:
+    if prefix and isinstance(prefix, str):
         cmd += f" --match \"{prefix}-*\""
     else:
         if major_version_hint:
-            cmd += r' --match "{}\.*"'.format(major_version_hint)  # noqa: FS002
+            cmd += rf' --match "{major_version_hint}\.*"'  # noqa: FS002
         else:
             cmd += " --match \"[0-9]*\""
-    if git_sha_length and type(git_sha_length) == int:
+    if git_sha_length and isinstance(git_sha_length, int):
         cmd += f" --abbrev={git_sha_length}"
     described_version = ctx.run(cmd, hide=True).stdout.strip()
 
@@ -374,8 +416,8 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
         commit_number = int(commit_number_match.group('commit_number'))
 
     version_re = r"v?(?P<version>\d+\.\d+\.\d+)(?:(?:-|\.)(?P<pre>[0-9A-Za-z.-]+))?"
-    if prefix and type(prefix) == str:
-        version_re = r"^(?:{}-)?".format(prefix) + version_re  # noqa: FS002
+    if prefix and isinstance(prefix, str):
+        version_re = rf"^(?:{prefix}-)?" + version_re  # noqa: FS002
     else:
         version_re = r"^" + version_re
     if commit_number == 0:
@@ -452,7 +494,7 @@ def get_version(
                 agent_version_cache_file_exist = True
 
         if agent_version_cache_file_exist:
-            with open(AGENT_VERSION_CACHE_NAME, "r") as file:
+            with open(AGENT_VERSION_CACHE_NAME) as file:
                 cache_data = json.load(file)
 
             version, pre, commits_since_version, git_sha, pipeline_id = cache_data[major_version]
@@ -461,7 +503,7 @@ def get_version(
 
             if pre and include_pre:
                 version = f"{version}-{pre}"
-    except (IOError, json.JSONDecodeError, IndexError) as e:
+    except (OSError, json.JSONDecodeError, IndexError) as e:
         # If a cache file is found but corrupted we ignore it.
         print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}", file=sys.stderr)
         version = ""
@@ -512,11 +554,11 @@ def get_version_numeric_only(ctx, major_version='7'):
                     hide="stdout",
                 )
 
-            with open(AGENT_VERSION_CACHE_NAME, "r") as file:
+            with open(AGENT_VERSION_CACHE_NAME) as file:
                 cache_data = json.load(file)
 
             version, *_ = cache_data[major_version]
-        except (IOError, json.JSONDecodeError, IndexError) as e:
+        except (OSError, json.JSONDecodeError, IndexError) as e:
             # If a cache file is found but corrupted we ignore it.
             print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}")
             version = ""
@@ -526,7 +568,7 @@ def get_version_numeric_only(ctx, major_version='7'):
 
 
 def load_release_versions(_, target_version):
-    with open("release.json", "r") as f:
+    with open("release.json") as f:
         versions = json.load(f)
         if target_version in versions:
             # windows runners don't accepts anything else than strings in the
@@ -652,3 +694,28 @@ def environ(env):
             os.environ[var] = original_environ[var]
         else:
             os.environ.pop(var)
+
+
+def is_pr_context(branch, pr_id, test_name):
+    if branch == DEFAULT_BRANCH:
+        print(f"Running on {DEFAULT_BRANCH}, skipping check for {test_name}.")
+        return False
+    if not pr_id:
+        print(f"PR not found, skipping check for {test_name}.")
+        return False
+    return True
+
+
+@contextmanager
+def collapsed_section(section_name):
+    section_id = section_name.replace(" ", "_")
+    in_ci = running_in_gitlab_ci()
+    try:
+        if in_ci:
+            print(
+                f"\033[0Ksection_start:{int(time.time())}:{section_id}[collapsed=true]\r\033[0K{section_name + '...'}"
+            )
+        yield
+    finally:
+        if in_ci:
+            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K")

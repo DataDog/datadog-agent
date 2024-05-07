@@ -23,15 +23,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
@@ -49,7 +52,7 @@ type deps struct {
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle())
+	return fxutil.Test[deps](t, compressionimpl.MockModule(), demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle())
 }
 
 func Test_Run_simpleCase(t *testing.T) {
@@ -307,13 +310,13 @@ tags:
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	snmpTags := []string{"snmp_device:1.2.3.4"}
-	snmpGlobalTags := append(common.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
-	snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
-	telemetryTags := append(common.CopyStrings(snmpGlobalTagsWithLoader), "agent_version:"+version.AgentVersion)
-	row1Tags := append(common.CopyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
-	row2Tags := append(common.CopyStrings(snmpGlobalTags), "if_index:2", "if_desc:desc2")
-	scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}
+	snmpGlobalTags := append(utils.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
+	snmpGlobalTagsWithLoader := append(utils.CopyStrings(snmpGlobalTags), "loader:core")
+	telemetryTags := append(utils.CopyStrings(snmpGlobalTagsWithLoader), "agent_version:"+version.AgentVersion)
+	row1Tags := append(utils.CopyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
+	row2Tags := append(utils.CopyStrings(snmpGlobalTags), "if_index:2", "if_desc:desc2")
+	scalarTags := append(utils.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpGlobalTags)
@@ -453,7 +456,7 @@ metrics:
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	tags := []string{"snmp_device:1.2.3.4", "interface:if10"}
+	tags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "interface:if10"}
 	sender.AssertMetric(t, "Gauge", "snmp.ifHighSpeed", float64(100), "", tags)
 	sender.AssertMetric(t, "Gauge", "snmp.ifInSpeed", float64(50_000_000), "", tags)
 	sender.AssertMetric(t, "Gauge", "snmp.ifOutSpeed", float64(40_000_000), "", tags)
@@ -540,7 +543,7 @@ metrics:
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	tags := []string{"snmp_device:1.2.3.4"}
+	tags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", tags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", tags)
 	sender.AssertMetric(t, "Gauge", "snmp.SomeGaugeMetric", float64(30), "", tags)
@@ -828,14 +831,16 @@ profiles:
 	snmpTags := []string{
 		"device_namespace:default",
 		"snmp_device:1.2.3.4",
+		"device_ip:1.2.3.4",
+		"device_id:default:1.2.3.4",
 		"snmp_profile:f5-big-ip",
 		"device_vendor:f5",
 		"snmp_host:foo_sys_name",
 		"static_tag:from_profile_root",
 		"static_tag:from_base_profile",
 	}
-	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "mac_address:00:00:00:00:00:01", "table_static_tag:val")
-	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "mac_address:00:00:00:00:00:02", "table_static_tag:val")
+	row1Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "mac_address:00:00:00:00:00:01", "table_static_tag:val")
+	row2Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "mac_address:00:00:00:00:00:02", "table_static_tag:val")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
@@ -860,6 +865,8 @@ profiles:
       "tags": [
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
+		"device_id:default:1.2.3.4",
+		"device_ip:1.2.3.4",
         "device_namespace:default",
         "device_vendor:f5",
         "mytag:val1",
@@ -967,7 +974,7 @@ community_string: public
 	err = chk.Run()
 	assert.Error(t, err, "snmp connection error: can't connect")
 
-	snmpTags := []string{"snmp_device:1.2.3.4"}
+	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}
 
 	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 0.0, "", snmpTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
@@ -1224,7 +1231,7 @@ namespace: '%s'
 			err = chk.Run()
 			assert.EqualError(t, err, tt.expectedErr)
 
-			snmpTags := []string{"snmp_device:1.2.3.4"}
+			snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4"}
 
 			sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", tt.expectedSubmittedMetrics, "", snmpTags)
 			sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
@@ -1272,7 +1279,7 @@ metrics:
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	snmpTags := []string{"snmp_device:1.2.3.4"}
+	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}
 	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 0.0, "", snmpTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
@@ -1493,7 +1500,7 @@ tags:
 	err = chk.Run()
 	assert.EqualError(t, err, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value")
 
-	snmpTags := []string{"device_namespace:default", "snmp_device:1.2.3.4"}
+	snmpTags := []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
@@ -1513,6 +1520,8 @@ tags:
       "tags": [
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
+		"device_id:default:1.2.3.4",
+		"device_ip:1.2.3.4",
         "device_namespace:default",
         "mytag:val1",
         "snmp_device:1.2.3.4"
@@ -1637,7 +1646,7 @@ tags:
 	err = chk.Run()
 	assert.EqualError(t, err, expectedErrMsg)
 
-	snmpTags := []string{"device_namespace:default", "snmp_device:1.2.3.5"}
+	snmpTags := []string{"device_namespace:default", "snmp_device:1.2.3.5", "device_ip:1.2.3.5", "device_id:default:1.2.3.5"}
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
 
@@ -1656,6 +1665,8 @@ tags:
       "tags": [
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
+		"device_id:default:1.2.3.5",
+		"device_ip:1.2.3.5",
         "device_namespace:default",
         "mytag:val1",
         "snmp_device:1.2.3.5"
@@ -1939,10 +1950,10 @@ metric_tags:
 	assert.Nil(t, err)
 
 	for _, deviceData := range deviceMap {
-		snmpTags := []string{"device_namespace:default", "snmp_device:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30"}
-		snmpGlobalTags := append(common.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
-		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
-		scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+		snmpTags := []string{"device_namespace:default", "snmp_device:" + deviceData.ipAddress, "device_ip:" + deviceData.ipAddress, "device_id:default:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30"}
+		snmpGlobalTags := append(utils.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
+		snmpGlobalTagsWithLoader := append(utils.CopyStrings(snmpGlobalTags), "loader:core")
+		scalarTags := append(utils.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
 
 		sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
 		sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpGlobalTags)
@@ -1967,6 +1978,8 @@ metric_tags:
       "tags": [
         "agent_version:%s",
         "autodiscovery_subnet:10.10.0.0/30",
+		"device_id:%s",
+		"device_ip:%s",
         "device_namespace:default",
         "snmp_device:%s",
         "snmp_host:foo_sys_name"
@@ -2023,7 +2036,7 @@ metric_tags:
   ],
   "collect_timestamp":946684800
 }
-`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
+`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.deviceID, deviceData.ipAddress, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
 		compactEvent := new(bytes.Buffer)
 		err = json.Compact(compactEvent, event)
 		assert.NoError(t, err)
@@ -2099,9 +2112,10 @@ metric_tags:
 	assert.Nil(t, err)
 
 	for i := 0; i < 4; i++ {
-		snmpTags := []string{fmt.Sprintf("snmp_device:10.10.0.%d", i)}
-		snmpGlobalTags := common.CopyStrings(snmpTags)
-		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
+		ip := fmt.Sprintf("10.10.0.%d", i)
+		snmpTags := []string{"snmp_device:" + ip, "device_ip:" + ip, "device_id:default:" + ip}
+		snmpGlobalTags := utils.CopyStrings(snmpTags)
+		snmpGlobalTagsWithLoader := append(utils.CopyStrings(snmpGlobalTags), "loader:core")
 
 		sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
 		sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
@@ -2273,10 +2287,10 @@ use_device_id_as_hostname: true
 	assert.Nil(t, err)
 
 	hostname := "device:default:1.2.3.4"
-	snmpTags := []string{"snmp_device:1.2.3.4"}
-	snmpGlobalTags := common.CopyStrings(snmpTags)
-	snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
-	scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}
+	snmpGlobalTags := utils.CopyStrings(snmpTags)
+	snmpGlobalTagsWithLoader := append(utils.CopyStrings(snmpGlobalTags), "loader:core")
+	scalarTags := append(utils.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), hostname, snmpGlobalTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), hostname, snmpGlobalTags)
@@ -2493,10 +2507,10 @@ metrics:
 
 	for _, deviceData := range deviceMap {
 		hostname := "device:" + deviceData.deviceID
-		snmpTags := []string{"snmp_device:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30", "agent_host:my-hostname"}
-		snmpGlobalTags := common.CopyStrings(snmpTags)
-		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
-		scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+		snmpTags := []string{"snmp_device:" + deviceData.ipAddress, "device_ip:" + deviceData.ipAddress, "device_id:default:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30", "agent_host:my-hostname"}
+		snmpGlobalTags := utils.CopyStrings(snmpTags)
+		snmpGlobalTagsWithLoader := append(utils.CopyStrings(snmpGlobalTags), "loader:core")
+		scalarTags := append(utils.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
 
 		sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), hostname, snmpGlobalTags)
 		sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), hostname, snmpGlobalTags)

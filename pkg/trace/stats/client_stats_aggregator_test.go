@@ -280,7 +280,7 @@ func TestFuzzCountFields(t *testing.T) {
 			actual = append(actual, s)
 		}
 
-		assert.ElementsMatch(pb.PbToStringSlice(expected), pb.PbToStringSlice(actual))
+		assert.ElementsMatch(pb.ToStringSlice(expected), pb.ToStringSlice(actual))
 		aggCounts.Stats[0].Stats[0].Stats = nil
 		expectedAggCounts.Stats[0].Stats[0].Stats = nil
 		assert.Equal(expectedAggCounts, aggCounts)
@@ -644,18 +644,6 @@ func TestNewClientStatsAggregatorPeerAggregation(t *testing.T) {
 		a := NewClientStatsAggregator(&cfg, nil, statsd)
 		assert.False(a.peerTagsAggregation)
 	})
-	t.Run("deprecated peer service flag set", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:         time.Duration(testBucketInterval),
-			AgentVersion:           "0.99.0",
-			DefaultEnv:             "env",
-			Hostname:               "hostname",
-			PeerServiceAggregation: true,
-		}
-		a := NewClientStatsAggregator(&cfg, nil, statsd)
-		assert.True(a.peerTagsAggregation)
-	})
 	t.Run("peer tags aggregation flag", func(t *testing.T) {
 		assert := assert.New(t)
 		cfg := config.AgentConfig{
@@ -668,24 +656,10 @@ func TestNewClientStatsAggregatorPeerAggregation(t *testing.T) {
 		a := NewClientStatsAggregator(&cfg, nil, statsd)
 		assert.True(a.peerTagsAggregation)
 	})
-	t.Run("deprecated peer service flag set + new peer tags aggregation flag", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:         time.Duration(testBucketInterval),
-			AgentVersion:           "0.99.0",
-			DefaultEnv:             "env",
-			Hostname:               "hostname",
-			PeerServiceAggregation: true,
-			PeerTagsAggregation:    true,
-		}
-		a := NewClientStatsAggregator(&cfg, nil, statsd)
-		assert.True(a.peerTagsAggregation)
-	})
 }
 
 func deepCopy(p *proto.ClientStatsPayload) *proto.ClientStatsPayload {
-	//nolint:revive // TODO(APM) Fix revive linter
-	new := &proto.ClientStatsPayload{
+	payload := &proto.ClientStatsPayload{
 		Hostname:         p.GetHostname(),
 		Env:              p.GetEnv(),
 		Version:          p.GetVersion(),
@@ -700,40 +674,38 @@ func deepCopy(p *proto.ClientStatsPayload) *proto.ClientStatsPayload {
 		GitCommitSha:     p.GetGitCommitSha(),
 		ImageTag:         p.GetImageTag(),
 	}
-	new.Stats = deepCopyStatsBucket(p.Stats)
-	return new
+	payload.Stats = deepCopyStatsBucket(p.Stats)
+	return payload
 }
 
 func deepCopyStatsBucket(s []*proto.ClientStatsBucket) []*proto.ClientStatsBucket {
 	if s == nil {
 		return nil
 	}
-	//nolint:revive // TODO(APM) Fix revive linter
-	new := make([]*proto.ClientStatsBucket, len(s))
+	bucket := make([]*proto.ClientStatsBucket, len(s))
 	for i, b := range s {
-		new[i] = &proto.ClientStatsBucket{
+		bucket[i] = &proto.ClientStatsBucket{
 			Start:          b.GetStart(),
 			Duration:       b.GetDuration(),
 			AgentTimeShift: b.GetAgentTimeShift(),
 		}
-		new[i].Stats = deepCopyGroupedStats(b.Stats)
+		bucket[i].Stats = deepCopyGroupedStats(b.Stats)
 	}
-	return new
+	return bucket
 }
 
 func deepCopyGroupedStats(s []*proto.ClientGroupedStats) []*proto.ClientGroupedStats {
 	if s == nil {
 		return nil
 	}
-	//nolint:revive // TODO(APM) Fix revive linter
-	new := make([]*proto.ClientGroupedStats, len(s))
+	stats := make([]*proto.ClientGroupedStats, len(s))
 	for i, b := range s {
 		if b == nil {
-			new[i] = nil
+			stats[i] = nil
 			continue
 		}
 
-		new[i] = &proto.ClientGroupedStats{
+		stats[i] = &proto.ClientGroupedStats{
 			Service:        b.GetService(),
 			Name:           b.GetName(),
 			Resource:       b.GetResource(),
@@ -747,15 +719,16 @@ func deepCopyGroupedStats(s []*proto.ClientGroupedStats) []*proto.ClientGroupedS
 			TopLevelHits:   b.GetTopLevelHits(),
 			SpanKind:       b.GetSpanKind(),
 			PeerTags:       b.GetPeerTags(),
+			IsTraceRoot:    b.GetIsTraceRoot(),
 		}
 		if b.OkSummary != nil {
-			new[i].OkSummary = make([]byte, len(b.OkSummary))
-			copy(new[i].OkSummary, b.OkSummary)
+			stats[i].OkSummary = make([]byte, len(b.OkSummary))
+			copy(stats[i].OkSummary, b.OkSummary)
 		}
 		if b.ErrorSummary != nil {
-			new[i].ErrorSummary = make([]byte, len(b.ErrorSummary))
-			copy(new[i].ErrorSummary, b.ErrorSummary)
+			stats[i].ErrorSummary = make([]byte, len(b.ErrorSummary))
+			copy(stats[i].ErrorSummary, b.ErrorSummary)
 		}
 	}
-	return new
+	return stats
 }

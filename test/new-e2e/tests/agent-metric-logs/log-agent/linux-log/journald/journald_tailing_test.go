@@ -95,7 +95,7 @@ func (s *LinuxJournaldFakeintakeSuite) journaldLogCollection() {
 	appendJournaldLog(s, "hello-world", 1)
 
 	// Check that the generated log is collected
-	utils.CheckLogsExpected(s, "hello", "hello-world")
+	utils.CheckLogsExpected(s, "hello", "hello-world", []string{})
 }
 
 func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
@@ -141,7 +141,7 @@ func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
 		agentReady := s.Env().Agent.Client.IsReady()
 		if assert.Truef(c, agentReady, "Agent is not ready after restart") {
 			// Check that the agent service log is collected
-			utils.CheckLogsExpected(s, "random-logger", "less important")
+			utils.CheckLogsExpected(s, "random-logger", "less important", []string{})
 		}
 	}, 1*time.Minute, 5*time.Second)
 

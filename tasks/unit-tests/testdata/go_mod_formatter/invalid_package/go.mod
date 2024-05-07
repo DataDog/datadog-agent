@@ -1,9 +1,10 @@
 module github.com/DataDog/datadog-agent/pkg/metrics
 
-go 1.21
+go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry/
+	github.com/DataDog/datadog-agent/comp/def => ../../comp/def
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model/
 	github.com/DataDog/datadog-agent/pkg/tagset => ../tagset/
@@ -22,7 +23,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.11.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	go.uber.org/atomic v1.11.0
 )
 

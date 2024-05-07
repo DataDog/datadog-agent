@@ -6,15 +6,12 @@
 package config
 
 import (
-	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"html"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -25,22 +22,14 @@ import (
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-
-	//nolint:revive // TODO(APM) Fix revive linter
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -61,8 +50,7 @@ const (
 	rcClientPollInterval = time.Second * 1
 )
 
-//nolint:revive // TODO(APM) Fix revive linter
-func setupConfigCommon(deps dependencies, apikey string) (*config.AgentConfig, error) {
+func setupConfigCommon(deps dependencies, _ string) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
 	return LoadConfigFile(confFilePath, deps.Config)
@@ -100,8 +88,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	// TODO: do not interface directly with pkg/config anywhere
 	coreConfigObject := c.Object()
 	if coreConfigObject == nil {
-		//nolint:revive // TODO(APM) Fix revive linter
-		return nil, fmt.Errorf("no core config found! Bailing out.")
+		return nil, errors.New("no core config found! Bailing out")
 	}
 
 	if !coreConfigObject.GetBool("disable_file_logging") {
@@ -119,15 +106,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
 	if coreconfig.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := rc.NewGRPCClient(
-			ipcAddress,
-			coreconfig.GetIPCPort(),
-			func() (string, error) { return security.FetchAuthToken(c) },
-			rc.WithAgent(rcClientName, version.AgentVersion),
-			rc.WithProducts(state.ProductAPMSampling, state.ProductAgentConfig),
-			rc.WithPollInterval(rcClientPollInterval),
-			rc.WithDirectorRootOverride(c.GetString("remote_configuration.director_root")),
-		)
+		client, err := remote(c, ipcAddress)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
@@ -140,7 +119,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 }
 
 func containerTagsFunc(cid string) ([]string, error) {
-	return tagger.Tag("container_id://"+cid, collectors.HighCardinality)
+	return tagger.Tag("container_id://"+cid, types.HighCardinality)
 }
 
 // appendEndpoints appends any endpoint configuration found at the given cfgKey.
@@ -156,7 +135,7 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 			continue
 		}
 		for _, key := range keys {
-			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: configUtils.SanitizeAPIKey(key)})
+			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: utils.SanitizeAPIKey(key)})
 		}
 	}
 	return endpoints
@@ -167,7 +146,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.Endpoints = []*config.Endpoint{{}}
 	}
 	if core.IsSet("api_key") {
-		c.Endpoints[0].APIKey = configUtils.SanitizeAPIKey(coreconfig.Datadog.GetString("api_key"))
+		c.Endpoints[0].APIKey = utils.SanitizeAPIKey(coreconfig.Datadog.GetString("api_key"))
 	}
 	if core.IsSet("hostname") {
 		c.Hostname = core.GetString("hostname")
@@ -204,7 +183,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		url, err := url.Parse(addr)
 		if err == nil {
 			c.ProxyURL = url
-			c.Proxy = http.ProxyURL(c.ProxyURL)
 		} else {
 			log.Errorf("Failed to parse proxy URL from proxy.https configuration: %s", err)
 		}
@@ -220,7 +198,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.LogFilePath = coreconfig.Datadog.GetString("apm_config.log_file")
 	}
 
-	if env := configUtils.GetTraceAgentDefaultEnv(coreconfig.Datadog); env != "" {
+	if env := utils.GetTraceAgentDefaultEnv(coreconfig.Datadog); env != "" {
 		c.DefaultEnv = env
 	}
 
@@ -237,10 +215,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if core.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
-	}
-	c.PeerServiceAggregation = core.GetBool("apm_config.peer_service_aggregation")
-	if c.PeerServiceAggregation {
-		log.Warn("`apm_config.peer_service_aggregation` is deprecated, please use `apm_config.peer_tags_aggregation` instead")
 	}
 	c.PeerTagsAggregation = core.GetBool("apm_config.peer_tags_aggregation")
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
@@ -270,6 +244,16 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if core.IsSet("apm_config.rare_sampler.cardinality") {
 		c.RareSamplerCardinality = core.GetInt("apm_config.rare_sampler.cardinality")
+	}
+
+	if core.IsSet("apm_config.probabilistic_sampler.enabled") {
+		c.ProbabilisticSamplerEnabled = core.GetBool("apm_config.probabilistic_sampler.enabled")
+	}
+	if core.IsSet("apm_config.probabilistic_sampler.sampling_percentage") {
+		c.ProbabilisticSamplerSamplingPercentage = float32(core.GetFloat64("apm_config.probabilistic_sampler.sampling_percentage"))
+	}
+	if core.IsSet("apm_config.probabilistic_sampler.hash_seed") {
+		c.ProbabilisticSamplerHashSeed = uint32(core.GetInt("apm_config.probabilistic_sampler.hash_seed"))
 	}
 
 	if core.IsSet("apm_config.max_remote_traces_per_second") {
@@ -409,6 +393,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.Obfuscation.Mongo.Enabled = true
 		c.Obfuscation.Memcached.Enabled = true
 		c.Obfuscation.Redis.Enabled = true
+		c.Obfuscation.CreditCards.Enabled = true
 
 		// TODO(x): There is an issue with coreconfig.Datadog.IsSet("apm_config.obfuscation"), probably coming from Viper,
 		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
@@ -574,12 +559,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if err := loadDeprecatedValues(c); err != nil {
 		return err
 	}
-
-	if strings.ToLower(core.GetString("log_level")) == "debug" && !core.IsSet("apm_config.log_throttling") {
-		// if we are in "debug mode" and log throttling behavior was not
-		// set by the user, disable it
-		c.LogThrottling = false
-	}
 	c.Site = core.GetString("site")
 	if c.Site == "" {
 		c.Site = coreconfig.DefaultSite
@@ -654,10 +633,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 func loadDeprecatedValues(c *config.AgentConfig) error {
 	cfg := coreconfig.Datadog
 	if cfg.IsSet("apm_config.api_key") {
-		c.Endpoints[0].APIKey = configUtils.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
-	}
-	if cfg.IsSet("apm_config.log_throttling") {
-		c.LogThrottling = cfg.GetBool("apm_config.log_throttling")
+		c.Endpoints[0].APIKey = utils.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
 	}
 	if cfg.IsSet("apm_config.bucket_size_seconds") {
 		d := time.Duration(cfg.GetInt("apm_config.bucket_size_seconds"))
@@ -809,77 +785,10 @@ func validate(c *config.AgentConfig, core corecompcfg.Component) error {
 	}
 
 	if c.Hostname == "" && !core.GetBool("serverless.enabled") {
-		// no user-set hostname, try to acquire
-		if err := acquireHostname(c); err != nil {
-			log.Debugf("Could not get hostname via gRPC: %v. Falling back to other methods.", err)
-			if err := acquireHostnameFallback(c); err != nil {
-				return err
-			}
+		if err := hostname(c); err != nil {
+			return err
 		}
 	}
-	return nil
-}
-
-// fallbackHostnameFunc specifies the function to use for obtaining the hostname
-// when it can not be obtained by any other means. It is replaced in tests.
-var fallbackHostnameFunc = os.Hostname
-
-// acquireHostname attempts to acquire a hostname for the trace-agent by connecting to the core agent's
-// gRPC endpoints. If it fails, it will return an error.
-func acquireHostname(c *config.AgentConfig) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	ipcAddress, err := coreconfig.GetIPCAddress()
-	if err != nil {
-		return err
-	}
-
-	client, err := grpc.GetDDAgentClient(ctx, ipcAddress, coreconfig.GetIPCPort())
-	if err != nil {
-		return err
-	}
-	reply, err := client.GetHostname(ctx, &pbgo.HostnameRequest{})
-	if err != nil {
-		return err
-	}
-	if c.HasFeature("disable_empty_hostname") && reply.Hostname == "" {
-		log.Debugf("Acquired empty hostname from gRPC but it's disallowed.")
-		return errors.New("empty hostname disallowed")
-	}
-	c.Hostname = reply.Hostname
-	log.Debugf("Acquired hostname from gRPC: %s", c.Hostname)
-	return nil
-}
-
-// acquireHostnameFallback attempts to acquire a hostname for this configuration. It
-// tries to shell out to the infrastructure agent for this, if DD_AGENT_BIN is
-// set, otherwise falling back to os.Hostname.
-func acquireHostnameFallback(c *config.AgentConfig) error {
-	var out bytes.Buffer
-	cmd := exec.Command(c.DDAgentBin, "hostname")
-	cmd.Env = append(os.Environ(), cmd.Env...) // needed for Windows
-	cmd.Stdout = &out
-	err := cmd.Run()
-	c.Hostname = strings.TrimSpace(out.String())
-	if emptyDisallowed := c.HasFeature("disable_empty_hostname") && c.Hostname == ""; err != nil || emptyDisallowed {
-		if emptyDisallowed {
-			log.Debugf("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
-		}
-		// There was either an error retrieving the hostname from the core agent, or
-		// it was empty and its disallowed by the disable_empty_hostname feature flag.
-		host, err2 := fallbackHostnameFunc()
-		if err2 != nil {
-			return fmt.Errorf("couldn't get hostname from agent (%q), nor from OS (%q). Try specifying it by means of config or the DD_HOSTNAME env var", err, err2)
-		}
-		if emptyDisallowed && host == "" {
-			return errors.New("empty hostname disallowed")
-		}
-		c.Hostname = host
-		log.Debugf("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
-		return nil
-	}
-	log.Debugf("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
 	return nil
 }
 

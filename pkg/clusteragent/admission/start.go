@@ -11,6 +11,7 @@ package admission
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -34,7 +35,7 @@ type ControllerContext struct {
 }
 
 // StartControllers starts the secret and webhook controllers
-func StartControllers(ctx ControllerContext) ([]webhook.MutatingWebhook, error) {
+func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component) ([]webhook.MutatingWebhook, error) {
 	if !config.Datadog.GetBool("admission_controller.enabled") {
 		log.Info("Admission controller is disabled")
 		return nil, nil
@@ -74,6 +75,7 @@ func StartControllers(ctx ControllerContext) ([]webhook.MutatingWebhook, error) 
 		ctx.IsLeaderFunc,
 		ctx.LeaderSubscribeFunc(),
 		webhookConfig,
+		wmeta,
 	)
 
 	go secretController.Run(ctx.StopCh)

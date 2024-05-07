@@ -1,6 +1,7 @@
 name "msodbcsql18"
 default_version "18.3.2.1-1"
 
+dependency "libkrb5"
 dependency "unixodbc"
 
 license "MICROSOFT SOFTWARE LICENSE"

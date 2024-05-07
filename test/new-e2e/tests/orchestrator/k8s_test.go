@@ -14,7 +14,7 @@ import (
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
-const defaultTimeout = 3 * time.Minute
+const defaultTimeout = 10 * time.Minute
 
 func (suite *k8sSuite) TestRedisPod() {
 	expectAtLeastOneResource{

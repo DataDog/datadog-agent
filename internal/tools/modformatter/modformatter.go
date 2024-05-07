@@ -11,12 +11,13 @@ package main
 import (
 	"flag"
 	"fmt"
-	"golang.org/x/mod/modfile"
-	"golang.org/x/mod/module"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/module"
 )
 
 var (

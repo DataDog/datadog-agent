@@ -1,0 +1,7 @@
+# Extract of the .gitab/JOBOWNERS file, for testing purposes
+
+*                                    @DataDog/agent-ci-experience
+
+tests_*                              @DataDog/multiple
+tests_ebpf*                          @DataDog/ebpf-platform
+security_go_generate_check           @DataDog/agent-security

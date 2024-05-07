@@ -7,12 +7,14 @@
 package eventplatformimpl
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
 
 	"go.uber.org/fx"
 
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
@@ -151,6 +153,18 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		//   aggregator loop, making SendEventPlatformEvent blocking might slow down other type of data handled
 		//   by aggregator.
 		defaultInputChanSize: 10000,
+	},
+	{
+		eventType:                     eventplatform.EventTypeNetworkPath,
+		category:                      "Network Path",
+		contentType:                   logshttp.JSONContentType,
+		endpointsConfigPrefix:         "network_path.forwarder.",
+		hostnameEndpointPrefix:        "netpath-intake.",
+		intakeTrackType:               "netpath",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 	{
 		eventType:                     eventplatform.EventTypeContainerLifecycle,
@@ -344,7 +358,7 @@ type passthroughPipelineDesc struct {
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
 // without any of the processing that exists in regular logs pipelines.
-func newHTTPPassthroughPipeline(eventPlatformReceiver eventplatformreceiver.Component, desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (p *passthroughPipeline, err error) {
+func newHTTPPassthroughPipeline(coreConfig pkgconfig.Reader, eventPlatformReceiver eventplatformreceiver.Component, desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (p *passthroughPipeline, err error) {
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfig.Datadog)
 	endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfig.Datadog, configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 	if err != nil {
@@ -404,7 +418,7 @@ func newHTTPPassthroughPipeline(eventPlatformReceiver eventplatformreceiver.Comp
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{
-		sender:                sender.NewSender(senderInput, a.Channel(), destinations, 10),
+		sender:                sender.NewSender(coreConfig, senderInput, a.Channel(), destinations, 10),
 		strategy:              strategy,
 		in:                    inputChan,
 		auditor:               a,
@@ -436,12 +450,12 @@ func joinHosts(endpoints []config.Endpoint) string {
 	return strings.Join(additionalHosts, ",")
 }
 
-func newDefaultEventPlatformForwarder(eventPlatformReceiver eventplatformreceiver.Component) *defaultEventPlatformForwarder {
+func newDefaultEventPlatformForwarder(config pkgconfig.Reader, eventPlatformReceiver eventplatformreceiver.Component) *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
 	for i, desc := range passthroughPipelineDescs {
-		p, err := newHTTPPassthroughPipeline(eventPlatformReceiver, desc, destinationsCtx, i)
+		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, desc, destinationsCtx, i)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
 			continue
@@ -457,29 +471,45 @@ func newDefaultEventPlatformForwarder(eventPlatformReceiver eventplatformreceive
 type dependencies struct {
 	fx.In
 	Params                Params
+	Config                configcomp.Component
+	Lc                    fx.Lifecycle
 	EventPlatformReceiver eventplatformreceiver.Component
 	Hostname              hostnameinterface.Component
 }
 
 // newEventPlatformForwarder creates a new EventPlatformForwarder
 func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
-	var forwarder eventplatform.Forwarder
+	var forwarder *defaultEventPlatformForwarder
 
 	if deps.Params.UseNoopEventPlatformForwarder {
-		forwarder = NewNoopEventPlatformForwarder(deps.Hostname)
+		forwarder = newNoopEventPlatformForwarder(deps.Hostname)
 	} else if deps.Params.UseEventPlatformForwarder {
-		forwarder = newDefaultEventPlatformForwarder(deps.EventPlatformReceiver)
+		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver)
 	}
 	if forwarder == nil {
 		return optional.NewNoneOptionPtr[eventplatform.Forwarder]()
 	}
+	deps.Lc.Append(fx.Hook{
+		OnStart: func(context.Context) error {
+			forwarder.Start()
+			return nil
+		},
+		OnStop: func(context.Context) error {
+			forwarder.Stop()
+			return nil
+		},
+	})
 	return optional.NewOptionPtr[eventplatform.Forwarder](forwarder)
 }
 
 // NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events
 // will build up in each pipeline channel without being forwarded to the intake
 func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component) eventplatform.Forwarder {
-	f := newDefaultEventPlatformForwarder(eventplatformreceiverimpl.NewReceiver(hostname))
+	return newNoopEventPlatformForwarder(hostname)
+}
+
+func newNoopEventPlatformForwarder(hostname hostnameinterface.Component) *defaultEventPlatformForwarder {
+	f := newDefaultEventPlatformForwarder(pkgconfig.Datadog, eventplatformreceiverimpl.NewReceiver(hostname))
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil

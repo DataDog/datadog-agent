@@ -7,6 +7,7 @@
 package autosuppression
 
 import (
+	"slices"
 	"strconv"
 	"sync"
 
@@ -16,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-// IsAllowAutosuppressionRule returns true if the given rule allows auto suppression
-func IsAllowAutosuppressionRule(rule *rules.Rule) bool {
+// isAllowAutosuppressionRule returns true if the given rule allows auto suppression
+func isAllowAutosuppressionRule(rule *rules.Rule) bool {
 	if val, ok := rule.Definition.GetTag("allow_autosuppression"); ok {
 		b, err := strconv.ParseBool(val)
 		return err == nil && b
@@ -25,92 +26,106 @@ func IsAllowAutosuppressionRule(rule *rules.Rule) bool {
 	return false
 }
 
-// AutoSuppression is an interface for auto suppression
-type AutoSuppression interface {
-	// CanSuppress returns true if the given event can be suppressed
-	CanSuppress(event *model.Event) bool
-	// Apply resets the auto suppression stats based on the given ruleset
-	Apply(ruleSet *rules.RuleSet)
-	// Inc increments the auto suppression stats for the given rule ID
-	Inc(ruleID string)
-	// GetStats returns auto suppressions stats, if enabled
-	GetStats() map[string]int64
+const (
+	securityProfileTreeType = "security_profile"
+	activityDumpTreeType    = "activity_dump"
+)
+
+// Opts holds options for auto suppression
+type Opts struct {
+	SecurityProfileAutoSuppressionEnabled bool
+	ActivityDumpAutoSuppressionEnabled    bool
+	EventTypes                            []model.EventType
 }
 
-type autoSuppression struct {
-	eventTypes map[model.EventType]struct{}
-	statsLock  sync.RWMutex
-	stats      map[string]*atomic.Int64
+// StatsTags holds tags for auto suppression stats
+type StatsTags struct {
+	RuleID   string
+	TreeType string
 }
 
-func (s *autoSuppression) CanSuppress(event *model.Event) bool {
-	_, ok := s.eventTypes[event.GetEventType()]
-	return ok
+// AutoSuppression is a struct that encapsulates the auto suppression logic
+type AutoSuppression struct {
+	once             sync.Once
+	opts             Opts
+	statsLock        sync.RWMutex
+	stats            map[StatsTags]*atomic.Int64
+	enabledTreeTypes []string
 }
 
-func (s *autoSuppression) Apply(ruleSet *rules.RuleSet) {
-	newStats := make(map[string]*atomic.Int64)
+// Init initializes the auto suppression with the given options
+func (as *AutoSuppression) Init(opts Opts) {
+	as.once.Do(func() {
+		as.opts = opts
+		as.stats = make(map[StatsTags]*atomic.Int64)
+		if opts.SecurityProfileAutoSuppressionEnabled {
+			as.enabledTreeTypes = append(as.enabledTreeTypes, securityProfileTreeType)
+		}
+		if opts.ActivityDumpAutoSuppressionEnabled {
+			as.enabledTreeTypes = append(as.enabledTreeTypes, activityDumpTreeType)
+		}
+	})
+}
+
+// Suppresses returns true if the event should be suppressed for the given rule, false otherwise. It also counts statistics depending on this result
+func (as *AutoSuppression) Suppresses(rule *rules.Rule, event *model.Event) bool {
+	if as.opts.SecurityProfileAutoSuppressionEnabled &&
+		event.IsInProfile() &&
+		slices.Contains(as.opts.EventTypes, event.GetEventType()) &&
+		isAllowAutosuppressionRule(rule) {
+		as.count(rule.ID, securityProfileTreeType)
+		return true
+	} else if as.opts.ActivityDumpAutoSuppressionEnabled &&
+		event.HasActiveActivityDump() &&
+		slices.Contains(as.opts.EventTypes, event.GetEventType()) &&
+		isAllowAutosuppressionRule(rule) {
+		as.count(rule.ID, activityDumpTreeType)
+		return true
+	}
+	return false
+}
+
+// Apply resets the auto suppression stats based on the given ruleset
+func (as *AutoSuppression) Apply(ruleSet *rules.RuleSet) {
+	tags := StatsTags{}
+	newStats := make(map[StatsTags]*atomic.Int64)
 	for _, rule := range ruleSet.GetRules() {
-		if IsAllowAutosuppressionRule(rule) {
-			newStats[rule.ID] = atomic.NewInt64(0)
+		if isAllowAutosuppressionRule(rule) {
+			tags.RuleID = rule.ID
+			for _, treeType := range as.enabledTreeTypes {
+				tags.TreeType = treeType
+				newStats[tags] = atomic.NewInt64(0)
+			}
 		}
 	}
 
-	s.statsLock.Lock()
-	s.stats = newStats
-	s.statsLock.Unlock()
+	as.statsLock.Lock()
+	as.stats = newStats
+	as.statsLock.Unlock()
 }
 
-func (s *autoSuppression) Inc(ruleID string) {
-	s.statsLock.RLock()
-	defer s.statsLock.RUnlock()
+func (as *AutoSuppression) count(ruleID string, treeType string) {
+	as.statsLock.RLock()
+	defer as.statsLock.RUnlock()
 
-	if stat, ok := s.stats[ruleID]; ok {
+	tags := StatsTags{
+		RuleID:   ruleID,
+		TreeType: treeType,
+	}
+
+	if stat, ok := as.stats[tags]; ok {
 		stat.Inc()
 	}
 }
 
-func (s *autoSuppression) GetStats() map[string]int64 {
-	s.statsLock.RLock()
-	defer s.statsLock.RUnlock()
+// GetStats returns the auto suppressions stats
+func (as *AutoSuppression) GetStats() map[StatsTags]int64 {
+	as.statsLock.RLock()
+	defer as.statsLock.RUnlock()
 
-	stats := make(map[string]int64, len(s.stats))
-	for ruleID, stat := range s.stats {
-		stats[string(ruleID)] = stat.Swap(0)
+	stats := make(map[StatsTags]int64, len(as.stats))
+	for tags, stat := range as.stats {
+		stats[tags] = stat.Swap(0)
 	}
 	return stats
-}
-
-// Enable returns an AutoSuppression that can suppress the given event types
-func Enable(eventTypes []model.EventType) AutoSuppression {
-	as := &autoSuppression{
-		eventTypes: make(map[model.EventType]struct{}, len(eventTypes)),
-		stats:      make(map[string]*atomic.Int64),
-	}
-
-	for _, eventType := range eventTypes {
-		as.eventTypes[eventType] = struct{}{}
-	}
-
-	return as
-}
-
-type noOpAutoSuppression struct{}
-
-func (s *noOpAutoSuppression) CanSuppress(_ *model.Event) bool {
-	return false
-}
-
-func (s *noOpAutoSuppression) Apply(_ *rules.RuleSet) {}
-
-func (s *noOpAutoSuppression) Inc(_ string) {}
-
-func (s *noOpAutoSuppression) GetStats() map[string]int64 {
-	return nil
-}
-
-// Disable returns an AutoSuppression that does nothing,
-// it is used when auto suppression is disabled
-func Disable() AutoSuppression {
-	return &noOpAutoSuppression{}
 }

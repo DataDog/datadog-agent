@@ -219,12 +219,17 @@ func NewTracer(config *config.Config) (Tracer, error) {
 	if config.ClosedChannelSize > 0 {
 		closedChannelSize = config.ClosedChannelSize
 	}
-	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
+	var connCloseEventHandler ddebpf.EventHandler
+	if config.RingBufferSupportedNPM() {
+		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
+	} else {
+		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
+	}
 	var m *manager.Manager
 	//nolint:revive // TODO(NET) Fix revive linter
 	var tracerType TracerType = TracerTypeFentry
 	var closeTracerFn func()
-	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, perfHandlerTCP)
+	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err
@@ -234,7 +239,7 @@ func NewTracer(config *config.Config) (Tracer, error) {
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
 		var kprobeTracerType kprobe.TracerType
-		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, perfHandlerTCP)
+		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler)
 		if err != nil {
 			return nil, err
 		}
@@ -245,10 +250,10 @@ func NewTracer(config *config.Config) (Tracer, error) {
 
 	batchMgr, err := newConnBatchManager(m)
 	if err != nil {
-		return nil, fmt.Errorf("could not create connection batch maanager: %w", err)
+		return nil, fmt.Errorf("could not create connection batch manager: %w", err)
 	}
 
-	closeConsumer := newTCPCloseConsumer(perfHandlerTCP, batchMgr)
+	closeConsumer := newTCPCloseConsumer(connCloseEventHandler, batchMgr)
 
 	tr := &tracer{
 		m:              m,
@@ -658,12 +663,16 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		Monotonic: network.StatCounters{
 			SentBytes:   s.Sent_bytes,
 			RecvBytes:   s.Recv_bytes,
-			SentPackets: s.Sent_packets,
-			RecvPackets: s.Recv_packets,
+			SentPackets: uint64(s.Sent_packets),
+			RecvPackets: uint64(s.Recv_packets),
 		},
 		LastUpdateEpoch: s.Timestamp,
 		IsAssured:       s.IsAssured(),
 		Cookie:          network.StatCookie(s.Cookie),
+	}
+
+	if s.Duration <= uint64(math.MaxInt64) {
+		stats.Duration = time.Duration(s.Duration) * time.Nanosecond
 	}
 
 	stats.ProtocolStack = protocols.Stack{

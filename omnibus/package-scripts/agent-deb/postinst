@@ -65,6 +65,38 @@ install_method:
     echo "$install_info_content" > $CONFIG_DIR/install_info
 fi
 
+set +e
+generate_install_id()
+{
+    # Try generating a UUID based on /proc/sys/kernel/random/uuid
+    uuid=$(cat /proc/sys/kernel/random/uuid 2>/dev/null)
+    # If that does not work, then try uuidgen
+    if [ ${#uuid} -ne 36 ]; then
+        uuid=$(uuidgen 2>/dev/null)
+    fi
+    # Convert to lowercase
+    uuid=$(echo "$uuid" | tr '[:upper:]' '[:lower:]')
+    printf "$uuid"
+}
+
+generate_install_signature()
+{
+    install_id="$1"
+    install_type="$2"
+    install_time="$3"
+    printf "{\"install_id\":\"$install_id\",\"install_type\":\"$install_type\",\"install_time\":$install_time}"
+}
+
+if [ ! -f "$CONFIG_DIR/install.json" ]; then
+    install_id=$(generate_install_id)
+    install_type="linux_manual_with_apt"
+    install_time=$(date +%s)
+    install_signature=$(generate_install_signature "$install_id" "$install_type" "$install_time")
+    echo "$install_signature" > $CONFIG_DIR/install.json
+    chown -R dd-agent:dd-agent ${CONFIG_DIR}
+fi
+set -e
+
 # Set proper rights to the dd-agent user
 chown -R dd-agent:dd-agent ${CONFIG_DIR}
 chown -R dd-agent:dd-agent ${LOG_DIR}

@@ -6,12 +6,12 @@
 #include "protocols/http2/decoding-defs.h"
 #include "protocols/http2/defs.h"
 #include "protocols/http2/helpers.h"
+#include "protocols/http2/skb-common.h"
 #include "protocols/grpc/defs.h"
 
-#define GRPC_MAX_FRAMES_TO_FILTER 10
-// We only try to process one frame at the moment. Trying to process more yields
-// a verifier issue due to the way clang manages a pointer to the stack.
-#define GRPC_MAX_FRAMES_TO_PROCESS 1
+// Number of frames to filter in a single packet, while looking for the first headers frame.
+#define GRPC_MAX_FRAMES_TO_FILTER 90
+// Number of headers to process in a headers frame, while looking for the content-type header.
 #define GRPC_MAX_HEADERS_TO_PROCESS 10
 
 // The HPACK specification defines the specific Huffman encoding used for string
@@ -21,23 +21,7 @@
 #define GRPC_ENCODED_CONTENT_TYPE "\x1d\x75\xd0\x62\x0d\x26\x3d\x4c\x4d\x65\x64"
 #define GRPC_CONTENT_TYPE_LEN (sizeof(GRPC_ENCODED_CONTENT_TYPE) - 1)
 
-static __always_inline void check_and_skip_magic(const struct __sk_buff *skb, skb_info_t *info) {
-    if (info->data_off + HTTP2_MARKER_SIZE >= skb->len) {
-        return;
-    }
-
-    char buf[HTTP2_MARKER_SIZE];
-    bpf_skb_load_bytes(skb, info->data_off, buf, sizeof(buf));
-    if (is_http2_preface(buf, sizeof(buf))) {
-        info->data_off += HTTP2_MARKER_SIZE;
-    }
-}
-
-static __always_inline bool is_encoded_grpc_content_type(const char *content_type_buf) {
-    return !bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_LEN);
-}
-
-static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
+static __always_inline grpc_status_t is_content_type_grpc(struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
     // We only care about indexed names
     if (idx != HTTP2_CONTENT_TYPE_IDX) {
         return PAYLOAD_UNDETERMINED;
@@ -62,39 +46,22 @@ static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff
     bpf_skb_load_bytes(skb, skb_info->data_off, content_type_buf, GRPC_CONTENT_TYPE_LEN);
     skb_info->data_off += len.length;
 
-    return is_encoded_grpc_content_type(content_type_buf) ? PAYLOAD_GRPC : PAYLOAD_NOT_GRPC;
-}
-
-// skip_header increments skb_info->data_off so that it skips the remainder of
-// the current header (of which we already parsed the index value).
-static __always_inline void skip_literal_header(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
-    string_literal_header_t len;
-    if (skb_info->data_off + sizeof(len) > frame_end) {
-        return;
-    }
-
-    bpf_skb_load_bytes(skb, skb_info->data_off, &len, sizeof(len));
-    skb_info->data_off += sizeof(len) + len.length;
-
-    // If the index is zero, that means the header name is not indexed, so we
-    // have to skip both the name and the index.
-    if (!idx && skb_info->data_off + sizeof(len) <= frame_end) {
-        bpf_skb_load_bytes(skb, skb_info->data_off, &len, sizeof(len));
-        skb_info->data_off += sizeof(len) + len.length;
-    }
-
-    return;
+    return bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_LEN) == 0? PAYLOAD_GRPC : PAYLOAD_NOT_GRPC;
 }
 
 // Scan headers goes through the headers in a frame, and tries to find a
 // content-type header or a method header.
-static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_length) {
-    field_index_t idx;
+static __always_inline grpc_status_t scan_headers(struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_length) {
+    __u8 current_ch;
     grpc_status_t status = PAYLOAD_UNDETERMINED;
 
+    __u64 index = 0;
+    __u64 max_bits = 0;
     __u32 frame_end = skb_info->data_off + frame_length;
     // Check that frame_end does not go beyond the skb
     frame_end = frame_end < skb->len + 1 ? frame_end : skb->len + 1;
+
+    handle_dynamic_table_update(skb, skb_info);
 
 #pragma unroll(GRPC_MAX_HEADERS_TO_PROCESS)
     for (__u8 i = 0; i < GRPC_MAX_HEADERS_TO_PROCESS; ++i) {
@@ -102,33 +69,28 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
             break;
         }
 
-        bpf_skb_load_bytes(skb, skb_info->data_off, &idx.raw, sizeof(idx.raw));
-        skb_info->data_off += sizeof(idx.raw);
+        bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
+        skb_info->data_off++;
 
-        if (is_literal(idx.raw)) {
-            // Having a literal, with an index pointing to a ":method" key means a
-            // request method that is not POST or GET. gRPC only uses POST, so
-            // finding a :method here is an indicator of non-GRPC content.
-            if (idx.literal.index == kGET || idx.literal.index == kPOST) {
-                status = PAYLOAD_NOT_GRPC;
-                break;
-            }
-
-            status = is_content_type_grpc(skb, skb_info, frame_end, idx.literal.index);
-            if (status != PAYLOAD_UNDETERMINED) {
-                break;
-            }
-
-            skip_literal_header(skb, skb_info, frame_end, idx.literal.index);
-
+        if ((current_ch & 128) != 0) {
+            // indexed character, so we can skip it.
             continue;
         }
 
-        // The header is fully indexed, check if it is a :method GET header, in
-        // which case we can tell that this is not gRPC, as it uses only POST
-        // requests.
-        if (is_indexed(idx.raw) && idx.indexed.index == kGET) {
-            status = PAYLOAD_NOT_GRPC;
+        // We either have literal header with indexing, literal header without indexing or literal header never indexed.
+        // if it is literal header with indexing, the max bits are 6, for the other two, the max bits are 4.
+        max_bits = (current_ch & 192) == 64 ? MAX_6_BITS : MAX_4_BITS;
+        index = 0;
+        if (!read_hpack_int_with_given_current_char(skb, skb_info, current_ch, max_bits, &index)) {
+            break;
+        }
+
+        status = is_content_type_grpc(skb, skb_info, frame_end, index);
+        if (status != PAYLOAD_UNDETERMINED) {
+            break;
+        }
+
+        if (!process_and_skip_literal_headers(skb, skb_info, index)){
             break;
         }
     }
@@ -142,24 +104,22 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
 // - a "Content-type" header. If so, try to see if it begins with "application/grpc"
 //.- a GET method. GRPC only uses POST methods, the presence of any other methods
 //   means this is not GRPC.
-static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const skb_info_t *skb_info) {
-    grpc_status_t status = PAYLOAD_UNDETERMINED;
+static __always_inline grpc_status_t is_grpc(struct __sk_buff *skb, const skb_info_t *skb_info) {
     char frame_buf[HTTP2_FRAME_HEADER_SIZE];
     http2_frame_t current_frame;
 
-    frame_info_t frames[GRPC_MAX_FRAMES_TO_PROCESS];
-    u32 frames_count = 0;
+    bool found_headers = false;
 
     // Make a mutable copy of skb_info
     skb_info_t info = *skb_info;
 
     // Check if the skb starts with the HTTP2 magic, advance the info->data_off
     // to the first byte after it if the magic is present.
-    check_and_skip_magic(skb, &info);
+    skip_preface(skb, &info);
 
     // Loop through the HTTP2 frames in the packet
 #pragma unroll(GRPC_MAX_FRAMES_TO_FILTER)
-    for (__u8 i = 0; i < GRPC_MAX_FRAMES_TO_FILTER && frames_count < GRPC_MAX_FRAMES_TO_PROCESS; ++i) {
+    for (__u8 i = 0; i < GRPC_MAX_FRAMES_TO_FILTER; ++i) {
         if (info.data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
             break;
         }
@@ -172,24 +132,17 @@ static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const 
         }
 
         if (current_frame.type == kHeadersFrame) {
-            frames[frames_count++] = (frame_info_t){ .offset = info.data_off, .length = current_frame.length };
+            found_headers = true;
+            break;
         }
 
         info.data_off += current_frame.length;
     }
 
-#pragma unroll(GRPC_MAX_FRAMES_TO_PROCESS)
-    for (__u8 i = 0; i < GRPC_MAX_FRAMES_TO_PROCESS && status == PAYLOAD_UNDETERMINED; ++i) {
-        if (i >= frames_count) {
-            break;
-        }
-
-        info.data_off = frames[i].offset;
-
-        status = scan_headers(skb, &info, frames[i].length);
+    if (!found_headers) {
+        return PAYLOAD_UNDETERMINED;
     }
-
-    return status;
+    return scan_headers(skb, &info, current_frame.length);
 }
 
 #endif

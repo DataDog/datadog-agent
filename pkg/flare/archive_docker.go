@@ -16,16 +16,18 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/docker/docker/api/types/container"
 )
 
 const dockerCommandMaxLength = 29
 
-func getDockerSelfInspect() ([]byte, error) {
+func getDockerSelfInspect(wmeta optional.Option[workloadmeta.Component]) ([]byte, error) {
 	if !config.IsContainerized() {
 		return nil, fmt.Errorf("The Agent is not containerized")
 	}
@@ -35,7 +37,7 @@ func getDockerSelfInspect() ([]byte, error) {
 		return nil, err
 	}
 
-	selfContainerID, err := metrics.GetProvider().GetMetaCollector().GetSelfContainerID()
+	selfContainerID, err := metrics.GetProvider(wmeta).GetMetaCollector().GetSelfContainerID()
 	if err != nil {
 		return nil, fmt.Errorf("Unable to determine self container id, err: %w", err)
 	}

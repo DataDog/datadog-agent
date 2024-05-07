@@ -2,7 +2,7 @@
 Invoke entrypoint, import here all the tasks we want to make available
 """
 
-from invoke import Collection
+from invoke import Collection, Task
 
 from tasks import (
     agent,
@@ -13,6 +13,7 @@ from tasks import (
     cluster_agent_cloudfoundry,
     components,
     cws_instrumentation,
+    devcontainer,
     diff,
     docker_tasks,
     docs,
@@ -22,28 +23,36 @@ from tasks import (
     epforwarder,
     fakeintake,
     github_tasks,
+    installer,
     kmt,
+    linter,
     modules,
     msi,
     new_e2e_tests,
     notify,
+    omnibus,
+    otel_agent,
+    owners,
     package,
     pipeline,
+    pre_commit,
     process_agent,
     release,
     rtloader,
+    sds,
     security_agent,
     selinux,
     system_probe,
     systray,
     trace_agent,
-    updater,
     vscode,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
+from tasks.custom_task.custom_task import custom__call__
 from tasks.fuzz import fuzz
 from tasks.go import (
+    check_go_mod_replaces,
     check_go_version,
     check_mod_tidy,
     deps,
@@ -51,7 +60,6 @@ from tasks.go import (
     generate_licenses,
     generate_protobuf,
     go_fix,
-    golangci_lint,
     internal_deps_checker,
     lint_licenses,
     reset,
@@ -63,24 +71,24 @@ from tasks.go_test import (
     get_impacted_packages,
     get_modified_packages,
     integration_tests,
+    lint_go,
     send_unit_tests_stats,
     test,
 )
-from tasks.install_tasks import download_tools, install_shellcheck, install_tools
+from tasks.install_tasks import download_tools, install_devcontainer_cli, install_shellcheck, install_tools
 from tasks.junit_tasks import junit_upload
-from tasks.libs.go_workspaces import handle_go_work
-from tasks.linter_tasks import lint_copyrights, lint_filenames, lint_go, lint_python
-from tasks.pr_checks import lint_releasenote
+from tasks.libs.common.go_workspaces import handle_go_work
 from tasks.show_linters_issues import show_linters_issues
 from tasks.unit_tests import invoke_unit_tests
 from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
 
+Task.__call__ = custom__call__
+
 # the root namespace
 ns = Collection()
 
 # add single tasks to the root
-ns.add_task(golangci_lint)
 ns.add_task(test)
 ns.add_task(codecov)
 ns.add_task(integration_tests)
@@ -89,14 +97,10 @@ ns.add_task(deps_vendored)
 ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
 ns.add_task(lint_components)
+ns.add_task(lint_go)
 ns.add_task(lint_fxutil_oneshot_test)
 ns.add_task(generate_protobuf)
 ns.add_task(reset)
-ns.add_task(lint_copyrights),
-ns.add_task(lint_releasenote)
-ns.add_task(lint_filenames)
-ns.add_task(lint_python)
-ns.add_task(lint_go)
 ns.add_task(show_linters_issues)
 ns.add_task(go_version)
 ns.add_task(update_go)
@@ -104,10 +108,12 @@ ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
+ns.add_task(install_devcontainer_cli)
 ns.add_task(download_tools)
 ns.add_task(install_tools)
 ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
+ns.add_task(check_go_mod_replaces)
 ns.add_task(tidy_all)
 ns.add_task(internal_deps_checker)
 ns.add_task(check_go_version)
@@ -116,7 +122,6 @@ ns.add_task(fuzz)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
 ns.add_task(get_impacted_packages)
-ns.add_task(modules.go_work)
 
 ns.add_task(get_modified_packages)
 ns.add_task(send_unit_tests_stats)
@@ -136,11 +141,14 @@ ns.add_collection(dogstatsd)
 ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(epforwarder)
+ns.add_collection(linter)
 ns.add_collection(msi)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(notify)
+ns.add_collection(otel_agent)
+ns.add_collection(sds)
 ns.add_collection(selinux)
 ns.add_collection(systray)
 ns.add_collection(release)
@@ -154,7 +162,12 @@ ns.add_collection(new_e2e_tests)
 ns.add_collection(fakeintake)
 ns.add_collection(kmt)
 ns.add_collection(diff)
-ns.add_collection(updater)
+ns.add_collection(installer)
+ns.add_collection(owners)
+ns.add_collection(modules)
+ns.add_collection(pre_commit)
+ns.add_collection(devcontainer)
+ns.add_collection(omnibus)
 ns.configure(
     {
         'run': {

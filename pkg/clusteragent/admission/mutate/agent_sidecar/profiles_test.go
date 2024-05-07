@@ -146,6 +146,7 @@ func TestApplyProfileOverrides(t *testing.T) {
 		baseContainer     *corev1.Container
 		expectedContainer *corev1.Container
 		expectError       bool
+		expectMutated     bool
 	}{
 		{
 			name:              "nil container should be skipped",
@@ -153,6 +154,7 @@ func TestApplyProfileOverrides(t *testing.T) {
 			baseContainer:     nil,
 			expectedContainer: nil,
 			expectError:       true,
+			expectMutated:     false,
 		},
 		{
 			name: "apply profile overrides",
@@ -191,7 +193,8 @@ func TestApplyProfileOverrides(t *testing.T) {
 					},
 				},
 			},
-			expectError: false,
+			expectError:   false,
+			expectMutated: true,
 		},
 		{
 			name:         "no profile provided",
@@ -210,7 +213,8 @@ func TestApplyProfileOverrides(t *testing.T) {
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
 				},
 			},
-			expectError: false,
+			expectError:   false,
+			expectMutated: false,
 		},
 		{
 			name: "empty profile provided",
@@ -231,7 +235,8 @@ func TestApplyProfileOverrides(t *testing.T) {
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
 				},
 			},
-			expectError: false,
+			expectError:   false,
+			expectMutated: false,
 		},
 		{
 			name: "apply profile overrides with ValueFrom",
@@ -264,7 +269,8 @@ func TestApplyProfileOverrides(t *testing.T) {
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("0.5"), "memory": resource.MustParse("256Mi")},
 				},
 			},
-			expectError: false,
+			expectError:   false,
+			expectMutated: true,
 		},
 		{
 			name: "profile overrides should override any existing configuration",
@@ -308,7 +314,8 @@ func TestApplyProfileOverrides(t *testing.T) {
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("0.5"), "memory": resource.MustParse("256Mi")},
 				},
 			},
-			expectError: false,
+			expectError:   false,
+			expectMutated: true,
 		},
 		{
 			name: "more than one profile provided",
@@ -347,13 +354,16 @@ func TestApplyProfileOverrides(t *testing.T) {
 			baseContainer:     &corev1.Container{},
 			expectedContainer: &corev1.Container{},
 			expectError:       true,
+			expectMutated:     false,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
-			err := applyProfileOverrides(test.baseContainer)
+			mutated, err := applyProfileOverrides(test.baseContainer)
+
+			assert.Equal(tt, test.expectMutated, mutated)
 
 			if test.expectError {
 				assert.Error(tt, err)

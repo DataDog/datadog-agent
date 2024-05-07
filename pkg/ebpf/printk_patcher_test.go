@@ -89,7 +89,7 @@ func TestPatchPrintkNewline(t *testing.T) {
 
 	// The logdebugtest program is a kprobe on do_vfs_ioctl, so we can use that to trigger the
 	// it and check that the output is correct. We do not actually care about the arguments.
-	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(0), 0, uintptr(0)); errno != 0 {
+	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(0), 0xfafafefe, uintptr(0)); errno != 0 {
 		// Only valid return value is ENOTTY (invalid ioctl for device) because indeed we
 		// are not doing any valid ioctl, we just want to trigger the kprobe
 		require.Equal(t, syscall.ENOTTY, errno)
@@ -106,10 +106,26 @@ func TestPatchPrintkNewline(t *testing.T) {
 
 	foundLines := []string{}
 
-	for _, line := range expectedLines {
-		actualLine, err := traceReader.ReadString('\n')
-		foundLines = append(foundLines, actualLine)
-		require.NoError(t, err)
+	for i, line := range expectedLines {
+		// We allow up to two lines that don't match, to avoid failures with other tests outputting to
+		// the trace pipe.
+		var actualLine string
+		// Only read one line, don't allow failures as our output should be coming all together.
+		// If we ignored failing lines, we would miss the case where our patcher doesn't work and
+		// outputs an extra newline.
+		maxLinesToRead := 1
+		if i == 0 {
+			maxLinesToRead = 1000 // Except for the first line, we might need to flush previous trace pipe output
+		}
+		for readLines := 0; readLines < maxLinesToRead; readLines++ {
+			actualLine, err = traceReader.ReadString('\n')
+			require.NoError(t, err)
+			foundLines = append(foundLines, actualLine)
+
+			if strings.Contains(actualLine, line) {
+				break
+			}
+		}
 		require.Contains(t, actualLine, line, "line %s not found in output, all lines until now:\n%s", line, strings.Join(foundLines, ""))
 	}
 }

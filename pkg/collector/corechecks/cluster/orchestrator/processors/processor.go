@@ -8,10 +8,10 @@
 package processors
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
 	jsoniter "github.com/json-iterator/go"
 	"k8s.io/apimachinery/pkg/types"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
@@ -24,16 +24,63 @@ import (
 // the standard library does.
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
-// ProcessorContext holds resource processing attributes
-type ProcessorContext struct {
-	APIClient  *apiserver.APIClient
-	Cfg        *config.OrchestratorConfig
-	ClusterID  string
-	HostName   string
-	MsgGroupID int32
-	NodeType   pkgorchestratormodel.NodeType
+// ProcessorContext implements context for processor
+type ProcessorContext interface {
+	GetOrchestratorConfig() *config.OrchestratorConfig
+	GetNodeType() pkgorchestratormodel.NodeType
+	GetMsgGroupID() int32
+	IsManifestProducer() bool
+}
+
+// BaseProcessorContext is the base context for all processors
+type BaseProcessorContext struct {
+	Cfg              *config.OrchestratorConfig
+	NodeType         pkgorchestratormodel.NodeType
+	MsgGroupID       int32
+	ClusterID        string
+	ManifestProducer bool
+}
+
+// GetOrchestratorConfig returns the orchestrator config
+func (c *BaseProcessorContext) GetOrchestratorConfig() *config.OrchestratorConfig {
+	return c.Cfg
+}
+
+// GetNodeType returns the node type
+func (c *BaseProcessorContext) GetNodeType() pkgorchestratormodel.NodeType {
+	return c.NodeType
+}
+
+// GetMsgGroupID returns the message group ID
+func (c *BaseProcessorContext) GetMsgGroupID() int32 {
+	return c.MsgGroupID
+}
+
+// GetClusterID returns the cluster ID
+func (c *BaseProcessorContext) GetClusterID() string {
+	return c.ClusterID
+}
+
+// IsManifestProducer returns true if the collector is a manifest producer
+func (c *BaseProcessorContext) IsManifestProducer() bool {
+	return c.ManifestProducer
+}
+
+// K8sProcessorContext holds k8s resource processing attributes
+type K8sProcessorContext struct {
+	BaseProcessorContext
+	APIClient *apiserver.APIClient
+	HostName  string
 	//nolint:revive // TODO(CAPP) Fix revive linter
 	ApiGroupVersionTag string
+}
+
+// ECSProcessorContext holds ECS resource processing attributes
+type ECSProcessorContext struct {
+	BaseProcessorContext
+	AWSAccountID int
+	ClusterName  string
+	Region       string
 }
 
 // Handlers is the interface that is to be implemented for every resource type
@@ -43,48 +90,48 @@ type Handlers interface {
 	// AfterMarshalling runs before the Processor marshals the resource to
 	// generate a manifest. If skip is true then the resource processing loop
 	// moves on to the next resource.
-	AfterMarshalling(ctx *ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool)
+	AfterMarshalling(ctx ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool)
 
 	// BeforeCacheCheck runs before the Processor does a cache lookup for the
 	// resource. If skip is true then the resource processing loop moves on to
 	// the next resource.
-	BeforeCacheCheck(ctx *ProcessorContext, resource, resourceModel interface{}) (skip bool)
+	BeforeCacheCheck(ctx ProcessorContext, resource, resourceModel interface{}) (skip bool)
 
 	// BeforeMarshalling runs before the Processor marshals the resource to
 	// generate a manifest. If skip is true then the resource processing loop
 	// moves on to the next resource.
-	BeforeMarshalling(ctx *ProcessorContext, resource, resourceModel interface{}) (skip bool)
+	BeforeMarshalling(ctx ProcessorContext, resource, resourceModel interface{}) (skip bool)
 
 	// BuildMessageBody is used to build a message containing a chunk of
 	// resource models of a certain size. If skip is true then the resource
 	// processing loop moves on to the next resource.
-	BuildMessageBody(ctx *ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody
+	BuildMessageBody(ctx ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody
 
 	// BuildManifestMessageBody is used to build a message containing a chunk of
 	// resource manifests of a certain size.
-	BuildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody
+	BuildManifestMessageBody(ctx ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody
 
 	// ExtractResource is used to build a resource model from the raw
 	// resource representation.
-	ExtractResource(ctx *ProcessorContext, resource interface{}) (resourceModel interface{})
+	ExtractResource(ctx ProcessorContext, resource interface{}) (resourceModel interface{})
 
 	// ResourceList is used to convert a list of raw resources to a generic list
 	// that can be used throughout a Processor.
-	ResourceList(ctx *ProcessorContext, list interface{}) (resources []interface{})
+	ResourceList(ctx ProcessorContext, list interface{}) (resources []interface{})
 
 	// ResourceUID returns the resource UID.
-	ResourceUID(ctx *ProcessorContext, resource interface{}) types.UID
+	ResourceUID(ctx ProcessorContext, resource interface{}) types.UID
 
 	// ResourceVersion returns the resource Version.
-	ResourceVersion(ctx *ProcessorContext, resource, resourceModel interface{}) string
+	ResourceVersion(ctx ProcessorContext, resource, resourceModel interface{}) string
 
 	// ScrubBeforeExtraction replaces sensitive information in the resource
 	// before resource extraction.
-	ScrubBeforeExtraction(ctx *ProcessorContext, resource interface{})
+	ScrubBeforeExtraction(ctx ProcessorContext, resource interface{})
 
 	// ScrubBeforeMarshalling replaces sensitive information in the resource
 	// before resource marshalling.
-	ScrubBeforeMarshalling(ctx *ProcessorContext, resource interface{})
+	ScrubBeforeMarshalling(ctx ProcessorContext, resource interface{})
 }
 
 // Processor is a generic resource processing component. It relies on a set of
@@ -110,8 +157,13 @@ func NewProcessor(h Handlers) *Processor {
 	}
 }
 
+// Handlers returns handlers used by the processor.
+func (p *Processor) Handlers() Handlers {
+	return p.h
+}
+
 // Process is used to process a list of resources of a certain type.
-func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processResult ProcessResult, processed int) {
+func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResult ProcessResult, processed int) {
 	// This default allows detection of panic recoveries.
 	processed = -1
 
@@ -138,7 +190,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 		resourceUID := p.h.ResourceUID(ctx, resource)
 		resourceVersion := p.h.ResourceVersion(ctx, resource, resourceMetadataModel)
 
-		if orchestrator.SkipKubernetesResource(resourceUID, resourceVersion, ctx.NodeType) {
+		if orchestrator.SkipKubernetesResource(resourceUID, resourceVersion, ctx.GetNodeType()) {
 			continue
 		}
 
@@ -158,7 +210,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 		}
 
 		// Stop sending yaml if manifest collecion is enabled
-		if !ctx.Cfg.IsManifestCollectionEnabled {
+		if !ctx.GetOrchestratorConfig().IsManifestCollectionEnabled {
 			// Execute code after marshalling.
 			if skip := p.h.AfterMarshalling(ctx, resource, resourceMetadataModel, yaml); skip {
 				continue
@@ -169,7 +221,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 
 		// Add resource manifest
 		resourceManifestModels = append(resourceManifestModels, &model.Manifest{
-			Type:            int32(ctx.NodeType),
+			Type:            int32(ctx.GetNodeType()),
 			Uid:             string(resourceUID),
 			ResourceVersion: resourceVersion,
 			Content:         yaml,
@@ -180,17 +232,19 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 
 	processResult = ProcessResult{
 		MetadataMessages: ChunkMetadata(ctx, p, resourceMetadataModels, resourceManifestModels),
-		ManifestMessages: ChunkManifest(ctx, p.h.BuildManifestMessageBody, resourceManifestModels),
+	}
+	if ctx.IsManifestProducer() {
+		processResult.ManifestMessages = ChunkManifest(ctx, p.h.BuildManifestMessageBody, resourceManifestModels)
 	}
 
 	return processResult, len(resourceMetadataModels)
 }
 
 // ChunkManifest is to chunk Manifest payloads
-func ChunkManifest(ctx *ProcessorContext, buildManifestBody func(ctx *ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody, resourceManifestModels []interface{}) []model.MessageBody {
+func ChunkManifest(ctx ProcessorContext, buildManifestBody func(ctx ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody, resourceManifestModels []interface{}) []model.MessageBody {
 	// Chunking resources based on the serialized size of their manifest and maximum messages number
 	// Chunk manifest messages and use itself as weight indicator
-	chunks := chunkOrchestratorPayloadsBySizeAndWeight(resourceManifestModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes)
+	chunks := chunkOrchestratorPayloadsBySizeAndWeight(resourceManifestModels, resourceManifestModels, ctx.GetOrchestratorConfig().MaxPerMessage, ctx.GetOrchestratorConfig().MaxWeightPerMessageBytes)
 
 	chunkCount := len(chunks)
 	manifestMessages := make([]model.MessageBody, 0, chunkCount)
@@ -203,10 +257,10 @@ func ChunkManifest(ctx *ProcessorContext, buildManifestBody func(ctx *ProcessorC
 }
 
 // ChunkMetadata is to chunk Metadata payloads
-func ChunkMetadata(ctx *ProcessorContext, p *Processor, resourceMetadataModels, resourceManifestModels []interface{}) []model.MessageBody {
+func ChunkMetadata(ctx ProcessorContext, p *Processor, resourceMetadataModels, resourceManifestModels []interface{}) []model.MessageBody {
 	// Chunking resources based on the serialized size of their manifest and maximum messages number
 	// Chunk metadata messages and use resourceManifestModels as weight indicator
-	chunks := chunkOrchestratorPayloadsBySizeAndWeight(resourceMetadataModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes)
+	chunks := chunkOrchestratorPayloadsBySizeAndWeight(resourceMetadataModels, resourceManifestModels, ctx.GetOrchestratorConfig().MaxPerMessage, ctx.GetOrchestratorConfig().MaxWeightPerMessageBytes)
 
 	chunkCount := len(chunks)
 	metadataMessages := make([]model.MessageBody, 0, chunkCount)

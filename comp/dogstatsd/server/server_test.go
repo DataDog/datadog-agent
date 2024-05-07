@@ -25,13 +25,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type serverDeps struct {
@@ -41,9 +46,10 @@ type serverDeps struct {
 	Log           log.Component
 	Demultiplexer demultiplexer.FakeSamplerMock
 	Replay        replay.Component
+	PidMap        pidmap.Component
 	Debug         serverdebug.Component
-
-	Server Component
+	WMeta         optional.Option[workloadmeta.Component]
+	Server        Component
 }
 
 func fulfillDeps(t testing.TB) serverDeps {
@@ -60,7 +66,11 @@ func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule(),
+		compressionimpl.MockModule(),
+		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
+		workloadmeta.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
 		Module(),
 	))
 }
@@ -78,7 +88,11 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule(),
+		compressionimpl.MockModule(),
+		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
+		workloadmeta.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
 		Module(),
 	))
 }
@@ -99,7 +113,7 @@ func TestStopServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap)
 	s.start(context.TODO())
 	requireStart(t, s)
 
@@ -656,7 +670,7 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	assert.Nil(t, s.mapper)
 
-	parser := newParser(deps.Config, newFloat64ListPool(), 1)
+	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
 	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
@@ -768,7 +782,7 @@ dogstatsd_mapper_profiles:
 
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
-				parser := newParser(deps.Config, newFloat64ListPool(), 1)
+				parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
 				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "", "", false)
 				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
 				for _, sample := range samples {
@@ -832,42 +846,42 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
 
-		parser := newParser(deps.Config, newFloat64ListPool(), 1)
+		parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
 		samples := []metrics.MetricSample{}
-		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "container_id://test_container", "1", false)
+		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "test_container", "1", false)
 		assert.NoError(err)
 		assert.Len(samples, 1)
 
 		// one thing should have been stored when we parse a metric
-		samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:555|g"), "container_id://test_container", "1", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:555|g"), "test_container", "1", true)
 		assert.NoError(err)
 		assert.Len(samples, 2)
 		assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
 		assert.Len(s.cachedOrder, 1, "one entry should have been cached")
-		assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
+		assert.Equal(s.cachedOrder[0].origin, "test_container")
 
 		// when we parse another metric (different value) with same origin, cache should contain only one entry
-		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://test_container", "2", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "test_container", "2", true)
 		assert.NoError(err)
 		assert.Len(samples, 3)
 		assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
 		assert.Len(s.cachedOrder, 1, "one entry should have been cached")
-		assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
-		assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://test_container"})
-		assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://test_container"})
+		assert.Equal(s.cachedOrder[0].origin, "test_container")
+		assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "test_container"})
+		assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "test_container"})
 
 		// when we parse another metric (different value) but with a different origin, we should store a new entry
-		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://another_container", "3", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "another_container", "3", true)
 		assert.NoError(err)
 		assert.Len(samples, 4)
 		assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached")
 		assert.Len(s.cachedOrder, 2, "two entries should have been cached")
-		assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
-		assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://test_container"})
-		assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://test_container"})
-		assert.Equal(s.cachedOrder[1].origin, "container_id://another_container")
-		assert.Equal(s.cachedOrder[1].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://another_container"})
-		assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://another_container"})
+		assert.Equal(s.cachedOrder[0].origin, "test_container")
+		assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "test_container"})
+		assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "test_container"})
+		assert.Equal(s.cachedOrder[1].origin, "another_container")
+		assert.Equal(s.cachedOrder[1].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "another_container"})
+		assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "another_container"})
 
 		// oldest one should be removed once we reach the limit of the cache
 		maxOriginCounters = 2
@@ -876,9 +890,9 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Len(samples, 5)
 		assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached, one has been evicted already")
 		assert.Len(s.cachedOrder, 2, "two entries should have been cached, one has been evicted already")
-		assert.Equal(s.cachedOrder[0].origin, "container_id://another_container")
-		assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://another_container"})
-		assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://another_container"})
+		assert.Equal(s.cachedOrder[0].origin, "another_container")
+		assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "another_container"})
+		assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "another_container"})
 		assert.Equal(s.cachedOrder[1].origin, "third_origin")
 		assert.Equal(s.cachedOrder[1].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "third_origin"})
 		assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "third_origin"})
@@ -906,26 +920,26 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	assert := assert.New(t)
 	requireStart(t, s)
 
-	parser := newParser(deps.Config, newFloat64ListPool(), 1)
+	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
 	parser.dsdOriginEnabled = true
 
 	// Metric
 	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container"), "", "", false)
 	assert.NoError(err)
 	assert.Len(metrics, 1)
-	assert.Equal("container_id://metric-container", metrics[0].OriginFromClient)
+	assert.Equal("metric-container", metrics[0].OriginInfo.FromMsg)
 
 	// Event
 	event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "")
 	assert.NoError(err)
 	assert.NotNil(event)
-	assert.Equal("container_id://event-container", event.OriginFromClient)
+	assert.Equal("event-container", event.OriginInfo.FromMsg)
 
 	// Service check
 	serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "")
 	assert.NoError(err)
 	assert.NotNil(serviceCheck)
-	assert.Equal("container_id://service-check-container", serviceCheck.OriginFromClient)
+	assert.Equal("service-check-container", serviceCheck.OriginInfo.FromMsg)
 }
 
 func TestContainerIDParsing(t *testing.T) {
@@ -940,57 +954,36 @@ func TestContainerIDParsing(t *testing.T) {
 	}
 }
 
-func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
-	deps := fulfillDepsWithConfigOverride(t, cfg)
-	s := deps.Server.(*server)
-	assert := assert.New(t)
-
-	requireStart(t, s)
-
-	parser := newParser(deps.Config, newFloat64ListPool(), 1)
-	parser.dsdOriginEnabled = true
-
-	// Metric
-	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", "", false)
-	assert.NoError(err)
-	assert.Len(metrics, 1)
-	if enabled {
-		assert.Equal("", metrics[0].OriginFromClient)
-	} else {
-		assert.Equal("container_id://metric-container", metrics[0].OriginFromClient)
-	}
-
-	// Event
-	event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container|#dd.internal.card:none"), "")
-	assert.NoError(err)
-	assert.NotNil(event)
-	if enabled {
-		assert.Equal("", metrics[0].OriginFromClient)
-	} else {
-		assert.Equal("container_id://event-container", event.OriginFromClient)
-	}
-
-	// Service check
-	serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container|#dd.internal.card:none"), "")
-	assert.NoError(err)
-	assert.NotNil(serviceCheck)
-	if enabled {
-		assert.Equal("", serviceCheck.OriginFromClient)
-	} else {
-		assert.Equal("container_id://service-check-container", serviceCheck.OriginFromClient)
-	}
-}
-
-func TestOriginOptout(t *testing.T) {
+func TestOrigin(t *testing.T) {
 	cfg := make(map[string]interface{})
+	t.Run("TestOrigin", func(t *testing.T) {
+		deps := fulfillDepsWithConfigOverride(t, cfg)
+		s := deps.Server.(*server)
+		assert := assert.New(t)
 
-	for _, enabled := range []bool{true, false} {
+		requireStart(t, s)
 
-		cfg["dogstatsd_origin_optout_enabled"] = enabled
-		t.Run(fmt.Sprintf("optout_enabled=%v", enabled), func(t *testing.T) {
-			testOriginOptout(t, cfg, enabled)
-		})
-	}
+		parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+		parser.dsdOriginEnabled = true
+
+		// Metric
+		metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", "", false)
+		assert.NoError(err)
+		assert.Len(metrics, 1)
+		assert.Equal("metric-container", metrics[0].OriginInfo.FromMsg)
+
+		// Event
+		event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container|#dd.internal.card:none"), "")
+		assert.NoError(err)
+		assert.NotNil(event)
+		assert.Equal("event-container", event.OriginInfo.FromMsg)
+
+		// Service check
+		serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container|#dd.internal.card:none"), "")
+		assert.NoError(err)
+		assert.NotNil(serviceCheck)
+		assert.Equal("service-check-container", serviceCheck.OriginInfo.FromMsg)
+	})
 }
 
 func requireStart(t *testing.T, s Component) {

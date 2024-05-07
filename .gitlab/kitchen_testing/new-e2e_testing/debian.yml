@@ -64,7 +64,7 @@ new-e2e-agent-platform-install-script-debian-a7-x86_64:
     - .new-e2e_os_debian
     - .new-e2e_debian_a7_x86_64
     - .new-e2e_agent_a7
-  rules: !reference [.on_default_new-e2e_tests_a7]
+  rules: !reference [.on_default_new_e2e_tests]
   variables:
     FLAVOR: datadog-agent
 
@@ -76,7 +76,7 @@ new-e2e-agent-platform-install-script-debian-a7-arm64:
     - .new-e2e_os_debian
     - .new-e2e_debian_a7_arm64
     - .new-e2e_agent_a7
-  rules: !reference [.on_all_new-e2e_tests_a7]
+  rules: !reference [.on_all_new_e2e_tests]
   variables:
     FLAVOR: datadog-agent
 
@@ -88,7 +88,7 @@ new-e2e-agent-platform-install-script-debian-iot-agent-a7-x86_64:
     - .new-e2e_os_debian
     - .new-e2e_debian_a7_x86_64
     - .new-e2e_agent_a7
-  rules: !reference [.on_default_new-e2e_tests_a7]
+  rules: !reference [.on_default_new_e2e_tests]
   variables:
     FLAVOR: datadog-iot-agent
 
@@ -131,7 +131,7 @@ new-e2e-agent-platform-package-signing-debian-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_debian_a7_x86_64
     - .new-e2e_package_signing
-  rules: !reference [.on_default_new-e2e_tests_a7]
+  rules: !reference [.on_default_new_e2e_tests]
 
 new-e2e-agent-platform-step-by-step-debian-a7-x64:
   stage: kitchen_testing
@@ -142,7 +142,7 @@ new-e2e-agent-platform-step-by-step-debian-a7-x64:
     - .new-e2e_debian_a7_x86_64
     - .new-e2e_agent_a7
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy]
   variables:
     FLAVOR: datadog-agent
 
@@ -155,7 +155,7 @@ new-e2e-agent-platform-step-by-step-debian-a7-arm64:
     - .new-e2e_debian_a7_arm64
     - .new-e2e_agent_a7
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy]
   variables:
     FLAVOR: datadog-agent
 
@@ -168,7 +168,7 @@ new-e2e-agent-platform-step-by-step-debian-a6-x86_64:
     - .new-e2e_debian_a6_x86_64
     - .new-e2e_agent_a6
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy]
   variables:
     FLAVOR: datadog-agent
 
@@ -181,7 +181,7 @@ new-e2e-agent-platform-step-by-step-debian-a6-arm64:
     - .new-e2e_debian_a6_arm64
     - .new-e2e_agent_a6
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy]
   variables:
     FLAVOR: datadog-agent
 

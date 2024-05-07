@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -24,12 +25,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func getDiagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) []diagnosis.Diagnosis {
+func getDiagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], acOpt optional.Option[autodiscovery.Component]) []diagnosis.Diagnosis {
 	if coll, ok := collector.Get(); diagCfg.RunningInAgentProcess && ok {
 		return diagnoseChecksInAgentProcess(coll)
 	}
-
-	return diagnoseChecksInCLIProcess(diagCfg, senderManager, secretResolver)
+	if ac, ok := acOpt.Get(); ok {
+		return diagnoseChecksInCLIProcess(diagCfg, senderManager, secretResolver, wmeta, ac)
+	}
+	return []diagnosis.Diagnosis{
+		{
+			Result:    diagnosis.DiagnosisUnexpectedError,
+			Name:      "Collector or AutoDiscovery not found",
+			Diagnosis: "Collector or AutoDiscovery not found",
+			RawError:  "Collector or AutoDiscovery not found",
+		},
+	}
 }
 
 func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
@@ -80,7 +90,7 @@ func diagnoseChecksInAgentProcess(collector collector.Component) []diagnosis.Dia
 	return diagnoses
 }
 
-func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnosesendermanager.Component, secretResolver secrets.Component) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
+func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnosesendermanager.Component, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], ac autodiscovery.Component) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go
@@ -98,9 +108,21 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnose
 		}
 	}
 
+	wmetaInstance, ok := wmeta.Get()
+	if !ok {
+		errMsg := "Workload Meta is not available"
+		return []diagnosis.Diagnosis{
+			{
+				Result:      diagnosis.DiagnosisFail,
+				Name:        errMsg,
+				Diagnosis:   errMsg,
+				Remediation: errMsg,
+			},
+		}
+	}
 	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-	common.LoadComponents(secretResolver, workloadmeta.GetGlobalStore(), pkgconfig.Datadog.GetString("confd_path"))
-	common.AC.LoadAndRun(context.Background())
+	common.LoadComponents(secretResolver, wmetaInstance, ac, pkgconfig.Datadog.GetString("confd_path"))
+	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
@@ -108,7 +130,7 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnose
 
 	// Load matching configurations (should we use common.AC.GetAllConfigs())
 	waitCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(5*time.Second))
-	diagnoseConfigs, err := common.WaitForAllConfigsFromAD(waitCtx)
+	diagnoseConfigs, err := common.WaitForAllConfigsFromAD(waitCtx, ac)
 	cancelTimeout()
 	if err != nil {
 		return []diagnosis.Diagnosis{

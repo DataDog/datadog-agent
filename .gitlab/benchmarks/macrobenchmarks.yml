@@ -11,6 +11,7 @@ variables:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
     - when: manual
+      allow_failure: true
   # If you have a problem with Gitlab cache, see Troubleshooting section in Benchmarking Platform docs
   image: $BENCHMARKS_CI_IMAGE
   needs: ["setup_agent_version"]
@@ -51,7 +52,6 @@ trace-agent-v04-2cpus-normal_load-fixed_sps:
 
 trace-agent-v04-2cpus-stress_load-fixed_sps:
   extends: .trace_agent_benchmarks
-  when: manual
   variables:
     TRACE_AGENT_ENDPOINT: v04
     DD_BENCHMARKS_CONFIGURATION: trace-agent-v04-2cpus-stress_load-fixed_sps
@@ -72,7 +72,6 @@ trace-agent-v05-2cpus-normal_load-fixed_sps:
 
 trace-agent-v05-2cpus-stress_load-fixed_sps:
   extends: .trace_agent_benchmarks
-  when: manual
   variables:
     TRACE_AGENT_ENDPOINT: v05
     DD_BENCHMARKS_CONFIGURATION: trace-agent-v05-2cpus-stress_load-fixed_sps

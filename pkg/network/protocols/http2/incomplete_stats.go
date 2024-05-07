@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -25,7 +24,7 @@ type incompleteBuffer struct {
 	data              []*EbpfTx
 	maxEntries        int
 	minAgeNano        int64
-	oversizedLogLimit *util.LogLimit
+	oversizedLogLimit *log.Limit
 }
 
 // NewIncompleteBuffer returns a new incompleteBuffer.
@@ -34,7 +33,7 @@ func NewIncompleteBuffer(c *config.Config) http.IncompleteBuffer {
 		data:              make([]*EbpfTx, 0),
 		maxEntries:        c.MaxHTTPStatsBuffered,
 		minAgeNano:        defaultMinAge.Nanoseconds(),
-		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
+		oversizedLogLimit: log.NewLogLimit(10, time.Minute*10),
 	}
 }
 

@@ -63,7 +63,16 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 	}
 
 	image.RepoDigest = util.ExtractRepoDigestFromImage(imageID, image.Registry, store) // "sha256:digest"
-
+	if image.RepoDigest == "" {
+		log.Debugf("cannot get repo digest for image %s from workloadmeta store", imageID)
+		contImage, err := containerdClient.ImageOfContainer(namespace, container)
+		if err == nil && contImage != nil {
+			// Get repo digest from containerd client.
+			// This is a fallback mechanism in case we cannot get the repo digest
+			// from workloadmeta store.
+			image.RepoDigest = contImage.Target().Digest.String()
+		}
+	}
 	status, err := containerdClient.Status(namespace, container)
 	if err != nil {
 		if !errdefs.IsNotFound(err) {

@@ -27,6 +27,8 @@ const (
 	ProcessAgent = "process_agent"
 	// TraceAgent is the Trace Agent flavor
 	TraceAgent = "trace_agent"
+	// OTelAgent is the OpenTelemetry Collector flavor
+	OTelAgent = "otel_agent"
 )
 
 var agentFlavors = map[string]string{
@@ -39,6 +41,7 @@ var agentFlavors = map[string]string{
 	HerokuAgent:     "Heroku Agent",
 	ProcessAgent:    "Process Agent",
 	TraceAgent:      "Trace Agent",
+	OTelAgent:       "OpenTelemetry Collector",
 }
 
 const unknownAgent = "Unknown Agent"

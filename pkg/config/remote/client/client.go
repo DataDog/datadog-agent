@@ -86,6 +86,7 @@ type Options struct {
 	agentName            string
 	products             []string
 	directorRootOverride string
+	site                 string
 	pollInterval         time.Duration
 	clusterName          string
 	clusterID            string
@@ -117,8 +118,8 @@ func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetch
 	}, nil
 }
 
-// NewHAAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent HA client
-func NewHAAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigFetcher, error) {
+// NewMRFAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent MRF client
+func NewMRFAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigFetcher, error) {
 	c, err := newAgentGRPCClient(ipcAddress, cmdPort)
 	if err != nil {
 		return nil, err
@@ -177,9 +178,9 @@ func NewGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetc
 	return newClient(grpcClient, opts...)
 }
 
-// NewUnverifiedHAGRPCClient creates a new client that does not perform any TUF verification and gets failover configs via grpc
-func NewUnverifiedHAGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
-	grpcClient, err := NewHAAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
+// NewUnverifiedMRFGRPCClient creates a new client that does not perform any TUF verification and gets failover configs via gRPC
+func NewUnverifiedMRFGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewMRFAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
 	if err != nil {
 		return nil, err
 	}
@@ -222,8 +223,11 @@ func WithoutTufVerification() func(opts *Options) {
 }
 
 // WithDirectorRootOverride specifies the director root to
-func WithDirectorRootOverride(directorRootOverride string) func(opts *Options) {
-	return func(opts *Options) { opts.directorRootOverride = directorRootOverride }
+func WithDirectorRootOverride(site string, directorRootOverride string) func(opts *Options) {
+	return func(opts *Options) {
+		opts.site = site
+		opts.directorRootOverride = directorRootOverride
+	}
 }
 
 // WithAgent specifies the client name and version
@@ -249,7 +253,7 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 	var err error
 
 	if !options.skipTufVerification {
-		repository, err = state.NewRepository(meta.RootsDirector(options.directorRootOverride).Last())
+		repository, err = state.NewRepository(meta.RootsDirector(options.site, options.directorRootOverride).Last())
 	} else {
 		repository, err = state.NewUnverifiedRepository()
 	}
@@ -387,6 +391,7 @@ func (c *Client) pollLoop() {
 		successfulFirstRun = true
 	}
 
+	logLimit := log.NewLogLimit(5, time.Minute)
 	for {
 		interval := c.pollInterval + c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
 		if !successfulFirstRun && interval > time.Second {
@@ -414,7 +419,9 @@ func (c *Client) pollLoop() {
 				if !successfulFirstRun {
 					// As some clients may start before the core-agent server is up, we log the first error
 					// as an Info log as the race is expected. If the error persists, we log with error logs
-					log.Infof("retrying the first update of remote-config state (%v)", err)
+					if logLimit.ShouldLog() {
+						log.Infof("retrying the first update of remote-config state (%v)", err)
+					}
 				} else {
 					c.lastUpdateError = err
 					c.backoffPolicy.IncError(c.backoffErrorCount)
@@ -528,6 +535,7 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 			Version:    f.Version,
 			Product:    f.Product,
 			ApplyState: uint64(f.ApplyStatus.State),
+			ApplyError: f.ApplyStatus.Error,
 		})
 	}
 

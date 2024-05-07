@@ -38,6 +38,20 @@ __attribute__((always_inline)) u32 get_netns_from_net(struct net *net) {
 #endif
 }
 
+__attribute__((always_inline)) u32 get_netns_from_net_device(struct net_device *device) {
+    u64 device_nd_net_net_offset;
+    LOAD_CONSTANT("device_nd_net_net_offset", device_nd_net_net_offset);
+
+    // no constant
+    if (device_nd_net_net_offset == -1) {
+        return 0;
+    }
+
+    struct net *net = NULL;
+    bpf_probe_read(&net, sizeof(net), (void *)device + device_nd_net_net_offset);
+    return get_netns_from_net(net);
+}
+
 __attribute__((always_inline)) u32 get_netns_from_sock(struct sock *sk) {
     u64 sock_common_skc_net_offset;
     LOAD_CONSTANT("sock_common_skc_net_offset", sock_common_skc_net_offset);

@@ -25,6 +25,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -149,7 +150,8 @@ func TestInitData(t *testing.T) {
 		"process_config.process_dd_url":    "http://name:sekrit@someintake.example.com/",
 		"proxy.http":                       "http://name:sekrit@proxy.example.com/",
 		"proxy.https":                      "https://name:sekrit@proxy.example.com/",
-		"dd_site":                          "test",
+		"site":                             "test",
+		"eks_fargate":                      true,
 
 		"fips.enabled":                                true,
 		"logs_enabled":                                true,
@@ -170,6 +172,7 @@ func TestInitData(t *testing.T) {
 
 	expected := map[string]any{
 		"agent_version":                    version.AgentVersion,
+		"agent_startup_time_ms":            pkgconfigsetup.StartTime.UnixMilli(),
 		"flavor":                           flavor.GetFlavor(),
 		"config_apm_dd_url":                "http://name:********@someintake.example.com/",
 		"config_dd_url":                    "http://name:********@someintake.example.com/",
@@ -179,6 +182,7 @@ func TestInitData(t *testing.T) {
 		"config_process_dd_url":            "http://name:********@someintake.example.com/",
 		"config_proxy_http":                "http://name:********@proxy.example.com/",
 		"config_proxy_https":               "https://name:********@proxy.example.com/",
+		"config_eks_fargate":               true,
 
 		"feature_process_language_detection_enabled": true,
 		"feature_fips_enabled":                       true,
@@ -333,7 +337,7 @@ func TestFetchSecurityAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_cspm_enabled"].(bool))
 	assert.False(t, ia.data["feature_cspm_host_benchmarks_enabled"].(bool))
 
-	fetchSecurityConfig = func(config pkgconfigmodel.Reader) (string, error) {
+	fetchSecurityConfig = func(_ pkgconfigmodel.Reader) (string, error) {
 		return `compliance_config:
   enabled: true
   host_benchmarks:
@@ -376,7 +380,7 @@ func TestFetchProcessAgent(t *testing.T) {
 	// default to true in the process agent configuration
 	assert.True(t, ia.data["feature_processes_container_enabled"].(bool))
 
-	fetchProcessConfig = func(config pkgconfigmodel.Reader) (string, error) {
+	fetchProcessConfig = func(_ pkgconfigmodel.Reader) (string, error) {
 		return `
 process_config:
   process_collection:
@@ -425,7 +429,7 @@ func TestFetchTraceAgent(t *testing.T) {
 	}
 	assert.Equal(t, "", ia.data["config_apm_dd_url"].(string))
 
-	fetchTraceConfig = func(config pkgconfigmodel.Reader) (string, error) {
+	fetchTraceConfig = func(_ pkgconfigmodel.Reader) (string, error) {
 		return `
 apm_config:
   enabled: true

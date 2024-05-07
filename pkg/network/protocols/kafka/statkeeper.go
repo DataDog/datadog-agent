@@ -44,7 +44,7 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 	key := Key{
 		RequestAPIKey:  tx.APIKey(),
 		RequestVersion: tx.APIVersion(),
-		TopicName:      statKeeper.extractTopicName(tx),
+		TopicName:      statKeeper.extractTopicName(&tx.Transaction),
 		ConnectionKey:  tx.ConnTuple(),
 	}
 	requestStats, ok := statKeeper.stats[key]
@@ -56,7 +56,7 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 		requestStats = new(RequestStat)
 		statKeeper.stats[key] = requestStats
 	}
-	requestStats.Count++
+	requestStats.Count += int(tx.RecordsCount())
 }
 
 // GetAndResetAllStats returns all the stats and resets the stats
@@ -69,11 +69,11 @@ func (statKeeper *StatKeeper) GetAndResetAllStats() map[Key]*RequestStat {
 	return ret
 }
 
-func (statKeeper *StatKeeper) extractTopicName(tx *EbpfTx) string {
+func (statKeeper *StatKeeper) extractTopicName(tx *KafkaTransaction) string {
 	// Limit tx.Topic_name_size to not exceed the actual length of tx.Topic_name
-	if tx.Topic_name_size > uint16(len(tx.Topic_name)) {
+	if uint16(tx.Topic_name_size) > uint16(len(tx.Topic_name)) {
 		log.Debugf("Topic name size was changed from %d, to size: %d", tx.Topic_name_size, len(tx.Topic_name))
-		tx.Topic_name_size = uint16(len(tx.Topic_name))
+		tx.Topic_name_size = uint8(len(tx.Topic_name))
 	}
 	b := tx.Topic_name[:tx.Topic_name_size]
 

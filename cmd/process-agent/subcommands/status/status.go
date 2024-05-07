@@ -7,7 +7,6 @@
 package status
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -23,9 +22,9 @@ import (
 	compStatus "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/process"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
-	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -78,6 +77,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runStatus,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
+				fx.Supply(
+					compStatus.Params{
+						PythonVersionGetFunc: python.GetPythonVersion,
+					},
+				),
 				core.Bundle(),
 				process.Bundle(),
 			)
@@ -119,38 +123,11 @@ func fetchStatus(statusURL string) ([]byte, error) {
 func getAndWriteStatus(log log.Component, statusURL string, w io.Writer) {
 	body, err := fetchStatus(statusURL)
 	if err != nil {
-		switch err.(type) {
-		case status.ConnectionError:
-			writeNotRunning(log, w)
-		default:
-			writeError(log, w, err)
-		}
+		writeNotRunning(log, w)
 		return
 	}
 
-	statusMap := map[string]interface{}{}
-	var s status.Status
-	err = json.Unmarshal(body, &s)
-	if err != nil {
-		writeError(log, w, err)
-		return
-	}
-
-	statusMap["processAgentStatus"] = s
-
-	body, err = json.Marshal(statusMap)
-	if err != nil {
-		writeError(log, w, err)
-		return
-	}
-
-	stats, err := render.FormatProcessAgentStatus(body)
-	if err != nil {
-		writeError(log, w, err)
-		return
-	}
-
-	_, err = w.Write([]byte(stats))
+	_, err = w.Write([]byte(body))
 	if err != nil {
 		_ = log.Error(err)
 	}

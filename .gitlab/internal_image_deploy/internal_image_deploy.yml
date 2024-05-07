@@ -4,7 +4,7 @@
 
 docker_trigger_internal:
   stage: internal_image_deploy
-  rules: !reference [.on_deploy_a7_internal_or_manual]
+  rules: !reference [.on_deploy_internal_or_manual]
   needs:
     - job: docker_build_agent7_jmx
       artifacts: false
@@ -23,9 +23,13 @@ docker_trigger_internal:
     RELEASE_STAGING: "true"
   script:
     - source /root/.bashrc
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_pipelines_scheduler_token)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
     - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
-    - if [ "$BUCKET_BRANCH" = "nightly" ]; then RELEASE_TAG="${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
+    - |
+      if [ "$BUCKET_BRANCH" = "nightly" ]; then
+        RELEASE_TAG="${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"
+        TMPL_SRC_REPO="${TMPL_SRC_REPO}-nightly"
+      fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
     - "inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master
       --variable IMAGE_VERSION
@@ -46,7 +50,7 @@ docker_trigger_internal:
 
 docker_trigger_cluster_agent_internal:
   stage: internal_image_deploy
-  rules: !reference [.on_deploy_a7]
+  rules: !reference [.on_deploy]
   needs:
     - job: docker_build_cluster_agent_amd64
       artifacts: false
@@ -66,9 +70,13 @@ docker_trigger_cluster_agent_internal:
     RELEASE_PROD: "true"
   script:
     - source /root/.bashrc
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_pipelines_scheduler_token)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
     - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
-    - if [ "$BUCKET_BRANCH" = "nightly" ]; then RELEASE_TAG="${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
+    - |
+      if [ "$BUCKET_BRANCH" = "nightly" ]; then
+        RELEASE_TAG="${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"
+        TMPL_SRC_REPO="${TMPL_SRC_REPO}-nightly"
+      fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
     - "inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master
       --variable IMAGE_VERSION
@@ -89,7 +97,7 @@ docker_trigger_cluster_agent_internal:
 
 docker_trigger_cws_instrumentation_internal:
   stage: internal_image_deploy
-  rules: !reference [.on_deploy_a7]
+  rules: !reference [.on_deploy]
   needs:
     - job: docker_build_cws_instrumentation_amd64
       artifacts: false
@@ -109,7 +117,7 @@ docker_trigger_cws_instrumentation_internal:
     RELEASE_PROD: "true"
   script:
     - source /root/.bashrc
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_pipelines_scheduler_token)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
     - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
     - if [ "$BUCKET_BRANCH" = "nightly" ]; then RELEASE_TAG="${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
     - "inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master

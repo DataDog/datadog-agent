@@ -177,6 +177,27 @@
             "containerID": "docker://580cb469826a10317fd63cc780441920f49913ae63918d4c7b19a72347645b05"
           }
         ],
+        "initContainerStatuses": [
+          {
+            "name": "init",
+            "state": {
+              "terminated": {
+                "exitCode": 0,
+                "startedAt": "2024-02-27T19:30:39Z",
+                "finishedAt": "2024-02-27T19:30:49Z",
+                "reason": "Completed",
+                "containerID": "docker://1d1f139dc1c9d49010512744df34740abcfaadf9930d3afd85afbf5fccfadbd6"
+              }
+            },
+            "lastState": {},
+            "ready": true,
+            "restartCount": 0,
+            "image": "docker.io/library/alpine:latest",
+            "imageID": "docker.io/library/alpine@sha256:c5b1261d6d3e43071626931fc004f70149baeba2c8ec672bd4f27761f8e1ad6b",
+            "containerID": "docker://1d1f139dc1c9d49010512744df34740abcfaadf9930d3afd85afbf5fccfadbd6",
+            "started": false
+          }
+        ],
         "podIP": "10.8.2.4",
         "startTime": "2018-02-13T14:57:17Z",
         "hostIP": "10.132.0.4",
@@ -388,6 +409,29 @@
             ],
             "imagePullPolicy": "IfNotPresent",
             "resources": {}
+          }
+        ],
+        "initContainers": [
+          {
+            "terminationMessagePath": "/dev/termination-log",
+            "name": "init",
+            "image": "alpine:latest",
+            "terminationMessagePolicy": "File",
+            "command": [
+              "/bin/sh",
+              "-c",
+              "sleep 10s"
+            ],
+            "imagePullPolicy": "IfNotPresent",
+            "resources": {
+              "requests": {
+                "cpu": "50m",
+                "memory": "100Mi"
+              },
+              "limits": {
+                "memory": "150Mi"
+              }
+            }
           }
         ],
         "nodeName": "gke-haissam-default-pool-be5066f1-wnvn"
@@ -723,6 +767,23 @@
             "containerID": "docker://a335589109ce5506aa69ba7481fc3e6c943abd23c5277016c92dac15d0f40479"
           }
         ],
+        "initContainerStatuses": [
+          {
+            "containerID": "docker://80bd9ebe296615341c68d571e843d800fb4a75bef696d858065572ab4e49920b",
+            "image": "docker.io/library/alpine:latest",
+            "imageID": "docker.io/library/alpine@sha256:c5b1261d6d3e43071626931fc004f70149baeba2c8ec672bd4f27761f8e1ad6b",
+            "lastState": {},
+            "name": "running-init",
+            "ready": false,
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2024-02-28T19:29:12Z"
+              }
+            }
+          }
+        ],
         "podIP": "10.8.2.3",
         "startTime": "2018-02-13T15:15:43Z",
         "hostIP": "10.132.0.4",
@@ -860,6 +921,29 @@
             "resources": {
               "requests": {
                 "cpu": "100m"
+              }
+            }
+          }
+        ],
+        "initContainers": [
+          {
+            "terminationMessagePath": "/dev/termination-log",
+            "name": "running-init",
+            "image": "alpine:latest",
+            "terminationMessagePolicy": "File",
+            "command": [
+              "/bin/sh",
+              "-c",
+              "sleep 10s"
+            ],
+            "imagePullPolicy": "IfNotPresent",
+            "resources": {
+              "requests": {
+                "cpu": "50m",
+                "memory": "100Mi"
+              },
+              "limits": {
+                "memory": "150Mi"
               }
             }
           }

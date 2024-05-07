@@ -1,0 +1,13 @@
+system_probe_config:
+  enabled: true
+  debug_port: 6666
+  telemetry_enabled: true
+  log_level: debug
+ebpf_instrumentation:
+  enabled: true
+network_config:
+  enabled: true
+  collect_tcp_v6: true
+service_monitoring_config:
+  enabled: true
+  enable_http2_monitoring: true

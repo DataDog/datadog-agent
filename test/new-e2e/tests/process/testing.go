@@ -25,27 +25,36 @@ var processCheckConfigStr string
 //go:embed config/process_discovery_check.yaml
 var processDiscoveryCheckConfigStr string
 
+//go:embed config/process_check_in_core_agent.yaml
+var processCheckInCoreAgentConfigStr string
+
 //go:embed config/system_probe.yaml
 var systemProbeConfigStr string
 
+//go:embed config/npm.yaml
+var systemProbeNPMConfigStr string
+
 // assertRunningChecks asserts that the given process agent checks are running on the given VM
 func assertRunningChecks(t *assert.CollectT, vm *components.RemoteHost, checks []string, withSystemProbe bool, command string) {
+
 	status := vm.MustExecute(command)
 	var statusMap struct {
 		ProcessAgentStatus struct {
 			Expvars struct {
-				EnabledChecks                []string `json:"enabled_checks"`
-				SysProbeProcessModuleEnabled bool     `json:"system_probe_process_module_enabled"`
+				Map struct {
+					EnabledChecks                []string `json:"enabled_checks"`
+					SysProbeProcessModuleEnabled bool     `json:"system_probe_process_module_enabled"`
+				} `json:"process_agent"`
 			} `json:"expvars"`
 		} `json:"processAgentStatus"`
 	}
 	err := json.Unmarshal([]byte(status), &statusMap)
 	assert.NoError(t, err, "failed to unmarshal agent status")
 
-	assert.ElementsMatch(t, checks, statusMap.ProcessAgentStatus.Expvars.EnabledChecks)
+	assert.ElementsMatch(t, checks, statusMap.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 
 	if withSystemProbe {
-		assert.True(t, statusMap.ProcessAgentStatus.Expvars.SysProbeProcessModuleEnabled,
+		assert.True(t, statusMap.ProcessAgentStatus.Expvars.Map.SysProbeProcessModuleEnabled,
 			"system probe process module not enabled")
 	}
 }
@@ -71,6 +80,14 @@ func assertProcessCollected(
 
 	require.True(t, found, "%s process not found", process)
 	assert.True(t, populated, "no %s process had all data populated", process)
+}
+
+// requireProcessNotCollected asserts that the given process is NOT collected by the process check
+func requireProcessNotCollected(t *testing.T, payloads []*aggregator.ProcessPayload, process string) {
+	for _, payload := range payloads {
+		found, _ := findProcess(process, payload.Processes, false)
+		require.False(t, found, "%s process found", process)
+	}
 }
 
 // findProcess returns whether the process with the given name exists in the given list of

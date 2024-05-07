@@ -129,3 +129,15 @@ func (m *MockSender) OrchestratorMetadata(msgs []types.ProcessMessageBody, clust
 func (m *MockSender) OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string) {
 	m.Called(msgs, clusterID)
 }
+
+// GaugeWithTimestamp adds a gauge with timestamp type to the mock calls.
+func (m *MockSender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+	m.Called(metric, value, hostname, tags, timestamp)
+	return nil
+}
+
+// CountWithTimestamp adds a count with timestamp type to the mock calls.
+func (m *MockSender) CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+	m.Called(metric, value, hostname, tags, timestamp)
+	return nil
+}

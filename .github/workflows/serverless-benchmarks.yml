@@ -22,12 +22,12 @@ jobs:
       sha: ${{ steps.prepare.outputs.sha }}
     steps:
       - name: Checkout ${{ github.base_ref }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           ref: ${{ github.base_ref }}
 
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: stable
 
@@ -43,7 +43,7 @@ jobs:
               ./pkg/serverless/... | tee ${{runner.temp}}/benchmark.log
 
       - name: Upload result artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         with:
           name: baseline.log
           path: ${{runner.temp}}/benchmark.log
@@ -58,12 +58,12 @@ jobs:
 
     steps:
       - name: Checkout ${{ github.ref }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           ref: ${{ github.sha }}
 
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: stable
 
@@ -79,7 +79,7 @@ jobs:
               ./pkg/serverless/... | tee ${{runner.temp}}/benchmark.log
 
       - name: Upload result artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         with:
           name: current.log
           path: ${{runner.temp}}/benchmark.log
@@ -92,7 +92,7 @@ jobs:
 
     steps:
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: stable
           cache: false
@@ -102,12 +102,12 @@ jobs:
           go install golang.org/x/perf/cmd/benchstat@latest
 
       - name: Download baseline artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
         with:
           name: baseline.log
           path: baseline
       - name: Download current artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
         with:
           name: current.log
           path: current
@@ -121,7 +121,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Post comment
-        uses: marocchino/sticky-pull-request-comment@v2.9.0
+        uses: marocchino/sticky-pull-request-comment@331f8f5b4215f0445d3c07b4967662a32a2d3e31 # v2.9.0
         with:
           recreate: true
           message: |
@@ -131,6 +131,8 @@ jobs:
 
             <details>
             <summary>tl;dr</summary>
+
+            Use these benchmarks as an insight tool during development.
 
             1. Skim down the `vs base` column in each chart. If there is a `~`, then there was no statistically significant change to the benchmark. Otherwise, ensure the estimated percent change is either negative or very small.
 
@@ -161,6 +163,15 @@ jobs:
             > Note that "statistically significant" is not the same as "large": with enough low-noise data, even very small changes can be distinguished from noise and considered statistically significant.  It is, of course, generally easier to distinguish large changes from noise.
             >
             > Finally, the last row of the table shows the geometric mean of each column, giving an overall picture of how the benchmarks changed.  Proportional changes in the geomean reflect proportional changes in the benchmarks. For example, given n benchmarks, if sec/op for one of them increases by a factor of 2, then the sec/op geomean will increase by a factor of ⁿ√2.
+
+            </details>
+
+            <details>
+            <summary>I need more help</summary>
+
+            First off, do not worry if the benchmarks are failing.  They are not tests.  The intention is for them to be a tool for you to use during development.
+
+            If you would like a hand interpreting the results come chat with us in `#serverless-agent` in the internal DataDog slack or in `#serverless` in the [public DataDog slack](https://chat.datadoghq.com/).  We're happy to help!
 
             </details>
 

@@ -11,30 +11,36 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/wI2L/jsondiff"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MutationFunc is a function that mutates a pod
-type MutationFunc func(*corev1.Pod, string, dynamic.Interface) error
+type MutationFunc func(*corev1.Pod, string, dynamic.Interface) (bool, error)
 
 // Mutate handles mutating pods and encoding and decoding admission
 // requests and responses for the public mutate functions
-func Mutate(rawPod []byte, ns string, m MutationFunc, dc dynamic.Interface) ([]byte, error) {
+func Mutate(rawPod []byte, ns string, mutationType string, m MutationFunc, dc dynamic.Interface) ([]byte, error) {
 	var pod corev1.Pod
 	if err := json.Unmarshal(rawPod, &pod); err != nil {
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)
 	}
 
-	if err := m(&pod, ns, dc); err != nil {
-		return nil, err
+	injected, err := m(&pod, ns, dc)
+	if err != nil {
+		metrics.MutationAttempts.Inc(mutationType, metrics.StatusError, strconv.FormatBool(false), err.Error())
+		return nil, fmt.Errorf("failed to mutate pod: %v", err)
 	}
+
+	metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
 
 	bytes, err := json.Marshal(pod)
 	if err != nil {
@@ -174,4 +180,15 @@ func ShouldMutatePod(pod *corev1.Pod) bool {
 	}
 
 	return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
+}
+
+// ContainerRegistry gets the container registry config using the specified
+// config option, and falls back to the default container registry if no webhook-
+// specific container registry is set.
+func ContainerRegistry(specificConfigOpt string) string {
+	if config.Datadog.IsSet(specificConfigOpt) {
+		return config.Datadog.GetString(specificConfigOpt)
+	}
+
+	return config.Datadog.GetString("admission_controller.container_registry")
 }

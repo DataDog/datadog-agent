@@ -15,15 +15,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // MockK8sClientInterface is a mocked client that implements kubernetes.interface
@@ -34,11 +39,13 @@ type MockK8sClientInterface struct {
 	annotations map[string]string
 	// shouldFail indicates if the mocked client should return an error
 	shouldFail bool
+	// containerName is the name of the first container for the fake generated pod
+	containerName string
 }
 
 // CoreV1 retrieves the CoreV1Client
 func (mkci MockK8sClientInterface) CoreV1() v1.CoreV1Interface {
-	return &MockCoreV1Interface{annotations: mkci.annotations, shouldFail: mkci.shouldFail}
+	return &MockCoreV1Interface{annotations: mkci.annotations, containerName: mkci.containerName, shouldFail: mkci.shouldFail}
 }
 
 // MockCoreV1Interface is a mocked client that implements v1.CoreV1Interface
@@ -49,12 +56,18 @@ type MockCoreV1Interface struct {
 	annotations map[string]string
 	// shouldFail indicates if the mocked client should return an error
 	shouldFail bool
+	// containerName is the name of the first container for the fake generated pod
+	containerName string
 }
 
 // Pods returns an interface which has a method to return a PodInterface
 func (mcvi MockCoreV1Interface) Pods(_ string) v1.PodInterface {
+	return &MockV1PodsGetter{annotations: mcvi.annotations, containerName: mcvi.containerName, shouldFail: mcvi.shouldFail}
+}
 
-	return &MockV1PodsGetter{annotations: mcvi.annotations, shouldFail: mcvi.shouldFail}
+// Nodes returns an interface which has a method to return a NodeInterface
+func (mcvi MockCoreV1Interface) Nodes() v1.NodeInterface {
+	return &MockV1NodesGetter{}
 }
 
 // MockV1PodsGetter is a mocked client that implements v1.PodsGetter
@@ -65,6 +78,8 @@ type MockV1PodsGetter struct {
 	annotations map[string]string
 	// shouldFail indicates if the mocked client should return an error
 	shouldFail bool
+	// containerName is the name of the first container for the fake generated pod
+	containerName string
 }
 
 // Get looks up a pod based on user input
@@ -75,6 +90,29 @@ func (mvpg *MockV1PodsGetter) Get(_ context.Context, _ string, _ metav1.GetOptio
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: mvpg.annotations,
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: mvpg.containerName,
+				},
+			},
+		},
+	}, nil
+}
+
+// MockV1NodesGetter is a mocked client that implements v1.NodesGetter
+type MockV1NodesGetter struct {
+	v1.NodeInterface
+}
+
+// Get looks up a node based on user input
+func (mvng *MockV1NodesGetter) Get(_ context.Context, _ string, _ metav1.GetOptions) (*corev1.Node, error) {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"kubernetes.io/arch": "amd64",
+			},
 		},
 	}, nil
 }
@@ -87,12 +125,16 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 		userInfo *authenticationv1.UserInfo
 
 		// configuration
-		include []string
-		exclude []string
+		include            []string
+		exclude            []string
+		serviceAccountName string
 
 		// mocked API client
 		apiClientAnnotations map[string]string
 		apiClientShouldFail  bool
+
+		// mode
+		cwsInstrumentationMode InstrumentationMode
 	}
 	mockConfig := config.Mock(t)
 	tests := []struct {
@@ -116,6 +158,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},
+				cwsInstrumentationMode: InitContainer,
 			},
 			wantInstrumentation: true,
 		},
@@ -134,6 +177,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},
+				cwsInstrumentationMode: InitContainer,
 			},
 			wantInstrumentation: true,
 		},
@@ -151,6 +195,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},
+				cwsInstrumentationMode: InitContainer,
 			},
 			wantInstrumentation: true,
 		},
@@ -167,6 +212,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},
+				cwsInstrumentationMode: InitContainer,
 			},
 			wantInstrumentation: false,
 		},
@@ -183,6 +229,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},
+				cwsInstrumentationMode: InitContainer,
 			},
 			wantInstrumentation: true,
 		},
@@ -200,6 +247,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},
+				cwsInstrumentationMode: InitContainer,
 			},
 			wantInstrumentation: false,
 		},
@@ -216,6 +264,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: "hello",
 				},
+				cwsInstrumentationMode: InitContainer,
 			},
 			wantInstrumentation: false,
 		},
@@ -225,11 +274,12 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				exec: &corev1.PodExecOptions{
 					Command: []string{"bash"},
 				},
-				name:                 "my-pod",
-				ns:                   "my-namespace",
-				userInfo:             &authenticationv1.UserInfo{},
-				include:              []string{"kube_namespace:.*"},
-				apiClientAnnotations: map[string]string{},
+				name:                   "my-pod",
+				ns:                     "my-namespace",
+				userInfo:               &authenticationv1.UserInfo{},
+				include:                []string{"kube_namespace:.*"},
+				apiClientAnnotations:   map[string]string{},
+				cwsInstrumentationMode: InitContainer,
 			},
 			wantInstrumentation: false,
 		},
@@ -246,6 +296,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},
+				cwsInstrumentationMode: InitContainer,
 			},
 			wantErr:             true,
 			wantInstrumentation: false,
@@ -261,6 +312,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},
+				cwsInstrumentationMode: InitContainer,
 			},
 			wantErr:             true,
 			wantInstrumentation: false,
@@ -278,6 +330,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},
+				cwsInstrumentationMode: InitContainer,
 			},
 			wantErr:             true,
 			wantInstrumentation: false,
@@ -293,6 +346,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},
+				cwsInstrumentationMode: InitContainer,
 			},
 			wantErr:             true,
 			wantInstrumentation: false,
@@ -310,7 +364,8 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},
-				apiClientShouldFail: true,
+				apiClientShouldFail:    true,
+				cwsInstrumentationMode: InitContainer,
 			},
 			wantErr:             true,
 			wantInstrumentation: false,
@@ -331,6 +386,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},
+				cwsInstrumentationMode: InitContainer,
 			},
 			wantErr:             true,
 			wantInstrumentation: false,
@@ -359,6 +415,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},
+				cwsInstrumentationMode: InitContainer,
 			},
 			// we don't want to inject the user context twice if it is correct
 			wantInstrumentation: false,
@@ -387,29 +444,68 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},
+				cwsInstrumentationMode: InitContainer,
 			},
 			// we will inject the user session context again, and rely on the CWS agent to dismiss the second injection attempt
 			wantInstrumentation: true,
 		},
+		{
+			name: "CWS instrumentation ready, command, all namespaces, service account filter",
+			args: args{
+				exec: &corev1.PodExecOptions{
+					Container: "my-container",
+					Command:   []string{"bash"},
+				},
+				name: "my-container",
+				ns:   "default",
+				userInfo: &authenticationv1.UserInfo{
+					Username: "system:serviceaccount:default:datadog-cluster-agent",
+				},
+				include: []string{"kube_namespace:.*"},
+				apiClientAnnotations: map[string]string{
+					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
+				},
+				cwsInstrumentationMode: RemoteCopy,
+				serviceAccountName:     "datadog-cluster-agent",
+			},
+			wantErr:             true,
+			wantInstrumentation: false,
+		},
 	}
+
+	// prepare the workload meta
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.include", tt.args.include)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.exclude", tt.args.exclude)
+			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mode", string(tt.args.cwsInstrumentationMode))
+			mockConfig.SetWithoutSource("cluster_agent.service_account_name", tt.args.serviceAccountName)
+			mockConfig.SetWithoutSource("kube_resources_namespace", tt.args.ns)
 
 			var initialCommand string
 			if tt.args.exec != nil {
 				initialCommand = strings.Join(tt.args.exec.Command, " ")
 			}
 
-			ci, err := NewCWSInstrumentation()
+			ci, err := NewCWSInstrumentation(wmeta)
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {
-				err := ci.injectCWSCommandInstrumentation(tt.args.exec, tt.args.name, tt.args.ns, tt.args.userInfo, nil, MockK8sClientInterface{
+				apiClient := MockK8sClientInterface{
 					annotations: tt.args.apiClientAnnotations,
 					shouldFail:  tt.args.apiClientShouldFail,
-				})
+				}
+				if tt.args.exec != nil {
+					apiClient.containerName = tt.args.exec.Container
+				}
+				injected, err := ci.injectCWSCommandInstrumentation(tt.args.exec, tt.args.name, tt.args.ns, tt.args.userInfo, nil, apiClient)
+
+				if tt.wantErr {
+					assert.False(t, injected)
+				}
+
 				if err != nil && !tt.wantErr {
 					require.Fail(t, "CWS instrumentation shouldn't have produced an error: got %v", err)
 				}
@@ -420,6 +516,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 						require.Fail(t, "CWS instrumentation failed", "invalid exec command length %d", l)
 						return
 					}
+					assert.True(t, injected)
 					expectedCommand := fmt.Sprintf("%s%s", filepath.Join(cwsMountPath, "cws-instrumentation"), " inject --session-type k8s --data")
 					require.Equal(t, expectedCommand, strings.Join(tt.args.exec.Command[0:5], " "), "incorrect CWS instrumentation")
 					require.Equal(t, "--", tt.args.exec.Command[6], "incorrect CWS instrumentation")
@@ -445,6 +542,8 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 }
 
 func Test_injectCWSPodInstrumentation(t *testing.T) {
+	commonRegistry := "gcr.io/datadoghq"
+
 	type args struct {
 		pod *corev1.Pod
 		ns  string
@@ -453,11 +552,13 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		include []string
 		exclude []string
 
-		cwsInjectorImageName         string
-		cwsInjectorImageTag          string
-		cwsInjectorContainerRegistry string
+		cwsInjectorImageName                string
+		cwsInjectorImageTag                 string
+		cwsInjectorContainerRegistry        string
+		cwsInjectorMode                     InstrumentationMode
+		cwsInjectorMountVolumeForRemoteCopy bool
+		cwsInjectorServiceAccountName       string
 	}
-	mockConfig := config.Mock(t)
 	tests := []struct {
 		name                  string
 		args                  args
@@ -475,6 +576,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			wantErr: true,
 		},
@@ -487,10 +589,11 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   "my-image:latest",
+				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -510,10 +613,11 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "my-tag",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   "my-image:my-tag",
+				Image:   fmt.Sprintf("%s/my-image:my-tag", commonRegistry),
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -533,6 +637,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "my-tag",
 				cwsInjectorContainerRegistry: "my-registry",
+				cwsInjectorMode:              InitContainer,
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
@@ -556,6 +661,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 		},
 		{
@@ -567,10 +673,11 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   "my-image:latest",
+				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -591,6 +698,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 		},
 		{
@@ -602,6 +710,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			wantInstrumentation: false,
 		},
@@ -614,6 +723,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			wantInstrumentation: false,
 		},
@@ -627,10 +737,11 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   "my-image:latest",
+				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -652,6 +763,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			// when the annotation cwsInstrumentationPodAnotationStatus is set, the CWS mutating webhook should return without change the pod
 			wantInstrumentation: false,
@@ -667,10 +779,11 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   "my-image:latest",
+				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -681,35 +794,97 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			wantInstrumentation: true,
 		},
+		{
+			name: "all namespaces, image name, remote copy, no volume",
+			args: args{
+				pod:                                 common.FakePod("my-pod"),
+				ns:                                  "my-namespace",
+				include:                             []string{"kube_namespace:.*"},
+				cwsInjectorImageName:                "my-image",
+				cwsInjectorImageTag:                 "",
+				cwsInjectorContainerRegistry:        "",
+				cwsInjectorMode:                     RemoteCopy,
+				cwsInjectorMountVolumeForRemoteCopy: false,
+				cwsInjectorServiceAccountName:       "datadog-cluster-agent",
+			},
+			wantInstrumentation: true,
+		},
+		{
+			name: "all namespaces, image name, remote copy, no volume",
+			args: args{
+				pod:                                 common.FakePod("my-pod"),
+				ns:                                  "my-namespace",
+				include:                             []string{"kube_namespace:.*"},
+				cwsInjectorImageName:                "my-image",
+				cwsInjectorImageTag:                 "",
+				cwsInjectorContainerRegistry:        "",
+				cwsInjectorMode:                     RemoteCopy,
+				cwsInjectorMountVolumeForRemoteCopy: true,
+				cwsInjectorServiceAccountName:       "datadog-cluster-agent",
+			},
+			wantInstrumentation: true,
+		},
 	}
+
+	// prepare the workload meta
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := config.Mock(t)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.include", tt.args.include)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.exclude", tt.args.exclude)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.image_name", tt.args.cwsInjectorImageName)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.image_tag", tt.args.cwsInjectorImageTag)
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.container_registry", tt.args.cwsInjectorContainerRegistry)
+			mockConfig.SetWithoutSource("admission_controller.container_registry", commonRegistry)
+			if tt.args.cwsInjectorContainerRegistry != "" {
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.container_registry", tt.args.cwsInjectorContainerRegistry)
+			}
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.init_resources.cpu", "")
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.init_resources.memory", "")
+			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mode", string(tt.args.cwsInjectorMode))
+			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.remote_copy.mount_volume", tt.args.cwsInjectorMountVolumeForRemoteCopy)
+			mockConfig.SetWithoutSource("cluster_agent.service_account_name", tt.args.cwsInjectorServiceAccountName)
 
-			ci, err := NewCWSInstrumentation()
+			ci, err := NewCWSInstrumentation(wmeta)
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {
-				if err := ci.injectCWSPodInstrumentation(tt.args.pod, tt.args.ns, nil); err != nil && !tt.wantErr {
+				injected, err := ci.injectCWSPodInstrumentation(tt.args.pod, tt.args.ns, nil)
+
+				if tt.wantErr {
+					assert.False(t, injected)
+				}
+
+				if err != nil && !tt.wantErr {
 					require.Fail(t, "CWS instrumentation shouldn't have produced an error: got %v", err)
 				}
 
 				if tt.wantInstrumentation {
-					testInjectCWSVolume(t, tt.args.pod)
-					testInjectCWSVolumeMount(t, tt.args.pod)
-					testInjectCWSInitContainer(t, tt.args.pod, tt.expectedInitContainer)
+					assert.True(t, injected)
+					if tt.args.cwsInjectorMode == InitContainer || (tt.args.cwsInjectorMode == RemoteCopy && tt.args.cwsInjectorMountVolumeForRemoteCopy) {
+						testInjectCWSVolume(t, tt.args.pod)
+						testInjectCWSVolumeMount(t, tt.args.pod)
 
-					// check annotation
-					annotations := tt.args.pod.GetAnnotations()
-					require.NotNil(t, annotations, "failed to annotate pod")
-					if annotations != nil {
-						require.Equal(t, cwsInstrumentationPodAnotationReady, annotations[cwsInstrumentationPodAnotationStatus], "CWS instrumentation annotation is missing")
+						if tt.args.cwsInjectorMode == InitContainer {
+							testInjectCWSInitContainer(t, tt.args.pod, tt.expectedInitContainer)
+						}
+
+						// check annotation
+						annotations := tt.args.pod.GetAnnotations()
+						require.NotNil(t, annotations, "failed to annotate pod")
+						if annotations != nil {
+							require.Equal(t, cwsInstrumentationPodAnotationReady, annotations[cwsInstrumentationPodAnotationStatus], "CWS instrumentation annotation is missing")
+						}
+					} else {
+						testNoInjectedCWSVolume(t, tt.args.pod)
+						testNoInjectedCWSVolumeMount(t, tt.args.pod)
+
+						// check annotation
+						annotations := tt.args.pod.GetAnnotations()
+						if annotations != nil && tt.name != "all namespaces, image name, CWS instrumentation ready" {
+							require.Emptyf(t, annotations[cwsInstrumentationPodAnotationStatus], "CWS instrumentation annotation should be missing")
+						}
 					}
 				} else if tt.args.pod != nil {
 					testNoInjectedCWSVolume(t, tt.args.pod)

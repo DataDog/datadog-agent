@@ -62,7 +62,7 @@ func TestClientStats(t *testing.T) {
 					for _, msg := range tt.Out {
 						expected = append(expected, msg)
 					}
-					assert.ElementsMatch(t, protoutil.PbToStringSlice(actual), protoutil.PbToStringSlice(expected))
+					assert.ElementsMatch(t, protoutil.ToStringSlice(actual), protoutil.ToStringSlice(expected))
 					return
 				case <-timeout:
 					t.Fatalf("timed out, log was:\n%s", r.AgentLog())

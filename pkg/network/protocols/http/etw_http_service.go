@@ -81,6 +81,7 @@
 //	1. HTTP transactions events are always in the scope of
 //		HTTPConnectionTraceTaskConnConn   21 [Local & Remote IP/Ports]
 //		HTTPConnectionTraceTaskConnClose  23
+//      HTTPConnectionTraceTaskConnCleanup 24
 //
 //
 //	2. HTTP Req/Resp (the same ActivityID)
@@ -92,15 +93,22 @@
 //
 //		  or
 //
+//
 //	   b. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
 //	      HTTPRequestTraceTaskParse          2     [verb, url]
 //	      HTTPRequestTraceTaskDeliver        3     [siteId, reqQueueName, url]
 //		  HTTPRequestTraceTaskFastResp       4     [statusCode, verb, headerLen, cachePolicy = 0]
 //		  HTTPRequestTraceTaskSendComplete  10     [httpStatus]
+
+//	   c. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
+//	      HTTPRequestTraceTaskParse          2     [verb, url]
+//		  HTTPRequestTraceTaskRejectedArgs  64     []
+//		  HTTPRequestTraceTaskSendComplete  10     [httpStatus]
+
 //
 //		  or
 //
-//	   c. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
+//	   d. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
 //	      HTTPRequestTraceTaskParse          2     [verb, url]
 //	      HTTPRequestTraceTaskDeliver        3     [siteId, reqQueueName, url]
 //		  HTTPRequestTraceTaskFastResp       4     [statusCode, verb, headerLen, cachePolicy=1]
@@ -109,7 +117,7 @@
 //
 //		  or
 //
-//	   d. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
+//	   e. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
 //	      HTTPRequestTraceTaskParse          2     [verb, url]
 //		  HTTPRequestTraceTaskSrvdFrmCache  16     [site, bytesSent]
 //
@@ -193,6 +201,10 @@ type HttpConnLink struct {
 	http WinHttpTransaction
 
 	url string
+
+	// list of etw notifications, in order, that this transaction has been seen
+	// this is for internal debugging; is not surfaced anywhere.
+	opcodes []uint16
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
@@ -536,8 +548,8 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEventRecord)
 }
 
 // -------------------------------------------------------------
-// HttpService ETW Event #23 (HTTPConnectionTraceTaskConnClose)
-func httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo *etw.DDEventRecord) {
+// HttpService ETW Event #24 (HTTPConnectionTraceTaskConnCleanup)
+func httpCallbackOnHTTPConnectionTraceTaskConnCleanup(eventInfo *etw.DDEventRecord) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -645,10 +657,16 @@ func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEventRecord) {
 	}
 
 	// Initialize ReqResp and Conn Link
-	reqRespAndLink := &HttpConnLink{}
-	reqRespAndLink.connActivityId = eventInfo.EventHeader.ActivityID
-	reqRespAndLink.http.Txn.Tup = connOpen.conn.tup
-	reqRespAndLink.http.Txn.RequestStarted = winutil.FileTimeToUnixNano(uint64(eventInfo.EventHeader.TimeStamp))
+	reqRespAndLink := &HttpConnLink{
+		connActivityId: eventInfo.EventHeader.ActivityID,
+		opcodes:        make([]uint16, 0, 10), // allocate enough slots for the opcodes we expect.
+		http: WinHttpTransaction{
+			Txn: driver.HttpTransactionType{
+				Tup:            connOpen.conn.tup,
+				RequestStarted: winutil.FileTimeToUnixNano(uint64(eventInfo.EventHeader.TimeStamp)),
+			},
+		},
+	}
 
 	// Save Req/Resp Conn Link and back reference to it
 	http2openConn[*rai] = reqRespAndLink
@@ -697,7 +715,7 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEventRecord) {
 	if !found {
 		return
 	}
-
+	httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)
 	// Verb (in future we can cast number to)
 	httpConnLink.http.Txn.RequestMethod = uint32(VerbToMethod(userData.GetUint32(8)))
 
@@ -785,9 +803,10 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 	// Get req/resp conn link
 	httpConnLink, found := getHttpConnLink(eventInfo.EventHeader.ActivityID)
 	if !found {
+		log.Warnf("connlink not found at tracetaskdeliver")
 		return
 	}
-
+	httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)
 	// Extra output
 	connOpen, connFound := getConnOpen(httpConnLink.connActivityId)
 	if !connFound {
@@ -812,6 +831,7 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 	httpConnLink.http.AppPool = appPool
 	httpConnLink.http.SiteID = userData.GetUint32(16)
 	httpConnLink.http.SiteName = iisConfig.GetSiteNameFromID(httpConnLink.http.SiteID)
+
 	// Parse url
 	if urlOffset > userData.Length() {
 		parsingErrorCount++
@@ -872,6 +892,7 @@ func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *etw.DDEventRecord) {
 	if !found {
 		return
 	}
+	httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)
 	httpConnLink.http.Txn.ResponseStatusCode = userData.GetUint16(16)
 
 	// <<<MORE ETW HttpService DETAILS>>>
@@ -926,7 +947,7 @@ func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEventRecord
 	if !found {
 		return
 	}
-
+	httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)
 	// Get from HTTP.sys cache (httpCache)
 	cacheEntry, found := httpCache[httpConnLink.url]
 	if !found {
@@ -1120,7 +1141,18 @@ func httpCallbackOnHTTPRequestTraceTaskSend(eventInfo *etw.DDEventRecord) {
 	if !found {
 		return
 	}
+	if httpConnLink.http.Txn.ResponseStatusCode == 0 {
+		/*
+		 * this condition will happen in case (c).  If the request fails for some reason
+		 * (for example server is overloaded), then we won't get TaskFastResp, which usually
+		 * sets the status code.  So if we don't already have the status code, assign it
+		 * here.
+		 */
+		userData := etwimpl.GetUserData(eventInfo)
+		httpConnLink.http.Txn.ResponseStatusCode = userData.GetUint16(8)
+	}
 
+	httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)
 	completeReqRespTracking(eventInfo, httpConnLink)
 }
 
@@ -1153,6 +1185,15 @@ func httpCallbackOnHttpSslConnEvent(eventInfo *etw.DDEventRecord) {
 	}
 }
 
+func httpCallbackOnHTTPRequestRejectedArgs(eventInfo *etw.DDEventRecord) {
+	// Get req/resp conn link
+	httpConnLink, found := getHttpConnLink(eventInfo.EventHeader.ActivityID)
+	if found {
+		httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)
+	}
+
+}
+
 //nolint:revive // TODO(WKIT) Fix revive linter
 func reportHttpCallbackEvents(eventInfo *etw.DDEventRecord, willBeProcessed bool) {
 	var processingStatus string
@@ -1172,6 +1213,11 @@ func reportHttpCallbackEvents(eventInfo *etw.DDEventRecord, willBeProcessed bool
 
 //nolint:revive // TODO(WKIT) Fix revive linter
 func httpCallbackOnHttpServiceNonProcessedEvents(eventInfo *etw.DDEventRecord) {
+	// Get req/resp conn link
+	httpConnLink, found := getHttpConnLink(eventInfo.EventHeader.ActivityID)
+	if found {
+		httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)
+	}
 	notHandledEventsCount++
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, false)
@@ -1232,9 +1278,17 @@ func (hei *EtwInterface) OnEvent(eventInfo *etw.DDEventRecord) {
 		httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo)
 
 	// #23
-	case EVENT_ID_HttpService_HTTPConnectionTraceTaskConnClose:
-		httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo)
+	//case EVENT_ID_HttpService_HTTPConnectionTraceTaskConnClose:
+	//	httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo)
 
+	// NOTE originally the cleanup function was done on (23) ConnClose. However it was discovered
+	// (the hard way) that every once in a while ConnCLose comes in out of order (in the test case)
+	// prior to (12) EVENT_ID_HttpService_HTTPRequestTraceTaskFastSend.  This would cause
+	// some connections to be dropped.  Using ConnCleanup (empirically) always comes last.
+	//
+	// #24
+	case EVENT_ID_HttpService_HTTPConnectionTraceTaskConnCleanup:
+		httpCallbackOnHTTPConnectionTraceTaskConnCleanup(eventInfo)
 	// #1
 	case EVENT_ID_HttpService_HTTPRequestTraceTaskRecvReq:
 		httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo)
@@ -1283,6 +1337,8 @@ func (hei *EtwInterface) OnEvent(eventInfo *etw.DDEventRecord) {
 	case EVENT_ID_HttpService_HTTPRequestTraceTaskLastSndError:
 		httpCallbackOnHTTPRequestTraceTaskSend(eventInfo)
 
+	case EVENT_ID_HttpService_HTTPRequestTraceTaskRequestRejectedArgs:
+		httpCallbackOnHTTPRequestRejectedArgs(eventInfo)
 	default:
 		httpCallbackOnHttpServiceNonProcessedEvents(eventInfo)
 	}

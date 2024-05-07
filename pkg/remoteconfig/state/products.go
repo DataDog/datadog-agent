@@ -17,11 +17,14 @@ var validProducts = map[string]struct{}{
 	ProductCWSDD:             {},
 	ProductCWSCustom:         {},
 	ProductCWSProfiles:       {},
+	ProductCSMSideScanning:   {},
 	ProductASM:               {},
 	ProductASMFeatures:       {},
 	ProductASMDD:             {},
 	ProductASMData:           {},
 	ProductAPMTracing:        {},
+	ProductSDSRules:          {},
+	ProductSDSAgentConfig:    {},
 	ProductLiveDebugging:     {},
 	ProductTesting1:          {},
 	ProductTesting2:          {},
@@ -50,6 +53,8 @@ const (
 	ProductCWSCustom = "CWS_CUSTOM"
 	// ProductCWSProfiles is the cloud workload security profile product
 	ProductCWSProfiles = "CWS_SECURITY_PROFILES"
+	// ProductCSMSideScanning is the side scanning product
+	ProductCSMSideScanning = "CSM_SIDE_SCANNING"
 	// ProductASM is the ASM product used by customers to issue rules configurations
 	ProductASM = "ASM"
 	// ProductASMFeatures is the ASM product used form ASM activation through remote config
@@ -60,6 +65,10 @@ const (
 	ProductASMData = "ASM_DATA"
 	// ProductAPMTracing is the apm tracing product
 	ProductAPMTracing = "APM_TRACING"
+	// ProductSDSRules is the SDS definitions product
+	ProductSDSRules = "SDS_RULES_DD"
+	// ProductSDSAgentConfig is the user SDS configurations product.
+	ProductSDSAgentConfig = "SDS_AGENT_CONFIG"
 	// ProductLiveDebugging is the dynamic instrumentation product
 	ProductLiveDebugging = "LIVE_DEBUGGING"
 	// ProductTesting1 is a product used for testing remote config

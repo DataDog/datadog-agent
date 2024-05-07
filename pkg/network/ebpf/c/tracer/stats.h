@@ -31,6 +31,7 @@ static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct s
     // initialize-if-no-exist the connection stat, and load it
     conn_stats_ts_t empty = {};
     bpf_memset(&empty, 0, sizeof(conn_stats_ts_t));
+    empty.duration = bpf_ktime_get_ns();
     empty.cookie = get_sk_cookie(sk);
     bpf_map_update_with_telemetry(conn_stats, t, &empty, BPF_NOEXIST);
     return bpf_map_lookup_elem(&conn_stats, t);

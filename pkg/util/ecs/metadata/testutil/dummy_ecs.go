@@ -47,7 +47,7 @@ func NewDummyECS(ops ...Option) (*DummyECS, error) {
 		mux:          http.NewServeMux(),
 		fileHandlers: make(map[string]string),
 		rawHandlers:  make(map[string]string),
-		Requests:     make(chan *http.Request, 3),
+		Requests:     make(chan *http.Request, 10),
 	}
 	for _, o := range ops {
 		o(d)

@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -19,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -29,6 +32,7 @@ const (
 var (
 	apiKeyEndpointUnreachable  = expvar.String{}
 	apiKeyUnexpectedStatusCode = expvar.String{}
+	apiKeyRemove               = expvar.String{}
 	apiKeyInvalid              = expvar.String{}
 	apiKeyValid                = expvar.String{}
 	apiKeyFake                 = expvar.String{}
@@ -39,7 +43,7 @@ var (
 	apiKeyFailure = expvar.Map{}
 
 	// domainURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed
-	// with 'api.' (see computeDomainsURL).
+	// with 'api.' (see computeDomainURLAPIKeyMap).
 	domainURLRegexp = regexp.MustCompile(`([a-z]{2}\d\.)?(datadoghq\.[a-z]+|ddog-gov\.com)$`)
 )
 
@@ -71,14 +75,16 @@ type forwarderHealth struct {
 	keysPerAPIEndpoint    map[string][]string
 	disableAPIKeyChecking bool
 	validationInterval    time.Duration
+	keyMapMutex           sync.Mutex
 }
 
 func (fh *forwarderHealth) init() {
 	fh.stop = make(chan bool, 1)
 	fh.stopped = make(chan struct{})
 
+	// build map of keys based upon the domain resolvers
 	fh.keysPerAPIEndpoint = make(map[string][]string)
-	fh.computeDomainsURL()
+	fh.computeDomainURLAPIKeyMap()
 
 	// Since timeout is the maximum duration we can wait, we need to divide it
 	// by the total number of api keys to obtain the max duration for each key
@@ -91,6 +97,21 @@ func (fh *forwarderHealth) init() {
 	if apiKeyCount != 0 {
 		fh.timeout /= time.Duration(apiKeyCount)
 	}
+
+	// when the config updates the "api_key", process that change
+	if fh.config != nil {
+		fh.config.OnUpdate(func(setting string, oldValue, newValue any) {
+			if setting != "api_key" {
+				return
+			}
+			oldAPIKey, ok1 := oldValue.(string)
+			newAPIKey, ok2 := newValue.(string)
+			if ok1 && ok2 {
+				fh.log.Debugf("Updating API key in forwarder, replacing `%s` with `%s`", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
+				fh.updateAPIKey(oldAPIKey, newAPIKey)
+			}
+		})
+	}
 }
 
 func (fh *forwarderHealth) Start() {
@@ -99,6 +120,7 @@ func (fh *forwarderHealth) Start() {
 	}
 
 	fh.health = health.RegisterReadiness("forwarder")
+	fh.log.Debug("Starting forwarder health check")
 	fh.init()
 	go fh.healthCheckLoop()
 }
@@ -120,11 +142,10 @@ func (fh *forwarderHealth) healthCheckLoop() {
 	defer validateTicker.Stop()
 	defer close(fh.stopped)
 
-	valid := fh.hasValidAPIKey()
-	// If no key is valid, no need to keep checking, they won't magically become valid
+	valid := fh.checkValidAPIKey()
+	// If no key is valid, keep checking in case the failures are due to an issue on the API side
 	if !valid {
 		fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
-		return
 	}
 
 	for {
@@ -132,24 +153,44 @@ func (fh *forwarderHealth) healthCheckLoop() {
 		case <-fh.stop:
 			return
 		case <-validateTicker.C:
-			valid := fh.hasValidAPIKey()
+			valid := fh.checkValidAPIKey()
 			if !valid {
 				fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
-				return
 			}
 		case <-fh.health.C:
 		}
 	}
 }
 
-// computeDomainsURL populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
-func (fh *forwarderHealth) computeDomainsURL() {
+func (fh *forwarderHealth) updateAPIKey(oldKey, newKey string) {
+	fh.keyMapMutex.Lock()
+	for domainURL, keyList := range fh.keysPerAPIEndpoint {
+		replaceList := make([]string, 0, len(keyList))
+		for _, currKey := range keyList {
+			if currKey == oldKey {
+				replaceList = append(replaceList, newKey)
+			} else {
+				replaceList = append(replaceList, currKey)
+			}
+		}
+		fh.keysPerAPIEndpoint[domainURL] = replaceList
+	}
+	fh.keyMapMutex.Unlock()
+	// remove old key messages, then check apiKey validity and update the messages
+	fh.setAPIKeyStatus(oldKey, "", &apiKeyRemove)
+	fh.checkValidAPIKey()
+}
+
+// computeDomainURLAPIKeyMap populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
+func (fh *forwarderHealth) computeDomainURLAPIKeyMap() {
+	fh.keyMapMutex.Lock()
 	for domain, dr := range fh.domainResolvers {
 		if domainURLRegexp.MatchString(domain) {
 			domain = "https://api." + domainURLRegexp.FindString(domain)
 		}
 		fh.keysPerAPIEndpoint[domain] = append(fh.keysPerAPIEndpoint[domain], dr.GetAPIKeys()...)
 	}
+	fh.keyMapMutex.Unlock()
 }
 
 func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, _ string, status *expvar.String) {
@@ -157,7 +198,10 @@ func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, _ string, status *expv
 		apiKey = apiKey[len(apiKey)-5:]
 	}
 	obfuscatedKey := fmt.Sprintf("API key ending with %s", apiKey)
-	if status == &apiKeyInvalid {
+	if status == &apiKeyRemove {
+		apiKeyStatus.Delete(obfuscatedKey)
+		apiKeyFailure.Delete(obfuscatedKey)
+	} else if status == &apiKeyInvalid {
 		apiKeyFailure.Set(obfuscatedKey, status)
 		apiKeyStatus.Delete(obfuscatedKey)
 	} else {
@@ -206,14 +250,23 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 	}
 
 	fh.setAPIKeyStatus(apiKey, domain, &apiKeyUnexpectedStatusCode)
-	return false, fmt.Errorf("Unexpected response code from the apikey validation endpoint: %v", resp.StatusCode)
+	return false, fmt.Errorf("unexpected response code from the apikey validation endpoint: %v", resp.StatusCode)
 }
 
-func (fh *forwarderHealth) hasValidAPIKey() bool {
+// check if any of the endpoints have a valid apiKey, updating health state
+func (fh *forwarderHealth) checkValidAPIKey() bool {
 	validKey := false
 	apiError := false
 
+	// mutex just to copy the map, to avoid holding onto it for too long
+	keysPerDomain := make(map[string][]string)
+	fh.keyMapMutex.Lock()
 	for domain, apiKeys := range fh.keysPerAPIEndpoint {
+		keysPerDomain[domain] = slices.Clone(apiKeys)
+	}
+	fh.keyMapMutex.Unlock()
+
+	for domain, apiKeys := range keysPerDomain {
 		for _, apiKey := range apiKeys {
 			v, err := fh.validateAPIKey(apiKey, domain)
 			if err != nil {

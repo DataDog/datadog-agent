@@ -53,10 +53,15 @@ type dependencies struct {
 
 func newExpvarServer(deps dependencies) (expvars.Component, error) {
 	// Initialize status
-	err := initStatus(deps)
+	err := InitProcessStatus(deps.Config, deps.SysProbeConfig, deps.HostInfo, deps.Log)
 	if err != nil {
 		_ = deps.Log.Critical("Failed to initialize status server:", err)
-		return nil, err
+		return struct{}{}, err
+	}
+
+	// Run a profile & telemetry server.
+	if deps.Config.GetBool("telemetry.enabled") {
+		http.Handle("/telemetry", deps.Telemetry.Handler())
 	}
 
 	expvarPort := getExpvarPort(deps)
@@ -92,21 +97,28 @@ func getExpvarPort(deps dependencies) int {
 	return expVarPort
 }
 
-func initStatus(deps dependencies) error {
+// InitProcessStatus initializes the data required for the process status
+func InitProcessStatus(
+	Config config.Component,
+	SysProbeConfig sysprobeconfig.Component,
+	HostInfo hostinfo.Component,
+	Log log.Component,
+) error {
 	// update docker socket path in info
 	dockerSock, err := util.GetDockerSocketPath()
 	if err != nil {
-		deps.Log.Debugf("Docker is not available on this host")
+		Log.Debugf("Docker is not available on this host")
 	}
 	status.UpdateDockerSocket(dockerSock)
 
 	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-	_, processModuleEnabled := deps.SysProbeConfig.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
-	eps, err := endpoint.GetAPIEndpoints(deps.Config)
+	_, processModuleEnabled := SysProbeConfig.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
+	eps, err := endpoint.GetAPIEndpoints(Config)
 	if err != nil {
-		_ = deps.Log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
+		_ = Log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
 	}
-	languageDetectionEnabled := deps.Config.GetBool("language_detection.enabled")
-	status.InitExpvars(deps.Config, deps.Telemetry, deps.HostInfo.Object().HostName, processModuleEnabled, languageDetectionEnabled, eps)
+	languageDetectionEnabled := Config.GetBool("language_detection.enabled")
+	status.InitExpvars(Config, HostInfo.Object().HostName, processModuleEnabled, languageDetectionEnabled, eps)
+
 	return nil
 }

@@ -23,10 +23,15 @@ func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 
 // APIKey returns the API key for the transaction
 func (tx *EbpfTx) APIKey() uint16 {
-	return tx.Request_api_key
+	return uint16(tx.Transaction.Request_api_key)
 }
 
 // APIVersion returns the API version for the transaction
 func (tx *EbpfTx) APIVersion() uint16 {
-	return tx.Request_api_version
+	return uint16(tx.Transaction.Request_api_version)
+}
+
+// RecordsCount returns the number of records in the transaction
+func (tx *EbpfTx) RecordsCount() uint32 {
+	return tx.Transaction.Records_count
 }

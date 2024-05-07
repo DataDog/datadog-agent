@@ -20,7 +20,7 @@ import (
 
 func assertClean(t *testing.T, contents, cleanContents string) {
 	cleaned, err := ScrubBytes([]byte(contents))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	cleanedString := string(cleaned)
 
 	assert.Equal(t, strings.TrimSpace(cleanContents), strings.TrimSpace(cleanedString))
@@ -38,7 +38,7 @@ func TestConfigScrubbedValidYaml(t *testing.T) {
 	require.NoError(t, err)
 
 	cleaned, err := ScrubBytes([]byte(inputConfData))
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// First test that the a scrubbed yaml is still a valid yaml
 	var out interface{}
@@ -64,7 +64,7 @@ func TestConfigScrubbedYaml(t *testing.T) {
 	require.NoError(t, err)
 
 	cleaned, err := ScrubYaml([]byte(inputConfData))
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// First test that the a scrubbed yaml is still a valid yaml
 	var out interface{}
@@ -85,7 +85,7 @@ func TestConfigScrubbedJson(t *testing.T) {
 	inputConfData, err := os.ReadFile(inputConf)
 	require.NoError(t, err)
 	cleaned, err := ScrubJSON([]byte(inputConfData))
-	require.Nil(t, err)
+	require.NoError(t, err)
 	// First test that the a scrubbed json is still valid
 	var actualOutJSON map[string]interface{}
 	err = json.Unmarshal(cleaned, &actualOutJSON)
@@ -102,17 +102,17 @@ func TestConfigScrubbedJson(t *testing.T) {
 
 func TestEmptyYaml(t *testing.T) {
 	cleaned, err := ScrubYaml(nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "", string(cleaned))
 
 	cleaned, err = ScrubYaml([]byte(""))
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "", string(cleaned))
 }
 
 func TestEmptyYamlString(t *testing.T) {
 	cleaned, err := ScrubYamlString("")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "", string(cleaned))
 }
 
@@ -483,7 +483,7 @@ other_config_with_list: [abc]
 func TestAddStrippedKeys(t *testing.T) {
 	contents := `foobar: baz`
 	cleaned, err := ScrubBytes([]byte(contents))
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Sanity check
 	assert.Equal(t, contents, string(cleaned))
@@ -491,6 +491,39 @@ func TestAddStrippedKeys(t *testing.T) {
 	AddStrippedKeys([]string{"foobar"})
 
 	assertClean(t, contents, `foobar: "********"`)
+}
+
+func TestAddStrippedKeysExceptions(t *testing.T) {
+	t.Run("single key", func(t *testing.T) {
+		contents := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'`
+
+		AddStrippedKeys([]string{"api_key"})
+
+		scrubbed, err := ScrubYamlString(contents)
+		require.Nil(t, err)
+		require.YAMLEq(t, `api_key: '***************************aaaaa'`, scrubbed)
+	})
+
+	t.Run("multiple keys", func(t *testing.T) {
+		contents := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+some_other_key: 'bbbb'
+app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccc'
+yet_another_key: 'dddd'`
+
+		keys := []string{"api_key", "some_other_key", "app_key"}
+		AddStrippedKeys(keys)
+
+		// check that AddStrippedKeys didn't modify the parameter slice
+		assert.Equal(t, []string{"api_key", "some_other_key", "app_key"}, keys)
+
+		scrubbed, err := ScrubYamlString(contents)
+		require.Nil(t, err)
+		expected := `api_key: '***************************aaaaa'
+some_other_key: '********'
+app_key: '***********************************acccc'
+yet_another_key: 'dddd'`
+		require.YAMLEq(t, expected, scrubbed)
+	})
 }
 
 func TestAddStrippedKeysNewReplacer(t *testing.T) {
@@ -501,7 +534,7 @@ func TestAddStrippedKeysNewReplacer(t *testing.T) {
 	AddDefaultReplacers(newScrubber)
 
 	cleaned, err := newScrubber.ScrubBytes([]byte(contents))
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, strings.TrimSpace(`foobar: "********"`), strings.TrimSpace(string(cleaned)))
 }
 
@@ -598,7 +631,7 @@ log_level: info
 	wd, _ := os.Getwd()
 	filePath := filepath.Join(wd, "test", "datadog.yaml")
 	cleaned, err := ScrubFile(filePath)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	cleanedString := string(cleaned)
 
 	assert.Equal(t, cleanedConfigFile, cleanedString)
@@ -619,6 +652,30 @@ func TestBearerToken(t *testing.T) {
 		`Bearer 2fe663014abcd1850076f6d68c0355666db98758262870811cace007cd4a62bdsldijfoiwjeoimdfolisdjoijfewoa`,
 		`Bearer ********`)
 	assertClean(t,
+		`Bearer abf243d1-9ba5-4d8d-8365-ac18229eb2ac`,
+		`Bearer ********`)
+	assertClean(t,
+		`Bearer token with space`,
+		`Bearer ********`)
+	assertClean(t,
+		`Bearer     123456798`,
+		`Bearer ********`)
+	assertClean(t,
 		`AuthBearer 2fe663014abcd1850076f6d68c0355666db98758262870811cace007cd4a62ba`,
 		`AuthBearer 2fe663014abcd1850076f6d68c0355666db98758262870811cace007cd4a62ba`)
+}
+
+func TestAuthorization(t *testing.T) {
+	assertClean(t,
+		`Authorization: some auth`,
+		`Authorization: "********"`)
+	assertClean(t,
+		`  Authorization: some auth`,
+		`  Authorization: "********"`)
+	assertClean(t,
+		`- Authorization: some auth`,
+		`- Authorization: "********"`)
+	assertClean(t,
+		`  authorization: some auth`,
+		`  authorization: "********"`)
 }

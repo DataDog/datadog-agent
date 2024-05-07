@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(APM) Fix revive linter
+// Package stats contains the logic to process APM stats.
 package stats
 
 import (
@@ -39,6 +39,7 @@ type BucketsAggregationKey struct {
 	StatusCode   uint32
 	Synthetics   bool
 	PeerTagsHash uint64
+	IsTraceRoot  pb.TraceRootFlag
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -77,16 +78,23 @@ func clientOrProducer(spanKind string) bool {
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
 func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) (Aggregation, []string) {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
+	var isTraceRoot pb.TraceRootFlag
+	if s.ParentID == 0 {
+		isTraceRoot = pb.TraceRootFlag_TRUE
+	} else {
+		isTraceRoot = pb.TraceRootFlag_FALSE
+	}
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:   s.Resource,
-			Service:    s.Service,
-			Name:       s.Name,
-			SpanKind:   s.Meta[tagSpanKind],
-			Type:       s.Type,
-			StatusCode: getStatusCode(s),
-			Synthetics: synthetics,
+			Resource:    s.Resource,
+			Service:     s.Service,
+			Name:        s.Name,
+			SpanKind:    s.Meta[tagSpanKind],
+			Type:        s.Type,
+			StatusCode:  getStatusCode(s),
+			Synthetics:  synthetics,
+			IsTraceRoot: isTraceRoot,
 		},
 	}
 	var peerTags []string
@@ -138,6 +146,7 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 			StatusCode:   g.HTTPStatusCode,
 			Synthetics:   g.Synthetics,
 			PeerTagsHash: peerTagsHash(g.PeerTags),
+			IsTraceRoot:  g.IsTraceRoot,
 		},
 	}
 }

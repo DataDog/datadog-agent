@@ -11,25 +11,29 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 var (
-	token    string
-	dcaToken string
+	tokenLock sync.RWMutex
+	token     string
+	dcaToken  string
 )
 
 // SetAuthToken sets the session token
 // Requires that the config has been set up before calling
 func SetAuthToken(config model.Reader) error {
+	tokenLock.Lock()
+	defer tokenLock.Unlock()
+
 	// Noop if token is already set
 	if token != "" {
 		return nil
 	}
 
-	// token is only set once, no need to mutex protect
 	var err error
 	token, err = security.FetchAuthToken(config)
 	return err
@@ -38,12 +42,14 @@ func SetAuthToken(config model.Reader) error {
 // CreateAndSetAuthToken creates and sets the authorization token
 // Requires that the config has been set up before calling
 func CreateAndSetAuthToken(config model.Reader) error {
+	tokenLock.Lock()
+	defer tokenLock.Unlock()
+
 	// Noop if token is already set
 	if token != "" {
 		return nil
 	}
 
-	// token is only set once, no need to mutex protect
 	var err error
 	token, err = security.CreateOrFetchToken(config)
 	return err
@@ -51,18 +57,22 @@ func CreateAndSetAuthToken(config model.Reader) error {
 
 // GetAuthToken gets the session token
 func GetAuthToken() string {
+	tokenLock.RLock()
+	defer tokenLock.RUnlock()
 	return token
 }
 
 // InitDCAAuthToken initialize the session token for the Cluster Agent based on config options
 // Requires that the config has been set up before calling
 func InitDCAAuthToken(config model.Reader) error {
+	tokenLock.Lock()
+	defer tokenLock.Unlock()
+
 	// Noop if dcaToken is already set
 	if dcaToken != "" {
 		return nil
 	}
 
-	// dcaToken is only set once, no need to mutex protect
 	var err error
 	dcaToken, err = security.CreateOrGetClusterAgentAuthToken(config)
 	return err
@@ -70,6 +80,8 @@ func InitDCAAuthToken(config model.Reader) error {
 
 // GetDCAAuthToken gets the session token
 func GetDCAAuthToken() string {
+	tokenLock.RLock()
+	defer tokenLock.RUnlock()
 	return dcaToken
 }
 

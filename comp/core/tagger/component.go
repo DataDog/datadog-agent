@@ -14,24 +14,28 @@ package tagger
 import (
 	"context"
 
-	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
-// team: container-integrations
+// team: container-platform
 
 // Component is the component type.
 type Component interface {
-	// TODO(component): Start method should be removed or migrated to an internal function in favour of fx.Lifecyle.
 	Start(ctx context.Context) error
 	Stop() error
-	Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
-	AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error
+	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
+	AccumulateTagsFor(entity string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
 	Standard(entity string) ([]string, error)
-	List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse
+	List() types.TaggerListResponse
 	GetEntity(entityID string) (*types.Entity, error)
-	Subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent
+	Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent
 	Unsubscribe(ch chan []types.EntityEvent)
+	GetEntityHash(entity string, cardinality types.TagCardinality) string
+	AgentTags(cardinality types.TagCardinality) ([]string, error)
+	GlobalTags(cardinality types.TagCardinality) ([]string, error)
+	SetNewCaptureTagger(newCaptureTagger Component)
+	ResetCaptureTagger()
+	EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo)
 }

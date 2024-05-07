@@ -185,6 +185,7 @@ type Session interface {
 // Component offers a way to create ETW tracing sessions with a given name.
 type Component interface {
 	NewSession(sessionName string) (Session, error)
+	NewWellKnownSession(sessionName string) (Session, error)
 }
 
 // UserData offers a wrapper around the UserData field of an ETW event.

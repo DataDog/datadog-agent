@@ -81,6 +81,10 @@ func TestFindContainerID(t *testing.T) {
 			input:  "prefix0123456789aAbBcCdDeEfF0123456789-0123456789suffix",
 			output: "0123456789aAbBcCdDeEfF0123456789-0123456789",
 		},
+		{ // ECS short
+			input:  "/ecs/0123456789aAbBcCdDeEfF0123456789/0123456789aAbBcCdDeEfF0123456789-012345678",
+			output: "0123456789aAbBcCdDeEfF0123456789-012345678",
+		},
 	}
 
 	for _, test := range testCases {

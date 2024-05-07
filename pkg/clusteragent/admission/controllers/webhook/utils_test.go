@@ -43,6 +43,7 @@ func resetMockConfig(c *config.MockConfig) {
 	c.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 	c.SetWithoutSource("admission_controller.inject_config.enabled", true)
 	c.SetWithoutSource("admission_controller.inject_tags.enabled", true)
+	c.SetWithoutSource("admission_controller.auto_instrumentation.enabled", true)
 	c.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
 	c.SetWithoutSource("admission_controller.add_aks_selectors", false)
 	c.SetWithoutSource("admission_controller.admission_controller.cws_instrumentation.enabled", false)

@@ -16,11 +16,13 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	pbmocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks/core"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestGetHostname(t *testing.T) {
@@ -80,19 +82,82 @@ func TestGetHostnameFromCmd(t *testing.T) {
 	})
 }
 
-func TestInvalidHostname(t *testing.T) {
-	cfg := config.Mock(t)
+func TestResolveHostname(t *testing.T) {
+	osHostname, err := os.Hostname()
+	require.NoError(t, err, "failed to get hostname from OS")
 
-	// Lower the GRPC timeout, otherwise the test will time out in CI
-	cfg.SetWithoutSource("process_config.grpc_connection_timeout_secs", 1)
-	cfg.SetWithoutSource("hostname", "localhost")
+	testCases := []struct {
+		name        string
+		agentFlavor string
+		ddAgentBin  string
+		// function to define the host name returned from the core agent
+		coreAgentHostname func(context.Context) (string, error)
+		// hostname specified in the config
+		configHostname   string
+		expectedHostname string
+	}{
+		{
+			name:             "valid hostname specified in config",
+			agentFlavor:      flavor.ProcessAgent,
+			configHostname:   "unit-test-hostname",
+			expectedHostname: "unit-test-hostname",
+		},
+		{
+			name:        "invalid hostname and unable to get hostname from core-agent will fallback to os hostname",
+			agentFlavor: flavor.ProcessAgent,
+			// sets an invalid agent binary to force the fallback to os.Hostname()
+			ddAgentBin:       "invalid_agent_binary",
+			configHostname:   "localhost",
+			expectedHostname: osHostname,
+		},
+		{
+			name:        "running in core agent so use standard hostname lookup",
+			agentFlavor: flavor.DefaultAgent,
+			coreAgentHostname: func(ctx context.Context) (string, error) {
+				return "core-agent-hostname", nil
+			},
+			expectedHostname: "core-agent-hostname",
+		},
+		{
+			name:        "running in iot agent so use standard hostname lookup",
+			agentFlavor: flavor.IotAgent,
+			coreAgentHostname: func(ctx context.Context) (string, error) {
+				return "iot-agent-hostname", nil
+			},
+			expectedHostname: "iot-agent-hostname",
+		},
+	}
 
-	expectedHostname, _ := os.Hostname()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			oldFlavor := flavor.GetFlavor()
+			defer flavor.SetFlavor(oldFlavor)
+			flavor.SetFlavor(tc.agentFlavor)
 
-	hostName, err := resolveHostName(cfg)
-	assert.NoError(t, err)
+			cfg := config.Mock(t)
+			// Lower the GRPC timeout, otherwise the test will time out in CI
+			cfg.SetWithoutSource("process_config.grpc_connection_timeout_secs", 1)
 
-	assert.Equal(t, expectedHostname, hostName)
+			cfg.SetWithoutSource("hostname", tc.configHostname)
+
+			if tc.ddAgentBin != "" {
+				cfg.SetWithoutSource("process_config.dd_agent_bin", tc.ddAgentBin)
+			}
+
+			if tc.coreAgentHostname != nil {
+				previous := coreAgentGetHostname
+				defer func() {
+					coreAgentGetHostname = previous
+				}()
+
+				coreAgentGetHostname = tc.coreAgentHostname
+			}
+
+			hostName, err := resolveHostName(cfg)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedHostname, hostName)
+		})
+	}
 }
 
 // TestGetHostnameShellCmd is a method that is called as a substitute for a dd-agent shell command,
@@ -135,6 +200,6 @@ func fakeExecCommand(command string, args ...string) *exec.Cmd {
 	cs := []string{"-test.run=TestGetHostnameShellCmd", "--", command}
 	cs = append(cs, args...)
 	cmd := exec.Command(os.Args[0], cs...)
-	cmd.Env = []string{"GO_TEST_PROCESS=1"}
+	cmd.Env = []string{"GO_TEST_PROCESS=1", "DD_LOG_LEVEL=info"} // Set LOG LEVEL to info
 	return cmd
 }

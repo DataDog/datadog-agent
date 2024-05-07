@@ -12,6 +12,7 @@ import (
 	"slices"
 
 	"github.com/CycloneDX/cyclonedx-go"
+	trivycore "github.com/aquasecurity/trivy/pkg/sbom/core"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/mohae/deepcopy"
 
@@ -19,8 +20,8 @@ import (
 )
 
 const (
-	repoTagPropertyKey    = trivydx.Namespace + trivydx.PropertyRepoTag
-	repoDigestPropertyKey = trivydx.Namespace + trivydx.PropertyRepoDigest
+	repoTagPropertyKey    = trivydx.Namespace + trivycore.PropertyRepoTag
+	repoDigestPropertyKey = trivydx.Namespace + trivycore.PropertyRepoDigest
 )
 
 // UpdateSBOMRepoMetadata finds if the repo tags and repo digests are present in the SBOM and updates them if not.

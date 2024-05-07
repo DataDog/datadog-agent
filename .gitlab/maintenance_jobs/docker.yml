@@ -1,6 +1,6 @@
 ---
 include:
-  - /.gitlab/common/container_publish_job_templates.yml
+  - .gitlab/common/container_publish_job_templates.yml
 
 #
 # Use these steps to revert the latest tags to a previous release
@@ -60,8 +60,8 @@ delete_docker_tag:
     TAG: "" # tag name, for example "6.9.0"
     ORGANIZATION: "datadog"
   before_script:
-    - DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY)
-    - PASS=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY)
+    - DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN_SSM_KEY)
+    - PASS=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD_SSM_KEY)
     - !reference [.setup_python_mirror_linux]
     - python3 -m pip install -r requirements.txt
     - |

@@ -60,5 +60,7 @@ func (w *Config) getTimeout() int32             { return w.timeout }
 func (w *Config) getFailurePolicy() string      { return w.failurePolicy }
 func (w *Config) getReinvocationPolicy() string { return w.reinvocationPolicy }
 func (w *Config) configName(suffix string) string {
-	return strings.ReplaceAll(fmt.Sprintf("%s.%s", w.webhookName, suffix), "-", ".")
+	name := strings.ReplaceAll(fmt.Sprintf("%s.%s", w.webhookName, suffix), "-", ".")
+	name = strings.ReplaceAll(name, "_", ".")
+	return name
 }

@@ -77,7 +77,7 @@ func (cs ConnStats) ConnectionDirection() ConnDirection {
 
 // IsAssured returns whether the connection has seen traffic in both directions.
 func (cs ConnStats) IsAssured() bool {
-	return cs.Flags&uint32(Assured) != 0
+	return cs.Flags&uint8(Assured) != 0
 }
 
 // ToBatch converts a byte slice to a Batch pointer.

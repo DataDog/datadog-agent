@@ -9,7 +9,10 @@
 package tracecmd
 
 import (
+	"fmt"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -19,8 +22,14 @@ import (
 )
 
 const (
-	// envDisableStats defines the environ variable to set to disable aviodable stats
-	envDisableStats = "DD_CWS_INSTRUMENTATION_DISABLE_STATS"
+	// envStatsDisabled defines the environment variable to set to disable avoidable stats
+	envStatsDisabled = "DD_CWS_INSTRUMENTATION_STATS_DISABLED"
+	// envProcScanDisabled defines the environment variable to disable procfs scan
+	envProcScanDisabled = "DD_CWS_INSTRUMENTATION_PROC_SCAN_DISABLED"
+	// envProcScanRate defines the rate of the prodfs scan
+	envProcScanRate = "DD_CWS_INSTRUMENTATION_PROC_SCAN_RATE"
+	// envSeccompDisabled defines the environment variable to disable seccomp
+	envSeccompDisabled = "DD_CWS_INSTRUMENTATION_SECCOMP_DISABLED"
 )
 
 const (
@@ -36,15 +45,28 @@ const (
 	async = "async"
 	// disableStats -if set- disable the avoidable use of stats to fill more files properties
 	disableStats = "disable-stats"
+	// disableProcScan disable the procfs scan
+	disableProcScan = "disable-proc-scan"
+	// scanProcEvery procfs scan rate
+	scanProcEvery = "proc-scan-rate"
+	// disableSeccomp disable seccomp
+	disableSeccomp = "disable-seccomp"
 )
 
 type traceCliParams struct {
-	ProbeAddr    string
-	Verbose      bool
-	UID          int32
-	GID          int32
-	Async        bool
-	DisableStats bool
+	ProbeAddr        string
+	Verbose          bool
+	UID              int32
+	GID              int32
+	Async            bool
+	StatsDisabled    bool
+	ProcScanDisabled bool
+	ScanProcEvery    string
+	SeccompDisabled  bool
+}
+
+func envToBool(name string) bool {
+	return strings.ToLower(os.Getenv(name)) == "true"
 }
 
 // Command returns the commands for the trace subcommand
@@ -64,7 +86,25 @@ func Command() []*cobra.Command {
 				gid := uint32(params.GID)
 				creds.GID = &gid
 			}
-			return ptracer.StartCWSPtracer(args, os.Environ(), params.ProbeAddr, creds, params.Verbose, params.Async, params.DisableStats)
+
+			opts := ptracer.Opts{
+				Creds:            creds,
+				Verbose:          params.Verbose,
+				Async:            params.Async,
+				StatsDisabled:    params.StatsDisabled,
+				ProcScanDisabled: params.ProcScanDisabled,
+				SeccompDisabled:  params.SeccompDisabled,
+			}
+
+			if params.ScanProcEvery != "" {
+				every, err := time.ParseDuration(params.ScanProcEvery)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "invalid scan proc rate duration `%s`: %s", params.ScanProcEvery, err)
+				}
+				opts.ScanProcEvery = every
+			}
+
+			return ptracer.StartCWSPtracer(args, os.Environ(), params.ProbeAddr, opts)
 		},
 	}
 
@@ -73,11 +113,10 @@ func Command() []*cobra.Command {
 	traceCmd.Flags().Int32Var(&params.UID, uid, -1, "uid used to start the tracee")
 	traceCmd.Flags().Int32Var(&params.GID, gid, -1, "gid used to start the tracee")
 	traceCmd.Flags().BoolVar(&params.Async, async, false, "enable async GRPC connection")
-	if os.Getenv(envDisableStats) != "" {
-		params.DisableStats = true
-	} else {
-		traceCmd.Flags().BoolVar(&params.DisableStats, disableStats, false, "disable use of stats")
-	}
+	traceCmd.Flags().BoolVar(&params.StatsDisabled, disableStats, envToBool(envStatsDisabled), "disable use of stats")
+	traceCmd.Flags().BoolVar(&params.ProcScanDisabled, disableProcScan, envToBool(envProcScanDisabled), "disable proc scan")
+	traceCmd.Flags().StringVar(&params.ScanProcEvery, scanProcEvery, os.Getenv(envProcScanRate), "proc scan rate")
+	traceCmd.Flags().BoolVar(&params.SeccompDisabled, disableSeccomp, envToBool(envSeccompDisabled), "disable seccomp")
 
 	traceCmd.AddCommand(selftestscmd.Command()...)
 

@@ -47,9 +47,8 @@ func TestConfDisabled(t *testing.T) {
 		),
 	)
 
-	// When interval is 0 the resource Provider should be an empty Optional[T]
-	_, isSet := ret.Provider.Callback.Get()
-	assert.False(t, isSet)
+	// When interval is 0 the resource Provider should be nil
+	assert.Nil(t, ret.Provider.Callback)
 }
 
 func TestConfInterval(t *testing.T) {
@@ -71,6 +70,8 @@ func TestConfInterval(t *testing.T) {
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 		),
 	)
+
+	assert.NotNil(t, ret.Provider.Callback)
 
 	assert.Equal(t, 21*time.Second, ret.Comp.(*resourcesImpl).collectInterval)
 }

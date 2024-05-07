@@ -16,8 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/util/compression"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func testMetadata(t *testing.T, d *dogstatsdTest) {
@@ -40,34 +42,50 @@ func testMetadata(t *testing.T, d *dogstatsdTest) {
 }
 
 func TestReceiveAndForward(t *testing.T) {
-	d := setupDogstatsd(t)
-	defer d.teardown()
-	defer log.Flush()
 
-	testMetadata(t, d)
-
-	d.sendUDP("_sc|test.ServiceCheck|0")
-
-	timeOut := time.Tick(30 * time.Second)
-	select {
-	case <-d.requestReady:
-	case <-timeOut:
-		require.Fail(t, "Timeout: the backend never receive a requests from dogstatsd")
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: compressionimpl.ZlibKind},
+		"zstd": {kind: compressionimpl.ZstdKind},
 	}
 
-	requests := d.getRequests()
-	require.Len(t, requests, 1)
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			d := setupDogstatsd(t)
+			defer d.teardown()
+			defer log.Flush()
 
-	sc := []servicecheck.ServiceCheck{}
-	decompressedBody, err := compression.Decompress([]byte(requests[0]))
-	require.NoError(t, err, "Could not decompress request body")
-	err = json.Unmarshal(decompressedBody, &sc)
-	require.NoError(t, err, fmt.Sprintf("Could not Unmarshal request body: %s", decompressedBody))
+			testMetadata(t, d)
 
-	require.Len(t, sc, 2)
-	assert.Equal(t, sc[0].CheckName, "test.ServiceCheck")
-	assert.Equal(t, sc[0].Status, servicecheck.ServiceCheckOK)
+			d.sendUDP("_sc|test.ServiceCheck|0")
 
-	assert.Equal(t, sc[1].CheckName, "datadog.agent.up")
-	assert.Equal(t, sc[1].Status, servicecheck.ServiceCheckOK)
+			timeOut := time.Tick(30 * time.Second)
+			select {
+			case <-d.requestReady:
+			case <-timeOut:
+				require.Fail(t, "Timeout: the backend never receive a requests from dogstatsd")
+			}
+
+			requests := d.getRequests()
+			require.Len(t, requests, 1)
+
+			mockConfig := pkgconfigsetup.Conf()
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			strategy := compressionimpl.NewCompressor(mockConfig)
+
+			sc := []servicecheck.ServiceCheck{}
+			decompressedBody, err := strategy.Decompress([]byte(requests[0]))
+			require.NoError(t, err, "Could not decompress request body")
+			err = json.Unmarshal(decompressedBody, &sc)
+			require.NoError(t, err, fmt.Sprintf("Could not Unmarshal request body: %s", decompressedBody))
+
+			require.Len(t, sc, 2)
+			assert.Equal(t, sc[0].CheckName, "test.ServiceCheck")
+			assert.Equal(t, sc[0].Status, servicecheck.ServiceCheckOK)
+
+			assert.Equal(t, sc[1].CheckName, "datadog.agent.up")
+			assert.Equal(t, sc[1].Status, servicecheck.ServiceCheckOK)
+		})
+	}
 }

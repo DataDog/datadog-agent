@@ -8,15 +8,13 @@ package server
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func parseEvent(t *testing.T, rawEvent []byte) (dogstatsdEvent, error) {
-	cfg := fxutil.Test[config.Component](t, config.MockModule())
-	parser := newParser(cfg, newFloat64ListPool(), 1)
+	deps := newServerDeps(t)
+	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
 	return parser.parseEvent(rawEvent)
 }
 

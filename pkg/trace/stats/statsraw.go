@@ -76,6 +76,7 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		Synthetics:     a.Synthetics,
 		SpanKind:       a.SpanKind,
 		PeerTags:       s.peerTags,
+		IsTraceRoot:    a.IsTraceRoot,
 	}, nil
 }
 

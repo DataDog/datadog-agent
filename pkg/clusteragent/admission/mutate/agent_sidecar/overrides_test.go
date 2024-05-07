@@ -8,10 +8,11 @@
 package agentsidecar
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"testing"
 )
 
 func TestWithEnvOverrides(t *testing.T) {
@@ -20,6 +21,7 @@ func TestWithEnvOverrides(t *testing.T) {
 		baseContainer          *corev1.Container
 		extraEnvs              []corev1.EnvVar
 		expectError            bool
+		expectMutated          bool
 		containerAfterOverride *corev1.Container
 	}{
 		{
@@ -27,14 +29,16 @@ func TestWithEnvOverrides(t *testing.T) {
 			baseContainer: nil,
 			extraEnvs:     []corev1.EnvVar{{Name: "Foo", Value: "Bar"}},
 			expectError:   true,
+			expectMutated: false,
 		},
 		{
 			name: "Happy path - override existing environment variable",
 			baseContainer: &corev1.Container{
 				Env: []corev1.EnvVar{{Name: "Foo", Value: "Bar"}},
 			},
-			extraEnvs:   []corev1.EnvVar{{Name: "Foo", Value: "NewBar"}},
-			expectError: false,
+			extraEnvs:     []corev1.EnvVar{{Name: "Foo", Value: "NewBar"}},
+			expectError:   false,
+			expectMutated: true,
 			containerAfterOverride: &corev1.Container{
 				Env: []corev1.EnvVar{{Name: "Foo", Value: "NewBar"}},
 			},
@@ -44,17 +48,37 @@ func TestWithEnvOverrides(t *testing.T) {
 			baseContainer: &corev1.Container{
 				Env: []corev1.EnvVar{{Name: "Foo", Value: "Bar"}},
 			},
-			extraEnvs:   []corev1.EnvVar{{Name: "NewFoo", Value: "Bar"}},
-			expectError: false,
+			extraEnvs:     []corev1.EnvVar{{Name: "NewFoo", Value: "Bar"}},
+			expectError:   false,
+			expectMutated: true,
 			containerAfterOverride: &corev1.Container{
 				Env: []corev1.EnvVar{{Name: "Foo", Value: "Bar"}, {Name: "NewFoo", Value: "Bar"}},
+			},
+		},
+		{
+			name: "No overrides",
+			baseContainer: &corev1.Container{
+				Env: []corev1.EnvVar{
+					{Name: "Foo", Value: "Bar"},
+				},
+			},
+			extraEnvs: []corev1.EnvVar{
+				{Name: "Foo", Value: "Bar"},
+			},
+			expectError:   false,
+			expectMutated: false,
+			containerAfterOverride: &corev1.Container{
+				Env: []corev1.EnvVar{
+					{Name: "Foo", Value: "Bar"},
+				},
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			err := withEnvOverrides(test.baseContainer, test.extraEnvs...)
+			mutated, err := withEnvOverrides(test.baseContainer, test.extraEnvs...)
+			assert.Equal(tt, test.expectMutated, mutated)
 
 			if test.expectError {
 				assert.Error(tt, err)

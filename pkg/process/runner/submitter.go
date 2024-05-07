@@ -15,6 +15,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -39,8 +40,6 @@ import (
 //nolint:revive // TODO(PROC) Fix revive linter
 type Submitter interface {
 	Submit(start time.Time, name string, messages *types.Payload)
-	Start() error
-	Stop()
 }
 
 var _ Submitter = &CheckSubmitter{}
@@ -59,6 +58,10 @@ type CheckSubmitter struct {
 	rtProcessForwarder   defaultforwarder.Component
 	connectionsForwarder defaultforwarder.Component
 	eventForwarder       defaultforwarder.Component
+
+	// Endpoints for logging purposes
+	processAPIEndpoints       []apicfg.Endpoint
+	processEventsAPIEndpoints []apicfg.Endpoint
 
 	hostname string
 
@@ -127,7 +130,6 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		return nil, err
 	}
 
-	printStartMessage(log, hostname, processAPIEndpoints, processEventsAPIEndpoints)
 	return &CheckSubmitter{
 		log:                log,
 		processResults:     processResults,
@@ -139,6 +141,9 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		rtProcessForwarder:   forwarders.GetRTProcessForwarder(),
 		connectionsForwarder: forwarders.GetConnectionsForwarder(),
 		eventForwarder:       forwarders.GetEventForwarder(),
+
+		processAPIEndpoints:       processAPIEndpoints,
+		processEventsAPIEndpoints: processEventsAPIEndpoints,
 
 		hostname: hostname,
 
@@ -176,21 +181,7 @@ func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Pa
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func (s *CheckSubmitter) Start() error {
-	if err := s.processForwarder.Start(); err != nil {
-		return fmt.Errorf("error starting forwarder: %s", err)
-	}
-
-	if err := s.rtProcessForwarder.Start(); err != nil {
-		return fmt.Errorf("error starting RT forwarder: %s", err)
-	}
-
-	if err := s.connectionsForwarder.Start(); err != nil {
-		return fmt.Errorf("error starting connections forwarder: %s", err)
-	}
-
-	if err := s.eventForwarder.Start(); err != nil {
-		return fmt.Errorf("error starting event forwarder: %s", err)
-	}
+	printStartMessage(s.log, s.hostname, s.processAPIEndpoints, s.processEventsAPIEndpoints)
 
 	s.wg.Add(1)
 	go func() {
@@ -270,11 +261,6 @@ func (s *CheckSubmitter) Stop() {
 	s.eventResults.Stop()
 
 	s.wg.Wait()
-
-	s.processForwarder.Stop()
-	s.rtProcessForwarder.Stop()
-	s.connectionsForwarder.Stop()
-	s.eventForwarder.Stop()
 
 	close(s.rtNotifierChan)
 }

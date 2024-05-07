@@ -60,7 +60,7 @@ func (suite *DockerSuite) TestDSDWithUDS() {
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
-				`container_name:metric-sender-uds`,
+				`^container_name:metric-sender-uds$`,
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -85,7 +85,7 @@ func (suite *DockerSuite) TestDSDWithUDP() {
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
-				`container_name:metric-sender-udp`,
+				`^container_name:metric-sender-udp$`,
 			},
 		},
 		Expect: testMetricExpectArgs{

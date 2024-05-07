@@ -180,7 +180,7 @@ func TestNilPropagator(t *testing.T) {
 	tc, err := extractor.Extract([]byte(`{"headers":` + headersAll + `}`))
 	t.Logf("Extract returned TraceContext=%#v error=%#v", tc, err)
 	assert.Nil(t, err)
-	assert.Equal(t, w3cTraceContext, tc)
+	assert.Equal(t, ddTraceContext, tc)
 }
 
 func TestExtractorExtract(t *testing.T) {
@@ -211,7 +211,7 @@ func TestExtractorExtract(t *testing.T) {
 			events: []interface{}{
 				[]byte(`{"headers":` + headersAll + `}`),
 			},
-			expCtx:   w3cTraceContext,
+			expCtx:   ddTraceContext,
 			expNoErr: true,
 		},
 
@@ -277,7 +277,7 @@ func TestExtractorExtract(t *testing.T) {
 			events: []interface{}{
 				eventSqsMessage(headersAll, headersNone, headersNone),
 			},
-			expCtx:   w3cTraceContext,
+			expCtx:   ddTraceContext,
 			expNoErr: true,
 		},
 		{
@@ -285,7 +285,7 @@ func TestExtractorExtract(t *testing.T) {
 			events: []interface{}{
 				eventSqsMessage(headersNone, headersAll, headersNone),
 			},
-			expCtx:   w3cTraceContext,
+			expCtx:   ddTraceContext,
 			expNoErr: true,
 		},
 		{
@@ -391,7 +391,7 @@ func TestExtractorExtract(t *testing.T) {
 					},
 				},
 			},
-			expCtx:   w3cTraceContext,
+			expCtx:   ddTraceContext,
 			expNoErr: true,
 		},
 		{
@@ -403,7 +403,7 @@ func TestExtractorExtract(t *testing.T) {
 					},
 				},
 			},
-			expCtx:   w3cTraceContext,
+			expCtx:   ddTraceContext,
 			expNoErr: true,
 		},
 
@@ -415,7 +415,7 @@ func TestExtractorExtract(t *testing.T) {
 					Headers: headersMapAll,
 				},
 			},
-			expCtx:   w3cTraceContext,
+			expCtx:   ddTraceContext,
 			expNoErr: true,
 		},
 
@@ -427,7 +427,7 @@ func TestExtractorExtract(t *testing.T) {
 					Headers: headersMapAll,
 				},
 			},
-			expCtx:   w3cTraceContext,
+			expCtx:   ddTraceContext,
 			expNoErr: true,
 		},
 
@@ -439,7 +439,7 @@ func TestExtractorExtract(t *testing.T) {
 					Headers: headersMapAll,
 				},
 			},
-			expCtx:   w3cTraceContext,
+			expCtx:   ddTraceContext,
 			expNoErr: true,
 		},
 
@@ -451,7 +451,7 @@ func TestExtractorExtract(t *testing.T) {
 					Headers: headersMapAll,
 				},
 			},
-			expCtx:   w3cTraceContext,
+			expCtx:   ddTraceContext,
 			expNoErr: true,
 		},
 
@@ -463,7 +463,7 @@ func TestExtractorExtract(t *testing.T) {
 					Headers: headersMapAll,
 				},
 			},
-			expCtx:   w3cTraceContext,
+			expCtx:   ddTraceContext,
 			expNoErr: true,
 		},
 
@@ -475,7 +475,7 @@ func TestExtractorExtract(t *testing.T) {
 					Headers: headersMapAll,
 				},
 			},
-			expCtx:   w3cTraceContext,
+			expCtx:   ddTraceContext,
 			expNoErr: true,
 		},
 
@@ -487,7 +487,7 @@ func TestExtractorExtract(t *testing.T) {
 				[]byte("hello-world"),
 				eventSqsMessage(headersAll, headersNone, headersNone),
 			},
-			expCtx:   w3cTraceContext,
+			expCtx:   ddTraceContext,
 			expNoErr: true,
 		},
 		{
@@ -640,7 +640,7 @@ func TestPropagationStyle(t *testing.T) {
 			name:       "no-type-headers-all",
 			propType:   "",
 			hdrs:       headersAll,
-			expTraceID: w3c.trace.asUint,
+			expTraceID: dd.trace.asUint,
 		},
 		{
 			name:       "datadog-type-headers-all",

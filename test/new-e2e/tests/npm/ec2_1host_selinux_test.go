@@ -45,6 +45,13 @@ func (v *ec2VMSELinuxSuite) BeforeTest(suiteName, testName string) {
 	}
 }
 
+// AfterTest will be called after each test
+func (v *ec2VMSELinuxSuite) AfterTest(suiteName, testName string) {
+	test1HostFakeIntakeNPMDumpInfo(v.T(), v.Env().FakeIntake)
+
+	v.BaseSuite.AfterTest(suiteName, testName)
+}
+
 func (v *ec2VMSELinuxSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
 
@@ -53,7 +60,7 @@ func (v *ec2VMSELinuxSuite) SetupSuite() {
 	v.Env().RemoteHost.MustExecute("sudo yum install -y docker-ce docker-ce-cli")
 	v.Env().RemoteHost.MustExecute("sudo systemctl start docker")
 	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker $(whoami)")
-	v.Env().RemoteHost.ReconnectSSH()
+	v.Env().RemoteHost.Reconnect()
 
 	// prefetch docker image locally
 	v.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-npm-tools:main")

@@ -11,17 +11,19 @@ package compliance
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"math/rand"
 	"net/http"
-	"path/filepath"
+	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
@@ -111,8 +113,9 @@ const (
 // Agent is the compliance agent that is responsible for running compliance
 // continuously benchmarks and configuration checking.
 type Agent struct {
-	senderManager sender.SenderManager
-	opts          AgentOptions
+	telemetrySender telemetry.SimpleTelemetrySender
+	wmeta           workloadmeta.Component
+	opts            AgentOptions
 
 	telemetry  *telemetry.ContainersTelemetry
 	statuses   map[string]*CheckStatus
@@ -166,7 +169,7 @@ func DefaultRuleFilter(r *Rule) bool {
 }
 
 // NewAgent returns a new compliance agent.
-func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
+func NewAgent(telemetrySender telemetry.SimpleTelemetrySender, wmeta workloadmeta.Component, opts AgentOptions) *Agent {
 	if opts.ConfigDir == "" {
 		panic("compliance: missing agent configuration directory")
 	}
@@ -188,15 +191,16 @@ func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
 		opts.RuleFilter = func(r *Rule) bool { return DefaultRuleFilter(r) }
 	}
 	return &Agent{
-		senderManager: senderManager,
-		opts:          opts,
-		statuses:      make(map[string]*CheckStatus),
+		telemetrySender: telemetrySender,
+		wmeta:           wmeta,
+		opts:            opts,
+		statuses:        make(map[string]*CheckStatus),
 	}
 }
 
 // Start starts the compliance agent.
 func (a *Agent) Start() error {
-	telemetry, err := telemetry.NewContainersTelemetry(a.senderManager)
+	telemetry, err := telemetry.NewContainersTelemetry(a.telemetrySender, a.wmeta)
 	if err != nil {
 		log.Errorf("could not start containers telemetry: %v", err)
 		return err
@@ -452,10 +456,16 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 		}
 		groups := groupProcesses(procs, dbconfig.GetProcResourceType)
 		for keyGroup, proc := range groups {
-			rootPath := filepath.Join(a.opts.HostRoot, keyGroup.rootPath)
-			resource, ok := dbconfig.LoadDBResource(ctx, rootPath, proc, keyGroup.containerID)
-			if ok {
-				a.reportResourceLog(defaultCheckIntervalLowPriority, NewResourceLog(a.opts.Hostname, resource.Type, resource.Config))
+			if keyGroup.containerID != "" {
+				if err := a.reportDBConfigurationFromSystemProbe(ctx, keyGroup.containerID, proc.Pid); err != nil {
+					log.Warnf("error reporting DB configuration from system-probe: %s", err)
+				}
+			} else {
+				resourceType, resource, ok := dbconfig.LoadConfiguration(ctx, a.opts.HostRoot, proc)
+				if ok {
+					log := NewResourceLog(a.opts.Hostname, resourceType, resource)
+					a.reportResourceLog(defaultCheckIntervalLowPriority, log)
+				}
 			}
 		}
 		if sleepAborted(ctx, runTicker.C) {
@@ -464,10 +474,55 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 	}
 }
 
+func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, containerID utils.ContainerID, pid int32) error {
+	if a.opts.SysProbeClient == nil {
+		return fmt.Errorf("system-probe socket client was not created")
+	}
+
+	qs := make(url.Values)
+	qs.Add("pid", strconv.FormatInt(int64(pid), 10))
+	sysProbeComplianceModuleURL := &url.URL{
+		Scheme:   "http",
+		Host:     "unix",
+		Path:     "/compliance/dbconfig",
+		RawQuery: qs.Encode(),
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sysProbeComplianceModuleURL.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := a.opts.SysProbeClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("error running cross-container benchmark: %s", resp.Status)
+	}
+
+	var resource *dbconfig.DBResource
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(body, &resource); err != nil {
+		return err
+	}
+	if resource != nil {
+		dbResourceLog := NewResourceLog(a.opts.Hostname+"_"+string(containerID), resource.Type, resource.Config)
+		dbResourceLog.Container = &CheckContainerMeta{
+			ContainerID: string(containerID),
+		}
+		a.reportResourceLog(defaultCheckIntervalLowPriority, dbResourceLog)
+	}
+	return nil
+}
+
 type procGroup struct {
 	key         string
 	containerID utils.ContainerID
-	rootPath    string
 }
 
 func groupProcesses(procs []*process.Process, getKey func(*process.Process) (string, bool)) map[procGroup]*process.Process {
@@ -480,35 +535,25 @@ func groupProcesses(procs []*process.Process, getKey func(*process.Process) (str
 		// if the process does not run in any form of container, containerID
 		// is the empty string "" and it can be run locally
 		containerID, _ := utils.GetProcessContainerID(proc.Pid)
-		var rootPath string
-		if containerID != "" {
-			p, err := utils.GetContainerOverlayPath(proc.Pid)
-			if err != nil {
-				continue
-			}
-			rootPath = p
-		} else {
-			rootPath = "/"
-		}
 		// We dedupe our scans based on the resource type and the container
 		// ID, assuming that we will scan the same configuration for each
 		// containers running the process.
 		groupKey := procGroup{
 			key:         key,
 			containerID: containerID,
-			rootPath:    rootPath,
 		}
-		groups[groupKey] = proc
+		if _, ok := groups[groupKey]; !ok {
+			groups[groupKey] = proc
+		}
 	}
 	return groups
 }
 
 func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *ResourceLog) {
-	store := workloadmeta.GetGlobalStore()
 	expireAt := time.Now().Add(2 * resourceTTL).Truncate(1 * time.Second)
 	resourceLog.ExpireAt = &expireAt
-	if store != nil && resourceLog.Container != nil {
-		if ctnr, _ := store.GetContainer(resourceLog.Container.ContainerID); ctnr != nil {
+	if a.wmeta != nil && resourceLog.Container != nil {
+		if ctnr, _ := a.wmeta.GetContainer(resourceLog.Container.ContainerID); ctnr != nil {
 			resourceLog.Container.ImageID = ctnr.Image.ID
 			resourceLog.Container.ImageName = ctnr.Image.Name
 			resourceLog.Container.ImageTag = ctnr.Image.Tag
@@ -518,7 +563,6 @@ func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *Resour
 }
 
 func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent) {
-	store := workloadmeta.GetGlobalStore()
 	eventsExpireAt := time.Now().Add(2 * eventsTTL).Truncate(1 * time.Second)
 	for _, event := range events {
 		event.ExpireAt = &eventsExpireAt
@@ -526,8 +570,8 @@ func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent
 		if event.Result == CheckSkipped {
 			continue
 		}
-		if store != nil && event.Container != nil {
-			if ctnr, _ := store.GetContainer(event.Container.ContainerID); ctnr != nil {
+		if a.wmeta != nil && event.Container != nil {
+			if ctnr, _ := a.wmeta.GetContainer(event.Container.ContainerID); ctnr != nil {
 				event.Container.ImageID = ctnr.Image.ID
 				event.Container.ImageName = ctnr.Image.Name
 				event.Container.ImageTag = ctnr.Image.Tag
