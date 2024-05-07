@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -80,7 +79,6 @@ type handlerdeps struct {
 	EventPlatformReceiver eventplatformreceiver.Component
 	Ac                    autodiscovery.Mock
 	Gui                   optional.Option[gui.Component]
-	Settings              settings.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -148,7 +146,6 @@ func setupRoutes(t *testing.T) *mux.Router {
 		deps.EventPlatformReceiver,
 		deps.Ac,
 		deps.Gui,
-		deps.Settings,
 		deps.EndpointProviders,
 	)
 

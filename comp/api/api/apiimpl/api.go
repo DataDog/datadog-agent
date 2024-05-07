@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -64,7 +63,6 @@ type apiServer struct {
 	rcServiceMRF          optional.Option[rcservicemrf.Component]
 	authToken             authtoken.Component
 	gui                   optional.Option[gui.Component]
-	settings              settings.Component
 	endpointProviders     []api.EndpointProvider
 }
 
@@ -88,7 +86,6 @@ type dependencies struct {
 	RcServiceMRF          optional.Option[rcservicemrf.Component]
 	AuthToken             authtoken.Component
 	Gui                   optional.Option[gui.Component]
-	Settings              settings.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -113,7 +110,6 @@ func newAPIServer(deps dependencies) api.Component {
 		rcServiceMRF:          deps.RcServiceMRF,
 		authToken:             deps.AuthToken,
 		gui:                   deps.Gui,
-		settings:              deps.Settings,
 		endpointProviders:     deps.EndpointProviders,
 	}
 }
@@ -149,7 +145,6 @@ func (server *apiServer) StartServer(
 		server.eventPlatformReceiver,
 		ac,
 		server.gui,
-		server.settings,
 		server.endpointProviders,
 	)
 }
