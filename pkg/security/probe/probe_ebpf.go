@@ -1559,8 +1559,20 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("sched/sched_process_fork", "parent_pid", 24),
 		},
 		manager.ConstantEditor{
-			Name:  "mmap_addr",
-			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "addr", 16),
+			Name:  constantfetch.OffsetNameSysMmapOff,
+			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "off", 56),
+		},
+		manager.ConstantEditor{
+			Name:  constantfetch.OffsetNameSysMmapLen,
+			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "len", 24),
+		},
+		manager.ConstantEditor{
+			Name:  constantfetch.OffsetNameSysMmapProt,
+			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "prot", 32),
+		},
+		manager.ConstantEditor{
+			Name:  constantfetch.OffsetNameSysMmapFlags,
+			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "flags", 40),
 		},
 	)
 
