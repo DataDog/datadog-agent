@@ -33,6 +33,7 @@ func NewCompressor(cfg config.Component) compression.Component {
 		return strategy.NewZlibStrategy()
 	case ZstdKind:
 		level := cfg.GetInt("serializer_compressor_level")
+		log.Infof("zstd compresion level %d", level)
 		return strategy.NewZstdStrategy(level)
 	case NoneKind:
 		log.Warn("no serializer_compressor_kind set. use zlib or zstd")
