@@ -11,8 +11,8 @@ package main
 import (
 	"archive/tar"
 	"bytes"
-	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -22,18 +22,13 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
-	"runtime"
-	"sort"
 	"strings"
-	"sync"
 
 	"github.com/smira/go-xz"
-	"golang.org/x/sync/semaphore"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	utilKernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -41,11 +36,24 @@ func main() {
 	var archiveRootPath string
 	var constantOutputPath string
 	var forceRefresh bool
+	var combineConstants bool
 
 	flag.StringVar(&archiveRootPath, "archive-root", "", "Root path of BTFHub archive")
 	flag.StringVar(&constantOutputPath, "output", "", "Output path for JSON constants")
 	flag.BoolVar(&forceRefresh, "force-refresh", false, "Force refresh of the constants")
+	flag.BoolVar(&combineConstants, "combine", false, "Don't read btf files, but read constants")
 	flag.Parse()
+
+	if combineConstants {
+		combined, err := combineConstantFiles(archiveRootPath)
+		if err != nil {
+			panic(err)
+		}
+		if err := outputConstants(&combined, constantOutputPath); err != nil {
+			panic(err)
+		}
+		return
+	}
 
 	archiveCommit, err := getCommitSha(archiveRootPath)
 	if err != nil {
@@ -77,17 +85,81 @@ func main() {
 
 	export.Commit = archiveCommit
 
+	if err := outputConstants(&export, constantOutputPath); err != nil {
+		panic(err)
+	}
+}
+
+func outputConstants(export *constantfetch.BTFHubConstants, outputPath string) error {
 	fmt.Printf("%d kernels\n", len(export.Kernels))
 	fmt.Printf("%d unique constants\n", len(export.Constants))
 
 	output, err := json.MarshalIndent(export, "", "\t")
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	if err := os.WriteFile(constantOutputPath, output, 0644); err != nil {
-		panic(err)
+	return os.WriteFile(outputPath, output, 0644)
+}
+
+func combineConstantFiles(archiveRootPath string) (constantfetch.BTFHubConstants, error) {
+	files := make([]constantfetch.BTFHubConstants, 0)
+
+	err := filepath.WalkDir(archiveRootPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".json") {
+			return nil
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		var constants constantfetch.BTFHubConstants
+		if err := json.Unmarshal(data, &constants); err != nil {
+			return err
+		}
+
+		files = append(files, constants)
+
+		return nil
+	})
+	if err != nil {
+		return constantfetch.BTFHubConstants{}, err
 	}
+
+	if len(files) == 0 {
+		return constantfetch.BTFHubConstants{}, errors.New("no json file found")
+	}
+
+	lastCommit := ""
+	for _, file := range files {
+		if lastCommit != "" && file.Commit != lastCommit {
+			return constantfetch.BTFHubConstants{}, errors.New("multiple different commits in constant files")
+		}
+	}
+
+	res := constantfetch.BTFHubConstants{
+		Commit: lastCommit,
+	}
+
+	for _, file := range files {
+		offset := len(res.Constants)
+		res.Constants = append(res.Constants, file.Constants...)
+
+		for _, kernel := range file.Kernels {
+			kernel.ConstantsIndex += offset
+			res.Kernels = append(res.Kernels, kernel)
+		}
+	}
+
+	return res, nil
 }
 
 func getCurrentConstants(path string) (*constantfetch.BTFHubConstants, error) {
@@ -117,27 +189,17 @@ func getCommitSha(cwd string) (string, error) {
 
 type treeWalkCollector struct {
 	counter int
-	// wg is used so that the finish waits on all kernels
-	wg sync.WaitGroup
-	// sem is used to limit the amount of parallel extractions
-	sem       *semaphore.Weighted
-	resultsMu sync.Mutex
-	results   []extractionResult
+	results []extractionResult
 }
 
 func newTreeWalkCollector(preAllocHint int) *treeWalkCollector {
 	return &treeWalkCollector{
 		counter: 0,
-		sem:     semaphore.NewWeighted(int64(runtime.NumCPU() * 2)),
 		results: make([]extractionResult, 0, preAllocHint),
 	}
 }
 
 func (c *treeWalkCollector) finish() constantfetch.BTFHubConstants {
-	c.wg.Wait()
-
-	sort.Slice(c.results, func(i, j int) bool { return c.results[i].index < c.results[j].index })
-
 	constants := make([]map[string]uint64, 0)
 	kernels := make([]constantfetch.BTFHubKernel, 0)
 
@@ -183,9 +245,6 @@ func (c *treeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 			return nil
 		}
 
-		btfRunIndex := c.counter
-		c.counter++
-
 		pathSuffix := strings.TrimPrefix(path, prefix)
 
 		btfParts := strings.Split(pathSuffix, "/")
@@ -198,45 +257,28 @@ func (c *treeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 		arch := btfParts[len(btfParts)-2]
 		unameRelease := strings.TrimSuffix(btfParts[len(btfParts)-1], ".btf.tar.xz")
 
-		c.wg.Add(1)
-		if err := c.sem.Acquire(context.TODO(), 1); err != nil {
-			return fmt.Errorf("failed to acquire sem token: %w", err)
+		fmt.Println(c.counter, path)
+		c.counter++
+
+		constants, err := extractConstantsFromBTF(path, distribution, distribVersion)
+		if err != nil {
+			return fmt.Errorf("failed to extract constants from `%s`: %v", path, err)
 		}
 
-		go func() {
-			defer func() {
-				c.wg.Done()
-				c.sem.Release(1)
-			}()
+		res := extractionResult{
+			distribution:   distribution,
+			distribVersion: distribVersion,
+			arch:           arch,
+			unameRelease:   unameRelease,
+			constants:      constants,
+		}
 
-			fmt.Println(btfRunIndex, path)
-
-			constants, err := extractConstantsFromBTF(path, distribution, distribVersion)
-			if err != nil {
-				seclog.Errorf("failed to extract constants from `%s`: %v", path, err)
-				return
-			}
-
-			res := extractionResult{
-				index:          btfRunIndex,
-				distribution:   distribution,
-				distribVersion: distribVersion,
-				arch:           arch,
-				unameRelease:   unameRelease,
-				constants:      constants,
-			}
-
-			c.resultsMu.Lock()
-			c.results = append(c.results, res)
-			c.resultsMu.Unlock()
-		}()
-
+		c.results = append(c.results, res)
 		return nil
 	}
 }
 
 type extractionResult struct {
-	index          int
 	distribution   string
 	distribVersion string
 	arch           string
