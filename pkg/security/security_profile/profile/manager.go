@@ -974,7 +974,7 @@ func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfile
 	p := m.GetProfile(selector)
 	if p == nil || p.ActivityTree == nil {
 		return &api.SecurityProfileSaveMessage{
-			Error: "security profile not found",
+			Error: "security profile has not activity tree",
 		}, nil
 	}
 
