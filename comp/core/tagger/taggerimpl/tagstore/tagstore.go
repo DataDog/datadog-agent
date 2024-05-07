@@ -280,25 +280,12 @@ func (s *TagStore) Lookup(entity string, cardinality types.TagCardinality) []str
 
 // LookupStandard returns the standard tags recorded for a given entity
 func (s *TagStore) LookupStandard(entityID string) ([]string, error) {
-	storedTags, err := s.GetEntityTags(entityID)
+	storedTags, err := s.getEntityTags(entityID)
 	if err != nil {
 		return nil, err
 	}
 
 	return storedTags.getStandard(), nil
-}
-
-// GetEntityTags returns the EntityTags for a given entity
-func (s *TagStore) GetEntityTags(entityID string) (*EntityTags, error) {
-	s.RLock()
-	defer s.RUnlock()
-
-	storedTags, present := s.store[entityID]
-	if !present {
-		return nil, ErrNotFound
-	}
-
-	return storedTags, nil
 }
 
 // List returns full list of entities and their tags per source in an API format.
@@ -330,11 +317,23 @@ func (s *TagStore) List() types.TaggerListResponse {
 
 // GetEntity returns the entity corresponding to the specified id and an error
 func (s *TagStore) GetEntity(entityID string) (*types.Entity, error) {
-	tags, err := s.GetEntityTags(entityID)
+	tags, err := s.getEntityTags(entityID)
 	if err != nil {
 		return nil, err
 	}
 
 	entity := tags.toEntity()
 	return &entity, nil
+}
+
+func (s *TagStore) getEntityTags(entityID string) (*EntityTags, error) {
+	s.RLock()
+	defer s.RUnlock()
+
+	storedTags, present := s.store[entityID]
+	if !present {
+		return nil, ErrNotFound
+	}
+
+	return storedTags, nil
 }
