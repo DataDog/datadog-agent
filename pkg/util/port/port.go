@@ -7,8 +7,6 @@
 package port
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/util/port/portlist"
 )
 
@@ -27,36 +25,4 @@ func GetUsedPorts() ([]Port, error) {
 
 	err = poller.Close()
 	return ports, err
-}
-
-// GetProcessFromPort returns the process name and pid using a given port
-func GetProcessFromPort(port int, protocol string) (string, int, error) {
-	ports, err := GetUsedPorts()
-	if err != nil {
-		return "", 0, err
-	}
-
-	for _, p := range ports {
-		if p.Port == uint16(port) && p.Proto == protocol {
-			return p.Process, p.Pid, nil
-		}
-	}
-
-	return "", 0, fmt.Errorf("port %d is not used", port)
-}
-
-// GetUsedPortsForPid returns a list of ports used by a process
-func GetUsedPortsForPid(pid int) ([]Port, error) {
-	ports, err := GetUsedPorts()
-	if err != nil {
-		return nil, err
-	}
-
-	var ret []Port
-	for _, p := range ports {
-		if p.Pid == pid {
-			ret = append(ret, p)
-		}
-	}
-	return ret, nil
 }

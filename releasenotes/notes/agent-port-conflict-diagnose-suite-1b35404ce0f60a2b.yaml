@@ -8,10 +8,7 @@
 ---
 enhancements:
   - |
-    Introducing the port-conflict suite to the agent diagnose command.
-issues:
-  - |
+    Introducing the port conflict suite to the Agent diagnose command. 
     Adding this for MacOS only first. Will incrementally add support for Linux and Windows. 
-security:
-  - |
-    The Agent will need access to read from  the host's ports. 
+    The Agent will need access to read from the host's ports.
+    

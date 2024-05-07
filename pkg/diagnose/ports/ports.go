@@ -9,17 +9,13 @@ package ports
 import (
 	"fmt"
 	"path"
+	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/port"
 )
-
-// func init() {
-// 	diagnosis.Register("port-conflict", diagnosePortSuite)
-// }
 
 var agentNames = map[string]struct{}{
 	"datadog-agent": {}, "agent": {}, "trace-agent": {},
@@ -28,7 +24,7 @@ var agentNames = map[string]struct{}{
 }
 
 // DiagnosePortSuite displays information about the ports used in the agent configuration
-func DiagnosePortSuite(_ diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
+func DiagnosePortSuite() []diagnosis.Diagnosis {
 	ports, err := port.GetUsedPorts()
 	if err != nil {
 		return []diagnosis.Diagnosis{{
@@ -47,7 +43,8 @@ func DiagnosePortSuite(_ diagnosis.Config, _ sender.DiagnoseSenderManager) []dia
 	for _, key := range config.Datadog.AllKeysLowercased() {
 		splitKey := strings.Split(key, ".")
 		keyName := splitKey[len(splitKey)-1]
-		if keyName != "port" && !strings.HasPrefix(keyName, "port_") && !strings.HasSuffix(keyName, "_port") {
+		r, _ := regexp.Compile("_?port_?")
+		if !r.MatchString(keyName) {
 			continue
 		}
 
