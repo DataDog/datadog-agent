@@ -69,5 +69,5 @@ func (p *ProcessConsumer) Copy(event *smodel.Event) any {
 		valueExitCode := event.GetExitCode()
 		result.ExitCode = valueExitCode
 	}
-	return result
+	return &result
 }

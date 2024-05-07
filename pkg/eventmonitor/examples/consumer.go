@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/event_copy -scope "(fc *SimpleEventConsumer)" -pkg examples -output ./event_copy.go SimpleEvent .
 
 package examples
 
@@ -17,7 +17,7 @@ import (
 
 // SimpleEvent defines a simple event
 type SimpleEvent struct {
-	Type model.EventType
+	Type uint32 `copy:"GetEventType;event:*;cast:uint32"`
 }
 
 // SimpleEventConsumer defines a simple event consumer
@@ -85,20 +85,12 @@ func (fc *SimpleEventConsumer) HandleEvent(event any) {
 	defer fc.Unlock()
 
 	switch sevent.Type {
-	case model.ExecEventType:
+	case uint32(model.ExecEventType):
 		fc.exec++
-	case model.ForkEventType:
+	case uint32(model.ForkEventType):
 		fc.fork++
-	case model.ExitEventType:
+	case uint32(model.ExitEventType):
 		fc.exit++
-	}
-}
-
-// Copy should copy the given event or return nil to discard it
-// Implement the consumer interface
-func (fc *SimpleEventConsumer) Copy(event *model.Event) any {
-	return &SimpleEvent{
-		Type: event.GetEventType(),
 	}
 }
 

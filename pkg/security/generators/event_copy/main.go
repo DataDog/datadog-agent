@@ -90,7 +90,7 @@ func {{.Scope}} Copy(event *smodel.Event) any {
 		}
 		{{- end -}}
 	{{- end }}
-	return result
+	return &result
 }
 `
 
