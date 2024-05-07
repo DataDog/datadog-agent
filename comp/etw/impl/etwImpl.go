@@ -28,8 +28,8 @@ func NewEtw() (etw.Component, error) {
 type etwImpl struct {
 }
 
-func (s *etwImpl) NewSession(sessionName string) (etw.Session, error) {
-	session, err := createEtwSession(sessionName)
+func (s *etwImpl) NewSession(sessionName string, f etw.SessionConfigurationFunc) (etw.Session, error) {
+	session, err := createEtwSession(sessionName, f)
 	if err != nil {
 		return nil, err
 	}

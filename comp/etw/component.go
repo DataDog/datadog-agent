@@ -160,6 +160,15 @@ type ProviderConfiguration struct {
 // ProviderConfigurationFunc is a function used to configure a provider
 type ProviderConfigurationFunc func(cfg *ProviderConfiguration)
 
+// SessionConfiguration is a structure containing all the configuration options for an ETW session
+type SessionConfiguration struct {
+	//MaxBuffers is the maximum number of buffers for ETW to allocate.  The default is 0
+	MaxBuffers uint32
+}
+
+// SessionConfigurationFunc is a function used to configure a session
+type SessionConfigurationFunc func(cfg *SessionConfiguration)
+
 // Session represents an ETW session. A session can have multiple tracing providers enabled.
 type Session interface {
 	// ConfigureProvider configures a particular ETW provider identified by its GUID for this session.
@@ -184,7 +193,7 @@ type Session interface {
 
 // Component offers a way to create ETW tracing sessions with a given name.
 type Component interface {
-	NewSession(sessionName string) (Session, error)
+	NewSession(sessionName string, f SessionConfigurationFunc) (Session, error)
 	NewWellKnownSession(sessionName string) (Session, error)
 }
 

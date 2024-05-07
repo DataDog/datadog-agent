@@ -179,7 +179,7 @@ func deleteEtwSession(name string) error {
 	return ret
 }
 
-func createEtwSession(name string) (*etwSession, error) {
+func createEtwSession(name string, f etw.SessionConfigurationFunc) (*etwSession, error) {
 	_ = deleteEtwSession(name)
 
 	utf16SessionName, err := windows.UTF16FromString(name)
@@ -193,6 +193,11 @@ func createEtwSession(name string) (*etwSession, error) {
 	if err != nil {
 		return nil, fmt.Errorf("incorrect session name; %w", err)
 	}
+
+	// get any caller supplied configuration
+	cfg := &etw.SessionConfiguration{}
+	f(cfg)
+
 	sessionNameSize := (len(utf16SessionName) * int(unsafe.Sizeof(utf16SessionName[0])))
 	bufSize := int(unsafe.Sizeof(C.EVENT_TRACE_PROPERTIES{})) + sessionNameSize
 	propertiesBuf := make([]byte, bufSize)
@@ -204,6 +209,9 @@ func createEtwSession(name string) (*etwSession, error) {
 
 	pProperties.LogFileMode = C.EVENT_TRACE_REAL_TIME_MODE
 
+	if cfg.MaxBuffers > 0 {
+		pProperties.MaximumBuffers = C.ulong(cfg.MaxBuffers)
+	}
 	ret := windows.Errno(C.StartTraceW(
 		&s.hSession,
 		C.LPWSTR(unsafe.Pointer(&s.utf16name[0])),

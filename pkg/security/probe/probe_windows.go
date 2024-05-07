@@ -168,7 +168,13 @@ func (p *WindowsProbe) initEtwFIM() error {
 	if err != nil {
 		return err
 	}
-	p.fimSession, err = etwcomp.NewSession(etwSessionName)
+	p.fimSession, err = etwcomp.NewSession(etwSessionName, func(cfg *etw.SessionConfiguration) {
+		// commented out for isolated checking
+		//if p.config.RuntimeSecurity.ETWEventsMaxBuffers > 0 {
+		//	cfg.MaxBuffers = uint32(p.config.RuntimeSecurity.ETWEventsMaxBuffers)
+		//}
+	})
+
 	if err != nil {
 		return err
 	}
