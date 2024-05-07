@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -61,6 +62,14 @@ func newEvent(t eventType, p *processInfo) *event {
 	}
 }
 
+type telemetrySender struct {
+	sender sender.Sender
+}
+
+func newTelemetrySender(sender sender.Sender) *telemetrySender {
+	return &telemetrySender{sender: sender}
+}
+
 // curl -X POST
 // 'https://instrumentation-telemetry-intake.datad0g.com/api/v2/apmtelemetry'
 // -H 'User-Agent:  '
@@ -83,7 +92,7 @@ func newEvent(t eventType, p *processInfo) *event {
 //				"apm_instrumentation":false
 //			}
 //		  }'
-func (c *Check) sendStartServiceEvent(p *processInfo) {
+func (ts *telemetrySender) sendStartServiceEvent(p *processInfo) {
 	log.Infof("[pid: %d | name: %s | ports: %v] start-service",
 		p.PID,
 		p.ShortName,
@@ -99,10 +108,10 @@ func (c *Check) sendStartServiceEvent(p *processInfo) {
 	log.Infof("sending start-service event: %s", string(b))
 
 	// TODO: sender does not respond to SIGTERM when there are errors here
-	c.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
+	ts.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
 }
 
-func (c *Check) sendHeartbeatServiceEvent(p *processInfo) {
+func (ts *telemetrySender) sendHeartbeatServiceEvent(p *processInfo) {
 	log.Infof("[pid: %d | name: %s] heartbeat-service",
 		p.PID,
 		p.ShortName,
@@ -115,10 +124,10 @@ func (c *Check) sendHeartbeatServiceEvent(p *processInfo) {
 		return
 	}
 	log.Infof("sending heartbeat-service event: %s", string(b))
-	c.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
+	ts.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
 }
 
-func (c *Check) sendEndServiceEvent(p *processInfo) {
+func (ts *telemetrySender) sendEndServiceEvent(p *processInfo) {
 	log.Infof("[pid: %d | name: %s] stop-service",
 		p.PID,
 		p.ShortName,
@@ -131,5 +140,5 @@ func (c *Check) sendEndServiceEvent(p *processInfo) {
 		return
 	}
 	log.Infof("sending end-service event: %s", string(b))
-	c.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
+	ts.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
 }

@@ -14,19 +14,113 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/prometheus/procfs"
-	"tailscale.com/portlist"
+
+	"github.com/DataDog/datadog-agent/pkg/process/portlist"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func (c *Check) discoverServices() error {
+func init() {
+	newOSImpl = newLinuxImpl
+}
+
+type aliveMap struct {
+	m  map[int]*processInfo
+	mu sync.RWMutex
+}
+
+func (a *aliveMap) get(pid int) (*processInfo, bool) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	v, ok := a.m[pid]
+	return v, ok
+}
+
+func (a *aliveMap) set(pid int, info *processInfo) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.m[pid] = info
+}
+
+func (a *aliveMap) delete(pid int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	delete(a.m, pid)
+}
+
+type ignoreMap struct {
+	m  map[int]string
+	mu sync.RWMutex
+}
+
+func (i *ignoreMap) get(pid int) (string, bool) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	v, ok := i.m[pid]
+	return v, ok
+}
+
+func (i *ignoreMap) set(pid int, name string) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.m[pid] = name
+}
+
+func (i *ignoreMap) delete(pid int) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	delete(i.m, pid)
+}
+
+type linuxImpl struct {
+	sender    *telemetrySender
+	ignoreCfg map[string]struct{}
+
+	// PID -> process info
+	// pids that are considered services will be added here.
+	alive *aliveMap
+
+	// PID -> process name
+	// pids will be added here because the name was ignored in the config, or because
+	// it was already scanned and had no open ports.
+	ignore *ignoreMap
+}
+
+func newLinuxImpl(sender *telemetrySender, ignoreProcesses map[string]struct{}) osImpl {
+	return &linuxImpl{
+		sender:    sender,
+		ignoreCfg: ignoreProcesses,
+		ignore: &ignoreMap{
+			m: make(map[int]string),
+		},
+		alive: &aliveMap{
+			m: make(map[int]*processInfo),
+		},
+	}
+}
+
+func (i *linuxImpl) DiscoverServices() error {
 	processes, err := procfs.AllProcs()
 	if err != nil {
 		return err
 	}
 
-	log.Infof("alive: %d | services: %d | ignore: %d", len(processes), len(c.services.m), len(c.ignore.m))
+	portPoller, err := portlist.NewPoller(false)
+	if err != nil {
+		return fmt.Errorf("failed to initialize port poller: %w", err)
+	}
+	defer func() {
+		if err := portPoller.Close(); err != nil {
+			log.Warnf("failed to close port poller: %v", err)
+		}
+	}()
+
+	openPorts, err := portPoller.ListeningPorts()
+	if err != nil {
+		return err
+	}
+
+	log.Infof("alive: %d | services: %d | ignore: %d", len(processes), len(i.alive.m), len(i.ignore.m))
 	aliveProcesses := make(map[int]struct{})
 
 	var wg sync.WaitGroup
@@ -40,18 +134,18 @@ func (c *Check) discoverServices() error {
 		}
 
 		ignore := false
-		if ignoreName, ok := c.ignore.get(p.PID); ok {
+		if ignoreName, ok := i.ignore.get(p.PID); ok {
 			// ignore
 			if ignoreName == name {
 				ignore = true
 			} else {
 				// same pid but different process name, this means the pid has been reused for
 				// a different process
-				c.ignore.delete(p.PID)
+				i.ignore.delete(p.PID)
 			}
-		} else if _, ok := c.alwaysIgnore[shortName]; ok {
+		} else if _, ok := i.ignoreCfg[shortName]; ok {
 			ignore = true
-			c.ignore.set(p.PID, name)
+			i.ignore.set(p.PID, name)
 		}
 
 		if !ignore {
@@ -59,24 +153,24 @@ func (c *Check) discoverServices() error {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				c.scanProcess(p.PID)
+				i.scanProcess(p.PID, openPorts)
 			}()
 		}
 	}
 
-	for pid, pInfo := range c.services.m {
+	for pid, pInfo := range i.alive.m {
 		_, ok := aliveProcesses[pid]
 		if !ok {
-			c.sendEndServiceEvent(pInfo)
-			c.services.delete(pid)
+			i.sender.sendEndServiceEvent(pInfo)
+			i.alive.delete(pid)
 		}
 	}
 
 	// cleanup ignore processes that are no longer alive
-	for pid, _ := range c.ignore.m {
+	for pid, _ := range i.ignore.m {
 		_, ok := aliveProcesses[pid]
 		if !ok {
-			c.ignore.delete(pid)
+			i.ignore.delete(pid)
 		}
 	}
 
@@ -84,22 +178,22 @@ func (c *Check) discoverServices() error {
 	return nil
 }
 
-func (c *Check) scanProcess(pid int) {
+func (i *linuxImpl) scanProcess(pid int, openPorts portlist.List) {
 	p, err := procfs.NewProc(pid)
 	if err != nil {
 		log.Errorf("failed to get proc: %v", err)
 		return
 	}
 
-	if pInfo, ok := c.services.get(pid); ok {
+	if pInfo, ok := i.alive.get(pid); ok {
 		if time.Since(pInfo.LastHeatBeatTime) >= heartbeatTime {
-			c.sendHeartbeatServiceEvent(pInfo)
+			i.sender.sendHeartbeatServiceEvent(pInfo)
 			pInfo.LastHeatBeatTime = time.Now()
 		}
 		return
 	}
 
-	pInfo, err := getProcessInfo(p)
+	pInfo, err := getProcessInfo(p, openPorts)
 	if err != nil {
 		log.Errorf("failed to get process info: %v", err)
 		return
@@ -107,12 +201,12 @@ func (c *Check) scanProcess(pid int) {
 
 	if len(pInfo.Ports) == 0 {
 		log.Infof("[pid: %d | name: %s]: process has no open ports, ignoring...", pid, pInfo.ShortName)
-		c.ignore.set(pid, pInfo.Name)
+		i.ignore.set(pid, pInfo.Name)
 		return
 	}
 
-	c.services.set(pid, pInfo)
-	c.sendStartServiceEvent(pInfo)
+	i.alive.set(pid, pInfo)
+	i.sender.sendStartServiceEvent(pInfo)
 }
 
 /*
@@ -122,7 +216,7 @@ func (c *Check) scanProcess(pid int) {
 - open ports /proc/{pid}/net/tcp|udp|tcp6|udp6
 - time launched /proc/{pid}/stat
 */
-func getProcessInfo(p procfs.Proc) (*processInfo, error) {
+func getProcessInfo(p procfs.Proc, openPorts portlist.List) (*processInfo, error) {
 	cmdline, err := p.CmdLine()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read /proc/{pid}/cmdline: %w", err)
@@ -143,28 +237,23 @@ func getProcessInfo(p procfs.Proc) (*processInfo, error) {
 		return nil, fmt.Errorf("failed to read /proc/{pid}/stat: %w", err)
 	}
 
-	var poller portlist.Poller
-
-	pl, _, err := poller.Poll()
-	if err != nil {
-		return nil, err
-	}
-
 	var processPorts []int
-	for _, port := range pl {
+	for _, port := range openPorts {
 		if port.Pid == p.PID {
 			processPorts = append(processPorts, int(port.Port))
 		}
 	}
 
 	return &processInfo{
-		PID:              p.PID,
-		Name:             nameFromArgv(cmdline),
-		ShortName:        shortNameFromArgv(cmdline),
-		CmdLine:          cmdline,
-		Env:              env,
-		Cwd:              cwd,
-		Stat:             &stat,
+		PID:       p.PID,
+		Name:      nameFromArgv(cmdline),
+		ShortName: shortNameFromArgv(cmdline),
+		CmdLine:   cmdline,
+		Env:       env,
+		Cwd:       cwd,
+		Stat: &procStat{
+			StartTime: stat.Starttime,
+		},
 		Ports:            processPorts,
 		DetectedTime:     time.Now(),
 		LastHeatBeatTime: time.Now(),
