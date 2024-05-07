@@ -38,6 +38,7 @@ type protocol struct {
 	cfg            *config.Config
 	eventsConsumer *events.Consumer[EbpfEvent]
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
+	statskeeper    *StatKeeper
 }
 
 // Spec is the protocol spec for the postgres protocol.
@@ -68,7 +69,8 @@ func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}
 
 	return &protocol{
-		cfg: cfg,
+		cfg:         cfg,
+		statskeeper: NewStatkeeper(cfg),
 	}, nil
 }
 
@@ -140,7 +142,7 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 
 	return &protocols.ProtocolStats{
 		Type:  protocols.Postgres,
-		Stats: nil,
+		Stats: p.statskeeper.GetAndResetAllStats(),
 	}
 }
 
@@ -152,8 +154,7 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 func (p *protocol) processPostgres(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
-		// No-op for now.
-		_ = tx
+		p.statskeeper.Process(&EventWrapper{EbpfEvent: tx})
 	}
 }
 
