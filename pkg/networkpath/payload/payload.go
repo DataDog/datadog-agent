@@ -31,6 +31,7 @@ type NetworkPathSource struct {
 type NetworkPathDestination struct {
 	Hostname  string `json:"hostname"`
 	IPAddress string `json:"ip_address"`
+	Port      uint16 `json:"port"`
 }
 
 // NetworkPath encapsulates data that defines a
