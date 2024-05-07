@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
@@ -65,7 +66,7 @@ func (c *Check) Run() error {
 	path.Namespace = c.config.Namespace
 
 	// Add tags to path
-	commonTags := c.getCommonTags()
+	commonTags := utils.GetCommonAgentTags()
 	path.Tags = commonTags
 
 	// send to EP
