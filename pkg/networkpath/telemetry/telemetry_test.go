@@ -21,8 +21,8 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 		"destination_hostname:abc",
 		"destination_port:unspecified",
 		"foo:bar",
+		"path_source:network_path_integration",
 		"protocol:udp",
-		"source:network_path_integration",
 		"tag2:val2",
 	}
 	tests := []struct {
