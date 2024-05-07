@@ -92,6 +92,8 @@ var (
 	errCORETracerNotSupported = errors.New("CO-RE tracer not supported on this platform")
 	// ErrPrecompiledTracerNotSupported is the error returned when the pre-compiled tracer is not supported
 	ErrPrecompiledTracerNotSupported = errors.New("pre-compiled tracer not supported on this platform")
+	// ErrTracerNotSupported is the error returned when the network tracer is not supported on this platform
+	ErrTracerNotSupported = errors.New("network tracer not supported on this platform")
 )
 
 // ClassificationSupported returns true if the current kernel version supports the classification feature.
@@ -174,7 +176,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 	}
 
 	if !prebuiltSupported {
-		return nil, nil, TracerTypePrebuilt, fmt.Errorf("network tracer not supported on this platform")
+		return nil, nil, TracerTypePrebuilt, ErrTracerNotSupported
 	}
 
 	offsets, err := tracerOffsetGuesserRunner(cfg)

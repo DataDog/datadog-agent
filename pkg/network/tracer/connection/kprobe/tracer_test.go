@@ -328,6 +328,21 @@ func TestDefaultKprobeMaxActiveSet(t *testing.T) {
 	})
 }
 
+func TestPrebuiltNotSupported(t *testing.T) {
+	if err := IsPrecompiledTracerSupported(); err == nil {
+		t.Skip("prebuilt tracer is supported on this system")
+	} else {
+		require.ErrorIs(t, err, ErrPrecompiledTracerNotSupported, "unexpected error when checking for prebuilt tracer support")
+	}
+
+	cfg := config.New()
+	cfg.EnableCORE = false
+	cfg.EnableRuntimeCompiler = false
+	cfg.AllowPrecompiledFallback = true
+	_, _, _, err := LoadTracer(cfg, manager.Options{}, nil)
+	require.ErrorIs(t, err, ErrTracerNotSupported)
+}
+
 func skipIfPrebuiltNotSupported(t *testing.T) {
 	if err := IsPrecompiledTracerSupported(); err == ErrPrecompiledTracerNotSupported {
 		t.Skip("prebuilt tracer not supported on this platform")
