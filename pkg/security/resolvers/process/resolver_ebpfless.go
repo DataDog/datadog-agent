@@ -83,6 +83,10 @@ func (p *EBPFLessResolver) DeleteEntry(key CacheResolverKey, exitTime time.Time)
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts uint64) *model.ProcessCacheEntry {
+	if key.Pid == 0 {
+		return nil
+	}
+
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext.Pid = key.Pid
 	entry.PPid = ppid
@@ -143,6 +147,10 @@ func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file stri
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
 	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string) *model.ProcessCacheEntry {
+	if key.Pid == 0 {
+		return nil
+	}
+
 	entry := p.NewEntry(key, ppid, file, argv, argsTruncated, envs, envsTruncated, ctrID, ts, tty, model.ProcessCacheEntryFromEvent)
 
 	p.Lock()
@@ -156,6 +164,10 @@ func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, ppid uint32, file 
 // AddProcFSEntry add a procfs entry
 func (p *EBPFLessResolver) AddProcFSEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
 	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string) *model.ProcessCacheEntry {
+	if key.Pid == 0 {
+		return nil
+	}
+
 	entry := p.NewEntry(key, ppid, file, argv, argsTruncated, envs, envsTruncated, ctrID, ts, tty, model.ProcessCacheEntryFromProcFS)
 
 	p.Lock()
@@ -186,6 +198,10 @@ func (p *EBPFLessResolver) insertEntry(key CacheResolverKey, entry, prev *model.
 }
 
 func (p *EBPFLessResolver) insertForkEntry(key CacheResolverKey, entry *model.ProcessCacheEntry) {
+	if key.Pid == 0 {
+		return
+	}
+
 	prev := p.entryCache[key]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
@@ -206,6 +222,10 @@ func (p *EBPFLessResolver) insertForkEntry(key CacheResolverKey, entry *model.Pr
 }
 
 func (p *EBPFLessResolver) insertExecEntry(key CacheResolverKey, entry *model.ProcessCacheEntry) {
+	if key.Pid == 0 {
+		return
+	}
+
 	prev := p.entryCache[key]
 	if prev != nil {
 		prev.Exec(entry)
@@ -224,6 +244,10 @@ func (p *EBPFLessResolver) insertExecEntry(key CacheResolverKey, entry *model.Pr
 
 // Resolve returns the cache entry for the given pid
 func (p *EBPFLessResolver) Resolve(key CacheResolverKey) *model.ProcessCacheEntry {
+	if key.Pid == 0 {
+		return nil
+	}
+
 	p.Lock()
 	defer p.Unlock()
 	if e, ok := p.entryCache[key]; ok {
