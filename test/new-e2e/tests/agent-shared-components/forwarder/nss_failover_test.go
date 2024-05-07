@@ -44,7 +44,7 @@ type multiFakeIntakeEnv struct {
 
 func (e *multiFakeIntakeEnv) Init(ctx e2e.Context) error {
 	if e.Agent != nil {
-		agent, err := client.NewHostAgentClient(ctx.T(), e.Host, true)
+		agent, err := client.NewHostAgentClient(ctx, e.Host.HostOutput, true)
 		if err != nil {
 			return err
 		}
