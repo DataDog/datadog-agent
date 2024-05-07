@@ -1034,9 +1034,9 @@ def build(
 
     cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
 
-    no_build_objects_flag = "--skip-object-files" if component == "system-probe" else ""
+    build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.build --no-bundle {no_build_objects_flag}",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.{build_task} --no-bundle",
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
