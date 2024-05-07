@@ -287,7 +287,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 		destroyContext, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
 		_, destroyErr = stack.Destroy(destroyContext, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 		cancel()
-		if err == nil {
+		if destroyErr == nil {
 			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack destroy", stackID), "", []string{"operation:destroy", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", downCount)})
 			break
 		}
@@ -295,13 +295,9 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 
 		if downCount > stackUpMaxRetry {
 			fmt.Printf("Giving up on error during stack destroy: %v\n", destroyErr)
-			break
+			return destroyErr
 		}
 		fmt.Printf("Retrying stack on error during stack destroy: %v\n", destroyErr)
-	}
-
-	if destroyErr != nil {
-		return destroyErr
 	}
 
 	deleteContext, cancel := context.WithTimeout(ctx, stackDeleteTimeout)
