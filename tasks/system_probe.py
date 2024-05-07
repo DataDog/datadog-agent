@@ -77,7 +77,7 @@ CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 extra_cflags = []
 
 
-def ninja_define_windows_resources(ctx, nw, major_version):
+def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version, arch=CURRENT_ARCH):
     maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx, major_version=major_version).split(".")
     nw.variable("maj_ver", maj_ver)
     nw.variable("min_ver", min_ver)
@@ -91,7 +91,7 @@ def ninja_define_windows_resources(ctx, nw, major_version):
     )
 
 
-def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None, with_unit_test=False):
+def ninja_define_ebpf_compiler(nw: NinjaWriter, strip_object_files=False, kernel_release=None, with_unit_test=False):
     nw.variable("target", "-emit-llvm")
     nw.variable("ebpfflags", get_ebpf_build_flags(with_unit_test))
     nw.variable("kheaders", get_kernel_headers_flags(kernel_release))
@@ -108,7 +108,7 @@ def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None
     )
 
 
-def ninja_define_co_re_compiler(nw):
+def ninja_define_co_re_compiler(nw: NinjaWriter):
     nw.variable("ebpfcoreflags", get_co_re_build_flags())
 
     nw.rule(
@@ -118,7 +118,7 @@ def ninja_define_co_re_compiler(nw):
     )
 
 
-def ninja_define_exe_compiler(nw):
+def ninja_define_exe_compiler(nw: NinjaWriter):
     nw.rule(
         name="execlang",
         command="clang -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
@@ -126,7 +126,7 @@ def ninja_define_exe_compiler(nw):
     )
 
 
-def ninja_ebpf_program(nw, infile, outfile, variables=None):
+def ninja_ebpf_program(nw: NinjaWriter, infile, outfile, variables=None):
     outdir, basefile = os.path.split(outfile)
     basename = os.path.basename(os.path.splitext(basefile)[0])
     out_base = f"{outdir}/{basename}"
@@ -143,7 +143,7 @@ def ninja_ebpf_program(nw, infile, outfile, variables=None):
     )
 
 
-def ninja_ebpf_co_re_program(nw, infile, outfile, variables=None):
+def ninja_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, variables=None):
     outdir, basefile = os.path.split(outfile)
     basename = os.path.basename(os.path.splitext(basefile)[0])
     out_base = f"{outdir}/{basename}"
@@ -160,7 +160,7 @@ def ninja_ebpf_co_re_program(nw, infile, outfile, variables=None):
     )
 
 
-def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
+def ninja_security_ebpf_programs(nw: NinjaWriter, build_dir, debug, kernel_release):
     security_agent_c_dir = os.path.join("pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir_include = os.path.join(security_agent_c_dir, "include")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
@@ -232,19 +232,19 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     nw.build(rule="phony", inputs=outfiles, outputs=["cws"])
 
 
-def ninja_network_ebpf_program(nw, infile, outfile, flags):
+def ninja_network_ebpf_program(nw: NinjaWriter, infile, outfile, flags):
     ninja_ebpf_program(nw, infile, outfile, {"flags": flags})
     root, ext = os.path.splitext(outfile)
     ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
 
 
-def ninja_network_ebpf_co_re_program(nw, infile, outfile, flags):
+def ninja_network_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, flags):
     ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
     root, ext = os.path.splitext(outfile)
     ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
 
 
-def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
+def ninja_network_ebpf_programs(nw: NinjaWriter, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
 
@@ -285,7 +285,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
         ninja_network_ebpf_co_re_program(nw, infile, outfile, ' '.join(network_co_re_flags))
 
 
-def ninja_test_ebpf_programs(nw, build_dir):
+def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     ebpf_bpf_dir = os.path.join("pkg", "ebpf")
     ebpf_c_dir = os.path.join(ebpf_bpf_dir, "testdata", "c")
     test_flags = "-g -DDEBUG=1"
@@ -300,7 +300,7 @@ def ninja_test_ebpf_programs(nw, build_dir):
         )  # All test ebpf programs are just for testing, so we always build them with debug symbols
 
 
-def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
+def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
     container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf"]
@@ -315,7 +315,7 @@ def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
         )
 
 
-def ninja_runtime_compilation_files(nw, gobin):
+def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
     bc_dir = os.path.join("pkg", "ebpf", "bytecode")
     build_dir = os.path.join(bc_dir, "build")
 
@@ -369,7 +369,7 @@ def ninja_runtime_compilation_files(nw, gobin):
         )
 
 
-def ninja_cgo_type_files(nw):
+def ninja_cgo_type_files(nw: NinjaWriter):
     # TODO we could probably preprocess the input files to find out the dependencies
     nw.pool(name="cgo_pool", depth=1)
     if is_windows:
