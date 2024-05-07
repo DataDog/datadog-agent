@@ -66,7 +66,7 @@ func (c *Check) Run() error {
 	path.Namespace = c.config.Namespace
 
 	// Add tags to path
-	commonTags := utils.GetCommonAgentTags()
+	commonTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
 	path.Tags = commonTags
 
 	// send to EP
