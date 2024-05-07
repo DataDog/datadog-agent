@@ -28,7 +28,7 @@ const (
 	statsdDefaultSocket = "/var/run/datadog/dsd.socket"
 	agentConfigPath     = "/etc/datadog-agent/datadog.yaml"
 	apmInjectOldPath    = "/opt/datadog/apm/inject"
-	injectOldAPMsock    = "/opt/datadog/apm/inject/run/apm.socket"
+	injectOldAPMSock    = "/opt/datadog/apm/inject/run/apm.socket"
 	injectOldStatsdSock = "/opt/datadog/apm/inject/run/dsd.socket"
 )
 
@@ -279,8 +279,8 @@ func getSocketsPath(agentConfigPath, apmOldPath string) (string, string) {
 	if err := yaml.Unmarshal(rawCfg, &cfg); err != nil {
 		return apmSocket, statsdSocket
 	}
-	if cfg.ApmSocketConfig.ReceiverSocket == injectOldAPMsock {
-		apmSocket = injectOldAPMsock
+	if cfg.ApmSocketConfig.ReceiverSocket == injectOldAPMSock {
+		apmSocket = injectOldAPMSock
 	}
 	if cfg.DogstatsdSocket == injectOldStatsdSock {
 		statsdSocket = injectOldStatsdSock

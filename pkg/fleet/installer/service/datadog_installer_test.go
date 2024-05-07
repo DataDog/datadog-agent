@@ -83,6 +83,45 @@ func TestOldAgentPaths(t *testing.T) {
 			expectedAPMSockPath:    apmDefaultSocket,
 			expectedStatsdSockPath: statsdDefaultSocket,
 		},
+		{
+			name: "Overwrite apm socket",
+			fileSetup: func() {
+				assert.Nil(t, os.Mkdir(oldInjectPath, 0755))
+				assert.Nil(t, os.WriteFile(agentConfigPath, []byte("dogstatsd_socket: /banana/dsd.socket\napm_config:\n  receiver_socket: /opt/datadog/apm/inject/run/apm.socket\n"), 0644))
+
+			},
+			expectedAPMSockPath:    injectOldAPMSock,
+			expectedStatsdSockPath: statsdDefaultSocket,
+		},
+		{
+			name: "Overwrite both socket",
+			fileSetup: func() {
+				assert.Nil(t, os.Mkdir(oldInjectPath, 0755))
+				assert.Nil(t, os.WriteFile(agentConfigPath, []byte("dogstatsd_socket: /opt/datadog/apm/inject/run/dsd.socket\napm_config:\n  receiver_socket: /opt/datadog/apm/inject/run/apm.socket\n"), 0644))
+
+			},
+			expectedAPMSockPath:    injectOldAPMSock,
+			expectedStatsdSockPath: injectOldStatsdSock,
+		},
+		{
+			name: "fail to parse agent config",
+			fileSetup: func() {
+				assert.Nil(t, os.Mkdir(oldInjectPath, 0755))
+				assert.Nil(t, os.WriteFile(agentConfigPath, []byte("{}"), 0644))
+
+			},
+			expectedAPMSockPath:    apmDefaultSocket,
+			expectedStatsdSockPath: statsdDefaultSocket,
+		},
+		{
+			name: "agent config does not exist",
+			fileSetup: func() {
+				assert.Nil(t, os.Mkdir(oldInjectPath, 0755))
+
+			},
+			expectedAPMSockPath:    apmDefaultSocket,
+			expectedStatsdSockPath: statsdDefaultSocket,
+		},
 	}
 
 	for _, tc := range testCases {
