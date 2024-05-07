@@ -16,6 +16,7 @@ import (
 	"net"
 	nethttp "net/http"
 	"os/exec"
+	"slices"
 	"strconv"
 	"syscall"
 	"testing"
@@ -60,7 +61,14 @@ func classificationSupported(config *config.Config) bool {
 }
 
 func usmSupportedBuildModes(t *testing.T) []ebpftest.BuildMode {
-	return supportedBuildModes(t)
+	buildModes := []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}
+	if prebuiltSupported := isPrecompiledTracerSupported(t); !prebuiltSupported {
+		buildModes = slices.DeleteFunc(buildModes, func(mode ebpftest.BuildMode) bool {
+			return mode == ebpftest.Prebuilt
+		})
+	}
+
+	return buildModes
 }
 
 type USMSuite struct {
