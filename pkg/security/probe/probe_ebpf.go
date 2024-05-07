@@ -1297,9 +1297,9 @@ func (p *EBPFProbe) RefreshUserCache(containerID string) error {
 	return p.Resolvers.UserGroupResolver.RefreshCache(containerID)
 }
 
-// RefreshUserCache refreshes the user cache
+// RefreshSBOM refreshes SBOM for a container
 func (p *EBPFProbe) RefreshSBOM(containerID string) error {
-	seclog.Debugf("Rfreshing SBOM for container %d", containerID)
+	seclog.Debugf("Refreshing SBOM for container %s", containerID)
 
 	cgroup, found := p.Resolvers.CGroupResolver.GetWorkload(containerID)
 	if !found {

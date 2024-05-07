@@ -109,7 +109,7 @@ func (ws WorkloadSelector) ToTags() []string {
 	}
 }
 
-// SetTags sets the tags for the provided workload
+// FromTags sets the tags for the provided workload
 func (ws *WorkloadSelector) FromTags(tags []string) {
 	ws.image = utils.GetNameFromTags(tags)
 	ws.tag = utils.GetVersionFromTags(tags)
