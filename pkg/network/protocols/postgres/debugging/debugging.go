@@ -100,8 +100,6 @@ func Postgres(stats map[postgres.Key]*postgres.RequestStat) []RequestSummary {
 }
 
 func formatIP(low, high uint64) util.Address {
-	// for Kafka at the moment, so given this is purely debugging code I think it's fine
-	// to assume for now that it's only IPv6 if higher order bits are set.
 	if high > 0 || (low>>32) > 0 {
 		return util.V6Address(low, high)
 	}

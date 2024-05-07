@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
+// EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
+// We use this wrapper to avoid recomputing the same values (operation and table name) multiple times.
 type EventWrapper struct {
 	*EbpfEvent
 

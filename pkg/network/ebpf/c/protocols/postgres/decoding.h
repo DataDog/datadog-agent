@@ -42,6 +42,8 @@ static __always_inline bool read_message_header(struct __sk_buff *skb, skb_info_
 
 // Handles a new query by creating a new transaction and storing it in the map.
 // If a transaction already exists for the given connection, it is aborted.
+// Query message format - https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-QUERY
+// the first 5 bytes are the message header, and the query is the rest of the payload.
 static __always_inline void handle_new_query(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *conn_tuple, __u32 query_len) {
     postgres_transaction_t new_transaction = {};
     new_transaction.request_started = bpf_ktime_get_ns();
@@ -51,6 +53,7 @@ static __always_inline void handle_new_query(struct __sk_buff *skb, skb_info_t *
 }
 
 // Handles a command complete message by enqueuing the transaction and deleting it from the in-flight map.
+// The format of the command complete message is described here: https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-COMMANDCOMPLETE
 static __always_inline void handle_command_complete(conn_tuple_t *conn_tuple, postgres_transaction_t *transaction) {
     transaction->response_last_seen = bpf_ktime_get_ns();
     postgres_batch_enqueue_wrapper(conn_tuple, transaction);

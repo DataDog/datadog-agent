@@ -15,11 +15,6 @@ import (
 // This file contains the structs used to store and combine the stats for the Postgres protocol.
 // The file does not have any build tag, so it can be used in any build as it is used by the tracer package.
 
-// relativeAccuracy defines the acceptable error in quantile values calculated by DDSketch.
-// For example, if the actual value at p50 is 100, with a relative accuracy of 0.01 the value calculated
-// will be between 99 and 101
-const relativeAccuracy = 0.01
-
 // Key is an identifier for a group of Postgres transactions
 type Key struct {
 	Operation Operation
@@ -33,14 +28,6 @@ type RequestStat struct {
 	Latencies          *ddsketch.DDSketch
 	FirstLatencySample float64
 	Count              int
-}
-
-func (r *RequestStat) initSketch() (err error) {
-	r.Latencies, err = ddsketch.NewDefaultDDSketch(relativeAccuracy)
-	if err != nil {
-		log.Debugf("error recording postgres transaction latency: could not create new ddsketch: %v", err)
-	}
-	return
 }
 
 // CombineWith merges the data in 2 RequestStats objects

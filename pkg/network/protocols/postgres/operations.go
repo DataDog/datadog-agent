@@ -11,11 +11,17 @@ import "strings"
 type Operation uint8
 
 const (
+	// UnknownOP represents an unknown operation.
 	UnknownOP Operation = iota
+	// SelectOP represents a SELECT operation.
 	SelectOP
+	// InsertOP represents an INSERT operation.
 	InsertOP
+	// UpdateOP represents an UPDATE operation.
 	UpdateOP
+	// CreateTableOP represents a CREATE TABLE operation.
 	CreateTableOP
+	// DropTableOP represents a DROP TABLE operation.
 	DropTableOP
 )
 
