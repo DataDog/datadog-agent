@@ -89,23 +89,3 @@ func isAgentProcess(processName string) (string, bool) {
 	_, ok := agentNames[processName]
 	return processName, ok
 }
-
-// Diagnose displays information about the ports used on the host
-func Diagnose() error {
-	ports, err := port.GetUsedPorts()
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Ports used on the host:")
-	for _, p := range ports {
-		processName := p.Process
-		if processName == "" {
-			processName = "unknown"
-		}
-
-		fmt.Printf("%5d %5s : %s\n", p.Port, p.Proto, processName)
-	}
-
-	return nil
-}
