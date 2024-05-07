@@ -1,7 +1,9 @@
-import unittest.mock
-from invoke import task, Context
-from datetime import datetime
 import unittest
+import unittest.mock
+from datetime import datetime
+
+from invoke import Context, task
+
 from tasks.custom_task.custom_task import log_invoke_task
 
 

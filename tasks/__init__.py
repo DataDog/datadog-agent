@@ -49,6 +49,7 @@ from tasks import (
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
+from tasks.custom_task.custom_task import custom__call__
 from tasks.fuzz import fuzz
 from tasks.go import (
     check_go_mod_replaces,
@@ -81,7 +82,6 @@ from tasks.show_linters_issues import show_linters_issues
 from tasks.unit_tests import invoke_unit_tests
 from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
-from tasks.custom_task.custom_task import custom__call__
 
 Task.__call__ = custom__call__
 
