@@ -740,13 +740,20 @@ def generate_syscall_table(ctx):
         "pkg/security/secl/model/syscalls_string_linux_arm64.go",
     )
 
+DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/constants.json"
 
 @task
-def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
-    output_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
+def generate_btfhub_constants(ctx, archive_path, force_refresh=False, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
     force_refresh_opt = "-force-refresh" if force_refresh else ""
     ctx.run(
         f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
+    )
+
+
+@task
+def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
+    ctx.run(
+        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -combine -archive-root {archive_path} -output {output_path}",
     )
 
 

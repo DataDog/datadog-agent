@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -41,11 +42,24 @@ func main() {
 	var archiveRootPath string
 	var constantOutputPath string
 	var forceRefresh bool
+	var combineConstants bool
 
 	flag.StringVar(&archiveRootPath, "archive-root", "", "Root path of BTFHub archive")
 	flag.StringVar(&constantOutputPath, "output", "", "Output path for JSON constants")
 	flag.BoolVar(&forceRefresh, "force-refresh", false, "Force refresh of the constants")
+	flag.BoolVar(&combineConstants, "combine", false, "Don't read btf files, but read constants")
 	flag.Parse()
+
+	if combineConstants {
+		combined, err := combineConstantFiles(archiveRootPath)
+		if err != nil {
+			panic(err)
+		}
+		if err := outputConstants(&combined, constantOutputPath); err != nil {
+			panic(err)
+		}
+		return
+	}
 
 	archiveCommit, err := getCommitSha(archiveRootPath)
 	if err != nil {
@@ -77,17 +91,81 @@ func main() {
 
 	export.Commit = archiveCommit
 
+	if err := outputConstants(&export, constantOutputPath); err != nil {
+		panic(err)
+	}
+}
+
+func outputConstants(export *constantfetch.BTFHubConstants, outputPath string) error {
 	fmt.Printf("%d kernels\n", len(export.Kernels))
 	fmt.Printf("%d unique constants\n", len(export.Constants))
 
 	output, err := json.MarshalIndent(export, "", "\t")
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	if err := os.WriteFile(constantOutputPath, output, 0644); err != nil {
-		panic(err)
+	return os.WriteFile(outputPath, output, 0644)
+}
+
+func combineConstantFiles(archiveRootPath string) (constantfetch.BTFHubConstants, error) {
+	files := make([]constantfetch.BTFHubConstants, 0)
+
+	err := filepath.WalkDir(archiveRootPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".json") {
+			return nil
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		var constants constantfetch.BTFHubConstants
+		if err := json.Unmarshal(data, &constants); err != nil {
+			return err
+		}
+
+		files = append(files, constants)
+
+		return nil
+	})
+	if err != nil {
+		return constantfetch.BTFHubConstants{}, err
 	}
+
+	if len(files) == 0 {
+		return constantfetch.BTFHubConstants{}, errors.New("no json file found")
+	}
+
+	lastCommit := ""
+	for _, file := range files {
+		if lastCommit != "" && file.Commit != lastCommit {
+			return constantfetch.BTFHubConstants{}, errors.New("multiple different commits in constant files")
+		}
+	}
+
+	res := constantfetch.BTFHubConstants{
+		Commit: lastCommit,
+	}
+
+	for _, file := range files {
+		offset := len(res.Constants)
+		res.Constants = append(res.Constants, file.Constants...)
+
+		for _, kernel := range file.Kernels {
+			kernel.ConstantsIndex += offset
+			res.Kernels = append(res.Kernels, kernel)
+		}
+	}
+
+	return res, nil
 }
 
 func getCurrentConstants(path string) (*constantfetch.BTFHubConstants, error) {
