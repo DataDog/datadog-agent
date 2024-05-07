@@ -30,7 +30,7 @@ jobs:
         with:
           repository: DataDog/btfhub-archive
           path: dev/dist/archive
-          sparse-checkout: 'ubuntu'
+          sparse-checkout: 'fedora'
 
       - name: Install python
         uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
@@ -55,10 +55,10 @@ jobs:
 
       - name: Sync constants
         run: |
-          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./constants-ubuntu.json ${{ inputs.force_refresh && '--force-refresh' || '' }}
+          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./constants-fedora.json ${{ inputs.force_refresh && '--force-refresh' || '' }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: constants-ubuntu
-          path: ./constants-ubuntu.json
+          name: constants-fedora
+          path: ./constants-fedora.json
