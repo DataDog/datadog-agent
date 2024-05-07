@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package failure contains logic specific to TCP failed connection handling
 package failure
 
 import (
@@ -28,24 +29,25 @@ var failedConnConsumerTelemetry = struct {
 	telemetry.NewCounter(failedConnConsumerModuleName, "failed_conn_polling_lost", []string{}, "Counter measuring the number of closed connection batches lost (were transmitted from ebpf but never received)"),
 }
 
-// TcpFailedConnConsumer consumes failed connection events from the kernel
-type TcpFailedConnConsumer struct {
+// TCPFailedConnConsumer consumes failed connection events from the kernel
+type TCPFailedConnConsumer struct {
 	eventHandler ddebpf.EventHandler
 	once         sync.Once
 	closed       chan struct{}
 	FailedConns  *FailedConns
 }
 
-// NewFailedConnConsumer creates a new TcpFailedConnConsumer
-func NewFailedConnConsumer(eventHandler ddebpf.EventHandler) *TcpFailedConnConsumer {
-	return &TcpFailedConnConsumer{
+// NewFailedConnConsumer creates a new TCPFailedConnConsumer
+func NewFailedConnConsumer(eventHandler ddebpf.EventHandler) *TCPFailedConnConsumer {
+	return &TCPFailedConnConsumer{
 		eventHandler: eventHandler,
 		closed:       make(chan struct{}),
 		FailedConns:  NewFailedConns(),
 	}
 }
 
-func (c *TcpFailedConnConsumer) Stop() {
+// Stop stops the consumer
+func (c *TCPFailedConnConsumer) Stop() {
 	if c == nil {
 		return
 	}
@@ -55,7 +57,7 @@ func (c *TcpFailedConnConsumer) Stop() {
 	})
 }
 
-func (c *TcpFailedConnConsumer) extractConn(data []byte) {
+func (c *TCPFailedConnConsumer) extractConn(data []byte) {
 	c.FailedConns.Lock()
 	defer c.FailedConns.Unlock()
 	ct := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
@@ -71,7 +73,7 @@ func (c *TcpFailedConnConsumer) extractConn(data []byte) {
 }
 
 // Start starts the consumer
-func (c *TcpFailedConnConsumer) Start() {
+func (c *TCPFailedConnConsumer) Start() {
 	if c == nil {
 		return
 	}

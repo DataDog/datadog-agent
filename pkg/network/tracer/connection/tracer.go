@@ -168,7 +168,7 @@ type tracer struct {
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
 	// tcp failure events
-	failedConnConsumer *failure.TcpFailedConnConsumer
+	failedConnConsumer *failure.TCPFailedConnConsumer
 
 	removeTuple *netebpf.ConnTuple
 
@@ -360,6 +360,7 @@ func (t *tracer) Stop() {
 		ebpftelemetry.UnregisterTelemetry(t.m)
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
+		t.failedConnConsumer.Stop()
 		if t.closeTracer != nil {
 			t.closeTracer()
 		}
