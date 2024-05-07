@@ -292,6 +292,12 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 			break
 		}
 		sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack destroy", stackID), destroyErr.Error(), []string{"operation:destroy", "result:fail", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", downCount)})
+
+		if downCount > stackUpMaxRetry {
+			fmt.Printf("Giving up on error during stack destroy: %v\n", destroyErr)
+			break
+		}
+		fmt.Printf("Retrying stack on error during stack destroy: %v\n", destroyErr)
 	}
 
 	if destroyErr != nil {
