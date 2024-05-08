@@ -64,10 +64,6 @@ jobs:
         with:
           go-version-file: '.go-version'
 
-      - name: Install go deps
-        run: |
-          inv -e deps
-
       - name: Compute name
         id: artifact-name
         run: |
@@ -103,10 +99,6 @@ jobs:
         uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version-file: '.go-version'
-
-      - name: Install go deps
-        run: |
-          inv -e deps
 
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
