@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextlib
 import glob
 import json
@@ -31,6 +33,7 @@ from tasks.libs.common.utils import (
     get_gobin,
     get_version_numeric_only,
 )
+from tasks.libs.types.arch import get_arch
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -526,6 +529,7 @@ def build(
     major_version='7',
     python_runtimes='3',
     go_mod="mod",
+    arch: str = CURRENT_ARCH,
     bundle_ebpf=False,
     kernel_release=None,
     debug=False,
@@ -559,6 +563,7 @@ def build(
         incremental_build=incremental_build,
         strip_binary=strip_binary,
         bundle=bundle,
+        arch=arch,
     )
 
 
@@ -580,12 +585,13 @@ def build_sysprobe_binary(
     major_version='7',
     python_runtimes='3',
     go_mod="mod",
+    arch: str = CURRENT_ARCH,
     binary=BIN_PATH,
     install_path=None,
     bundle_ebpf=False,
     strip_binary=False,
     bundle=True,
-):
+) -> None:
     if bundle and not is_windows:
         return agent_build(
             ctx,
@@ -597,11 +603,10 @@ def build_sysprobe_binary(
             bundle=BUNDLED_AGENTS[AgentFlavor.base] + ["system-probe"],
         )
 
+    arch_obj = get_arch(arch)
+
     ldflags, gcflags, env = get_build_flags(
-        ctx,
-        install_path=install_path,
-        major_version=major_version,
-        python_runtimes=python_runtimes,
+        ctx, install_path=install_path, major_version=major_version, python_runtimes=python_runtimes, arch=arch_obj
     )
 
     build_tags = get_default_build_tags(build="system-probe")

@@ -2,6 +2,8 @@
 Miscellaneous functions, no tasks here
 """
 
+from __future__ import annotations
+
 import json
 import os
 import platform
@@ -14,9 +16,11 @@ from functools import wraps
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
+from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
+from tasks.libs.types.arch import Arch
 
 # constants
 DEFAULT_BRANCH = "main"
@@ -182,7 +186,7 @@ def get_xcode_version(ctx):
 
 
 def get_build_flags(
-    ctx,
+    ctx: Context,
     static=False,
     prefix=None,
     install_path=None,
@@ -194,6 +198,7 @@ def get_build_flags(
     major_version='7',
     python_runtimes='3',
     headless_mode=False,
+    arch: Arch | None = None,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -297,6 +302,12 @@ def get_build_flags(
                 "Could not determine XCode version, not adding -no_warn_duplicate_libraries to extldflags",
                 file=sys.stderr,
             )
+
+    if arch and arch.is_cross_compiling():
+        # For cross-compilation we need to be explicit about certain Go settings
+        env["GOARCH"] = arch.go_arch
+        env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
+        env["CC"] = arch.gcc_compiler()
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
