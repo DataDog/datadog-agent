@@ -428,10 +428,6 @@ HTTP2Telemetry{
 	"literal values exceed message count": %d,
 	"messages with more frames than we can filter": %d,
 	"messages with more interesting frames than we can process": %d,
-	"fragmented headers frame count": %d,
-	"fragmented headers frame count end of stream": %d,
-	"fragmented data frame count end of stream": %d,
-	"fragmented rst frame count": %d,
 	"path headers length distribution": {
 		"in range [0, 120)": %d,
 		"in range [120, 130)": %d,
