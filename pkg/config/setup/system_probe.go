@@ -293,6 +293,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// With pathtest_ttl=15m and pathtest_interval=5m, it should allow a new paths to be run at least 3 times
 	cfg.BindEnvAndSetDefault(join(npNS, "pathtest_ttl"), "15m")
 	cfg.BindEnvAndSetDefault(join(npNS, "pathtest_interval"), "5m")
+	cfg.BindEnv(join(npNS, "exclude_cidr"))
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)

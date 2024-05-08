@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/network/bogon"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
@@ -34,7 +35,8 @@ type npSchedulerImpl struct {
 
 	workers int
 
-	metricSender metricsender.MetricSender
+	excludeIPManager *bogon.Bogon
+	metricSender     metricsender.MetricSender
 
 	receivedPathtestConfigCount *atomic.Uint64
 	pathtestStore               *pathtestStore
@@ -57,12 +59,33 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 	pathtestProcessChanSize := sysprobeYamlConfig.GetInt("network_path.process_chan_size")
 	pathtestTTL := sysprobeYamlConfig.GetDuration("network_path.pathtest_ttl")
 	pathtestInterval := sysprobeYamlConfig.GetDuration("network_path.pathtest_interval")
+	excludeCIDR := sysprobeYamlConfig.GetStringSlice("network_path.exclude_cidr")
+	var pathtestConfigs []pathtestConfig
+	err := sysprobeYamlConfig.UnmarshalKey("network_path.configs", pathtestConfigs, nil)
+	if err != nil {
+		logger.Errorf("Invalid network_path.configs: %s", err)
+	}
 
-	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d pathtest_ttl=%s pathtest_interval=%s)",
+	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d pathtest_ttl=%s pathtest_interval=%s exclude_cidr=%v)",
 		workers,
 		pathtestInputChanSize,
 		pathtestTTL.String(),
-		pathtestInterval.String())
+		pathtestInterval.String(),
+		excludeCIDR)
+
+	var excludeIPManager *bogon.Bogon
+	if len(excludeCIDR) >= 1 {
+		newExcludeIPManager, err := bogon.New(excludeCIDR)
+		if err != nil {
+			logger.Errorf("Invalid network_path.exclude_cidr: %s", err)
+		} else {
+			excludeIPManager = newExcludeIPManager
+		}
+	}
+
+	if excludeIPManager == nil {
+		excludeIPManager = &bogon.Bogon{}
+	}
 
 	return &npSchedulerImpl{
 		enabled:     true,
@@ -74,7 +97,8 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 		pathtestProcessChan: make(chan *pathtestContext, pathtestProcessChanSize),
 		workers:             workers,
 
-		metricSender: metricsender.NewMetricSenderStatsd(),
+		excludeIPManager: excludeIPManager,
+		metricSender:     metricsender.NewMetricSenderStatsd(),
 
 		receivedPathtestConfigCount: atomic.NewUint64(0),
 		TimeNowFunction:             time.Now,
@@ -101,6 +125,14 @@ func (s *npSchedulerImpl) Schedule(hostname string, port uint16) error {
 		// TODO: IPv6 not supported yet
 		s.logger.Debugf("Only IPv4 is currently supported. Address not supported: %s", hostname)
 		return nil
+	}
+
+	if s.excludeIPManager != nil {
+		isExcluded, _ := s.excludeIPManager.Is(hostname)
+		if isExcluded {
+			s.logger.Debugf("Excluded IP hostname=%s", hostname)
+			return nil
+		}
 	}
 
 	ptest := &pathtest{
