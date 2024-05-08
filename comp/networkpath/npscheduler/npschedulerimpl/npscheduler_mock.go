@@ -20,7 +20,19 @@ func MockModule() fxutil.Module {
 	)
 }
 
+type npSchedulerMock struct{}
+
+func (s *npSchedulerMock) Schedule(hostname string, port uint16) error {
+	return nil
+}
+
+func (s *npSchedulerMock) Enabled() bool {
+	return true
+}
+
 func newMock() provides {
 	// Mock initialization
-	return provides{}
+	return provides{
+		Comp: &npSchedulerMock{},
+	}
 }
