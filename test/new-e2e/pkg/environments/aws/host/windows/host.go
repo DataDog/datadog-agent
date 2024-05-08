@@ -198,11 +198,10 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		if err != nil {
 			return err
 		}
+		env.Agent.ClientOptions = params.agentClientOptions
 	} else {
 		env.Agent = nil
 	}
-
-	env.AgentClientOptions = params.agentClientOptions
 
 	return nil
 }

@@ -62,8 +62,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/agent"
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
-	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
-	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
+	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
+	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -439,7 +439,7 @@ func getSharedFxOption() fx.Option {
 				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
 			}
 		}),
-		healthprobeimpl.Module(),
+		healthprobefx.Module(),
 		adschedulerimpl.Module(),
 		fx.Provide(func(serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
 			return settings.Params{
@@ -472,10 +472,10 @@ func startAgent(
 	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	wmeta workloadmeta.Component,
-	taggerComp tagger.Component,
+	_ tagger.Component,
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
-	logsAgent optional.Option[logsAgent.Component],
+	_ optional.Option[logsAgent.Component],
 	_ processAgent.Component,
 	_ defaultforwarder.Component,
 	_ serializer.MetricSerializer,
@@ -542,12 +542,7 @@ func startAgent(
 
 	// start the cmd HTTP server
 	if err = agentAPI.StartServer(
-		wmeta,
-		taggerComp,
-		ac,
-		logsAgent,
 		demultiplexer,
-		optional.NewOption(collector),
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
