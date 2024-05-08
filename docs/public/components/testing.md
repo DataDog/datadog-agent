@@ -19,17 +19,17 @@ This is the component's interface:
     }
     ```
 
-We must ensure the `Compress` and `Decompress` functions behave correctly. 
+Ensure the `Compress` and `Decompress` functions behave correctly.
 
-Writing test for a component implementation follow the same rules as any other test in a Go project. Here is the documentation for the [testing](https://pkg.go.dev/testing) package.
+Writing tests for a component implementation follows the same rules as any other test in a Go project. See the [testing package](https://pkg.go.dev/testing) documentation for more information.
 
-For this example we are going to write a test file for the `zstd` implementation. For that we are going to create a new file in our `impl-zstd` folder and we are going to name it `component_test.go`. Inside our test file we are going to initialize the component's dependencies, create a new component instance and test the behaviour.
+For this example, write a test file for the `zstd` implementation. Create a new file named `component_test.go` in the `impl-zstd folder`. Inside the test file, initialize the component's dependencies, create a new component instance, and test the behavior.
 
 ### Initialize the component's dependencies
 
-All components expect a `Requires` struct with all the necessary. Inside that struct we declare all our dependencies. To ensure we can create a component instance we are going to create a `requires` instance. 
+All components expect a `Requires` struct with all the necessary dependencies. To ensure a component instance can be created, create a `requires` instance.
 
-Our `Requires` struct declared a dependency on the config component and the logs component. The next code snippet shows how to create the `Require` struct.
+The `Requires` struct declares a dependency on the config component and the log component. The following code snippet shows how to create the `Require` struct:
 
 === ":octicons-file-code-16: comp/compression/impl-zstd/component_test.go"
     ```go
@@ -54,12 +54,12 @@ Our `Requires` struct declared a dependency on the config component and the logs
     }
     ```
     
-To create the log and config component we use their respective mocks. We mentioned the [mock package](creating-components.md#the-mock-folder) previously in the [Creating a Component page](creating-components.md)
+To create the log and config component, use their respective mocks. The [mock package](creating-components.md#the-mock-folder) was mentioned previously in the [Creating a Component page](creating-components.md).
     
 
 ### Testing the component's interface
 
-Now we have our `Require` struct we can create an instance of our component and test iots functionality.
+Now that the `Require` struct is created, an instance of the component can be created and its functionality tested:
 
 === ":octicons-file-code-16: comp/compression/impl-zstd/component_test.go"
     ```go
@@ -93,9 +93,9 @@ Now we have our `Require` struct we can create an instance of our component and 
 
 ### Testing lifecycle hooks
 
-There are going to be times in which our component uses [Fx lifecycle](fx.md#lifecycle) to add hooks. It is a good practice to test the hooks as well. 
+Sometimes a component uses [Fx lifecycle](fx.md#lifecycle) to add hooks. It is a good practice to test the hooks as well. 
 
-For this example let's imagine our component wants to add some hooks into the app lifecycle. I will omit some code for simplicity
+For this example, imagine a component wants to add some hooks into the app lifecycle. Some code is omitted for simplicity:
 
 === ":octicons-file-code-16: comp/someomponent/impl/component.go"
     ```go
@@ -157,11 +157,11 @@ For this example let's imagine our component wants to add some hooks into the ap
     }
     ```
 
-We want to test that our component updates the `started` and `stopped` fields. 
+The goal is to test that the component updates the `started` and `stopped` fields.
 
-To accomplish it we are going to create a new lifecycle instance, create a `Require` struct instance, intialize our component, and validate that calling `Start` on the lifecycle instace to validate that the component hook has being called and the logic has being execuited.
+To accomplish this, create a new lifecycle instance, create a `Require` struct instance, initialize the component, and validate that calling `Start` on the lifecycle instance calls the component hook and executes the logic.
 
-To create a lifecycle instance, we will use a helper function. `compdef.NewTestLifecycle()`. The function returns a lyfecycle wrapper that we can use to populate our `Requires` struct. Also, we can  call the `Start` and `Stop` functions.
+To create a lifecycle instance, use the helper function `compdef.NewTestLifecycle()`. The function returns a lifecycle wrapper that can be used to populate the `Requires` struct. The `Start` and `Stop` functions can also be called.
 
 !!! Info 
     <!-- TODO add link to NewTestLifecycle function once this PR https://github.com/DataDog/datadog-agent/pull/25184 is merged-->
@@ -200,4 +200,4 @@ To create a lifecycle instance, we will use a helper function. `compdef.NewTestL
     }
     ```
     
-For our example we had to perform a type cast operation, because the `started` field is private. Dependeding our your component you might not have to do that.
+For this example, a type cast operation had to be performed because the `started` field is private. Depending on the component, this may not be necessary.
