@@ -151,6 +151,35 @@ func (e *etwSession) StopTracing() error {
 	return globalError
 }
 
+func (e *etwSession) GetSessionStatistics() (etw.SessionStatistics, error) {
+	var stats etw.SessionStatistics
+	// it is not clear if we can safely reuse the properties buffer here
+	// so we allocate a new one
+	tmpBuf := make([]byte, len(e.propertiesBuf))
+
+	sessionptp := (C.PEVENT_TRACE_PROPERTIES)(unsafe.Pointer(&e.propertiesBuf[0]))
+	ptp := (C.PEVENT_TRACE_PROPERTIES)(unsafe.Pointer(&tmpBuf[0]))
+
+	*ptp = *sessionptp
+
+	ret := windows.Errno(C.ControlTraceW(
+		e.hSession,
+		nil,
+		ptp,
+		C.EVENT_TRACE_CONTROL_QUERY))
+	if ret != windows.ERROR_SUCCESS {
+		return stats, ret
+	}
+
+	stats.NumberOfBuffers = uint32(ptp.NumberOfBuffers)
+	stats.FreeBuffers = uint32(ptp.FreeBuffers)
+	stats.EventsLost = uint32(ptp.EventsLost)
+	stats.BuffersWritten = uint32(ptp.BuffersWritten)
+	stats.LogBuffersLost = uint32(ptp.LogBuffersLost)
+	stats.RealTimeBuffersLost = uint32(ptp.RealTimeBuffersLost)
+	return stats, nil
+}
+
 // deleteEtwSession deletes an ETW session by name, typically after a crash since we don't have access to the session
 // handle anymore.
 func deleteEtwSession(name string) error {
