@@ -42,7 +42,7 @@ NPM_TAG = "npm"
 
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
-TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/..."]
+TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/...", "./pkg/process/monitor/..."]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 TEST_TIMEOUTS = {
     "pkg/network/tracer$": "0",
