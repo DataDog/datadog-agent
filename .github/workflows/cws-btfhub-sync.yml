@@ -40,6 +40,15 @@ jobs:
           - ubuntu/20.04/arm64
           - ubuntu/20.04/x86_64
     steps:
+      - name: Cleanup runner
+        run: |
+          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1
+          docker rmi $(docker image ls -aq) >/dev/null 2>&1
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          df -h
+
       - name: Checkout datadog-agent repository
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
@@ -83,14 +92,6 @@ jobs:
     needs: generate
     runs-on: ubuntu-latest
     steps:
-      - name: Cleanup runner
-        run: |
-          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1
-          docker rmi $(docker image ls -aq) >/dev/null 2>&1
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf "/usr/local/share/boost"
-          df -h
       - name: Checkout datadog-agent repository
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
