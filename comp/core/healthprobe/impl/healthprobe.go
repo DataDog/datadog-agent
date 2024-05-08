@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package healthprobeimpl implements the healthprobe component interface
-package healthprobeimpl
+// Package impl implements the healthprobe component interface
+package impl
 
 import (
 	"context"
@@ -15,29 +15,25 @@ import (
 	"runtime"
 	"time"
 
-	"go.uber.org/fx"
-
-	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe"
+	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/gorilla/mux"
 )
 
 const defaultTimeout = time.Second
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newHealthProbe),
-	)
-}
-
-type dependencies struct {
-	fx.In
-
+// Requires defines the dependencies for the healthprobe component
+type Requires struct {
+	Lc      compdef.Lifecycle
 	Log     log.Component
 	Options healthprobeComponent.Options
+}
+
+// Provides defines the output of the healthprobe component
+type Provides struct {
+	Comp healthprobeComponent.Component
 }
 
 type healthprobe struct {
@@ -62,28 +58,29 @@ func (h *healthprobe) stop() error {
 	return h.server.Shutdown(timeout) //nolint:errcheck
 }
 
-func newHealthProbe(lc fx.Lifecycle, deps dependencies) (healthprobeComponent.Component, error) {
-	healthPort := deps.Options.Port
+// NewComponent creates a new healthprobe component
+func NewComponent(reqs Requires) (Provides, error) {
+	provides := Provides{}
+	healthPort := reqs.Options.Port
 	if healthPort <= 0 {
-		return nil, nil
+		return provides, nil
 	}
 
 	ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", healthPort))
 	if err != nil {
-		return nil, err
+		return provides, err
 	}
 
-	server := buildServer(deps.Options, deps.Log)
+	server := buildServer(reqs.Options, reqs.Log)
 
 	probe := &healthprobe{
-		options:  deps.Options,
-		log:      deps.Log,
+		options:  reqs.Options,
+		log:      reqs.Log,
 		server:   server,
 		listener: ln,
 	}
 
-	// We rely on FX to start and stop the metadata runner
-	lc.Append(fx.Hook{
+	reqs.Lc.Append(compdef.Hook{
 		OnStart: func(ctx context.Context) error {
 			return probe.start()
 		},
@@ -92,7 +89,8 @@ func newHealthProbe(lc fx.Lifecycle, deps dependencies) (healthprobeComponent.Co
 		},
 	})
 
-	return probe, nil
+	provides.Comp = probe
+	return provides, nil
 }
 
 type liveHandler struct {
