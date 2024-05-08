@@ -479,7 +479,7 @@ func startAgent(
 	_ processAgent.Component,
 	_ defaultforwarder.Component,
 	_ serializer.MetricSerializer,
-	otelcollector otelcollector.Component,
+	_ otelcollector.Component,
 	demultiplexer demultiplexer.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
