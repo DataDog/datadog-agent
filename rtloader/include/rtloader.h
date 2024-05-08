@@ -291,6 +291,14 @@ public:
     */
     virtual void setGetConfigCb(cb_get_config_t) = 0;
 
+    //! setGetRemoteConfigCb member.
+    /*!
+      \param A cb_get_remote_config_t function pointer to the CGO callback.
+
+      This allows us to set the CGO callback that will enable us to get the agent configuration.
+    */
+    virtual void setGetRemoteConfigCb(cb_get_config_t) = 0;
+
     //! setHeadersCb member.
     /*!
       \param A cb_headers_t function pointer to the CGO callback.

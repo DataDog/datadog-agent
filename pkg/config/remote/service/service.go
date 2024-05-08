@@ -287,6 +287,7 @@ func WithClientTTL(interval time.Duration, cfgPath string) func(s *options) {
 
 // NewService instantiates a new remote configuration management service
 func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tags []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*Service, error) {
+	fmt.Println("hostname is", hostname)
 	options := defaultOptions
 	for _, opt := range opts {
 		opt(&options)

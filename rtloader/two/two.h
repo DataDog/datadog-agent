@@ -97,6 +97,7 @@ public:
     // datadog_agent API
     void setGetVersionCb(cb_get_version_t);
     void setGetConfigCb(cb_get_config_t);
+    void setGetRemoteConfigCb(cb_get_remote_config_t);
     void setHeadersCb(cb_headers_t);
     void setGetHostnameCb(cb_get_hostname_t);
     void setGetClusternameCb(cb_get_clustername_t);

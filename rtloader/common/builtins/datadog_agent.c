@@ -23,6 +23,7 @@ static cb_read_persistent_cache_t cb_read_persistent_cache = NULL;
 static cb_obfuscate_sql_t cb_obfuscate_sql = NULL;
 static cb_obfuscate_sql_exec_plan_t cb_obfuscate_sql_exec_plan = NULL;
 static cb_get_process_start_time_t cb_get_process_start_time = NULL;
+static cb_get_remote_config_t cb_get_remote_config = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -39,10 +40,12 @@ static PyObject *read_persistent_cache(PyObject *self, PyObject *args);
 static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *get_remote_config(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
     { "get_config", get_config, METH_VARARGS, "Get an Agent config item." },
+    { "get_remote_config", get_remote_config, METH_VARARGS, "Get the state of a remote config." },
     { "get_hostname", get_hostname, METH_NOARGS, "Get the hostname." },
     { "tracemalloc_enabled", tracemalloc_enabled, METH_VARARGS, "Gets if tracemalloc is enabled." },
     { "get_version", get_version, METH_NOARGS, "Get Agent version." },
@@ -83,6 +86,11 @@ void _set_get_version_cb(cb_get_version_t cb)
 void _set_get_config_cb(cb_get_config_t cb)
 {
     cb_get_config = cb;
+}
+
+void _set_get_remote_config_cb(cb_get_remote_config_t cb)
+{
+    cb_get_remote_config = cb;
 }
 
 void _set_headers_cb(cb_headers_t cb)
@@ -212,6 +220,60 @@ PyObject *get_config(PyObject *self, PyObject *args)
 
     char *data = NULL;
     cb_get_config(key, &data);
+
+    // new ref
+    PyObject *value = from_yaml(data);
+    cgo_free(data);
+    if (value == NULL) {
+        // clear error set by `from_yaml`
+        PyErr_Clear();
+        Py_RETURN_NONE;
+    }
+    return value;
+}
+
+/*! \fn PyObject *get_remote_config(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog-agent.get_remote_config` method, allowing
+    to collect elements from the remote agent configuration.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a tuple containing a python string.
+    \return a PyObject * pointer to a safe unmarshaled python object. Or `None`
+    if the callback is unavailable.
+
+    This function is callable as the `datadog_agent.get_remote_config` python method. It
+    uses the`cb_get_remote_config()` callback to retrieve the element in the agent configuration
+    associated with the key passed in with the args argument. The value returned
+    will depend on the element type found for the key, and is a python object
+    unmarshaled by the `yaml.safe_load` function when calling `from_yaml()` with
+    the payload returned by callback. If no callback is set, `None` will be returned.
+
+    Before RtLoader the Agent used reflection to inspect the contents of a configuration
+    value and the CPython API to perform conversion to a Python equivalent. Such
+    a conversion wouldn't be possible in a Python-agnostic way so we use YAML to
+    pass the data from Go to Python. The configuration value is loaded in the Agent,
+    marshalled into YAML and passed as a `char*` to RtLoader, where the string is
+    decoded back to Python and passed to the caller. YAML usage is transparent to
+    the caller, who would receive a Python object as returned from `yaml.safe_load`.
+    YAML is used instead of JSON since the `json.load` return unicode for
+    string, for python2, which would be a breaking change from the previous
+    version of the agent.
+*/
+PyObject *get_remote_config(PyObject *self, PyObject *args)
+{
+    // callback must be set
+    if (cb_get_remote_config == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    char *key = NULL;
+    // PyArg_ParseTuple returns a pointer to the existing string in &key
+    // No need to free the result.
+    if (!PyArg_ParseTuple(args, "s", &key)) {
+        return NULL;
+    }
+
+    char *data = NULL;
+    cb_get_remote_config(key, &data);
 
     // new ref
     PyObject *value = from_yaml(data);

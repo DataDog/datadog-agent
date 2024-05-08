@@ -10,6 +10,8 @@ package python
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"sync"
 	"unsafe"
 
@@ -37,6 +39,30 @@ import (
 import (
 	"C"
 )
+
+type remoteConfig struct {
+	Topic     string `yaml:"topic"`
+	Partition int32  `yaml:"partition"`
+	Offset    int64  `yaml:"offset"`
+}
+
+// GetRemoteConfig exposes the remote configs to Python checks.
+//
+//export GetRemoteConfig
+func GetRemoteConfig(key *C.char, yamlPayload **C.char) {
+	goKey := C.GoString(key)
+
+	fmt.Println("key is ", goKey)
+	data, err := rcclient.GetYamlConfigs()
+	if err != nil {
+		log.Errorf("could not convert configuration value YAML: %s", err)
+		*yamlPayload = nil
+		return
+	}
+	fmt.Println("config is ", string(data))
+	// yaml Payload will be free by rtloader when it's done with it
+	*yamlPayload = TrackedCString(string(data))
+}
 
 // GetVersion exposes the version of the agent to Python checks.
 //

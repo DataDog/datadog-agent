@@ -502,6 +502,11 @@ void set_get_config_cb(rtloader_t *rtloader, cb_get_config_t cb)
     AS_TYPE(RtLoader, rtloader)->setGetConfigCb(cb);
 }
 
+void set_get_remote_config_cb(rtloader_t *rtloader, cb_get_remote_config_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setGetRemoteConfigCb(cb);
+}
+
 void set_headers_cb(rtloader_t *rtloader, cb_headers_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setHeadersCb(cb);

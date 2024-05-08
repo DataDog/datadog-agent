@@ -434,6 +434,16 @@ DATADOG_AGENT_RTLOADER_API void set_get_version_cb(rtloader_t *, cb_get_version_
 */
 DATADOG_AGENT_RTLOADER_API void set_get_config_cb(rtloader_t *, cb_get_config_t);
 
+/*! \fn void set_get_remote_config_cb(crtloader_t *, b_get_remote_config_t)
+    \brief Sets a callback to be used by rtloader to collect the agent configuration.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_get_remote_config_t prototype to the
+    callback function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_get_remote_config_cb(rtloader_t *, cb_get_remote_config_t);
+
 /*! \fn void set_headers_cb(rtloader_t *, cb_headers_t)
     \brief Sets a callback to be used by rtloader to collect the typical HTTP headers for
     agent requests.
