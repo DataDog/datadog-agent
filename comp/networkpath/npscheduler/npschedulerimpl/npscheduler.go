@@ -59,12 +59,28 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 	pathtestProcessChanSize := sysprobeYamlConfig.GetInt("network_path.process_chan_size")
 	pathtestTTL := sysprobeYamlConfig.GetDuration("network_path.pathtest_ttl")
 	pathtestInterval := sysprobeYamlConfig.GetDuration("network_path.pathtest_interval")
+	excludeCIDR := sysprobeYamlConfig.GetStringSlice("network_path.exclude_cidr")
 
-	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d pathtest_ttl=%s pathtest_interval=%s)",
+	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d pathtest_ttl=%s pathtest_interval=%s exclude_cidr=%v)",
 		workers,
 		pathtestInputChanSize,
 		pathtestTTL.String(),
-		pathtestInterval.String())
+		pathtestInterval.String(),
+		excludeCIDR)
+
+	var excludeIPManager *bogon.Bogon
+	if len(excludeCIDR) >= 1 {
+		newExcludeIPManager, err := bogon.New(excludeCIDR)
+		if err != nil {
+			logger.Errorf("Invalid network_path.exclude_cidr: %s", err)
+		} else {
+			excludeIPManager = newExcludeIPManager
+		}
+	}
+
+	if excludeIPManager == nil {
+		excludeIPManager = &bogon.Bogon{}
+	}
 
 	return &npSchedulerImpl{
 		enabled:     true,
@@ -76,7 +92,8 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 		pathtestProcessChan: make(chan *pathtestContext, pathtestProcessChanSize),
 		workers:             workers,
 
-		metricSender: metricsender.NewMetricSenderStatsd(),
+		excludeIPManager: excludeIPManager,
+		metricSender:     metricsender.NewMetricSenderStatsd(),
 
 		receivedPathtestConfigCount: atomic.NewUint64(0),
 		TimeNowFunction:             time.Now,
