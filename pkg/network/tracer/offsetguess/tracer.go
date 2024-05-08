@@ -46,10 +46,15 @@ const (
 	netNsDefaultOffsetBytes             = 48
 )
 
-var tcpKprobeCalledString = map[uint64]string{
-	tcpGetSockOptKProbeNotCalled: "tcp_getsockopt kprobe not executed",
-	tcpGetSockOptKProbeCalled:    "tcp_getsockopt kprobe executed",
-}
+var (
+	tcpKprobeCalledString = map[uint64]string{
+		tcpGetSockOptKProbeNotCalled: "tcp_getsockopt kprobe not executed",
+		tcpGetSockOptKProbeCalled:    "tcp_getsockopt kprobe executed",
+	}
+
+	// ErrTracerOffsetGuessingNotSupported is the error returned when network tracer offset guessing is not supported
+	ErrTracerOffsetGuessingNotSupported = errors.New("network tracer offset guessing not supported on this platform")
+)
 
 type tracerOffsetGuesser struct {
 	m          *manager.Manager
@@ -1092,6 +1097,26 @@ func newUDPServer(addr string) (string, func(), error) {
 	return ln.LocalAddr().String(), doneFn, nil
 }
 
+func IsTracerOffsetGuessingSupported() error {
+	family, err := kernel.Family()
+	if err != nil {
+		return err
+	}
+
+	platformVersion, err := kernel.PlatformVersion()
+	if err != nil {
+		return err
+	}
+
+	// currently only redhat 9.3 is not supported due to
+	// offset guessing being broken
+	if family == "rhel" && strings.HasPrefix(platformVersion, "9.3") {
+		return ErrTracerOffsetGuessingNotSupported
+	}
+
+	return nil
+}
+
 //nolint:revive // TODO(NET) Fix revive linter
 var TracerOffsets tracerOffsets
 
@@ -1102,6 +1127,10 @@ type tracerOffsets struct {
 
 func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, error) {
 	if o.err != nil {
+		return nil, o.err
+	}
+
+	if o.err = IsTracerOffsetGuessingSupported(); o.err != nil {
 		return nil, o.err
 	}
 

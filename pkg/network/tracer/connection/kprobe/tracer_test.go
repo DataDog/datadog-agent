@@ -22,7 +22,7 @@ import (
 )
 
 func TestTracerFallback(t *testing.T) {
-	if err := isCORETracerSupported(); err == errCORETracerNotSupported {
+	if err := IsCORETracerSupported(); err == ErrCORETracerNotSupported {
 		t.Skip("CORE tracer not supported on this platform")
 	} else if err = IsPrecompiledTracerSupported(); err == ErrPrecompiledTracerNotSupported {
 		t.Skip("prebuilt tracer not supported on this platform")
@@ -272,7 +272,7 @@ func TestCORETracerSupported(t *testing.T) {
 	assert.False(t, prebuiltCalled)
 	if kv < kernel.VersionCode(4, 4, 128) && platform != "centos" && platform != "redhat" {
 		assert.False(t, coreCalled)
-		assert.ErrorIs(t, err, errCORETracerNotSupported)
+		assert.ErrorIs(t, err, ErrCORETracerNotSupported)
 	} else {
 		assert.True(t, coreCalled)
 		assert.NoError(t, err)
@@ -340,7 +340,7 @@ func TestPrebuiltNotSupported(t *testing.T) {
 	cfg.EnableRuntimeCompiler = false
 	cfg.AllowPrecompiledFallback = true
 	_, _, _, err := LoadTracer(cfg, manager.Options{}, nil)
-	require.ErrorIs(t, err, ErrTracerNotSupported)
+	require.ErrorIs(t, err, ErrPrecompiledTracerNotSupported)
 }
 
 func skipIfPrebuiltNotSupported(t *testing.T) {

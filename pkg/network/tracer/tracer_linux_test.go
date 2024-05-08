@@ -76,11 +76,28 @@ func isPrecompiledTracerSupported(t *testing.T) bool {
 	return true
 }
 
+func isCORETracerSupported(t *testing.T) bool {
+	if err := kprobe.IsCORETracerSupported(); err != nil {
+		require.ErrorIs(t, err, kprobe.ErrCORETracerNotSupported, "unexpected error trying to determine if CO-RE tracer is supported")
+		return false
+	}
+
+	return true
+}
+
 func supportedBuildModes(t *testing.T) []ebpftest.BuildMode {
 	buildModes := ebpftest.SupportedBuildModes()
 	if prebuiltSupported := isPrecompiledTracerSupported(t); !prebuiltSupported {
+		t.Log("removing pre-compiled build mode as it is not supported on this platform")
 		buildModes = slices.DeleteFunc(buildModes, func(mode ebpftest.BuildMode) bool {
 			return mode == ebpftest.Prebuilt
+		})
+	}
+
+	if coreSupported := isCORETracerSupported(t); !coreSupported {
+		t.Log("removing CO-RE build mode as it is not supported on this platform")
+		buildModes = slices.DeleteFunc(buildModes, func(mode ebpftest.BuildMode) bool {
+			return mode == ebpftest.CORE
 		})
 	}
 

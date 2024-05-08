@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -100,7 +101,7 @@ func TestKafkaProtocolParsing(t *testing.T) {
 	serverHost := "127.0.0.1"
 	require.NoError(t, kafka.RunServer(t, serverHost, kafkaPort))
 
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}), "", func(t *testing.T) {
 		suite.Run(t, new(KafkaProtocolParsingSuite))
 	})
 }
@@ -1029,7 +1030,7 @@ func newKafkaMonitor(t *testing.T, cfg *config.Config) *Monitor {
 func TestLoadKafkaBinary(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}), "", func(t *testing.T) {
 		t.Run("debug", func(t *testing.T) {
 			loadKafkaBinary(t, true)
 		})

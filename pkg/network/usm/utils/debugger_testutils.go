@@ -42,7 +42,7 @@ func WaitForProgramsToBeTraced(t *testing.T, programType string, pid int) {
 	require.Eventuallyf(t, func() bool {
 		traced := GetTracedPrograms(programType)
 		for _, prog := range traced {
-			if slices.Contains[[]uint32](prog.PIDs, uint32(pid)) {
+			if slices.Contains(prog.PIDs, uint32(pid)) {
 				return true
 			}
 		}

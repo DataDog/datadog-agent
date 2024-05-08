@@ -10,7 +10,6 @@ package kprobe
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -89,11 +88,10 @@ var (
 	tracerLoaderFromAsset     = loadTracerFromAsset
 	tracerOffsetGuesserRunner = offsetguess.TracerOffsets.Offsets
 
-	errCORETracerNotSupported = errors.New("CO-RE tracer not supported on this platform")
+	// ErrCORETracerNotSupported is the error returned when the CO-RE tracer is not supported
+	ErrCORETracerNotSupported = errors.New("CO-RE tracer not supported on this platform")
 	// ErrPrecompiledTracerNotSupported is the error returned when the pre-compiled tracer is not supported
 	ErrPrecompiledTracerNotSupported = errors.New("pre-compiled tracer not supported on this platform")
-	// ErrTracerNotSupported is the error returned when the network tracer is not supported on this platform
-	ErrTracerNotSupported = errors.New("network tracer not supported on this platform")
 )
 
 // ClassificationSupported returns true if the current kernel version supports the classification feature.
@@ -134,8 +132,8 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 	}
 
 	if cfg.EnableCORE {
-		err := isCORETracerSupported()
-		if err != nil && !errors.Is(err, errCORETracerNotSupported) {
+		err := IsCORETracerSupported()
+		if err != nil && !errors.Is(err, ErrCORETracerNotSupported) {
 			return nil, nil, TracerTypeCORE, fmt.Errorf("error determining if CO-RE tracer is supported: %w", err)
 		}
 
@@ -176,12 +174,12 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 	}
 
 	if !prebuiltSupported {
-		return nil, nil, TracerTypePrebuilt, ErrTracerNotSupported
+		return nil, nil, TracerTypePrebuilt, fmt.Errorf("error loading pre-compiled network tracer: %w", ErrPrecompiledTracerNotSupported)
 	}
 
 	offsets, err := tracerOffsetGuesserRunner(cfg)
 	if err != nil {
-		return nil, nil, TracerTypePrebuilt, fmt.Errorf("error loading prebuilt tracer: error guessing offsets: %s", err)
+		return nil, nil, TracerTypePrebuilt, fmt.Errorf("error loading pre-compiled tracer: error guessing offsets: %s", err)
 	}
 
 	mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, offsets...)
@@ -332,7 +330,7 @@ func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connClos
 	return tracerLoaderFromAsset(buf, false, false, config, mgrOpts, connCloseEventHandler)
 }
 
-func isCORETracerSupported() error {
+func IsCORETracerSupported() error {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return err
@@ -353,27 +351,16 @@ func isCORETracerSupported() error {
 		return nil
 	}
 
-	return errCORETracerNotSupported
+	return ErrCORETracerNotSupported
 }
 
 // IsPrecompiledTracerSupported returns whether the pre-compiled
 // tracer is supported on this platform
 func IsPrecompiledTracerSupported() error {
-	family, err := kernel.Family()
-	if err != nil {
-		return err
-	}
-
-	platformVersion, err := kernel.PlatformVersion()
-	if err != nil {
-		return err
-	}
-
-	// currently only redhat 9.3 is not supported due to
-	// offset guessing being broken
-	if family == "rhel" && strings.HasPrefix(platformVersion, "9.3") {
+	err := offsetguess.IsTracerOffsetGuessingSupported()
+	if err == offsetguess.ErrTracerOffsetGuessingNotSupported {
 		return ErrPrecompiledTracerNotSupported
 	}
 
-	return nil
+	return err
 }
