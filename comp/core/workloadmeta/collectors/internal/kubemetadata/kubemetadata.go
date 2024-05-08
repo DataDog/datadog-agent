@@ -16,6 +16,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -25,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"go.uber.org/fx"
 )
 
 const (
