@@ -83,6 +83,9 @@ type WindowsProbe struct {
 	// discarders
 	discardedPaths     *lru.Cache[string, struct{}]
 	discardedBasenames *lru.Cache[string, struct{}]
+
+	// do not merge
+	unbufferedmode bool
 }
 
 type renameState struct {
@@ -129,12 +132,6 @@ type stats struct {
 	//
 	etwChannelBlocked uint64
 }
-
-var (
-	// set size of buffered channel.  Intentionally using var instead of const so that
-	// we can make it configurable if so desired.
-	etwNotificationSize = 2048
-)
 
 /*
  * callback function for every etw notification, after it's been parsed.
@@ -468,11 +465,16 @@ func (p *WindowsProbe) Start() error {
 		go func() {
 			defer p.fimwg.Done()
 			err := p.setupEtw(func(n interface{}, pid uint32) {
-				select {
-				case p.onETWNotification <- etwNotification{n, pid}:
-				default:
-					p.stats.etwChannelBlocked++
+				if p.unbufferedmode {
+					p.onETWNotification <- etwNotification{n, pid}
+				} else {
+					select {
+					case p.onETWNotification <- etwNotification{n, pid}:
+					default:
+						p.stats.etwChannelBlocked++
+					}
 				}
+
 			})
 			log.Infof("Done StartTracing %v", err)
 		}()
@@ -808,6 +810,27 @@ func (p *WindowsProbe) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsETWChannelBlockedCount, float64(p.stats.etwChannelBlocked), nil, 1); err != nil {
 		return err
 	}
+	if etwstats, err := p.fimSession.GetSessionStatistics(); err == nil {
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWNumberOfBuffers, float64(etwstats.NumberOfBuffers), nil, 1); err != nil {
+			return err
+		}
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWFreeBuffers, float64(etwstats.FreeBuffers), nil, 1); err != nil {
+			return err
+		}
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWEventsLost, float64(etwstats.EventsLost), nil, 1); err != nil {
+			return err
+		}
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWBuffersWritten, float64(etwstats.BuffersWritten), nil, 1); err != nil {
+			return err
+		}
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWLogBuffersLost, float64(etwstats.LogBuffersLost), nil, 1); err != nil {
+			return err
+		}
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWRealTimeBuffersLost, float64(etwstats.RealTimeBuffersLost), nil, 1); err != nil {
+			return err
+		}
+
+	}
 	return nil
 }
 
@@ -825,9 +848,11 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	cs := config.RuntimeSecurity.ETWEventsChannelSize
-	if cs != 0 {
-		etwNotificationSize = cs
+	unbufferedmode := config.RuntimeSecurity.WindowsProbeChannelUnbuffered
+	etwNotificationSize := 0
+
+	if !unbufferedmode {
+		etwNotificationSize = config.RuntimeSecurity.ETWEventsChannelSize
 	}
 	log.Infof("Setting ETW channel size to %d", etwNotificationSize)
 
@@ -848,6 +873,8 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 		discardedPaths:     discardedPaths,
 		discardedBasenames: discardedBasenames,
+
+		unbufferedmode: unbufferedmode,
 	}
 
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)

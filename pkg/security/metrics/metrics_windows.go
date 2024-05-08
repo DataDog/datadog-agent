@@ -94,4 +94,22 @@ var (
 	//MetricWindowsETWChannelBlockedCount is the metric for counting the number of blocked ETW channels
 	//Tags: -
 	MetricWindowsETWChannelBlockedCount = newRuntimeMetric(".windows.etw_channel_blocked_count")
+	//MetricWindowsETWNumberOfBuffers is the metric for counting the number of ETW buffers
+	//Tags: -
+	MetricWindowsETWNumberOfBuffers = newRuntimeMetric(".windows.etw_number_of_buffers")
+	//MetricWindowsETWFreeBuffers is the metric for counting the number of free ETW buffers
+	//Tags: -
+	MetricWindowsETWFreeBuffers = newRuntimeMetric(".windows.etw_free_buffers")
+	//MetricWindowsETWEventsLost is the metric for counting the number of ETW events lost
+	//Tags: -
+	MetricWindowsETWEventsLost = newRuntimeMetric(".windows.etw_events_lost")
+	//MetricWindowsETWBuffersWritten is the metric for counting the number of ETW buffers written
+	//Tags: -
+	MetricWindowsETWBuffersWritten = newRuntimeMetric(".windows.etw_buffers_written")
+	//MetricWindowsETWLogBuffersLost is the metric for counting the number of ETW log buffers lost
+	//Tags: -
+	MetricWindowsETWLogBuffersLost = newRuntimeMetric(".windows.etw_log_buffers_lost")
+	//MetricWindowsETWRealTimeBuffersLost is the metric for counting the number of ETW real-time buffers lost
+	//Tags: -
+	MetricWindowsETWRealTimeBuffersLost = newRuntimeMetric(".windows.etw_real_time_buffers_lost")
 )
