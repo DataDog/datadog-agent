@@ -190,6 +190,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
+	// TODO: Use c.npScheduler.Schedule(conns.Conns) instead?
 	c.scheduleNetworkPath(conns.Conns)
 
 	groupID := nextGroupID()
