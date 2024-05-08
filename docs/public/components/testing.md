@@ -1,12 +1,12 @@
 # Testing components
 
-Testing is an essential part of the development process, and it’s a critical part of the software development life cycle. Throughout this page will cover everything you need to know about testing components.
+Testing is an essential part of the software development life cycle. This page covers everything you need to know about testing components.
 
-One of the core benefits of using components is that each component isolate the internal logic behind its interface. We should focus on asserting that each implementatioin behaves correctly. 
+One of the core benefits of using components is that each component isolates its internal logic behind its interface. Focus on asserting that each implementation behaves correctly.
 
-To recapitulate form the [previous page](creating-components.md). We created a component that compresses the payload before sending it to the Datadog backend. The component had twop separate implementations.
+To recap from the previous page, a component was created that compresses the payload before sending it to the Datadog backend. The component had two separate implementations.
 
-This our components interface:
+This is the component's interface:
 
 === ":octicons-file-code-16: comp/compression/def/component.go"
     ```go
