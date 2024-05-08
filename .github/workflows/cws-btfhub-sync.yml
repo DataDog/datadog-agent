@@ -65,20 +65,20 @@ jobs:
         run: |
           inv -e deps
 
-      - name: Sync constants
-        run: |
-          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./constants-${{ matrix.cone }}.json ${{ inputs.force_refresh && '--force-refresh' || '' }}
-
       - name: Compute name
         id: artifact-name
         run: |
           echo "ARTIFACT_NAME=constants-${{ matrix.cone }}" | tr '/' '-' >> $GITHUB_OUTPUT
 
+      - name: Sync constants
+        run: |
+          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./${{ steps.artifact-name.outputs.ARTIFACT_NAME }}.json ${{ inputs.force_refresh && '--force-refresh' || '' }}
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
-          path: ./constants-${{ matrix.cone }}.json
+          path: ./${{ steps.artifact-name.outputs.ARTIFACT_NAME }}.json
 
   combine:
     needs: generate
