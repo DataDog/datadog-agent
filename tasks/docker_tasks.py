@@ -53,7 +53,7 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
 
     with open(f"{temp_folder}/Dockerfile", 'w') as stream:
         stream.write(
-            """FROM docker/compose:debian-1.29.2
+            """FROM docker:26.1.1-cli
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
 CMD /test.bin
