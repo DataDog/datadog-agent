@@ -11,7 +11,6 @@ package main
 import (
 	"archive/tar"
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -23,18 +22,15 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
 
 	"github.com/smira/go-xz"
-	"golang.org/x/sync/semaphore"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	utilKernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -194,11 +190,7 @@ func getCommitSha(cwd string) (string, error) {
 }
 
 type treeWalkCollector struct {
-	counter int
-	// wg is used so that the finish waits on all kernels
-	wg sync.WaitGroup
-	// sem is used to limit the amount of parallel extractions
-	sem       *semaphore.Weighted
+	counter   int
 	resultsMu sync.Mutex
 	results   []extractionResult
 }
@@ -206,14 +198,11 @@ type treeWalkCollector struct {
 func newTreeWalkCollector(preAllocHint int) *treeWalkCollector {
 	return &treeWalkCollector{
 		counter: 0,
-		sem:     semaphore.NewWeighted(int64(runtime.NumCPU() * 2)),
 		results: make([]extractionResult, 0, preAllocHint),
 	}
 }
 
 func (c *treeWalkCollector) finish() constantfetch.BTFHubConstants {
-	c.wg.Wait()
-
 	sort.Slice(c.results, func(i, j int) bool { return c.results[i].index < c.results[j].index })
 
 	constants := make([]map[string]uint64, 0)
@@ -276,39 +265,23 @@ func (c *treeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 		arch := btfParts[len(btfParts)-2]
 		unameRelease := strings.TrimSuffix(btfParts[len(btfParts)-1], ".btf.tar.xz")
 
-		c.wg.Add(1)
-		if err := c.sem.Acquire(context.TODO(), 1); err != nil {
-			return fmt.Errorf("failed to acquire sem token: %w", err)
+		fmt.Println(btfRunIndex, path)
+
+		constants, err := extractConstantsFromBTF(path, distribution, distribVersion)
+		if err != nil {
+			return fmt.Errorf("failed to extract constants from `%s`: %v", path, err)
 		}
 
-		go func() {
-			defer func() {
-				c.wg.Done()
-				c.sem.Release(1)
-			}()
+		res := extractionResult{
+			index:          btfRunIndex,
+			distribution:   distribution,
+			distribVersion: distribVersion,
+			arch:           arch,
+			unameRelease:   unameRelease,
+			constants:      constants,
+		}
 
-			fmt.Println(btfRunIndex, path)
-
-			constants, err := extractConstantsFromBTF(path, distribution, distribVersion)
-			if err != nil {
-				seclog.Errorf("failed to extract constants from `%s`: %v", path, err)
-				return
-			}
-
-			res := extractionResult{
-				index:          btfRunIndex,
-				distribution:   distribution,
-				distribVersion: distribVersion,
-				arch:           arch,
-				unameRelease:   unameRelease,
-				constants:      constants,
-			}
-
-			c.resultsMu.Lock()
-			c.results = append(c.results, res)
-			c.resultsMu.Unlock()
-		}()
-
+		c.results = append(c.results, res)
 		return nil
 	}
 }
