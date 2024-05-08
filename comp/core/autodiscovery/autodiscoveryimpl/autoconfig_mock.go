@@ -8,8 +8,10 @@
 package autodiscoveryimpl
 
 import (
+	"net/http"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -23,14 +25,30 @@ type MockParams struct {
 	Scheduler *scheduler.MetaScheduler
 }
 
+// mockHandleRequest is a simple mocked http.Handler function to test the route registers with the api component correctly
+func (ac *AutoConfig) mockHandleRequest(w http.ResponseWriter, _ *http.Request) {
+	w.Write([]byte("OK"))
+}
+
 type mockdependencies struct {
 	fx.In
 	WMeta  optional.Option[workloadmeta.Component]
 	Params MockParams
 }
 
-func newMockAutoConfig(deps mockdependencies) autodiscovery.Mock {
-	return createNewAutoConfig(deps.Params.Scheduler, nil, deps.WMeta)
+type mockprovides struct {
+	fx.Out
+
+	Comp     autodiscovery.Mock
+	Endpoint api.AgentEndpointProvider
+}
+
+func newMockAutoConfig(deps mockdependencies) mockprovides {
+	ac := createNewAutoConfig(deps.Params.Scheduler, nil, deps.WMeta)
+	return mockprovides{
+		Comp:     ac,
+		Endpoint: api.NewAgentEndpointProvider(ac.mockHandleRequest, "/config-check", "GET"),
+	}
 }
 
 // MockModule provides the default autoconfig without other components configured, and not started
