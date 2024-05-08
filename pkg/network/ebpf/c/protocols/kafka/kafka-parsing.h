@@ -416,9 +416,16 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
         case KAFKA_FETCH_RESPONSE_PARTITION_END:
             response->partitions_count--;
             if (response->partitions_count == 0) {
-                extra_debug("enqueue, records_count %d",  response->transaction.records_count);
+                extra_debug("enqueue final partition, records_count %d",  response->transaction.records_count);
                 kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
                 return RET_DONE;
+            } else {
+                extra_debug("enqueue partition, #partitions left %d, records_count %d",
+                    response->partitions_count,
+                    response->transaction.records_count);
+                kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
+                // Reset records count for the next partition, so we won't be double counting.
+                response->transaction.records_count = 0;
             }
 
             response->state = KAFKA_FETCH_RESPONSE_PARTITION_START;
