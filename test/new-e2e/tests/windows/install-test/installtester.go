@@ -12,17 +12,19 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	agentClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	agentClientParams "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	commonHelper "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
+	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
+
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 // Tester is a test helper for testing agent installations
@@ -48,8 +50,9 @@ type Tester struct {
 type TesterOption func(*Tester)
 
 // NewTester creates a new Tester
-func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption) (*Tester, error) {
+func NewTester(context e2e.Context, host *components.RemoteHost, opts ...TesterOption) (*Tester, error) {
 	t := &Tester{}
+	tt := context.T()
 
 	var err error
 
@@ -80,9 +83,11 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 		tt.FailNow()
 	}
 
-	t.InstallTestClient = common.NewWindowsTestClient(tt, t.host)
+	t.InstallTestClient = common.NewWindowsTestClient(context, t.host)
 	t.InstallTestClient.Helper = commonHelper.NewWindowsHelperWithCustomPaths(t.expectedInstallPath, t.expectedConfigRoot)
-	t.InstallTestClient.AgentClient, err = agentClient.NewHostAgentClientWithParams(tt, t.host,
+	t.InstallTestClient.AgentClient, err = agentClient.NewHostAgentClientWithParams(
+		context,
+		t.host.HostOutput,
 		agentClientParams.WithSkipWaitForAgentReady(),
 		agentClientParams.WithAgentInstallPath(t.expectedInstallPath),
 	)
