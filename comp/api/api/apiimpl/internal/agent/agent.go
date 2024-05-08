@@ -14,11 +14,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"path"
-	"sort"
 	"time"
 
 	"github.com/DataDog/zstd"
@@ -29,15 +27,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -55,7 +53,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -109,9 +106,6 @@ func SetupHandlers(
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", func(w http.ResponseWriter, _ *http.Request) { getCSRFToken(w, gui) }).Methods("GET")
-	r.HandleFunc("/config-check", func(w http.ResponseWriter, r *http.Request) {
-		getConfigCheck(w, r, ac)
-	}).Methods("GET")
 	r.HandleFunc("/config", settings.GetFullConfig("")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
@@ -124,10 +118,6 @@ func SetupHandlers(
 		setting := vars["setting"]
 		settings.SetValue(setting, w, r)
 	}).Methods("POST")
-	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
-	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
-		getWorkloadList(w, r, wmeta)
-	}).Methods("GET")
 	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/secret/refresh", func(w http.ResponseWriter, r *http.Request) { secretRefresh(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/metadata/gohai", metadataPayloadGohai).Methods("GET")
@@ -152,12 +142,6 @@ func SetupHandlers(
 	}
 
 	return r
-}
-
-func setJSONError(w http.ResponseWriter, err error, errorCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	body, _ := json.Marshal(map[string]string{"error": err.Error()})
-	http.Error(w, string(body), errorCode)
 }
 
 func stopAgent(w http.ResponseWriter, _ *http.Request) {
@@ -240,7 +224,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 			return
 		}
 
-		setJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
+		utils.SetJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
 		return
 	}
 
@@ -304,7 +288,7 @@ func getStreamFunc(messageReceiverFunc func() messageReceiver, streamType, agent
 		}
 
 		// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
-		conn := GetConnection(r)
+		conn := utils.GetConnection(r)
 		_ = conn.SetDeadline(time.Time{})
 
 		done := make(chan struct{})
@@ -364,7 +348,7 @@ func getDogstatsdStats(w http.ResponseWriter, _ *http.Request, dogstatsdServer d
 
 	jsonStats, err := serverDebug.GetJSONDebugStats()
 	if err != nil {
-		setJSONError(w, log.Errorf("Error getting marshalled Dogstatsd stats: %s", err), 500)
+		utils.SetJSONError(w, log.Errorf("Error getting marshalled Dogstatsd stats: %s", err), 500)
 		return
 	}
 
@@ -381,7 +365,7 @@ func getHealth(w http.ResponseWriter, _ *http.Request) {
 	jsonHealth, err := json.Marshal(h)
 	if err != nil {
 		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, h)
-		setJSONError(w, err, 500)
+		utils.SetJSONError(w, err, 500)
 		return
 	}
 
@@ -397,57 +381,6 @@ func getCSRFToken(w http.ResponseWriter, optGui optional.Option[gui.Component]) 
 	w.Write([]byte(gui.GetCSRFToken()))
 }
 
-func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Component) {
-	var response response.ConfigCheckResponse
-
-	configSlice := ac.LoadedConfigs()
-	sort.Slice(configSlice, func(i, j int) bool {
-		return configSlice[i].Name < configSlice[j].Name
-	})
-	response.Configs = configSlice
-	response.ResolveWarnings = autodiscoveryimpl.GetResolveWarnings()
-	response.ConfigErrors = autodiscoveryimpl.GetConfigErrors()
-	response.Unresolved = ac.GetUnresolvedTemplates()
-
-	jsonConfig, err := json.Marshal(response)
-	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
-		return
-	}
-
-	w.Write(jsonConfig)
-}
-
-func getTaggerList(w http.ResponseWriter, _ *http.Request) {
-	response := tagger.List()
-
-	jsonTags, err := json.Marshal(response)
-	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal tagger list response: %s", err), 500)
-		return
-	}
-	w.Write(jsonTags)
-}
-
-func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
-	verbose := false
-	params := r.URL.Query()
-	if v, ok := params["verbose"]; ok {
-		if len(v) >= 1 && v[0] == "true" {
-			verbose = true
-		}
-	}
-
-	response := wmeta.Dump(verbose)
-	jsonDump, err := json.Marshal(response)
-	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)
-		return
-	}
-
-	w.Write(jsonDump)
-}
-
 func secretInfo(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
 	secretResolver.GetDebugInfo(w)
 }
@@ -455,7 +388,7 @@ func secretInfo(w http.ResponseWriter, _ *http.Request, secretResolver secrets.C
 func secretRefresh(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
 	result, err := secretResolver.Refresh()
 	if err != nil {
-		setJSONError(w, err, 500)
+		utils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write([]byte(result))
@@ -464,13 +397,13 @@ func secretRefresh(w http.ResponseWriter, _ *http.Request, secretResolver secret
 func metadataPayloadV5(w http.ResponseWriter, _ *http.Request, hostMetadataComp host.Component) {
 	jsonPayload, err := hostMetadataComp.GetPayloadAsJSON(context.Background())
 	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal v5 metadata payload: %s", err), 500)
+		utils.SetJSONError(w, log.Errorf("Unable to marshal v5 metadata payload: %s", err), 500)
 		return
 	}
 
 	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
 	if err != nil {
-		setJSONError(w, log.Errorf("Unable to scrub metadata payload: %s", err), 500)
+		utils.SetJSONError(w, log.Errorf("Unable to scrub metadata payload: %s", err), 500)
 		return
 	}
 	w.Write(scrubbed)
@@ -480,13 +413,13 @@ func metadataPayloadGohai(w http.ResponseWriter, _ *http.Request) {
 	payload := gohai.GetPayloadWithProcesses(config.IsContainerized())
 	jsonPayload, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)
+		utils.SetJSONError(w, log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)
 		return
 	}
 
 	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
 	if err != nil {
-		setJSONError(w, log.Errorf("Unable to scrub gohai metadata payload: %s", err), 500)
+		utils.SetJSONError(w, log.Errorf("Unable to scrub gohai metadata payload: %s", err), 500)
 		return
 	}
 	w.Write(scrubbed)
@@ -496,7 +429,7 @@ func metadataPayloadInvChecks(w http.ResponseWriter, _ *http.Request, invChecks 
 	// GetAsJSON already return scrubbed data
 	scrubbed, err := invChecks.GetAsJSON()
 	if err != nil {
-		setJSONError(w, err, 500)
+		utils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(scrubbed)
@@ -506,7 +439,7 @@ func metadataPayloadInvAgent(w http.ResponseWriter, _ *http.Request, invAgent in
 	// GetAsJSON already return scrubbed data
 	scrubbed, err := invAgent.GetAsJSON()
 	if err != nil {
-		setJSONError(w, err, 500)
+		utils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(scrubbed)
@@ -516,7 +449,7 @@ func metadataPayloadInvHost(w http.ResponseWriter, _ *http.Request, invHost inve
 	// GetAsJSON already return scrubbed data
 	scrubbed, err := invHost.GetAsJSON()
 	if err != nil {
-		setJSONError(w, err, 500)
+		utils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(scrubbed)
@@ -526,7 +459,7 @@ func metadataPayloadPkgSigning(w http.ResponseWriter, _ *http.Request, pkgSignin
 	// GetAsJSON already return scrubbed data
 	scrubbed, err := pkgSigning.GetAsJSON()
 	if err != nil {
-		setJSONError(w, err, 500)
+		utils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(scrubbed)
@@ -550,7 +483,7 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	}
 
 	// Reset the `server_timeout` deadline for this connection as running diagnose code in Agent process can take some time
-	conn := GetConnection(r)
+	conn := utils.GetConnection(r)
 	_ = conn.SetDeadline(time.Time{})
 
 	// Indicate that we are already running in Agent process (and flip RunLocal)
@@ -560,7 +493,7 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	// Get diagnoses via API
 	diagnoses, err := diagnose.Run(diagCfg, diagnoseDeps)
 	if err != nil {
-		setJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
+		utils.SetJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
 		return
 	}
 
@@ -568,30 +501,25 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(diagnoses)
 	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
+		utils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
 	}
-}
-
-// GetConnection returns the connection for the request
-func GetConnection(r *http.Request) net.Conn {
-	return r.Context().Value(grpc.ConnContextKey).(net.Conn)
 }
 
 func dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request, demux demultiplexer.Component) {
 	if demux == nil {
-		setJSONError(w, log.Errorf("Unable to stream dogstatsd contexts, demultiplexer is not initialized"), 404)
+		utils.SetJSONError(w, log.Errorf("Unable to stream dogstatsd contexts, demultiplexer is not initialized"), 404)
 		return
 	}
 
 	path, err := dumpDogstatsdContextsImpl(demux)
 	if err != nil {
-		setJSONError(w, log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)
+		utils.SetJSONError(w, log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)
 		return
 	}
 
 	resp, err := json.Marshal(path)
 	if err != nil {
-		setJSONError(w, log.Errorf("Failed to serialize response: %v", err), 500)
+		utils.SetJSONError(w, log.Errorf("Failed to serialize response: %v", err), 500)
 		return
 	}
 
