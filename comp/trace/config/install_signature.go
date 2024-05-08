@@ -90,9 +90,8 @@ func inferInstallTypeFromEnvironment() string {
 	if env.IsContainerized() {
 		if os.Getenv("DD_APM_ENABLED") != "" {
 			return dockerSingleStepInstallType
-		} else {
-			return defaultDockerInstallType
 		}
+		return defaultDockerInstallType
 	}
 	return defaultInstallType
 }
