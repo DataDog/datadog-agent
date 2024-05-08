@@ -103,6 +103,7 @@ type stats struct {
 	procStart uint64
 	procStop  uint64
 
+	totalEtwNotifications uint64
 	// etw file notifications
 	fileCreate    uint64
 	fileCreateNew uint64
@@ -276,6 +277,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 	log.Info("Starting tracing...")
 	err := p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
+		p.stats.totalEtwNotifications++
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
@@ -808,6 +810,9 @@ func (p *WindowsProbe) SendStats() error {
 		return err
 	}
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsETWChannelBlockedCount, float64(p.stats.etwChannelBlocked), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsETWTotalNotifications, float64(p.stats.totalEtwNotifications), nil, 1); err != nil {
 		return err
 	}
 	if etwstats, err := p.fimSession.GetSessionStatistics(); err == nil {

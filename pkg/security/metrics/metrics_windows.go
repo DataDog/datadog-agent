@@ -112,4 +112,7 @@ var (
 	//MetricWindowsETWRealTimeBuffersLost is the metric for counting the number of ETW real-time buffers lost
 	//Tags: -
 	MetricWindowsETWRealTimeBuffersLost = newRuntimeMetric(".windows.etw_real_time_buffers_lost")
+	//MetricWindowsETWTotalNotifications is the metric for counting the total number of ETW notifications
+	//Tags: -
+	MetricWindowsETWTotalNotifications = newRuntimeMetric(".windows.etw_total_notifications")
 )
