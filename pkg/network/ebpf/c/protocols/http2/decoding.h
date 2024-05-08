@@ -455,9 +455,6 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
             iteration_value->frames_count++;
         }
 
-        // We are not checking for frame splits in the previous condition due to a verifier issue.
-        check_frame_split(http2_tel, skb_info->data_off,skb_info->data_end, current_frame);
-
         skb_info->data_off += current_frame.length;
 
         // If we have found enough interesting frames, we can stop iterating.
@@ -557,7 +554,6 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         return 0;
     }
 
-    check_frame_split(http2_tel, dispatcher_args_copy.skb_info.data_off, dispatcher_args_copy.skb_info.data_end, current_frame);
     bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
     bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
     if (is_headers_or_rst_frame || is_data_end_of_stream) {
