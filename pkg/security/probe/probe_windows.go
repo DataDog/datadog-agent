@@ -85,7 +85,7 @@ type WindowsProbe struct {
 	discardedBasenames *lru.Cache[string, struct{}]
 
 	// do not merge
-	unbufferedmode bool
+	blockonchannelsend bool
 }
 
 type renameState struct {
@@ -467,7 +467,7 @@ func (p *WindowsProbe) Start() error {
 		go func() {
 			defer p.fimwg.Done()
 			err := p.setupEtw(func(n interface{}, pid uint32) {
-				if p.unbufferedmode {
+				if p.blockonchannelsend {
 					p.onETWNotification <- etwNotification{n, pid}
 				} else {
 					select {
@@ -853,12 +853,9 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	unbufferedmode := config.RuntimeSecurity.WindowsProbeChannelUnbuffered
-	etwNotificationSize := 0
+	bocs := config.RuntimeSecurity.WindowsProbeBlockOnChannelSend
 
-	if !unbufferedmode {
-		etwNotificationSize = config.RuntimeSecurity.ETWEventsChannelSize
-	}
+	etwNotificationSize := config.RuntimeSecurity.ETWEventsChannelSize
 	log.Infof("Setting ETW channel size to %d", etwNotificationSize)
 
 	p := &WindowsProbe{
@@ -879,7 +876,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		discardedPaths:     discardedPaths,
 		discardedBasenames: discardedBasenames,
 
-		unbufferedmode: unbufferedmode,
+		blockonchannelsend: bocs,
 	}
 
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)

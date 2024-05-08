@@ -232,7 +232,7 @@ type RuntimeSecurityConfig struct {
 	ETWEventsMaxBuffers int
 
 	// WindowsProbeChannelUnbuffered defines if the windows probe channel should be unbuffered
-	WindowsProbeChannelUnbuffered bool
+	WindowsProbeBlockOnChannelSend bool
 }
 
 // Config defines a security config
@@ -286,11 +286,11 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	}
 
 	rsConfig := &RuntimeSecurityConfig{
-		RuntimeEnabled:       coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
-		FIMEnabled:           coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
-		ETWEventsChannelSize: coreconfig.SystemProbe.GetInt("runtime_security_config.etw_events_channel_size"),
-		ETWEventsMaxBuffers:  coreconfig.SystemProbe.GetInt("runtime_security_config.etw_events_max_buffers"),
-		WindowsProbeChannelUnbuffered: coreconfig.SystemProbe.GetBool("runtime_security_config.windows_probe_channel_unbuffered"),
+		RuntimeEnabled:                 coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
+		FIMEnabled:                     coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
+		ETWEventsChannelSize:           coreconfig.SystemProbe.GetInt("runtime_security_config.etw_events_channel_size"),
+		ETWEventsMaxBuffers:            coreconfig.SystemProbe.GetInt("runtime_security_config.etw_events_max_buffers"),
+		WindowsProbeBlockOnChannelSend: coreconfig.SystemProbe.GetBool("runtime_security_config.windows_probe_block_on_channel_send"),
 
 		SocketPath:           coreconfig.SystemProbe.GetString("runtime_security_config.socket"),
 		EventServerBurst:     coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.burst"),

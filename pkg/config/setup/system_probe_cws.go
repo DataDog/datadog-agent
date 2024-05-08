@@ -39,9 +39,9 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.compliance_module.enabled", false)
 
 	// windows specific channel size for etw events
-	cfg.SetDefault("runtime_security_config.etw_events_channel_size", 2048)
+	cfg.SetDefault("runtime_security_config.etw_events_channel_size", 0)
 	cfg.SetDefault("runtime_security_config.etw_events_max_buffers", 0)
-	cfg.SetDefault("runtime_security_config.windows_probe_channel_unbuffered", true)
+	cfg.SetDefault("runtime_security_config.windows_probe_block_on_channel_send", true)
 
 	// CWS - activity dump
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
