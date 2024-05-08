@@ -37,6 +37,12 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+type fileCache struct {
+	fileName       string
+	readProcessed  bool
+	writeProcessed bool
+}
+
 // WindowsProbe defines a Windows probe
 type WindowsProbe struct {
 	Resolvers *resolvers.Resolvers
@@ -72,7 +78,7 @@ type WindowsProbe struct {
 
 	// path caches
 	filePathResolverLock sync.Mutex
-	filePathResolver     map[fileObjectPointer]string
+	filePathResolver     map[fileObjectPointer]fileCache
 	regPathResolver      map[regObjectPointer]string
 
 	// state tracking
@@ -105,11 +111,13 @@ type stats struct {
 
 	totalEtwNotifications uint64
 	// etw file notifications
-	fileCreate    uint64
-	fileCreateNew uint64
-	fileCleanup   uint64
-	fileClose     uint64
-	fileFlush     uint64
+	fileCreate         uint64
+	fileCreateNew      uint64
+	fileCleanup        uint64
+	fileClose          uint64
+	fileFlush          uint64
+	fileWrite          uint64
+	fileWriteProcessed uint64
 
 	fileSetInformation     uint64
 	fileSetDelete          uint64
@@ -336,6 +344,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				if wa, err := p.parseWriteArgs(e); err == nil {
 					//fmt.Printf("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
 					//log.Tracef("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
+					p.stats.fileWriteProcessed++
 					ecb(wa, e.EventHeader.ProcessID)
 				}
 
@@ -346,7 +355,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 							ecb(si, e.EventHeader.ProcessID)
 						}
 				*/
-				p.stats.fileSetInformation++
+				p.stats.fileWrite++
 
 			case idSetDelete:
 				if sd, err := p.parseSetDeleteArgs(e); err == nil {
@@ -760,6 +769,12 @@ func (p *WindowsProbe) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileFlush, float64(p.stats.fileFlush), nil, 1); err != nil {
 		return err
 	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileWrite, float64(p.stats.fileWrite), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileWriteProcessed, float64(p.stats.fileWriteProcessed), nil, 1); err != nil {
+		return err
+	}
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileSetInformation, float64(p.stats.fileSetInformation), nil, 1); err != nil {
 		return err
 	}
@@ -870,7 +885,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		onError:           make(chan bool),
 		onETWNotification: make(chan etwNotification, etwNotificationSize),
 
-		filePathResolver: make(map[fileObjectPointer]string, 0),
+		filePathResolver: make(map[fileObjectPointer]fileCache, 0),
 		regPathResolver:  make(map[regObjectPointer]string, 0),
 
 		discardedPaths:     discardedPaths,

@@ -36,6 +36,12 @@ var (
 	//MetricWindowsFileFlush is the metric for counting file flush notifications
 	//Tags: -
 	MetricWindowsFileFlush = newRuntimeMetric(".windows.file.flush")
+	//MetricWindowsFileWrite is the metric for counting file write notifications
+	//Tags: -
+	MetricWindowsFileWrite = newRuntimeMetric(".windows.file.write")
+	//MetricWindowsFileWriteProcessed is the metric for counting file write notifications
+	//Tags: -
+	MetricWindowsFileWriteProcessed = newRuntimeMetric(".windows.file.write_processed")
 
 	//MetricWindowsFileSetInformation is the metric for counting file set information notifications
 	//Tags: -

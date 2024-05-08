@@ -172,7 +172,9 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 
 	wp.filePathResolverLock.Lock()
 	defer wp.filePathResolverLock.Unlock()
-	wp.filePathResolver[ca.fileObject] = ca.fileName
+	wp.filePathResolver[ca.fileObject] = fileCache{
+		fileName: ca.fileName,
+	}
 
 	return ca, nil
 }
@@ -270,7 +272,7 @@ func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformat
 	wp.filePathResolverLock.Lock()
 	defer wp.filePathResolverLock.Unlock()
 	if s, ok := wp.filePathResolver[fileObjectPointer(sia.fileObject)]; ok {
-		sia.fileName = s
+		sia.fileName = s.fileName
 	}
 
 	return sia, nil
@@ -405,7 +407,7 @@ func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, er
 	wp.filePathResolverLock.Lock()
 	defer wp.filePathResolverLock.Unlock()
 	if s, ok := wp.filePathResolver[ca.fileObject]; ok {
-		ca.fileName = s
+		ca.fileName = s.fileName
 	}
 
 	return ca, nil
@@ -474,6 +476,8 @@ func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
 	ra := &readArgs{
 		DDEventHeader: e.EventHeader,
 	}
+	isread := e.EventHeader.EventDescriptor.ID == idRead
+
 	data := etwimpl.GetUserData(e)
 	if e.EventHeader.EventDescriptor.Version == 0 {
 		ra.ByteOffset = data.GetUint64(0)
@@ -498,7 +502,18 @@ func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
 	wp.filePathResolverLock.Lock()
 	defer wp.filePathResolverLock.Unlock()
 	if s, ok := wp.filePathResolver[fileObjectPointer(ra.fileObject)]; ok {
-		ra.fileName = s
+		if isread {
+			if s.readProcessed {
+				return nil, errDiscardedPath
+			}
+			s.readProcessed = true
+		} else {
+			if s.writeProcessed {
+				return nil, errDiscardedPath
+			}
+			s.writeProcessed = true
+		}
+		ra.fileName = s.fileName
 	}
 	return ra, nil
 }
@@ -597,7 +612,7 @@ func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (*deletePathAr
 	wp.filePathResolverLock.Lock()
 	defer wp.filePathResolverLock.Unlock()
 	if s, ok := wp.filePathResolver[fileObjectPointer(dpa.fileObject)]; ok {
-		dpa.oldPath = s
+		dpa.oldPath = s.fileName
 		// question, should we reset the filePathResolver here?
 	}
 	return dpa, nil
