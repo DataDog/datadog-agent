@@ -55,11 +55,10 @@ func (c *ComposeConf) Start() ([]byte, error) {
 	}
 
 	args := []string{
-		"compose",
 		"--project-name", c.ProjectName,
 		"--file", c.FilePath,
 	}
-	pullCmd := exec.Command("docker", append(args, "pull", "--parallel")...)
+	pullCmd := exec.Command("docker-compose", append(args, "pull", "--parallel")...)
 	pullCmd.Env = customEnv
 	output, err := pullCmd.CombinedOutput()
 	if err != nil {
@@ -71,7 +70,7 @@ func (c *ComposeConf) Start() ([]byte, error) {
 		*/
 		log.Infof("retrying pull...")
 		// We need to rebuild a new command because the file-descriptors of stdout/err are already set
-		retryPull := exec.Command("docker", append(args, "pull", "--parallel")...)
+		retryPull := exec.Command("docker-compose", append(args, "pull", "--parallel")...)
 		retryPull.Env = customEnv
 		output, err = retryPull.CombinedOutput()
 		if err != nil {
@@ -83,7 +82,7 @@ func (c *ComposeConf) Start() ([]byte, error) {
 	if c.RemoveRebuildImages {
 		args = append(args, "--build")
 	}
-	runCmd := exec.Command("docker", args...)
+	runCmd := exec.Command("docker-compose", args...)
 	runCmd.Env = customEnv
 
 	return runCmd.CombinedOutput()
@@ -92,7 +91,6 @@ func (c *ComposeConf) Start() ([]byte, error) {
 // Stop stops a running docker-compose configuration
 func (c *ComposeConf) Stop() ([]byte, error) {
 	args := []string{
-		"compose",
 		"--project-name", c.ProjectName,
 		"--file", c.FilePath,
 		"down",
@@ -100,15 +98,14 @@ func (c *ComposeConf) Stop() ([]byte, error) {
 	if c.RemoveRebuildImages {
 		args = append(args, "--rmi", "all")
 	}
-	runCmd := exec.Command("docker", args...)
+	runCmd := exec.Command("docker-compose", args...)
 	return runCmd.CombinedOutput()
 }
 
 // ListContainers lists the running container IDs
 func (c *ComposeConf) ListContainers() ([]string, error) {
 	runCmd := exec.Command(
-		"docker",
-		"compose",
+		"docker-compose",
 		"--project-name", c.ProjectName,
 		"--file", c.FilePath,
 		"ps", "-q")
