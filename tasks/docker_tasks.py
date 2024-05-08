@@ -56,6 +56,7 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
         stream.write(
             """FROM ubuntu:20.04
 COPY --from=docker/compose-bin:v2.26.1 /docker-compose /usr/bin/compose
+COPY --from=docker:26.1-cli /usr/local/bin/docker /usr/bin/docker
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
 CMD /test.bin
