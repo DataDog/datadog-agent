@@ -2,7 +2,17 @@ module github.com/datadog-agent/DataDog/comp/otelcol/collector-contrib/impl
 
 go 1.21.0
 
-replace github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../def
+replace (
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../def
+	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../../../pkg/obfuscate
+	github.com/DataDog/datadog-agent/pkg/proto => ../../../../pkg/proto
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../../pkg/remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../../../../pkg/util/cgroups
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../pkg/util/pointer
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
+)
 
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.54.0-rc.2
