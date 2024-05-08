@@ -58,7 +58,7 @@ func (c *ComposeConf) Start() ([]byte, error) {
 		"--project-name", c.ProjectName,
 		"--file", c.FilePath,
 	}
-	pullCmd := exec.Command("docker-compose", append(args, "pull", "--parallel")...)
+	pullCmd := exec.Command("compose", append(args, "pull", "--parallel")...)
 	pullCmd.Env = customEnv
 	output, err := pullCmd.CombinedOutput()
 	if err != nil {
@@ -70,7 +70,7 @@ func (c *ComposeConf) Start() ([]byte, error) {
 		*/
 		log.Infof("retrying pull...")
 		// We need to rebuild a new command because the file-descriptors of stdout/err are already set
-		retryPull := exec.Command("docker-compose", append(args, "pull", "--parallel")...)
+		retryPull := exec.Command("compose", append(args, "pull", "--parallel")...)
 		retryPull.Env = customEnv
 		output, err = retryPull.CombinedOutput()
 		if err != nil {
@@ -82,7 +82,7 @@ func (c *ComposeConf) Start() ([]byte, error) {
 	if c.RemoveRebuildImages {
 		args = append(args, "--build")
 	}
-	runCmd := exec.Command("docker-compose", args...)
+	runCmd := exec.Command("compose", args...)
 	runCmd.Env = customEnv
 
 	return runCmd.CombinedOutput()
@@ -98,14 +98,14 @@ func (c *ComposeConf) Stop() ([]byte, error) {
 	if c.RemoveRebuildImages {
 		args = append(args, "--rmi", "all")
 	}
-	runCmd := exec.Command("docker-compose", args...)
+	runCmd := exec.Command("compos", args...)
 	return runCmd.CombinedOutput()
 }
 
 // ListContainers lists the running container IDs
 func (c *ComposeConf) ListContainers() ([]string, error) {
 	runCmd := exec.Command(
-		"docker-compose",
+		"compos",
 		"--project-name", c.ProjectName,
 		"--file", c.FilePath,
 		"ps", "-q")
