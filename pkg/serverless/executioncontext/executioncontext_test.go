@@ -145,3 +145,15 @@ func TestUpdateRuntime(t *testing.T) {
 	ecs := ec.GetCurrentState()
 	assert.Equal(t, ecs.Runtime, runtime)
 }
+
+func TestIsStateSaved(t *testing.T) {
+	ec := ExecutionContext{}
+	assert.False(t, ec.IsStateSaved())
+	err := ec.SaveCurrentExecutionContext()
+	assert.Nil(t, err)
+	assert.True(t, ec.IsStateSaved())
+
+	err = ec.RestoreCurrentStateFromFile()
+	assert.Nil(t, err)
+	assert.Equal(t, ec.isStateSaved, ec.IsStateSaved())
+}
