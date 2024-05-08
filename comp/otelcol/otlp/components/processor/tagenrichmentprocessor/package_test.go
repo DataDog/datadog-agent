@@ -3,11 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build test
+package tagenrichmentprocessor
 
-package healthprobe
+import (
+	"testing"
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
+	"go.uber.org/goleak"
+)
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
