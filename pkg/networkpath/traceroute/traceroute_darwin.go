@@ -7,7 +7,11 @@
 
 package traceroute
 
-import "context"
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+)
 
 // MacTraceroute defines a structure for
 // running traceroute from an agent running
@@ -32,7 +36,7 @@ func New(cfg Config) (*MacTraceroute, error) {
 }
 
 // Run executes a traceroute
-func (m *MacTraceroute) Run(ctx context.Context) (NetworkPath, error) {
+func (m *MacTraceroute) Run(ctx context.Context) (payload.NetworkPath, error) {
 	// TODO: mac implementation, can we get this no system-probe or root access?
 	// To test: we probably can, but maybe not without modifying
 	// the library we currently use

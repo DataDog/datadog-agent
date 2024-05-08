@@ -65,7 +65,7 @@ type collector struct {
 	col  *otlp.Pipeline
 }
 
-func (c *collector) Start() error {
+func (c *collector) start(context.Context) error {
 	deps := c.deps
 	on := otlp.IsEnabled(deps.Config)
 	deps.InventoryAgent.Set(otlpEnabled, on)
@@ -97,19 +97,11 @@ func (c *collector) Start() error {
 	return nil
 }
 
-func (c *collector) Stop() {
+func (c *collector) stop(context.Context) error {
 	if c.col != nil {
 		c.col.Stop()
 	}
-}
-
-func (c *collector) stop(context.Context) error {
-	c.Stop()
 	return nil
-}
-
-func (c *collector) start(context.Context) error {
-	return c.Start()
 }
 
 // Status returns the status of the collector.

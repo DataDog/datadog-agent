@@ -136,6 +136,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
 			case workloadmeta.KindKubernetesNode:
 				tagInfos = append(tagInfos, c.handleKubeNode(ev)...)
+			case workloadmeta.KindKubernetesNamespace:
+				// tagInfos = append(tagInfos, c.handleKubeNamespace(ev)...) No tags for now
 			case workloadmeta.KindECSTask:
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
 			case workloadmeta.KindContainerImageMetadata:
@@ -716,6 +718,8 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		return kubelet.PodUIDToTaggerEntityName(entityID.ID)
 	case workloadmeta.KindKubernetesNode:
 		return kubelet.NodeUIDToTaggerEntityName(entityID.ID)
+	case workloadmeta.KindKubernetesNamespace:
+		return fmt.Sprintf("namespace://%s", entityID.ID)
 	case workloadmeta.KindECSTask:
 		return fmt.Sprintf("ecs_task://%s", entityID.ID)
 	case workloadmeta.KindContainerImageMetadata:

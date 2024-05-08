@@ -7,7 +7,8 @@ import re
 import tarfile
 import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, overload
-from gitlab.v4.objects import ProjectJob, Project
+
+from gitlab.v4.objects import Project, ProjectJob
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 
