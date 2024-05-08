@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/network/bogon"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
@@ -35,8 +34,7 @@ type npSchedulerImpl struct {
 
 	workers int
 
-	excludeIPManager *bogon.Bogon
-	metricSender     metricsender.MetricSender
+	metricSender metricsender.MetricSender
 
 	receivedPathtestConfigCount *atomic.Uint64
 	pathtestStore               *pathtestStore
@@ -125,14 +123,6 @@ func (s *npSchedulerImpl) Schedule(hostname string, port uint16) error {
 		// TODO: IPv6 not supported yet
 		s.logger.Debugf("Only IPv4 is currently supported. Address not supported: %s", hostname)
 		return nil
-	}
-
-	if s.excludeIPManager != nil {
-		isExcluded, _ := s.excludeIPManager.Is(hostname)
-		if isExcluded {
-			s.logger.Debugf("Excluded IP hostname=%s", hostname)
-			return nil
-		}
 	}
 
 	ptest := &pathtest{
