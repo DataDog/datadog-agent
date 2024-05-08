@@ -12,7 +12,7 @@ import (
 	"github.com/coreos/go-systemd/sdjournal"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,7 +35,7 @@ func (t *Tailer) getContainerID(entry *sdjournal.JournalEntry) string {
 
 // getContainerTags returns all the tags of a given container.
 func (t *Tailer) getContainerTags(containerID string) []string {
-	tags, err := tagger.Tag(containers.BuildTaggerEntityName(containerID), collectors.HighCardinality)
+	tags, err := tagger.Tag(containers.BuildTaggerEntityName(containerID), types.HighCardinality)
 	if err != nil {
 		log.Warn(err)
 	}

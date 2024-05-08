@@ -47,6 +47,10 @@ func (m *testPackageManager) Remove(ctx context.Context, pkg string) error {
 	return args.Error(0)
 }
 
+func (m *testPackageManager) Purge(_ context.Context) {
+	panic("not implemented")
+}
+
 func (m *testPackageManager) InstallExperiment(ctx context.Context, url string) error {
 	args := m.Called(ctx, url)
 	return args.Error(0)

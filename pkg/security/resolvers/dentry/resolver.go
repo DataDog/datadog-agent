@@ -352,10 +352,7 @@ func computeFilenameFromParts(parts []string) string {
 
 // ResolveFromMap resolves the path of the provided inode / mount id / path id
 func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, error) {
-	var cacheEntry PathEntry
 	var resolutionErr error
-	var name string
-	var pathLeaf model.PathLeaf
 
 	keyBuffer, err := pathKey.MarshalBinary()
 	if err != nil {
@@ -365,12 +362,13 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 	depth := int64(0)
 
 	var keys []model.PathKey
-	var entries []PathEntry
+	var cacheEntries []string
 
 	filenameParts := make([]string, 0, 128)
 
 	// Fetch path recursively
 	for i := 0; i <= model.MaxPathDepth; i++ {
+		var pathLeaf model.PathLeaf
 		pathKey.Write(keyBuffer)
 		if err := dr.pathnames.Lookup(keyBuffer, &pathLeaf); err != nil {
 			filenameParts = nil
@@ -389,6 +387,7 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 		}
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
+		var name string
 		if pathLeaf.Name[0] == '/' {
 			name = "/"
 		} else {
@@ -398,10 +397,8 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 
 		// do not cache fake path keys in the case of rename events
 		if !IsFakeInode(pathKey.Inode) && cache {
-			cacheEntry = newPathEntry(pathLeaf.Parent, name)
-
 			keys = append(keys, pathKey)
-			entries = append(entries, cacheEntry)
+			cacheEntries = append(cacheEntries, name)
 		}
 
 		if pathLeaf.Parent.Inode == 0 {
@@ -420,7 +417,7 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 	}
 
 	if resolutionErr == nil && len(keys) > 0 {
-		resolutionErr = dr.cacheEntries(keys, entries)
+		resolutionErr = dr.cacheEntries(keys, cacheEntries)
 
 		if depth > 0 {
 			dr.hitsCounters[entry].Add(depth)
@@ -466,15 +463,15 @@ func (dr *Resolver) requestResolve(op uint8, pathKey model.PathKey) (uint32, err
 	return challenge, dr.erpc.Request(dr.erpcRequest)
 }
 
-func (dr *Resolver) cacheEntries(keys []model.PathKey, entries []PathEntry) error {
-	var cacheEntry PathEntry
-
-	if len(keys) != len(entries) {
+func (dr *Resolver) cacheEntries(keys []model.PathKey, names []string) error {
+	if len(keys) != len(names) {
 		return errors.New("out of bound")
 	}
 
 	for i, k := range keys {
-		cacheEntry = entries[i]
+		cacheEntry := PathEntry{
+			Name: names[i],
+		}
 		if len(keys) > i+1 {
 			cacheEntry.Parent = keys[i+1]
 		}
@@ -526,7 +523,7 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 	segmentCount := dr.computeSegmentCount()
 	filenameParts := make([]string, 0, segmentCount)
 	keys := make([]model.PathKey, 0, segmentCount)
-	entries := make([]PathEntry, 0, segmentCount)
+	cacheEntries := make([]string, 0, segmentCount)
 
 	i := 0
 	// make sure that we keep room for at least one pathKey + character + \0 => (sizeof(pathID) + 1 = 17)
@@ -570,13 +567,12 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 		if !IsFakeInode(pathKey.Inode) && cache {
 			keys = append(keys, pathKey)
 
-			entry := newPathEntry(model.PathKey{}, segment)
-			entries = append(entries, entry)
+			cacheEntries = append(cacheEntries, segment)
 		}
 	}
 
 	if resolutionErr == nil && len(keys) > 0 {
-		resolutionErr = dr.cacheEntries(keys, entries)
+		resolutionErr = dr.cacheEntries(keys, cacheEntries)
 
 		if depth > 0 {
 			dr.hitsCounters[entry].Add(depth)

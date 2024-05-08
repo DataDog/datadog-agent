@@ -429,6 +429,7 @@ func chunkProcessesAndContainers(
 
 	totalProcs := len(procsByCtr[emptyCtrID])
 
+	// we first split non-container processes in chunks
 	chunkProcessesBySizeAndWeight(procsByCtr[emptyCtrID], nil, maxChunkSize, maxChunkWeight, chunker)
 
 	totalContainers := len(containers)
