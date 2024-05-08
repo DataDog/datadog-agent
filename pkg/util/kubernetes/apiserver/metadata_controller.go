@@ -37,8 +37,6 @@ type MetadataController struct {
 	nodeLister       corelisters.NodeLister
 	nodeListerSynced cache.InformerSynced
 
-	namespaceListerSynced cache.InformerSynced
-
 	endpointsLister       corelisters.EndpointsLister
 	endpointsListerSynced cache.InformerSynced
 
@@ -49,7 +47,7 @@ type MetadataController struct {
 }
 
 // NewMetadataController returns a new metadata controller
-func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInformer coreinformers.NamespaceInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
+func NewMetadataController(nodeInformer coreinformers.NodeInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
 	m := &MetadataController{
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
 	}
@@ -61,8 +59,6 @@ func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInf
 	}
 	m.nodeLister = nodeInformer.Lister()
 	m.nodeListerSynced = nodeInformer.Informer().HasSynced
-
-	m.namespaceListerSynced = namespaceInformer.Informer().HasSynced
 
 	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    m.addEndpoints,
@@ -86,7 +82,7 @@ func (m *MetadataController) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting metadata controller")
 	defer log.Infof("Stopping metadata controller")
 
-	if !cache.WaitForCacheSync(stopCh, m.nodeListerSynced, m.namespaceListerSynced, m.endpointsListerSynced) {
+	if !cache.WaitForCacheSync(stopCh, m.nodeListerSynced, m.endpointsListerSynced) {
 		return
 	}
 
@@ -320,7 +316,10 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 	return metaList, nil
 }
 
-// GetNamespaceLabels retrieves the labels of the queried namespace from the cache of the shared informer.
+// GetNamespaceLabels retrieves the labels of the queried namespace.
+// The Cluster Agent relies on workloadmeta to collect the namespace labels so
+// this function should only be called from the node agent when the Cluster
+// Agent is not enabled.
 func GetNamespaceLabels(nsName string) (map[string]string, error) {
 	if !config.Datadog.GetBool("kubernetes_collect_metadata_tags") {
 		return nil, log.Errorf("Metadata collection is disabled on the Cluster Agent")

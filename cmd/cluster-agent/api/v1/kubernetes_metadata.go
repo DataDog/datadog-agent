@@ -36,7 +36,13 @@ func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Compon
 		"getNodeLabels",
 		func(w http.ResponseWriter, r *http.Request) { getNodeLabels(w, r, wmeta) },
 	)).Methods("GET")
-	r.HandleFunc("/tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", getNamespaceLabels)).Methods("GET")
+	r.HandleFunc(
+		"/tags/namespace/{ns}",
+		api.WithTelemetryWrapper(
+			"getNamespaceLabels",
+			func(w http.ResponseWriter, r *http.Request) { getNamespaceLabels(w, r, wmeta) },
+		),
+	).Methods("GET")
 	r.HandleFunc("/cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID)).Methods("GET")
 }
 
@@ -110,7 +116,7 @@ func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadme
 }
 
 // getNamespaceLabels is only used when the node agent hits the DCA for the list of labels
-func getNamespaceLabels(w http.ResponseWriter, r *http.Request) {
+func getNamespaceLabels(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
 	/*
 		Input
 			localhost:5001/api/v1/tags/namespace/default
@@ -131,13 +137,15 @@ func getNamespaceLabels(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	var labelBytes []byte
 	nsName := vars["ns"]
-	nsLabels, err := as.GetNamespaceLabels(nsName)
+
+	namespace, err := wmeta.GetKubernetesNamespace(nsName)
 	if err != nil {
 		log.Errorf("Could not retrieve the namespace labels of %s: %v", nsName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	labelBytes, err = json.Marshal(nsLabels)
+
+	labelBytes, err = json.Marshal(namespace.Labels)
 	if err != nil {
 		log.Errorf("Could not process the labels of the namespace %s from the informer's cache: %v", nsName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
