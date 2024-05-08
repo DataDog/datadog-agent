@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
@@ -190,10 +191,11 @@ func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
 }
 
 // NewWindowsTestClient create a TestClient for Windows VM
-func NewWindowsTestClient(t *testing.T, host *components.RemoteHost) *TestClient {
+func NewWindowsTestClient(context e2e.Context, host *components.RemoteHost) *TestClient {
 	fileManager := filemanager.NewRemoteHost(host)
+	t := context.T()
 
-	agentClient, err := client.NewHostAgentClient(t, host, false)
+	agentClient, err := client.NewHostAgentClient(context, host.HostOutput, false)
 	require.NoError(t, err)
 
 	helper := helpers.NewWindowsHelper()

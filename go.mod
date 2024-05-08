@@ -285,7 +285,7 @@ require (
 	golang.org/x/net v0.24.0
 	golang.org/x/sync v0.7.0
 	golang.org/x/sys v0.19.0
-	golang.org/x/text v0.14.0
+	golang.org/x/text v0.15.0
 	golang.org/x/time v0.5.0
 	golang.org/x/tools v0.20.0
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028
@@ -620,6 +620,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.54.0-rc.2.0.20240502211937-f7706eb2beae
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.54.0-rc.2
@@ -706,6 +707,10 @@ require (
 	go.opentelemetry.io/collector/extension v0.100.0
 	go.opentelemetry.io/collector/otelcol v0.100.0
 	go.opentelemetry.io/collector/processor v0.100.0
+	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.99.0
+	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.99.0
+	go.opentelemetry.io/collector/service v0.99.0
+	go.uber.org/goleak v1.3.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	gotest.tools v2.2.0+incompatible
 	k8s.io/cli-runtime v0.29.0
@@ -1146,6 +1151,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.26.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.26.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.26.0 // indirect
+	go.opentelemetry.io/collector/pdata/testdata v0.99.0 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20230307190834-24139beb5833 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
