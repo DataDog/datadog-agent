@@ -14,6 +14,7 @@ import (
 	"net"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -87,6 +88,38 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 
 func (s *npSchedulerImpl) Enabled() bool {
 	return s.enabled
+}
+
+func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
+	if !s.Enabled() {
+		return
+	}
+	startTime := time.Now()
+	// TODO: TESTME
+	for _, conn := range conns {
+		// Only process outgoing traffic
+		if !shouldScheduleNetworkPathForConn(conn) {
+			// TODO: TESTME
+			continue
+		}
+		remoteAddr := conn.Raddr
+		remotePort := uint16(conn.Raddr.Port)
+		err := s.Schedule(remoteAddr.Ip, remotePort)
+		if err != nil {
+			s.logger.Errorf("Error scheduling pathtests: %s", err)
+		}
+	}
+
+	scheduleDuration := time.Since(startTime)
+	statsd.Client.Gauge("datadog.network_path.scheduler.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
+}
+
+func shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
+	// TODO: TESTME
+	if conn.Direction != model.ConnectionDirection_outgoing {
+		return false
+	}
+	return true
 }
 
 // Schedule schedules pathtests.

@@ -8,6 +8,7 @@
 package npschedulerimpl
 
 import (
+	model "github.com/DataDog/agent-payload/v5/process"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -21,6 +22,11 @@ func MockModule() fxutil.Module {
 }
 
 type npSchedulerMock struct{}
+
+func (s *npSchedulerMock) ScheduleConns(conns []*model.Connection) {
+	//TODO implement me
+	panic("implement me")
+}
 
 func (s *npSchedulerMock) Schedule(hostname string, port uint16) error {
 	return nil

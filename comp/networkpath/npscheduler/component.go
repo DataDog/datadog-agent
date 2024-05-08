@@ -6,10 +6,15 @@
 // Package npscheduler used to manage network paths
 package npscheduler
 
+import (
+	model "github.com/DataDog/agent-payload/v5/process"
+)
+
 // team: network-device-monitoring
 
 // Component is the component type.
 type Component interface {
 	Schedule(hostname string, port uint16) error
+	ScheduleConns(conns []*model.Connection)
 	Enabled() bool
 }

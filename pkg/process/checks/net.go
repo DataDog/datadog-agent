@@ -12,7 +12,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/benbjohnson/clock"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -190,8 +189,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
-	// TODO: Use c.npScheduler.Schedule(conns.Conns) instead?
-	c.scheduleNetworkPath(conns.Conns)
+	c.npScheduler.ScheduleConns(conns.Conns)
 
 	groupID := nextGroupID()
 	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
@@ -512,36 +510,4 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 	}
 
 	return tagsStr
-}
-
-func (c *ConnectionsCheck) scheduleNetworkPath(conns []*model.Connection) {
-	if !c.npScheduler.Enabled() {
-		return
-	}
-	startTime := time.Now()
-	// TODO: TESTME
-	for _, conn := range conns {
-		// Only process outgoing traffic
-		if !c.shouldScheduleNetworkPathForConn(conn) {
-			// TODO: TESTME
-			continue
-		}
-		remoteAddr := conn.Raddr
-		remotePort := uint16(conn.Raddr.Port)
-		err := c.npScheduler.Schedule(remoteAddr.Ip, remotePort)
-		if err != nil {
-			log.Errorf("Error scheduling pathtests: %s", err)
-		}
-	}
-
-	scheduleDuration := time.Since(startTime)
-	statsd.Client.Gauge("datadog.network_path.connections_check.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
-}
-
-func (c *ConnectionsCheck) shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
-	// TODO: TESTME
-	if conn.Direction != model.ConnectionDirection_outgoing {
-		return false
-	}
-	return true
 }
