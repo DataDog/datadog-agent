@@ -22,17 +22,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -70,15 +71,16 @@ type handlerdeps struct {
 	LogsAgent             optional.Option[logsAgent.Component]
 	HostMetadata          host.Component
 	InvAgent              inventoryagent.Component
+	SecretResolver        secrets.Component
 	Demux                 demultiplexer.Component
 	InvHost               inventoryhost.Component
-	SecretResolver        secrets.Component
 	InvChecks             inventorychecks.Component
 	PkgSigning            packagesigning.Component
 	StatusComponent       status.Mock
 	Collector             optional.Option[collector.Component]
 	EventPlatformReceiver eventplatformreceiver.Component
 	Ac                    autodiscovery.Mock
+	Tagger                tagger.Mock
 	Gui                   optional.Option[gui.Component]
 	Settings              settings.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
@@ -87,11 +89,7 @@ type handlerdeps struct {
 func getComponentDeps(t *testing.T) handlerdeps {
 	return fxutil.Test[handlerdeps](
 		t,
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmeta.MockModule(),
 		hostnameinterface.MockModule(),
 		flareimpl.MockModule(),
 		dogstatsdServer.MockModule(),
@@ -115,6 +113,7 @@ func getComponentDeps(t *testing.T) handlerdeps {
 			return optional.NewNoneOption[collector.Component]()
 		}),
 		eventplatformreceiverimpl.MockModule(),
+		taggerimpl.MockModule(),
 		fx.Options(
 			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
 			autodiscoveryimpl.MockModule(),
@@ -164,6 +163,51 @@ func TestSetupHandlers(t *testing.T) {
 		{
 			route:    "/flare",
 			method:   "POST",
+			wantCode: 200,
+		},
+		{
+			route:    "/config",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/list-runtime",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/log_level",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/log_level",
+			method:   "POST",
+			wantCode: 200,
+		},
+		{
+			route:    "/secrets",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/secret/refresh",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config-check",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/tagger-list",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/workload-list",
+			method:   "GET",
 			wantCode: 200,
 		},
 		{

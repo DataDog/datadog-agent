@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	defaultServiceCommandTimeout = 10
+	defaultServiceCommandTimeout = 30
 )
 
 var (
@@ -32,6 +32,12 @@ var (
 )
 
 type enumServiceState uint32
+
+// to support edge case/rase condition testing
+type stopServiceCallback interface {
+	afterDependentsEnumeration()
+	beforeStopService(serviceName string)
+}
 
 // OpenSCManager connects to SCM
 //
@@ -100,9 +106,18 @@ func ControlService(serviceName string, command svc.Cmd, to svc.State, desiredAc
 	}
 	defer service.Close()
 
-	status, err := service.Control(command)
+	// Are we already in a good state (Control call would fail otherwise)?
+	status, err := service.Query()
 	if err != nil {
-		return fmt.Errorf("could not send control %d: %v", command, err)
+		return fmt.Errorf("could not retrieve status for %s: %v", serviceName, err)
+	}
+	if status.State == to {
+		return nil
+	}
+
+	status, err = service.Control(command)
+	if err != nil {
+		return fmt.Errorf("could not send control %d: %w", command, err)
 	}
 
 	timesup := time.Now().Add(time.Duration(timeout) * time.Second)
@@ -125,18 +140,79 @@ func doStopService(serviceName string) error {
 
 // StopService stops a service and any services that depend on it
 func StopService(serviceName string) error {
+	return stopServiceInternal(serviceName, windows.SERVICE_STATE_ALL, nil)
+}
 
-	deps, err := ListDependentServices(serviceName, windows.SERVICE_ACTIVE)
+// We need to get all dependent services (windows.SERVICE_STATE_ALL) to attempt to stop them,
+// including those that are not RUNNING yet (stopped). It may appears to be strange, but it
+// better handles some edge cases (which more likely during installation or upgrade if
+// Agent configuration is updated immediately after). It may happen if the core agent
+// (datadogagent) service is starting, which in turn will "manually" startdependent services
+// and at the same time, externally, a configuration script would restart agent to make sure
+// that new configuration is applied.
+//
+// In this case, attempting to stop ALL dependent services will better handle cases when a
+// dependent service started moments after stop command get list of dependent services and
+// and if it collect only already running dependent services it would miss a chance to get
+// and stop just started dependent services. In this case, as result, restart would fail,
+// the core agent service will not be stopped, and some dependent services may be left
+// running (and some may be stopped), which may lead to unexpected behavior. Certanly, new
+// configuration will not be applied.
+//
+//	For illustration purposes here is an example of one specific race condition:
+//	1. The core agent (datadogagent) service is starting
+//	2. Starting core agent starts trace-agent dependent service
+//	3. Agent's restart-service CLI command started
+//	4a. Older implementation will get list running dependent services (trace-agent in
+//	    this case)
+//	4b. New implementation will get list of all dependent services (trace-agent,
+//	    process-agent, system-probe etc in this case)
+//	5. Core agent now starts process-agent dependent service
+//	6a. Older implementation will stop trace-agent dependent service
+//	6b. Older implementation will stop trace-agent and process-agent dependent service
+//	7a. Older implementation will stop core agent service but it will fail because
+//	    process-agent dependent service is still running
+//	7b. New implementation will stop core agent service and it will succeed since
+//	    no dependent services are running.
+//
+// This will not solve 100% of the edge cases, but it is still a good and simple improvement,
+// which will eliminate ebove mentioned edge case and a few more. Full race condition fixes
+// will be implemented in the next iterations.
+//
+// Callback is invoked to help unit tests to setup race condition in deterministic way
+func stopServiceInternal(serviceName string, enumState enumServiceState, callback stopServiceCallback) error {
+	deps, err := ListDependentServices(serviceName, enumState)
 	if err != nil {
 		return fmt.Errorf("could not list dependent services for %s: %v", serviceName, err)
 	}
+	if callback != nil {
+		callback.afterDependentsEnumeration()
+	}
 
 	for _, dep := range deps {
+		if callback != nil {
+			callback.beforeStopService(dep.serviceName)
+		}
 		err = doStopService(dep.serviceName)
 		if err != nil {
 			return fmt.Errorf("could not stop service %s: %v", dep.serviceName, err)
 		}
 	}
+
+	if callback != nil {
+		callback.beforeStopService(serviceName)
+	}
+
+	// If a dependent service managed to start (for whatever reason) concurrently with stopping
+	// of its dependents services above, stopping the target service itself will fail with the
+	// following error ...
+	//   windows.ERROR_DEPENDENT_SERVICES_RUNNING (1051) = 0x41b (syscall.Errno) casted into error.
+	// Because it is wrapped in our function we can get and compare the original with an expression
+	// like this ...
+	//   if errors.Is(errors.Unwrap(err), windows.ERROR_DEPENDENT_SERVICES_RUNNING) { ... }
+	//
+	// ... currently it is not specially handled (will pass through the error further up the stack).
+	// Will improve it in the next iterations.
 	return doStopService(serviceName)
 }
 
