@@ -349,7 +349,7 @@ func makeFlare(flareComp flare.Component,
 	}
 
 	if cliParams.withStreamLog {
-		fmt.Fprintln(color.Output, color.GreenString("Asking the agent to log the log-stream."))
+		fmt.Fprintln(color.Output, color.GreenString("Asking the agent to stream logs."))
 		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
 		if err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
