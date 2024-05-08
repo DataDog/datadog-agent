@@ -12,12 +12,15 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/google/uuid"
 )
 
 const (
-	defaultInstallType = "manual"
+	defaultInstallType          = "manual"
+	defaultDockerInstallType    = "docker_manual"
+	dockerSingleStepInstallType = "docker_single_step"
 )
 
 func applyOrCreateInstallSignature(c *config.AgentConfig) {
@@ -77,10 +80,20 @@ func generateNewInstallSignature(s *config.InstallSignatureConfig) (err error) {
 	}
 	*s = config.InstallSignatureConfig{
 		InstallID:   installID.String(),
-		InstallType: defaultInstallType,
+		InstallType: inferInstallTypeFromEnvironment(),
 		InstallTime: time.Now().Unix(),
 	}
 	return nil
+}
+
+func inferInstallTypeFromEnvironment() string {
+	if env.IsContainerized() {
+		if os.Getenv("DD_APM_ENABLED") != "" {
+			return dockerSingleStepInstallType
+		}
+		return defaultDockerInstallType
+	}
+	return defaultInstallType
 }
 
 func writeInstallSignatureToDisk(path string, s *config.InstallSignatureConfig) error {
