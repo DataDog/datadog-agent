@@ -164,7 +164,7 @@ func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
 }
 
 // WorkloadAppFunc is a function that deploys a workload app to a kube provider
-type WorkloadAppFunc func(e config.CommonEnvironment, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error)
+type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error)
 
 // WithWorkloadApp adds a workload app to the environment
 func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {

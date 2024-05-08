@@ -66,10 +66,10 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		}
 	}
 
-	clusterComp, err := components.NewComponent(*awsEnv.CommonEnvironment, awsEnv.Namer.ResourceName("eks"), func(comp *kubeComp.Cluster) error {
+	clusterComp, err := components.NewComponent(&awsEnv, awsEnv.Namer.ResourceName("eks"), func(comp *kubeComp.Cluster) error {
 		// Create Cluster SG
 		clusterSG, err := ec2.NewSecurityGroup(ctx, awsEnv.Namer.ResourceName("eks-sg"), &ec2.SecurityGroupArgs{
-			NamePrefix:  awsEnv.CommonNamer.DisplayName(255, pulumi.String("eks-sg")),
+			NamePrefix:  awsEnv.CommonNamer().DisplayName(255, pulumi.String("eks-sg")),
 			Description: pulumi.StringPtr("EKS Cluster sg for stack: " + ctx.Stack()),
 			Ingress: ec2.SecurityGroupIngressArray{
 				ec2.SecurityGroupIngressArgs{
@@ -126,7 +126,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 
 		// Create an EKS cluster with the default configuration.
 		cluster, err := eks.NewCluster(ctx, awsEnv.Namer.ResourceName("eks"), &eks.ClusterArgs{
-			Name:                         awsEnv.CommonNamer.DisplayName(100),
+			Name:                         awsEnv.CommonNamer().DisplayName(100),
 			Version:                      pulumi.StringPtr(awsEnv.KubernetesVersion()),
 			EndpointPrivateAccess:        pulumi.BoolPtr(true),
 			EndpointPublicAccess:         pulumi.BoolPtr(false),
@@ -160,7 +160,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		}
 
 		// Building Kubernetes provider
-		eksKubeProvider, err := kubernetes.NewProvider(awsEnv.Ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
+		eksKubeProvider, err := kubernetes.NewProvider(awsEnv.Ctx(), awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
 			Kubeconfig:            cluster.KubeconfigJson,
 			EnableServerSideApply: pulumi.BoolPtr(true),
 			DeleteUnreachable:     pulumi.BoolPtr(true),
@@ -183,7 +183,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			}
 
 			// Setting AWS_VPC_K8S_CNI_CUSTOM_NETWORK_CFG is mandatory for EKS CNI to work with ENIConfig CRD
-			dsPatch, err := appsv1.NewDaemonSetPatch(awsEnv.Ctx, awsEnv.Namer.ResourceName("eks-custom-network"), &appsv1.DaemonSetPatchArgs{
+			dsPatch, err := appsv1.NewDaemonSetPatch(awsEnv.Ctx(), awsEnv.Namer.ResourceName("eks-custom-network"), &appsv1.DaemonSetPatchArgs{
 				Metadata: metav1.ObjectMetaPatchArgs{
 					Namespace: pulumi.String("kube-system"),
 					Name:      pulumi.String("aws-node"),
@@ -268,7 +268,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		// Applying necessary Windows configuration if Windows nodes
 		// Custom networking is not available for Windows nodes, using normal subnets IPs
 		if params.eksWindowsNodeGroup {
-			_, err := corev1.NewConfigMapPatch(awsEnv.Ctx, awsEnv.Namer.ResourceName("eks-cni-cm"), &corev1.ConfigMapPatchArgs{
+			_, err := corev1.NewConfigMapPatch(awsEnv.Ctx(), awsEnv.Namer.ResourceName("eks-cni-cm"), &corev1.ConfigMapPatchArgs{
 				Metadata: metav1.ObjectMetaPatchArgs{
 					Namespace: pulumi.String("kube-system"),
 					Name:      pulumi.String("amazon-vpc-cni"),
@@ -298,7 +298,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			if fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, "ecs", fakeIntakeOptions...); err != nil {
 				return err
 			}
-			if err := fakeIntake.Export(awsEnv.Ctx, &env.FakeIntake.FakeintakeOutput); err != nil {
+			if err := fakeIntake.Export(awsEnv.Ctx(), &env.FakeIntake.FakeintakeOutput); err != nil {
 				return err
 			}
 		}
@@ -306,12 +306,12 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		// Deploy the agent
 		dependsOnSetup := utils.PulumiDependsOn(workloadDeps...)
 		if params.agentOptions != nil {
-			paramsAgent, err := kubernetesagentparams.NewParams(*awsEnv.CommonEnvironment, params.agentOptions...)
+			paramsAgent, err := kubernetesagentparams.NewParams(&awsEnv, params.agentOptions...)
 			if err != nil {
 				return err
 			}
 
-			helmComponent, err := agent.NewHelmInstallation(*awsEnv.CommonEnvironment, agent.HelmInstallationArgs{
+			helmComponent, err := agent.NewHelmInstallation(&awsEnv, agent.HelmInstallationArgs{
 				KubeProvider: eksKubeProvider,
 				Namespace:    "datadog",
 				ValuesYAML: pulumi.AssetOrArchiveArray{
@@ -335,14 +335,14 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 
 		// Deploy standalone dogstatsd
 		if params.deployDogstatsd {
-			if _, err := dogstatsdstandalone.K8sAppDefinition(*awsEnv.CommonEnvironment, eksKubeProvider, "dogstatsd-standalone", fakeIntake, true, ""); err != nil {
+			if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, eksKubeProvider, "dogstatsd-standalone", fakeIntake, true, ""); err != nil {
 				return err
 			}
 		}
 
 		// Deploy workloads
 		for _, appFunc := range params.workloadAppFuncs {
-			_, err := appFunc(*awsEnv.CommonEnvironment, eksKubeProvider)
+			_, err := appFunc(&awsEnv, eksKubeProvider)
 			if err != nil {
 				return err
 			}

@@ -56,7 +56,7 @@ func eksHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[eksHttpbinEnv] {
 		}
 
 		// install docker.io
-		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, httpbinHost)
+		manager, _, err := docker.NewManager(&awsEnv, httpbinHost)
 		if err != nil {
 			return err
 		}
@@ -67,10 +67,10 @@ func eksHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[eksHttpbinEnv] {
 			return err
 		}
 
-		npmToolsWorkload := func(e config.CommonEnvironment, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+		npmToolsWorkload := func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 			// NPM tools Workload
 			testURL := "http://" + env.HTTPBinHost.Address + "/"
-			return npmtools.K8sAppDefinition(*awsEnv.CommonEnvironment, kubeProvider, "npmtools", testURL)
+			return npmtools.K8sAppDefinition(&awsEnv, kubeProvider, "npmtools", testURL)
 		}
 
 		params := envkube.GetProvisionerParams(
