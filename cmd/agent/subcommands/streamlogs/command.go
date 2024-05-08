@@ -170,10 +170,10 @@ func checkDirExists(path string) error {
 	dir := filepath.Dir(path)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("unable to create directory path: %s, error: %v", dir, err)
+			return err
 		}
 	} else if err != nil {
-		return fmt.Errorf("error checking directory path: %s, error: %v", dir, err)
+		return err
 	}
 	return nil
 }
