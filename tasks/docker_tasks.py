@@ -50,6 +50,7 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
     temp_folder = tempfile.mkdtemp(prefix="ddtest-")
 
     ctx.run(f"cp {binary} {temp_folder}/test.bin")
+    ctx.run(f"ls -l {temp_folder}")
 
     with open(f"{temp_folder}/Dockerfile", 'w') as stream:
         stream.write(
@@ -64,6 +65,8 @@ COPY test.bin /test.bin
         if os.path.isdir("./testdata"):
             ctx.run(f"cp -R testdata {temp_folder}")
             stream.write("COPY testdata /testdata")
+
+    ctx.run(f"cat {temp_folder}/Dockerfile")
 
     test_image, _ = client.images.build(path=temp_folder, rm=True)
 
