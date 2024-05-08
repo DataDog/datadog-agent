@@ -54,7 +54,8 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
 
     with open(f"{temp_folder}/Dockerfile", 'w') as stream:
         stream.write(
-            """FROM docker:26.1.1-cli
+            """FROM ubuntu:20.04
+COPY --from=docker/compose-bin:v2.26.1 /docker-compose /usr/bin/compose
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
 CMD /test.bin
