@@ -553,13 +553,5 @@ func (c *ConnectionsCheck) shouldScheduleNetworkPathForConn(conn *model.Connecti
 	if conn.Direction != model.ConnectionDirection_outgoing {
 		return false
 	}
-
-	// TODO: move to exclude_cidr entry
-	// Skip IPs
-	// 169.254.169.254 is used in AWS, Azure, GCP and other cloud computing platforms to host instance metadata service.
-	// TODO: Should we skip all 169.254.0.0/16 (dynamically configured link-local addresses)
-	if conn.Raddr.Ip == "169.254.169.254" {
-		return false
-	}
 	return true
 }
