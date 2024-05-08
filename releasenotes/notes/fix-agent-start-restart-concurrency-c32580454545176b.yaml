@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    Fix concurrency handling by Agent restart-service CLI command for Agent
-    start/simultaneous restart. Agent starting and restarting concurrent
-    execution may happen during the Agent's installation or upgrade.
+    Fix concurrency handling by Agent restart-service CLI command when the Agent
+    starts and simultaneously restarts. The Agent may start and restart concurrently
+    during the Agent's installation or upgrade.
