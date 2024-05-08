@@ -9,25 +9,11 @@
 package portlist
 
 import (
-	"errors"
 	"fmt"
-	"runtime"
 	"sync"
-	"time"
 
 	"golang.org/x/exp/slices"
 )
-
-var (
-	newOSImpl    func(includeLocalhost bool) osImpl // if non-nil, constructs a new osImpl.
-	pollInterval = 5 * time.Second                  // default; changed by some OS-specific init funcs
-)
-
-// PollInterval is the recommended OS-specific interval
-// to wait between *Poller.Poll method calls.
-func PollInterval() time.Duration {
-	return pollInterval
-}
 
 // Poller scans the systems for listening ports periodically and sends
 // the results to C.
@@ -71,17 +57,6 @@ func (p *Poller) setPrev(pl List) {
 	// Make a copy, as the pass in pl slice aliases pl.scratch and we don't want
 	// that to except to the caller.
 	p.prev = slices.Clone(pl)
-}
-
-// init initializes the Poller by ensuring it has an underlying
-// OS implementation and is not turned off by envknob.
-func (p *Poller) init() {
-	switch {
-	case newOSImpl == nil:
-		p.initErr = errors.New("portlist poller not implemented on " + runtime.GOOS)
-	default:
-		p.os = newOSImpl(p.IncludeLocalhost)
-	}
 }
 
 // Close closes the Poller.

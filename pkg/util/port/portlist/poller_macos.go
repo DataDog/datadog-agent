@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2014-present Datadog, Inc.
 
-//go:build darwin && !ios
-// +build darwin,!ios
+//go:build darwin
 
 package portlist
 
@@ -16,18 +15,14 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
-	"time"
 
 	"go.uber.org/atomic"
-
 	"go4.org/mem"
 )
 
-func init() {
-	newOSImpl = newMacOSImpl
-
-	// We have to run netstat, which is a bit expensive, so don't do it too often.
-	pollInterval = 5 * time.Second
+// init initializes the Poller by ensuring it has an underlying
+func (p *Poller) init() {
+	p.os = newMacOSImpl(p.IncludeLocalhost)
 }
 
 type macOSImpl struct {

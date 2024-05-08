@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !darwin
-// +build !darwin
 
 package portlist
 
@@ -15,8 +14,9 @@ import "errors"
 // we can't import it so we'll copy it here.
 var ErrNotImplemented = errors.New("not implemented yet")
 
-func init() {
-	newOSImpl = newOtherOSImpl
+// init initializes the Poller by ensuring it has an underlying
+func (p *Poller) init() {
+	p.os = newOtherOSImpl(p.IncludeLocalhost)
 }
 
 type otherOSImpl struct {
