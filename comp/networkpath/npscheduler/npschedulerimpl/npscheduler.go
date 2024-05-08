@@ -60,6 +60,11 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 	pathtestTTL := sysprobeYamlConfig.GetDuration("network_path.pathtest_ttl")
 	pathtestInterval := sysprobeYamlConfig.GetDuration("network_path.pathtest_interval")
 	excludeCIDR := sysprobeYamlConfig.GetStringSlice("network_path.exclude_cidr")
+	var pathtestConfigs []pathtestConfig
+	err := sysprobeYamlConfig.UnmarshalKey("network_path.configs", pathtestConfigs, nil)
+	if err != nil {
+		logger.Errorf("Invalid network_path.configs: %s", err)
+	}
 
 	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d pathtest_ttl=%s pathtest_interval=%s exclude_cidr=%v)",
 		workers,
