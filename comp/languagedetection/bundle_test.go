@@ -31,6 +31,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func() optional.Option[secrets.Component] {
 			return optional.NewOption[secrets.Component](secretsimpl.NewMock())
 		}),
+		secretsimpl.MockModule(),
 		fx.Supply(logimpl.Params{}),
 		workloadmeta.Module(),
 		fx.Supply(workloadmeta.NewParams()),
