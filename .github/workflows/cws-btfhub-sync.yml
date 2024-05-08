@@ -20,14 +20,17 @@ jobs:
   generate:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         cone:
           - amzn
           - centos
           - debian
           - fedora
-          - ol/7
-          - ol/8
+          - ol/7/arm64
+          - ol/7/x86_64
+          - ol/8/arm64
+          - ol/8/x86_64
           - opensuse-leap
           - rhel
           - sles
