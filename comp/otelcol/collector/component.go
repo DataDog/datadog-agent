@@ -11,14 +11,16 @@ package collector
 import (
 	"go.uber.org/fx"
 
-	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: opentelemetry
 
 // Component specifies the interface implemented by the collector module.
-type Component = collectordef.Component
+type Component interface {
+	Status() otlp.CollectorStatus
+}
 
 // Module specifies the Collector module bundle.
 func Module() fxutil.Module {
