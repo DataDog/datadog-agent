@@ -135,9 +135,9 @@ require (
 	github.com/DataDog/ebpf-manager v0.6.0
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.4
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.15.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.15.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.15.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.14.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.14.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.14.0
 	github.com/DataDog/sketches-go v1.4.4
 	github.com/DataDog/viper v1.13.0
 	github.com/DataDog/watermarkpodautoscaler v0.6.1
@@ -555,17 +555,17 @@ require (
 	go.opentelemetry.io/collector/consumer v0.99.0
 	go.opentelemetry.io/collector/featuregate v1.6.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.99.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.50.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.49.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.25.0 // indirect
-	go.opentelemetry.io/otel v1.26.0 // indirect
+	go.opentelemetry.io/otel v1.25.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.25.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.25.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.25.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.47.0 // indirect
-	go.opentelemetry.io/otel/metric v1.26.0
+	go.opentelemetry.io/otel/metric v1.25.0
 	go.opentelemetry.io/otel/sdk v1.25.0
 	go.opentelemetry.io/otel/sdk/metric v1.25.0 // indirect
-	go.opentelemetry.io/otel/trace v1.26.0
+	go.opentelemetry.io/otel/trace v1.25.0
 	go.opentelemetry.io/proto/otlp v1.2.0 // indirect
 	golang.org/x/crypto v0.22.0 // indirect
 	golang.org/x/mod v0.17.0
@@ -622,7 +622,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.54.0-rc.2
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.54.0-rc.2
@@ -705,13 +704,10 @@ require (
 	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.99.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v0.99.0
 	go.opentelemetry.io/collector/confmap/provider/fileprovider v0.99.0
-	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.99.0
-	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.99.0
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.99.0
 	go.opentelemetry.io/collector/extension v0.99.0
 	go.opentelemetry.io/collector/otelcol v0.99.0
 	go.opentelemetry.io/collector/processor v0.99.0
-	go.opentelemetry.io/collector/service v0.99.0
 	go.uber.org/goleak v1.3.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	gotest.tools v2.2.0+incompatible
@@ -1091,15 +1087,17 @@ require (
 	github.com/yuin/gopher-lua v1.1.0 // indirect
 	go.mongodb.org/atlas v0.36.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v0.98.0 // indirect
-	go.opentelemetry.io/collector/config/configcompression v1.6.0 // indirect
+	go.opentelemetry.io/collector/config/configcompression v1.5.0 // indirect
 	go.opentelemetry.io/collector/config/configgrpc v0.98.0 // indirect
 	go.opentelemetry.io/collector/config/confighttp v0.98.0 // indirect
 	go.opentelemetry.io/collector/config/confignet v0.99.0 // indirect
-	go.opentelemetry.io/collector/config/configopaque v1.6.0 // indirect
+	go.opentelemetry.io/collector/config/configopaque v1.5.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v0.99.0 // indirect
 	go.opentelemetry.io/collector/config/configtelemetry v0.99.0 // indirect
 	go.opentelemetry.io/collector/config/configtls v0.98.0 // indirect
 	go.opentelemetry.io/collector/config/internal v0.98.0 // indirect
+	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.99.0 // indirect
+	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.99.0 // indirect
 	go.opentelemetry.io/collector/connector v0.99.0 // indirect
 	go.opentelemetry.io/collector/connector/forwardconnector v0.98.0 // indirect
 	go.opentelemetry.io/collector/exporter/debugexporter v0.98.0 // indirect
@@ -1110,6 +1108,7 @@ require (
 	go.opentelemetry.io/collector/pdata/testdata v0.99.0 // indirect
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.98.0 // indirect
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.98.0 // indirect
+	go.opentelemetry.io/collector/service v0.99.0 // indirect
 	go.opentelemetry.io/contrib/config v0.5.0 // indirect
 	go.opentelemetry.io/contrib/zpages v0.50.0 // indirect
 	go.opentelemetry.io/otel/bridge/opencensus v1.25.0 // indirect
