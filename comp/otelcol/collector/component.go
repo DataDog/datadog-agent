@@ -11,7 +11,7 @@ package collector
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -24,9 +24,9 @@ import (
 
 // Component specifies the interface implemented by the collector module.
 type Component interface {
+	collectordef.Component
 	Start() error
 	Stop()
-	Status() otlp.CollectorStatus
 }
 
 // Module specifies the Collector module bundle.
