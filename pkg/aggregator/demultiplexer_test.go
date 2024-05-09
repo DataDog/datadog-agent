@@ -49,6 +49,7 @@ func TestDemuxIsSetAsGlobalInstance(t *testing.T) {
 	demux.Stop(false)
 }
 
+// Test build pipeline
 func TestDemuxForwardersCreated(t *testing.T) {
 	require := require.New(t)
 
