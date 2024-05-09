@@ -62,12 +62,6 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
 	return tagsMap
 }
 
-// GetBaseTagsArrayWithMetadataTags see GetBaseTagsMapWithMetadata (as array)
-func GetBaseTagsArrayWithMetadataTags(metadata map[string]string) []string {
-	tagsMap := GetBaseTagsMapWithMetadata(metadata)
-	return tags.MapToArray(tagsMap)
-}
-
 // WithoutContainerID creates a new tag map without the `container_id` tag
 func WithoutContainerID(tags map[string]string) map[string]string {
 	newTags := make(map[string]string, len(tags))
