@@ -65,16 +65,19 @@ func InstallAgent(host *components.RemoteHost, options ...InstallAgentOption) (s
 
 	args := p.toArgs()
 
-	remoteMSIPath, err := windowsCommon.GetTemporaryFile(host)
-	if err != nil {
-		return "", err
-	}
-	err = windowsCommon.PutOrDownloadFile(host, p.Package.URL, remoteMSIPath)
-	if err != nil {
-		return "", err
+	if p.RemoteMSIPath == "" {
+		remoteMSIPath, err := windowsCommon.GetTemporaryFile(host)
+		if err != nil {
+			return "", err
+		}
+		err = windowsCommon.PutOrDownloadFile(host, p.Package.URL, remoteMSIPath)
+		if err != nil {
+			return "", err
+		}
+		p.RemoteMSIPath = remoteMSIPath
 	}
 
-	return remoteMSIPath, windowsCommon.InstallMSI(host, remoteMSIPath, strings.Join(args, " "), p.LocalInstallLogFile)
+	return p.RemoteMSIPath, windowsCommon.InstallMSI(host, p.RemoteMSIPath, strings.Join(args, " "), p.LocalInstallLogFile)
 }
 
 // RepairAllAgent repairs the Datadog Agent

@@ -18,6 +18,8 @@ import (
 // InstallAgentParams are the parameters used for installing the Agent using msiexec.
 type InstallAgentParams struct {
 	Package *Package
+	// Path on remote host of the MSI installer
+	RemoteMSIPath string
 	// Path on local test runner to save the MSI install log
 	LocalInstallLogFile string
 
@@ -121,6 +123,14 @@ func WithValidAPIKey() InstallAgentOption {
 func WithInstallLogFile(logFileName string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.LocalInstallLogFile = logFileName
+		return nil
+	}
+}
+
+// WithRemoteMSIPath specifies the path on the remote host of the MSI installer.
+func WithRemoteMSIPath(remoteMSIPath string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.RemoteMSIPath = remoteMSIPath
 		return nil
 	}
 }
