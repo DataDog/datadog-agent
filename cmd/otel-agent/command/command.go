@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build otlp
+
 // Package command implements the top-level `otel-agent` binary, including its subcommands.
 package command
 
