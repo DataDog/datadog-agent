@@ -48,7 +48,7 @@ import (
 
 const datadogConfigPath = "datadog.yaml"
 
-var modeConf mode.ModeConf
+var modeConf mode.Conf
 
 func main() {
 
@@ -92,7 +92,7 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobe.Component
 	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
 }
 
-func setup(mode.ModeConf) (cloudservice.CloudService, *serverlessInitLog.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
