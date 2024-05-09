@@ -28,10 +28,6 @@ func (s *npSchedulerMock) ScheduleConns(conns []*model.Connection) {
 	panic("implement me")
 }
 
-func (s *npSchedulerMock) Enabled() bool {
-	return true
-}
-
 func newMock() provides {
 	// Mock initialization
 	return provides{

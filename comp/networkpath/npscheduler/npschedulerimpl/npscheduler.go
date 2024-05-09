@@ -86,12 +86,8 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 	}
 }
 
-func (s *npSchedulerImpl) Enabled() bool {
-	return s.enabled
-}
-
 func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
-	if !s.Enabled() {
+	if !s.enabled {
 		return
 	}
 	startTime := time.Now()

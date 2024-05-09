@@ -15,5 +15,4 @@ import (
 // Component is the component type.
 type Component interface {
 	ScheduleConns(conns []*model.Connection)
-	Enabled() bool
 }
