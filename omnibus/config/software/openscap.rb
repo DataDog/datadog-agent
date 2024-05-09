@@ -64,6 +64,8 @@ build do
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 
+  patch source: "int-min-max.patch", env: env # fix implicit declaration of INT_MIN/INT_MAX
+
   env["CC"] = "/opt/gcc-#{ENV['GCC_VERSION']}/bin/gcc"
   env["CXX"] = "/opt/gcc-#{ENV['GCC_VERSION']}/bin/g++"
   env["CXXFLAGS"] += " -static-libstdc++ -std=c++11 -DDPKG_DATADIR=/usr/share/dpkg"
