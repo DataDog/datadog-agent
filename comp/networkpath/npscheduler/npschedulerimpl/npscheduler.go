@@ -16,7 +16,7 @@ type npSchedulerImpl struct {
 	enabled     bool
 }
 
-func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
+func (s *npSchedulerImpl) ScheduleConns(_ []*model.Connection) {
 	if !s.enabled {
 		return
 	}
