@@ -12,11 +12,11 @@ import (
 )
 
 type ModeConf struct {
-	Mode             Mode
-	LoggerName       string
-	Runner           func(logConfig *serverlessLog.Config)
-	TagVersionSuffix string
-	EnvDefaults      map[string]string
+	Mode           Mode
+	LoggerName     string
+	Runner         func(logConfig *serverlessLog.Config)
+	TagVersionMode string
+	EnvDefaults    map[string]string
 }
 
 type Mode int
@@ -44,20 +44,20 @@ func DetectMode() ModeConf {
 		envToSet["DD_APM_NON_LOCAL_TRAFFIC"] = "true"
 		envToSet["DD_DOGSTATSD_NON_LOCAL_TRAFFIC"] = "true"
 		return ModeConf{
-			Mode:             Sidecar,
-			LoggerName:       loggerNameSidecar,
-			Runner:           RunSidecar,
-			TagVersionSuffix: "sidecar",
-			EnvDefaults:      envToSet,
+			Mode:           Sidecar,
+			LoggerName:     loggerNameSidecar,
+			Runner:         RunSidecar,
+			TagVersionMode: "sidecar",
+			EnvDefaults:    envToSet,
 		}
 	} else {
 		log.Infof("Arguments provided, launching in Init mode")
 		return ModeConf{
-			Mode:             Init,
-			LoggerName:       loggerNameInit,
-			Runner:           RunInit,
-			TagVersionSuffix: "init",
-			EnvDefaults:      envToSet,
+			Mode:           Init,
+			LoggerName:     loggerNameInit,
+			Runner:         RunInit,
+			TagVersionMode: "init",
+			EnvDefaults:    envToSet,
 		}
 	}
 }
