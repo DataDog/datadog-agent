@@ -98,14 +98,14 @@ func (c *ComposeConf) Stop() ([]byte, error) {
 	if c.RemoveRebuildImages {
 		args = append(args, "--rmi", "all")
 	}
-	runCmd := exec.Command("compos", args...)
+	runCmd := exec.Command("compose", args...)
 	return runCmd.CombinedOutput()
 }
 
 // ListContainers lists the running container IDs
 func (c *ComposeConf) ListContainers() ([]string, error) {
 	runCmd := exec.Command(
-		"compos",
+		"compose",
 		"--project-name", c.ProjectName,
 		"--file", c.FilePath,
 		"ps", "-q")
