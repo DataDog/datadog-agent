@@ -11,13 +11,25 @@ import (
 	"os"
 )
 
+type ModeConf struct {
+	Mode             Mode
+	LoggerName       string
+	Runner           func(logConfig *serverlessLog.Config)
+	TagVersionSuffix string
+	EnvDefaults      map[string]string
+}
+
+type Mode int
+
 const (
+	Init Mode = iota
+	Sidecar
 	loggerNameInit    = "SERVERLESS_INIT"
 	loggerNameSidecar = "SERVERLESS_SIDECAR"
 )
 
-// SetupMode detects the mode in which the serverless agent should run
-func SetupMode() (string, func(logConfig *serverlessLog.Config)) {
+// DetectMode detects the mode in which the serverless agent should run
+func DetectMode() ModeConf {
 
 	envToSet := map[string]string{
 		"DD_REMOTE_CONFIGURATION_ENABLED": "false",
@@ -27,30 +39,25 @@ func SetupMode() (string, func(logConfig *serverlessLog.Config)) {
 		"DD_LOGS_ENABLED":                 "true",
 	}
 
-	defaultModeRunner := RunInit
-	defaultLoggerName := loggerNameInit
-
 	if len(os.Args) == 1 {
 		log.Infof("No arguments provided, launching in Sidecar mode")
-		defaultModeRunner = RunSidecar
-		defaultLoggerName = loggerNameSidecar
 		envToSet["DD_APM_NON_LOCAL_TRAFFIC"] = "true"
 		envToSet["DD_DOGSTATSD_NON_LOCAL_TRAFFIC"] = "true"
+		return ModeConf{
+			Mode:             Sidecar,
+			LoggerName:       loggerNameSidecar,
+			Runner:           RunSidecar,
+			TagVersionSuffix: "sidecar",
+			EnvDefaults:      envToSet,
+		}
 	} else {
 		log.Infof("Arguments provided, launching in Init mode")
-	}
-
-	setupEnv(envToSet)
-
-	return defaultLoggerName, defaultModeRunner
-}
-
-func setupEnv(envToSet map[string]string) {
-	for envName, envVal := range envToSet {
-		if val, set := os.LookupEnv(envName); !set {
-			os.Setenv(envName, envVal)
-		} else {
-			log.Debugf("%s already set with %s, skipping setting it", envName, val)
+		return ModeConf{
+			Mode:             Init,
+			LoggerName:       loggerNameInit,
+			Runner:           RunInit,
+			TagVersionSuffix: "init",
+			EnvDefaults:      envToSet,
 		}
 	}
 }
