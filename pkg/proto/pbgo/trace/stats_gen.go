@@ -1740,6 +1740,58 @@ func (z *StatsPayload) Msgsize() (s int) {
 }
 
 // DecodeMsg implements msgp.Decodable
+func (z *TraceRootFlag) DecodeMsg(dc *msgp.Reader) (err error) {
+	{
+		var zb0001 int32
+		zb0001, err = dc.ReadInt32()
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		(*z) = TraceRootFlag(zb0001)
+	}
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z TraceRootFlag) EncodeMsg(en *msgp.Writer) (err error) {
+	err = en.WriteInt32(int32(z))
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z TraceRootFlag) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	o = msgp.AppendInt32(o, int32(z))
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *TraceRootFlag) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	{
+		var zb0001 int32
+		zb0001, bts, err = msgp.ReadInt32Bytes(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		(*z) = TraceRootFlag(zb0001)
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z TraceRootFlag) Msgsize() (s int) {
+	s = msgp.Int32Size
+	return
+}
+
+// DecodeMsg implements msgp.Decodable
 func (z *Trilean) DecodeMsg(dc *msgp.Reader) (err error) {
 	{
 		var zb0001 int32

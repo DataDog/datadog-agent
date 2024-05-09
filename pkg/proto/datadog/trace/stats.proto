@@ -68,6 +68,12 @@ enum Trilean {
 	FALSE = 2;
 }
 
+enum TraceRootFlag {
+	DEPRECATED_NOT_SET = 0;
+	DEPRECATED_TRUE = 1;
+	DEPRECATED_FALSE = 2;
+}
+
 // ClientGroupedStats aggregate stats on spans grouped by service, name, resource, status_code, type
 message ClientGroupedStats {
 	string service = 1;

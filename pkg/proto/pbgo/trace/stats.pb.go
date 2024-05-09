@@ -69,6 +69,55 @@ func (Trilean) EnumDescriptor() ([]byte, []int) {
 	return file_datadog_trace_stats_proto_rawDescGZIP(), []int{0}
 }
 
+type TraceRootFlag int32
+
+const (
+	TraceRootFlag_DEPRECATED_NOT_SET TraceRootFlag = 0
+	TraceRootFlag_DEPRECATED_TRUE    TraceRootFlag = 1
+	TraceRootFlag_DEPRECATED_FALSE   TraceRootFlag = 2
+)
+
+// Enum value maps for TraceRootFlag.
+var (
+	TraceRootFlag_name = map[int32]string{
+		0: "DEPRECATED_NOT_SET",
+		1: "DEPRECATED_TRUE",
+		2: "DEPRECATED_FALSE",
+	}
+	TraceRootFlag_value = map[string]int32{
+		"DEPRECATED_NOT_SET": 0,
+		"DEPRECATED_TRUE":    1,
+		"DEPRECATED_FALSE":   2,
+	}
+)
+
+func (x TraceRootFlag) Enum() *TraceRootFlag {
+	p := new(TraceRootFlag)
+	*p = x
+	return p
+}
+
+func (x TraceRootFlag) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TraceRootFlag) Descriptor() protoreflect.EnumDescriptor {
+	return file_datadog_trace_stats_proto_enumTypes[1].Descriptor()
+}
+
+func (TraceRootFlag) Type() protoreflect.EnumType {
+	return &file_datadog_trace_stats_proto_enumTypes[1]
+}
+
+func (x TraceRootFlag) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TraceRootFlag.Descriptor instead.
+func (TraceRootFlag) EnumDescriptor() ([]byte, []int) {
+	return file_datadog_trace_stats_proto_rawDescGZIP(), []int{1}
+}
+
 // StatsPayload is the payload used to send stats from the agent to the backend.
 type StatsPayload struct {
 	state         protoimpl.MessageState
@@ -666,9 +715,14 @@ var file_datadog_trace_stats_proto_rawDesc = []byte{
 	0x65, 0x52, 0x6f, 0x6f, 0x74, 0x4a, 0x04, 0x08, 0x0e, 0x10, 0x0f, 0x2a, 0x2b, 0x0a, 0x07, 0x54,
 	0x72, 0x69, 0x6c, 0x65, 0x61, 0x6e, 0x12, 0x0b, 0x0a, 0x07, 0x4e, 0x4f, 0x54, 0x5f, 0x53, 0x45,
 	0x54, 0x10, 0x00, 0x12, 0x08, 0x0a, 0x04, 0x54, 0x52, 0x55, 0x45, 0x10, 0x01, 0x12, 0x09, 0x0a,
-	0x05, 0x46, 0x41, 0x4c, 0x53, 0x45, 0x10, 0x02, 0x42, 0x16, 0x5a, 0x14, 0x70, 0x6b, 0x67, 0x2f,
-	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x70, 0x62, 0x67, 0x6f, 0x2f, 0x74, 0x72, 0x61, 0x63, 0x65,
-	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x05, 0x46, 0x41, 0x4c, 0x53, 0x45, 0x10, 0x02, 0x2a, 0x52, 0x0a, 0x0d, 0x54, 0x72, 0x61, 0x63,
+	0x65, 0x52, 0x6f, 0x6f, 0x74, 0x46, 0x6c, 0x61, 0x67, 0x12, 0x16, 0x0a, 0x12, 0x44, 0x45, 0x50,
+	0x52, 0x45, 0x43, 0x41, 0x54, 0x45, 0x44, 0x5f, 0x4e, 0x4f, 0x54, 0x5f, 0x53, 0x45, 0x54, 0x10,
+	0x00, 0x12, 0x13, 0x0a, 0x0f, 0x44, 0x45, 0x50, 0x52, 0x45, 0x43, 0x41, 0x54, 0x45, 0x44, 0x5f,
+	0x54, 0x52, 0x55, 0x45, 0x10, 0x01, 0x12, 0x14, 0x0a, 0x10, 0x44, 0x45, 0x50, 0x52, 0x45, 0x43,
+	0x41, 0x54, 0x45, 0x44, 0x5f, 0x46, 0x41, 0x4c, 0x53, 0x45, 0x10, 0x02, 0x42, 0x16, 0x5a, 0x14,
+	0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x70, 0x62, 0x67, 0x6f, 0x2f, 0x74,
+	0x72, 0x61, 0x63, 0x65, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -683,19 +737,20 @@ func file_datadog_trace_stats_proto_rawDescGZIP() []byte {
 	return file_datadog_trace_stats_proto_rawDescData
 }
 
-var file_datadog_trace_stats_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_datadog_trace_stats_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_datadog_trace_stats_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_datadog_trace_stats_proto_goTypes = []interface{}{
 	(Trilean)(0),               // 0: datadog.trace.Trilean
-	(*StatsPayload)(nil),       // 1: datadog.trace.StatsPayload
-	(*ClientStatsPayload)(nil), // 2: datadog.trace.ClientStatsPayload
-	(*ClientStatsBucket)(nil),  // 3: datadog.trace.ClientStatsBucket
-	(*ClientGroupedStats)(nil), // 4: datadog.trace.ClientGroupedStats
+	(TraceRootFlag)(0),         // 1: datadog.trace.TraceRootFlag
+	(*StatsPayload)(nil),       // 2: datadog.trace.StatsPayload
+	(*ClientStatsPayload)(nil), // 3: datadog.trace.ClientStatsPayload
+	(*ClientStatsBucket)(nil),  // 4: datadog.trace.ClientStatsBucket
+	(*ClientGroupedStats)(nil), // 5: datadog.trace.ClientGroupedStats
 }
 var file_datadog_trace_stats_proto_depIdxs = []int32{
-	2, // 0: datadog.trace.StatsPayload.stats:type_name -> datadog.trace.ClientStatsPayload
-	3, // 1: datadog.trace.ClientStatsPayload.stats:type_name -> datadog.trace.ClientStatsBucket
-	4, // 2: datadog.trace.ClientStatsBucket.stats:type_name -> datadog.trace.ClientGroupedStats
+	3, // 0: datadog.trace.StatsPayload.stats:type_name -> datadog.trace.ClientStatsPayload
+	4, // 1: datadog.trace.ClientStatsPayload.stats:type_name -> datadog.trace.ClientStatsBucket
+	5, // 2: datadog.trace.ClientStatsBucket.stats:type_name -> datadog.trace.ClientGroupedStats
 	0, // 3: datadog.trace.ClientGroupedStats.is_trace_root:type_name -> datadog.trace.Trilean
 	4, // [4:4] is the sub-list for method output_type
 	4, // [4:4] is the sub-list for method input_type
@@ -764,7 +819,7 @@ func file_datadog_trace_stats_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_datadog_trace_stats_proto_rawDesc,
-			NumEnums:      1,
+			NumEnums:      2,
 			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
