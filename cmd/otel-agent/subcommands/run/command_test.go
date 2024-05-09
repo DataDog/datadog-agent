@@ -19,8 +19,8 @@ func TestFxRun(t *testing.T) {
 	fxutil.TestRun(t, func() error {
 		ctx := context.Background()
 		cliParams := &subcommands.GlobalParams{}
-		return runOTelAgentCommand(ctx, cliParams, fx.Provide(compdef.NewTestLifecycle), fx.Provide(func(t *compdef.TestLifecycle) compdef.Lifecycle {
-			return t
+		return runOTelAgentCommand(ctx, cliParams, fx.Provide(compdef.NewTestLifecycle), fx.Provide(func(lc *compdef.TestLifecycle) compdef.Lifecycle {
+			return lc
 		}),
 		)
 	})
