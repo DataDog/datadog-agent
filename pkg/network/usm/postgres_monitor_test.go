@@ -48,25 +48,6 @@ type postgresProtocolParsingSuite struct {
 	suite.Suite
 }
 
-func getPostgresDefaultTestConfiguration() *config.Config {
-	cfg := config.New()
-	cfg.EnablePostgresMonitoring = true
-	cfg.MaxTrackedConnections = 1000
-	return cfg
-}
-
-func prepareTestDB(t *testing.T, ctx testContext) {
-	postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-	postgres.RunCreateQuery(t, ctx.extras)
-	values := make([]string, 5)
-	for i := 0; i < 20; i++ {
-		for j := 0; j < len(values); j++ {
-			values[j] = fmt.Sprintf("value-%d", i*len(values)+j+1)
-		}
-		postgres.RunMultiInsertQuery(t, ctx.extras, values...)
-	}
-}
-
 func TestPostgresMonitoring(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
@@ -86,41 +67,13 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 	}
 }
 
-func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]map[postgres.Operation]int) {
-	found := make(map[string]map[postgres.Operation]int)
-	require.Eventually(t, func() bool {
-		postgresProtocolStats, exists := monitor.GetProtocolStats()[protocols.Postgres]
-		if !exists {
-			return false
-		}
-		// We might not have postgres stats, and it might be the expected case (to capture 0).
-		currentStats := postgresProtocolStats.(map[postgres.Key]*postgres.RequestStat)
-		for key, stats := range currentStats {
-			if _, ok := found[key.TableName]; !ok {
-				found[key.TableName] = make(map[postgres.Operation]int)
-			}
-			found[key.TableName][key.Operation] += stats.Count
-		}
-		return reflect.DeepEqual(expectedStats, found)
-	}, time.Second*5, time.Millisecond*100, "Expected to find a %v stats, instead captured %v", &expectedStats, &found)
-}
-
 func (s *postgresProtocolParsingSuite) TestDecoding() {
 	t := s.T()
 
-	//clientHost := "localhost"
-	targetHost := "127.0.0.1"
 	serverHost := "127.0.0.1"
 
 	serverAddress := net.JoinHostPort(serverHost, postgresPort)
-	targetAddress := net.JoinHostPort(targetHost, postgresPort)
 	require.NoError(t, postgres.RunServer(t, serverHost, postgresPort))
-
-	//defaultDialer := &net.Dialer{
-	//	LocalAddr: &net.TCPAddr{
-	//		IP: net.ParseIP(clientHost),
-	//	},
-	//}
 
 	tests := []postgresParsingTestAttributes{
 		{
@@ -140,12 +93,14 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			},
 		},
 		{
-			name: "insert",
+			name: "insert rows in table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
 				postgres.RunCreateQuery(t, ctx.extras)
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
+				// Sending 2 insert queries, each with 5 values.
+				// We want to ensure we're capturing both requests.
 				for i := 0; i < 2; i++ {
 					postgres.RunMultiInsertQuery(t, ctx.extras, "value-1", "value-2", "value-3", "value-4", "value-5")
 				}
@@ -159,7 +114,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			},
 		},
 		{
-			name: "update",
+			name: "update a row in a table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
 				postgres.RunCreateQuery(t, ctx.extras)
@@ -195,7 +150,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			},
 		},
 		{
-			name: "drop",
+			name: "drop table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
 			},
@@ -211,13 +166,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			},
 		},
 		{
-			name: "combo",
-			context: testContext{
-				serverPort:    postgresPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras:        map[string]interface{}{},
-			},
+			name: "combo - multiple operations should be captured",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
 			},
@@ -266,9 +215,11 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
 				postgres.RunCreateQuery(t, ctx.extras)
-				for i := 0; i < 20; i++ {
-					postgres.RunMultiInsertQuery(t, ctx.extras, "value-1", "value-2", "value-3", "value-4", "value-5")
+				values := make([]string, 100)
+				for i := 0; i < len(values); i++ {
+					values[i] = fmt.Sprintf("value-%d", i+1)
 				}
+				postgres.RunMultiInsertQuery(t, ctx.extras, values...)
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
 				// Should produce 2 postgres transactions (one for the server and one for the docker proxy)
@@ -292,7 +243,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.context = testContext{
 				serverPort:    postgresPort,
-				targetAddress: targetAddress,
+				targetAddress: serverAddress,
 				serverAddress: serverAddress,
 				extras:        map[string]interface{}{},
 			}
@@ -310,4 +261,42 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			tt.validation(t, tt.context, monitor)
 		})
 	}
+}
+
+func getPostgresDefaultTestConfiguration() *config.Config {
+	cfg := config.New()
+	cfg.EnablePostgresMonitoring = true
+	cfg.MaxTrackedConnections = 1000
+	return cfg
+}
+
+func prepareTestDB(t *testing.T, ctx testContext) {
+	postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+	postgres.RunCreateQuery(t, ctx.extras)
+	values := make([]string, 5)
+	for i := 0; i < 20; i++ {
+		for j := 0; j < len(values); j++ {
+			values[j] = fmt.Sprintf("value-%d", i*len(values)+j+1)
+		}
+		postgres.RunMultiInsertQuery(t, ctx.extras, values...)
+	}
+}
+
+func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]map[postgres.Operation]int) {
+	found := make(map[string]map[postgres.Operation]int)
+	require.Eventually(t, func() bool {
+		postgresProtocolStats, exists := monitor.GetProtocolStats()[protocols.Postgres]
+		if !exists {
+			return false
+		}
+		// We might not have postgres stats, and it might be the expected case (to capture 0).
+		currentStats := postgresProtocolStats.(map[postgres.Key]*postgres.RequestStat)
+		for key, stats := range currentStats {
+			if _, ok := found[key.TableName]; !ok {
+				found[key.TableName] = make(map[postgres.Operation]int)
+			}
+			found[key.TableName][key.Operation] += stats.Count
+		}
+		return reflect.DeepEqual(expectedStats, found)
+	}, time.Second*5, time.Millisecond*100, "Expected to find a %v stats, instead captured %v", &expectedStats, &found)
 }

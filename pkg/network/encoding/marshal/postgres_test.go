@@ -47,7 +47,7 @@ func TestPostgresStats(t *testing.T) {
 func (s *PostgresSuite) TestFormatPostgresStats() {
 	t := s.T()
 
-	postgresKey1 := postgres.NewKey(
+	selectKey := postgres.NewKey(
 		localhost,
 		localhost,
 		postgresClientPort,
@@ -55,7 +55,7 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 		postgres.SelectOP,
 		tableName,
 	)
-	postgresKey2 := postgres.NewKey(
+	insertKey := postgres.NewKey(
 		localhost,
 		localhost,
 		postgresClientPort,
@@ -71,11 +71,11 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 			},
 		},
 		Postgres: map[postgres.Key]*postgres.RequestStat{
-			postgresKey1: {
+			selectKey: {
 				Count:              10,
 				FirstLatencySample: 5,
 			},
-			postgresKey2: {
+			insertKey: {
 				Count:              10,
 				FirstLatencySample: 5,
 			},
