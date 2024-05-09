@@ -1,3 +1,4 @@
+import os
 import re
 import unittest
 from unittest import mock
@@ -163,3 +164,14 @@ class TestOmnibusCache(unittest.TestCase):
 
         # We're satisfied if we ran the build despite that failure
         self.assertRunLines([r'bundle exec omnibus build agent'])
+
+    def test_cache_is_disabled_by_unsetting_env_var(self):
+        del os.environ['OMNIBUS_GIT_CACHE_DIR']
+        self._set_up_default_command_mocks()
+
+        omnibus.build(self.mock_ctx)
+
+        # We ran the build but no command related to the cache
+        self.assertRunLines(['bundle exec omnibus build agent'])
+        commands = _run_calls_to_string(self.mock_ctx.run.mock_calls)
+        self.assertNotIn('omnibus-git-cache', commands)
