@@ -219,8 +219,6 @@ def build(
         elif agent_binaries:
             target_project = "agent-binaries"
 
-    aws_cmd = "aws.cmd" if sys.platform == 'win32' else "aws"
-
     # Get the python_mirror from the PIP_INDEX_URL environment variable if it is not passed in the args
     python_mirror = python_mirror or os.environ.get("PIP_INDEX_URL")
 
@@ -236,6 +234,7 @@ def build(
 
     omnibus_cache_dir = os.environ.get('OMNIBUS_GIT_CACHE_DIR')
     use_omnibus_git_cache = omnibus_cache_dir is not None and target_project == "agent" and host_distribution != "ociru"
+    aws_cmd = "aws.cmd" if sys.platform == 'win32' else "aws"
     if use_omnibus_git_cache:
         # The cache will be written in the provided cache dir (see omnibus.rb) but
         # the git repository itself will be located in a subfolder that replicates
