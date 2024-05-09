@@ -30,6 +30,20 @@ def _run_calls_to_string(mock_calls):
 
 
 @mock.patch('sys.platform', 'linux')
+@mock.patch.dict(
+    'os.environ',
+    {
+        'OMNIBUS_GIT_CACHE_DIR': 'omnibus-git-cache',
+        'CI_JOB_NAME_SLUG': 'slug',
+        'CI_COMMIT_REF_NAME': '',
+        'CI_PROJECT_DIR': '',
+        'CI_PIPELINE_ID': '',
+        'RELEASE_VERSION_7': 'nightly',
+        'S3_OMNIBUS_CACHE_BUCKET': 'omnibus-cache',
+        'API_KEY_ORG2_SSM_NAME': 'api-key',
+    },
+    clear=True,
+)
 class TestOmnibusCache(unittest.TestCase):
     def setUp(self):
         self.mock_ctx = MockContextRaising(run={})
@@ -44,6 +58,7 @@ class TestOmnibusCache(unittest.TestCase):
             (r'aws s3 .*', Result()),
             (r'go mod .*', Result()),
             (r'grep .*', Result()),
+            (r'aws ssm .*', Result()),
         ]
         for pattern, result in patterns:
             self.mock_ctx.set_result_for('run', re.compile(pattern), result)
@@ -59,28 +74,65 @@ class TestOmnibusCache(unittest.TestCase):
         )
 
     def test_successful_cache_hit(self):
+        self.mock_ctx.set_result_for(
+            'run',
+            re.compile(r'git (.* )?tag -l'),
+            Result('foo-1234'),
+        )
         self._set_up_default_command_mocks()
-        env_override = {
-            'OMNIBUS_GIT_CACHE_DIR': 'omnibus-git-cache',
-            'CI_JOB_NAME_SLUG': 'slug',
-            'CI_COMMIT_REF_NAME': '',
-            'CI_PROJECT_DIR': '',
-            'CI_PIPELINE_ID': '',
-            'RELEASE_VERSION_7': 'nightly',
-            'S3_OMNIBUS_CACHE_BUCKET': 'omnibus-cache',
-        }
-        with mock.patch.dict('os.environ', env_override):
-            omnibus.build(self.mock_ctx)
+        omnibus.build(self.mock_ctx)
 
         self.assertRunLines(
             [
                 # We copied the cache from remote cache
-                r'aws s3 cp (.* )?s3://omnibus-cache/builds/\w+/slug /tmp/omnibus-git-cache-bundle',
+                r'aws s3 cp (\S* )?s3://omnibus-cache/builds/\w+/slug /tmp/omnibus-git-cache-bundle',
                 # We cloned the repo
                 r'git clone --mirror /tmp/omnibus-git-cache-bundle omnibus-git-cache/opt/datadog-agent',
                 # We listed the tags to get current cache state
                 r'git -C omnibus-git-cache/opt/datadog-agent tag -l',
                 # We ran omnibus
                 r'bundle exec omnibus build agent',
+            ],
+        )
+
+    def test_cache_miss(self):
+        self.mock_ctx.set_result_for(
+            'run',
+            re.compile(r'aws s3 cp (\S* )?s3://omnibus-cache/builds/\S* /tmp/omnibus-git-cache-bundle'),
+            Result(exited=1),
+        )
+        self.mock_ctx.set_result_for(
+            'run',
+            re.compile(r'git (.* )?tag -l'),
+            Result('foo-1234'),
+        )
+        self._set_up_default_command_mocks()
+        with mock.patch('requests.post') as post_mock:
+            omnibus.build(self.mock_ctx)
+
+        commands = _run_calls_to_string(self.mock_ctx.run.mock_calls)
+        commands_before_build = commands.split('bundle exec omnibus')[0]
+
+        # Assert we did NOT clone nor list tags before the omnibus build
+        lines = [
+            r'git clone --mirror /tmp/omnibus-git-cache-bundle omnibus-git-cache/opt/datadog-agent',
+            r'git -C omnibus-git-cache/opt/datadog-agent tag -l',
+        ]
+        for line in lines:
+            self.assertIsNone(re.search(line, commands_before_build))
+        # Assert we sent a cache miss event
+        assert post_mock.mock_calls
+        self.assertIn("events", post_mock.mock_calls[0].args[0])
+        self.assertIn("omnibus cache miss", str(post_mock.mock_calls[0].kwargs['json']))
+        # Assert we bundled and uploaded the cache (should always happen on cache misses)
+        self.assertRunLines(
+            [
+                # We ran omnibus
+                r'bundle exec omnibus build agent',
+                # Listed tags for cache comparison
+                r'git -C omnibus-git-cache/opt/datadog-agent tag -l',
+                # And we created and uploaded the new cache
+                r'git -C omnibus-git-cache/opt/datadog-agent bundle create /tmp/omnibus-git-cache-bundle --tags',
+                r'aws s3 cp (\S* )?/tmp/omnibus-git-cache-bundle s3://omnibus-cache/builds/\w+/slug',
             ],
         )
