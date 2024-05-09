@@ -48,9 +48,13 @@ import (
 
 const datadogConfigPath = "datadog.yaml"
 
+var modeConf mode.ModeConf
+
 func main() {
 
-	loggerName, _ := mode.SetupMode()
+	modeConf = mode.DetectMode()
+	setEnvWithoutOverride(modeConf.EnvDefaults)
+
 	err := fxutil.OneShot(
 		run,
 		autodiscoveryimpl.Module(),
@@ -68,7 +72,7 @@ func main() {
 		fx.Supply(core.BundleParams{
 			ConfigParams: coreconfig.NewParams("", coreconfig.WithConfigMissingOK(true)),
 			SecretParams: secrets.NewEnabledParams(),
-			LogParams:    logimpl.ForOneShot(loggerName, "off", true)}),
+			LogParams:    logimpl.ForOneShot(modeConf.LoggerName, "off", true)}),
 		core.Bundle(),
 	)
 
@@ -80,10 +84,9 @@ func main() {
 
 // removing these unused dependencies will cause silent crash due to fx framework
 func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobe.Component) {
-	_, modeRunner := mode.SetupMode()
 	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup()
 
-	modeRunner(logConfig)
+	modeConf.Runner(logConfig)
 
 	metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
@@ -206,4 +209,14 @@ func flushAndWait(flushTimeout time.Duration, wg *sync.WaitGroup, agent serverle
 		break
 	}
 	wg.Done()
+}
+
+func setEnvWithoutOverride(envToSet map[string]string) {
+	for envName, envVal := range envToSet {
+		if val, set := os.LookupEnv(envName); !set {
+			os.Setenv(envName, envVal)
+		} else {
+			log.Debugf("%s already set with %s, skipping setting it", envName, val)
+		}
+	}
 }
