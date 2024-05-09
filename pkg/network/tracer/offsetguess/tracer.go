@@ -1097,6 +1097,8 @@ func newUDPServer(addr string) (string, func(), error) {
 	return ln.LocalAddr().String(), doneFn, nil
 }
 
+// IsTracerOffsetGuessingSupported returns ErrTracerOffsetGuessingNotSupported if
+// tracer offset guessing is not supported on this platform, nil otherwise
 func IsTracerOffsetGuessingSupported() error {
 	family, err := kernel.Family()
 	if err != nil {

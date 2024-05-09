@@ -330,6 +330,8 @@ func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connClos
 	return tracerLoaderFromAsset(buf, false, false, config, mgrOpts, connCloseEventHandler)
 }
 
+// IsCORETracerSupported returns ErrCORETracerNotSupported if the CORE
+// network tracer is not supported on this platform, nil otherwise
 func IsCORETracerSupported() error {
 	kv, err := kernel.HostVersion()
 	if err != nil {

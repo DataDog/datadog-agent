@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 )
 
+// SupportedBuildModes filters modes to return only supported build modes on this platform
 func SupportedBuildModes(t *testing.T, modes []ebpftest.BuildMode) []ebpftest.BuildMode {
 	if err := offsetguess.IsTracerOffsetGuessingSupported(); err == offsetguess.ErrTracerOffsetGuessingNotSupported {
 		t.Log("removing pre-compiled build mode as it is not supported on this platform")
