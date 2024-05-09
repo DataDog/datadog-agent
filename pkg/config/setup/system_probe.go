@@ -290,7 +290,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(npNS, "workers"), 4)
 	cfg.BindEnvAndSetDefault(join(npNS, "input_chan_size"), 1000)
 	cfg.BindEnvAndSetDefault(join(npNS, "process_chan_size"), 1000)
-	// With pathtest_ttl=15m and pathtest_interval=5m, it should allow a new paths to be run at least 3 times
 	cfg.BindEnvAndSetDefault(join(npNS, "pathtest_ttl"), "15m")
 	cfg.BindEnvAndSetDefault(join(npNS, "pathtest_interval"), "5m")
 
