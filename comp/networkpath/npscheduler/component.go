@@ -6,9 +6,7 @@
 // Package npscheduler used to manage network paths
 package npscheduler
 
-import (
-	model "github.com/DataDog/agent-payload/v5/process"
-)
+import model "github.com/DataDog/agent-payload/v5/process"
 
 // team: network-device-monitoring
 
