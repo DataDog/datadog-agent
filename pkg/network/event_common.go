@@ -291,6 +291,7 @@ type ConnectionStats struct {
 
 	ProtocolStack protocols.Stack
 
+	// TCPFailures stores the number of failures for a POSIX error code
 	TCPFailures map[uint32]uint32
 	DNSStats    map[dns.Hostname]map[dns.QueryType]dns.Stats
 }

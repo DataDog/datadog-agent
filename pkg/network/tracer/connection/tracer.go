@@ -265,7 +265,10 @@ func NewTracer(config *config.Config) (Tracer, error) {
 
 	closeConsumer := newTCPCloseConsumer(connCloseEventHandler, batchMgr)
 
-	failedConnConsumer := failure.NewFailedConnConsumer(failedConnsHandler)
+	var failedConnConsumer *failure.TCPFailedConnConsumer
+	if kprobe.FailedConnectionsSupported(config) {
+		failedConnConsumer = failure.NewFailedConnConsumer(failedConnsHandler)
+	}
 
 	tr := &tracer{
 		m:                  m,
@@ -328,7 +331,9 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 	}
 
 	t.closeConsumer.Start(callback)
-	//t.failedConnConsumer.Start()
+	if kprobe.FailedConnectionsSupported(t.config) {
+		t.failedConnConsumer.Start()
+	}
 	return nil
 }
 
