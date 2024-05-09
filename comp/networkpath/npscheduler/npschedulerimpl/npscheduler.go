@@ -53,6 +53,7 @@ func newNoopNpSchedulerImpl() *npSchedulerImpl {
 }
 
 func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Component, sysprobeYamlConfig config.Reader) *npSchedulerImpl {
+	// TODO: TESTME
 	workers := sysprobeYamlConfig.GetInt("network_path.workers")
 	pathtestInputChanSize := sysprobeYamlConfig.GetInt("network_path.input_chan_size")
 	pathtestProcessChanSize := sysprobeYamlConfig.GetInt("network_path.process_chan_size")
@@ -121,6 +122,7 @@ func shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
 // scheduleOne schedules pathtests.
 // It shouldn't block, if the input channel is full, an error is returned.
 func (s *npSchedulerImpl) scheduleOne(hostname string, port uint16) error {
+	// TODO: TESTME
 	if s.pathtestInputChan == nil {
 		return errors.New("no input channel, please check that network path is enabled")
 	}
@@ -144,6 +146,7 @@ func (s *npSchedulerImpl) scheduleOne(hostname string, port uint16) error {
 	}
 }
 func (s *npSchedulerImpl) start() {
+	// TODO: TESTME
 	s.logger.Info("Start NpScheduler")
 	go s.listenPathtestConfigs()
 	go s.flushLoop()
@@ -151,6 +154,7 @@ func (s *npSchedulerImpl) start() {
 }
 
 func (s *npSchedulerImpl) stop() {
+	// TODO: TESTME
 	s.logger.Infof("Stop NpScheduler")
 	close(s.stopChan)
 	<-s.flushLoopDone
@@ -158,6 +162,7 @@ func (s *npSchedulerImpl) stop() {
 }
 
 func (s *npSchedulerImpl) listenPathtestConfigs() {
+	// TODO: TESTME
 	for {
 		select {
 		case <-s.stopChan:
@@ -175,11 +180,9 @@ func (s *npSchedulerImpl) listenPathtestConfigs() {
 }
 
 func (s *npSchedulerImpl) runTraceroute(ptest *pathtestContext) {
+	// TODO: TESTME
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
-	s.pathForConn(ptest)
-}
 
-func (s *npSchedulerImpl) pathForConn(ptest *pathtestContext) {
 	startTime := time.Now()
 	cfg := traceroute.Config{
 		DestHostname: ptest.pathtest.hostname,
@@ -220,6 +223,7 @@ func (s *npSchedulerImpl) pathForConn(ptest *pathtestContext) {
 }
 
 func (s *npSchedulerImpl) flushLoop() {
+	// TODO: TESTME
 	flushTicker := time.NewTicker(10 * time.Second)
 
 	var lastFlushTime time.Time
@@ -247,6 +251,7 @@ func (s *npSchedulerImpl) flushLoop() {
 }
 
 func (s *npSchedulerImpl) flush() {
+	// TODO: TESTME
 	// TODO: Remove workers metric?
 	statsd.Client.Gauge("datadog.network_path.scheduler.workers", float64(s.workers), []string{}, 1) //nolint:errcheck
 
@@ -265,6 +270,7 @@ func (s *npSchedulerImpl) flush() {
 }
 
 func (s *npSchedulerImpl) sendTelemetry(path payload.NetworkPath, startTime time.Time, ptest *pathtestContext) {
+	// TODO: TESTME
 	checkInterval := ptest.lastFlushInterval
 	checkDuration := time.Since(startTime)
 	telemetry.SubmitNetworkPathTelemetry(
