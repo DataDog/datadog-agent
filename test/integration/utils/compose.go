@@ -104,11 +104,17 @@ func (c *ComposeConf) Stop() ([]byte, error) {
 
 // ListContainers lists the running container IDs
 func (c *ComposeConf) ListContainers() ([]string, error) {
+	customEnv := os.Environ()
+	for k, v := range c.Variables {
+		customEnv = append(customEnv, fmt.Sprintf("%s=%s", k, v))
+	}
+
 	runCmd := exec.Command(
 		"compose",
 		"--project-name", c.ProjectName,
 		"--file", c.FilePath,
 		"ps", "-q")
+	runCmd.Env = customEnv
 
 	out, err := runCmd.Output()
 	if err != nil {
