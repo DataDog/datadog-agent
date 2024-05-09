@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
@@ -56,7 +55,7 @@ func CreateConfig(origin string) *Config {
 func SetupLogAgent(conf *Config, tags map[string]string) logsAgent.ServerlessLogsAgent {
 	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.Channel, sourceName, conf.source)
 
-	tagsArray := serverlessTag.MapToArray(tag.GetBaseTagsMapWithMetadata(tags))
+	tagsArray := serverlessTag.MapToArray(tags)
 
 	addFileTailing(logsAgent, tagsArray)
 

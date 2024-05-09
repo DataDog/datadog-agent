@@ -106,9 +106,12 @@ func setup(mode.ModeConf) (cloudservice.CloudService, *serverlessInitLog.Config,
 	// and exit right away.
 	_ = cloudService.Init()
 
-	tags := serverlessTag.MergeWithOverwrite(
-		serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfig.Datadog, false)),
-		cloudService.GetTags())
+	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
+		serverlessTag.MergeWithOverwrite(
+			serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfig.Datadog, false)),
+			cloudService.GetTags()),
+		modeConf.TagVersionMode)
+
 	origin := cloudService.GetOrigin()
 	prefix := cloudService.GetPrefix()
 
@@ -135,7 +138,7 @@ func setup(mode.ModeConf) (cloudservice.CloudService, *serverlessInitLog.Config,
 }
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
 	traceAgent.Start(pkgconfig.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
-	traceAgent.SetTags(serverlessInitTag.GetBaseTagsMapWithMetadata(tags))
+	traceAgent.SetTags(tags)
 	for range time.Tick(3 * time.Second) {
 		traceAgent.Flush()
 	}
@@ -148,9 +151,8 @@ func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 	}
 	// we don't want to add the container_id tag to metrics for cardinality reasons
 	tags = serverlessInitTag.WithoutContainerID(tags)
-	tagArray := serverlessInitTag.GetBaseTagsMapWithMetadata(tags)
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
-	metricAgent.SetExtraTags(serverlessTag.MapToArray(tagArray))
+	metricAgent.SetExtraTags(serverlessTag.MapToArray(tags))
 	return metricAgent
 }
 
