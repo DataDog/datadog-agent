@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package npschedulerimpl
+package pathteststore
 
 import (
 	"testing"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,12 +34,12 @@ func Test_pathtestStore_add(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 
 	// GIVEN
-	store := newPathtestStore(DefaultFlushTickerInterval, 10*time.Minute, 1*time.Minute, logger)
+	store := newPathtestStore(npschedulerimpl.DefaultFlushTickerInterval, 10*time.Minute, 1*time.Minute, logger)
 
 	// WHEN
-	pt1 := &pathtest{hostname: "host1", port: 53}
-	pt2 := &pathtest{hostname: "host2", port: 53}
-	pt3 := &pathtest{hostname: "host3", port: 53}
+	pt1 := &Pathtest{Hostname: "host1", Port: 53}
+	pt2 := &Pathtest{Hostname: "host2", Port: 53}
+	pt3 := &Pathtest{Hostname: "host3", Port: 53}
 	store.add(pt1)
 	store.add(pt2)
 	store.add(pt3)
@@ -63,7 +64,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	store := newPathtestStore(flushTickerInterval, runDurationFromDisc, runInterval, logger)
 
 	// WHEN
-	pt := &pathtest{hostname: "host1", port: 53}
+	pt := &Pathtest{Hostname: "host1", Port: 53}
 	store.add(pt)
 
 	// THEN
@@ -99,7 +100,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval*2), ptCtx.nextRunTime)
 	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc), ptCtx.runUntilTime)
 
-	// test add new pathtest after nextRunTime is reached
+	// test add new Pathtest after nextRunTime is reached
 	// it should reset runUntilTime
 	flushTime4 := MockTimeNow().Add(80 * time.Second)
 	setMockTimeNow(flushTime4)
@@ -116,7 +117,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval*3), ptCtx.nextRunTime)
 	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc+80*time.Second), ptCtx.runUntilTime)
 
-	// test flush before runUntilTime, it should NOT delete pathtest entry
+	// test flush before runUntilTime, it should NOT delete Pathtest entry
 	flushTime6 := MockTimeNow().Add((600 + 70) * time.Second)
 	setMockTimeNow(flushTime6)
 	store.flush()
@@ -124,7 +125,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval*4), ptCtx.nextRunTime)
 	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc+80*time.Second), ptCtx.runUntilTime)
 
-	// test flush after runUntilTime, it should delete pathtest entry
+	// test flush after runUntilTime, it should delete Pathtest entry
 	flushTime7 := MockTimeNow().Add((600 + 90) * time.Second)
 	setMockTimeNow(flushTime7)
 	store.flush()

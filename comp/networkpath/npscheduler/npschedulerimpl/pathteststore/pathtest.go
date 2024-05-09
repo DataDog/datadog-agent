@@ -3,22 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package npschedulerimpl
+package pathteststore
 
 import (
 	"encoding/binary"
 	"hash/fnv"
 )
 
-type pathtest struct {
-	hostname string
-	port     uint16
+type Pathtest struct {
+	Hostname string
+	Port     uint16
 }
 
-func (p pathtest) getHash() uint64 {
+func (p Pathtest) getHash() uint64 {
 	// TODO: TESTME
 	h := fnv.New64()
-	h.Write([]byte(p.hostname))                  //nolint:errcheck
-	binary.Write(h, binary.LittleEndian, p.port) //nolint:errcheck
+	h.Write([]byte(p.Hostname))                  //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, p.Port) //nolint:errcheck
 	return h.Sum64()
 }

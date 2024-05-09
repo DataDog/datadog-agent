@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package npschedulerimpl
+package pathteststore
 
 import (
 	"sync"
@@ -14,21 +14,30 @@ import (
 
 var timeNow = time.Now
 
-// pathtestContext contains pathtest information and additional flush related data
-type pathtestContext struct {
-	pathtest          *pathtest
+// PathtestContext contains Pathtest information and additional flush related data
+type PathtestContext struct {
+	Pathtest *Pathtest
+
 	nextRunTime       time.Time
 	runUntilTime      time.Time
 	lastFlushTime     time.Time
 	lastFlushInterval time.Duration
 }
 
-// pathtestStore is used to accumulate aggregated pathtestContexts
-type pathtestStore struct {
+func (p *PathtestContext) LastFlushInterval() time.Duration {
+	return p.lastFlushInterval
+}
+
+func (p *PathtestContext) SetLastFlushInterval(lastFlushInterval time.Duration) {
+	p.lastFlushInterval = lastFlushInterval
+}
+
+// PathtestStore is used to accumulate aggregated pathtestContexts
+type PathtestStore struct {
 	logger log.Component
 
-	pathtestContexts map[uint64]*pathtestContext
-	// mutex is needed to protect `pathtestContexts` since `pathtestStore.add()` and  `pathtestStore.flush()`
+	pathtestContexts map[uint64]*PathtestContext
+	// mutex is needed to protect `pathtestContexts` since `PathtestStore.add()` and  `pathtestStore.flush()`
 	// are called by different routines.
 	pathtestConfigsMutex sync.Mutex
 
@@ -38,23 +47,23 @@ type pathtestStore struct {
 	// pathtestInterval defines how frequently pathtests should run
 	pathtestInterval time.Duration
 
-	// pathtestTTL is the duration a pathtest should run from discovery.
-	// If a pathtest is added again before the TTL expires, the TTL is reset to this duration.
+	// pathtestTTL is the duration a Pathtest should run from discovery.
+	// If a Pathtest is added again before the TTL expires, the TTL is reset to this duration.
 	pathtestTTL time.Duration
 }
 
-func newPathtestContext(pt *pathtest, runUntilDuration time.Duration) *pathtestContext {
+func newPathtestContext(pt *Pathtest, runUntilDuration time.Duration) *PathtestContext {
 	now := timeNow()
-	return &pathtestContext{
-		pathtest:     pt,
+	return &PathtestContext{
+		Pathtest:     pt,
 		nextRunTime:  now,
 		runUntilTime: now.Add(runUntilDuration),
 	}
 }
 
-func newPathtestStore(flushInterval time.Duration, pathtestTTL time.Duration, pathtestInterval time.Duration, logger log.Component) *pathtestStore {
-	return &pathtestStore{
-		pathtestContexts: make(map[uint64]*pathtestContext),
+func NewPathtestStore(flushInterval time.Duration, pathtestTTL time.Duration, pathtestInterval time.Duration, logger log.Component) *PathtestStore {
+	return &PathtestStore{
+		pathtestContexts: make(map[uint64]*PathtestContext),
 		flushInterval:    flushInterval,
 		pathtestTTL:      pathtestTTL,
 		pathtestInterval: pathtestInterval,
@@ -62,34 +71,34 @@ func newPathtestStore(flushInterval time.Duration, pathtestTTL time.Duration, pa
 	}
 }
 
-// flush will flush specific pathtest context (distinct hash) if nextRunTime is reached
-// once a pathtest context is flushed nextRunTime will be updated to the next flush time
+// Flush will flush specific Pathtest context (distinct hash) if nextRunTime is reached
+// once a Pathtest context is flushed nextRunTime will be updated to the next flush time
 //
 // pathtestTTL:
-// pathtestTTL defines the duration we should keep a specific pathtestContext in `pathtestStore.pathtestContexts`
-// after `lastSuccessfulFlush`. // Flow context in `pathtestStore.pathtestContexts` map will be deleted if `pathtestTTL`
-// is reached to avoid keeping pathtest context that are not seen anymore.
-// We need to keep pathtestContext (contains `nextRunTime` and `lastSuccessfulFlush`) after flush
+// pathtestTTL defines the duration we should keep a specific PathtestContext in `PathtestStore.pathtestContexts`
+// after `lastSuccessfulFlush`. // Flow context in `PathtestStore.pathtestContexts` map will be deleted if `pathtestTTL`
+// is reached to avoid keeping Pathtest context that are not seen anymore.
+// We need to keep PathtestContext (contains `nextRunTime` and `lastSuccessfulFlush`) after flush
 // to be able to flush at regular interval (`flushInterval`).
-// Example, after a flush, pathtestContext will have a new nextRunTime, that will be the next flush time for new pathtestContexts being added.
-func (f *pathtestStore) flush() []*pathtestContext {
+// Example, after a flush, PathtestContext will have a new nextRunTime, that will be the next flush time for new pathtestContexts being added.
+func (f *PathtestStore) Flush() []*PathtestContext {
 	f.pathtestConfigsMutex.Lock()
 	defer f.pathtestConfigsMutex.Unlock()
 
 	f.logger.Tracef("f.pathtestContexts: %+v", f.pathtestContexts)
 	// DEBUG STATEMENTS
 	for _, ptConf := range f.pathtestContexts {
-		if ptConf.pathtest != nil {
-			f.logger.Tracef("in-mem ptConf %s:%d", ptConf.pathtest.hostname, ptConf.pathtest.port)
+		if ptConf.Pathtest != nil {
+			f.logger.Tracef("in-mem ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
 		}
 	}
 
-	var pathtestsToFlush []*pathtestContext
+	var pathtestsToFlush []*PathtestContext
 	for key, ptConfigCtx := range f.pathtestContexts {
 		now := timeNow()
 
 		if ptConfigCtx.runUntilTime.Before(now) {
-			f.logger.Tracef("Delete pathtest context (key=%d, runUntilTime=%s, nextRunTime=%s)", key, ptConfigCtx.runUntilTime.String(), ptConfigCtx.nextRunTime.String())
+			f.logger.Tracef("Delete Pathtest context (key=%d, runUntilTime=%s, nextRunTime=%s)", key, ptConfigCtx.runUntilTime.String(), ptConfigCtx.nextRunTime.String())
 			// delete ptConfigCtx wrapper if it reaches runUntilTime
 			delete(f.pathtestContexts, key)
 			continue
@@ -111,8 +120,9 @@ func (f *pathtestStore) flush() []*pathtestContext {
 	return pathtestsToFlush
 }
 
-func (f *pathtestStore) add(pathtestToAdd *pathtest) {
-	f.logger.Tracef("Add new pathtest: %+v", pathtestToAdd)
+// Add TODO
+func (f *PathtestStore) Add(pathtestToAdd *Pathtest) {
+	f.logger.Tracef("Add new Pathtest: %+v", pathtestToAdd)
 
 	f.pathtestConfigsMutex.Lock()
 	defer f.pathtestConfigsMutex.Unlock()
@@ -127,7 +137,8 @@ func (f *pathtestStore) add(pathtestToAdd *pathtest) {
 	f.pathtestContexts[hash] = pathtestCtx
 }
 
-func (f *pathtestStore) getPathtestContextCount() int {
+// GetPathtestContextCount TODO
+func (f *PathtestStore) GetPathtestContextCount() int {
 	f.pathtestConfigsMutex.Lock()
 	defer f.pathtestConfigsMutex.Unlock()
 

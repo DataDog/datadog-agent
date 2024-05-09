@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -38,9 +39,9 @@ type npSchedulerImpl struct {
 	metricSender metricsender.MetricSender
 
 	receivedPathtestConfigCount *atomic.Uint64
-	pathtestStore               *pathtestStore
-	pathtestInputChan           chan *pathtest
-	pathtestProcessChan         chan *pathtestContext
+	pathtestStore               *pathteststore.PathtestStore
+	pathtestInputChan           chan *pathteststore.Pathtest
+	pathtestProcessChan         chan *pathteststore.PathtestContext
 	stopChan                    chan struct{}
 	flushLoopDone               chan struct{}
 	runDone                     chan struct{}
@@ -71,9 +72,9 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 		epForwarder: epForwarder,
 		logger:      logger,
 
-		pathtestStore:       newPathtestStore(DefaultFlushTickerInterval, pathtestTTL, pathtestInterval, logger),
-		pathtestInputChan:   make(chan *pathtest, pathtestInputChanSize),
-		pathtestProcessChan: make(chan *pathtestContext, pathtestProcessChanSize),
+		pathtestStore:       pathteststore.NewPathtestStore(DefaultFlushTickerInterval, pathtestTTL, pathtestInterval, logger),
+		pathtestInputChan:   make(chan *pathteststore.Pathtest, pathtestInputChanSize),
+		pathtestProcessChan: make(chan *pathteststore.PathtestContext, pathtestProcessChanSize),
 		workers:             workers,
 
 		metricSender: metricsender.NewMetricSenderStatsd(),
@@ -87,7 +88,7 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 	}
 }
 
-func (s *npSchedulerImpl) ScheduleConns(_ []*model.Connection) {
+func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
 	if !s.enabled {
 		return
 	}
@@ -134,9 +135,9 @@ func (s *npSchedulerImpl) scheduleOne(hostname string, port uint16) error {
 		return nil
 	}
 
-	ptest := &pathtest{
-		hostname: hostname,
-		port:     port,
+	ptest := &pathteststore.Pathtest{
+		Hostname: hostname,
+		Port:     port,
 	}
 	select {
 	case s.pathtestInputChan <- ptest:
@@ -174,19 +175,19 @@ func (s *npSchedulerImpl) listenPathtestConfigs() {
 			// TODO: TESTME
 			s.logger.Debugf("Pathtest received: %+v", ptest)
 			s.receivedPathtestConfigCount.Inc()
-			s.pathtestStore.add(ptest)
+			s.pathtestStore.Add(ptest)
 		}
 	}
 }
 
-func (s *npSchedulerImpl) runTraceroute(ptest *pathtestContext) {
+func (s *npSchedulerImpl) runTraceroute(ptest *pathteststore.PathtestContext) {
 	// TODO: TESTME
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
 	startTime := time.Now()
 	cfg := traceroute.Config{
-		DestHostname: ptest.pathtest.hostname,
-		DestPort:     uint16(ptest.pathtest.port),
+		DestHostname: ptest.Pathtest.Hostname,
+		DestPort:     uint16(ptest.Pathtest.Port),
 		MaxTTL:       24,
 		TimeoutMs:    1000,
 	}
@@ -255,23 +256,23 @@ func (s *npSchedulerImpl) flush() {
 	// TODO: Remove workers metric?
 	statsd.Client.Gauge("datadog.network_path.scheduler.workers", float64(s.workers), []string{}, 1) //nolint:errcheck
 
-	flowsContexts := s.pathtestStore.getPathtestContextCount()
+	flowsContexts := s.pathtestStore.GetPathtestContextCount()
 	statsd.Client.Gauge("datadog.network_path.scheduler.pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
 	flushTime := s.TimeNowFunction()
-	flowsToFlush := s.pathtestStore.flush()
+	flowsToFlush := s.pathtestStore.Flush()
 	statsd.Client.Gauge("datadog.network_path.scheduler.pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
 	for _, ptConf := range flowsToFlush {
-		s.logger.Tracef("flushed ptConf %s:%d", ptConf.pathtest.hostname, ptConf.pathtest.port)
+		s.logger.Tracef("flushed ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
 		// TODO: FLUSH TO CHANNEL + WORKERS EXECUTE
 		s.pathtestProcessChan <- ptConf
 	}
 }
 
-func (s *npSchedulerImpl) sendTelemetry(path payload.NetworkPath, startTime time.Time, ptest *pathtestContext) {
+func (s *npSchedulerImpl) sendTelemetry(path payload.NetworkPath, startTime time.Time, ptest *pathteststore.PathtestContext) {
 	// TODO: TESTME
-	checkInterval := ptest.lastFlushInterval
+	checkInterval := ptest.LastFlushInterval()
 	checkDuration := time.Since(startTime)
 	telemetry.SubmitNetworkPathTelemetry(
 		s.metricSender,
@@ -299,7 +300,7 @@ func (s *npSchedulerImpl) startWorker(workerID int) {
 			s.logger.Debugf("[worker%d] Stopping worker", workerID)
 			return
 		case pathtestCtx := <-s.pathtestProcessChan:
-			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.pathtest.hostname, pathtestCtx.pathtest.port)
+			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.Pathtest.Hostname, pathtestCtx.Pathtest.Port)
 			s.runTraceroute(pathtestCtx)
 		}
 	}
