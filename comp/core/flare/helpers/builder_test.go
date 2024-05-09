@@ -12,10 +12,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mholt/archiver/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
@@ -96,7 +96,7 @@ func TestSave(t *testing.T) {
 	}
 	hostname = validate.CleanHostnameDir(hostname)
 
-	archiver.Unarchive(archivePath, tmpDir)
+	archive.UnZip(archivePath, tmpDir)
 	assert.FileExists(t, filepath.Join(tmpDir, hostname, "test.data"))
 	assert.FileExists(t, filepath.Join(tmpDir, hostname, "test/depth1/depth2/test4"))
 }
