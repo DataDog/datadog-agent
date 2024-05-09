@@ -11,25 +11,21 @@ import (
 	"os"
 )
 
-type ModeConf struct {
-	Mode           Mode
+// Conf contains the configuration for the mode in which the serverless-init agent should run
+type Conf struct {
 	LoggerName     string
 	Runner         func(logConfig *serverlessLog.Config)
 	TagVersionMode string
 	EnvDefaults    map[string]string
 }
 
-type Mode int
-
 const (
-	Init Mode = iota
-	Sidecar
 	loggerNameInit    = "SERVERLESS_INIT"
 	loggerNameSidecar = "SERVERLESS_SIDECAR"
 )
 
 // DetectMode detects the mode in which the serverless agent should run
-func DetectMode() ModeConf {
+func DetectMode() Conf {
 
 	envToSet := map[string]string{
 		"DD_REMOTE_CONFIGURATION_ENABLED": "false",
@@ -43,21 +39,18 @@ func DetectMode() ModeConf {
 		log.Infof("No arguments provided, launching in Sidecar mode")
 		envToSet["DD_APM_NON_LOCAL_TRAFFIC"] = "true"
 		envToSet["DD_DOGSTATSD_NON_LOCAL_TRAFFIC"] = "true"
-		return ModeConf{
-			Mode:           Sidecar,
+		return Conf{
 			LoggerName:     loggerNameSidecar,
 			Runner:         RunSidecar,
 			TagVersionMode: "sidecar",
 			EnvDefaults:    envToSet,
 		}
-	} else {
-		log.Infof("Arguments provided, launching in Init mode")
-		return ModeConf{
-			Mode:           Init,
-			LoggerName:     loggerNameInit,
-			Runner:         RunInit,
-			TagVersionMode: "init",
-			EnvDefaults:    envToSet,
-		}
+	}
+	log.Infof("Arguments provided, launching in Init mode")
+	return Conf{
+		LoggerName:     loggerNameInit,
+		Runner:         RunInit,
+		TagVersionMode: "init",
+		EnvDefaults:    envToSet,
 	}
 }
