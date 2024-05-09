@@ -8,11 +8,15 @@ package taggerimpl
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"reflect"
 	"regexp"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
 	taggerComp "github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -48,6 +52,13 @@ type dependencies struct {
 	Log    logComp.Component
 	Wmeta  workloadmeta.Component
 	Params taggerComp.Params
+}
+
+type provides struct {
+	fx.Out
+
+	Comp     taggerComp.Component
+	Endpoint api.AgentEndpointProvider
 }
 
 // Module defines the fx options for this component.
@@ -91,7 +102,7 @@ var tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_d
 // newTaggerClient returns a Component based on provided params, once it is provided,
 // fx will cache the component which is effectively a singleton instance, cached by fx.
 // it should be deprecated and removed
-func newTaggerClient(deps dependencies) taggerComp.Component {
+func newTaggerClient(deps dependencies) provides {
 	var taggerClient *TaggerClient
 	switch deps.Params.AgentTypeForTagger {
 	case taggerComp.CLCRunnerRemoteTaggerAgent:
@@ -174,7 +185,21 @@ func newTaggerClient(deps dependencies) taggerComp.Component {
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
 		return taggerClient.Stop()
 	}})
-	return taggerClient
+	return provides{
+		Comp:     taggerClient,
+		Endpoint: api.NewAgentEndpointProvider(taggerClient.writeList, "/tagger-list", "GET"),
+	}
+}
+
+func (t *TaggerClient) writeList(w http.ResponseWriter, _ *http.Request) {
+	response := t.List()
+
+	jsonTags, err := json.Marshal(response)
+	if err != nil {
+		apiutils.SetJSONError(w, log.Errorf("Unable to marshal tagger list response: %s", err), 500)
+		return
+	}
+	w.Write(jsonTags)
 }
 
 // Start calls defaultTagger.Start
@@ -520,5 +545,5 @@ func NewOptionalTagger(deps optionalTaggerDeps) optional.Option[taggerComp.Compo
 		Params: taggerComp.Params{
 			AgentTypeForTagger: taggerComp.LocalTaggerAgent,
 		},
-	}))
+	}).Comp)
 }
