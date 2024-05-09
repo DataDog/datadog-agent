@@ -17,7 +17,7 @@ import (
 )
 
 func TestGetBaseTagsArrayNoEnvNoMetadata(t *testing.T) {
-	assert.Equal(t, 2, len(GetBaseTagsMapWithMetadata(make(map[string]string, 0))))
+	assert.Equal(t, 2, len(GetBaseTagsMapWithMetadata(make(map[string]string, 0), "")))
 }
 
 func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
@@ -26,7 +26,7 @@ func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
 	t.Setenv("DD_ENV", "myEnv")
 	t.Setenv("DD_SERVICE", "superService")
 	t.Setenv("DD_VERSION", "123.4")
-	tags := serverlessTag.MapToArray(GetBaseTagsMapWithMetadata(make(map[string]string, 0)))
+	tags := serverlessTag.MapToArray(GetBaseTagsMapWithMetadata(make(map[string]string, 0), ""))
 	sort.Strings(tags)
 	assert.Equal(t, 5, len(tags))
 	assert.Contains(t, tags[0], "_dd.compute_stats:1")
@@ -38,19 +38,19 @@ func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
 
 func TestGetTagFound(t *testing.T) {
 	t.Setenv("TOTO", "coucou")
-	value, found := getTag("TOTO")
+	value, found := getTagFromEnv("TOTO")
 	assert.Equal(t, true, found)
 	assert.Equal(t, "coucou", value)
 }
 
 func TestGetTagNotFound(t *testing.T) {
-	value, found := getTag("XXX")
+	value, found := getTagFromEnv("XXX")
 	assert.Equal(t, false, found)
 	assert.Equal(t, "", value)
 }
 
 func TestGetBaseTagsMapNoEnvNoMetadata(t *testing.T) {
-	assert.Equal(t, 2, len(GetBaseTagsMapWithMetadata(make(map[string]string, 0))))
+	assert.Equal(t, 2, len(GetBaseTagsMapWithMetadata(make(map[string]string, 0), "")))
 }
 
 func TestGetBaseTagsMapNoMetadata(t *testing.T) {
@@ -59,7 +59,7 @@ func TestGetBaseTagsMapNoMetadata(t *testing.T) {
 	t.Setenv("DD_ENV", "myEnv")
 	t.Setenv("DD_SERVICE", "superService")
 	t.Setenv("DD_VERSION", "123.4")
-	tags := GetBaseTagsMapWithMetadata(make(map[string]string, 0))
+	tags := GetBaseTagsMapWithMetadata(make(map[string]string, 0), "")
 	assert.Equal(t, 5, len(tags))
 	assert.Equal(t, "myenv", tags["env"])
 	assert.Equal(t, "superservice", tags["service"])
@@ -71,7 +71,7 @@ func TestGetBaseTagsMapWithMetadata(t *testing.T) {
 	tags := GetBaseTagsMapWithMetadata(map[string]string{
 		"location":      "mysuperlocation",
 		"othermetadata": "mysuperothermetadatavalue",
-	})
+	}, "")
 	assert.Equal(t, 4, len(tags))
 	assert.Equal(t, "mysuperlocation", tags["location"])
 	assert.Equal(t, "mysuperothermetadatavalue", tags["othermetadata"])
@@ -82,7 +82,7 @@ func TestGetBaseTagsArrayWithMetadataTags(t *testing.T) {
 	tags := serverlessTag.MapToArray(GetBaseTagsMapWithMetadata(map[string]string{
 		"location":      "mysuperlocation",
 		"othermetadata": "mysuperothermetadatavalue",
-	}))
+	}, ""))
 	sort.Strings(tags)
 	assert.Equal(t, 4, len(tags))
 	assert.Contains(t, tags[0], "_dd.compute_stats:1")

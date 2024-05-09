@@ -21,7 +21,7 @@ type TagPair struct {
 	envName string
 }
 
-func getTag(envName string) (string, bool) {
+func getTagFromEnv(envName string) (string, bool) {
 	value := os.Getenv(envName)
 	if len(value) == 0 {
 		return "", false
@@ -30,7 +30,7 @@ func getTag(envName string) (string, bool) {
 }
 
 // GetBaseTagsMapWithMetadata returns a map of Datadog's base tags
-func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
+func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) map[string]string {
 	tagsMap := map[string]string{}
 	listTags := []TagPair{
 		{
@@ -47,7 +47,7 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
 		},
 	}
 	for _, tagPair := range listTags {
-		if value, found := getTag(tagPair.envName); found {
+		if value, found := getTagFromEnv(tagPair.envName); found {
 			tagsMap[tagPair.name] = value
 		}
 	}
@@ -56,7 +56,7 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
 		tagsMap[key] = value
 	}
 
-	tagsMap["datadog_init_version"] = tags.GetExtensionVersion()
+	tagsMap["datadog_init_version"] = versionMode + "-" + tags.GetExtensionVersion()
 	tagsMap[tags.ComputeStatsKey] = tags.ComputeStatsValue
 
 	return tagsMap
