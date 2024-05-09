@@ -50,11 +50,6 @@ func TestGetDDAlertType(t *testing.T) {
 }
 
 func Test_getInvolvedObjectTags(t *testing.T) {
-	type args struct {
-		clusterName string
-		ev          *v1.Event
-	}
-
 	taggerInstance := local.NewFakeTagger()
 	taggerInstance.SetTags("namespace://default", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
 	tests := []struct {
