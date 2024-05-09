@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
@@ -40,7 +41,7 @@ type npSchedulerImpl struct {
 
 	receivedPathtestConfigCount *atomic.Uint64
 	pathtestStore               *pathteststore.PathtestStore
-	pathtestInputChan           chan *pathteststore.Pathtest
+	pathtestInputChan           chan *common.Pathtest
 	pathtestProcessChan         chan *pathteststore.PathtestContext
 	stopChan                    chan struct{}
 	flushLoopDone               chan struct{}
@@ -72,8 +73,8 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 		epForwarder: epForwarder,
 		logger:      logger,
 
-		pathtestStore:       pathteststore.NewPathtestStore(DefaultFlushTickerInterval, pathtestTTL, pathtestInterval, logger),
-		pathtestInputChan:   make(chan *pathteststore.Pathtest, pathtestInputChanSize),
+		pathtestStore:       pathteststore.NewPathtestStore(common.DefaultFlushTickerInterval, pathtestTTL, pathtestInterval, logger),
+		pathtestInputChan:   make(chan *common.Pathtest, pathtestInputChanSize),
 		pathtestProcessChan: make(chan *pathteststore.PathtestContext, pathtestProcessChanSize),
 		workers:             workers,
 
@@ -135,7 +136,7 @@ func (s *npSchedulerImpl) scheduleOne(hostname string, port uint16) error {
 		return nil
 	}
 
-	ptest := &pathteststore.Pathtest{
+	ptest := &common.Pathtest{
 		Hostname: hostname,
 		Port:     port,
 	}

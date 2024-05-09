@@ -10,13 +10,14 @@ import (
 	time "time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl/common"
 )
 
 var timeNow = time.Now
 
 // PathtestContext contains Pathtest information and additional flush related data
 type PathtestContext struct {
-	Pathtest *Pathtest
+	Pathtest *common.Pathtest
 
 	nextRunTime       time.Time
 	runUntilTime      time.Time
@@ -52,7 +53,7 @@ type PathtestStore struct {
 	pathtestTTL time.Duration
 }
 
-func newPathtestContext(pt *Pathtest, runUntilDuration time.Duration) *PathtestContext {
+func newPathtestContext(pt *common.Pathtest, runUntilDuration time.Duration) *PathtestContext {
 	now := timeNow()
 	return &PathtestContext{
 		Pathtest:     pt,
@@ -121,7 +122,7 @@ func (f *PathtestStore) Flush() []*PathtestContext {
 }
 
 // Add TODO
-func (f *PathtestStore) Add(pathtestToAdd *Pathtest) {
+func (f *PathtestStore) Add(pathtestToAdd *common.Pathtest) {
 	f.logger.Tracef("Add new Pathtest: %+v", pathtestToAdd)
 
 	f.pathtestConfigsMutex.Lock()

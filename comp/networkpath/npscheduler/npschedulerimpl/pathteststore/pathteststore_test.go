@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -34,12 +34,12 @@ func Test_pathtestStore_add(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 
 	// GIVEN
-	store := newPathtestStore(npschedulerimpl.DefaultFlushTickerInterval, 10*time.Minute, 1*time.Minute, logger)
+	store := newPathtestStore(common.DefaultFlushTickerInterval, 10*time.Minute, 1*time.Minute, logger)
 
 	// WHEN
-	pt1 := &Pathtest{Hostname: "host1", Port: 53}
-	pt2 := &Pathtest{Hostname: "host2", Port: 53}
-	pt3 := &Pathtest{Hostname: "host3", Port: 53}
+	pt1 := &common.Pathtest{Hostname: "host1", Port: 53}
+	pt2 := &common.Pathtest{Hostname: "host2", Port: 53}
+	pt3 := &common.Pathtest{Hostname: "host3", Port: 53}
 	store.add(pt1)
 	store.add(pt2)
 	store.add(pt3)
@@ -64,7 +64,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	store := newPathtestStore(flushTickerInterval, runDurationFromDisc, runInterval, logger)
 
 	// WHEN
-	pt := &Pathtest{Hostname: "host1", Port: 53}
+	pt := &common.Pathtest{Hostname: "host1", Port: 53}
 	store.add(pt)
 
 	// THEN
