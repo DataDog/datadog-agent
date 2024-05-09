@@ -7,6 +7,7 @@
 package npschedulerimpl
 
 import (
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 )
 
@@ -15,13 +16,8 @@ type npSchedulerImpl struct {
 	enabled     bool
 }
 
-func (s *npSchedulerImpl) Schedule(_ string, _ uint16) error {
+func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
 	// TODO: IMPLEMENTATION IN SEPARATE PR (to make PRs easier to review)
-	return nil
-}
-
-func (s *npSchedulerImpl) Enabled() bool {
-	return s.enabled
 }
 
 func newNoopNpSchedulerImpl() *npSchedulerImpl {
