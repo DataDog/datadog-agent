@@ -78,8 +78,8 @@ type WindowsProbe struct {
 
 	// path caches
 	filePathResolverLock sync.Mutex
-	filePathResolver     map[fileObjectPointer]fileCache
-	regPathResolver      map[regObjectPointer]string
+	filePathResolver     *lru.Cache[fileObjectPointer, fileCache]
+	regPathResolver      *lru.Cache[regObjectPointer, string]
 
 	// state tracking
 	renamePreArgs renameState
@@ -328,7 +328,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					//log.Tracef("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 					p.filePathResolverLock.Lock()
-					delete(p.filePathResolver, ca.fileObject)
+					p.filePathResolver.Remove(ca.fileObject)
 					p.filePathResolverLock.Unlock()
 				}
 				p.stats.fileClose++
@@ -434,7 +434,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			case idRegCloseKey:
 				if dka, err := p.parseCloseKeyArgs(e); err == nil {
 					//log.Tracef("Got idRegCloseKey %s", dka)
-					delete(p.regPathResolver, dka.keyObject)
+					p.regPathResolver.Remove(dka.keyObject)
 				}
 				p.stats.regCloseKey++
 				/*
@@ -744,7 +744,7 @@ func (p *WindowsProbe) Close() error {
 // SendStats sends statistics about the probe to Datadog
 func (p *WindowsProbe) SendStats() error {
 	p.filePathResolverLock.Lock()
-	fprLen := len(p.filePathResolver)
+	fprLen := p.filePathResolver.Len()
 	p.filePathResolverLock.Unlock()
 
 	// may need to lock here
@@ -821,7 +821,7 @@ func (p *WindowsProbe) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfFilePathResolver, float64(fprLen), nil, 1); err != nil {
 		return err
 	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfRegistryPathResolver, float64(len(p.regPathResolver)), nil, 1); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfRegistryPathResolver, float64(p.regPathResolver.Len()), nil, 1); err != nil {
 		return err
 	}
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsETWChannelBlockedCount, float64(p.stats.etwChannelBlocked), nil, 1); err != nil {
@@ -866,6 +866,15 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
+	fc, err := lru.New[fileObjectPointer, fileCache](config.RuntimeSecurity.WindowsFilenameCacheSize)
+	if err != nil {
+		return nil, err
+	}
+	rc, err := lru.New[regObjectPointer, string](config.RuntimeSecurity.WindowsRegistryCacheSize)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	bocs := config.RuntimeSecurity.WindowsProbeBlockOnChannelSend
@@ -885,8 +894,8 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		onError:           make(chan bool),
 		onETWNotification: make(chan etwNotification, etwNotificationSize),
 
-		filePathResolver: make(map[fileObjectPointer]fileCache, 0),
-		regPathResolver:  make(map[regObjectPointer]string, 0),
+		filePathResolver: fc,
+		regPathResolver:  rc,
 
 		discardedPaths:     discardedPaths,
 		discardedBasenames: discardedBasenames,
@@ -940,7 +949,8 @@ func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field e
 	fileObject := fileObjectPointer(ev.CreateNewFile.File.FileObject)
 	p.filePathResolverLock.Lock()
 	defer p.filePathResolverLock.Unlock()
-	delete(p.filePathResolver, fileObject)
+	//delete(p.filePathResolver, fileObject)
+	p.filePathResolver.Remove(fileObject)
 }
 
 // NewModel returns a new Model

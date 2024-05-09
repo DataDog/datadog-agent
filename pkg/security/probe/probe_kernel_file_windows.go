@@ -172,9 +172,7 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 
 	wp.filePathResolverLock.Lock()
 	defer wp.filePathResolverLock.Unlock()
-	wp.filePathResolver[ca.fileObject] = fileCache{
-		fileName: ca.fileName,
-	}
+	wp.filePathResolver.Add(ca.fileObject, fileCache{fileName: ca.fileName})
 
 	return ca, nil
 }
@@ -271,7 +269,7 @@ func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformat
 
 	wp.filePathResolverLock.Lock()
 	defer wp.filePathResolverLock.Unlock()
-	if s, ok := wp.filePathResolver[fileObjectPointer(sia.fileObject)]; ok {
+	if s, ok := wp.filePathResolver.Get(fileObjectPointer(sia.fileObject)); ok {
 		sia.fileName = s.fileName
 	}
 
@@ -406,7 +404,7 @@ func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, er
 
 	wp.filePathResolverLock.Lock()
 	defer wp.filePathResolverLock.Unlock()
-	if s, ok := wp.filePathResolver[ca.fileObject]; ok {
+	if s, ok := wp.filePathResolver.Get(fileObjectPointer(ca.fileObject)); ok {
 		ca.fileName = s.fileName
 	}
 
@@ -501,7 +499,7 @@ func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
 	}
 	wp.filePathResolverLock.Lock()
 	defer wp.filePathResolverLock.Unlock()
-	if s, ok := wp.filePathResolver[fileObjectPointer(ra.fileObject)]; ok {
+	if s, ok := wp.filePathResolver.Get(fileObjectPointer(ra.fileObject)); ok {
 		if isread {
 			if s.readProcessed {
 				return nil, errDiscardedPath
@@ -611,7 +609,7 @@ func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (*deletePathAr
 
 	wp.filePathResolverLock.Lock()
 	defer wp.filePathResolverLock.Unlock()
-	if s, ok := wp.filePathResolver[fileObjectPointer(dpa.fileObject)]; ok {
+	if s, ok := wp.filePathResolver.Get(fileObjectPointer(dpa.fileObject)); ok {
 		dpa.oldPath = s.fileName
 		// question, should we reset the filePathResolver here?
 	}

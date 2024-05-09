@@ -233,6 +233,12 @@ type RuntimeSecurityConfig struct {
 
 	// WindowsProbeChannelUnbuffered defines if the windows probe channel should be unbuffered
 	WindowsProbeBlockOnChannelSend bool
+
+	//WindowsFilenameCacheSize is the max number of filenames to cache
+	WindowsFilenameCacheSize int
+
+	//WindowsRegistryCacheSize is the max number of registry paths to cache
+	WindowsRegistryCacheSize int
 }
 
 // Config defines a security config
@@ -291,6 +297,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ETWEventsChannelSize:           coreconfig.SystemProbe.GetInt("runtime_security_config.etw_events_channel_size"),
 		ETWEventsMaxBuffers:            coreconfig.SystemProbe.GetInt("runtime_security_config.etw_events_max_buffers"),
 		WindowsProbeBlockOnChannelSend: coreconfig.SystemProbe.GetBool("runtime_security_config.windows_probe_block_on_channel_send"),
+		WindowsFilenameCacheSize:       coreconfig.SystemProbe.GetInt("runtime_security_config.windows_filename_cache_max"),
+		WindowsRegistryCacheSize:       coreconfig.SystemProbe.GetInt("runtime_security_config.windows_registry_cache_max"),
 
 		SocketPath:           coreconfig.SystemProbe.GetString("runtime_security_config.socket"),
 		EventServerBurst:     coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.burst"),
