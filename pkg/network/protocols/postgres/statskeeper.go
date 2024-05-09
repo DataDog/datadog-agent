@@ -46,15 +46,17 @@ func (s *StatKeeper) Process(tx *EventWrapper) {
 			return
 		}
 		requestStats = new(RequestStat)
-		if err := requestStats.initSketch(); err != nil {
-			return
-		}
-		requestStats.FirstLatencySample = tx.RequestLatency()
 		s.stats[key] = requestStats
 	}
 	requestStats.Count++
 	if requestStats.Count == 1 {
+		requestStats.FirstLatencySample = tx.RequestLatency()
 		return
+	}
+	if requestStats.Latencies == nil {
+		if err := requestStats.initSketch(); err != nil {
+			return
+		}
 	}
 	if err := requestStats.Latencies.Add(tx.RequestLatency()); err != nil {
 		log.Debugf("could not add request latency to ddsketch: %v", err)
