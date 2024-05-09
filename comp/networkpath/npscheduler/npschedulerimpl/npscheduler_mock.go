@@ -28,10 +28,6 @@ func (s *npSchedulerMock) ScheduleConns(conns []*model.Connection) {
 	panic("implement me")
 }
 
-func (s *npSchedulerMock) Schedule(hostname string, port uint16) error {
-	return nil
-}
-
 func (s *npSchedulerMock) Enabled() bool {
 	return true
 }

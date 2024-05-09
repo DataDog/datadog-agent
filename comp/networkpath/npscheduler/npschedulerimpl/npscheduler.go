@@ -104,7 +104,7 @@ func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
 		}
 		remoteAddr := conn.Raddr
 		remotePort := uint16(conn.Raddr.Port)
-		err := s.Schedule(remoteAddr.Ip, remotePort)
+		err := s.scheduleOne(remoteAddr.Ip, remotePort)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
 		}
@@ -122,9 +122,9 @@ func shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
 	return true
 }
 
-// Schedule schedules pathtests.
+// scheduleOne schedules pathtests.
 // It shouldn't block, if the input channel is full, an error is returned.
-func (s *npSchedulerImpl) Schedule(hostname string, port uint16) error {
+func (s *npSchedulerImpl) scheduleOne(hostname string, port uint16) error {
 	if s.pathtestInputChan == nil {
 		return errors.New("no input channel, please check that network path is enabled")
 	}
