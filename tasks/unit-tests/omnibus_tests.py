@@ -82,6 +82,7 @@ class TestOmnibusCache(unittest.TestCase):
         self._set_up_default_command_mocks()
         omnibus.build(self.mock_ctx)
 
+        # Assert main actions were taken in the expected order
         self.assertRunLines(
             [
                 # We copied the cache from remote cache
@@ -94,6 +95,16 @@ class TestOmnibusCache(unittest.TestCase):
                 r'bundle exec omnibus build agent',
             ],
         )
+
+        # By the way the mocks are set up, we expect the `cache state` to not have changed and thus the cache
+        # shouldn't have been bundled and uploaded
+        commands = _run_calls_to_string(self.mock_ctx.run.mock_calls)
+        lines = [
+            'git -C omnibus-git-cache/opt/datadog-agent bundle create /tmp/omnibus-git-cache-bundle --tags',
+            r'aws s3 cp (\S* )?/tmp/omnibus-git-cache-bundle s3://omnibus-cache/builds/\w+/slug',
+        ]
+        for line in lines:
+            self.assertIsNone(re.search(line, commands))
 
     def test_cache_miss(self):
         self.mock_ctx.set_result_for(
