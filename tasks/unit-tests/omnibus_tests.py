@@ -136,3 +136,19 @@ class TestOmnibusCache(unittest.TestCase):
                 r'aws s3 cp (\S* )?/tmp/omnibus-git-cache-bundle s3://omnibus-cache/builds/\w+/slug',
             ],
         )
+
+    def test_cache_hit_with_corruption(self):
+        # Case where we get a bundle from S3 but git finds it to be corrupted
+
+        # Fail to clone
+        self.mock_ctx.set_result_for(
+            'run',
+            re.compile(r'git clone (\S* )?/tmp/omnibus-git-cache-bundle.*'),
+            Result('fatal: remote did not send all necessary objects', exited=1),
+        )
+        self._set_up_default_command_mocks()
+
+        omnibus.build(self.mock_ctx)
+
+        # We're satisfied if we ran the build despite that failure
+        self.assertRunLines([r'bundle exec omnibus build agent'])
