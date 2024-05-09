@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/prometheus/procfs"
@@ -25,206 +24,195 @@ func init() {
 	newOSImpl = newLinuxImpl
 }
 
-type aliveMap struct {
-	m  map[int]*processInfo
-	mu sync.RWMutex
-}
-
-func (a *aliveMap) get(pid int) (*processInfo, bool) {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	v, ok := a.m[pid]
-	return v, ok
-}
-
-func (a *aliveMap) set(pid int, info *processInfo) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.m[pid] = info
-}
-
-func (a *aliveMap) delete(pid int) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	delete(a.m, pid)
-}
-
-type ignoreMap struct {
-	m  map[int]string
-	mu sync.RWMutex
-}
-
-func (i *ignoreMap) get(pid int) (string, bool) {
-	i.mu.RLock()
-	defer i.mu.RUnlock()
-	v, ok := i.m[pid]
-	return v, ok
-}
-
-func (i *ignoreMap) set(pid int, name string) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	i.m[pid] = name
-}
-
-func (i *ignoreMap) delete(pid int) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	delete(i.m, pid)
+var ignoreCfgLinux = []string{
+	"sshd",
+	"dhclient",
 }
 
 type linuxImpl struct {
 	sender    *telemetrySender
-	ignoreCfg map[string]struct{}
+	ignoreCfg map[string]bool
 
-	// PID -> process info
-	// pids that are considered services will be added here.
-	alive *aliveMap
-
-	// PID -> process name
-	// pids will be added here because the name was ignored in the config, or because
-	// it was already scanned and had no open ports.
-	ignore *ignoreMap
+	ignoreProcs       map[int]bool
+	aliveServices     map[int]*processInfo
+	potentialServices map[int]*processInfo
 }
 
-func newLinuxImpl(sender *telemetrySender, ignoreProcesses map[string]struct{}) osImpl {
-	return &linuxImpl{
-		sender:    sender,
-		ignoreCfg: ignoreProcesses,
-		ignore: &ignoreMap{
-			m: make(map[int]string),
-		},
-		alive: &aliveMap{
-			m: make(map[int]*processInfo),
-		},
+func newLinuxImpl(sender *telemetrySender, ignoreCfg map[string]bool) osImpl {
+	for _, i := range ignoreCfgLinux {
+		ignoreCfg[i] = true
 	}
+	return &linuxImpl{
+		sender:            sender,
+		ignoreCfg:         ignoreCfg,
+		ignoreProcs:       make(map[int]bool),
+		aliveServices:     make(map[int]*processInfo),
+		potentialServices: make(map[int]*processInfo),
+	}
+}
+
+type processEvents struct {
+	started []*processInfo
+	stopped []*processInfo
+}
+
+type eventsByName map[string]*processEvents
+
+func (e eventsByName) getOrCreate(name string) *processEvents {
+	events, ok := e[name]
+	if ok {
+		return events
+	}
+	e[name] = &processEvents{}
+	return e[name]
+}
+
+func (e eventsByName) addStarted(p *processInfo) {
+	events := e.getOrCreate(p.Service.Name)
+	events.started = append(events.started, p)
+}
+
+func (e eventsByName) addStopped(p *processInfo) {
+	events := e.getOrCreate(p.Service.Name)
+	events.stopped = append(events.stopped, p)
 }
 
 func (i *linuxImpl) DiscoverServices() error {
-	processes, err := procfs.AllProcs()
+	procs, err := i.aliveProcs()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get alive processes: %w", err)
 	}
 
-	portPoller, err := portlist.NewPoller(false)
+	ports, err := i.openPorts()
 	if err != nil {
-		return fmt.Errorf("failed to initialize port poller: %w", err)
+		return fmt.Errorf("failed to get get ports: %w", err)
+	}
+
+	log.Infof("aliveProcs: %d | ignoreProcs: %d | runningServices: %d | openPorts: %v",
+		len(procs),
+		len(i.ignoreProcs),
+		len(i.aliveServices),
+		ports,
+	)
+
+	var (
+		started []*processInfo
+		stopped []*processInfo
+	)
+
+	// potentialServices contains processes that we scanned in the previous iteration and had open ports.
+	// we check if they are still alive in this iteration, and if so, we send a start-service telemetry event.
+	for pid, _ := range i.potentialServices {
+		if proc, ok := procs[pid]; ok {
+			pInfo, err := getProcessInfo(proc, ports)
+			if err != nil {
+				log.Errorf("[pid: %d] failed to get process info: %v", pid, err)
+				continue
+			}
+			started = append(started, pInfo)
+		}
+	}
+	clear(i.potentialServices)
+
+	// check open ports - these will be potential new services if they are still alive in the next iteration.
+	for pid, _ := range ports {
+		if i.ignoreProcs[pid] {
+			continue
+		}
+		if _, ok := i.aliveServices[pid]; !ok {
+			proc := procs[pid]
+			pInfo, err := getProcessInfo(proc, ports)
+			if err != nil {
+				log.Errorf("[pid: %d] failed to get process info: %v", pid, err)
+				continue
+			}
+			if i.ignoreCfg[pInfo.Service.Name] {
+				log.Infof("[pid: %d] process ignored from config: %s", pid, pInfo.Service.Name)
+				i.ignoreProcs[pid] = true
+				continue
+			}
+			i.potentialServices[pid] = pInfo
+		}
+	}
+
+	// check if services previously marked as alive still are.
+	for pid, pInfo := range i.aliveServices {
+		if _, ok := procs[pid]; !ok {
+			stopped = append(stopped, pInfo)
+		} else if time.Since(pInfo.LastHeartBeatTime) >= heartbeatTime {
+			i.sender.sendHeartbeatServiceEvent(pInfo)
+			pInfo.LastHeartBeatTime = time.Now()
+		}
+	}
+
+	// check if services previously marked as ignore are still alive.
+	for pid, _ := range i.ignoreProcs {
+		if _, ok := procs[pid]; !ok {
+			delete(i.ignoreProcs, pid)
+		}
+	}
+
+	// group started and stopped processes by name
+	events := make(eventsByName)
+	for _, p := range started {
+		i.aliveServices[p.PID] = p
+		events.addStarted(p)
+	}
+	for _, p := range stopped {
+		delete(i.aliveServices, p.PID)
+		events.addStopped(p)
+	}
+
+	for name, ev := range events {
+		if len(ev.started) > 0 && len(ev.stopped) > 0 {
+			// TODO: do something smarter here
+			log.Warnf("found multiple started/stopped processes with the same name, skipping events (name: %q)", name)
+			continue
+		}
+		for _, p := range ev.started {
+			i.sender.sendStartServiceEvent(p)
+		}
+		for _, p := range ev.stopped {
+			i.sender.sendEndServiceEvent(p)
+		}
+	}
+
+	return nil
+}
+
+func (i *linuxImpl) aliveProcs() (map[int]procfs.Proc, error) {
+	processes, err := procfs.AllProcs()
+	if err != nil {
+		return nil, err
+	}
+	procMap := map[int]procfs.Proc{}
+	for _, v := range processes {
+		procMap[v.PID] = v
+	}
+	return procMap, nil
+}
+
+func (i *linuxImpl) openPorts() (map[int]portlist.List, error) {
+	poller, err := portlist.NewPoller(false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize port poller: %w", err)
 	}
 	defer func() {
-		if err := portPoller.Close(); err != nil {
+		if err := poller.Close(); err != nil {
 			log.Warnf("failed to close port poller: %v", err)
 		}
 	}()
 
-	openPorts, err := portPoller.ListeningPorts()
+	ports, err := poller.ListeningPorts()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	log.Infof("alive: %d | services: %d | ignore: %d", len(processes), len(i.alive.m), len(i.ignore.m))
-	aliveProcesses := make(map[int]struct{})
-
-	var wg sync.WaitGroup
-
-	for _, p := range processes {
-		aliveProcesses[p.PID] = struct{}{}
-		name, shortName, err := processName(p)
-		if err != nil {
-			log.Errorf("[pid: %d] failed to get process name: %v", p.PID, err)
-			continue
-		}
-
-		ignore := false
-		if ignoreName, ok := i.ignore.get(p.PID); ok {
-			// ignore
-			if ignoreName == name {
-				ignore = true
-			} else {
-				// same pid but different process name, this means the pid has been reused for
-				// a different process
-				i.ignore.delete(p.PID)
-			}
-		} else if _, ok := i.ignoreCfg[shortName]; ok {
-			ignore = true
-			i.ignore.set(p.PID, name)
-		}
-
-		if !ignore {
-			// process is a potential service
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				i.scanProcess(p.PID, openPorts)
-			}()
-		}
+	portMap := map[int]portlist.List{}
+	for _, p := range ports {
+		portMap[p.Pid] = append(portMap[p.Pid], p)
 	}
-
-	for pid, pInfo := range i.alive.m {
-		_, ok := aliveProcesses[pid]
-		if !ok {
-			// TODO: if there is a start and a stop for the same process name in this iteration, it means the process
-			// 	has been restarted. In that case we should only send one of the events.
-			i.sender.sendEndServiceEvent(pInfo)
-			i.alive.delete(pid)
-		}
-	}
-
-	// cleanup ignore processes that are no longer alive
-	for pid, _ := range i.ignore.m {
-		_, ok := aliveProcesses[pid]
-		if !ok {
-			i.ignore.delete(pid)
-		}
-	}
-
-	wg.Wait()
-	return nil
-}
-
-func (i *linuxImpl) scanProcess(pid int, openPorts portlist.List) {
-	p, err := procfs.NewProc(pid)
-	if err != nil {
-		log.Errorf("failed to get proc: %v", err)
-		return
-	}
-
-	if pInfo, ok := i.alive.get(pid); ok {
-		if time.Since(pInfo.LastHeatBeatTime) >= heartbeatTime {
-			i.sender.sendHeartbeatServiceEvent(pInfo)
-			pInfo.LastHeatBeatTime = time.Now()
-		}
-		return
-	}
-
-	pInfo, err := getProcessInfo(p, openPorts)
-	if err != nil {
-		log.Errorf("failed to get process info: %v", err)
-		return
-	}
-
-	if len(pInfo.Ports) == 0 {
-		log.Infof("[pid: %d | name: %s]: process has no open ports, ignoring...", pid, pInfo.ShortName)
-		i.ignore.set(pid, pInfo.Name)
-		return
-	}
-
-	dCtx := servicedetector.New(pInfo.CmdLine, pInfo.Env)
-	meta, ok := dCtx.Detect()
-	if !ok {
-		log.Warnf("failed to detect service (pid: %d, name: %s)", pInfo.PID, pInfo.ShortName)
-		return
-	}
-
-	if len(meta.AdditionalNames) > 0 {
-		for _, n := range meta.AdditionalNames {
-			pInfo.Services = append(pInfo.Services, &serviceInfo{Name: n})
-		}
-	} else {
-		pInfo.Services = append(pInfo.Services, &serviceInfo{Name: meta.Name})
-	}
-
-	i.alive.set(pid, pInfo)
-	i.sender.sendStartServiceEvent(pInfo)
+	return portMap, nil
 }
 
 /*
@@ -234,7 +222,7 @@ func (i *linuxImpl) scanProcess(pid int, openPorts portlist.List) {
 - open ports /proc/{pid}/net/tcp|udp|tcp6|udp6
 - time launched /proc/{pid}/stat
 */
-func getProcessInfo(p procfs.Proc, openPorts portlist.List) (*processInfo, error) {
+func getProcessInfo(p procfs.Proc, openPorts map[int]portlist.List) (*processInfo, error) {
 	cmdline, err := p.CmdLine()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read /proc/{pid}/cmdline: %w", err)
@@ -255,27 +243,31 @@ func getProcessInfo(p procfs.Proc, openPorts portlist.List) (*processInfo, error
 		return nil, fmt.Errorf("failed to read /proc/{pid}/stat: %w", err)
 	}
 
-	var processPorts []int
-	for _, port := range openPorts {
-		if port.Pid == p.PID {
-			processPorts = append(processPorts, int(port.Port))
-		}
+	var ports []int
+	for _, port := range openPorts[p.PID] {
+		ports = append(ports, int(port.Port))
 	}
 
+	dCtx := servicedetector.New(cmdline, env)
+	svcMeta := dCtx.Detect()
+	log.Infof("servicedetector returned metadata: %v (cmdline: %v, env: %v)", svcMeta, cmdline, env)
+
 	return &processInfo{
-		PID:       p.PID,
-		Name:      nameFromArgv(cmdline),
-		ShortName: shortNameFromArgv(cmdline),
-		CmdLine:   cmdline,
-		Env:       env,
-		Cwd:       cwd,
-		Services:  nil,
-		Stat: &procStat{
+		PID:     p.PID,
+		CmdLine: cmdline,
+		Env:     env,
+		Cwd:     cwd,
+		Service: serviceInfo{
+			Name:     svcMeta.Name,
+			Language: 0, // TODO
+			Type:     0, // TODO
+		},
+		Stat: procStat{
 			StartTime: stat.Starttime,
 		},
-		Ports:            processPorts,
-		DetectedTime:     time.Now(),
-		LastHeatBeatTime: time.Now(),
+		Ports:             ports,
+		DetectedTime:      time.Now(),
+		LastHeartBeatTime: time.Now(),
 	}, nil
 }
 

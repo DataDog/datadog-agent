@@ -80,10 +80,10 @@ func NewWithFS(args []string, envs []string, fs fs.SubFS) ServiceDetector {
 	}
 }
 
-func (c ServiceDetector) Detect() (ServiceMetadata, bool) {
+func (c ServiceDetector) Detect() ServiceMetadata {
 	cmd := c.args
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
-		return ServiceMetadata{}, false
+		return ServiceMetadata{}
 	}
 
 	exe := cmd[0]
@@ -105,7 +105,9 @@ func (c ServiceDetector) Detect() (ServiceMetadata, bool) {
 	}
 
 	if detectorProvider, ok := binsWithContext[exe]; ok {
-		return detectorProvider(c).detect(cmd[1:])
+		if meta, ok := detectorProvider(c).detect(cmd[1:]); ok {
+			return meta
+		}
 	}
 
 	// trim trailing file extensions
@@ -113,7 +115,7 @@ func (c ServiceDetector) Detect() (ServiceMetadata, bool) {
 		exe = exe[:i]
 	}
 
-	return newServiceMetadata(exe), true
+	return newServiceMetadata(exe)
 }
 
 // workingDirFromEnvs returns the current working dir extracted from the PWD env

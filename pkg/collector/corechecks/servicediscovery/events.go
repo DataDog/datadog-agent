@@ -8,12 +8,13 @@ package servicediscovery
 import (
 	"context"
 	"encoding/json"
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"time"
 )
 
 type eventType string
@@ -43,7 +44,7 @@ type event struct {
 	Payload     *eventPayload `json:"payload"`
 }
 
-func newEvent(t eventType, proc *processInfo, svc *serviceInfo) *event {
+func newEvent(t eventType, proc *processInfo) *event {
 	host, err := hostname.Get(context.Background())
 	if err != nil {
 		log.Warnf("failed to get hostname: %v", err)
@@ -57,11 +58,11 @@ func newEvent(t eventType, proc *processInfo, svc *serviceInfo) *event {
 			ApiVersion:          "v1",
 			NamingSchemaVersion: "1",
 			RequestType:         t,
-			ServiceName:         svc.Name,
+			ServiceName:         proc.Service.Name,
 			HostName:            host,
 			Env:                 env,
-			ServiceLanguage:     svc.Language,
-			ServiceType:         svc.Type,
+			ServiceLanguage:     proc.Service.Language,
+			ServiceType:         proc.Service.Type,
 			Timestamp:           time.Now().Unix(),
 			APMInstrumentation:  false,
 		},
@@ -101,54 +102,48 @@ func newTelemetrySender(sender sender.Sender) *telemetrySender {
 func (ts *telemetrySender) sendStartServiceEvent(p *processInfo) {
 	log.Infof("[pid: %d | name: %s | ports: %v] start-service",
 		p.PID,
-		p.ShortName,
+		p.Service.Name,
 		p.Ports,
 	)
 
-	for _, s := range p.Services {
-		e := newEvent(eventTypeStartService, p, s)
-		b, err := json.Marshal(e)
-		if err != nil {
-			log.Errorf("failed to encode start-service event as json: %v", err)
-			return
-		}
-		log.Infof("sending start-service event: %s", string(b))
-		ts.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
+	e := newEvent(eventTypeStartService, p)
+	b, err := json.Marshal(e)
+	if err != nil {
+		log.Errorf("failed to encode start-service event as json: %v", err)
+		return
 	}
+	log.Infof("sending start-service event: %s", string(b))
+	ts.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
 }
 
 func (ts *telemetrySender) sendHeartbeatServiceEvent(p *processInfo) {
 	log.Infof("[pid: %d | name: %s] heartbeat-service",
 		p.PID,
-		p.ShortName,
+		p.Service.Name,
 	)
 
-	for _, s := range p.Services {
-		e := newEvent(eventTypeHeartbeatService, p, s)
-		b, err := json.Marshal(e)
-		if err != nil {
-			log.Errorf("failed to encode heartbeat-service event as json: %v", err)
-			return
-		}
-		log.Infof("sending heartbeat-service event: %s", string(b))
-		ts.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
+	e := newEvent(eventTypeHeartbeatService, p)
+	b, err := json.Marshal(e)
+	if err != nil {
+		log.Errorf("failed to encode heartbeat-service event as json: %v", err)
+		return
 	}
+	log.Infof("sending heartbeat-service event: %s", string(b))
+	ts.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
 }
 
 func (ts *telemetrySender) sendEndServiceEvent(p *processInfo) {
 	log.Infof("[pid: %d | name: %s] stop-service",
 		p.PID,
-		p.ShortName,
+		p.Service.Name,
 	)
 
-	for _, s := range p.Services {
-		e := newEvent(eventTypeEndService, p, s)
-		b, err := json.Marshal(e)
-		if err != nil {
-			log.Errorf("failed to encode end-service event as json: %v", err)
-			return
-		}
-		log.Infof("sending end-service event: %s", string(b))
-		ts.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
+	e := newEvent(eventTypeEndService, p)
+	b, err := json.Marshal(e)
+	if err != nil {
+		log.Errorf("failed to encode end-service event as json: %v", err)
+		return
 	}
+	log.Infof("sending end-service event: %s", string(b))
+	ts.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
 }

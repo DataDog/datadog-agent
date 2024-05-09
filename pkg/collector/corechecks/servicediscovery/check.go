@@ -27,7 +27,7 @@ type osImpl interface {
 }
 
 var (
-	newOSImpl func(sender *telemetrySender, ignoreCfg map[string]struct{}) osImpl
+	newOSImpl func(sender *telemetrySender, ignoreCfg map[string]bool) osImpl
 )
 
 const (
@@ -57,17 +57,15 @@ type serviceInfo struct {
 }
 
 type processInfo struct {
-	PID              int
-	Name             string
-	ShortName        string
-	Services         []*serviceInfo
-	CmdLine          []string
-	Env              []string
-	Cwd              string
-	Stat             *procStat
-	Ports            []int
-	DetectedTime     time.Time
-	LastHeatBeatTime time.Time
+	PID               int
+	Service           serviceInfo
+	CmdLine           []string
+	Env               []string
+	Cwd               string
+	Stat              procStat
+	Ports             []int
+	DetectedTime      time.Time
+	LastHeartBeatTime time.Time
 }
 
 // Parse parses the configuration
@@ -114,9 +112,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		return fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	ignoreCfg := map[string]struct{}{}
+	ignoreCfg := map[string]bool{}
 	for _, pName := range strings.Split(c.cfg.IgnoreProcesses, ",") {
-		ignoreCfg[pName] = struct{}{}
+		ignoreCfg[pName] = true
 	}
 
 	s, err := c.GetSender()
