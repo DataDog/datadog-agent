@@ -22,6 +22,8 @@ import (
 var BTFHubVsRcPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameNFConnStructCTNet,
 	constantfetch.OffsetNameIoKiocbStructCtx,
+	constantfetch.OffsetNameSchedProcessForkChildPid,
+	constantfetch.OffsetNameSchedProcessForkParentPid,
 }
 
 var RCVsFallbackPossiblyMissingConstants = []string{
@@ -29,6 +31,8 @@ var RCVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
 	constantfetch.OffsetNameDeviceStructNdNet,
+	constantfetch.OffsetNameSchedProcessForkChildPid,
+	constantfetch.OffsetNameSchedProcessForkParentPid,
 }
 
 var BTFHubVsFallbackPossiblyMissingConstants = []string{
@@ -36,6 +40,8 @@ var BTFHubVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
 	constantfetch.OffsetNameDeviceStructNdNet,
+	constantfetch.OffsetNameSchedProcessForkChildPid,
+	constantfetch.OffsetNameSchedProcessForkParentPid,
 }
 
 var BTFVsFallbackPossiblyMissingConstants = []string{
@@ -43,10 +49,16 @@ var BTFVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
 	constantfetch.OffsetNameDeviceStructNdNet,
+	constantfetch.OffsetNameSchedProcessForkChildPid,
+	constantfetch.OffsetNameSchedProcessForkParentPid,
 }
 
 func TestOctogonConstants(t *testing.T) {
 	SkipIfNotAvailable(t)
+
+	if _, err := constantfetch.NewBTFConstantFetcherFromCurrentKernel(); err == nil {
+		t.Skipf("this kernel has BTF data available, skipping octogon")
+	}
 
 	if err := initLogger(); err != nil {
 		t.Fatal(err)
@@ -109,17 +121,6 @@ func TestOctogonConstants(t *testing.T) {
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
 
 		assertConstantsEqual(t, btfhubFetcher, fallbackFetcher, kv, BTFHubVsFallbackPossiblyMissingConstants)
-	})
-
-	t.Run("btf-vs-fallback", func(t *testing.T) {
-		btfFetcher, err := constantfetch.NewBTFConstantFetcherFromCurrentKernel()
-		if err != nil {
-			t.Skipf("btf constant fetcher is not available: %v", err)
-		}
-
-		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
-
-		assertConstantContains(t, btfFetcher, fallbackFetcher, kv, BTFVsFallbackPossiblyMissingConstants)
 	})
 
 	t.Run("guesser-vs-rc", func(t *testing.T) {

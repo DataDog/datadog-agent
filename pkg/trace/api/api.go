@@ -40,6 +40,14 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// defaultReceiverBufferSize is used as a default for the initial size of http body buffer
+// if no content-length is provided (Content-Encoding: Chunked) which happens in some tracers.
+//
+// This value has been picked as a "safe" default. Most real life traces should be at least a few KiB
+// so allocating 8KiB should provide a big enough buffer to prevent initial resizing, without blowing
+// up memory usage of the tracer.
+const defaultReceiverBufferSize = 8192 // 8KiB
+
 var bufferPool = sync.Pool{
 	New: func() interface{} {
 		return new(bytes.Buffer)
@@ -54,6 +62,26 @@ func getBuffer() *bytes.Buffer {
 
 func putBuffer(buffer *bytes.Buffer) {
 	bufferPool.Put(buffer)
+}
+
+func copyRequestBody(buf *bytes.Buffer, req *http.Request) (written int64, err error) {
+	reserveBodySize(buf, req)
+	return io.Copy(buf, req.Body)
+}
+
+func reserveBodySize(buf *bytes.Buffer, req *http.Request) {
+	var err error
+	bufferSize := 0
+	if contentSize := req.Header.Get("Content-Length"); contentSize != "" {
+		bufferSize, err = strconv.Atoi(contentSize)
+		if err != nil {
+			log.Debugf("could not parse Content-Length header value as integer: %v", err)
+		}
+	}
+	if bufferSize == 0 {
+		bufferSize = defaultReceiverBufferSize
+	}
+	buf.Grow(bufferSize)
 }
 
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
@@ -387,7 +415,7 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 	case v05:
 		buf := getBuffer()
 		defer putBuffer(buf)
-		if _, err = io.Copy(buf, req.Body); err != nil {
+		if _, err = copyRequestBody(buf, req); err != nil {
 			return nil, false, err
 		}
 		var traces pb.Traces
@@ -402,7 +430,7 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 	case V07:
 		buf := getBuffer()
 		defer putBuffer(buf)
-		if _, err = io.Copy(buf, req.Body); err != nil {
+		if _, err = copyRequestBody(buf, req); err != nil {
 			return nil, false, err
 		}
 		var tracerPayload pb.TracerPayload
@@ -719,7 +747,7 @@ func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error)
 	case "application/msgpack":
 		buf := getBuffer()
 		defer putBuffer(buf)
-		_, err = io.Copy(buf, req.Body)
+		_, err = copyRequestBody(buf, req)
 		if err != nil {
 			return false, err
 		}
@@ -737,7 +765,7 @@ func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error)
 		if err1 := json.NewDecoder(req.Body).Decode(&dest); err1 != nil {
 			buf := getBuffer()
 			defer putBuffer(buf)
-			_, err2 := io.Copy(buf, req.Body)
+			_, err2 := copyRequestBody(buf, req)
 			if err2 != nil {
 				return false, err2
 			}
@@ -758,6 +786,7 @@ func traceChunksFromSpans(spans []*pb.Span) []*pb.TraceChunk {
 		traceChunks = append(traceChunks, &pb.TraceChunk{
 			Priority: int32(sampler.PriorityNone),
 			Spans:    t,
+			Tags:     make(map[string]string),
 		})
 	}
 	return traceChunks
@@ -769,6 +798,7 @@ func traceChunksFromTraces(traces pb.Traces) []*pb.TraceChunk {
 		traceChunks = append(traceChunks, &pb.TraceChunk{
 			Priority: int32(sampler.PriorityNone),
 			Spans:    trace,
+			Tags:     make(map[string]string),
 		})
 	}
 
