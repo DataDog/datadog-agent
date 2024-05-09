@@ -86,7 +86,7 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 	}
 }
 
-func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
+func (s *npSchedulerImpl) ScheduleConns(_ []*model.Connection) {
 	if !s.enabled {
 		return
 	}
