@@ -26,7 +26,7 @@ func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
 	t.Setenv("DD_ENV", "myEnv")
 	t.Setenv("DD_SERVICE", "superService")
 	t.Setenv("DD_VERSION", "123.4")
-	tags := serverlessTag.MapToArray(GetBaseTagsMapWithMetadata(make(map[string]string, 0), ""))
+	tags := serverlessTag.MapToArray(GetBaseTagsMapWithMetadata(make(map[string]string, 0), "init"))
 	sort.Strings(tags)
 	assert.Equal(t, 5, len(tags))
 	assert.Contains(t, tags[0], "_dd.compute_stats:1")
@@ -82,7 +82,7 @@ func TestGetBaseTagsArrayWithMetadataTags(t *testing.T) {
 	tags := serverlessTag.MapToArray(GetBaseTagsMapWithMetadata(map[string]string{
 		"location":      "mysuperlocation",
 		"othermetadata": "mysuperothermetadatavalue",
-	}, ""))
+	}, "init"))
 	sort.Strings(tags)
 	assert.Equal(t, 4, len(tags))
 	assert.Contains(t, tags[0], "_dd.compute_stats:1")
