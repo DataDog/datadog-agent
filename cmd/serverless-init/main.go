@@ -33,7 +33,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -41,7 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
-	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
+	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -86,7 +86,7 @@ func main() {
 
 // removing these unused dependencies will cause silent crash due to fx framework
 func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobe.Component) {
-	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup()
+	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf)
 
 	modeConf.Runner(logConfig)
 
@@ -94,7 +94,7 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobe.Component
 	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
 }
 
-func setup() (cloudservice.CloudService, *serverlessInitLog.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(mode.ModeConf) (cloudservice.CloudService, *serverlessInitLog.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
@@ -108,7 +108,9 @@ func setup() (cloudservice.CloudService, *serverlessInitLog.Config, *trace.Serve
 	// and exit right away.
 	_ = cloudService.Init()
 
-	tags := tags.MergeWithOverwrite(tags.ArrayToMap(configUtils.GetConfiguredTags(pkgconfig.Datadog, false)), cloudService.GetTags())
+	tags := serverlessTag.MergeWithOverwrite(
+		serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfig.Datadog, false)),
+		cloudService.GetTags())
 	origin := cloudService.GetOrigin()
 	prefix := cloudService.GetPrefix()
 
@@ -135,7 +137,7 @@ func setup() (cloudservice.CloudService, *serverlessInitLog.Config, *trace.Serve
 }
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
 	traceAgent.Start(pkgconfig.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
-	traceAgent.SetTags(tag.GetBaseTagsMapWithMetadata(tags))
+	traceAgent.SetTags(serverlessInitTag.GetBaseTagsMapWithMetadata(tags))
 	for range time.Tick(3 * time.Second) {
 		traceAgent.Flush()
 	}
@@ -147,10 +149,10 @@ func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 		SketchesBucketOffset: time.Second * 0,
 	}
 	// we don't want to add the container_id tag to metrics for cardinality reasons
-	tags = tag.WithoutContainerID(tags)
-	tagArray := tag.GetBaseTagsArrayWithMetadataTags(tags)
+	tags = serverlessInitTag.WithoutContainerID(tags)
+	tagArray := serverlessInitTag.GetBaseTagsMapWithMetadata(tags)
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
-	metricAgent.SetExtraTags(tagArray)
+	metricAgent.SetExtraTags(serverlessTag.MapToArray(tagArray))
 	return metricAgent
 }
 
