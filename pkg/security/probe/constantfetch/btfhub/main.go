@@ -11,6 +11,7 @@ package main
 import (
 	"archive/tar"
 	"bytes"
+	"cmp"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -24,7 +25,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime/pprof"
+	"slices"
 	"strings"
+	"sync"
 
 	"github.com/smira/go-xz"
 
@@ -94,9 +97,23 @@ func main() {
 
 	twCollector := newTreeWalkCollector(preAllocHint)
 
+	var wg sync.WaitGroup
+	// github actions runner have only 2 cores
+	for i := 0; i < 2; i++ {
+		go func() {
+			wg.Add(1)
+			defer wg.Done()
+			if err := twCollector.extractor(); err != nil {
+				panic(err)
+			}
+		}()
+	}
+
 	if err := filepath.WalkDir(archiveRootPath, twCollector.treeWalkerBuilder(archiveRootPath)); err != nil {
 		panic(err)
 	}
+
+	wg.Wait()
 
 	export := twCollector.finish()
 
@@ -205,18 +222,28 @@ func getCommitSha(cwd string) (string, error) {
 }
 
 type treeWalkCollector struct {
-	counter int
-	results []extractionResult
+	sync.Mutex
+
+	counter   int
+	results   []extractionResult
+	cache     map[string]map[string]uint64
+	queryChan chan extractionQuery
 }
 
 func newTreeWalkCollector(preAllocHint int) *treeWalkCollector {
 	return &treeWalkCollector{
-		counter: 0,
-		results: make([]extractionResult, 0, preAllocHint),
+		counter:   0,
+		results:   make([]extractionResult, 0, preAllocHint),
+		cache:     make(map[string]map[string]uint64),
+		queryChan: make(chan extractionQuery),
 	}
 }
 
 func (c *treeWalkCollector) finish() constantfetch.BTFHubConstants {
+	slices.SortFunc(c.results, func(a extractionResult, b extractionResult) int {
+		return cmp.Compare(a.counter, b.counter)
+	})
+
 	constants := make([]map[string]uint64, 0)
 	kernels := make([]constantfetch.BTFHubKernel, 0)
 
@@ -274,28 +301,56 @@ func (c *treeWalkCollector) treeWalkerBuilder(prefix string) fs.WalkDirFunc {
 		arch := btfParts[len(btfParts)-2]
 		unameRelease := strings.TrimSuffix(btfParts[len(btfParts)-1], ".btf.tar.xz")
 
-		fmt.Println(c.counter, path)
-		c.counter++
-
-		constants, err := extractConstantsFromBTF(path, distribution, distribVersion)
-		if err != nil {
-			return fmt.Errorf("failed to extract constants from `%s`: %v", path, err)
-		}
-
-		res := extractionResult{
+		c.queryChan <- extractionQuery{
+			counter:        c.counter,
+			path:           path,
 			distribution:   distribution,
 			distribVersion: distribVersion,
 			arch:           arch,
 			unameRelease:   unameRelease,
-			constants:      constants,
 		}
 
-		c.results = append(c.results, res)
+		c.counter++
 		return nil
 	}
 }
 
+func (c *treeWalkCollector) extractor() error {
+	for query := range c.queryChan {
+		fmt.Println(query.counter, query.path)
+
+		constants, err := c.extractConstantsFromBTF(query.path, query.distribution, query.distribVersion)
+		if err != nil {
+			return fmt.Errorf("failed to extract constants from `%s`: %v", query.path, err)
+		}
+
+		res := extractionResult{
+			counter:        query.counter,
+			distribution:   query.distribution,
+			distribVersion: query.distribVersion,
+			arch:           query.arch,
+			unameRelease:   query.unameRelease,
+			constants:      constants,
+		}
+
+		c.Lock()
+		c.results = append(c.results, res)
+		c.Unlock()
+	}
+	return nil
+}
+
+type extractionQuery struct {
+	counter        int
+	path           string
+	distribution   string
+	distribVersion string
+	arch           string
+	unameRelease   string
+}
+
 type extractionResult struct {
+	counter        int
 	distribution   string
 	distribVersion string
 	arch           string
@@ -303,16 +358,21 @@ type extractionResult struct {
 	constants      map[string]uint64
 }
 
-var cache = map[string]map[string]uint64{}
+func (c *treeWalkCollector) getCacheEntry(cacheKey string) (map[string]uint64, bool) {
+	c.Lock()
+	defer c.Unlock()
+	val, ok := c.cache[cacheKey]
+	return val, ok
+}
 
-func extractConstantsFromBTF(archivePath, distribution, distribVersion string) (map[string]uint64, error) {
+func (c *treeWalkCollector) extractConstantsFromBTF(archivePath, distribution, distribVersion string) (map[string]uint64, error) {
 	btfContent, err := createBTFReaderFromTarball(archivePath)
 	if err != nil {
 		return nil, err
 	}
 
 	cacheKey := computeCacheKey(btfContent)
-	if constants, ok := cache[cacheKey]; ok {
+	if constants, ok := c.getCacheEntry(cacheKey); ok {
 		return constants, nil
 	}
 
@@ -346,7 +406,9 @@ func extractConstantsFromBTF(archivePath, distribution, distribVersion string) (
 		return nil, err
 	}
 
-	cache[cacheKey] = constants
+	c.Lock()
+	c.cache[cacheKey] = constants
+	c.Unlock()
 	return constants, nil
 }
 
