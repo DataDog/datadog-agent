@@ -11,6 +11,7 @@ package main
 import (
 	"archive/tar"
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -302,10 +303,17 @@ type extractionResult struct {
 	constants      map[string]uint64
 }
 
+var cache = map[string]map[string]uint64{}
+
 func extractConstantsFromBTF(archivePath, distribution, distribVersion string) (map[string]uint64, error) {
-	btfReader, err := createBTFReaderFromTarball(archivePath)
+	btfContent, err := createBTFReaderFromTarball(archivePath)
 	if err != nil {
 		return nil, err
+	}
+
+	cacheKey := computeCacheKey(btfContent)
+	if constants, ok := cache[cacheKey]; ok {
+		return constants, nil
 	}
 
 	archiveFileName := path.Base(archivePath)
@@ -326,16 +334,23 @@ func extractConstantsFromBTF(archivePath, distribution, distribVersion string) (
 		OsRelease: osRelease,
 	}
 
+	btfReader := bytes.NewReader(btfContent)
 	fetcher, err := constantfetch.NewBTFConstantFetcherFromReader(btfReader)
 	if err != nil {
 		return nil, err
 	}
 
 	probe.AppendProbeRequestsToFetcher(fetcher, kv)
-	return fetcher.FinishAndGetResults()
+	constants, err := fetcher.FinishAndGetResults()
+	if err != nil {
+		return nil, err
+	}
+
+	cache[cacheKey] = constants
+	return constants, nil
 }
 
-func createBTFReaderFromTarball(archivePath string) (io.ReaderAt, error) {
+func createBTFReaderFromTarball(archivePath string) ([]byte, error) {
 	archiveFile, err := os.Open(archivePath)
 	if err != nil {
 		return nil, err
@@ -364,6 +379,7 @@ outer:
 		switch hdr.Typeflag {
 		case tar.TypeReg:
 			if strings.HasSuffix(hdr.Name, ".btf") {
+				btfBuffer.Grow(int(hdr.Size))
 				if _, err := io.Copy(btfBuffer, tarReader); err != nil {
 					return nil, fmt.Errorf("failed to uncompress file %s: %w", hdr.Name, err)
 				}
@@ -372,5 +388,11 @@ outer:
 		}
 	}
 
-	return bytes.NewReader(btfBuffer.Bytes()), nil
+	return btfBuffer.Bytes(), nil
+}
+
+func computeCacheKey(b []byte) string {
+	h := sha256.New()
+	h.Write(b)
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
