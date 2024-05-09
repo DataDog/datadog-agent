@@ -17,6 +17,9 @@ type npSchedulerImpl struct {
 }
 
 func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
+	if !s.enabled {
+		return
+	}
 	// TODO: IMPLEMENTATION IN SEPARATE PR (to make PRs easier to review)
 }
 
