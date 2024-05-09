@@ -22,6 +22,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"runtime/pprof"
 	"strings"
 
 	"github.com/smira/go-xz"
@@ -37,12 +38,27 @@ func main() {
 	var constantOutputPath string
 	var forceRefresh bool
 	var combineConstants bool
+	var cpuPprofPath string
 
 	flag.StringVar(&archiveRootPath, "archive-root", "", "Root path of BTFHub archive")
 	flag.StringVar(&constantOutputPath, "output", "", "Output path for JSON constants")
 	flag.BoolVar(&forceRefresh, "force-refresh", false, "Force refresh of the constants")
 	flag.BoolVar(&combineConstants, "combine", false, "Don't read btf files, but read constants")
+	flag.StringVar(&cpuPprofPath, "cpu-prof", "", "Path to the CPU profile to generate")
 	flag.Parse()
+
+	if cpuPprofPath != "" {
+		f, err := os.Create(cpuPprofPath)
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+
+		if err := pprof.StartCPUProfile(f); err != nil {
+			panic(err)
+		}
+		defer pprof.StopCPUProfile()
+	}
 
 	if combineConstants {
 		combined, err := combineConstantFiles(archiveRootPath)
