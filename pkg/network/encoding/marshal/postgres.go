@@ -57,8 +57,8 @@ func (e *postgresEncoder) encodeData(connectionData *USMConnectionData[postgres.
 		key := kv.Key
 		stats := kv.Value
 		e.postgresAggregationsBuilder.AddAggregations(func(builder *model.DatabaseStatsBuilder) {
-			builder.SetPostgres_stats(func(statsBuilder *model.PostgresStatsBuilder) {
-				statsBuilder.SetTable_name(key.TableName)
+			builder.SetPostgres(func(statsBuilder *model.PostgresStatsBuilder) {
+				statsBuilder.SetTableName(key.TableName)
 				statsBuilder.SetOperation(uint64(toPostgresModelOperation(key.Operation)))
 				if latencies := stats.Latencies; latencies != nil {
 					blob, _ := proto.Marshal(latencies.ToProto())

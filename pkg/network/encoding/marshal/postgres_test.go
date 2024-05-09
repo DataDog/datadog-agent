@@ -84,8 +84,8 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 	out := &model.DatabaseAggregations{
 		Aggregations: []*model.DatabaseStats{
 			{
-				DbStats: &model.DatabaseStats_PostgresStats{
-					PostgresStats: &model.PostgresStats{
+				DbStats: &model.DatabaseStats_Postgres{
+					Postgres: &model.PostgresStats{
 						TableName:          tableName,
 						Operation:          model.PostgresOperation_PostgresSelectOp,
 						FirstLatencySample: 5,
@@ -94,8 +94,8 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 				},
 			},
 			{
-				DbStats: &model.DatabaseStats_PostgresStats{
-					PostgresStats: &model.PostgresStats{
+				DbStats: &model.DatabaseStats_Postgres{
+					Postgres: &model.PostgresStats{
 						TableName:          tableName,
 						Operation:          model.PostgresOperation_PostgresInsertOp,
 						FirstLatencySample: 5,
@@ -161,9 +161,9 @@ func (s *PostgresSuite) TestPostgresIDCollisionRegression() {
 	aggregations := getPostgresAggregations(t, encoder, in.Conns[0])
 
 	// assert that the first connection matching the Postgres data will get back a non-nil result
-	assert.Equal(tableName, aggregations.Aggregations[0].GetPostgresStats().GetTableName())
-	assert.Equal(uint32(10), aggregations.Aggregations[0].GetPostgresStats().GetCount())
-	assert.Equal(float64(3), aggregations.Aggregations[0].GetPostgresStats().GetFirstLatencySample())
+	assert.Equal(tableName, aggregations.Aggregations[0].GetPostgres().GetTableName())
+	assert.Equal(uint32(10), aggregations.Aggregations[0].GetPostgres().GetCount())
+	assert.Equal(float64(3), aggregations.Aggregations[0].GetPostgres().GetFirstLatencySample())
 
 	// assert that the other connections sharing the same (source,destination)
 	// addresses but different PIDs *won't* be associated with the Postgres stats
@@ -223,9 +223,9 @@ func (s *PostgresSuite) TestPostgresLocalhostScenario() {
 	// will have Postgres stats
 	for _, conn := range in.Conns {
 		aggregations := getPostgresAggregations(t, encoder, conn)
-		assert.Equal(tableName, aggregations.Aggregations[0].GetPostgresStats().GetTableName())
-		assert.Equal(uint32(10), aggregations.Aggregations[0].GetPostgresStats().GetCount())
-		assert.Equal(float64(2), aggregations.Aggregations[0].GetPostgresStats().GetFirstLatencySample())
+		assert.Equal(tableName, aggregations.Aggregations[0].GetPostgres().GetTableName())
+		assert.Equal(uint32(10), aggregations.Aggregations[0].GetPostgres().GetCount())
+		assert.Equal(float64(2), aggregations.Aggregations[0].GetPostgres().GetFirstLatencySample())
 	}
 }
 
