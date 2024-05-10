@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 
+	 "github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
@@ -119,6 +120,19 @@ func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	cmd := i.newInstallerCmd(ctx, "garbage-collect")
 	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
 	return cmd.Run()
+}
+
+func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (bool, error) {
+	cmd := i.newInstallerCmd(ctx, "is-installed", pkg)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	err := cmd.Run()
+	if err != nil && cmd.ProcessState.ExitCode() == command.ReturnCodeIsInstalledFalse {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // State returns the state of a package.

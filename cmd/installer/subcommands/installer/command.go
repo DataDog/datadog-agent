@@ -305,7 +305,8 @@ func garbageCollectCommand() *cobra.Command {
 }
 
 const (
-	returnCodeIsInstalledFalse = 10
+	// ReturnCodeIsInstalledFalse is the return code when a package is not installed
+	ReturnCodeIsInstalledFalse = 10
 )
 
 func isInstalled() *cobra.Command {
@@ -327,7 +328,7 @@ func isInstalled() *cobra.Command {
 			if !installed {
 				// Return a specific code to differentiate from other errors
 				// `return err` will lead to a return code of -1
-				os.Exit(returnCodeIsInstalledFalse)
+				os.Exit(ReturnCodeIsInstalledFalse)
 			}
 			return nil
 		},
