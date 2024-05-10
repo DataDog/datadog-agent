@@ -592,7 +592,7 @@ func (c *AgentConfig) AllFeatures() []string {
 }
 
 func inAzureAppServices() bool {
-	_, existsLinux := os.LookupEnv("APPSVC_RUN_ZIP")
+	_, existsLinux := os.LookupEnv("LINUX_FX_VERSION")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")
 	return existsLinux || existsWin
 }

@@ -13,14 +13,14 @@ import (
 )
 
 const (
-	RunZip       = "APPSVC_RUN_ZIP"
+	FxVersion    = "LINUX_FX_VERSION"
 	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 )
 
 func TestInAzureAppServices(t *testing.T) {
-	os.Setenv(RunZip, " ")
+	os.Setenv(FxVersion, " ")
 	isLinuxAzure := inAzureAppServices()
-	os.Unsetenv(RunZip)
+	os.Unsetenv(FxVersion)
 
 	os.Setenv(AppLogsTrace, " ")
 	isWindowsAzure := inAzureAppServices()
