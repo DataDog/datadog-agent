@@ -18,7 +18,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -213,7 +212,7 @@ func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 }
 
 func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, _ *http.Request) {
-	var response response.ConfigCheckResponse
+	var response integration.ConfigCheckResponse
 
 	configSlice := ac.LoadedConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
