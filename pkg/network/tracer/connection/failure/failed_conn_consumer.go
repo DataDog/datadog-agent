@@ -25,8 +25,8 @@ var failedConnConsumerTelemetry = struct {
 	perfReceived telemetry.Counter
 	perfLost     telemetry.Counter
 }{
-	telemetry.NewCounter(failedConnConsumerModuleName, "failed_conn_polling_received", []string{}, "Counter measuring the number of closed connections received"),
-	telemetry.NewCounter(failedConnConsumerModuleName, "failed_conn_polling_lost", []string{}, "Counter measuring the number of closed connection batches lost (were transmitted from ebpf but never received)"),
+	telemetry.NewCounter(failedConnConsumerModuleName, "failed_conn_polling_received", []string{}, "Counter measuring the number of failed connections received"),
+	telemetry.NewCounter(failedConnConsumerModuleName, "failed_conn_polling_lost", []string{}, "Counter measuring the number of failed connection batches lost (were transmitted from ebpf but never received)"),
 }
 
 // TCPFailedConnConsumer consumes failed connection events from the kernel
@@ -61,6 +61,8 @@ func (c *TCPFailedConnConsumer) extractConn(data []byte) {
 	c.FailedConns.Lock()
 	defer c.FailedConns.Unlock()
 	ct := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
+
+	failedConnConsumerTelemetry.perfReceived.Inc()
 
 	stats, ok := c.FailedConns.FailedConnMap[ct.Tup]
 	if !ok {

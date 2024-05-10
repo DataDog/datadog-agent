@@ -227,15 +227,15 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 
 // start starts the tracer. This function is present to separate
 // the creation from the start of the tracer for tests
-func (tr *Tracer) start() error {
-	err := tr.ebpfTracer.Start(tr.storeClosedConnections)
+func (t *Tracer) start() error {
+	err := t.ebpfTracer.Start(t.storeClosedConnections)
 	if err != nil {
-		tr.Stop()
+		t.Stop()
 		return fmt.Errorf("could not start ebpf tracer: %s", err)
 	}
 
-	if err = tr.reverseDNS.Start(); err != nil {
-		tr.Stop()
+	if err = t.reverseDNS.Start(); err != nil {
+		t.Stop()
 		return fmt.Errorf("could not start reverse dns monitor: %w", err)
 	}
 
