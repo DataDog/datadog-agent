@@ -133,45 +133,6 @@ def go(
         inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
         inv linter.go --module=.
     """
-    _lint_go(
-        ctx=ctx,
-        module=module,
-        targets=targets,
-        flavor=flavor,
-        build=build,
-        build_tags=build_tags,
-        build_include=build_include,
-        build_exclude=build_exclude,
-        rtloader_root=rtloader_root,
-        arch=arch,
-        cpus=cpus,
-        timeout=timeout,
-        golangci_lint_kwargs=golangci_lint_kwargs,
-        headless_mode=headless_mode,
-        include_sds=include_sds,
-        only_modified_packages=only_modified_packages,
-    )
-
-
-# Temporary method to duplicate go linter task not to impact macos jobs.
-def _lint_go(
-    ctx,
-    module,
-    targets,
-    flavor,
-    build,
-    build_tags,
-    build_include,
-    build_exclude,
-    rtloader_root,
-    arch,
-    cpus,
-    timeout,
-    golangci_lint_kwargs,
-    headless_mode,
-    include_sds,
-    only_modified_packages=False,
-):
     if not check_tools_version(ctx, ['go', 'golangci-lint']):
         print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
 
