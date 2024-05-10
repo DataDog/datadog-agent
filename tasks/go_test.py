@@ -973,3 +973,22 @@ def lint_go(
     only_modified_packages=False,
 ):
     raise Exit("This task is deprecated, please use `inv linter.go`", 1)
+
+@task
+def check_otel_dependencies(ctx):
+    with ctx.cd("test/otel"):
+        # Update dependencies to latest local version
+        ctx.run("go mod tidy")
+
+        # Build test/otel/dependencies.go with same settings as `make otelcontribcol`
+        res = ctx.run("GO111MODULE=on CGO_ENABLED=0 go build -trimpath -o . .", warn=True)
+        if res is None or not res.ok:
+            raise Exit(f"Error building otel components with datadog-agent dependencies: {res.stderr}")
+
+        # Verify go version matches upstream (go 1.21.0)
+        res = ctx.run("go version ./otel")
+        if not res.stdout.startswith("./otel: go1.21.0"):
+            raise Exit(f"Go version does not match upstream (go 1.21.0): {res.stdout}")
+
+        # Remove built executable
+        ctx.run("rm ./otel")
