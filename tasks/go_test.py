@@ -974,6 +974,7 @@ def lint_go(
 ):
     raise Exit("This task is deprecated, please use `inv linter.go`", 1)
 
+
 @task
 def check_otel_dependencies(ctx):
     with ctx.cd("test/otel"):

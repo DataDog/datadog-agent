@@ -67,8 +67,8 @@ from tasks.go import (
     tidy_all,
 )
 from tasks.go_test import (
-    codecov,
     check_otel_dependencies,
+    codecov,
     e2e_tests,
     get_impacted_packages,
     get_modified_packages,
