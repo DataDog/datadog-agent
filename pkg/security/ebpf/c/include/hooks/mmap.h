@@ -84,8 +84,9 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
     return 0;
 }
 
-HOOK_SYSCALL_EXIT(mmap) {
-    return sys_mmap_ret(ctx, (int)SYSCALL_PARMRET(ctx), (u64)SYSCALL_PARMRET(ctx));
+SEC("tracepoint/syscalls/sys_exit_mmap")
+int tracepoint_syscalls_sys_exit_mmap(struct tracepoint_syscalls_sys_exit_mmap_t *args) {
+    return sys_mmap_ret(args, (int)args->ret, (u64)args->ret);
 }
 
 HOOK_ENTRY("security_mmap_file")

@@ -59,6 +59,16 @@ struct tracepoint_syscalls_sys_enter_mmap_t {
     unsigned long offset;
 };
 
+struct tracepoint_syscalls_sys_exit_mmap_t {
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+
+    int __syscall_nr;
+    long ret;
+};
+
 struct tracepoint_io_uring_io_uring_create_t {
     unsigned short common_type;
     unsigned char common_flags;

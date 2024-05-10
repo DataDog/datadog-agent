@@ -10,8 +10,8 @@ package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-func getMMapProbes(fentry bool) []*manager.Probe {
-	var mmapProbes = []*manager.Probe{
+func getMMapProbes() []*manager.Probe {
+	return []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
@@ -24,13 +24,11 @@ func getMMapProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "tracepoint_syscalls_sys_enter_mmap",
 			},
 		},
-	}
-
-	mmapProbes = append(mmapProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "tracepoint_syscalls_sys_exit_mmap",
+			},
 		},
-		SyscallFuncName: "mmap",
-	}, fentry, Exit)...)
-	return mmapProbes
+	}
 }
