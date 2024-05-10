@@ -49,7 +49,7 @@ var (
 
 // Installer is a package manager that installs and uninstalls packages.
 type Installer interface {
-	IsInstalled(pkg string) (bool, error)
+	IsInstalled(ctx context.Context, pkg string) (bool, error)
 	State(pkg string) (repository.State, error)
 	States() (map[string]repository.State, error)
 
@@ -140,7 +140,7 @@ func (i *installerImpl) States() (map[string]repository.State, error) {
 }
 
 // IsInstalled checks if a package is installed.
-func (i *installerImpl) IsInstalled(pkg string) (bool, error) {
+func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error) {
 	packages, err := i.db.ListPackages()
 	if err != nil {
 		return false, fmt.Errorf("could not list packages: %w", err)
