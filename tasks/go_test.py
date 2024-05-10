@@ -30,7 +30,6 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import clean_nested_paths, collapsed_section, get_build_flags
-from tasks.linter import _lint_go
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
@@ -954,7 +953,7 @@ def should_run_all_tests(files, trigger_files):
     return False
 
 
-@task(iterable=['flavors'])
+@task
 def lint_go(
     ctx,
     module=None,
@@ -971,21 +970,6 @@ def lint_go(
     golangci_lint_kwargs="",
     headless_mode=False,
     include_sds=False,
+    only_modified_packages=False,
 ):
-    _lint_go(
-        ctx,
-        module,
-        targets,
-        flavor,
-        build,
-        build_tags,
-        build_include,
-        build_exclude,
-        rtloader_root,
-        arch,
-        cpus,
-        timeout,
-        golangci_lint_kwargs,
-        headless_mode,
-        include_sds,
-    )
+    raise Exit("This task is deprecated, please use `inv linter.go`", 1)
