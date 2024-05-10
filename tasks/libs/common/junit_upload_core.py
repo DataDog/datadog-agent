@@ -70,25 +70,14 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
         codeowners = CodeOwners(f.read())
 
     flaky_tests = get_flaky_from_test_output()
-
-    # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
-    if os.path.isdir(junit_tgz):
-        tmp_tgz = os.path.join(junit_tgz, os.path.basename(junit_tgz))
-        if not os.path.isfile(tmp_tgz):
-            tmp_tgz = os.path.join(junit_tgz, "junit.tar.gz")
-        junit_tgz = tmp_tgz
+    junit_tgz = resolve_location(junit_tgz)
 
     xmlcounts = {}
     with tempfile.TemporaryDirectory() as unpack_dir:
         # unpack all files from archive
         with tarfile.open(junit_tgz) as tgz:
             tgz.extractall(path=unpack_dir)
-        # read additional tags
-        tags = None
-        tagsfile = os.path.join(unpack_dir, TAGS_FILE_NAME)
-        if os.path.exists(tagsfile):
-            with open(tagsfile) as tf:
-                tags = tf.read().split()
+        tags = read_additional_tags(unpack_dir)
         process_env = _update_environ(unpack_dir)
         # for each unpacked xml file, split it and submit all parts
         # NOTE: recursive=True is necessary for "**" to unpack into 0-n dirs, not just 1
@@ -107,9 +96,8 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     empty_tgzs = []
     for tgz, count in xmlcounts.items():
         print(f"Submitted results for {count} JUnit XML files from {tgz}")
-        if (
-            count == 0 and "-fast" not in tgz
-        ):  # *-fast(-v2).tgz contains only tests related to the modified code, they can be empty
+        # *-fast(-v2).tgz contains only tests related to the modified code, they can be empty
+        if count == 0 and "-fast" not in tgz:
             empty_tgzs.append(tgz)
 
     if empty_tgzs:
@@ -135,6 +123,27 @@ def get_flaky_from_test_output():
     ]
     print(f"[INFO] Found {len(flaky_tests)} flaky tests.")
     return flaky_tests
+
+
+def resolve_location(tarball):
+    """
+    handle weird kitchen bug where it places the tarball in a subdirectory of the same name
+    """
+    if os.path.isdir(tarball):
+        tmp_tgz = os.path.join(tarball, os.path.basename(tarball))
+        if not os.path.isfile(tmp_tgz):
+            tmp_tgz = os.path.join(tarball, "junit.tar.gz")
+        return tmp_tgz
+    return tarball
+
+
+def read_additional_tags(folder):
+    tags = None
+    tagsfile = os.path.join(folder, TAGS_FILE_NAME)
+    if os.path.exists(tagsfile):
+        with open(tagsfile) as tf:
+            tags = tf.read().split()
+    return tags
 
 
 def split_junitxml(xml_path, codeowners, output_dir, flaky_tests):
