@@ -3,9 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux && !windows
-
+// Package model holds model related files
 package model
+
+const (
+	// SIGKILL id for the kill action
+	SIGKILL = iota + 1
+)
 
 var (
 	errorConstants     = map[string]int{}
@@ -20,7 +24,10 @@ var (
 	protConstants             = map[string]uint64{}
 	mmapFlagConstants         = map[string]uint64{}
 	mmapFlagArchConstants     = map[string]uint64{}
+	addressFamilyConstants    = map[string]uint16{}
+
 	// SignalConstants list of signals
-	SignalConstants        = map[string]int{}
-	addressFamilyConstants = map[string]uint16{}
+	SignalConstants = map[string]int{
+		"SIGKILL": SIGKILL,
+	}
 )
