@@ -373,6 +373,11 @@ func TestExtractRuntimeFromOsReleaseFileValid(t *testing.T) {
 	assert.Equal(t, "provided.al2", result)
 }
 
+func TestExtractRuntimeFromOsReleaseFileValid2023(t *testing.T) {
+	result := getRuntimeFromOsReleaseFile("./testValid2023")
+	assert.Equal(t, "provided.al2023", result)
+}
+
 func TestExtractRuntimeFromOsReleaseFileInvalid(t *testing.T) {
 	result := getRuntimeFromOsReleaseFile("./testInvalid")
 	assert.Equal(t, "", result)
