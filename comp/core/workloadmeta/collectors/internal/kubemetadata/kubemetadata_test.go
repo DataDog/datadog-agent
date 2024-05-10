@@ -293,9 +293,8 @@ func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 
 func TestKubeMetadataCollector_getNamespaceLabels(t *testing.T) {
 	type fields struct {
-		dcaClient                   clusteragent.DCAClientInterface
-		clusterAgentEnabled         bool
-		collectKubernetesNamespaces bool
+		dcaClient           clusteragent.DCAClientInterface
+		clusterAgentEnabled bool
 	}
 
 	tests := []struct {
@@ -313,27 +312,8 @@ func TestKubeMetadataCollector_getNamespaceLabels(t *testing.T) {
 		{
 			name: "cluster agent not enabled",
 			fields: fields{
-				clusterAgentEnabled:         false,
-				dcaClient:                   &FakeDCAClient{},
-				collectKubernetesNamespaces: true,
-			},
-			namespaceLabelsAsTags: map[string]string{
-				"label": "tag",
-			},
-			want:    nil,
-			wantErr: false,
-		},
-		{
-			name: "collect kubernetes namespaces disabled",
-			fields: fields{
-				clusterAgentEnabled: true,
-				dcaClient: &FakeDCAClient{
-					LocalVersion: version.Version{Major: 1, Minor: 12},
-					NamespaceLabels: map[string]string{
-						"label": "value",
-					},
-				},
-				collectKubernetesNamespaces: false,
+				clusterAgentEnabled: false,
+				dcaClient:           &FakeDCAClient{},
 			},
 			namespaceLabelsAsTags: map[string]string{
 				"label": "tag",
@@ -351,7 +331,6 @@ func TestKubeMetadataCollector_getNamespaceLabels(t *testing.T) {
 						"label": "value",
 					},
 				},
-				collectKubernetesNamespaces: true,
 			},
 			namespaceLabelsAsTags: map[string]string{
 				"label": "tag",
@@ -362,8 +341,7 @@ func TestKubeMetadataCollector_getNamespaceLabels(t *testing.T) {
 		{
 			name: "cluster agent enabled and failed to get namespace labels",
 			fields: fields{
-				clusterAgentEnabled:         true,
-				collectKubernetesNamespaces: true,
+				clusterAgentEnabled: true,
 				dcaClient: &FakeDCAClient{
 					LocalVersion:       version.Version{Major: 1, Minor: 12},
 					NamespaceLabelsErr: errors.New("failed to get namespace labels"),
@@ -379,10 +357,9 @@ func TestKubeMetadataCollector_getNamespaceLabels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &collector{
-				dcaClient:                   tt.fields.dcaClient,
-				dcaEnabled:                  tt.fields.clusterAgentEnabled,
-				collectKubernetesNamespaces: tt.fields.collectKubernetesNamespaces,
-				collectNamespaceLabels:      len(tt.namespaceLabelsAsTags) > 0,
+				dcaClient:              tt.fields.dcaClient,
+				dcaEnabled:             tt.fields.clusterAgentEnabled,
+				collectNamespaceLabels: len(tt.namespaceLabelsAsTags) > 0,
 			}
 
 			labels, err := c.getNamespaceLabels("foo")
@@ -419,14 +396,13 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 	kubeUtilFake := &kubelet.KubeUtil{}
 
 	type fields struct {
-		kubeUtil                    *kubelet.KubeUtil
-		apiClient                   *apiserver.APIClient
-		dcaClient                   clusteragent.DCAClientInterface
-		lastUpdate                  time.Time
-		updateFreq                  time.Duration
-		dcaEnabled                  bool
-		collectNamespaceLabels      bool
-		collectKubernetesNamespaces bool
+		kubeUtil               *kubelet.KubeUtil
+		apiClient              *apiserver.APIClient
+		dcaClient              clusteragent.DCAClientInterface
+		lastUpdate             time.Time
+		updateFreq             time.Duration
+		dcaEnabled             bool
+		collectNamespaceLabels bool
 	}
 	type args struct {
 		pods []*kubelet.Pod
@@ -445,10 +421,9 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				pods: pods,
 			},
 			fields: fields{
-				kubeUtil:                    kubeUtilFake,
-				dcaEnabled:                  true,
-				collectNamespaceLabels:      true,
-				collectKubernetesNamespaces: true,
+				kubeUtil:               kubeUtilFake,
+				dcaEnabled:             true,
+				collectNamespaceLabels: true,
 				dcaClient: &FakeDCAClient{
 					LocalVersion:            version.Version{Major: 1, Minor: 3},
 					KubernetesMetadataNames: []string{"svc1", "svc2"},
@@ -488,50 +463,9 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				pods: pods,
 			},
 			fields: fields{
-				kubeUtil:                    kubeUtilFake,
-				dcaEnabled:                  true,
-				collectNamespaceLabels:      false,
-				collectKubernetesNamespaces: true,
-				dcaClient: &FakeDCAClient{
-					LocalVersion:            version.Version{Major: 1, Minor: 3},
-					KubernetesMetadataNames: []string{"svc1", "svc2"},
-					NamespaceLabels: map[string]string{
-						"label": "value",
-					},
-				},
-			},
-			namespaceLabelsAsTags: map[string]string{
-				"label": "tag",
-			},
-			want: []workloadmeta.CollectorEvent{
-				{
-					Type:   workloadmeta.EventTypeSet,
-					Source: workloadmeta.SourceClusterOrchestrator,
-					Entity: &workloadmeta.KubernetesPod{
-						EntityID: workloadmeta.EntityID{
-							Kind: workloadmeta.KindKubernetesPod,
-							ID:   "foouid",
-						},
-						EntityMeta: workloadmeta.EntityMeta{
-							Name:      "foo",
-							Namespace: "default",
-						},
-						KubeServices: []string{"svc1", "svc2"},
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "clusterAgentEnabled enabled, ns labels enabled, k8s namespace collection disabled",
-			args: args{
-				pods: pods,
-			},
-			fields: fields{
-				kubeUtil:                    kubeUtilFake,
-				dcaEnabled:                  true,
-				collectNamespaceLabels:      true,
-				collectKubernetesNamespaces: false,
+				kubeUtil:               kubeUtilFake,
+				dcaEnabled:             true,
+				collectNamespaceLabels: false,
 				dcaClient: &FakeDCAClient{
 					LocalVersion:            version.Version{Major: 1, Minor: 3},
 					KubernetesMetadataNames: []string{"svc1", "svc2"},
@@ -595,15 +529,14 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &collector{
-				kubeUtil:                    tt.fields.kubeUtil,
-				apiClient:                   tt.fields.apiClient,
-				dcaClient:                   tt.fields.dcaClient,
-				lastUpdate:                  tt.fields.lastUpdate,
-				updateFreq:                  tt.fields.updateFreq,
-				dcaEnabled:                  tt.fields.dcaEnabled,
-				collectNamespaceLabels:      tt.fields.collectNamespaceLabels,
-				collectKubernetesNamespaces: tt.fields.collectKubernetesNamespaces,
-				seen:                        make(map[workloadmeta.EntityID]struct{}),
+				kubeUtil:               tt.fields.kubeUtil,
+				apiClient:              tt.fields.apiClient,
+				dcaClient:              tt.fields.dcaClient,
+				lastUpdate:             tt.fields.lastUpdate,
+				updateFreq:             tt.fields.updateFreq,
+				dcaEnabled:             tt.fields.dcaEnabled,
+				collectNamespaceLabels: tt.fields.collectNamespaceLabels,
+				seen:                   make(map[workloadmeta.EntityID]struct{}),
 			}
 
 			got, err := c.parsePods(context.TODO(), tt.args.pods, make(map[workloadmeta.EntityID]struct{}))

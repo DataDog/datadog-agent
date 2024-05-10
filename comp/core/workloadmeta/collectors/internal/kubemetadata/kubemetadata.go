@@ -35,18 +35,17 @@ const (
 )
 
 type collector struct {
-	id                          string
-	store                       workloadmeta.Component
-	catalog                     workloadmeta.AgentType
-	seen                        map[workloadmeta.EntityID]struct{}
-	kubeUtil                    kubelet.KubeUtilInterface
-	apiClient                   *apiserver.APIClient
-	dcaClient                   clusteragent.DCAClientInterface
-	dcaEnabled                  bool
-	updateFreq                  time.Duration
-	lastUpdate                  time.Time
-	collectNamespaceLabels      bool
-	collectKubernetesNamespaces bool
+	id                     string
+	store                  workloadmeta.Component
+	catalog                workloadmeta.AgentType
+	seen                   map[workloadmeta.EntityID]struct{}
+	kubeUtil               kubelet.KubeUtilInterface
+	apiClient              *apiserver.APIClient
+	dcaClient              clusteragent.DCAClientInterface
+	dcaEnabled             bool
+	updateFreq             time.Duration
+	lastUpdate             time.Time
+	collectNamespaceLabels bool
 }
 
 // NewCollector returns a CollectorProvider to build a kubemetadata collector, and an error if any.
@@ -115,7 +114,6 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 
 	c.updateFreq = time.Duration(config.Datadog.GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
 	c.collectNamespaceLabels = len(config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
-	c.collectKubernetesNamespaces = config.Datadog.GetBool("kubernetes_namespace_collection_enabled")
 
 	return err
 }
@@ -293,7 +291,7 @@ func (c *collector) getMetadata(getPodMetaDataFromAPIServerFunc func(string, str
 
 // getNamespaceLabels returns the namespace labels, fast return if namespace labels as tags is disabled.
 func (c *collector) getNamespaceLabels(ns string) (map[string]string, error) {
-	if !c.collectNamespaceLabels || !c.collectKubernetesNamespaces || !c.isDCAEnabled() {
+	if !c.collectNamespaceLabels || !c.isDCAEnabled() {
 		return nil, nil
 	}
 
