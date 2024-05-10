@@ -303,3 +303,32 @@ func garbageCollectCommand() *cobra.Command {
 	}
 	return cmd
 }
+
+const (
+	returnCodeIsInstalledFalse = 10
+)
+
+func isInstalled() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "is-installed <package>",
+		Short:   "Check if a package is installed",
+		GroupID: "installer",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("is_installed")
+			defer func() { i.Stop(err) }()
+			if err != nil {
+				return err
+			}
+			installed, err := i.IsInstalled(args[0])
+			if err != nil {
+				return err
+			}
+			if !installed {
+				os.Exit(returnCodeIsInstalledFalse)
+			}
+			return nil
+		},
+	}
+	return cmd
+}

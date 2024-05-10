@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -47,6 +48,7 @@ var (
 
 // Installer is a package manager that installs and uninstalls packages.
 type Installer interface {
+	IsInstalled(pkg string) (bool, error)
 	State(pkg string) (repository.State, error)
 	States() (map[string]repository.State, error)
 
@@ -134,6 +136,15 @@ func (i *installerImpl) State(pkg string) (repository.State, error) {
 // States returns the states of all packages.
 func (i *installerImpl) States() (map[string]repository.State, error) {
 	return i.repositories.GetState()
+}
+
+// IsInstalled checks if a package is installed.
+func (i *installerImpl) IsInstalled(pkg string) (bool, error) {
+	packages, err := i.db.ListPackages()
+	if err != nil {
+		return false, fmt.Errorf("could not list packages: %w", err)
+	}
+	return slices.Contains(packages, pkg), nil
 }
 
 // Install installs or updates a package.
