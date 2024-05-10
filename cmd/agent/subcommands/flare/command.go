@@ -74,7 +74,8 @@ type cliParams struct {
 	profileMutexFraction int
 	profileBlocking      bool
 	profileBlockingRate  int
-	withStreamLog        bool
+	withStreamLogs       bool
+	streamLogsDuration   time.Duration
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -152,7 +153,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	flareCmd.Flags().IntVarP(&cliParams.profileMutexFraction, "profile-mutex-fraction", "", 100, "Set the fraction of mutex contention events that are reported in the mutex profile")
 	flareCmd.Flags().BoolVarP(&cliParams.profileBlocking, "profile-blocking", "B", false, "Add gorouting blocking profile to the performance data in the flare")
 	flareCmd.Flags().IntVarP(&cliParams.profileBlockingRate, "profile-blocking-rate", "", 10000, "Set the fraction of goroutine blocking events that are reported in the blocking profile")
-	flareCmd.Flags().BoolVarP(&cliParams.withStreamLog, "with-stream-logs", "L", false, "Log 60s of the stream-logs command to the agent log file")
+	flareCmd.Flags().BoolVarP(&cliParams.withStreamLogs, "with-stream-logs", "L", false, "Log 60s of the stream-logs command to the agent log file")
+	flareCmd.Flags().DurationVarP(&cliParams.streamLogsDuration, "stream-logs-duration", "D", 60*time.Second, "To be used with --with-stream-logs flag. Duration of the attached log stream")
 	flareCmd.SetArgs([]string{"caseID"})
 
 	return []*cobra.Command{flareCmd}
@@ -278,6 +280,17 @@ func makeFlare(flareComp flare.Component,
 		err     error
 	)
 
+	streamLogParams := streamlogs.CliParams{
+		FilePath: commonpath.DefaultStreamlogsLogFile,
+		Duration: cliParams.streamLogsDuration,
+		Quiet:    true,
+	}
+
+	// Check if Duration is set but withStreamLogs is not.
+	if streamLogParams.Duration != 60 && !cliParams.withStreamLogs {
+		return fmt.Errorf("the --stream-logs-duration flag is set but --with-stream-logs is not. Please enable --with-stream-logs to use Duration")
+	}
+
 	fmt.Fprintln(color.Output, color.BlueString("NEW: You can now generate a flare from the comfort of your Datadog UI!"))
 	fmt.Fprintln(color.Output, color.BlueString("See https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/?tab=agentv6v7#send-a-flare-from-the-datadog-site for more info."))
 
@@ -342,14 +355,8 @@ func makeFlare(flareComp flare.Component,
 		return err
 	}
 
-	streamLogParams := streamlogs.CliParams{
-		FilePath: commonpath.DefaultStreamlogsLogFile,
-		Duration: 60 * time.Second, // default duration
-		Quiet:    true,
-	}
-
-	if cliParams.withStreamLog {
-		fmt.Fprintln(color.Output, color.GreenString("Asking the agent to stream logs."))
+	if cliParams.withStreamLogs {
+		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))
 		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
 		if err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
