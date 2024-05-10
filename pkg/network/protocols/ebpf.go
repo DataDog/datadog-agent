@@ -32,7 +32,7 @@ type TLSDispatcherProgramType C.tls_dispatcher_prog_t
 
 const (
 	// TLSDispatcherKafkaProg is the Golang representation of the C.TLS_DISPATCHER_KAFKA_PROG enum.
-	TLSDispatcherKafkaProg DispatcherProgramType = C.TLS_DISPATCHER_KAFKA_PROG
+	TLSDispatcherKafkaProg TLSDispatcherProgramType = C.TLS_DISPATCHER_KAFKA_PROG
 )
 
 // ProgramType is a C type to represent the eBPF programs used for tail calls.
