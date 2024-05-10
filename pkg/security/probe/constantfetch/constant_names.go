@@ -28,9 +28,15 @@ const (
 	OffsetNameKernelCloneArgsExitSignal = "kernel_clone_args_exit_signal_offset"
 	OffsetNameFileFinode                = "file_f_inode_offset"
 	OffsetNameFileFpath                 = "file_f_path_offset"
+	OffsetNameMountMntID                = "mount_id_offset"
+
+	// tracepoints
 	OffsetNameSchedProcessForkParentPid = "sched_process_fork_parent_pid_offset"
 	OffsetNameSchedProcessForkChildPid  = "sched_process_fork_child_pid_offset"
-	OffsetNameMountMntID                = "mount_id_offset"
+	OffsetNameSysMmapOff                = "sys_enter_mmap_off_offset"
+	OffsetNameSysMmapLen                = "sys_enter_mmap_len_offset"
+	OffsetNameSysMmapProt               = "sys_enter_mmap_prot_offset"
+	OffsetNameSysMmapFlags              = "sys_enter_mmap_flags_offset"
 
 	// bpf offsets
 	OffsetNameBPFMapStructID                  = "bpf_map_id_offset"
