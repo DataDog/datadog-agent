@@ -101,7 +101,8 @@ class CompilerImage:
 
         self.exec("chmod a+rx /root", user="root")  # Some binaries will be in /root and need to be readable
         self.exec("apt install sudo", user="root")
-        self.exec("echo conda activate ddpy3 >> ~/.bashrc")
+        self.exec("usermod -aG sudo compiler && echo 'compiler ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers", user="root")
+        self.exec("echo conda activate ddpy3 >> /home/compiler/.bashrc", user="compiler")
         self.exec(f"install -d -m 0777 -o {uid} -g {uid} /go", user="root")
 
 
