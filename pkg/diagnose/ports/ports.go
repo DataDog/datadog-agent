@@ -43,8 +43,7 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 	for _, key := range config.Datadog.AllKeysLowercased() {
 		splitKey := strings.Split(key, ".")
 		keyName := splitKey[len(splitKey)-1]
-		r, _ := regexp.Compile("_?port_?")
-		if !r.MatchString(keyName) {
+		if keyName != "port" && !strings.HasPrefix(keyName, "port_") && !strings.HasSuffix(keyName, "_port") {
 			continue
 		}
 
