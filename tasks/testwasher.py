@@ -41,22 +41,28 @@ class TestWasher:
                     and self.flaky_test_indicator in test_result["Output"]
                 ):
                     flaky_marked_tests[test_result["Package"]].add(test_result["Test"])
+        all_known_flakes = self.merge_known_flakes(flaky_marked_tests)
         non_flaky_failing_tests = defaultdict(set)
         for package, tests in failing_tests.items():
             non_flaky_failing_tests_in_package = set()
             for failing_test in tests:
-                failing_test_parent = failing_test.split("/")[0]
                 if not any(
-                    flaky_marked_test.startswith(failing_test_parent)
-                    for flaky_marked_test in flaky_marked_tests[package]
-                ) and not any(
-                    flaky_marked_test.startswith(failing_test_parent)
-                    for flaky_marked_test in self.known_flaky_tests[package]
+                    failing_test.startswith(known_flake) or known_flake.startswith(failing_test)
+                    for known_flake in all_known_flakes[package]
                 ):
                     non_flaky_failing_tests_in_package.add(failing_test)
             if non_flaky_failing_tests_in_package:
                 non_flaky_failing_tests[package] = non_flaky_failing_tests_in_package
         return non_flaky_failing_tests
+
+    def merge_known_flakes(self, marked_flakes):
+        """
+        Merge flakes marked in the go code and the ones from the flakes.yaml file
+        """
+        shared_packages = marked_flakes.keys() & self.known_flaky_tests.keys()
+        for package in shared_packages:
+            marked_flakes[package] |= self.known_flaky_tests[package]
+        return self.known_flaky_tests | marked_flakes
 
     def parse_flaky_file(self):
         """

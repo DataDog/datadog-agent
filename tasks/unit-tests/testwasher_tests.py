@@ -38,4 +38,70 @@ class TestUtils(unittest.TestCase):
         )
         module_path = "tasks/unit-tests/testdata"
         non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(module_path)
-        self.assertEqual(non_flaky_failing_tests, {})
+        print(non_flaky_failing_tests)
+        self.assertEqual(
+            non_flaky_failing_tests,
+            {"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers": {"TestEKSSuite/TestMemory"}},
+        )
+
+
+class TestMergeKnownFlakes(unittest.TestCase):
+    def test_with_shared_keys(self):
+        test_washer = TestWasher()
+        marked_flakes = {
+            "nintendo": {"mario", "luigi"},
+            "sega": {"sonic"},
+        }
+        test_washer.known_flaky_tests = {
+            "nintendo": {"peach"},
+            "sony": {"crashbandicoot"},
+        }
+        merged_flakes = test_washer.merge_known_flakes(marked_flakes)
+        self.assertEqual(
+            merged_flakes,
+            {
+                "nintendo": {"mario", "luigi", "peach"},
+                "sega": {"sonic"},
+                "sony": {"crashbandicoot"},
+            },
+        )
+
+    def test_no_shared_keys(self):
+        test_washer = TestWasher()
+        marked_flakes = {
+            "nintendo": {"mario", "luigi"},
+        }
+        test_washer.known_flaky_tests = {
+            "sega": {"sonic"},
+        }
+        merged_flakes = test_washer.merge_known_flakes(marked_flakes)
+        self.assertEqual(
+            merged_flakes,
+            {
+                "nintendo": {"mario", "luigi"},
+                "sega": {"sonic"},
+            },
+        )
+
+    def test_empty_marked(self):
+        test_washer = TestWasher()
+        marked_flakes = {}
+        test_washer.known_flaky_tests = {
+            "sega": {"sonic"},
+        }
+        merged_flakes = test_washer.merge_known_flakes(marked_flakes)
+        self.assertEqual(
+            merged_flakes,
+            {"sega": {"sonic"}},
+        )
+
+    def test_empty_yaml(self):
+        test_washer = TestWasher()
+        marked_flakes = {
+            "nintendo": {"mario", "luigi"},
+        }
+        merged_flakes = test_washer.merge_known_flakes(marked_flakes)
+        self.assertEqual(
+            merged_flakes,
+            {"nintendo": {"mario", "luigi"}},
+        )
