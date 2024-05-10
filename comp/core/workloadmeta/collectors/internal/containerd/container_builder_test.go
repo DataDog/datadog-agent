@@ -109,7 +109,9 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 			}, nil
 		},
 		MockSpec: func(namespace string, ctn containers.Container) (*oci.Spec, error) {
-			return &oci.Spec{Hostname: hostName, Process: &specs.Process{Env: envVarStrs}}, nil
+			return &oci.Spec{Hostname: hostName, Process: &specs.Process{Env: envVarStrs}, Linux: &specs.Linux{
+				CgroupsPath: "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice:cri-containerd:ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602",
+			}}, nil
 		},
 		MockStatus: func(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error) {
 			return containerd.Running, nil
@@ -175,6 +177,7 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		NetworkIPs: make(map[string]string), // Not available
 		Hostname:   hostName,
 		PID:        0, // Not available
+		CgroupPath: "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice/cri-containerd-ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602.scope",
 	}
 	assert.Equal(t, expected, result)
 }
