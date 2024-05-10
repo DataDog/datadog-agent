@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    APM: Fixes issue where match-all replace tags rules could inadvertantly affect required datadog tags. It is still possible to redact specific datadog tags by targetting them explicitly.
+    APM: Fixes issue where match-all replace tags rules could inadvertently affect required datadog tags. It is still possible to redact specific Datadog tags by targeting them explicitly.
