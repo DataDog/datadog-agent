@@ -162,6 +162,8 @@ type ProviderConfigurationFunc func(cfg *ProviderConfiguration)
 
 // SessionConfiguration is a structure containing all the configuration options for an ETW session
 type SessionConfiguration struct {
+	//MinBuffers is the minimum number of trace buffers for ETW to allocate for a session.  The default is 0
+	MinBuffers uint32
 	//MaxBuffers is the maximum number of buffers for ETW to allocate.  The default is 0
 	MaxBuffers uint32
 }

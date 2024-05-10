@@ -153,14 +153,13 @@ func (e *etwSession) StopTracing() error {
 
 func (e *etwSession) GetSessionStatistics() (etw.SessionStatistics, error) {
 	var stats etw.SessionStatistics
+	utf16SessionName, err := windows.UTF16FromString(e.Name)
+	if err != nil {
+		return stats, fmt.Errorf("incorrect session name; %w", err)
+	}
 	// it is not clear if we can safely reuse the properties buffer here
 	// so we allocate a new one
-	tmpBuf := make([]byte, len(e.propertiesBuf))
-
-	sessionptp := (C.PEVENT_TRACE_PROPERTIES)(unsafe.Pointer(&e.propertiesBuf[0]))
-	ptp := (C.PEVENT_TRACE_PROPERTIES)(unsafe.Pointer(&tmpBuf[0]))
-
-	*ptp = *sessionptp
+	propertiesBuf, ptp := initializeRealtimeSessionProperties(utf16SessionName, nil)
 
 	ret := windows.Errno(C.ControlTraceW(
 		e.hSession,
@@ -227,22 +226,13 @@ func createEtwSession(name string, f etw.SessionConfigurationFunc) (*etwSession,
 	cfg := &etw.SessionConfiguration{}
 	if f != nil {
 		f(cfg)
+		if cfg.MaxBuffers != 0 &&  && cfg.MaxBuffers < cfg.MinBuffers {
+			return nil, fmt.Errorf("max buffers must be greater than or equal to min buffers")
+		}
 	}
 
-	sessionNameSize := (len(utf16SessionName) * int(unsafe.Sizeof(utf16SessionName[0])))
-	bufSize := int(unsafe.Sizeof(C.EVENT_TRACE_PROPERTIES{})) + sessionNameSize
-	propertiesBuf := make([]byte, bufSize)
-
-	pProperties := (C.PEVENT_TRACE_PROPERTIES)(unsafe.Pointer(&propertiesBuf[0]))
-	pProperties.Wnode.BufferSize = C.ulong(bufSize)
-	pProperties.Wnode.ClientContext = 1
-	pProperties.Wnode.Flags = C.WNODE_FLAG_TRACED_GUID
-
-	pProperties.LogFileMode = C.EVENT_TRACE_REAL_TIME_MODE
-
-	if cfg.MaxBuffers > 0 {
-		pProperties.MaximumBuffers = C.ulong(cfg.MaxBuffers)
-	}
+	propertiesBuf, pProperties := initializeRealtimeSessionProperties(utf16SessionName, cfg)
+	
 	ret := windows.Errno(C.StartTraceW(
 		&s.hSession,
 		C.LPWSTR(unsafe.Pointer(&s.utf16name[0])),
@@ -278,7 +268,16 @@ func createWellKnownEtwSession(name string, f etw.SessionConfigurationFunc) (*et
 	cfg := &etw.SessionConfiguration{}
 	if f != nil {
 		f(cfg)
+		if cfg.MaxBuffers != 0 &&  && cfg.MaxBuffers < cfg.MinBuffers {
+			return nil, fmt.Errorf("max buffers must be greater than or equal to min buffers")
+		}
 	}
+	
+	s.propertiesBuf, _ = initializeRealtimeSessionProperties(utf16SessionName, cfg)
+	return s, nil
+}
+
+func initializeRealtimeSessionProperties(namebuf []uint16, cfg *etw.SessionConfiguration) ([]byte, (C.PEVENT_TRACE_PROPERTIES)) {
 	sessionNameSize := (len(utf16SessionName) * int(unsafe.Sizeof(utf16SessionName[0])))
 	bufSize := int(unsafe.Sizeof(C.EVENT_TRACE_PROPERTIES{})) + sessionNameSize
 	propertiesBuf := make([]byte, bufSize)
@@ -292,7 +291,8 @@ func createWellKnownEtwSession(name string, f etw.SessionConfigurationFunc) (*et
 	if cfg.MaxBuffers > 0 {
 		pProperties.MaximumBuffers = C.ulong(cfg.MaxBuffers)
 	}
-
-	s.propertiesBuf = propertiesBuf
-	return s, nil
+	if  cfg.MinBuffers > 0 {
+		pProperties.MinimumBuffers = C.ulong(cfg.MinBuffers)
+	}
+	return propertiesBuf, pProperties
 }
