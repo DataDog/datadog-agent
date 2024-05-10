@@ -164,6 +164,7 @@ def get_build_flags(
     static=False,
     prefix=None,
     install_path=None,
+    run_path=None,
     embedded_path=None,
     rtloader_root=None,
     python_home_2=None,
@@ -200,6 +201,10 @@ def get_build_flags(
     # setting the install path, allowing the agent to be installed in a custom location
     if sys.platform.startswith('linux') and install_path:
         ldflags += f"-X {REPO_PATH}/pkg/config/setup.InstallPath={install_path} "
+
+    # setting the run path
+    if sys.platform.startswith('linux') and run_path:
+        ldflags += f"-X {REPO_PATH}/pkg/config/setup.defaultRunPath={run_path} "
 
     # setting python homes in the code
     if python_home_2:

@@ -35,7 +35,7 @@ const (
 	confDir               = "/etc/datadog-agent"
 	logDir                = "/var/log/datadog"
 	stableInstallerRunDir = "/opt/datadog-packages/datadog-installer/stable/run"
-	locksDir              = "/var/run/datadog-packages"
+	locksDir              = "/var/run/datadog/installer/locks"
 	packagesDir           = "/opt/datadog-packages"
 	bootInstallerDir      = "/opt/datadog-installer"
 	rpm                   = "rpm"
@@ -231,7 +231,7 @@ func (v *installerSuite) TestUninstall() {
 	installAssertions := []string{
 		"test -d /opt/datadog-packages",
 		"test -d /opt/datadog-installer",
-		"test -d /var/run/datadog-packages",
+		"test -d /var/run/datadog/installer/locks",
 		"test -L /usr/bin/datadog-installer",
 		"test -L /usr/bin/datadog-bootstrap",
 	}
