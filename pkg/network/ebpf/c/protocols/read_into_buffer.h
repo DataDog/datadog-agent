@@ -62,6 +62,6 @@
     }
 
 #define READ_INTO_USER_BUFFER(name, total_size) READ_INTO_USER_BUFFER_INTERNAL(name, total_size, bpf_probe_read_user_with_telemetry)
-#define READ_INTO_USER_BUFFER_WITHOUT_TELEMETRY(name, total_size) READ_INTO_USER_BUFFER_INTERNAL(name, total_size, bpf_probe_read_user)                                                                                          \
+#define READ_INTO_USER_BUFFER_WITHOUT_TELEMETRY(name, total_size) READ_INTO_USER_BUFFER_INTERNAL(name, total_size, bpf_probe_read_user)
 
 #endif
