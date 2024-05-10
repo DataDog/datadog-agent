@@ -101,11 +101,13 @@ type stats struct {
 	procStop  uint64
 
 	// etw file notifications
-	fileCreate    uint64
-	fileCreateNew uint64
-	fileCleanup   uint64
-	fileClose     uint64
-	fileFlush     uint64
+	fileCreate         uint64
+	fileCreateNew      uint64
+	fileCleanup        uint64
+	fileClose          uint64
+	fileFlush          uint64
+	fileWrite          uint64
+	fileWriteProcessed uint64
 
 	fileSetInformation     uint64
 	fileSetDelete          uint64
@@ -125,6 +127,11 @@ type stats struct {
 	//filePathResolver status
 	fileCreateSkippedDiscardedPaths     uint64
 	fileCreateSkippedDiscardedBasenames uint64
+
+	// currently not used, reserved for future use
+	etwChannelBlocked uint64
+
+	totalEtwNotifications uint64
 }
 
 /*
@@ -265,6 +272,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 	log.Info("Starting tracing...")
 	err := p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
+		p.stats.totalEtwNotifications++
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
@@ -320,7 +328,9 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					//fmt.Printf("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
 					log.Tracef("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
 					ecb(wa, e.EventHeader.ProcessID)
+					p.stats.fileWriteProcessed++
 				}
+				p.stats.fileWrite++
 
 			case idSetInformation:
 				if si, err := p.parseInformationArgs(e); err == nil {
@@ -769,6 +779,33 @@ func (p *WindowsProbe) SendStats() error {
 	}
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfRegistryPathResolver, float64(len(p.regPathResolver)), nil, 1); err != nil {
 		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsETWChannelBlockedCount, float64(p.stats.etwChannelBlocked), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsETWTotalNotifications, float64(p.stats.totalEtwNotifications), nil, 1); err != nil {
+		return err
+	}
+	if etwstats, err := p.fimSession.GetSessionStatistics(); err == nil {
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWNumberOfBuffers, float64(etwstats.NumberOfBuffers), nil, 1); err != nil {
+			return err
+		}
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWFreeBuffers, float64(etwstats.FreeBuffers), nil, 1); err != nil {
+			return err
+		}
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWEventsLost, float64(etwstats.EventsLost), nil, 1); err != nil {
+			return err
+		}
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWBuffersWritten, float64(etwstats.BuffersWritten), nil, 1); err != nil {
+			return err
+		}
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWLogBuffersLost, float64(etwstats.LogBuffersLost), nil, 1); err != nil {
+			return err
+		}
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWRealTimeBuffersLost, float64(etwstats.RealTimeBuffersLost), nil, 1); err != nil {
+			return err
+		}
+
 	}
 	return nil
 }
