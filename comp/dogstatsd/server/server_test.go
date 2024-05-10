@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replaydef "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
@@ -45,7 +46,7 @@ type serverDeps struct {
 	Config        configComponent.Component
 	Log           log.Component
 	Demultiplexer demultiplexer.FakeSamplerMock
-	Replay        replay.Component
+	Replay        replaydef.Component
 	PidMap        pidmap.Component
 	Debug         serverdebug.Component
 	WMeta         optional.Option[workloadmeta.Component]

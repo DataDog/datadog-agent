@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	replaydef "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	protoutils "github.com/DataDog/datadog-agent/pkg/util/proto"
@@ -32,27 +33,6 @@ import (
 const (
 	fileTemplate = "datadog-capture-%d"
 )
-
-// UnixDogstatsdMsg mirrors the exported fields of pkg/proto/pbgo/core/model.pb.go 'UnixDogstatsdMsg
-// to avoid forcing the import of pbgo on every user of dogstatsd.
-type UnixDogstatsdMsg struct {
-	Timestamp     int64
-	PayloadSize   int32
-	Payload       []byte
-	Pid           int32
-	AncillarySize int32
-	Ancillary     []byte
-}
-
-// CaptureBuffer holds pointers to captured packet's buffers (and oob buffer if required) and the protobuf
-// message used for serialization.
-type CaptureBuffer struct {
-	Pb          UnixDogstatsdMsg
-	Oob         *[]byte
-	Pid         int32
-	ContainerID string
-	Buff        *packets.Packet
-}
 
 // for testing purposes
 //
@@ -70,18 +50,11 @@ var captureFs = backendFs{
 	fs: afero.NewOsFs(),
 }
 
-// CapPool is a pool of CaptureBuffer
-var CapPool = sync.Pool{
-	New: func() interface{} {
-		return new(CaptureBuffer)
-	},
-}
-
 // TrafficCaptureWriter allows writing dogstatsd traffic to a file.
 type TrafficCaptureWriter struct {
 	zWriter   *zstd.Writer
 	writer    *bufio.Writer
-	Traffic   chan *CaptureBuffer
+	Traffic   chan *replaydef.CaptureBuffer
 	ongoing   bool
 	accepting bool
 
@@ -98,14 +71,14 @@ type TrafficCaptureWriter struct {
 func NewTrafficCaptureWriter(depth int) *TrafficCaptureWriter {
 
 	return &TrafficCaptureWriter{
-		Traffic:     make(chan *CaptureBuffer, depth),
+		Traffic:     make(chan *replaydef.CaptureBuffer, depth),
 		taggerState: make(map[int32]string),
 	}
 }
 
 // processMessage receives a capture buffer and writes it to disk while also tracking
 // the PID map to be persisted to the taggerState. Should not normally be called directly.
-func (tc *TrafficCaptureWriter) processMessage(msg *CaptureBuffer) error {
+func (tc *TrafficCaptureWriter) processMessage(msg *replaydef.CaptureBuffer) error {
 	err := tc.writeNext(msg)
 
 	if err != nil {
@@ -283,7 +256,7 @@ func (tc *TrafficCaptureWriter) StopCapture() {
 }
 
 // Enqueue enqueues a capture buffer so it's written to file.
-func (tc *TrafficCaptureWriter) Enqueue(msg *CaptureBuffer) bool {
+func (tc *TrafficCaptureWriter) Enqueue(msg *replaydef.CaptureBuffer) bool {
 	tc.RLock()
 	defer tc.RUnlock()
 
@@ -390,9 +363,9 @@ func (tc *TrafficCaptureWriter) writeState() (int, error) {
 	return n + 8, err
 }
 
-// writeNext writes the next CaptureBuffer after serializing it to a protobuf format.
+// writeNext writes the next replaydef.CaptureBuffer after serializing it to a protobuf format.
 // Continuing writes after an error calling this function would result in a corrupted file
-func (tc *TrafficCaptureWriter) writeNext(msg *CaptureBuffer) error {
+func (tc *TrafficCaptureWriter) writeNext(msg *replaydef.CaptureBuffer) error {
 	pb := pb.UnixDogstatsdMsg{
 		Timestamp:     msg.Pb.Timestamp,
 		PayloadSize:   msg.Pb.PayloadSize,

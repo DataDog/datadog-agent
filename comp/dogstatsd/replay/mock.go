@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	replaydef "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 )
 
 type mockTrafficCapture struct {
@@ -20,7 +21,7 @@ type mockTrafficCapture struct {
 	sync.RWMutex
 }
 
-func newMockTrafficCapture(deps dependencies) Component {
+func newMockTrafficCapture(deps dependencies) replaydef.Component {
 	tc := &mockTrafficCapture{}
 	deps.Lc.Append(fx.Hook{
 		OnStart: tc.configure,
@@ -65,7 +66,7 @@ func (tc *mockTrafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) err
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (tc *mockTrafficCapture) Enqueue(msg *CaptureBuffer) bool {
+func (tc *mockTrafficCapture) Enqueue(msg *replaydef.CaptureBuffer) bool {
 	return true
 }
 

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

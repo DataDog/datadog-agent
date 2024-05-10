@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/replay"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"

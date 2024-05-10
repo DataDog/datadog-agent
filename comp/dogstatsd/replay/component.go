@@ -9,46 +9,17 @@
 package replay
 
 import (
-	"time"
-
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	replaydef "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-metrics-logs
 
-// Component is the component type.
-type Component interface {
-
-	// IsOngoing returns whether a capture is ongoing for this TrafficCapture instance.
-	IsOngoing() bool
-
-	// StartCapture starts a TrafficCapture and returns an error in the event of an issue.
-	StartCapture(p string, d time.Duration, compressed bool) (string, error)
-
-	// StopCapture stops an ongoing TrafficCapture.
-	StopCapture()
-
-	// TODO: (components) pool manager should be injected as a component in the future.
-	// RegisterSharedPoolManager registers the shared pool manager with the TrafficCapture.
-	RegisterSharedPoolManager(p *packets.PoolManager) error
-
-	// TODO: (components) pool manager should be injected as a component in the future.
-	// RegisterOOBPoolManager registers the OOB shared pool manager with the TrafficCapture.f
-	RegisterOOBPoolManager(p *packets.PoolManager) error
-
-	// Enqueue enqueues a capture buffer so it's written to file.
-	Enqueue(msg *CaptureBuffer) bool
-
-	// GetStartUpError returns an error if TrafficCapture failed to start up
-	GetStartUpError() error
-}
-
 // Mock implements mock-specific methods.
 type Mock interface {
-	Component
+	replaydef.Component
 }
 
 // Module defines the fx options for this component.

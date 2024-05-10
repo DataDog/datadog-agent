@@ -17,15 +17,8 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	replaydef "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
-)
-
-const (
-	// GUID will be used as the GUID during capture replays
-	// This is a magic number chosen for no particular reason other than the fact its
-	// quite large an improbable to match an actual Group ID on any given box. We
-	// need this number to identify replayed Unix socket ancillary credentials.
-	GUID = 999888777
 )
 
 type dependencies struct {
@@ -47,14 +40,14 @@ type trafficCapture struct {
 // TODO: (components) - remove once serverless is an FX app
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func NewServerlessTrafficCapture() Component {
+func NewServerlessTrafficCapture() replaydef.Component {
 	tc := newTrafficCaptureCompat(config.Datadog)
 	_ = tc.configure(context.TODO())
 	return tc
 }
 
 // TODO: (components) - merge with newTrafficCaptureCompat once NewServerlessTrafficCapture is removed
-func newTrafficCapture(deps dependencies) Component {
+func newTrafficCapture(deps dependencies) replaydef.Component {
 	tc := newTrafficCaptureCompat(deps.Config)
 	deps.Lc.Append(fx.Hook{
 		OnStart: tc.configure,
@@ -134,7 +127,7 @@ func (tc *trafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) error {
 }
 
 // Enqueue enqueues a capture buffer so it's written to file.
-func (tc *trafficCapture) Enqueue(msg *CaptureBuffer) bool {
+func (tc *trafficCapture) Enqueue(msg *replaydef.CaptureBuffer) bool {
 	tc.RLock()
 	defer tc.RUnlock()
 	return tc.writer.Enqueue(msg)
