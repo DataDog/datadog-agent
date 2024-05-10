@@ -30,3 +30,12 @@ class TestUtils(unittest.TestCase):
         module_path = "tasks/unit-tests/testdata"
         non_flaky_failing_tests = test_washer_3.get_non_flaky_failing_tests(module_path)
         self.assertEqual(non_flaky_failing_tests, {"github.com/DataDog/datadog-agent/pkg/gohai": {"TestGetPayload"}})
+
+    def test_should_mark_parent_flaky(self):
+        test_washer = TestWasher(
+            test_output_json_file="test_output_failure_parent.json",
+            flakes_file_path="tasks/unit-tests/testdata/flakes_2.yaml",
+        )
+        module_path = "tasks/unit-tests/testdata"
+        non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(module_path)
+        self.assertEqual(non_flaky_failing_tests, {})

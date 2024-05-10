@@ -45,10 +45,12 @@ class TestWasher:
         for package, tests in failing_tests.items():
             non_flaky_failing_tests_in_package = set()
             for failing_test in tests:
-                if all(
-                    not failing_test.startswith(flaky_marked_test) for flaky_marked_test in flaky_marked_tests[package]
-                ) and all(
-                    not failing_test.startswith(flaky_marked_test)
+                failing_test_parent = failing_test.split("/")[0]
+                if not any(
+                    flaky_marked_test.startswith(failing_test_parent)
+                    for flaky_marked_test in flaky_marked_tests[package]
+                ) and not any(
+                    flaky_marked_test.startswith(failing_test_parent)
                     for flaky_marked_test in self.known_flaky_tests[package]
                 ):
                     non_flaky_failing_tests_in_package.add(failing_test)
