@@ -87,7 +87,7 @@ class CompilerImage:
 
         if uid == 0:
             # If we're starting the compiler as root, we won't be able to create the compiler user
-            # and we will get weird failures later on
+            # and we will get weird failures later on, as the user 'compiler' won't exist in the container
             raise ValueError("Cannot start compiler as root, we need to run as a non-root user")
 
         # Now create the compiler user with same UID and GID as the current user
