@@ -7,7 +7,7 @@
 package fx
 
 import (
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
