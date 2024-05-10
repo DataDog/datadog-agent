@@ -157,9 +157,10 @@ func (e *etwSession) GetSessionStatistics() (etw.SessionStatistics, error) {
 	if err != nil {
 		return stats, fmt.Errorf("incorrect session name; %w", err)
 	}
+	cfg := &etw.SessionConfiguration{}
 	// it is not clear if we can safely reuse the properties buffer here
 	// so we allocate a new one
-	propertiesBuf, ptp := initializeRealtimeSessionProperties(utf16SessionName, nil)
+	propertiesBuf, ptp := initializeRealtimeSessionProperties(utf16SessionName, cfg)
 
 	ret := windows.Errno(C.ControlTraceW(
 		e.hSession,
