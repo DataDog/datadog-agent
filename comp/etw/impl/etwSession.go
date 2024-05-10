@@ -228,7 +228,7 @@ func createEtwSession(name string, f etw.SessionConfigurationFunc) (*etwSession,
 	}
 
 	propertiesBuf, pProperties := initializeRealtimeSessionProperties(s)
-	
+
 	ret := windows.Errno(C.StartTraceW(
 		&s.hSession,
 		C.LPWSTR(unsafe.Pointer(&s.utf16name[0])),
@@ -267,12 +267,12 @@ func createWellKnownEtwSession(name string, f etw.SessionConfigurationFunc) (*et
 			return nil, fmt.Errorf("max buffers must be greater than or equal to min buffers")
 		}
 	}
-	
+
 	s.propertiesBuf, _ = initializeRealtimeSessionProperties(s)
 	return s, nil
 }
 
-func initializeRealtimeSessionProperties(s *etwSession) ([]byte, (C.PEVENT_TRACE_PROPERTIES)) {
+func initializeRealtimeSessionProperties(s *etwSession) ([]byte, C.PEVENT_TRACE_PROPERTIES) {
 	sessionNameSize := (len(s.utf16name) * int(unsafe.Sizeof(s.utf16name[0])))
 	bufSize := int(unsafe.Sizeof(C.EVENT_TRACE_PROPERTIES{})) + sessionNameSize
 	propertiesBuf := make([]byte, bufSize)
@@ -286,7 +286,7 @@ func initializeRealtimeSessionProperties(s *etwSession) ([]byte, (C.PEVENT_TRACE
 	if s.sessionConfig.MaxBuffers > 0 {
 		pProperties.MaximumBuffers = C.ulong(s.sessionConfig.MaxBuffers)
 	}
-	if  s.sessionConfig.MinBuffers > 0 {
+	if s.sessionConfig.MinBuffers > 0 {
 		pProperties.MinimumBuffers = C.ulong(s.sessionConfig.MinBuffers)
 	}
 	return propertiesBuf, pProperties
