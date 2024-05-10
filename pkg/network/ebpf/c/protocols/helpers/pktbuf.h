@@ -1,10 +1,7 @@
-#ifndef __KAFKA_PKTBUF_H
-#define __KAFKA_PKTBUF_H
+#ifndef __PKTBUF_H
+#define __PKTBUF_H
 
 #include "protocols/helpers/big_endian.h"
-#include "protocols/kafka/defs.h"
-#include "protocols/kafka/maps.h"
-#include "protocols/kafka/types.h"
 #include "protocols/read_into_buffer.h"
 
 enum pktbuf_type {
