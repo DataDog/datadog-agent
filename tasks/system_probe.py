@@ -796,7 +796,7 @@ def go_package_dirs(packages, build_tags):
 
     target_packages = []
     for pkg in packages:
-        target_packages += (
+        dirs = (
             check_output(
                 f"go list -find -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
                 shell=True,
@@ -805,6 +805,9 @@ def go_package_dirs(packages, build_tags):
             .strip()
             .split("\n")
         )
+        # Some packages may not be available on all architectures, ignore them
+        # instead of reporting empty path names
+        target_packages += [dir for dir in dirs if dir]
 
     return target_packages
 
