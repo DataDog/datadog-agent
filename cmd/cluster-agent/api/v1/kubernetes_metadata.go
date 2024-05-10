@@ -132,12 +132,12 @@ func getNamespaceLabels(w http.ResponseWriter, r *http.Request, wmeta workloadme
 	var labelBytes []byte
 	nsName := vars["ns"]
 	namespace, err := wmeta.GetKubernetesNamespace(nsName)
-	if namespace == nil {
+	if err != nil {
 		log.Errorf("Could not retrieve the namespace %s: %v", nsName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	nsLabels := namespace.EntityMeta.Labels
+	nsLabels := namespace.Labels
 	labelBytes, err = json.Marshal(nsLabels)
 	if err != nil {
 		log.Errorf("Could not process the labels of the namespace %s from the informer's cache: %v", nsName, err.Error()) //nolint:errcheck
