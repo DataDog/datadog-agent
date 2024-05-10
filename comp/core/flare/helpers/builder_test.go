@@ -96,7 +96,8 @@ func TestSave(t *testing.T) {
 	}
 	hostname = validate.CleanHostnameDir(hostname)
 
-	archive.UnZip(archivePath, tmpDir)
+	err = archive.UnZip(archivePath, tmpDir)
+	assert.Nil(t, err)
 	assert.FileExists(t, filepath.Join(tmpDir, hostname, "test.data"))
 	assert.FileExists(t, filepath.Join(tmpDir, hostname, "test/depth1/depth2/test4"))
 }

@@ -76,51 +76,55 @@ func UnZip(source, destination string) error {
 	}
 	defer zipR.Close()
 
-	// Closure to address file descriptors issue with all the deferred .Close() methods
-	extractAndWriteFile := func(f *zip.File) error {
-		rc, err := f.Open()
+	for _, f := range zipR.File {
+		err := extractAndWriteFile(f, destination)
 		if err != nil {
 			return err
 		}
-		defer rc.Close()
+	}
 
-		path := filepath.Join(destination, f.Name)
+	return nil
+}
 
-		// Check for ZipSlip (Directory traversal)
-		if !strings.HasPrefix(path, filepath.Clean(destination)+string(os.PathSeparator)) {
-			return fmt.Errorf("illegal file path: %s", path)
-		}
+func extractAndWriteFile(f *zip.File, destination string) error {
+	rc, err := f.Open()
+	if err != nil {
+		return fmt.Errorf("failed to open file: %v", err)
+	}
+	defer rc.Close()
 
-		if f.FileInfo().IsDir() {
-			err := os.MkdirAll(path, f.Mode())
-			if err != nil {
-				return err
-			}
-		} else {
-			err := os.MkdirAll(filepath.Dir(path), f.Mode())
-			if err != nil {
-				return err
-			}
-			f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-			_, err = io.Copy(f, rc)
-			if err != nil {
-				return err
-			}
-		}
+	path := filepath.Join(destination, f.Name)
+
+	// Check for ZipSlip (Directory traversal)
+	if !strings.HasPrefix(path, filepath.Clean(destination)+string(os.PathSeparator)) {
+		return fmt.Errorf("illegal file path: %s", path)
+	}
+
+	if f.Mode() == os.ModeSymlink {
+		// We skip symlink for security reasons
 		return nil
 	}
 
-	for _, f := range zipR.File {
-		err := extractAndWriteFile(f)
+	if f.FileInfo().IsDir() {
+		err := os.MkdirAll(path, 0755)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create dir %s: %v", path, err)
+		}
+	} else {
+		err := os.MkdirAll(filepath.Dir(path), 0755)
+		if err != nil {
+			return fmt.Errorf("failed to file dir %s: %v", path, err)
+		}
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+		if err != nil {
+			return fmt.Errorf("failed to open file %s: %v", path, err)
+		}
+		defer f.Close()
+		_, err = io.Copy(f, rc)
+		if err != nil {
+			return fmt.Errorf("failed to copy file %s: %v", path, err)
 		}
 	}
-
 	return nil
 }
 
@@ -182,41 +186,40 @@ func writeWalk(zipW *zip.Writer, source, destination string) error {
 			return err
 		}
 
-		var file io.ReadCloser
 		if info.Mode().IsRegular() {
-			file, err = os.Open(fpath)
+			file, err := os.Open(fpath)
 			if err != nil {
 				return fmt.Errorf("%w %s: opening", err, fpath)
 			}
 			defer file.Close()
-		}
 
-		finfo := fileInfo{
-			FileInfo:   info,
-			customName: nameInArchive,
-		}
-		header, err := zip.FileInfoHeader(finfo)
-		if err != nil {
-			return fmt.Errorf("%w %s: getting header", err, finfo.Name())
-		}
+			finfo := fileInfo{
+				FileInfo:   info,
+				customName: nameInArchive,
+			}
+			header, err := zip.FileInfoHeader(finfo)
+			if err != nil {
+				return fmt.Errorf("%w %s: getting header", err, finfo.Name())
+			}
 
-		if finfo.IsDir() {
-			header.Name += "/"
-		}
-		header.Method = zip.Store
+			if finfo.IsDir() {
+				header.Name += "/"
+			}
+			header.Method = zip.Store
 
-		writer, err := zipW.CreateHeader(header)
-		if err != nil {
-			return fmt.Errorf("%w %s: making header", err, finfo.Name())
-		}
+			writer, err := zipW.CreateHeader(header)
+			if err != nil {
+				return fmt.Errorf("%w %s: making header", err, finfo.Name())
+			}
 
-		if finfo.IsDir() {
-			return nil
-		}
+			if finfo.IsDir() {
+				return nil
+			}
 
-		_, err = io.Copy(writer, file)
-		if err != nil {
-			return fmt.Errorf("%w %s: copying contents", err, finfo.Name())
+			_, err = io.Copy(writer, file)
+			if err != nil {
+				return fmt.Errorf("%w %s: copying contents", err, finfo.Name())
+			}
 		}
 
 		return nil
