@@ -74,7 +74,7 @@ func (p *ProcessConsumer) Stop() {
 
 // ID returns id for process monitor
 func (p *ProcessConsumer) ID() string {
-	return "PROCESS"
+	return "process"
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter

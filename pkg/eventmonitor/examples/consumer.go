@@ -38,7 +38,7 @@ func NewSimpleEventConsumer(em *eventmonitor.EventMonitor) *SimpleEventConsumer 
 // ID returns the ID of this consumer
 // Implement the consumer interface
 func (fc *SimpleEventConsumer) ID() string {
-	return "SIMPLE_CONSUMER"
+	return "simple_consumer"
 }
 
 // Start the consumer

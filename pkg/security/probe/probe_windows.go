@@ -931,12 +931,7 @@ func (p *Probe) Origin() string {
 func NewProbe(config *config.Config, opts Opts, _ optional.Option[workloadmeta.Component]) (*Probe, error) {
 	opts.normalize()
 
-	p := &Probe{
-		Opts:         opts,
-		Config:       config,
-		StatsdClient: opts.StatsdClient,
-		scrubber:     newProcScrubber(config.Probe.CustomSensitiveWords),
-	}
+	p := newProbe(config, opts)
 
 	pp, err := NewWindowsProbe(p, config, opts)
 	if err != nil {

@@ -172,6 +172,11 @@ func (h *eventConsumerWrapper) ChanSize() int {
 	return chanSize
 }
 
+// ID returns the id of this consumer
+func (h eventConsumerWrapper) ID() string {
+	return "network"
+}
+
 var _eventConsumerWrapper = &eventConsumerWrapper{}
 
 // Consumer returns an event consumer to handle events from the runtime security module

@@ -16,10 +16,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -61,6 +63,7 @@ type EventHandler interface {
 
 // EventConsumerInterface represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
 type EventConsumerInterface interface {
+	ID() string
 	ChanSize() int
 	HandleEvent(_ any)
 	Copy(_ *model.Event) any
@@ -70,8 +73,9 @@ type EventConsumerInterface interface {
 
 // EventConsumer defines a probe event consumer
 type EventConsumer struct {
-	consumer EventConsumerInterface
-	eventCh  chan any
+	consumer     EventConsumerInterface
+	eventCh      chan any
+	eventDropped *atomic.Int64
 }
 
 // Start the consumer
@@ -123,6 +127,15 @@ type Probe struct {
 	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
 }
 
+func newProbe(config *config.Config, opts Opts) *Probe {
+	return &Probe{
+		Opts:         opts,
+		Config:       config,
+		StatsdClient: opts.StatsdClient,
+		scrubber:     newProcScrubber(config.Probe.CustomSensitiveWords),
+	}
+}
+
 // Init initializes the probe
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
@@ -145,8 +158,27 @@ func (p *Probe) Start() error {
 	return p.PlatformProbe.Start()
 }
 
+func (p *Probe) sendConsumerStats() error {
+	for _, consumer := range p.consumers {
+		dropped := consumer.eventDropped.Swap(0)
+		if dropped > 0 {
+			tags := []string{
+				fmt.Sprintf("consumer_id:%s", consumer.consumer.ID()),
+			}
+			if err := p.StatsdClient.Count(metrics.MetricEventMonitoringEventsDropped, dropped, tags, 1.0); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 // SendStats sends statistics about the probe to Datadog
 func (p *Probe) SendStats() error {
+	if err := p.sendConsumerStats(); err != nil {
+		return err
+	}
 	return p.PlatformProbe.SendStats()
 }
 
@@ -220,8 +252,9 @@ func (p *Probe) AddEventConsumer(consumer EventConsumerInterface) error {
 	}
 
 	pc := &EventConsumer{
-		consumer: consumer,
-		eventCh:  make(chan any, chanSize),
+		consumer:     consumer,
+		eventCh:      make(chan any, chanSize),
+		eventDropped: atomic.NewInt64(0),
 	}
 
 	for _, eventType := range consumer.EventTypes() {
@@ -271,6 +304,7 @@ func (p *Probe) sendEventToConsumers(event *model.Event) {
 			select {
 			case pc.eventCh <- copied:
 			default:
+				pc.eventDropped.Inc()
 			}
 		}
 	}
