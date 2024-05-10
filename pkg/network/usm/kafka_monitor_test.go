@@ -758,6 +758,11 @@ func appendMessages(messages []Message, correlationID int, req kmsg.FetchRequest
 	)
 }
 
+// CannedClientServer allows running a TCP server/client pair, optionally
+// using TLS, which allows sending a list of canned messages comprising
+// of requests and responses between the client and the server. This
+// allows fine-graned control about where the boundaries between data
+// chunks go, enabling us to verify the parsing continuation handling.
 type CannedClientServer struct {
 	control  chan []Message
 	done     chan bool
