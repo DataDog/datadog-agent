@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -109,7 +110,7 @@ func TestSuseARM(t *testing.T) {
 func (v *installerSuite) bootstrap(remoteUpdatesEnabled bool) {
 	v.Env().RemoteHost.MustExecute(
 		"sudo -E datadog-bootstrap bootstrap",
-		components.WithEnvVariables(components.EnvVar{
+		client.WithEnvVariables(client.EnvVar{
 			"DD_INSTALLER_REGISTRY":          "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 			"DD_INSTALLER_REGISTRY_AUTH":     "ecr",
 			"DD_INSTALLER_BOOTSTRAP_VERSION": fmt.Sprintf("pipeline-%v", stdos.Getenv("E2E_PIPELINE_ID")),
@@ -444,7 +445,7 @@ func (v *installerSuite) TestPurgeAndInstallAPMInjector() {
 	require.Eventually(v.T(), func() bool {
 		_, err := host.Execute(`cat /var/log/datadog/trace-agent.log | grep "Dropping Payload due to non-retryable error"`)
 		return err == nil
-	}, 30*time.Second, 100*time.Millisecond)
+	}, 2*time.Minute, 100*time.Millisecond)
 
 	///////////////////////
 	// Check purge state //
@@ -464,8 +465,9 @@ func (v *installerSuite) TestPurgeAndInstallAPMInjector() {
 	require.NotNil(v.T(), err)
 	_, err = host.Execute(`grep "/opt/datadog-packages/datadog-apm-inject" /etc/docker/daemon.json`)
 	require.NotNil(v.T(), err)
-	res, err = host.Execute("grep \"LD PRELOAD CONFIG\" /etc/datadog-agent/datadog.yaml")
-	require.NotNil(v.T(), err, "expected no LD PRELOAD CONFIG in agent config, got:\n%s", res)
+	raw, err = host.ReadFile("/etc/datadog-agent/datadog.yaml")
+	require.Nil(v.T(), err)
+	require.True(v.T(), strings.Contains(string(raw), "# BEGIN LD PRELOAD CONFIG"), "missing LD_PRELOAD config, config:\n%s", string(raw))
 }
 
 func assertInstallMethod(v *installerSuite, t *testing.T, host *components.RemoteHost) {

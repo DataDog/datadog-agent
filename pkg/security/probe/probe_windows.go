@@ -838,7 +838,7 @@ func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field e
 		return
 	}
 
-	if field == "create.file.path" {
+	if field == "create.file.device_path" {
 		path := ev.CreateNewFile.File.PathnameStr
 		seclog.Debugf("new discarder for `%s` -> `%v`", field, path)
 		p.discardedPaths.Add(path, struct{}{})
