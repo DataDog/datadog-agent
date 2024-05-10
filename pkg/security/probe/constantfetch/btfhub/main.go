@@ -113,6 +113,7 @@ func main() {
 		panic(err)
 	}
 
+	twCollector.close()
 	wg.Wait()
 
 	export := twCollector.finish()
@@ -237,6 +238,10 @@ func newTreeWalkCollector(preAllocHint int) *treeWalkCollector {
 		cache:     make(map[string]map[string]uint64),
 		queryChan: make(chan extractionQuery),
 	}
+}
+
+func (c *treeWalkCollector) close() {
+	close(c.queryChan)
 }
 
 func (c *treeWalkCollector) finish() constantfetch.BTFHubConstants {
