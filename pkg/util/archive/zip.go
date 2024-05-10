@@ -21,7 +21,7 @@ import (
 
 // Zip is an adapted implementation of (*Zip).Archive from
 // https://github.com/mholt/archiver/blob/v3.5.1/zip.go#L140
-// under MIT License.
+// Copyright (c) 2016 Matthew Holt
 func Zip(sources []string, destination string) error {
 	if !strings.HasSuffix(destination, ".zip") {
 		return fmt.Errorf("%s must have a .zip extension", destination)
@@ -130,7 +130,7 @@ func extractAndWriteFile(f *zip.File, destination string) error {
 
 // fileExists is an adapted implementation of fileExists from
 // https://github.com/mholt/archiver/blob/v3.5.1/archiver.go#L279
-// under MIT License.
+// Copyright (c) 2016 Matthew Holt
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return !errors.Is(err, fs.ErrNotExist)
@@ -138,7 +138,7 @@ func fileExists(path string) bool {
 
 // fileInfo is an adapted implementation of FileInfo from
 // https://github.com/mholt/archiver/blob/v3.5.1/archiver.go#L125
-// under MIT license.
+// Copyright (c) 2016 Matthew Holt
 type fileInfo struct {
 	os.FileInfo
 	customName string
@@ -153,7 +153,7 @@ func (f fileInfo) Name() string {
 
 // writeWalk is an adapted implementation of (*Zip).writeWalk from
 // https://github.com/mholt/archiver/blob/v3.5.1/zip.go#L300
-// under MIT License.
+// Copyright (c) 2016 Matthew Holt
 func writeWalk(zipW *zip.Writer, source, destination string) error {
 	sourceInfo, err := os.Stat(source)
 	if err != nil {
@@ -228,7 +228,7 @@ func writeWalk(zipW *zip.Writer, source, destination string) error {
 
 // makeNameInArchive is an adapted implementation of makeNameInArchive from
 // https://github.com/mholt/archiver/blob/v3.5.1/archiver.go#L413
-// under MIT License.
+// Copyright (c) 2016 Matthew Holt
 //
 // makeNameInArchive returns the filename for the file given by fpath to be used within
 // the archive. sourceInfo is the FileInfo obtained by calling os.Stat on source, and baseDir
