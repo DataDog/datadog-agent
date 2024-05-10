@@ -46,13 +46,6 @@ func (c ConnectionType) String() string {
 	return "UDP"
 }
 
-// TCPFailure represents the type of TCP Failure that occurred in a connection
-type TCPFailure string
-
-func (f TCPFailure) String() string {
-	return string(f)
-}
-
 const (
 	// AFINET represents v4 connections
 	AFINET ConnectionFamily = 0

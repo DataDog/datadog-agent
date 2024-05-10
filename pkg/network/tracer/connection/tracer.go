@@ -331,9 +331,7 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 	}
 
 	t.closeConsumer.Start(callback)
-	if kprobe.FailedConnectionsSupported(t.config) {
-		t.failedConnConsumer.Start()
-	}
+	t.failedConnConsumer.Start()
 	return nil
 }
 

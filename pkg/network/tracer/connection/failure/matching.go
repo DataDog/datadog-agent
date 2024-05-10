@@ -25,7 +25,7 @@ type FailedConnStats struct {
 // String returns a string representation of the failedConnStats
 func (t FailedConnStats) String() string {
 	return fmt.Sprintf(
-		"failedConnStats{countByErrCode: %+v}", t.CountByErrCode,
+		"failedConns: {countByErrCode: %+v}", t.CountByErrCode,
 	)
 }
 
@@ -59,6 +59,7 @@ func MatchFailedConn(conn *network.ConnectionStats, failedConnMap *FailedConns) 
 	}
 }
 
+// connStatsToTuple converts a ConnectionStats to a ConnTuple
 func connStatsToTuple(c *network.ConnectionStats) ebpf.ConnTuple {
 	var tup ebpf.ConnTuple
 	tup.Sport = c.SPort

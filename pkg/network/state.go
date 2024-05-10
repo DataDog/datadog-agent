@@ -565,7 +565,7 @@ func (ns *networkState) mergeByCookie(conns []ConnectionStats) ([]ConnectionStat
 	return conns, connsByKey
 }
 
-// StoreClosedConnections stores the given closed connections
+// StoreClosedConnections wraps the unexported method while locking state
 func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 	ns.Lock()
 	defer ns.Unlock()

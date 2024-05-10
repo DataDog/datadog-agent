@@ -35,8 +35,6 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPCloseCleanProtocolsReturn,
 	probes.TCPCloseFlushReturn,
 	probes.TCPConnect,
-	//probes.TCPConnectReturn,
-	//probes.TCPv4ConnectReturn,
 	probes.TCPFinishConnect,
 	probes.IPMakeSkb,
 	probes.IPMakeSkbReturn,
