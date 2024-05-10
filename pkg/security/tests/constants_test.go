@@ -24,6 +24,7 @@ var BTFHubVsRcPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameIoKiocbStructCtx,
 	constantfetch.OffsetNameSchedProcessForkChildPid,
 	constantfetch.OffsetNameSchedProcessForkParentPid,
+	constantfetch.OffsetNameMountMntID,
 }
 
 var RCVsFallbackPossiblyMissingConstants = []string{
@@ -33,6 +34,7 @@ var RCVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameDeviceStructNdNet,
 	constantfetch.OffsetNameSchedProcessForkChildPid,
 	constantfetch.OffsetNameSchedProcessForkParentPid,
+	constantfetch.OffsetNameMountMntID,
 }
 
 var BTFHubVsFallbackPossiblyMissingConstants = []string{
