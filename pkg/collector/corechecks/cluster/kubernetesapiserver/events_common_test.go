@@ -88,16 +88,14 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 				"name:my-pod",
 				"kube_namespace:default",
 				"namespace:default",
-				"team:container-int",
+				"team:container-int", // this tag is coming from the namespace
 				"pod_name:my-pod",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := getInvolvedObjectTags(tt.involvedObject, taggerInstance); !reflect.DeepEqual(got, tt.tags) {
-				t.Errorf("getInvolvedObjectTags() = %v, want %v", got, tt.tags)
-			}
+			assert.ElementsMatch(t, getInvolvedObjectTags(tt.involvedObject, taggerInstance), tt.tags)
 		})
 	}
 }
