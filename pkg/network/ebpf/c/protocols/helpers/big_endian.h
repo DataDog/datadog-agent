@@ -21,16 +21,16 @@
         return true;                                                                                        \
     }
 
-#define READ_BIG_ENDIAN_USER(type, transformer)                                                                  \
-    static __always_inline __maybe_unused bool read_big_endian_user_##type(const void *buf, u32 buflen, u32 offset, type *out) {      \
-        if (offset + sizeof(type) > buflen) {                                                             \
-            return false;                                                                                   \
-        }                                                                                                   \
-        type val;                                                                                           \
-        bpf_memset(&val, 0, sizeof(type));                                                                  \
-        bpf_probe_read_user(&val, sizeof(type), buf + offset);                                 \
-        *out = transformer(val);                                                                            \
-        return true;                                                                                        \
+#define READ_BIG_ENDIAN_USER(type, transformer)                                                                                   \
+    static __always_inline __maybe_unused bool read_big_endian_user_##type(const void *buf, u32 buflen, u32 offset, type *out) {  \
+        if (offset + sizeof(type) > buflen) {                                                                                     \
+            return false;                                                                                                         \
+        }                                                                                                                         \
+        type val;                                                                                                                 \
+        bpf_memset(&val, 0, sizeof(type));                                                                                        \
+        bpf_probe_read_user(&val, sizeof(type), buf + offset);                                                                    \
+        *out = transformer(val);                                                                                                  \
+        return true;                                                                                                              \
     }
 
 READ_BIG_ENDIAN_USER(s32, bpf_ntohl);
