@@ -39,6 +39,11 @@ type Conn struct {
 	Tcp_stats       TCPStats
 	Tcp_retransmits uint32
 }
+type FailedConn struct {
+	Tup       ConnTuple
+	Reason    uint32
+	Pad_cgo_0 [4]byte
+}
 type Batch struct {
 	C0        Conn
 	C1        Conn
@@ -109,6 +114,7 @@ const BatchSize = 0x4
 const SizeofBatch = 0x1f0
 
 const SizeofConn = 0x78
+const SizeofFailedConn = 0x38
 
 type ClassificationProgram = uint32
 

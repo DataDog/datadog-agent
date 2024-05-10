@@ -35,6 +35,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -73,6 +74,8 @@ type Tracer interface {
 	GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error
 	// FlushPending forces any closed connections waiting for batching to be processed immediately.
 	FlushPending()
+	// GetFailedConnections returns the underlying map used to store failed connections
+	GetFailedConnections() *failure.FailedConns
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error
@@ -95,6 +98,7 @@ type Tracer interface {
 
 const (
 	defaultClosedChannelSize = 500
+	defaultFailedChannelSize = 500
 	connTracerModuleName     = "network_tracer__ebpf"
 )
 
@@ -163,6 +167,8 @@ type tracer struct {
 
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
+	// tcp failure events
+	failedConnConsumer *failure.TCPFailedConnConsumer
 
 	removeTuple *netebpf.ConnTuple
 
@@ -220,11 +226,15 @@ func NewTracer(config *config.Config) (Tracer, error) {
 		closedChannelSize = config.ClosedChannelSize
 	}
 	var connCloseEventHandler ddebpf.EventHandler
+	var failedConnsHandler ddebpf.EventHandler
 	if config.RingBufferSupportedNPM() {
 		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
+		failedConnsHandler = ddebpf.NewRingBufferHandler(defaultFailedChannelSize)
 	} else {
 		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
+		failedConnsHandler = ddebpf.NewPerfHandler(defaultFailedChannelSize)
 	}
+
 	var m *manager.Manager
 	//nolint:revive // TODO(NET) Fix revive linter
 	var tracerType TracerType = TracerTypeFentry
@@ -239,7 +249,7 @@ func NewTracer(config *config.Config) (Tracer, error) {
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
 		var kprobeTracerType kprobe.TracerType
-		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler)
+		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler, failedConnsHandler)
 		if err != nil {
 			return nil, err
 		}
@@ -255,15 +265,21 @@ func NewTracer(config *config.Config) (Tracer, error) {
 
 	closeConsumer := newTCPCloseConsumer(connCloseEventHandler, batchMgr)
 
+	var failedConnConsumer *failure.TCPFailedConnConsumer
+	if kprobe.FailedConnectionsSupported(config) {
+		failedConnConsumer = failure.NewFailedConnConsumer(failedConnsHandler)
+	}
+
 	tr := &tracer{
-		m:              m,
-		config:         config,
-		closeConsumer:  closeConsumer,
-		removeTuple:    &netebpf.ConnTuple{},
-		closeTracer:    closeTracerFn,
-		ebpfTracerType: tracerType,
-		exitTelemetry:  make(chan struct{}),
-		ch:             newCookieHasher(),
+		m:                  m,
+		config:             config,
+		closeConsumer:      closeConsumer,
+		failedConnConsumer: failedConnConsumer,
+		removeTuple:        &netebpf.ConnTuple{},
+		closeTracer:        closeTracerFn,
+		ebpfTracerType:     tracerType,
+		exitTelemetry:      make(chan struct{}),
+		ch:                 newCookieHasher(),
 	}
 
 	tr.conns, err = maps.GetMap[netebpf.ConnTuple, netebpf.ConnStats](m, probes.ConnMap)
@@ -315,6 +331,7 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 	}
 
 	t.closeConsumer.Start(callback)
+	t.failedConnConsumer.Start()
 	return nil
 }
 
@@ -335,6 +352,10 @@ func (t *tracer) FlushPending() {
 	t.closeConsumer.FlushPending()
 }
 
+func (t *tracer) GetFailedConnections() *failure.FailedConns {
+	return t.failedConnConsumer.FailedConns
+}
+
 func (t *tracer) Stop() {
 	t.stopOnce.Do(func() {
 		close(t.exitTelemetry)
@@ -342,6 +363,7 @@ func (t *tracer) Stop() {
 		ebpftelemetry.UnregisterTelemetry(t.m)
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
+		t.failedConnConsumer.Stop()
 		if t.closeTracer != nil {
 			t.closeTracer()
 		}

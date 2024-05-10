@@ -36,6 +36,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -67,12 +69,14 @@ var tracerTelemetry = struct {
 	closedConns          *telemetry.StatCounterWrapper
 	connStatsMapSize     telemetry.Gauge
 	payloadSizePerClient telemetry.Gauge
+	failedConnOrphans    telemetry.Counter
 }{
 	telemetry.NewCounter(tracerModuleName, "skipped_conns", []string{"ip_proto"}, "Counter measuring skipped connections"),
 	telemetry.NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
 	telemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{"ip_proto"}, "Counter measuring closed TCP connections"),
 	telemetry.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
 	telemetry.NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id", "ip_proto"}, "Gauge measuring the number of connections in the system-probe payload"),
+	telemetry.NewCounter(tracerModuleName, "failed_conn_orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
 }
 
 // Tracer implements the functionality of the network tracer
@@ -292,9 +296,24 @@ func newReverseDNS(c *config.Config) dns.ReverseDNS {
 	return rdns
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
+// storeClosedConnections is triggered when:
+// * the current closed connection batch fills up
+// * the client asks for the current connections
+// this function is responsible for storing the closed connections in the state and
+// matching failed connections to closed connections
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
+	var failedConnMap *failure.FailedConns
+	failedConnsEnabled := kprobe.FailedConnectionsSupported(t.config)
+	if failedConnsEnabled {
+		failedConnMap = t.ebpfTracer.GetFailedConnections()
+		defer func() {
+			failedConnMap.Lock()
+			tracerTelemetry.failedConnOrphans.Add(float64(len(failedConnMap.FailedConnMap)))
+			clear(failedConnMap.FailedConnMap)
+			failedConnMap.Unlock()
+		}()
+	}
 	for i := range connections {
 		cs := &connections[i]
 		cs.IsClosed = true
@@ -314,6 +333,9 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		t.addProcessInfo(cs)
 
 		tracerTelemetry.closedConns.Inc(cs.Type.String())
+		if failedConnsEnabled {
+			failure.MatchFailedConn(cs, failedConnMap)
+		}
 	}
 
 	connections = connections[rejected:]
