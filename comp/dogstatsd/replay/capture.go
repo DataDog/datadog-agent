@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2021 Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package replay
 
 import (
@@ -13,23 +14,21 @@ import (
 	"time"
 
 	"github.com/spf13/afero"
-	"go.uber.org/fx"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replaydef "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 //nolint:revive // TODO(AML) Fix revive linter
-type Dependencies struct {
-	fx.In
-
-	Lc     fx.Lifecycle
+type Requires struct {
+	Lc     compdef.Lifecycle
 	Config configComponent.Component
 }
 
-// TrafficCapture allows capturing traffic from our listeners and writing it to file
+// trafficCapture allows capturing traffic from our listeners and writing it to file
 type trafficCapture struct {
 	writer       *TrafficCaptureWriter
 	config       config.Reader
@@ -48,9 +47,11 @@ func NewServerlessTrafficCapture() replaydef.Component {
 }
 
 // TODO: (components) - merge with newTrafficCaptureCompat once NewServerlessTrafficCapture is removed
-func newTrafficCapture(deps Dependencies) replaydef.Component {
+//
+//nolint:revive // TODO(AML) Fix revive linter
+func NewTrafficCapture(deps Requires) replaydef.Component {
 	tc := newTrafficCaptureCompat(deps.Config)
-	deps.Lc.Append(fx.Hook{
+	deps.Lc.Append(compdef.Hook{
 		OnStart: tc.configure,
 	})
 

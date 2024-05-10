@@ -3,14 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package server implements a component to run the dogstatsd capture/replay
-//
 //nolint:revive // TODO(AML) Fix revive linter
-package replay
+package fx
 
 import (
-	"go.uber.org/fx"
-
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -19,5 +16,8 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newTrafficCapture))
+		fxutil.ProvideComponentConstructor(
+			replay.NewTrafficCapture,
+		),
+	)
 }
