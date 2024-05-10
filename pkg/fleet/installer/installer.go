@@ -255,12 +255,23 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	// todo check if agent/injector are installed
+	packages, err := i.db.ListPackages()
+	if err != nil {
+		// if we can't list packages we'll only remove the installer
+		packages = nil
+		log.Warnf("could not list packages: %v", err)
+	}
+	for _, pkg := range packages {
+		if pkg == packageDatadogInstaller {
+			continue
+		}
+		i.removePackage(ctx, pkg)
+	}
 	i.removePackage(ctx, packageDatadogInstaller)
 
 	// remove all from disk
 	span, _ := tracer.StartSpanFromContext(ctx, "remove_all")
-	err := os.RemoveAll(PackagesPath)
+	err = os.RemoveAll(PackagesPath)
 	defer span.Finish(tracer.WithError(err))
 	if err != nil {
 		log.Warnf("could not remove path: %v", err)
