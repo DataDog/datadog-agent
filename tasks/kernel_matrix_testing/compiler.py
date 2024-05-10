@@ -80,8 +80,19 @@ class CompilerImage:
             f"docker run -d --restart always --name {self.name} --mount type=bind,source=./,target={CONTAINER_AGENT_PATH} {self.image} sleep \"infinity\""
         )
 
+        # Due to permissions issues, we do not want to compile with the root user in the Docker image. We create a user
+        # inside there with the same UID and GID as the current user
         uid = cast('Result', self.ctx.run("id -u")).stdout.rstrip()
         gid = cast('Result', self.ctx.run("id -g")).stdout.rstrip()
+
+        if uid == 0:
+            # If we're starting the compiler as root, we won't be able to create the compiler user
+            # and we will get weird failures later on
+            raise ValueError("Cannot start compiler as root, we need to run as a non-root user")
+
+        # Now create the compiler user with same UID and GID as the current user
+        self.exec(f"getent group {gid} || groupadd -f -g {gid} compiler", user="root")
+        self.exec(f"getent passwd {uid} || useradd -m -u {uid} -g {gid} compiler", user="root")
 
         if sys.platform != "darwin":  # No need to change permissions in MacOS
             self.exec(
