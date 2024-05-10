@@ -3,30 +3,45 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2021 Datadog, Inc.
 
-package replay
+//go:build test
+
+//nolint:revive // TODO(AML) Fix revive linter
+package mock
 
 import (
 	"context"
 	"sync"
 	"time"
 
-	"go.uber.org/fx"
-
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replaydef "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 )
 
-type mockTrafficCapture struct {
-	isRunning bool
-	sync.RWMutex
+// Mock implements mock-specific methods.
+type Mock interface {
+	replaydef.Component
 }
 
-func newMockTrafficCapture(deps dependencies) replaydef.Component {
+//nolint:revive // TODO(AML) Fix revive linter
+type Requires struct {
+	Lc     compdef.Lifecycle
+	Config config.Component
+}
+
+//nolint:revive // TODO(AML) Fix revive linter
+func NewMockTrafficCapture(deps Requires) replaydef.Component {
 	tc := &mockTrafficCapture{}
-	deps.Lc.Append(fx.Hook{
+	deps.Lc.Append(compdef.Hook{
 		OnStart: tc.configure,
 	})
 	return tc
+}
+
+type mockTrafficCapture struct {
+	isRunning bool
+	sync.RWMutex
 }
 
 func (tc *mockTrafficCapture) configure(_ context.Context) error {

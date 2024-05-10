@@ -21,7 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-type dependencies struct {
+//nolint:revive // TODO(AML) Fix revive linter
+type Dependencies struct {
 	fx.In
 
 	Lc     fx.Lifecycle
@@ -47,7 +48,7 @@ func NewServerlessTrafficCapture() replaydef.Component {
 }
 
 // TODO: (components) - merge with newTrafficCaptureCompat once NewServerlessTrafficCapture is removed
-func newTrafficCapture(deps dependencies) replaydef.Component {
+func newTrafficCapture(deps Dependencies) replaydef.Component {
 	tc := newTrafficCaptureCompat(deps.Config)
 	deps.Lc.Append(fx.Hook{
 		OnStart: tc.configure,
