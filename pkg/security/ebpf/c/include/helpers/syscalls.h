@@ -35,14 +35,14 @@ void __attribute__((always_inline)) monitor_syscalls(u64 event_type, int delta) 
     __sync_fetch_and_add(&stats->count, delta);
 }
 
-struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_type) {
+void __attribute__((always_inline)) fetch_policy_ptr(struct policy_t *p, u64 event_type) {
     struct policy_t *policy = bpf_map_lookup_elem(&filter_policy, &event_type);
     if (policy) {
-        return *policy;
+        *p = *policy;
     }
-    struct policy_t empty_policy = {};
-    return empty_policy;
 }
+
+#define fetch_policy(evt_type) ({ struct policy_t p = {}; fetch_policy_ptr(&p, evt_type); p; })
 
 // cache_syscall checks the event policy in order to see if the syscall struct can be cached
 void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscall) {
