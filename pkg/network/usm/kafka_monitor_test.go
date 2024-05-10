@@ -1038,7 +1038,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 	proxyPid := can.runProxy()
 
 	for _, tt := range tests {
-		if !tls && tt.onlyTLS {
+		if tt.onlyTLS && !tls {
 			continue
 		}
 
