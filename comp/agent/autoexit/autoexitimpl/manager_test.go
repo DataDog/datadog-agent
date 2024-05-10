@@ -3,12 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package manager
+package autoexitimpl
 
 import (
 	"regexp"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	assert "github.com/stretchr/testify/require"
 )
 
@@ -20,18 +23,19 @@ type processFixture struct {
 	shouldExit bool
 }
 
-func (f *processFixture) run(t *testing.T) {
+func (f *processFixture) run(t *testing.T, logComp log.Component) {
 	t.Helper()
 
-	processFetcher = func() (processes, error) {
+	processFetcher = func(log.Component) (processes, error) {
 		return f.processes, nil
 	}
 
-	c := NoProcessExit(f.regexps)
+	c := &noProcessExit{excludedProcesses: f.regexps, log: logComp}
 	assert.Equal(t, f.shouldExit, c.check())
 }
 
 func TestExitDetection(t *testing.T) {
+	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
 	tests := []processFixture{
 		{
 			name: "existing process",
@@ -57,7 +61,7 @@ func TestExitDetection(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.run(t)
+			tt.run(t, logComponent)
 		})
 	}
 }
