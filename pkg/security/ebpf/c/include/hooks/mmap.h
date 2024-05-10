@@ -88,14 +88,14 @@ HOOK_SYSCALL_EXIT(mmap) {
     return sys_mmap_ret(ctx, (int)SYSCALL_PARMRET(ctx), (u64)SYSCALL_PARMRET(ctx));
 }
 
-HOOK_EXIT("fget")
-int rethook_fget(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
+HOOK_ENTRY("security_mmap_file")
+int hook_security_mmap_file(ctx_t *ctx) {
+	struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
     if (!syscall) {
         return 0;
     }
 
-    struct file *f = (struct file*) CTX_PARMRET(ctx, 1);
+    struct file *f = (struct file*) CTX_PARM1(ctx);
     syscall->mmap.dentry = get_file_dentry(f);
     syscall->mmap.file.path_key.mount_id = get_file_mount_id(f);
     set_file_inode(syscall->mmap.dentry, &syscall->mmap.file, 0);

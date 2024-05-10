@@ -15,7 +15,7 @@ func getMMapProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "rethook_fget",
+				EBPFFuncName: "hook_security_mmap_file",
 			},
 		},
 		{
