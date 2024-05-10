@@ -15,8 +15,9 @@ from pathlib import Path
 from subprocess import check_output
 
 import requests
-from invoke import task
+from invoke.context import Context
 from invoke.exceptions import Exit
+from invoke.tasks import task
 
 from tasks.agent import BUNDLED_AGENTS
 from tasks.agent import build as agent_build
@@ -32,8 +33,9 @@ from tasks.libs.common.utils import (
     get_common_test_args,
     get_gobin,
     get_version_numeric_only,
+    parse_kernel_version,
 )
-from tasks.libs.types.arch import get_arch
+from tasks.libs.types.arch import ALL_ARCHS, Arch, get_arch
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -57,7 +59,7 @@ TEST_TIMEOUTS = {
     "pkg/network/protocols/http$": "0",
     "pkg/network/protocols": "5m",
 }
-CWS_PREBUILT_MINIMUM_KERNEL_VERSION = [5, 8, 0]
+CWS_PREBUILT_MINIMUM_KERNEL_VERSION = (5, 8, 0)
 EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
 EMBEDDED_SHARE_JAVA_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "java")
 
@@ -80,7 +82,11 @@ CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 extra_cflags = []
 
 
-def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version, arch=CURRENT_ARCH):
+def get_ebpf_build_dir(arch: Arch) -> Path:
+    return Path("pkg/ebpf/bytecode/build") / arch.name
+
+
+def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version):
     maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx, major_version=major_version).split(".")
     nw.variable("maj_ver", maj_ver)
     nw.variable("min_ver", min_ver)
@@ -94,11 +100,18 @@ def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version, arch=CUR
     )
 
 
-def ninja_define_ebpf_compiler(nw: NinjaWriter, strip_object_files=False, kernel_release=None, with_unit_test=False):
-    nw.variable("target", "-emit-llvm")
-    nw.variable("ebpfflags", get_ebpf_build_flags(with_unit_test))
-    nw.variable("kheaders", get_kernel_headers_flags(kernel_release))
-
+def ninja_define_ebpf_compiler(
+    nw: NinjaWriter, strip_object_files=False, kernel_release=None, with_unit_test=False, arch: Arch | None = None
+):
+    if arch is not None and arch.is_cross_compiling():
+        # -target ARCH is important even if we're just emitting LLVM. If we're cross-compiling, clang
+        # might fail to interpret cross-arch assembly code (e.g, the headers with arm64-specific ASM code
+        # of the linux kernel will fail compilation in x64 hosts due to unknown register names).
+        nw.variable("target", f"-target {arch.gcc_arch} -emit-llvm")
+    else:
+        nw.variable("target", "-emit-llvm")
+    nw.variable("ebpfflags", get_ebpf_build_flags(with_unit_test, arch=arch))
+    nw.variable("kheaders", get_kernel_headers_flags(kernel_release, arch=arch))
     nw.rule(
         name="ebpfclang",
         command="clang -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
@@ -111,8 +124,8 @@ def ninja_define_ebpf_compiler(nw: NinjaWriter, strip_object_files=False, kernel
     )
 
 
-def ninja_define_co_re_compiler(nw: NinjaWriter):
-    nw.variable("ebpfcoreflags", get_co_re_build_flags())
+def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None):
+    nw.variable("ebpfcoreflags", get_co_re_build_flags(arch))
 
     nw.rule(
         name="ebpfcoreclang",
@@ -163,13 +176,15 @@ def ninja_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, variables=None):
     )
 
 
-def ninja_security_ebpf_programs(nw: NinjaWriter, build_dir, debug, kernel_release):
+def ninja_security_ebpf_programs(
+    nw: NinjaWriter, build_dir: Path, debug: bool, kernel_release: str | None, arch: Arch | None = None
+):
     security_agent_c_dir = os.path.join("pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir_include = os.path.join(security_agent_c_dir, "include")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
 
     kernel_headers = get_linux_header_dirs(
-        kernel_release=kernel_release, minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION
+        kernel_release=kernel_release, minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION, arch=arch
     )
     kheaders = " ".join(f"-isystem{d}" for d in kernel_headers)
     debugdef = "-DDEBUG=1" if debug else ""
@@ -474,15 +489,17 @@ def ninja_cgo_type_files(nw: NinjaWriter):
 
 
 def ninja_generate(
-    ctx,
+    ctx: Context,
     ninja_path,
     major_version='7',
+    arch: str | Arch = CURRENT_ARCH,
     debug=False,
     strip_object_files=False,
-    kernel_release=None,
+    kernel_release: str | None = None,
     with_unit_test=False,
 ):
-    build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
+    arch = get_arch(arch)
+    build_dir = get_ebpf_build_dir(arch)
     co_re_build_dir = os.path.join(build_dir, "co-re")
 
     with open(ninja_path, 'w') as ninja_file:
@@ -510,11 +527,11 @@ def ninja_generate(
             nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             gobin = get_gobin(ctx)
-            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test)
-            ninja_define_co_re_compiler(nw)
+            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
+            ninja_define_co_re_compiler(nw, arch=arch)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_test_ebpf_programs(nw, build_dir)
-            ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
+            ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
 
@@ -1042,9 +1059,9 @@ def get_ebpf_targets():
     return files
 
 
-def get_kernel_arch():
+def get_kernel_arch() -> Arch:
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
-    return (
+    kernel_arch = (
         check_output(
             '''uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
                 -e s/sun4u/sparc64/ \
@@ -1059,63 +1076,113 @@ def get_kernel_arch():
         .strip()
     )
 
+    return get_arch(kernel_arch)
 
-def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
+
+def get_linux_header_dirs(
+    kernel_release: str | None = None,
+    minimal_kernel_release: tuple[int, int, int] | None = None,
+    arch: Arch | None = None,
+) -> list[Path]:
     if not kernel_release:
         os_info = os.uname()
         kernel_release = os_info.release
+    kernel_release_vers = parse_kernel_version(kernel_release)
 
-    if kernel_release and minimal_kernel_release:
-        match = re.compile(r'(\d+)\.(\d+)(\.(\d+))?').match(kernel_release)
-        version_tuple = [int(x) or 0 for x in match.group(1, 2, 4)]
-        if version_tuple < minimal_kernel_release:
-            print(
-                f"You need to have kernel headers for at least {'.'.join([str(x) for x in minimal_kernel_release])} to enable all system-probe features"
+    if arch is None:
+        arch = get_arch("local")
+
+    kernels_path = Path("/usr/src/kernels")
+    usr_src_path = Path("/usr/src")
+    lib_modules_path = Path("/lib/modules")
+    candidates: set[Path] = set()
+
+    if kernels_path.is_dir():  # Doesn't always exist. For the others we do want exceptions as they should exist
+        candidates.update(kernels_path.iterdir())
+    candidates.update(d for d in usr_src_path.iterdir() if d.name.startswith("linux-"))
+    candidates.update(lib_modules_path.glob("*/build"))
+    candidates.update(lib_modules_path.glob("*/source"))
+    candidates = {c.resolve() for c in candidates if c.is_dir()}
+
+    paths_with_priority_and_sort_order: list[tuple[int, int, Path]] = []
+    discarded_paths: list[tuple[str, Path]] = []
+    for path in candidates:
+        # Get the kernel name, discard when we cannot get a kernel version out of them
+        candidate_kernel = path.name.removeprefix("linux-headers-").removeprefix("linux-kbuild-")
+        try:
+            candidate_kernel_vers = parse_kernel_version(candidate_kernel)
+        except ValueError:
+            discarded_paths.append(("no kernel version", path))
+            continue
+
+        priority = 0
+        sort_order = 100
+        if candidate_kernel_vers == kernel_release_vers:
+            priority += 1
+
+        # Completely discard kernels that don't match the minimal version
+        if minimal_kernel_release is not None and candidate_kernel_vers < minimal_kernel_release:
+            discarded_paths.append(
+                (f"kernel version {candidate_kernel_vers} less than minimal {minimal_kernel_release}", path)
             )
+            continue
 
-    src_kernels_dir = "/usr/src/kernels"
-    src_dir = "/usr/src"
-    possible_dirs = [
-        f"/lib/modules/{kernel_release}/build",
-        f"/lib/modules/{kernel_release}/source",
-        f"{src_dir}/linux-headers-{kernel_release}",
-        f"{src_kernels_dir}/{kernel_release}",
-    ]
-    linux_headers = []
-    for d in possible_dirs:
-        if os.path.isdir(d):
-            # resolve symlinks
-            linux_headers.append(Path(d).resolve())
+        # Give more priority to kernels that match the desired architecture.
+        matching_kernel_archs = {a for a in ALL_ARCHS if any(x in candidate_kernel for x in a.spellings)}
+        if arch in matching_kernel_archs:
+            sort_order = 0  # Matching architecture paths should be sorted the first
+            priority += 1
+        elif len(matching_kernel_archs) == 0:
+            # If we find no match, assume it's a common path (e.g., -common folders in Debian)
+            # which matches everything
+            sort_order = 1
+            priority += 1
 
-    # fallback to non-release-specific directories
-    if len(linux_headers) == 0:
-        if os.path.isdir(src_kernels_dir):
-            linux_headers = [os.path.join(src_kernels_dir, d) for d in os.listdir(src_kernels_dir)]
-        else:
-            linux_headers = [os.path.join(src_dir, d) for d in os.listdir(src_dir) if d.startswith("linux-")]
+        # Don't add duplicates
+        if not any(p == path for _, _, p in paths_with_priority_and_sort_order):
+            paths_with_priority_and_sort_order.append((priority, sort_order, path))
 
-    # deduplicate
-    linux_headers = list(dict.fromkeys(linux_headers))
-    arch = get_kernel_arch()
+    if len(paths_with_priority_and_sort_order) == 0:
+        raise ValueError(f"No kernel header path found. Discarded paths and reasons: {discarded_paths}")
 
+    # Only get paths with maximum priority, those are the ones that match the best.
+    # Note that there might be multiple of them (e.g., the arch-specific and the common path)
+    max_priority = max(prio for prio, _, _ in paths_with_priority_and_sort_order)
+    linux_headers = [(path, ord) for prio, ord, path in paths_with_priority_and_sort_order if prio == max_priority]
+
+    # Include sort order is important, ensure we respect the sort order we defined while
+    # discovering the paths
+    linux_headers = [path for path, _ in sorted(linux_headers, key=lambda x: x[1])]
+
+    # Now construct all subdirectories. Again, order is important, so keep the list
     subdirs = [
         "include",
         "include/uapi",
         "include/generated/uapi",
-        f"arch/{arch}/include",
-        f"arch/{arch}/include/uapi",
-        f"arch/{arch}/include/generated",
+        f"arch/{arch.kernel_arch}/include",
+        f"arch/{arch.kernel_arch}/include/uapi",
+        f"arch/{arch.kernel_arch}/include/generated",
+        f"arch/{arch.kernel_arch}/include/generated/uapi",
     ]
 
-    dirs = []
+    dirs: list[Path] = []
     for d in linux_headers:
         for s in subdirs:
-            dirs.extend([os.path.join(d, s)])
+            dirs.append(d / s)
 
     return dirs
 
 
-def get_ebpf_build_flags(unit_test=False):
+@task
+def print_linux_include_paths(_: Context, arch: str | None = None):
+    """
+    Print the result of the linux header directories discovery. Useful for debugging the build process.
+    """
+    paths = get_linux_header_dirs(arch=get_arch(arch or "local"))
+    print("\n".join(str(p) for p in paths))
+
+
+def get_ebpf_build_flags(unit_test=False, arch: Arch | None = None):
     flags = []
     flags.extend(
         [
@@ -1126,6 +1193,12 @@ def get_ebpf_build_flags(unit_test=False):
             '-DCOMPILE_PREBUILT',
         ]
     )
+    if arch is not None:
+        if arch.kernel_arch is None:
+            raise Exit(f"eBPF architecture not supported for {arch}")
+        flags.append(f"-D__TARGET_ARCH_{arch.kernel_arch}")
+        flags.append(f"-D__{arch.gcc_arch.replace('-', '_')}__")
+
     if unit_test:
         flags.extend(['-D__BALOUM__'])
     flags.extend(
@@ -1155,30 +1228,37 @@ def get_ebpf_build_flags(unit_test=False):
     return flags
 
 
-def get_co_re_build_flags():
-    flags = get_ebpf_build_flags()
+def get_co_re_build_flags(arch: Arch | None = None):
+    flags = get_ebpf_build_flags(arch=arch)
 
     flags.remove('-DCOMPILE_PREBUILT')
     flags.remove('-DCONFIG_64BIT')
     flags.remove('-include pkg/ebpf/c/asm_goto_workaround.h')
 
-    arch = get_kernel_arch()
     flags.extend(
         [
-            f"-D__TARGET_ARCH_{arch}",
             "-DCOMPILE_CORE",
             '-emit-llvm',
             '-g',
         ]
     )
 
+    if arch is None:
+        arch = get_kernel_arch()
+
+    arch_define = f"-D__TARGET_ARCH_{arch.kernel_arch}"
+    if arch_define not in flags:
+        flags.append(arch_define)
+
     return flags
 
 
-def get_kernel_headers_flags(kernel_release=None, minimal_kernel_release=None):
+def get_kernel_headers_flags(kernel_release=None, minimal_kernel_release=None, arch: Arch | None = None):
     return [
         f"-isystem{d}"
-        for d in get_linux_header_dirs(kernel_release=kernel_release, minimal_kernel_release=minimal_kernel_release)
+        for d in get_linux_header_dirs(
+            kernel_release=kernel_release, minimal_kernel_release=minimal_kernel_release, arch=arch
+        )
     ]
 
 
@@ -1196,19 +1276,20 @@ def check_for_inline(ctx):
 
 
 def run_ninja(
-    ctx,
+    ctx: Context,
     task="",
     target="",
     explain=False,
     major_version='7',
+    arch: str = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
-):
+) -> None:
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(ctx, nf_path, major_version, debug, strip_object_files, kernel_release, with_unit_test)
+    ninja_generate(ctx, nf_path, major_version, debug, strip_object_files, kernel_release, with_unit_test, arch=arch)
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
@@ -1265,13 +1346,15 @@ def verify_system_clang_version(ctx):
 def build_object_files(
     ctx,
     major_version='7',
+    arch: str = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
     instrument_trampoline=False,
-):
-    build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
+) -> None:
+    arch_obj = get_arch(arch)
+    build_dir = get_ebpf_build_dir(arch_obj)
 
     if not is_windows:
         verify_system_clang_version(ctx)
@@ -1298,6 +1381,7 @@ def build_object_files(
         debug=debug,
         strip_object_files=strip_object_files,
         with_unit_test=with_unit_test,
+        arch=arch,
     )
 
     if not is_windows:
@@ -1353,8 +1437,10 @@ def build_cws_object_files(
 
 
 @task
-def object_files(ctx, kernel_release=None, with_unit_test=False):
-    build_object_files(ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, instrument_trampoline=False)
+def object_files(ctx, kernel_release=None, with_unit_test=False, arch: str | None = None):
+    build_object_files(
+        ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, instrument_trampoline=False, arch=arch
+    )
 
 
 def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):

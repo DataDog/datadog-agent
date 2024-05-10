@@ -8,12 +8,12 @@ import yaml
 from invoke.context import Context
 from invoke.runners import Result
 
-from tasks.kernel_matrix_testing.tool import full_arch, info, warn
-from tasks.kernel_matrix_testing.vars import arch_mapping
+from tasks.kernel_matrix_testing.tool import info, warn
+from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch, get_arch
 from tasks.pipeline import GitlabYamlLoader
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch, ArchOrLocal, PathOrStr
+    from tasks.kernel_matrix_testing.types import PathOrStr
 
 
 CONTAINER_AGENT_PATH = "/tmp/datadog-agent"
@@ -35,13 +35,13 @@ class CompilerImage:
 
     @property
     def name(self):
-        return f"kmt-compiler-{self.arch}"
+        return f"kmt-compiler-{self.arch.name}"
 
     @property
     def image(self):
         suffix, version = get_build_image_suffix_and_version()
         image_base = "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe"
-        image_arch = "x64" if self.arch == "x86_64" else "arm64"
+        image_arch = "x64" if self.arch == ARCH_AMD64 else "arm64"
 
         return f"{image_base}_{image_arch}{suffix}:{version}"
 
@@ -61,12 +61,12 @@ class CompilerImage:
             info(f"[*] Compiler for {self.arch} not running, starting it...")
             self.start()
 
-    def exec(self, cmd: str, user="compiler", verbose=True, run_dir: PathOrStr | None = None):
+    def exec(self, cmd: str, user="compiler", verbose=True, run_dir: PathOrStr | None = None, warn=False):
         if run_dir:
             cmd = f"cd {run_dir} && {cmd}"
 
         self.ensure_running()
-        return self.ctx.run(f"docker exec -u {user} -i {self.name} bash -c \"{cmd}\"", hide=(not verbose))
+        return self.ctx.run(f"docker exec -u {user} -i {self.name} bash -c \"{cmd}\"", hide=(not verbose), warn=warn)
 
     def stop(self) -> Result:
         res = self.ctx.run(f"docker rm -f $(docker ps -aqf \"name={self.name}\")")
@@ -114,10 +114,42 @@ class CompilerImage:
         self.exec("echo conda activate ddpy3 >> /home/compiler/.bashrc", user="compiler")
         self.exec(f"install -d -m 0777 -o {uid} -g {uid} /go", user="root")
 
+        self.prepare_for_cross_compile()
 
-def get_compiler(ctx: Context, arch: ArchOrLocal):
-    return CompilerImage(ctx, full_arch(arch))
+    def ensure_ready_for_cross_compile(self):
+        res = self.exec("test -f /tmp/cross-compile-ready", user="root", warn=True)
+        if res is not None and not res.ok:
+            info("[*] Compiler image not ready for cross-compilation, preparing...")
+            self.prepare_for_cross_compile()
+
+    def prepare_for_cross_compile(self):
+        target: Arch
+        if self.arch == ARCH_ARM64:
+            target = ARCH_AMD64
+        else:
+            target = ARCH_ARM64
+
+        # Hardcoded links to the header packages for each architecture. Reasons:
+        # 1. While right now they're similar and we'd only need a single link, in other cases they have different formats
+        # 2. Automated retrieval of these URLs is not easy
+        # 3. As we're cross-compiling, even if these become outdated with respect to the kernel used in the build image, we don't
+        #    care that much as the kernel version is not going to match anyways, we're not running in the local system.
+        header_package_urls: dict[Arch, str] = {
+            ARCH_AMD64: "http://deb.debian.org/debian-security/pool/updates/main/l/linux-5.10/linux-headers-5.10.0-0.deb10.28-amd64_5.10.209-2~deb10u1_amd64.deb",
+            ARCH_ARM64: "http://deb.debian.org/debian-security/pool/updates/main/l/linux-5.10/linux-headers-5.10.0-0.deb10.28-arm64_5.10.209-2~deb10u1_arm64.deb",
+        }
+
+        header_package_path = "/tmp/headers.deb"
+        self.exec(f"wget -O {header_package_path} {header_package_urls[target]}")
+
+        # Uncompress the package in the root directory, so that we have access to the headers
+        # We cannot install because the architecture will not match
+        self.exec(f"dpkg-deb -x {header_package_path} /", user="root")
+
+        # Install the corresponding arch compilers
+        self.exec(f"apt update && apt install -y gcc-{target.gcc_arch.replace('_', '-')}-linux-gnu", user="root")
+        self.exec("touch /tmp/cross-compile-ready")  # Signal that we're ready for cross-compilation
 
 
-def all_compilers(ctx: Context):
-    return [get_compiler(ctx, arch) for arch in arch_mapping.values()]
+def get_compiler(ctx: Context, arch: str | Arch):
+    return CompilerImage(ctx, get_arch(arch))

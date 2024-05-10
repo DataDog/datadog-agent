@@ -806,3 +806,16 @@ def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
         return wrapper
 
     return decorator
+
+
+def parse_kernel_version(version: str) -> tuple[int, int, int, int]:
+    """
+    Parse a kernel version contained in the given string and return a
+    tuple with kernel version, major and minor revision and patch number
+    """
+    kernel_version_regex = re.compile(r'(\d+)\.(\d+)(\.(\d+))?(-(\d+))?')
+    match = kernel_version_regex.search(version)
+    if match is None:
+        raise ValueError(f"Cannot parse kernel version from {version}")
+
+    return (int(match.group(1)), int(match.group(2)), int(match.group(4) or "0"), int(match.group(6) or "0"))

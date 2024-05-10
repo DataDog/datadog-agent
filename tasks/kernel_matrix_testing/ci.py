@@ -15,7 +15,7 @@ from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 if TYPE_CHECKING:
     from typing import Literal
 
-    from tasks.kernel_matrix_testing.types import Arch, Component, StackOutput, VMConfig
+    from tasks.kernel_matrix_testing.types import Component, KMTArchName, StackOutput, VMConfig
 
 
 class KMTJob:
@@ -41,7 +41,7 @@ class KMTJob:
         return self.job.name
 
     @property
-    def arch(self) -> Arch:
+    def arch(self) -> KMTArchName:
         return "x86_64" if "x64" in self.name else "arm64"
 
     @property

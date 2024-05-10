@@ -13,7 +13,7 @@ from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, info
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import ArchOrLocal, PathOrStr, SSHKey, StackOutput
+    from tasks.kernel_matrix_testing.types import KMTArchNameOrLocal, PathOrStr, SSHKey, StackOutput
 
 # Common SSH options for all SSH commands
 SSH_OPTIONS = {
@@ -71,7 +71,7 @@ class RemoteCommandRunner:
         raise Exit("command failed")
 
 
-def get_instance_runner(arch: ArchOrLocal):
+def get_instance_runner(arch: KMTArchNameOrLocal):
     if arch == "local":
         return LocalCommandRunner
     else:
@@ -112,7 +112,12 @@ class LibvirtDomain:
         return self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
 
     def copy(
-        self, ctx: Context, source: PathOrStr, target: PathOrStr, exclude: PathOrStr = None, verbose: bool = False
+        self,
+        ctx: Context,
+        source: PathOrStr,
+        target: PathOrStr,
+        exclude: PathOrStr | None = None,
+        verbose: bool = False,
     ):
         exclude_arg = ""
         if exclude is not None:
@@ -128,9 +133,9 @@ class LibvirtDomain:
 
 
 class HostInstance:
-    def __init__(self, ip: str, arch: ArchOrLocal, ssh_key_path: str | None):
+    def __init__(self, ip: str, arch: KMTArchNameOrLocal, ssh_key_path: str | None):
         self.ip: str = ip
-        self.arch: ArchOrLocal = arch
+        self.arch: KMTArchNameOrLocal = arch
         self.ssh_key_path: str | None = ssh_key_path
         self.microvms: list[LibvirtDomain] = []
         self.runner = get_instance_runner(arch)
@@ -153,7 +158,7 @@ def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
         except json.decoder.JSONDecodeError:
             raise Exit(f"{stack_output} file is not a valid json file")
 
-    infra: dict[ArchOrLocal, HostInstance] = dict()
+    infra: dict[KMTArchNameOrLocal, HostInstance] = dict()
     for arch in infra_map:
         key = ssh_key_obj['path'] if ssh_key_obj is not None else None
         instance = HostInstance(infra_map[arch]["ip"], arch, key)
