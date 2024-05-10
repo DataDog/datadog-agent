@@ -74,5 +74,5 @@ func ReadTracepointFieldOffset(tracepoint string, field string) (uint64, error) 
 		return 0, err
 	}
 
-	return 0, nil
+	return 0, fmt.Errorf("failed to find `%s` for tracepoint `%s`", field, tracepoint)
 }
