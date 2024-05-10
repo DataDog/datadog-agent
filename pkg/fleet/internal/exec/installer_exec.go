@@ -27,9 +27,6 @@ type InstallerExec struct {
 	// telemetry options
 	apiKey string
 	site   string
-
-	// FIXME: decide where we want to host the status logic
-	pm installer.Installer
 }
 
 // NewInstallerExec returns a new InstallerExec.
@@ -40,7 +37,6 @@ func NewInstallerExec(installerBinPath string, registry string, registryAuth str
 		registryAuth:     registryAuth,
 		apiKey:           apiKey,
 		site:             site,
-		pm:               installer.NewInstaller(),
 	}
 }
 
@@ -127,10 +123,12 @@ func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 
 // State returns the state of a package.
 func (i *InstallerExec) State(pkg string) (repository.State, error) {
-	return i.pm.State(pkg)
+	repositories := repository.NewRepositories(installer.PackagesPath, installer.LocksPack)
+	return repositories.Get(pkg).GetState()
 }
 
 // States returns the states of all packages.
 func (i *InstallerExec) States() (map[string]repository.State, error) {
-	return i.pm.States()
+	repositories := repository.NewRepositories(installer.PackagesPath, installer.LocksPack)
+	return repositories.GetState()
 }
