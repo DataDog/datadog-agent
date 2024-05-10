@@ -108,11 +108,11 @@ func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
 type MultiDiscarder struct {
 	Entries        []MultiDiscarderEntry
 	FinalField     string
-	FinalEventType string
+	FinalEventType model.EventType
 }
 
 // MultiDiscarderEntry represents a multi discarder entry (a field, and associated event type)
 type MultiDiscarderEntry struct {
 	Field     string
-	EventType string
+	EventType model.EventType
 }
