@@ -9,7 +9,6 @@ package ports
 import (
 	"fmt"
 	"path"
-	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
