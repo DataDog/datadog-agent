@@ -125,8 +125,11 @@ func newBootstraperCmd(operation string) *bootstraperCmd {
 func newTelemetry() *telemetry.Telemetry {
 	apiKey := os.Getenv(envAPIKey)
 	site := os.Getenv(envSite)
-	if apiKey == "" || site == "" {
-		fmt.Printf("telemetry disabled: missing DD_API_KEY or DD_SITE\n")
+	if site == "" {
+		site = "datadoghq.com"
+	}
+	if apiKey == "" {
+		fmt.Printf("telemetry disabled: missing DD_API_KEY\n")
 		return nil
 	}
 	t, err := telemetry.NewTelemetry(apiKey, site, "datadog-installer")
