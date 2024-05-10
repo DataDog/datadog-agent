@@ -15,8 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
-	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
+	healthprobeDef "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
+	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -59,14 +59,14 @@ func main() {
 		run,
 		autodiscoveryimpl.Module(),
 		workloadmeta.Module(),
-		fx.Provide(func(config coreconfig.Component) healthprobe.Options {
-			return healthprobe.Options{
+		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
+			return healthprobeDef.Options{
 				Port:           config.GetInt("health_port"),
 				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
 			}
 		}),
 		taggerimpl.Module(),
-		healthprobeimpl.Module(),
+		healthprobeFx.Module(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(tagger.NewTaggerParams()),
 		fx.Supply(core.BundleParams{
@@ -83,7 +83,7 @@ func main() {
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobe.Component) {
+func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component) {
 	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf)
 
 	modeConf.Runner(logConfig)
