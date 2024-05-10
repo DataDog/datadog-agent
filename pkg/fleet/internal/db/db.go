@@ -23,19 +23,11 @@ type PackagesDB struct {
 }
 
 type options struct {
-	readOnly bool
-	timeout  time.Duration
+	timeout time.Duration
 }
 
 // Option is a function that sets an option on a PackagesDB
 type Option func(*options)
-
-// ReadOnly sets the database to read-only mode
-func ReadOnly() Option {
-	return func(o *options) {
-		o.readOnly = true
-	}
-}
 
 // WithTimeout sets the timeout for opening the database
 func WithTimeout(timeout time.Duration) Option {
@@ -51,9 +43,7 @@ func New(dbPath string, opts ...Option) (*PackagesDB, error) {
 		opt(&o)
 	}
 	db, err := bbolt.Open(dbPath, 0644, &bbolt.Options{
-		ReadOnly:     o.readOnly,
 		Timeout:      o.timeout,
-		NoGrowSync:   false,
 		FreelistType: bbolt.FreelistArrayType,
 	})
 	if err != nil {

@@ -325,6 +325,8 @@ func isInstalled() *cobra.Command {
 				return err
 			}
 			if !installed {
+				// Return a specific code to differentiate from other errors
+				// `return err` will lead to a return code of -1
 				os.Exit(returnCodeIsInstalledFalse)
 			}
 			return nil

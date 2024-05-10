@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
@@ -114,7 +115,7 @@ func NewInstaller(opts ...Option) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages directory exists: %w", err)
 	}
-	db, err := db.New(filepath.Join(PackagesPath, "packages.db"))
+	db, err := db.New(filepath.Join(PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
