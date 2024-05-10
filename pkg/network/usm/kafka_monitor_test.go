@@ -762,6 +762,7 @@ type CannedClientServer struct {
 	control  chan []Message
 	done     chan bool
 	unixPath string
+	address  string
 	tls      bool
 	t        *testing.T
 }
@@ -771,19 +772,18 @@ func newCannedClientServer(t *testing.T, tls bool) *CannedClientServer {
 		control:  make(chan []Message, 100),
 		done:     make(chan bool, 1),
 		unixPath: "/tmp/transparent.sock",
-		tls:      tls,
-		t:        t,
+		// Use a different port than 9092 since the docker support code doesn't wait
+		// for the container with the real Kafka server used in previous tests to terminate,
+		// which leads to races. The disadvantage of not using 9092 is that you may
+		// have to explicitly pick the protocol in Wireshark when debugging with a packet
+		// trace.
+		address: "127.0.0.1:8082",
+		tls:     tls,
+		t:       t,
 	}
 }
 
 func (can *CannedClientServer) runServer() {
-	// Use a different port than 9092 since the docker support code doesn't wait
-	// for the container with the real Kafka server used in previous tests to terminate,
-	// which leads to races. The disadvantage of not using 9092 is that you may
-	// have to explicitly pick the protocol in Wireshark when debugging with a packet
-	// trace.
-	address := "127.0.0.1:8082"
-
 	var listener net.Listener
 	var err error
 	var f *os.File
@@ -803,9 +803,9 @@ func (can *CannedClientServer) runServer() {
 		// 	config.KeyLogWriter = f
 		// }
 
-		listener, err = tls.Listen("tcp", address, config)
+		listener, err = tls.Listen("tcp", can.address, config)
 	} else {
-		listener, err = net.Listen("tcp", address)
+		listener, err = net.Listen("tcp", can.address)
 	}
 	require.NoError(can.t, err)
 
@@ -858,7 +858,7 @@ func (can *CannedClientServer) runServer() {
 }
 
 func (can *CannedClientServer) runProxy() int {
-	proxyProcess, cancel := proxy.NewExternalUnixControlProxyServer(can.t, can.unixPath, "127.0.0.1:8082", can.tls)
+	proxyProcess, cancel := proxy.NewExternalUnixControlProxyServer(can.t, can.unixPath, can.address, can.tls)
 	can.t.Cleanup(cancel)
 	require.NoError(can.t, proxy.WaitForConnectionReady(can.unixPath))
 
