@@ -32,15 +32,14 @@ import (
 )
 
 const (
-	confDir               = "/etc/datadog-agent"
-	logDir                = "/var/log/datadog"
-	stableInstallerRunDir = "/opt/datadog-packages/datadog-installer/stable/run"
-	locksDir              = "/var/run/datadog/installer/locks"
-	packagesDir           = "/opt/datadog-packages"
-	bootInstallerDir      = "/opt/datadog-installer"
-	rpm                   = "rpm"
-	dpkg                  = "dpkg"
-	zypper                = "zypper"
+	confDir          = "/etc/datadog-agent"
+	logDir           = "/var/log/datadog"
+	locksDir         = "/var/run/datadog/installer/locks"
+	packagesDir      = "/opt/datadog-packages"
+	bootInstallerDir = "/opt/datadog-installer"
+	rpm              = "rpm"
+	dpkg             = "dpkg"
+	zypper           = "zypper"
 )
 
 type installerSuite struct {
@@ -157,11 +156,6 @@ func (v *installerSuite) TestInstallerDirs() {
 	for _, dir := range []string{packagesDir, bootInstallerDir} {
 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%U" `+dir))
 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%G" `+dir))
-	}
-	for _, dir := range []string{stableInstallerRunDir} {
-		require.Equal(v.T(), "dd-agent\n", host.MustExecute(`stat -c "%U" `+dir))
-		require.Equal(v.T(), "dd-agent\n", host.MustExecute(`stat -c "%G" `+dir))
-
 	}
 	require.Equal(v.T(), "drwxrwxrwx\n", host.MustExecute(`stat -c "%A" `+locksDir))
 	require.Equal(v.T(), "drwxr-xr-x\n", host.MustExecute(`stat -c "%A" `+packagesDir))
