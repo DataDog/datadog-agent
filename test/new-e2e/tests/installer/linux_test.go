@@ -227,6 +227,7 @@ func (v *installerSuite) TestExperimentCrash() {
 
 func (v *installerSuite) TestUninstall() {
 	host := v.Env().RemoteHost
+	v.bootstrap(false)
 
 	installAssertions := []string{
 		"test -d /opt/datadog-packages",
@@ -237,6 +238,7 @@ func (v *installerSuite) TestUninstall() {
 	}
 
 	for _, assertion := range installAssertions {
+		v.T().Logf("assertion: %s", assertion)
 		_ = host.MustExecute(assertion)
 	}
 	switch v.packageManager {
