@@ -255,7 +255,7 @@ func (v *installerSuite) TestUninstall() {
 	case zypper:
 		host.MustExecute("sudo zypper --non-interactive install datadog-installer")
 	}
-	host.MustExecute("sudo /usr/bin/datadog-bootstrap bootstrap")
+	v.bootstrap(false)
 	for _, assertion := range installAssertions {
 		_ = host.MustExecute(assertion)
 	}
