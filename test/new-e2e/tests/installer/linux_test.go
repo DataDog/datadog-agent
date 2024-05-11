@@ -107,6 +107,7 @@ func TestSuseARM(t *testing.T) {
 }
 
 func (v *installerSuite) bootstrap(remoteUpdatesEnabled bool) {
+	v.Env().RemoteHost.MustExecute("sudo rm /opt/datadog-installer/run/installer-hash || true")
 	v.Env().RemoteHost.MustExecute(
 		"sudo -E datadog-bootstrap bootstrap",
 		client.WithEnvVariables(client.EnvVar{
@@ -221,6 +222,7 @@ func (v *installerSuite) TestExperimentCrash() {
 
 func (v *installerSuite) TestUninstall() {
 	host := v.Env().RemoteHost
+	v.bootstrap(false)
 
 	installAssertions := []string{
 		"test -d /opt/datadog-packages",

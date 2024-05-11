@@ -9,19 +9,34 @@
 
 SEC("tracepoint/syscalls/sys_enter_mmap")
 int tracepoint_syscalls_sys_enter_mmap(struct tracepoint_syscalls_sys_enter_mmap_t *args) {
+    u64 sys_enter_mmap_off_offset;
+    LOAD_CONSTANT("sys_enter_mmap_off_offset", sys_enter_mmap_off_offset);
+    u64 sys_enter_mmap_len_offset;
+    LOAD_CONSTANT("sys_enter_mmap_len_offset", sys_enter_mmap_len_offset);
+    u64 sys_enter_mmap_prot_offset;
+    LOAD_CONSTANT("sys_enter_mmap_prot_offset", sys_enter_mmap_prot_offset);
+    u64 sys_enter_mmap_flags_offset;
+    LOAD_CONSTANT("sys_enter_mmap_flags_offset", sys_enter_mmap_flags_offset);
+
     struct policy_t policy = fetch_policy(EVENT_MMAP);
     if (is_discarded_by_process(policy.mode, EVENT_MMAP)) {
         return 0;
     }
 
+    u64 off, len, prot, flags;
+    bpf_probe_read(&off, sizeof(off), (void *)args + sys_enter_mmap_off_offset);
+    bpf_probe_read(&len, sizeof(len), (void *)args + sys_enter_mmap_len_offset);
+    bpf_probe_read(&prot, sizeof(prot), (void *)args + sys_enter_mmap_prot_offset);
+    bpf_probe_read(&flags, sizeof(flags), (void *)args + sys_enter_mmap_flags_offset);
+
     struct syscall_cache_t syscall = {
         .type = EVENT_MMAP,
         .policy = policy,
         .mmap = {
-            .offset = args->offset,
-            .len = (u32)args->len,
-            .protection = (int)args->protection,
-            .flags = (int)args->flags,
+            .offset = off,
+            .len = (u32)len,
+            .protection = (int)prot,
+            .flags = (int)flags,
         }
     };
 
