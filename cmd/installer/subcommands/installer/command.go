@@ -31,7 +31,7 @@ const (
 
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	return []*cobra.Command{bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand(), purgeCommand()}
+	return []*cobra.Command{bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand(), purgeCommand(), isInstalledCommand()}
 }
 
 type cmd struct {
@@ -312,7 +312,7 @@ const (
 	ReturnCodeIsInstalledFalse = 10
 )
 
-func isInstalled() *cobra.Command {
+func isInstalledCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "is-installed <package>",
 		Short:   "Check if a package is installed",

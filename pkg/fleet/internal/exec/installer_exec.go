@@ -121,6 +121,7 @@ func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	return cmd.Run()
 }
 
+// IsInstalled checks if a package is installed.
 func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, err error) {
 	cmd := i.newInstallerCmd(ctx, "is-installed", pkg)
 	defer func() { cmd.span.Finish(tracer.WithError(err)) }()

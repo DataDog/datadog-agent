@@ -28,7 +28,7 @@ type testPackageManager struct {
 }
 
 func (m *testPackageManager) IsInstalled(ctx context.Context, pkg string) (bool, error) {
-	args := m.Called(pkg)
+	args := m.Called(ctx, pkg)
 	return args.Bool(0), args.Error(1)
 }
 
