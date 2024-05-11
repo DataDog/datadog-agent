@@ -29,7 +29,9 @@ def build(
     Build the updater.
     """
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=MAJOR_VERSION, install_path=install_path, run_path=run_path)
+    ldflags, gcflags, env = get_build_flags(
+        ctx, major_version=MAJOR_VERSION, install_path=install_path, run_path=run_path
+    )
 
     build_include = (
         get_default_build_tags(
