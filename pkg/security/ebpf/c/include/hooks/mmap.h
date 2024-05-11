@@ -8,7 +8,7 @@
 #include "helpers/syscalls.h"
 
 SEC("tracepoint/syscalls/sys_enter_mmap")
-int tracepoint_syscalls_sys_enter_mmap(struct tracepoint_syscalls_sys_enter_mmap_t *args) {
+int tracepoint_syscalls_sys_enter_mmap(void *args) {
     u64 sys_enter_mmap_off_offset;
     LOAD_CONSTANT("sys_enter_mmap_off_offset", sys_enter_mmap_off_offset);
     u64 sys_enter_mmap_len_offset;
@@ -24,10 +24,10 @@ int tracepoint_syscalls_sys_enter_mmap(struct tracepoint_syscalls_sys_enter_mmap
     }
 
     u64 off, len, prot, flags;
-    bpf_probe_read(&off, sizeof(off), (void *)args + sys_enter_mmap_off_offset);
-    bpf_probe_read(&len, sizeof(len), (void *)args + sys_enter_mmap_len_offset);
-    bpf_probe_read(&prot, sizeof(prot), (void *)args + sys_enter_mmap_prot_offset);
-    bpf_probe_read(&flags, sizeof(flags), (void *)args + sys_enter_mmap_flags_offset);
+    bpf_probe_read(&off, sizeof(off), args + sys_enter_mmap_off_offset);
+    bpf_probe_read(&len, sizeof(len), args + sys_enter_mmap_len_offset);
+    bpf_probe_read(&prot, sizeof(prot), args + sys_enter_mmap_prot_offset);
+    bpf_probe_read(&flags, sizeof(flags), args + sys_enter_mmap_flags_offset);
 
     struct syscall_cache_t syscall = {
         .type = EVENT_MMAP,

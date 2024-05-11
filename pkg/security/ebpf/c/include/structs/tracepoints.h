@@ -44,21 +44,6 @@ struct _tracepoint_sched_process_exec {
     pid_t old_pid;
 };
 
-struct tracepoint_syscalls_sys_enter_mmap_t {
-    unsigned short common_type;
-    unsigned char common_flags;
-    unsigned char common_preempt_count;
-    int common_pid;
-
-    int __syscall_nr;
-    unsigned long addr;
-    unsigned long len;
-    unsigned long protection;
-    unsigned long flags;
-    unsigned long fd;
-    unsigned long offset;
-};
-
 struct tracepoint_syscalls_sys_exit_mmap_t {
     unsigned short common_type;
     unsigned char common_flags;
