@@ -34,9 +34,9 @@ int tracepoint_syscalls_sys_enter_mmap(void *args) {
         .policy = policy,
         .mmap = {
             .offset = off,
-            .len = (u32)len,
-            .protection = (int)prot,
-            .flags = (int)flags,
+            .len = len,
+            .protection = prot,
+            .flags = flags,
         }
     };
 
