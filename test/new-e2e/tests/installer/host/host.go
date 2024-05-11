@@ -134,15 +134,22 @@ func (h *Host) fs() map[string]FileInfo {
 		user := parts[5]
 		group := parts[6]
 		isDir := fs.FileMode(mode).IsDir()
+		isSymlink := fs.FileMode(mode)&fs.ModeSymlink != 0
+		var link string
+		if isSymlink {
+			link = h.remote.MustExecute(fmt.Sprintf("sudo readlink -f %s", path))
+		}
 
 		fileInfos[path] = FileInfo{
-			name:    name,
-			size:    size,
-			mode:    fs.FileMode(mode),
-			modTime: modTime,
-			isDir:   isDir,
-			user:    user,
-			group:   group,
+			name:      name,
+			size:      size,
+			mode:      fs.FileMode(mode),
+			modTime:   modTime,
+			isDir:     isDir,
+			isSymlink: isSymlink,
+			link:      link,
+			user:      user,
+			group:     group,
 		}
 	}
 	return fileInfos
@@ -150,13 +157,15 @@ func (h *Host) fs() map[string]FileInfo {
 
 // FileInfo struct mimics os.FileInfo
 type FileInfo struct {
-	name    string
-	size    int64
-	mode    fs.FileMode
-	modTime time.Time
-	isDir   bool
-	user    string
-	group   string
+	name      string
+	size      int64
+	mode      fs.FileMode
+	modTime   time.Time
+	isDir     bool
+	isSymlink bool
+	link      string
+	user      string
+	group     string
 }
 
 // State is the state of a remote host.
@@ -201,4 +210,40 @@ func (s *State) AssertUserHasGroup(userName, groupName string) {
 		}
 	}
 	require.Fail(s.t, "user does not have group", userName, groupName)
+}
+
+// AssertDirExists asserts that a directory exists on the host with the given mode, user, and group.
+func (s *State) AssertDirExists(path string, mode fs.FileMode, user string, group string) {
+	fileInfo, ok := s.FS[path]
+	require.True(s.t, ok, "directory does not exist", path)
+	require.True(s.t, fileInfo.isDir, "not a directory", path)
+	require.Equal(s.t, mode, fileInfo.mode, "unexpected mode", path)
+	require.Equal(s.t, user, fileInfo.user, "unexpected user", path)
+	require.Equal(s.t, group, fileInfo.group, "unexpected group", path)
+}
+
+// AssertPathDoesNotExist asserts that a path does not exist on the host.
+func (s *State) AssertPathDoesNotExist(path string) {
+	_, ok := s.FS[path]
+	require.False(s.t, ok, "something exists at path", path)
+}
+
+// AssertFileExists asserts that a file exists on the host with the given mode, user, and group.
+func (s *State) AssertFileExists(path string, mode fs.FileMode, user string, group string) {
+	fileInfo, ok := s.FS[path]
+	require.True(s.t, ok, "file does not exist", path)
+	require.False(s.t, fileInfo.isDir, "not a file", path)
+	require.Equal(s.t, mode, fileInfo.mode, "unexpected mode", path)
+	require.Equal(s.t, user, fileInfo.user, "unexpected user", path)
+	require.Equal(s.t, group, fileInfo.group, "unexpected group", path)
+}
+
+// AssertSymlinkExists asserts that a symlink exists on the host with the given target, user, and group.
+func (s *State) AssertSymlinkExists(path string, target string, user string, group string) {
+	fileInfo, ok := s.FS[path]
+	require.True(s.t, ok, "symlink does not exist", path)
+	require.True(s.t, fileInfo.isSymlink, "not a symlink", path)
+	require.Equal(s.t, target, fileInfo.link, "unexpected target", path)
+	require.Equal(s.t, user, fileInfo.user, "unexpected user", path)
+	require.Equal(s.t, group, fileInfo.group, "unexpected group", path)
 }

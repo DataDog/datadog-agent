@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -54,18 +55,29 @@ func (s *packageBaseSuite) SetupSuite() {
 
 func (s *packageBaseSuite) RunInstallScript() {
 	env := map[string]string{
-		"DD_API_KEY":               "deadbeefdeadbeefdeadbeefdeadbeef",
-		"DD_INSTALLER":             "true",
-		"DD_NO_AGENT_INSTALL":      "true",
-		"TESTING_KEYS_URL":         "keys.datadoghq.com",
-		"TESTING_APT_URL":          "apttesting.datad0g.com",
-		"TESTING_APT_REPO_VERSION": fmt.Sprintf("pipeline-%s-i7-%s 7", os.Getenv("CI_PIPELINE_ID"), s.os.Architecture),
-		"TESTING_YUM_URL":          "yumtesting.datad0g.com",
-		"TESTING_YUM_VERSION_PATH": fmt.Sprintf("testing/pipeline-%s-i7/7", os.Getenv("CI_PIPELINE_ID")),
+		"DD_API_KEY":                     "deadbeefdeadbeefdeadbeefdeadbeef",
+		"DD_INSTALLER":                   "true",
+		"DD_NO_AGENT_INSTALL":            "true",
+		"TESTING_KEYS_URL":               "keys.datadoghq.com",
+		"TESTING_APT_URL":                "apttesting.datad0g.com",
+		"TESTING_APT_REPO_VERSION":       fmt.Sprintf("pipeline-%s-i7-%s 7", os.Getenv("CI_PIPELINE_ID"), s.os.Architecture),
+		"TESTING_YUM_URL":                "yumtesting.datad0g.com",
+		"TESTING_YUM_VERSION_PATH":       fmt.Sprintf("testing/pipeline-%s-i7/7", os.Getenv("CI_PIPELINE_ID")),
+		"DD_INSTALLER_REGISTRY":          "669783387624.dkr.ecr.us-east-1.amazonaws.com",
+		"DD_INSTALLER_REGISTRY_AUTH":     "ecr",
+		"DD_INSTALLER_BOOTSTRAP_VERSION": fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")),
 	}
 	s.Env().RemoteHost.MustExecute(`bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"`, components.WithEnvVariables(env))
 }
 
 func (s *packageBaseSuite) RemoveInstallerPackage() {
 	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer")
+}
+
+func (s *packageBaseSuite) BootstraperVersion() string {
+	return strings.TrimSpace(s.Env().RemoteHost.MustExecute("sudo datadog-bootstrap version"))
+}
+
+func (s *packageBaseSuite) InstallerVersion() string {
+	return strings.TrimSpace(s.Env().RemoteHost.MustExecute("sudo datadog-installer version"))
 }

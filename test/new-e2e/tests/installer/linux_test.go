@@ -115,54 +115,6 @@ package installer
 // 	)
 // }
 
-// func (v *installerSuite) TestUserGroupsCreation() {
-// 	// users exist and is a system user
-// 	require.Equal(v.T(), "/usr/sbin/nologin\n", v.Env().RemoteHost.MustExecute(`getent passwd dd-agent | cut -d: -f7`), "unexpected: user does not exist or is not a system user")
-// 	require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(`getent group dd-agent | cut -d":" -f1`), "unexpected: group does not exist")
-// 	require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute("id -Gn dd-agent"), "dd-agent not in correct groups")
-// }
-
-// func (v *installerSuite) TestSharedAgentDirs() {
-// 	for _, dir := range []string{logDir} {
-// 		require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(`stat -c "%U" `+dir))
-// 		require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(`stat -c "%G" `+dir))
-// 		require.Equal(v.T(), "drwxr-xr-x\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" `+dir))
-// 	}
-// }
-
-// func (v *installerSuite) TestInstallerInPath() {
-// 	host := v.Env().RemoteHost
-
-// 	// add
-// 	v.bootstrap(false)
-// 	_ = host.MustExecute(`test -L /usr/bin/datadog-installer`)
-// 	require.Equal(v.T(), "/usr/bin/datadog-installer\n", host.MustExecute("which datadog-installer"))
-// 	binPath := host.MustExecute("readlink -f $(which datadog-installer)")
-// 	assert.True(v.T(), strings.HasPrefix(binPath, "/opt/datadog-packages/datadog-installer/7."))
-// 	assert.True(v.T(), strings.HasSuffix(binPath, "/bin/installer/installer\n"))
-
-// 	// remove
-// 	host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer remove datadog-installer", bootInstallerDir))
-// 	_, err := host.Execute(`test -L /usr/bin/datadog-installer`)
-// 	require.NotNil(v.T(), err)
-// }
-
-// func (v *installerSuite) TestInstallerDirs() {
-// 	host := v.Env().RemoteHost
-// 	v.bootstrap(false)
-// 	for _, dir := range []string{packagesDir, bootInstallerDir} {
-// 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%U" `+dir))
-// 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%G" `+dir))
-// 	}
-// 	for _, dir := range []string{stableInstallerRunDir} {
-// 		require.Equal(v.T(), "dd-agent\n", host.MustExecute(`stat -c "%U" `+dir))
-// 		require.Equal(v.T(), "dd-agent\n", host.MustExecute(`stat -c "%G" `+dir))
-
-// 	}
-// 	require.Equal(v.T(), "drwxrwxrwx\n", host.MustExecute(`stat -c "%A" `+locksDir))
-// 	require.Equal(v.T(), "drwxr-xr-x\n", host.MustExecute(`stat -c "%A" `+packagesDir))
-// }
-
 // func (v *installerSuite) TestInstallerUnitLoaded() {
 // 	t := v.T()
 // 	host := v.Env().RemoteHost

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/bootstraper"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -31,7 +32,7 @@ const (
 
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	return []*cobra.Command{bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand()}
+	return []*cobra.Command{versionCommand(), bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand()}
 }
 
 type cmd struct {
@@ -149,6 +150,17 @@ func newSpan(operationName string) (ddtrace.Span, context.Context) {
 		spanOptions = append(spanOptions, tracer.ChildOf(spanContext))
 	}
 	return tracer.StartSpanFromContext(context.Background(), operationName, spanOptions...)
+}
+
+func versionCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:     "version",
+		Short:   "Print the version of the installer",
+		GroupID: "installer",
+		Run: func(_ *cobra.Command, _ []string) {
+			fmt.Println(version.AgentVersion)
+		},
+	}
 }
 
 func bootstrapCommand() *cobra.Command {
