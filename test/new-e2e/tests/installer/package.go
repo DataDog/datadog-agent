@@ -65,7 +65,7 @@ func (s *packageBaseSuite) RunInstallScript() {
 		"TESTING_YUM_VERSION_PATH":       fmt.Sprintf("testing/pipeline-%s-i7/7", os.Getenv("CI_PIPELINE_ID")),
 		"DD_INSTALLER_REGISTRY":          "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 		"DD_INSTALLER_REGISTRY_AUTH":     "ecr",
-		"DD_INSTALLER_BOOTSTRAP_VERSION": fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")),
+		"DD_INSTALLER_BOOTSTRAP_VERSION": fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")),
 	}
 	s.Env().RemoteHost.MustExecute(`bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"`, components.WithEnvVariables(env))
 }
