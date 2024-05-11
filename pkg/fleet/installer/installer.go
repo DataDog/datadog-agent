@@ -33,14 +33,11 @@ const (
 	// LocksPack is the path to the locks directory.
 	LocksPack = "/var/run/datadog-packages"
 
-	datadogPackageMaxSize = 3 << 30 // 3GiB
-	defaultConfigsDir     = "/etc"
+	defaultConfigsDir = "/etc"
 
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
 	packageDatadogInstaller = "datadog-installer"
-
-	mininumDiskSpace = datadogPackageMaxSize + 100<<20 // 3GiB + 100MiB
 )
 
 var (
@@ -152,13 +149,13 @@ func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error)
 func (i *installerImpl) Install(ctx context.Context, url string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	err := checkAvailableDiskSpace(mininumDiskSpace, i.packagesDir)
-	if err != nil {
-		return fmt.Errorf("not enough disk space: %w", err)
-	}
 	pkg, err := i.downloader.Download(ctx, url)
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
+	}
+	err = checkAvailableDiskSpace(pkg, i.packagesDir)
+	if err != nil {
+		return fmt.Errorf("not enough disk space: %w", err)
 	}
 	tmpDir, err := os.MkdirTemp(i.tmpDirPath, fmt.Sprintf("install-stable-%s-*", pkg.Name)) // * is replaced by a random string
 	if err != nil {
@@ -193,14 +190,13 @@ func (i *installerImpl) Install(ctx context.Context, url string) error {
 func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	err := checkAvailableDiskSpace(mininumDiskSpace, i.packagesDir)
-	if err != nil {
-		return fmt.Errorf("not enough disk space: %w", err)
-	}
-
 	pkg, err := i.downloader.Download(ctx, url)
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
+	}
+	err = checkAvailableDiskSpace(pkg, i.packagesDir)
+	if err != nil {
+		return fmt.Errorf("not enough disk space: %w", err)
 	}
 	tmpDir, err := os.MkdirTemp(i.tmpDirPath, fmt.Sprintf("install-experiment-%s-*", pkg.Name)) // * is replaced by a random string
 	if err != nil {
@@ -353,14 +349,25 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) {
 	}
 }
 
-// checkAvailableDiskSpace checks if there is enough disk space at the given paths.
+const (
+	packageUnknownSize = 2 << 30  // 2GiB
+	installerOverhead  = 10 << 20 // 10MiB
+)
+
+// checkAvailableDiskSpace checks if there is enough disk space to install a package at the given path.
 // This will check the underlying partition of the given path. Note that the path must be an existing dir.
 //
 // On Unix, it is computed using `statfs` and is the number of free blocks available to an unprivileged used * block size
 // See https://man7.org/linux/man-pages/man2/statfs.2.html for more details
 // On Windows, it is computed using `GetDiskFreeSpaceExW` and is the number of bytes available
 // See https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw for more details
-func checkAvailableDiskSpace(requiredDiskSpace uint64, path string) error {
+func checkAvailableDiskSpace(pkg *oci.DownloadedPackage, path string) error {
+	requiredDiskSpace := pkg.Size
+	if requiredDiskSpace == 0 {
+		requiredDiskSpace = packageUnknownSize
+	}
+	requiredDiskSpace += installerOverhead
+
 	_, err := os.Stat(path)
 	if err != nil {
 		return fmt.Errorf("could not stat path %s: %w", path, err)
