@@ -321,7 +321,7 @@ func isInstalled() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			installed, err := i.IsInstalled(args[0])
+			installed, err := i.IsInstalled(i.ctx, args[0])
 			if err != nil {
 				return err
 			}
