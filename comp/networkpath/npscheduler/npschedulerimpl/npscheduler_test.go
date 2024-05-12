@@ -25,7 +25,7 @@ var testOptions = fx.Options(
 	eventplatformimpl.MockModule(),
 )
 
-func TestStartServerAndStopServer(t *testing.T) {
+func TestStartServerAndStopNpScheduler(t *testing.T) {
 	var component npscheduler.Component
 	app := fxtest.New(t, fx.Options(
 		testOptions,
