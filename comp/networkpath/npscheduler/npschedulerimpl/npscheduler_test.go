@@ -1,6 +1,9 @@
 package npschedulerimpl
 
 import (
+	"bufio"
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
@@ -10,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
@@ -35,12 +40,26 @@ func TestStartServerAndStopNpScheduler(t *testing.T) {
 		}}),
 		fx.Populate(&component),
 	))
-	server := component.(*npSchedulerImpl)
-	assert.NotNil(t, server)
+	npScheduler := component.(*npSchedulerImpl)
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(l, "debug")
+
+	assert.NotNil(t, npScheduler)
 	assert.NotNil(t, app)
-	assert.False(t, server.running)
+	assert.False(t, npScheduler.running)
 	app.RequireStart()
-	assert.True(t, server.running)
+	assert.True(t, npScheduler.running)
 	app.RequireStop()
-	assert.False(t, server.running)
+	assert.False(t, npScheduler.running)
+
+	w.Flush()
+	logs := b.String()
+
+	assert.Equal(t, 1, strings.Count(logs, "Start NpScheduler"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "Stop NpScheduler"), logs)
 }
