@@ -57,7 +57,6 @@ func newNoopNpSchedulerImpl() *npSchedulerImpl {
 }
 
 func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Component, sysprobeYamlConfig config.Reader) *npSchedulerImpl {
-	// TODO: TESTME
 	workers := sysprobeYamlConfig.GetInt("network_path.workers")
 	pathtestInputChanSize := sysprobeYamlConfig.GetInt("network_path.input_chan_size")
 	pathtestProcessChanSize := sysprobeYamlConfig.GetInt("network_path.process_chan_size")
