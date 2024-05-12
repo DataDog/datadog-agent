@@ -901,7 +901,7 @@ func TestKafkaFetchRaw(t *testing.T) {
 func TestKafkaInFlightMapCleaner(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 	cfg := getDefaultTestConfiguration()
-	cfg.HTTPMapCleanerInterval = 5 * time.Second
+	cfg.MapCleanerInterval = 5 * time.Second
 	cfg.HTTPIdleConnectionTTL = time.Second
 	monitor := newKafkaMonitor(t, cfg)
 	ebpfNow, err := ddebpf.NowNanoseconds()
@@ -924,7 +924,7 @@ func TestKafkaInFlightMapCleaner(t *testing.T) {
 	require.Eventually(t, func() bool {
 		err := inFlightMap.Lookup(unsafe.Pointer(&key), unsafe.Pointer(&newVal))
 		return errors.Is(err, ebpf.ErrKeyNotExist)
-	}, 3*cfg.HTTPMapCleanerInterval, time.Millisecond*100)
+	}, 3*cfg.MapCleanerInterval, time.Millisecond*100)
 }
 
 type PrintableInt int

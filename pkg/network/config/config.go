@@ -250,8 +250,8 @@ type Config struct {
 	// HTTP2DynamicTableMapCleanerInterval is the interval to run the cleaner function.
 	HTTP2DynamicTableMapCleanerInterval time.Duration
 
-	// HTTPMapCleanerInterval is the interval to run the cleaner function.
-	HTTPMapCleanerInterval time.Duration
+	// MapCleanerInterval is the interval to run the cleaner function.
+	MapCleanerInterval time.Duration
 
 	// HTTPIdleConnectionTTL is the time an idle connection counted as "inactive" and should be deleted.
 	HTTPIdleConnectionTTL time.Duration
@@ -367,8 +367,8 @@ func New() *Config {
 
 		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
 
-		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
-		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
+		MapCleanerInterval:    time.Duration(cfg.GetInt(join(smNS, "map_cleaner_interval_in_s"))) * time.Second,
+		HTTPIdleConnectionTTL: time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
 		EnableNPMConnectionRollup: cfg.GetBool(join(netNS, "enable_connection_rollup")),
 

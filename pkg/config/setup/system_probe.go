@@ -316,8 +316,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"), 30)
 
 	// Default value (300) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
-	cfg.BindEnv(join(spNS, "http_map_cleaner_interval_in_s"))
-	cfg.BindEnv(join(smNS, "http_map_cleaner_interval_in_s"))
+	cfg.BindEnv(join(spNS, "map_cleaner_interval_in_s"))
+	cfg.BindEnv(join(smNS, "map_cleaner_interval_in_s"))
 
 	// Default value (30) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(spNS, "http_idle_connection_ttl_in_s"))

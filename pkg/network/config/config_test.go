@@ -675,74 +675,74 @@ func TestHTTPMapCleanerInterval(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := configurationFromYAML(t, `
 system_probe_config:
-  http_map_cleaner_interval_in_s: 1025
+  map_cleaner_interval_in_s: 1025
 `)
 
-		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
+		require.Equal(t, cfg.MapCleanerInterval, 1025*time.Second)
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", "1025")
+		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAP_CLEANER_INTERVAL_IN_S", "1025")
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
+		require.Equal(t, cfg.MapCleanerInterval, 1025*time.Second)
 	})
 
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := configurationFromYAML(t, `
 service_monitoring_config:
-  http_map_cleaner_interval_in_s: 1025
+  map_cleaner_interval_in_s: 1025
 `)
 
-		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
+		require.Equal(t, cfg.MapCleanerInterval, 1025*time.Second)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", "1025")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAP_CLEANER_INTERVAL_IN_S", "1025")
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
+		require.Equal(t, cfg.MapCleanerInterval, 1025*time.Second)
 	})
 
 	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", "1025")
+		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAP_CLEANER_INTERVAL_IN_S", "1025")
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
+		require.Equal(t, cfg.MapCleanerInterval, 1025*time.Second)
 	})
 
 	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", "1025")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAP_CLEANER_INTERVAL_IN_S", "1025")
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
+		require.Equal(t, cfg.MapCleanerInterval, 1025*time.Second)
 	})
 
 	t.Run("Both enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		// Setting a different value
-		t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", "1026")
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", "1025")
+		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAP_CLEANER_INTERVAL_IN_S", "1026")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAP_CLEANER_INTERVAL_IN_S", "1025")
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
+		require.Equal(t, cfg.MapCleanerInterval, 1025*time.Second)
 	})
 
 	t.Run("Not enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.Equal(t, cfg.HTTPMapCleanerInterval, 300*time.Second)
+		require.Equal(t, cfg.MapCleanerInterval, 300*time.Second)
 	})
 }
 
