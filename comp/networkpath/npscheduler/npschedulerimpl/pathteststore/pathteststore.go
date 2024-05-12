@@ -43,6 +43,7 @@ type PathtestStore struct {
 	pathtestConfigsMutex sync.Mutex
 
 	// flushInterval defines how frequently we check for paths to be run
+	// TODO: NOT NEEDED, FLUSH HAPPENS AT NPSCHEDULER?
 	flushInterval time.Duration
 
 	// pathtestInterval defines how frequently pathtests should run

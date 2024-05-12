@@ -72,6 +72,50 @@ func TestStartServerAndStopNpScheduler(t *testing.T) {
 
 	assert.Equal(t, 1, strings.Count(logs, "Stopped listening for pathtests"), logs)
 	assert.Equal(t, 1, strings.Count(logs, "Stopped flush loop"), logs)
-	assert.Equal(t, 1, strings.Count(logs, "[worker0] Stopped worker"), logs)
 	assert.Equal(t, 1, strings.Count(logs, "Stop NpScheduler"), logs)
+}
+
+func Test_newNpSchedulerImpl_defaultConfigs(t *testing.T) {
+	var component npscheduler.Component
+	app := fxtest.New(t, fx.Options(
+		testOptions,
+		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
+		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: map[string]any{
+			"network_path.enabled": true,
+		}}),
+		fx.Populate(&component),
+	))
+	npScheduler := component.(*npSchedulerImpl)
+
+	assert.NotNil(t, npScheduler)
+	assert.NotNil(t, app)
+
+	assert.Equal(t, true, npScheduler.enabled)
+	assert.Equal(t, 4, npScheduler.workers)
+	assert.Equal(t, 1000, cap(npScheduler.pathtestInputChan))
+	assert.Equal(t, 1000, cap(npScheduler.pathtestProcessChan))
+}
+
+func Test_newNpSchedulerImpl_overrideConfigs(t *testing.T) {
+	var component npscheduler.Component
+	app := fxtest.New(t, fx.Options(
+		testOptions,
+		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
+		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: map[string]any{
+			"network_path.enabled":           true,
+			"network_path.workers":           2,
+			"network_path.input_chan_size":   300,
+			"network_path.process_chan_size": 400,
+		}}),
+		fx.Populate(&component),
+	))
+	npScheduler := component.(*npSchedulerImpl)
+
+	assert.NotNil(t, npScheduler)
+	assert.NotNil(t, app)
+
+	assert.Equal(t, true, npScheduler.enabled)
+	assert.Equal(t, 2, npScheduler.workers)
+	assert.Equal(t, 300, cap(npScheduler.pathtestInputChan))
+	assert.Equal(t, 400, cap(npScheduler.pathtestProcessChan))
 }

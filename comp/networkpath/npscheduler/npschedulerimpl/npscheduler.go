@@ -174,11 +174,10 @@ func (s *npSchedulerImpl) stop() {
 
 func (s *npSchedulerImpl) listenPathtests() {
 	s.logger.Debug("Starting listening for pathtests")
-	defer s.logger.Debug("Stopped listening for pathtests")
 	for {
 		select {
 		case <-s.stopChan:
-			s.logger.Info("Stop listening for pathtests")
+			s.logger.Info("Stopped listening for pathtests")
 			s.runDone <- struct{}{}
 			return
 		case ptest := <-s.pathtestInputChan:
@@ -300,15 +299,16 @@ func (s *npSchedulerImpl) sendTelemetry(path payload.NetworkPath, startTime time
 func (s *npSchedulerImpl) startWorkers() {
 	s.logger.Debugf("Starting workers (%d)", s.workers)
 	for w := 0; w < s.workers; w++ {
+		s.logger.Debugf("Starting worker #%d", w)
 		go s.startWorker(w)
 	}
 }
 
 func (s *npSchedulerImpl) startWorker(workerID int) {
-	s.logger.Debugf("Starting worker #%d", workerID)
 	for {
 		select {
 		case <-s.stopChan:
+			// TODO: TESTME
 			s.logger.Debugf("[worker%d] Stopped worker", workerID)
 			return
 		case pathtestCtx := <-s.pathtestProcessChan:
