@@ -154,33 +154,31 @@ func (s *npSchedulerImpl) start() error {
 		return errors.New("server already started")
 	}
 	s.running = true
-	// TODO: TESTME
 	s.logger.Info("Start NpScheduler")
-	go s.listenPathtestConfigs()
+	go s.listenPathtests()
 	go s.flushLoop()
 	s.startWorkers()
 	return nil
 }
 
 func (s *npSchedulerImpl) stop() {
-	s.logger.Infof("Stop NpScheduler")
+	s.logger.Info("Stop NpScheduler")
 	if !s.running {
 		return
 	}
-	// TODO: TESTME
 	close(s.stopChan)
 	<-s.flushLoopDone
 	<-s.runDone
 	s.running = false
 }
 
-func (s *npSchedulerImpl) listenPathtestConfigs() {
-	// TODO: TESTME
+func (s *npSchedulerImpl) listenPathtests() {
+	s.logger.Debug("Starting listening for pathtests")
+	defer s.logger.Debug("Stopped listening for pathtests")
 	for {
 		select {
 		case <-s.stopChan:
-			// TODO: TESTME
-			s.logger.Info("Stop listening to traceroute commands")
+			s.logger.Info("Stop listening for pathtests")
 			s.runDone <- struct{}{}
 			return
 		case ptest := <-s.pathtestInputChan:
@@ -206,15 +204,14 @@ func (s *npSchedulerImpl) runTraceroute(ptest *pathteststore.PathtestContext) {
 
 	tr, err := traceroute.New(cfg)
 	if err != nil {
-		s.logger.Warnf("traceroute error: %+v", err)
+		s.logger.Warnf("new traceroute error: %+v", err)
 		return
 	}
 	path, err := tr.Run(context.TODO())
 	if err != nil {
-		s.logger.Warnf("traceroute error: %+v", err)
+		s.logger.Warnf("run traceroute error: %+v", err)
 		return
 	}
-	s.logger.Debugf("Network Path: %+v", path)
 
 	s.sendTelemetry(path, startTime, ptest)
 
@@ -236,7 +233,9 @@ func (s *npSchedulerImpl) runTraceroute(ptest *pathteststore.PathtestContext) {
 }
 
 func (s *npSchedulerImpl) flushLoop() {
-	// TODO: TESTME
+	s.logger.Debugf("Starting flush loop")
+	defer s.logger.Debugf("Stopped flush loop")
+
 	flushTicker := time.NewTicker(10 * time.Second)
 
 	var lastFlushTime time.Time
@@ -244,12 +243,14 @@ func (s *npSchedulerImpl) flushLoop() {
 		select {
 		// stop sequence
 		case <-s.stopChan:
+			s.logger.Info("Stop flush loop")
 			s.flushLoopDone <- struct{}{}
 			flushTicker.Stop()
 			return
 		// automatic flush sequence
-		case <-flushTicker.C:
-			now := time.Now()
+		case now := <-flushTicker.C:
+			// TODO: TESTME
+			s.logger.Debugf("Flush loop at %s", now)
 			if !lastFlushTime.IsZero() {
 				flushInterval := now.Sub(lastFlushTime)
 				statsd.Client.Gauge("datadog.network_path.scheduler.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
@@ -297,21 +298,21 @@ func (s *npSchedulerImpl) sendTelemetry(path payload.NetworkPath, startTime time
 }
 
 func (s *npSchedulerImpl) startWorkers() {
-	// TODO: TESTME
+	s.logger.Debugf("Starting workers (%d)", s.workers)
 	for w := 0; w < s.workers; w++ {
 		go s.startWorker(w)
 	}
 }
 
 func (s *npSchedulerImpl) startWorker(workerID int) {
-	// TODO: TESTME
 	s.logger.Debugf("Starting worker #%d", workerID)
 	for {
 		select {
 		case <-s.stopChan:
-			s.logger.Debugf("[worker%d] Stopping worker", workerID)
+			s.logger.Debugf("[worker%d] Stopped worker", workerID)
 			return
 		case pathtestCtx := <-s.pathtestProcessChan:
+			// TODO: TESTME
 			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.Pathtest.Hostname, pathtestCtx.Pathtest.Port)
 			s.runTraceroute(pathtestCtx)
 		}

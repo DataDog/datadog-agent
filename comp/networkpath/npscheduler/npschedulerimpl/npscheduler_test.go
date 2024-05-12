@@ -1,8 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
 package npschedulerimpl
 
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -60,6 +66,15 @@ func TestStartServerAndStopNpScheduler(t *testing.T) {
 	w.Flush()
 	logs := b.String()
 
+	fmt.Println(logs)
 	assert.Equal(t, 1, strings.Count(logs, "Start NpScheduler"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "Starting listening for pathtests"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "Starting flush loop"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "Starting workers"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "Starting worker #0"), logs)
+
+	assert.Equal(t, 1, strings.Count(logs, "Stopped listening for pathtests"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "Stopped flush loop"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "[worker0] Stopped worker"), logs)
 	assert.Equal(t, 1, strings.Count(logs, "Stop NpScheduler"), logs)
 }
