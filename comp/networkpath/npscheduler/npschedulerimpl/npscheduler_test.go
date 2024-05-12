@@ -8,7 +8,6 @@ package npschedulerimpl
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -19,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -50,10 +49,9 @@ func TestStartServerAndStopNpScheduler(t *testing.T) {
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
+	utillog.SetupLogger(l, "debug")
 
 	assert.NotNil(t, npScheduler)
 	assert.NotNil(t, app)
@@ -66,7 +64,6 @@ func TestStartServerAndStopNpScheduler(t *testing.T) {
 	w.Flush()
 	logs := b.String()
 
-	fmt.Println(logs)
 	assert.Equal(t, 1, strings.Count(logs, "Start NpScheduler"), logs)
 	assert.Equal(t, 1, strings.Count(logs, "Starting listening for pathtests"), logs)
 	assert.Equal(t, 1, strings.Count(logs, "Starting flush loop"), logs)
