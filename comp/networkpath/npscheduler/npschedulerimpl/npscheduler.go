@@ -48,6 +48,8 @@ type npSchedulerImpl struct {
 	runDone                     chan struct{}
 
 	TimeNowFunction func() time.Time // Allows to mock time in tests
+
+	running bool
 }
 
 func newNoopNpSchedulerImpl() *npSchedulerImpl {
@@ -147,20 +149,29 @@ func (s *npSchedulerImpl) scheduleOne(hostname string, port uint16) error {
 		return fmt.Errorf("scheduler input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
 	}
 }
-func (s *npSchedulerImpl) start() {
+func (s *npSchedulerImpl) start() error {
+	if s.running {
+		return errors.New("server already started")
+	}
+	s.running = true
 	// TODO: TESTME
 	s.logger.Info("Start NpScheduler")
 	go s.listenPathtestConfigs()
 	go s.flushLoop()
 	s.startWorkers()
+	return nil
 }
 
 func (s *npSchedulerImpl) stop() {
-	// TODO: TESTME
 	s.logger.Infof("Stop NpScheduler")
+	if !s.running {
+		return
+	}
+	// TODO: TESTME
 	close(s.stopChan)
 	<-s.flushLoopDone
 	<-s.runDone
+	s.running = false
 }
 
 func (s *npSchedulerImpl) listenPathtestConfigs() {

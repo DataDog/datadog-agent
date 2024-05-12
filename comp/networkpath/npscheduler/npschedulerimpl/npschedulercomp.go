@@ -47,8 +47,7 @@ func newNpScheduler(deps dependencies) provides {
 		deps.Lc.Append(fx.Hook{
 			// No need for OnStart hook since NpScheduler.Init() will be called by clients when needed.
 			OnStart: func(context.Context) error {
-				scheduler.start()
-				return nil
+				return scheduler.start()
 			},
 			OnStop: func(context.Context) error {
 				scheduler.stop()

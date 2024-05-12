@@ -128,7 +128,7 @@ func (f *PathtestStore) Add(pathtestToAdd *common.Pathtest) {
 	f.pathtestConfigsMutex.Lock()
 	defer f.pathtestConfigsMutex.Unlock()
 
-	hash := pathtestToAdd.getHash()
+	hash := pathtestToAdd.GetHash()
 	pathtestCtx, ok := f.pathtestContexts[hash]
 	if !ok {
 		f.pathtestContexts[hash] = newPathtestContext(pathtestToAdd, f.pathtestTTL)

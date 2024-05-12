@@ -10,12 +10,14 @@ import (
 	"hash/fnv"
 )
 
+// Pathtest details of information necessary to run a traceroute (pathtrace)
 type Pathtest struct {
 	Hostname string
 	Port     uint16
 }
 
-func (p Pathtest) getHash() uint64 {
+// GetHash returns the hash of the Pathtest
+func (p Pathtest) GetHash() uint64 {
 	// TODO: TESTME
 	h := fnv.New64()
 	h.Write([]byte(p.Hostname))                  //nolint:errcheck
