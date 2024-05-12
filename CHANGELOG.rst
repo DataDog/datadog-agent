@@ -97,8 +97,6 @@ Enhancement Notes
 Deprecation Notes
 -----------------
 
-- The `service_monitoring_config.http_map_cleaner_interval_in_s` configuration has been deprecated. Use `service_monitoring_config.map_cleaner_interval_in_s` instead.
-
 - [oracle] Deprecating Oracle integration code. The functionality is fully implemented in the ``oracle-dbm`` check which is now renamed to ``oracle``.
 
 
