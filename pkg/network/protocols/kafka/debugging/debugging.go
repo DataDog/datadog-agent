@@ -32,7 +32,7 @@ type Stats struct {
 }
 
 // Kafka returns a debug-friendly representation of map[kafka.Key]kafka.RequestStats
-func Kafka(stats map[kafka.Key]*kafka.RequestStat) []RequestSummary {
+func Kafka(stats map[kafka.Key]*kafka.RequestStats) []RequestSummary {
 	all := make([]RequestSummary, 0, len(stats))
 
 	for key, requestStat := range stats {
@@ -40,11 +40,12 @@ func Kafka(stats map[kafka.Key]*kafka.RequestStat) []RequestSummary {
 		serverAddr := formatIP(key.DstIPLow, key.DstIPHigh)
 
 		byRequestAPI := make(map[string]int)
+		// TODO: Consider all error codes
 		switch key.RequestAPIKey {
 		case kafka.ProduceAPIKey:
-			byRequestAPI["produce"] = requestStat.Count
+			byRequestAPI["produce"] = requestStat.ErrorCodeToStat[0].Count
 		case kafka.FetchAPIKey:
-			byRequestAPI["fetch"] = requestStat.Count
+			byRequestAPI["fetch"] = requestStat.ErrorCodeToStat[0].Count
 		}
 
 		debug := RequestSummary{

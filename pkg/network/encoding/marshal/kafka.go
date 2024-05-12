@@ -18,10 +18,10 @@ import (
 
 type kafkaEncoder struct {
 	kafkaAggregationsBuilder *model.DataStreamsAggregationsBuilder
-	byConnection             *USMConnectionIndex[kafka.Key, *kafka.RequestStat]
+	byConnection             *USMConnectionIndex[kafka.Key, *kafka.RequestStats]
 }
 
-func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStat) *kafkaEncoder {
+func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStats) *kafkaEncoder {
 	if len(kafkaPayloads) == 0 {
 		return nil
 	}
@@ -49,7 +49,7 @@ func (e *kafkaEncoder) WriteKafkaAggregations(c network.ConnectionStats, builder
 	})
 }
 
-func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStat], w io.Writer) {
+func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStats], w io.Writer) {
 	e.kafkaAggregationsBuilder.Reset(w)
 
 	for _, kv := range connectionData.Data {
@@ -61,7 +61,8 @@ func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *
 				header.SetRequest_version(uint32(key.RequestVersion))
 			})
 			builder.SetTopic(key.TopicName)
-			builder.SetCount(uint32(stats.Count))
+			// TODO: Consider all error codes
+			builder.SetCount(uint32(stats.ErrorCodeToStat[0].Count))
 		})
 	}
 }

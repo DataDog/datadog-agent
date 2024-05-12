@@ -321,7 +321,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				httpOccurrences := PrintableInt(0)
 				expectedKafkaRequestCount := 2
 				kafkaStatsCount := PrintableInt(0)
-				kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
+				kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 				require.Eventually(t, func() bool {
 					allStats := monitor.GetProtocolStats()
 					require.NotNil(t, allStats)
@@ -334,7 +334,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					kafkaProtocolStats, ok := allStats[protocols.Kafka]
 					// We might not have kafka stats, and it might be the expected case (to capture 0).
 					if ok {
-						currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStat)
+						currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStats)
 						for key, stats := range currentStats {
 							prevStats, ok := kafkaStats[key]
 							if ok && prevStats != nil {
@@ -655,13 +655,14 @@ func makeRecordBatch(records ...kmsg.Record) kmsg.RecordBatch {
 	return recordBatch
 }
 
-func makeFetchResponseTopicPartition(recordBatches ...kmsg.RecordBatch) kmsg.FetchResponseTopicPartition {
+func makeFetchResponseTopicPartition(errorCode int16, recordBatches ...kmsg.RecordBatch) kmsg.FetchResponseTopicPartition {
 	respParition := kmsg.NewFetchResponseTopicPartition()
 
 	for _, recordBatch := range recordBatches {
 		respParition.RecordBatches = recordBatch.AppendTo(respParition.RecordBatches)
 	}
 
+	respParition.ErrorCode = errorCode
 	return respParition
 }
 
@@ -708,7 +709,7 @@ func runCannedTransaction(t *testing.T, msgs []Message) {
 	// which leads to races. The disadvantage of not using 9092 is that you may
 	// have to explicitly pick the protocol in Wireshark when debugging with a packet
 	// trace.
-	address := "127.0.0.1:8082"
+	address := "127.0.0.1:9092"
 	listener, err := net.Listen("tcp", address)
 	require.NoError(t, err)
 	defer listener.Close()
@@ -786,7 +787,7 @@ func TestKafkaFetchRaw(t *testing.T) {
 					batches = append(batches, recordBatch)
 				}
 
-				partition := makeFetchResponseTopicPartition(batches...)
+				partition := makeFetchResponseTopicPartition(0, batches...)
 				var partitions []kmsg.FetchResponseTopicPartition
 				for i := 0; i < 3; i++ {
 					partitions = append(partitions, partition)
@@ -800,7 +801,7 @@ func TestKafkaFetchRaw(t *testing.T) {
 			name: "aborted transactions",
 			buildResponse: func() kmsg.FetchResponse {
 				record := makeRecord()
-				partition := makeFetchResponseTopicPartition(makeRecordBatch(record, record))
+				partition := makeFetchResponseTopicPartition(0, makeRecordBatch(record, record))
 				aborted := kmsg.NewFetchResponseTopicPartitionAbortedTransaction()
 
 				for i := 0; i < 10; i++ {
@@ -816,7 +817,7 @@ func TestKafkaFetchRaw(t *testing.T) {
 			buildResponse: func() kmsg.FetchResponse {
 				record := makeRecord()
 				recordBatch := makeRecordBatch(record, record, record)
-				partition := makeFetchResponseTopicPartition(recordBatch)
+				partition := makeFetchResponseTopicPartition(0, recordBatch)
 
 				// Partial record batch, aka "Truncated Content" in Wireshark.  See
 				// comment near FetchResponseTopicPartition.RecordBatch in kmsg.
@@ -826,6 +827,31 @@ func TestKafkaFetchRaw(t *testing.T) {
 				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
 			},
 			numFetchedRecords: 3,
+		},
+		{
+			name: "with error code",
+			buildResponse: func() kmsg.FetchResponse {
+				record := makeRecord()
+				var records []kmsg.Record
+				for i := 0; i < 5; i++ {
+					records = append(records, record)
+				}
+
+				recordBatch := makeRecordBatch(records...)
+				var batches []kmsg.RecordBatch
+				for i := 0; i < 4; i++ {
+					batches = append(batches, recordBatch)
+				}
+
+				partition := makeFetchResponseTopicPartition(3, batches...)
+				var partitions []kmsg.FetchResponseTopicPartition
+				for i := 0; i < 1; i++ {
+					partitions = append(partitions, partition)
+				}
+
+				return makeFetchResponse(makeFetchResponseTopic(topic, partitions...))
+			},
+			numFetchedRecords: 5 * 4 * 3,
 		},
 	}
 
@@ -949,15 +975,15 @@ func (i *PrintableInt) Add(other int) {
 	*i = PrintableInt(other + i.Load())
 }
 
-func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int) map[kafka.Key]*kafka.RequestStat {
+func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int) map[kafka.Key]*kafka.RequestStats {
 	statsCount := PrintableInt(0)
-	kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
+	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 	require.Eventually(t, func() bool {
 		protocolStats := monitor.GetProtocolStats()
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {
-			currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStat)
+			currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStats)
 			for key, stats := range currentStats {
 				prevStats, ok := kafkaStats[key]
 				if ok && prevStats != nil {
@@ -973,18 +999,19 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 	return kafkaStats
 }
 
-func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.RequestStat, topicName string, validation kafkaParsingValidation) {
+func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.RequestStats, topicName string, validation kafkaParsingValidation) {
 	numberOfProduceRequests := 0
 	numberOfFetchRequests := 0
 	for kafkaKey, kafkaStat := range kafkaStats {
 		require.Equal(t, topicName, kafkaKey.TopicName)
 		switch kafkaKey.RequestAPIKey {
+		// TODO: Change indexing for error 0 with proper error code
 		case kafka.ProduceAPIKey:
 			require.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)
-			numberOfProduceRequests += kafkaStat.Count
+			numberOfProduceRequests += kafkaStat.ErrorCodeToStat[0].Count
 		case kafka.FetchAPIKey:
 			require.Equal(t, uint16(validation.expectedAPIVersionFetch), kafkaKey.RequestVersion)
-			numberOfFetchRequests += kafkaStat.Count
+			numberOfFetchRequests += kafkaStat.ErrorCodeToStat[0].Count
 		default:
 			require.FailNow(t, "Expecting only produce or fetch kafka requests")
 		}
@@ -1009,6 +1036,7 @@ func getDefaultTestConfiguration() *config.Config {
 	cfg := config.New()
 	cfg.EnableKafkaMonitoring = true
 	cfg.MaxTrackedConnections = 1000
+	cfg.BPFDebug = true
 	return cfg
 }
 

@@ -136,7 +136,7 @@ type Connections struct {
 	PrebuiltAssets              []string
 	HTTP                        map[http.Key]*http.RequestStats
 	HTTP2                       map[http.Key]*http.RequestStats
-	Kafka                       map[kafka.Key]*kafka.RequestStat
+	Kafka                       map[kafka.Key]*kafka.RequestStats
 }
 
 // NewConnections create a new Connections object

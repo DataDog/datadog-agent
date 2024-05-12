@@ -36,6 +36,19 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16, topicName string, re
 	}
 }
 
+// RequestStats stores Kafka request statistics per Kafka error code
+// We include the error code here and not in the Key to avoid creating a new Key for each error code
+type RequestStats struct {
+	ErrorCodeToStat map[int8]*RequestStat
+}
+
+// NewRequestStats creates a new RequestStats object.
+func NewRequestStats() *RequestStats {
+	return &RequestStats{
+		ErrorCodeToStat: make(map[int8]*RequestStat),
+	}
+}
+
 // RequestStat stores stats for Kafka requests to a particular key
 type RequestStat struct {
 	Count int
@@ -43,6 +56,30 @@ type RequestStat struct {
 
 // CombineWith merges the data in 2 RequestStats objects
 // newStats is kept as it is, while the method receiver gets mutated
-func (r *RequestStat) CombineWith(newStats *RequestStat) {
-	r.Count += newStats.Count
+func (r *RequestStats) CombineWith(newStats *RequestStats) {
+	// TODO: This can be optimized by saving the error code we've seen and only accessing these instead of going over all error codes
+	for statusCode, newRequests := range newStats.ErrorCodeToStat {
+		if newRequests.Count == 0 {
+			// Nothing to do in this case
+			continue
+		}
+		r.AddRequest(statusCode, newRequests.Count)
+	}
+}
+
+// AddRequest takes information about a HTTP transaction and adds it to the request stats
+func (r *RequestStats) AddRequest(errorCode int8, count int) {
+	if !isValidKafkaErrorCode(errorCode) {
+		return
+	}
+	stats, exists := r.ErrorCodeToStat[errorCode]
+	if !exists {
+		stats = &RequestStat{}
+		r.ErrorCodeToStat[errorCode] = stats
+	}
+	stats.Count += count
+}
+
+func isValidKafkaErrorCode(errorCode int8) bool {
+	return errorCode >= -1 && errorCode <= 119
 }

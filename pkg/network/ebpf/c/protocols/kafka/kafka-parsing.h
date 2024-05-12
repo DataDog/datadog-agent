@@ -234,11 +234,12 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
             s16 error_code = 0;
             bpf_skb_load_bytes(skb, offset, &error_code, sizeof(error_code));
             if (error_code < -1 || error_code > 119) {
-                extra_debug("invalid error code: %d", error_code);
+                log_debug("kafka: invalid error code: %d", error_code);
                 return RET_ERR;
             }
+            log_debug("kafka: Got error code: %d", error_code);
             response->transaction.error_code = (s8)error_code;
-            offset += sizeof(s16); // Skip error_code
+            offset += sizeof(error_code); // Skip error_code
 
             offset += sizeof(s64); // Skip high_watermark
 
