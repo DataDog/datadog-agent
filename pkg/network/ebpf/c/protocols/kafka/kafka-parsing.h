@@ -227,7 +227,19 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
         switch (response->state) {
         case KAFKA_FETCH_RESPONSE_PARTITION_START:
             offset += sizeof(s32); // Skip partition_index
+
+            // Error codes range from -1 to 119 as per the Kafka protocol specification.
+            // For details, refer to: https://kafka.apache.org/protocol.html#protocol_error_codes
+            // TODO: read_with_remainder only support s32, we need another version for s16
+            s16 error_code = 0;
+            bpf_skb_load_bytes(skb, offset, &error_code, sizeof(error_code));
+            if (error_code < -1 || error_code > 119) {
+                extra_debug("invalid error code: %d", error_code);
+                return RET_ERR;
+            }
+            response->transaction.error_code = (s8)error_code;
             offset += sizeof(s16); // Skip error_code
+
             offset += sizeof(s64); // Skip high_watermark
 
             if (request->request_api_version >= 4) {
