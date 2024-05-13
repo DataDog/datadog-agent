@@ -7,7 +7,6 @@
 package launchgui
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -16,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -55,32 +54,13 @@ func launchGui(config config.Component, _ *cliParams) error {
 		return fmt.Errorf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
 	}
 
-	// // Read the authentication token: can only be done if user can read from datadog.yaml
-	// authToken, err := security.FetchAuthToken(config)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// Get the CSRF token from the agent
-	c := util.GetClient(false) // FIX: get certificates right then make this true
-	ipcAddress, err := pkgconfig.GetIPCAddress()
-	if err != nil {
-		return err
-	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/gui/intent", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
-	err = util.SetAuthToken(config)
+	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/gui/intent")
 	if err != nil {
 		return err
 	}
 
-	intentToken, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
+	intentToken, err := endpoint.DoGet()
 	if err != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(intentToken, &errMap) //nolint:errcheck
-		if e, found := errMap["error"]; found {
-			err = fmt.Errorf(e)
-		}
-		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before attempting to open the GUI.\n", err)
 		return err
 	}
 
