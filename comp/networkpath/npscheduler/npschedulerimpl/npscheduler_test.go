@@ -56,6 +56,18 @@ func newTestNpScheduler(t *testing.T, sysConfigs map[string]any) (*fxtest.App, *
 	return app, npScheduler
 }
 
+func createConns(numberOfConns int) []*model.Connection {
+	var conns []*model.Connection
+	for i := 0; i < numberOfConns; i++ {
+		conns = append(conns, &model.Connection{
+			Laddr:     &model.Addr{Ip: fmt.Sprintf("127.0.0.%d", i), Port: int32(30000)},
+			Raddr:     &model.Addr{Ip: fmt.Sprintf("127.0.1.%d", i), Port: int32(80)},
+			Direction: model.ConnectionDirection_outgoing,
+		})
+	}
+	return conns
+}
+
 func Test_NpScheduler_StartAndStop(t *testing.T) {
 	sysConfigs := map[string]any{
 		"network_path.enabled": true,
@@ -301,16 +313,4 @@ func Test_npSchedulerImpl_ScheduleConns1(t *testing.T) {
 			}
 		})
 	}
-}
-
-func createConns(numberOfConns int) []*model.Connection {
-	var conns []*model.Connection
-	for i := 0; i < numberOfConns; i++ {
-		conns = append(conns, &model.Connection{
-			Laddr:     &model.Addr{Ip: fmt.Sprintf("127.0.0.%d", i), Port: int32(30000)},
-			Raddr:     &model.Addr{Ip: fmt.Sprintf("127.0.1.%d", i), Port: int32(80)},
-			Direction: model.ConnectionDirection_outgoing,
-		})
-	}
-	return conns
 }
