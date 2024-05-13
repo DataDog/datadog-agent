@@ -15,6 +15,7 @@ SelftestResult = tuple[bool | None, str]
 
 
 def selftest_pulumi(ctx: Context, _: bool) -> SelftestResult:
+    """Tests that pulumi is installed and can be run."""
     res = ctx.run("pulumi --non-interactive plugin ls", hide=True, warn=True)
     if res is None or not res.ok:
         return False, "Cannot run pulumi, check installation"
@@ -22,6 +23,7 @@ def selftest_pulumi(ctx: Context, _: bool) -> SelftestResult:
 
 
 def selftest_platforms_json(ctx: Context, _: bool) -> SelftestResult:
+    """Checks that platforms.json file is readable and correct."""
     try:
         plat = get_platforms()
     except Exception as e:
@@ -47,6 +49,10 @@ def selftest_platforms_json(ctx: Context, _: bool) -> SelftestResult:
 
 
 def selftest_prepare(ctx: Context, allow_infra_changes: bool, component: Component) -> SelftestResult:
+    """Ensures that we can run kmt.prepare for a given component.
+
+    If allow_infra_changes is true, the stack will be created if it doesn't exist.
+    """
     stack = "selftest-prepare"
     arch = full_arch("local")
     vms = f"{arch}-debian11-distro"
@@ -91,6 +97,11 @@ def selftest_prepare(ctx: Context, allow_infra_changes: bool, component: Compone
 
 
 def selftest(ctx: Context, allow_infra_changes: bool = False, filter: str | None = None):
+    """Run all defined selftests
+
+    :param allow_infra_changes: If true, the selftests will create the stack if it doesn't exist
+    :param filter: If set, only run selftests that match the regex filter
+    """
     all_selftests = [
         ("pulumi", selftest_pulumi),
         ("platforms.json", selftest_platforms_json),

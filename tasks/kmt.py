@@ -1622,6 +1622,14 @@ def tmux(ctx: Context, stack: str | None = None):
     info(f"[+] Tmux session kmt-{stack_name} created. Attach with 'tmux attach -t kmt-{stack_name}'")
 
 
-@task
+@task(
+    help={
+        "allow_infra_changes": "Allow infrastructure changes to be made during the selftest",
+        "filter": "Filter to run only tests matching the given regex",
+    }
+)
 def selftest(ctx: Context, allow_infra_changes=False, filter: str | None = None):
+    """Run all KMT selftests, reporting status at the end. Can be used for debugging in KMT development
+    or for troubleshooting.
+    """
     selftests.selftest(ctx, allow_infra_changes=allow_infra_changes, filter=filter)
