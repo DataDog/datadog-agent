@@ -127,7 +127,6 @@ func shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
 // scheduleOne schedules pathtests.
 // It shouldn't block, if the input channel is full, an error is returned.
 func (s *npSchedulerImpl) scheduleOne(hostname string, port uint16) error {
-	// TODO: TESTME
 	if s.pathtestInputChan == nil {
 		return errors.New("no input channel, please check that network path is enabled")
 	}
