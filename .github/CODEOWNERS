@@ -503,7 +503,6 @@
 /rtloader/                              @DataDog/agent-metrics-logs
 
 /tasks/                                 @DataDog/agent-developer-tools @DataDog/agent-ci-experience
-/tasks/custom_task/                     @DataDog/agent-developer-tools @DataDog/agent-ci-experience
 /tasks/msi.py                           @DataDog/windows-agent
 /tasks/agent.py                         @DataDog/agent-shared-components
 /tasks/dogstatsd.py                     @DataDog/agent-metrics-logs
