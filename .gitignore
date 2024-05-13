@@ -33,7 +33,8 @@ Dockerfiles/cluster-agent/nosys-seccomp
 # local development environment control files
 .env
 .envrc
-.python-version
+# I explicitely include this file because it could be ignored globally in custom configurations
+!.python-version
 
 # go-generated files
 datadog.yaml

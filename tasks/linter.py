@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import os
 import re
 import sys
 from collections import defaultdict
-from typing import List
 
 from invoke import Exit, task
 
@@ -255,9 +256,9 @@ def run_lint_go(
 
 def lint_flavor(
     ctx,
-    modules: List[GoModule],
+    modules: list[GoModule],
     flavor: AgentFlavor,
-    build_tags: List[str],
+    build_tags: list[str],
     arch: str,
     rtloader_root: bool,
     concurrency: int,

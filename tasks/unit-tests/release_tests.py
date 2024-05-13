@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import unittest
+from collections import OrderedDict
 from types import SimpleNamespace
-from typing import OrderedDict
 from unittest import mock
 
 from invoke.exceptions import Exit
