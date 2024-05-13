@@ -13,12 +13,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
-	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -37,6 +34,8 @@ dogstatsd_socket: %s
 `
 	datadogConfigPath = "/etc/datadog-agent/datadog.yaml"
 	ldSoPreloadPath   = "/etc/ld.so.preload"
+	injectorPath      = "/opt/datadog-packages/datadog-apm-inject/stable"
+	oldLDPath         = "/opt/datadog/apm/inject/launcher.preload.so"
 )
 
 // SetupAPMInjector sets up the injector at bootstrap
@@ -44,9 +43,7 @@ func SetupAPMInjector(ctx context.Context) error {
 	var err error
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_injector")
 	defer span.Finish(tracer.WithError(err))
-	installer := &apmInjectorInstaller{
-		installPath: "/opt/datadog-packages/datadog-apm-inject/stable",
-	}
+	installer := newAPMInjectorInstaller(injectorPath)
 	return installer.Setup(ctx)
 }
 
@@ -54,93 +51,115 @@ func SetupAPMInjector(ctx context.Context) error {
 func RemoveAPMInjector(ctx context.Context) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "remove_injector")
 	defer span.Finish()
-	installer := &apmInjectorInstaller{
-		installPath: "/opt/datadog-packages/datadog-apm-inject/stable",
-	}
+	installer := newAPMInjectorInstaller(injectorPath)
 	installer.Remove(ctx)
 }
 
+func newAPMInjectorInstaller(path string) *apmInjectorInstaller {
+	a := &apmInjectorInstaller{
+		installPath: path,
+	}
+	a.ldPreloadFileInstrument = newFileMutator(ldSoPreloadPath, a.setLDPreloadConfigContent, nil, nil)
+	a.ldPreloadFileUninstrument = newFileMutator(ldSoPreloadPath, a.deleteLDPreloadConfigContent, nil, nil)
+	a.agentConfigSockets = newFileMutator(datadogConfigPath, a.setAgentConfigContent, nil, nil)
+	a.dockerConfigInstrument = newFileMutator(dockerDaemonPath, a.setDockerConfigContent, nil, nil)
+	a.dockerConfigUninstrument = newFileMutator(dockerDaemonPath, a.deleteDockerConfigContent, nil, nil)
+	return a
+}
+
 type apmInjectorInstaller struct {
-	installPath string
+	installPath               string
+	ldPreloadFileInstrument   *fileMutator
+	ldPreloadFileUninstrument *fileMutator
+	agentConfigSockets        *fileMutator
+	dockerConfigInstrument    *fileMutator
+	dockerConfigUninstrument  *fileMutator
 }
 
 // Setup sets up the APM injector
-func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
-	var err error
+func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
+	var rollbackAgentConfig, rollbackLDPreload, rollbackDockerConfig func() error
 	defer func() {
 		if err != nil {
-			a.Remove(ctx)
+			// todo propagate rollbacks until success of package installation
+			if rollbackLDPreload != nil {
+				if err := rollbackLDPreload(); err != nil {
+					log.Warnf("Failed to rollback ld preload: %v", err)
+				}
+			}
+			if rollbackAgentConfig != nil {
+				if err := rollbackAgentConfig(); err != nil {
+					log.Warnf("Failed to rollback agent config: %v", err)
+				}
+			}
+			if rollbackDockerConfig != nil {
+				if err := rollbackDockerConfig(); err != nil {
+					log.Warnf("Failed to rollback docker config: %v", err)
+				}
+			}
 		}
 	}()
-	if err := a.setAgentConfig(ctx); err != nil {
+
+	rollbackAgentConfig, err = a.setupSockets(ctx)
+	if err != nil {
 		return err
 	}
-	if err := a.setRunPermissions(); err != nil {
+
+	rollbackLDPreload, err = a.ldPreloadFileInstrument.mutate()
+	if err != nil {
 		return err
 	}
-	if err := a.setLDPreloadConfig(ctx); err != nil {
-		return err
-	}
-	if err := a.setDockerConfig(ctx); err != nil {
-		return err
-	}
-	return nil
+
+	// TODO only instrument docker if DD_APM_INSTRUMENTATION_ENABLED=docker
+	// is set
+	rollbackDockerConfig, err = a.setupDocker(ctx)
+	return err
 }
 
 func (a *apmInjectorInstaller) Remove(ctx context.Context) {
-	if err := a.deleteAgentConfig(ctx); err != nil {
-		log.Warnf("Failed to remove agent config: %v", err)
-	}
-	if err := a.deleteLDPreloadConfig(ctx); err != nil {
+	if _, err := a.ldPreloadFileUninstrument.mutate(); err != nil {
 		log.Warnf("Failed to remove ld preload config: %v", err)
 	}
-	if err := a.deleteDockerConfig(ctx); err != nil {
+	// TODO docker only on DD_APM_INSTRUMENTATION_ENABLED=docker
+	if err := a.uninstallDocker(ctx); err != nil {
 		log.Warnf("Failed to remove docker config: %v", err)
 	}
 }
 
-func (a *apmInjectorInstaller) setRunPermissions() error {
-	return os.Chmod(path.Join(a.installPath, "inject", "run"), 0777)
-}
+// setupSockets sets up the sockets for the APM injector
+// TODO rework entirely for safe transition
+func (a *apmInjectorInstaller) setupSockets(ctx context.Context) (func() error, error) {
 
-// setLDPreloadConfig adds preload options on /etc/ld.so.preload, overriding existing ones
-func (a *apmInjectorInstaller) setLDPreloadConfig(ctx context.Context) error {
-	var ldSoPreload []byte
-	stat, err := os.Stat(ldSoPreloadPath)
-	if err == nil {
-		ldSoPreload, err = os.ReadFile(ldSoPreloadPath)
-		if err != nil {
+	// don't install sockets if already in env variable
+	if os.Getenv("DD_APM_RECEIVER_SOCKET") != "" {
+		return nil, nil
+	}
+
+	// TODO: remove sockets from run
+	if err := a.setRunPermissions(); err != nil {
+		return nil, err
+	}
+	rollbackAgentConfig, err := a.agentConfigSockets.mutate()
+	if err != nil {
+		return nil, err
+	}
+	if err := restartTraceAgent(ctx); err != nil {
+		return nil, err
+	}
+	rollback := func() error {
+		if err := rollbackAgentConfig(); err != nil {
 			return err
 		}
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-
-	newLdSoPreload, err := a.setLDPreloadConfigContent(ldSoPreload)
-	if err != nil {
-		return err
-	}
-	if bytes.Equal(ldSoPreload, newLdSoPreload) {
-		// No changes needed
+		if err := restartTraceAgent(ctx); err != nil {
+			return err
+		}
 		return nil
 	}
-
-	perms := os.FileMode(0644)
-	if stat != nil {
-		perms = stat.Mode()
-	}
-	err = os.WriteFile(filepath.Join(setup.InstallPath, "run", "ld.so.preload.tmp"), newLdSoPreload, perms)
-	if err != nil {
-		return err
-	}
-
-	return replaceLDPreload(ctx)
+	return rollback, nil
 }
 
-func replaceLDPreload(ctx context.Context) error {
-	span, _ := tracer.StartSpanFromContext(ctx, "replace_ld_preload")
-	defer span.Finish()
-	return os.Rename(filepath.Join(setup.InstallPath, "run", "ld.so.preload.tmp"), ldSoPreloadPath)
+func (a *apmInjectorInstaller) setRunPermissions() error {
+	return os.Chmod(path.Join(a.installPath, "inject", "run"), 0777)
 }
 
 // setLDPreloadConfigContent sets the content of the LD preload configuration
@@ -152,48 +171,19 @@ func (a *apmInjectorInstaller) setLDPreloadConfigContent(ldSoPreload []byte) ([]
 		return ldSoPreload, nil
 	}
 
+	if bytes.Contains(ldSoPreload, []byte(oldLDPath)) {
+		return bytes.ReplaceAll(ldSoPreload, []byte(oldLDPath), []byte(launcherPreloadPath)), nil
+	}
+
+	var buf bytes.Buffer
+	buf.Write(ldSoPreload)
 	// Append the launcher preload path to the file
 	if len(ldSoPreload) > 0 && ldSoPreload[len(ldSoPreload)-1] != '\n' {
-		ldSoPreload = append(ldSoPreload, '\n')
+		buf.WriteByte('\n')
 	}
-	ldSoPreload = append(ldSoPreload, []byte(launcherPreloadPath+"\n")...)
-	return ldSoPreload, nil
-}
-
-// deleteLDPreloadConfig removes the preload options from /etc/ld.so.preload
-func (a *apmInjectorInstaller) deleteLDPreloadConfig(ctx context.Context) error {
-	var ldSoPreload []byte
-	stat, err := os.Stat(ldSoPreloadPath)
-	if err == nil {
-		ldSoPreload, err = os.ReadFile(ldSoPreloadPath)
-		if err != nil {
-			return err
-		}
-	} else if !os.IsNotExist(err) {
-		return err
-	} else {
-		return nil
-	}
-
-	newLdSoPreload, err := a.deleteLDPreloadConfigContent(ldSoPreload)
-	if err != nil {
-		return err
-	}
-	if bytes.Equal(ldSoPreload, newLdSoPreload) {
-		// No changes needed
-		return nil
-	}
-
-	perms := os.FileMode(0644)
-	if stat != nil {
-		perms = stat.Mode()
-	}
-	err = os.WriteFile(filepath.Join(setup.InstallPath, "run", "ld.so.preload.tmp"), newLdSoPreload, perms)
-	if err != nil {
-		return err
-	}
-
-	return replaceLDPreload(ctx)
+	buf.WriteString(launcherPreloadPath)
+	buf.WriteByte('\n')
+	return buf.Bytes(), nil
 }
 
 // deleteLDPreloadConfigContent deletes the content of the LD preload configuration
@@ -226,7 +216,7 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(ldSoPreload []byte) 
 	return nil, fmt.Errorf("failed to remove %s from %s", launcherPreloadPath, ldSoPreloadPath)
 }
 
-// setAgentConfig adds the agent configuration for the APM injector if it is not there already
+// setAgentConfigContent adds the agent configuration for the APM injector if it is not there already
 // We assume that the agent file has been created by the installer's postinst script
 //
 // Note: This is not safe, as it assumes there were no changes to the agent configuration made without
@@ -234,41 +224,7 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(ldSoPreload []byte) 
 // installer system and this will be replaced by a proper experiment when available. This is a temporary
 // solution to allow the APM injector to be installed, and if the agent crashes, we try to detect it and
 // restore the previous configuration
-func (a *apmInjectorInstaller) setAgentConfig(ctx context.Context) (err error) {
-	err = backupAgentConfig(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err != nil {
-			restoreErr := restoreAgentConfig(ctx)
-			if restoreErr != nil {
-				log.Warnf("Failed to restore agent config: %v", restoreErr)
-			}
-		}
-	}()
-
-	content, err := os.ReadFile(datadogConfigPath)
-	if err != nil {
-		return err
-	}
-
-	newContent := a.setAgentConfigContent(content)
-	if bytes.Equal(content, newContent) {
-		// No changes needed
-		return nil
-	}
-
-	err = os.WriteFile(datadogConfigPath, newContent, 0644)
-	if err != nil {
-		return err
-	}
-
-	err = restartTraceAgent(ctx)
-	return
-}
-
-func (a *apmInjectorInstaller) setAgentConfigContent(content []byte) []byte {
+func (a *apmInjectorInstaller) setAgentConfigContent(content []byte) ([]byte, error) {
 	runPath := path.Join(a.installPath, "inject", "run")
 	apmSocketPath := path.Join(runPath, "apm.socket")
 	dsdSocketPath := path.Join(runPath, "dsd.socket")
@@ -282,67 +238,7 @@ func (a *apmInjectorInstaller) setAgentConfigContent(content []byte) []byte {
 		content = append(content, injectorConfigSuffix...)
 		content = append(content, []byte("\n")...)
 	}
-	return content
-}
-
-// deleteAgentConfig removes the agent configuration for the APM injector
-func (a *apmInjectorInstaller) deleteAgentConfig(ctx context.Context) (err error) {
-	err = backupAgentConfig(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err != nil {
-			restoreErr := restoreAgentConfig(ctx)
-			if restoreErr != nil {
-				log.Warnf("Failed to restore agent config: %v", restoreErr)
-			}
-		}
-	}()
-
-	content, err := os.ReadFile(datadogConfigPath)
-	if err != nil {
-		return err
-	}
-
-	newContent := a.deleteAgentConfigContent(content)
-	if bytes.Equal(content, newContent) {
-		// No changes needed
-		return nil
-	}
-
-	err = os.WriteFile(datadogConfigPath, newContent, 0644)
-	if err != nil {
-		return err
-	}
-
-	return restartTraceAgent(ctx)
-}
-
-// deleteAgentConfigContent deletes the agent configuration for the APM injector
-func (a *apmInjectorInstaller) deleteAgentConfigContent(content []byte) []byte {
-	start := bytes.Index(content, injectorConfigPrefix)
-	end := bytes.Index(content, injectorConfigSuffix) + len(injectorConfigSuffix)
-	if start == -1 || end == -1 || start >= end {
-		// Config not found
-		return content
-	}
-
-	return append(content[:start], content[end:]...)
-}
-
-// backupAgentConfig backs up the agent configuration
-func backupAgentConfig(ctx context.Context) error {
-	span, _ := tracer.StartSpanFromContext(ctx, "backup_agent_config")
-	defer span.Finish()
-	return exec.CommandContext(ctx, "cp", "-f", datadogConfigPath, datadogConfigPath+".bak").Run()
-}
-
-// restoreAgentConfig restores the agent configuration & restarts the agent
-func restoreAgentConfig(ctx context.Context) error {
-	span, _ := tracer.StartSpanFromContext(ctx, "restore_agent_config")
-	defer span.Finish()
-	return os.Rename(datadogConfigPath+".bak", datadogConfigPath)
+	return content, nil
 }
 
 // restartTraceAgent restarts the stable trace agent

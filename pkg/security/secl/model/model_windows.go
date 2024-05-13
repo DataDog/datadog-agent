@@ -52,6 +52,13 @@ type FileEvent struct {
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
 }
 
+// FimFileEvent is the common file event type
+type FimFileEvent struct {
+	FileObject  uint64 `field:"-"`                                                                                     // handle numeric value
+	PathnameStr string `field:"device_path,handler:ResolveFimFilePath,opts:length" op_override:"eval.WindowsPathCmp"`  // SECLDoc[device_path] Definition:`File's path` Example:`create.file.device_path == "\device\harddisk1\cmd.bat"` Description:`Matches the creation of the file located at c:\cmd.bat`
+	BasenameStr string `field:"name,handler:ResolveFimFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`File's basename` Example:`create.file.name == "cmd.bat"` Description:`Matches the creation of any file named cmd.bat.`
+}
+
 // RegistryEvent is the common registry event type
 type RegistryEvent struct {
 	KeyName string `field:"key_name,opts:length"`                                       // SECLDoc[key_name] Definition:`Registry's name`
@@ -112,23 +119,23 @@ type ExtraFieldHandlers interface {
 
 // CreateNewFileEvent defines file creation
 type CreateNewFileEvent struct {
-	File FileEvent `field:"file"` // SECLDoc[file] Definition:`File Event`
+	File FimFileEvent `field:"file"` // SECLDoc[file] Definition:`File Event`
 }
 
 // RenameFileEvent defines file renaming
 type RenameFileEvent struct {
-	Old FileEvent `field:"file"`             // SECLDoc[file] Definition:`File Event`
-	New FileEvent `field:"file.destination"` // SECLDoc[file] Definition:`File Event`
+	Old FimFileEvent `field:"file"`             // SECLDoc[file] Definition:`File Event`
+	New FimFileEvent `field:"file.destination"` // SECLDoc[file] Definition:`File Event`
 }
 
 // DeleteFileEvent represents an unlink event
 type DeleteFileEvent struct {
-	File FileEvent `field:"file"` // SECLDoc[file] Definition:`File Event`
+	File FimFileEvent `field:"file"` // SECLDoc[file] Definition:`File Event`
 }
 
 // WriteFileEvent represents a write event
 type WriteFileEvent struct {
-	File FileEvent `field:"file"` // SECLDoc[file] Definition:`File Event`
+	File FimFileEvent `field:"file"` // SECLDoc[file] Definition:`File Event`
 }
 
 // Registries

@@ -7,12 +7,13 @@
 package windows
 
 import (
+	"path/filepath"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	platformCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"path/filepath"
 )
 
 // BaseAgentInstallerSuite is a base class for the Windows Agent installer suites
@@ -36,7 +37,7 @@ func (b *BaseAgentInstallerSuite[Env]) InstallAgent(host *components.RemoteHost,
 // NewTestClientForHost creates a new TestClient for a given host.
 func (b *BaseAgentInstallerSuite[Env]) NewTestClientForHost(host *components.RemoteHost) *platformCommon.TestClient {
 	// We could bring the code from NewWindowsTestClient here
-	return platformCommon.NewWindowsTestClient(b.T(), host)
+	return platformCommon.NewWindowsTestClient(b, host)
 }
 
 // BeforeTest overrides the base BeforeTest to perform some additional per-test setup like configuring the output directory.

@@ -16,6 +16,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -25,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"go.uber.org/fx"
 )
 
 const (
@@ -229,7 +230,7 @@ func (c *collector) parsePods(
 		}
 
 		var nsLabels map[string]string
-		nsLabels, err = c.getNamespaceLabels(apiserver.GetNamespaceLabels, pod.Metadata.Namespace)
+		nsLabels, err = c.getNamespaceLabels(pod.Metadata.Namespace)
 		if err != nil {
 			log.Debugf("Could not fetch namespace labels for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
 		}
@@ -289,16 +290,12 @@ func (c *collector) getMetadata(getPodMetaDataFromAPIServerFunc func(string, str
 }
 
 // getNamespaceLabels returns the namespace labels, fast return if namespace labels as tags is disabled.
-func (c *collector) getNamespaceLabels(getNamespaceLabelsFromAPIServerFunc func(string) (map[string]string, error), ns string) (map[string]string, error) {
-	if !c.collectNamespaceLabels {
+func (c *collector) getNamespaceLabels(ns string) (map[string]string, error) {
+	if !c.collectNamespaceLabels || !c.isDCAEnabled() {
 		return nil, nil
 	}
 
-	if c.isDCAEnabled() {
-		getNamespaceLabelsFromAPIServerFunc = c.dcaClient.GetNamespaceLabels
-	}
-
-	return getNamespaceLabelsFromAPIServerFunc(ns)
+	return c.dcaClient.GetNamespaceLabels(ns)
 }
 
 func (c *collector) isDCAEnabled() bool {
