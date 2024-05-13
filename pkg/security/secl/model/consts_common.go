@@ -80,6 +80,10 @@ const (
 	IMDSGCPCloudProvider = "gcp"
 	// IMDSAzureCloudProvider is used to report that the IMDS event is for Azure
 	IMDSAzureCloudProvider = "azure"
+	// IMDSIBMCloudProvider is used to report that the IMDS event is for ibm
+	IMDSIBMCloudProvider = "ibm"
+	// IMDSOracleCloudProvider is used to report that the IMDS event is for Oracle
+	IMDSOracleCloudProvider = "oracle"
 )
 
 var (

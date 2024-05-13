@@ -1044,7 +1044,7 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse IMDS response: %v", err)
 		}
-		e.fillFromIMDSHeader(resp.Header)
+		e.fillFromIMDSHeader(resp.Header, "")
 
 		// try to parse cloud provider specific data
 		if e.CloudProvider == IMDSAWSCloudProvider {
@@ -1076,8 +1076,8 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse IMDS request: %v", err)
 		}
-		e.fillFromIMDSHeader(req.Header)
 		e.URL = req.URL.String()
+		e.fillFromIMDSHeader(req.Header, e.URL)
 		e.Host = req.Host
 		e.UserAgent = req.UserAgent()
 	default:
@@ -1087,13 +1087,18 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 	return len(data), nil
 }
 
-func (e *IMDSEvent) fillFromIMDSHeader(header http.Header) {
+func (e *IMDSEvent) fillFromIMDSHeader(header http.Header, url string) {
 	if header != nil {
 		e.Server = header.Get("Server")
 
-		// set the cloud provider
+		// guess the cloud provider from headers and the URL (this is a best effort resolution since some cloud provider
+		// don't require any particular headers).
 		if flavor := header.Get("Metadata-Flavor"); flavor == "Google" {
 			e.CloudProvider = IMDSGCPCloudProvider
+		} else if flavor == "ibm" {
+			e.CloudProvider = IMDSIBMCloudProvider
+		} else if authorization := header.Get("Authorization"); authorization == "Bearer Oracle" || strings.HasPrefix(url, "/opc") {
+			e.CloudProvider = IMDSOracleCloudProvider
 		} else if metadata := header.Get("Metadata"); metadata == "true" {
 			e.CloudProvider = IMDSAzureCloudProvider
 		} else {
