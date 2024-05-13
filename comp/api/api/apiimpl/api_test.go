@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -92,6 +94,7 @@ func getComponentDependencies(t *testing.T) testdeps {
 	// TODO: this fxutil.Test[T] can take a component and return the component
 	return fxutil.Test[testdeps](
 		t,
+		hostnameimpl.MockModule(),
 		flareimpl.MockModule(),
 		dogstatsdServer.MockModule(),
 		replay.MockModule(),
@@ -113,7 +116,7 @@ func getComponentDependencies(t *testing.T) testdeps {
 		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 		fetchonlyimpl.MockModule(),
 		fx.Supply(context.Background()),
-		tagger.MockModule(),
+		taggerimpl.MockModule(),
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
 		autodiscoveryimpl.MockModule(),
 		fx.Provide(func() optional.Option[logsAgent.Component] {
@@ -143,6 +146,10 @@ func getTestAPIServer(deps testdeps) api.Component {
 		RcService:             deps.RcService,
 		RcServiceMRF:          deps.RcServiceMRF,
 		AuthToken:             deps.AuthToken,
+		Tagger:                deps.Tagger,
+		LogsAgentComp:         deps.Logs,
+		WorkloadMeta:          deps.WorkloadMeta,
+		Collector:             deps.Collector,
 		Settings:              deps.Settings,
 		EndpointProviders:     deps.EndpointProviders,
 	}
@@ -152,21 +159,11 @@ func getTestAPIServer(deps testdeps) api.Component {
 func TestStartServer(t *testing.T) {
 	deps := getComponentDependencies(t)
 
-	store := deps.WorkloadMeta
-	tags := deps.Tagger
-	ac := deps.Autodiscovery
 	sender := aggregator.NewNoOpSenderManager()
-	log := deps.Logs
-	col := deps.Collector
 
 	srv := getTestAPIServer(deps)
 	err := srv.StartServer(
-		store,
-		tags,
-		ac,
-		log,
 		sender,
-		col,
 	)
 	defer srv.StopServer()
 

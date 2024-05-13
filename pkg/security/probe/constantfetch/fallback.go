@@ -99,6 +99,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getPipeInodeInfoStructRingsize(f.kernelVersion)
 	case OffsetNameNetDeviceStructIfIndex:
 		value = getNetDeviceIfindexOffset(f.kernelVersion)
+	case OffsetNameNetDeviceStructName:
+		value = getNetDeviceNameOffset(f.kernelVersion)
 	case OffsetNameNetStructNS:
 		value = getNetNSOffset(f.kernelVersion)
 	case OffsetNameNetStructProcInum:
@@ -137,6 +139,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getFileFinodeOffset(f.kernelVersion)
 	case OffsetNameFileFpath:
 		value = getFileFpathOffset(f.kernelVersion)
+	case OffsetNameMountMntID:
+		value = getMountIDOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -993,4 +997,19 @@ func getFileFpathOffset(kv *kernel.Version) uint64 {
 	default:
 		return 16
 	}
+}
+
+func getMountIDOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsSuseKernel() || kv.Code >= kernel.Kernel5_12:
+		return 292
+	case kv.Code != 0 && kv.Code < kernel.Kernel4_13:
+		return 268
+	default:
+		return 284
+	}
+}
+
+func getNetDeviceNameOffset(_ *kernel.Version) uint64 {
+	return 0
 }

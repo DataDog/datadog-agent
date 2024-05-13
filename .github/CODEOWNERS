@@ -64,6 +64,7 @@
 /.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/platform-integrations @DataDog/agent-build-and-releases
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-build-and-releases
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-developer-tools
+/.gitlab/binary_build/otel_agent.yml                 @DataDog/opentelemetry @DataDog/agent-build-and-releases
 /.gitlab/binary_build/serverless.yml                 @DataDog/serverless @DataDog/agent-build-and-releases
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-build-and-releases
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-build-and-releases @DataDog/windows-agent
@@ -163,6 +164,7 @@
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
+/cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-agent
 /cmd/agent/install*.sh                  @DataDog/agent-build-and-releases
 /cmd/agentless-scanner/                 @DataDog/agent-cspm
 /cmd/cluster-agent/                     @DataDog/container-platform
@@ -313,6 +315,7 @@
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/remote-config
 /pkg/cloudfoundry                       @Datadog/platform-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
+/pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/apm-onboarding
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/clusteragent/telemetry/            @DataDog/telemetry-and-analytics
 /pkg/collector/                         @DataDog/agent-metrics-logs
@@ -524,6 +527,7 @@
 /tasks/updater.py                       @DataDog/fleet
 /tasks/libs/common/omnibus.py           @DataDog/agent-build-and-releases
 /tasks/omnibus.py                       @DataDog/agent-build-and-releases
+/tasks/unit-tests/omnibus_tests.py      @DataDog/agent-build-and-releases
 /tasks/installer.py                     @DataDog/fleet
 /test/                                  @DataDog/agent-developer-tools
 /test/benchmarks/                       @DataDog/agent-metrics-logs

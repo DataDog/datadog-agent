@@ -127,6 +127,7 @@ kmt_run_secagent_tests_x64:
           - "ubuntu_20.04"
           - "ubuntu_22.04"
           - "ubuntu_23.10"
+          - "ubuntu_24.04"
           - "amazon_5.4"
           - "amazon_5.10"
           - "fedora_37"
@@ -164,6 +165,7 @@ kmt_run_secagent_tests_arm64:
       - TAG:
           - "ubuntu_22.04"
           - "ubuntu_23.10"
+          - "ubuntu_24.04"
           - "amazon_5.4"
           - "amazon_5.10"
           - "fedora_37"
@@ -176,7 +178,6 @@ kmt_run_secagent_tests_arm64:
           - "rocky_9.3"
           - "opensuse_15.3"
           - "opensuse_15.5"
-          - "suse_12.5"
         TEST_SET: ["all_tests"]
   after_script:
     - !reference [.collect_outcomes_kmt]

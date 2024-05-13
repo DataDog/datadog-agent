@@ -7,6 +7,7 @@ package streamlogs
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -19,10 +20,12 @@ import (
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"stream-logs", "--type", "foo"},
+		[]string{"stream-logs", "--type", "foo", "--duration", "10s", "--output", "output.log"},
 		streamLogs,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *CliParams, coreParams core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, false, secretParams.Enabled)
 			require.Equal(t, "foo", cliParams.filters.Type)
+			require.Equal(t, 10*time.Second, cliParams.Duration)
+			require.Equal(t, "output.log", cliParams.FilePath)
 		})
 }

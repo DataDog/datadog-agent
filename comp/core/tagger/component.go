@@ -4,17 +4,20 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package tagger implements the Tagger component. The Tagger is the central
-// source of truth for client-side entity tagging. It runs Collectors that
-// detect entities and collect their tags. Tags are then stored in memory (by
-// the TagStore) and can be queried by the tagger.Tag() method.
+// source of truth for client-side entity tagging. It subscribes to workloadmeta
+// to get updates for all the entity kinds (containers, kubernetes pods,
+// kubernetes nodes, etc.) and extracts the tags for each of them. Tags are then
+// stored in memory (by the TagStore) and can be queried by the tagger.Tag()
+// method.
 
 // Package tagger provides the tagger component for the Datadog Agent
 package tagger
 
 import (
-	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"context"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -22,11 +25,19 @@ import (
 
 // Component is the component type.
 type Component interface {
-	Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
-	AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error
+	Start(ctx context.Context) error
+	Stop() error
+	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
+	AccumulateTagsFor(entity string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
 	Standard(entity string) ([]string, error)
-	List() tagger_api.TaggerListResponse
+	List() types.TaggerListResponse
 	GetEntity(entityID string) (*types.Entity, error)
-	Subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent
+	Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent
 	Unsubscribe(ch chan []types.EntityEvent)
+	GetEntityHash(entity string, cardinality types.TagCardinality) string
+	AgentTags(cardinality types.TagCardinality) ([]string, error)
+	GlobalTags(cardinality types.TagCardinality) ([]string, error)
+	SetNewCaptureTagger(newCaptureTagger Component)
+	ResetCaptureTagger()
+	EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo)
 }

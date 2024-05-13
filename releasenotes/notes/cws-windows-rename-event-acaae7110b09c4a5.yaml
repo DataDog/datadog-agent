@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    CWS: Allow writing rules on rename event on Windows.
+    CWS: Allow writing rules for rename events on Windows.
