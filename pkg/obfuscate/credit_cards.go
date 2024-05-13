@@ -25,6 +25,8 @@ func (o *Obfuscator) ObfuscateCreditCardNumber(key, val string) string {
 	switch key {
 	case "_sample_rate",
 		"_sampling_priority_v1",
+		"account_id",
+		"aws_account",
 		"error",
 		"error.msg",
 		"error.type",

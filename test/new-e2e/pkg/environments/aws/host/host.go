@@ -191,7 +191,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 	}
 
 	if params.installDocker {
-		_, dockerRes, err := docker.NewManager(*awsEnv.CommonEnvironment, host)
+		dockerManager, err := docker.NewManager(&awsEnv, host)
 		if err != nil {
 			return err
 		}
@@ -202,7 +202,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 			// at the same time.
 			params.agentOptions = append(params.agentOptions,
 				agentparams.WithPulumiResourceOptions(
-					utils.PulumiDependsOn(dockerRes)))
+					utils.PulumiDependsOn(dockerManager)))
 		}
 	}
 
@@ -234,7 +234,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 
 	// Create Agent if required
 	if params.installUpdater && params.agentOptions != nil {
-		updater, err := updater.NewHostUpdater(awsEnv.CommonEnvironment, host, params.agentOptions...)
+		updater, err := updater.NewHostUpdater(&awsEnv, host, params.agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -246,7 +246,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 		// todo: add agent once updater installs agent on bootstrap
 		env.Agent = nil
 	} else if params.agentOptions != nil {
-		agent, err := agent.NewHostAgent(awsEnv.CommonEnvironment, host, params.agentOptions...)
+		agent, err := agent.NewHostAgent(&awsEnv, host, params.agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -255,12 +255,12 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 		if err != nil {
 			return err
 		}
+
+		env.Agent.ClientOptions = params.agentClientOptions
 	} else {
 		// Suite inits all fields by default, so we need to explicitly set it to nil
 		env.Agent = nil
 	}
-
-	env.AgentClientOptions = params.agentClientOptions
 
 	return nil
 }
