@@ -105,3 +105,73 @@ class TestMergeKnownFlakes(unittest.TestCase):
             merged_flakes,
             {"nintendo": {"mario", "luigi"}},
         )
+
+
+class TestGetTestParents(unittest.TestCase):
+    def test_get_tests_parents(self):
+        test_washer = TestWasher()
+        parents = test_washer.get_tests_parents(["TestEKSSuite/TestCPU/TestCPUUtilization", "TestKindSuite/TestKind"])
+        self.assertEqual(
+            parents,
+            {
+                "TestEKSSuite",
+                "TestEKSSuite/TestCPU",
+                "TestEKSSuite/TestCPU/TestCPUUtilization",
+                "TestKindSuite",
+                "TestKindSuite/TestKind",
+            },
+        )
+
+    def test_get_test_parents_empty(self):
+        test_washer = TestWasher()
+        parents = test_washer.get_tests_parents([])
+        self.assertEqual(
+            parents,
+            set(),
+        )
+
+
+class TestIsKnownFlake(unittest.TestCase):
+    def test_known_flake(self):
+        test_washer = TestWasher()
+        is_known_flaky = test_washer.is_known_flaky_test(
+            "TestEKSSuite/mario", {"TestEKSSuite/mario"}, {"TestEKSSuite", "TestEKSSuite/mario"}
+        )
+        self.assertTrue(is_known_flaky)
+
+    def test_known_flake_parent_failing(self):
+        test_washer = TestWasher()
+        is_known_flaky = test_washer.is_known_flaky_test(
+            "TestEKSSuite", {"TestEKSSuite/mario"}, {"TestEKSSuite", "TestEKSSuite/mario"}
+        )
+        self.assertTrue(is_known_flaky)
+
+    def test_known_flake_parent_failing_2(self):
+        test_washer = TestWasher()
+        is_known_flaky = test_washer.is_known_flaky_test(
+            "TestEKSSuite/mario",
+            {"TestEKSSuite/mario/luigi"},
+            {"TestEKSSuite", "TestEKSSuite/mario", "TestEKSSuite/mario/luigi"},
+        )
+        self.assertTrue(is_known_flaky)
+
+    def test_not_known_flake(self):
+        test_washer = TestWasher()
+        is_known_flaky = test_washer.is_known_flaky_test(
+            "TestEKSSuite/luigi", {"TestEKSSuite/mario"}, {"TestEKSSuite", "TestEKSSuite/mario"}
+        )
+        self.assertFalse(is_known_flaky)
+
+    def test_not_known_flake_ambiguous_start(self):
+        test_washer = TestWasher()
+        is_known_flaky = test_washer.is_known_flaky_test(
+            "TestEKSSuiteVM/mario", {"TestEKSSuite/mario"}, {"TestEKSSuite"}
+        )
+        self.assertFalse(is_known_flaky)
+
+    def test_not_known_flake_ambiguous_start_2(self):
+        test_washer = TestWasher()
+        is_known_flaky = test_washer.is_known_flaky_test(
+            "TestEKSSuite/mario", {"TestEKSSuiteVM/mario"}, {"TestEKSSuiteVM"}
+        )
+        self.assertFalse(is_known_flaky)
