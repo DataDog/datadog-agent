@@ -76,10 +76,6 @@ type Reader interface {
 	// These have had the EnvPrefix applied, as well as the EnvKeyReplacer.
 	GetEnvVars() []string
 
-	// IsSectionSet checks if a given section is set by checking if any of
-	// its subkeys is set.
-	IsSectionSet(section string) bool
-
 	// Warnings returns pointer to a list of warnings (completes config.Component interface)
 	Warnings() *Warnings
 
