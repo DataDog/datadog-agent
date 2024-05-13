@@ -34,7 +34,7 @@ func Test_pathtestStore_add(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 
 	// GIVEN
-	store := NewPathtestStore(common.DefaultFlushTickerInterval, 10*time.Minute, 1*time.Minute, logger)
+	store := NewPathtestStore(10*time.Minute, 1*time.Minute, logger)
 
 	// WHEN
 	pt1 := &common.Pathtest{Hostname: "host1", Port: 53}
@@ -56,12 +56,11 @@ func Test_pathtestStore_add(t *testing.T) {
 func Test_pathtestStore_flush(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 	timeNow = MockTimeNow
-	flushTickerInterval := 10 * time.Second
 	runDurationFromDisc := 10 * time.Minute
 	runInterval := 1 * time.Minute
 
 	// GIVEN
-	store := NewPathtestStore(flushTickerInterval, runDurationFromDisc, runInterval, logger)
+	store := NewPathtestStore(runDurationFromDisc, runInterval, logger)
 
 	// WHEN
 	pt := &common.Pathtest{Hostname: "host1", Port: 53}

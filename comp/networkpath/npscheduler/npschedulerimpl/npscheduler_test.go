@@ -531,3 +531,28 @@ func Test_npSchedulerImpl_flushWrapper(t *testing.T) {
 		})
 	}
 }
+
+func Test_npSchedulerImpl_flush(t *testing.T) {
+	// GIVEN
+	sysConfigs := map[string]any{
+		"network_path.enabled": true,
+		"network_path.workers": 6,
+	}
+	_, npScheduler := newTestNpScheduler(t, sysConfigs)
+
+	stats := &teststatsd.Client{}
+	npScheduler.statsdClient = stats
+	npScheduler.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
+	npScheduler.pathtestStore.Add(&common.Pathtest{Hostname: "host2", Port: 53})
+
+	// WHEN
+	npScheduler.flush()
+
+	// THEN
+	calls := stats.GaugeCalls
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.scheduler.workers", Value: 6, Tags: []string{}, Rate: 1})
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.scheduler.pathtest_store_size", Value: 2, Tags: []string{}, Rate: 1})
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.scheduler.pathtest_flushed_count", Value: 2, Tags: []string{}, Rate: 1})
+
+	assert.Equal(t, 2, len(npScheduler.pathtestProcessChan))
+}

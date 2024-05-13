@@ -277,8 +277,6 @@ func (s *npSchedulerImpl) flushWrapper(now time.Time, lastFlushTime time.Time) {
 }
 
 func (s *npSchedulerImpl) flush() {
-	// TODO: TESTME
-	// TODO: Remove workers metric?
 	s.statsdClient.Gauge("datadog.network_path.scheduler.workers", float64(s.workers), []string{}, 1) //nolint:errcheck
 
 	flowsContexts := s.pathtestStore.GetPathtestContextCount()
@@ -286,11 +284,11 @@ func (s *npSchedulerImpl) flush() {
 	flushTime := s.TimeNowFn()
 	flowsToFlush := s.pathtestStore.Flush()
 	s.statsdClient.Gauge("datadog.network_path.scheduler.pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
+
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
 	for _, ptConf := range flowsToFlush {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
-		// TODO: FLUSH TO CHANNEL + WORKERS EXECUTE
 		s.pathtestProcessChan <- ptConf
 	}
 }
