@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
@@ -94,7 +95,10 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 // sendRunningMetrics exports a metric to distinguish between security-agent modules that are activated
 func sendRunningMetrics(statsdClient ddgostatsd.ClientInterface, moduleName string) *time.Ticker {
 	// Retrieve the agent version using a dedicated package
-	tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
+	tags := []string{
+		fmt.Sprintf("version:%s", version.AgentVersion),
+		constants.CardinalityTagPrefix + "none",
+	}
 
 	// Send the metric regularly
 	heartbeat := time.NewTicker(15 * time.Second)

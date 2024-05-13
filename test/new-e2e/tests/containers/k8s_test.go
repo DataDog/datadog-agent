@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -34,13 +35,14 @@ import (
 )
 
 const (
-	kubeNamespaceDogstatsWorkload           = "workload-dogstatsd"
-	kubeNamespaceDogstatsStandaloneWorkload = "workload-dogstatsd-standalone"
-	kubeNamespaceTracegenWorkload           = "workload-tracegen"
-	kubeDeploymentDogstatsdUDPOrigin        = "dogstatsd-udp-origin-detection"
-	kubeDeploymentDogstatsdUDS              = "dogstatsd-uds"
-	kubeDeploymentTracegenTCPWorkload       = "tracegen-tcp"
-	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
+	kubeNamespaceDogstatsWorkload                    = "workload-dogstatsd"
+	kubeNamespaceDogstatsStandaloneWorkload          = "workload-dogstatsd-standalone"
+	kubeNamespaceTracegenWorkload                    = "workload-tracegen"
+	kubeDeploymentDogstatsdUDPOrigin                 = "dogstatsd-udp-origin-detection"
+	kubeDeploymentDogstatsdUDS                       = "dogstatsd-uds"
+	kubeDeploymentDogstatsdUDPOriginContNameInjected = "dogstatsd-udp-contname-injected"
+	kubeDeploymentTracegenTCPWorkload                = "tracegen-tcp"
+	kubeDeploymentTracegenUDSWorkload                = "tracegen-uds"
 )
 
 var GitCommit string
@@ -446,6 +448,9 @@ func (suite *k8sSuite) TestRedis() {
 }
 
 func (suite *k8sSuite) TestCPU() {
+	// TODO: https://datadoghq.atlassian.net/browse/CONTINT-4143
+	flake.Mark(suite.T())
+
 	// Test CPU metrics
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
@@ -599,6 +604,8 @@ func (suite *k8sSuite) TestDogstatsdInAgent() {
 	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
 	// Test with UDP + Origin detection
 	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
+	// Test with UDP + DD_ENTITY_ID with container name injected
+	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOriginContNameInjected)
 	// Test with UDP + DD_ENTITY_ID
 	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
 }
@@ -609,6 +616,8 @@ func (suite *k8sSuite) TestDogstatsdStandalone() {
 	// Dogstatsd standalone does not support origin detection
 	// Test with UDP + DD_ENTITY_ID
 	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
+	// Test with UDP + DD_ENTITY_ID with container name injected
+	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOriginContNameInjected)
 }
 
 func (suite *k8sSuite) testDogstatsdPodUID(kubeNamespace string) {

@@ -8,13 +8,13 @@ package snmpparse
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"reflect"
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -97,12 +97,23 @@ func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
 		},
 	)
 	//the UnmarshalKey stores the result in mapstructures while the snmpconfig is in yaml
-	//so for each result of the Unmarshal key we storre the result in a tmp SNMPConfig{} object
-	err := conf.UnmarshalKey("snmp_listener.configs", &configs, opt)
-	if err != nil {
-		fmt.Printf("unable to get snmp config from snmp_listener: %v", err)
-		return nil, err
+	//so for each result of the Unmarshal key we store the result in a tmp SNMPConfig{} object
+	if conf.IsSet("network_devices.autodiscovery.configs") {
+		err := conf.UnmarshalKey("network_devices.autodiscovery.configs", &configs, opt)
+		if err != nil {
+			fmt.Printf("unable to get snmp config from network_devices.autodiscovery: %v", err)
+			return nil, err
+		}
+	} else if conf.IsSet("snmp_listener.configs") {
+		err := conf.UnmarshalKey("snmp_listener.configs", &configs, opt)
+		if err != nil {
+			fmt.Printf("unable to get snmp config from snmp_listener: %v", err)
+			return nil, err
+		}
+	} else {
+		return nil, errors.New("no config given for snmp_listener")
 	}
+
 	for c := range configs {
 		snmpconfig := SNMPConfig{}
 		SetDefault(&snmpconfig)
@@ -151,7 +162,7 @@ func GetConfigCheckSnmp(conf config.Component) ([]SNMPConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	cr := response.ConfigCheckResponse{}
+	cr := integration.ConfigCheckResponse{}
 	err = json.Unmarshal(r, &cr)
 	if err != nil {
 		return nil, err

@@ -13,6 +13,7 @@ import (
 	"html"
 	"net/http"
 
+	settingsComponent "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
@@ -45,7 +46,7 @@ func (rc *runtimeSettingsHTTPClient) FullConfig() (string, error) {
 	return string(r), nil
 }
 
-func (rc *runtimeSettingsHTTPClient) List() (map[string]settings.RuntimeSettingResponse, error) {
+func (rc *runtimeSettingsHTTPClient) List() (map[string]settingsComponent.RuntimeSettingResponse, error) {
 	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, "list-runtime"), rc.clientOptions.CloseConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
@@ -56,7 +57,7 @@ func (rc *runtimeSettingsHTTPClient) List() (map[string]settings.RuntimeSettingR
 		}
 		return nil, err
 	}
-	var settingsList = make(map[string]settings.RuntimeSettingResponse)
+	var settingsList = make(map[string]settingsComponent.RuntimeSettingResponse)
 	err = json.Unmarshal(r, &settingsList)
 	if err != nil {
 		return nil, err

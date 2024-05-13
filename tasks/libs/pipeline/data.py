@@ -33,7 +33,7 @@ def get_failed_jobs(project_name: str, pipeline_id: str) -> FailedJobs:
         # Check the final job in the list: it contains the current status of the job
         # This excludes jobs that were retried and succeeded
         trace = str(repo.jobs.get(job.id, lazy=True).trace(), 'utf-8')
-        failure_type, failure_reason = get_job_failure_context(trace)
+        failure_type, failure_reason = get_job_failure_context(job, trace)
         final_status = ProjectJob(
             repo.manager,
             attrs={
@@ -120,19 +120,33 @@ infra_failure_logs = [
 ]
 
 
-def get_job_failure_context(job_log):
+def get_job_failure_context(job: ProjectJob, job_log: str):
     """
     Parses job logs (provided as a string), and returns the type of failure (infra or job) as well
     as the precise reason why the job failed.
     """
 
+    infra_failure_reasons = FailedJobReason.get_infra_failure_mapping().keys()
+
+    if job.failure_reason in infra_failure_reasons:
+        return FailedJobType.INFRA_FAILURE, FailedJobReason.from_gitlab_job_failure_reason(job.failure_reason)
+
     for regex, type in infra_failure_logs:
         if regex.search(job_log):
             return FailedJobType.INFRA_FAILURE, type
+
     return FailedJobType.JOB_FAILURE, FailedJobReason.FAILED_JOB_SCRIPT
 
 
+# These jobs are allowed to have their full name in the data.
+# They are often matrix/parallel jobs where the dimension values are important.
+jobs_allowed_to_have_full_names = [re.compile(r'kmt_run_.+_tests_.*')]
+
+
 def truncate_job_name(job_name, max_char_per_job=48):
+    if any(pattern.fullmatch(job_name) for pattern in jobs_allowed_to_have_full_names):
+        return job_name
+
     # Job header should be before the colon, if there is no colon this won't change job_name
     truncated_job_name = job_name.split(":")[0]
     # We also want to avoid it being too long

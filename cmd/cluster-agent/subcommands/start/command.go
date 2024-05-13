@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -36,8 +37,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
-	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
+	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
+	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -46,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -70,7 +72,6 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
-	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -151,12 +152,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(context.Background()),
 				workloadmeta.Module(),
 				fx.Provide(tagger.NewTaggerParams),
-				tagger.Module(),
+				taggerimpl.Module(),
 				fx.Supply(
 					status.Params{
 						PythonVersionGetFunc: python.GetPythonVersion,
 					},
-					status.NewInformationProvider(collectorStatus.Provider{}),
 					status.NewInformationProvider(leaderelection.Provider{}),
 					status.NewInformationProvider(clusteragentMetricsStatus.Provider{}),
 					status.NewInformationProvider(admissionpkg.Provider{}),
@@ -169,6 +169,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				statusimpl.Module(),
 				collectorimpl.Module(),
+				fx.Provide(func() optional.Option[serializer.MetricSerializer] {
+					return optional.NewNoneOption[serializer.MetricSerializer]()
+				}),
 				autodiscoveryimpl.Module(),
 				rcserviceimpl.Module(),
 				rctelemetryreporterimpl.Module(),
@@ -178,16 +181,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
 					}
 				}),
-				healthprobeimpl.Module(),
-				fx.Supply(
-					settings.Settings{
-						"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
-						"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
-						"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
-						"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
-						"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-cluster-agent"),
-					},
-				),
+				healthprobefx.Module(),
+				fx.Provide(func(c config.Component) settings.Params {
+					return settings.Params{
+						Settings: map[string]settings.RuntimeSetting{
+							"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
+							"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
+							"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
+							"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
+							"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-cluster-agent"),
+						},
+						Config: c,
+					}
+				}),
 				settingsimpl.Module(),
 			)
 		},
@@ -272,7 +278,7 @@ func start(log log.Component,
 	}
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(wmeta, taggerComp, ac, statusComponent, settings); err != nil {
+	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

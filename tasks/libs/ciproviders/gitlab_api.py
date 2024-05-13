@@ -77,7 +77,7 @@ class ReferenceTag(yaml.YAMLObject):
     Custom yaml tag to handle references in gitlab-ci configuration
     """
 
-    yaml_tag = u'!reference'
+    yaml_tag = '!reference'
 
     def __init__(self, references):
         self.references = references
@@ -234,10 +234,10 @@ def load_context(context):
                 f"Invalid context file: {context}, missing 'variables' key. Input file must be similar to tasks/unit-tests/testdata/gitlab_main_context_template.yml",
                 1,
             )
-        return [[(k, v) for k, v in y["variables"].items()]]
+        return [list(y["variables"].items())]
     else:
         try:
             j = json.loads(context)
-            return [[(k, v) for k, v in j.items()]]
+            return [list(j.items())]
         except json.JSONDecodeError:
             raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1)

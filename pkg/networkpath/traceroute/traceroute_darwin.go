@@ -7,25 +7,38 @@
 
 package traceroute
 
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+)
+
 // MacTraceroute defines a structure for
 // running traceroute from an agent running
 // on macOS
 type MacTraceroute struct {
-	cfg Config
+	cfg    Config
+	runner *Runner
 }
 
 // New creates a new instance of MacTraceroute
 // based on an input configuration
-func New(cfg Config) *MacTraceroute {
-	return &MacTraceroute{
-		cfg: cfg,
+func New(cfg Config) (*MacTraceroute, error) {
+	runner, err := NewRunner()
+	if err != nil {
+		return nil, err
 	}
+
+	return &MacTraceroute{
+		cfg:    cfg,
+		runner: runner,
+	}, nil
 }
 
 // Run executes a traceroute
-func (m *MacTraceroute) Run() (NetworkPath, error) {
+func (m *MacTraceroute) Run(ctx context.Context) (payload.NetworkPath, error) {
 	// TODO: mac implementation, can we get this no system-probe or root access?
 	// To test: we probably can, but maybe not without modifying
 	// the library we currently use
-	return RunTraceroute(m.cfg)
+	return m.runner.RunTraceroute(ctx, m.cfg)
 }

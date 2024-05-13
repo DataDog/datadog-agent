@@ -36,6 +36,7 @@ def get_kmt_os():
 
 class Linux:
     kmt_dir = get_home_linux()
+    name = "linux"
     libvirt_group = "libvirt"
     rootfs_dir = kmt_dir / "rootfs"
     stacks_dir = kmt_dir / "stacks"
@@ -78,6 +79,7 @@ class Linux:
 
 class MacOS:
     kmt_dir = get_home_macos()
+    name = "macos"
     libvirt_group = "staff"
     rootfs_dir = kmt_dir / "rootfs"
     stacks_dir = kmt_dir / "stacks"

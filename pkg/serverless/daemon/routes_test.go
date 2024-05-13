@@ -161,6 +161,30 @@ func TestTraceContext(t *testing.T) {
 	}
 }
 
+func TestHello(t *testing.T) {
+	assert := assert.New(t)
+
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	time.Sleep(100 * time.Millisecond)
+	defer d.Stop()
+	d.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
+		ExtraTags:           d.ExtraTags,
+		Demux:               nil,
+		ProcessTrace:        nil,
+		DetectLambdaLibrary: d.IsLambdaLibraryDetected,
+	}
+	client := &http.Client{}
+	body := bytes.NewBuffer([]byte(`{}`))
+	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/hello", port), body)
+	assert.Nil(err)
+	assert.False(d.IsLambdaLibraryDetected())
+	response, err := client.Do(request)
+	assert.Nil(err)
+	response.Body.Close()
+	assert.True(d.IsLambdaLibraryDetected())
+}
+
 func TestStartEndInvocationSpanParenting(t *testing.T) {
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
@@ -330,6 +354,36 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestStartEndInvocationIsExecutionSpanIncomplete(t *testing.T) {
+	assert := assert.New(t)
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	time.Sleep(100 * time.Millisecond)
+	defer d.Stop()
+
+	m := &mockLifecycleProcessor{}
+	d.InvocationProcessor = m
+
+	client := &http.Client{}
+	body := bytes.NewBuffer([]byte(`{"key": "value"}`))
+	startReq, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/start-invocation", port), body)
+	assert.Nil(err)
+	startResp, err := client.Do(startReq)
+	assert.Nil(err)
+	startResp.Body.Close()
+	assert.True(m.OnInvokeStartCalled)
+	assert.True(d.IsExecutionSpanIncomplete())
+
+	body = bytes.NewBuffer([]byte(`{}`))
+	endReq, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/end-invocation", port), body)
+	assert.Nil(err)
+	endResp, err := client.Do(endReq)
+	assert.Nil(err)
+	endResp.Body.Close()
+	assert.True(m.OnInvokeEndCalled)
+	assert.False(d.IsExecutionSpanIncomplete())
 }
 
 // Helper function for reading test file

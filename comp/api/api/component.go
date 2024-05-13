@@ -10,13 +10,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/fx"
 )
@@ -31,12 +25,7 @@ import (
 // Component is the component type.
 type Component interface {
 	StartServer(
-		wmeta workloadmeta.Component,
-		tagger tagger.Component,
-		ac autodiscovery.Component,
-		logsAgent optional.Option[logsAgent.Component],
 		senderManager sender.DiagnoseSenderManager,
-		collector optional.Option[collector.Component],
 	) error
 	StopServer()
 	ServerAddress() *net.TCPAddr
@@ -44,7 +33,7 @@ type Component interface {
 
 // EndpointProvider is an interface to register api endpoints
 type EndpointProvider struct {
-	Handler http.Handler
+	HandlerFunc http.HandlerFunc
 
 	Methods []string
 	Route   string
@@ -58,12 +47,12 @@ type AgentEndpointProvider struct {
 }
 
 // NewAgentEndpointProvider returns a AgentEndpointProvider to register the endpoint provided to the internal agent api server
-func NewAgentEndpointProvider(handler http.Handler, route string, methods ...string) AgentEndpointProvider {
+func NewAgentEndpointProvider(handlerFunc http.HandlerFunc, route string, methods ...string) AgentEndpointProvider {
 	return AgentEndpointProvider{
 		Provider: EndpointProvider{
-			Handler: handler,
-			Route:   route,
-			Methods: methods,
+			HandlerFunc: handlerFunc,
+			Route:       route,
+			Methods:     methods,
 		},
 	}
 }

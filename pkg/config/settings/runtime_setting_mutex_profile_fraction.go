@@ -6,14 +6,13 @@
 package settings
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
 // RuntimeMutexProfileFraction wraps runtime.SetMutexProfileFraction setting.
 type RuntimeMutexProfileFraction struct {
-	Config       config.ReaderWriter
 	ConfigPrefix string
 	ConfigKey    string
 }
@@ -42,12 +41,12 @@ func (r *RuntimeMutexProfileFraction) Hidden() bool {
 }
 
 // Get returns the current value of the runtime setting
-func (r *RuntimeMutexProfileFraction) Get() (interface{}, error) {
+func (r *RuntimeMutexProfileFraction) Get(_ config.Component) (interface{}, error) {
 	return profiling.GetMutexProfileFraction(), nil
 }
 
 // Set changes the value of the runtime setting
-func (r *RuntimeMutexProfileFraction) Set(value interface{}, source model.Source) error {
+func (r *RuntimeMutexProfileFraction) Set(config config.Component, value interface{}, source model.Source) error {
 	rate, err := GetInt(value)
 	if err != nil {
 		return err
@@ -56,11 +55,8 @@ func (r *RuntimeMutexProfileFraction) Set(value interface{}, source model.Source
 	err = checkProfilingNeedsRestart(profiling.GetMutexProfileFraction(), rate)
 
 	profiling.SetMutexProfileFraction(rate)
-	var cfg config.ReaderWriter = config.Datadog
-	if r.Config != nil {
-		cfg = r.Config
-	}
-	cfg.Set(r.ConfigPrefix+"internal_profiling.mutex_profile_fraction", rate, source)
+
+	config.Set(r.ConfigPrefix+"internal_profiling.mutex_profile_fraction", rate, source)
 
 	return err
 }

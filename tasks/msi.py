@@ -2,7 +2,6 @@
 msi namespaced tasks
 """
 
-
 import mmap
 import os
 import shutil
@@ -187,7 +186,7 @@ def _build(
 
     # Try to run the command 3 times to alleviate transient
     # network failures
-    succeeded = ctx.run(cmd, warn=True, env=env)
+    succeeded = ctx.run(cmd, warn=True, env=env, err_stream=sys.stdout)
     if not succeeded:
         raise Exit("Failed to build the installer builder.", code=1)
 

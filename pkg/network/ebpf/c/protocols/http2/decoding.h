@@ -79,7 +79,7 @@ end:
 // that are relevant for us, to be processed later on.
 // The return value is the number of relevant headers that were found and inserted
 // in the `headers_to_process` table.
-static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
+static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *restrict skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
     __u8 current_ch;
     __u8 interesting_headers = 0;
     http2_header_t *current_header;
@@ -272,7 +272,7 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
     }
 }
 
-static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel) {
+static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *restrict skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel) {
     const __u32 zero = 0;
 
     // Allocating an array of headers, to hold all interesting headers from the frame.
@@ -414,7 +414,7 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 // - HEADERS frames
 // - RST_STREAM frames
 // - DATA frames with the END_STREAM flag set
-static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info_t *skb_info, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel) {
+static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info_t *restrict skb_info, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     http2_frame_t current_frame = {};
 
@@ -443,9 +443,6 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
         if (!format_http2_frame_header(&current_frame)) {
             break;
         }
-
-        // We are not checking for frame splits in the previous condition due to a verifier issue.
-        check_frame_split(http2_tel, skb_info->data_off,skb_info->data_end, current_frame);
 
         // END_STREAM can appear only in Headers and Data frames.
         // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
@@ -557,7 +554,6 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         return 0;
     }
 
-    check_frame_split(http2_tel, dispatcher_args_copy.skb_info.data_off, dispatcher_args_copy.skb_info.data_end, current_frame);
     bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
     bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
     if (is_headers_or_rst_frame || is_data_end_of_stream) {

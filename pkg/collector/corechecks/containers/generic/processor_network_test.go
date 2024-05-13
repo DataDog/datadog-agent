@@ -8,8 +8,8 @@ package generic
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -21,7 +21,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	mockSender := mocksender.NewMockSender("network-extension")
 	mockSender.SetupAcceptAll()
 
-	fakeTagger := tagger.SetupFakeTagger(t)
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
 
 	mockCollector := mock.NewCollector("testCollector")
@@ -139,15 +139,15 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	// Running them through the ProcessorExtension
 	networkProcessor.PreProcess(MockSendMetric, mockSender)
 
-	container1Tags, _ := fakeTagger.Tag("container_id://1", collectors.HighCardinality)
+	container1Tags, _ := fakeTagger.Tag("container_id://1", types.HighCardinality)
 	networkProcessor.Process(container1Tags, container1, mockCollector, 0)
-	container2Tags, _ := fakeTagger.Tag("container_id://2", collectors.HighCardinality)
+	container2Tags, _ := fakeTagger.Tag("container_id://2", types.HighCardinality)
 	networkProcessor.Process(container2Tags, container2, mockCollector, 0)
-	container3Tags, _ := fakeTagger.Tag("container_id://3", collectors.HighCardinality)
+	container3Tags, _ := fakeTagger.Tag("container_id://3", types.HighCardinality)
 	networkProcessor.Process(container3Tags, container3, mockCollector, 0)
-	container4Tags, _ := fakeTagger.Tag("container_id://4", collectors.HighCardinality)
+	container4Tags, _ := fakeTagger.Tag("container_id://4", types.HighCardinality)
 	networkProcessor.Process(container4Tags, container4, mockCollector, 0)
-	container5Tags, _ := fakeTagger.Tag("container_id://5", collectors.HighCardinality)
+	container5Tags, _ := fakeTagger.Tag("container_id://5", types.HighCardinality)
 	networkProcessor.Process(container5Tags, container5, mockCollector, 0)
 
 	networkProcessor.PostProcess()
