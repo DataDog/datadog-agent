@@ -6,7 +6,6 @@
 package cws
 
 import (
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"testing"
