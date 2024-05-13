@@ -53,7 +53,7 @@ func newTestNpScheduler(t *testing.T, sysConfigs map[string]any) (*fxtest.App, *
 	return app, npScheduler
 }
 
-func TestStartServerAndStopNpScheduler(t *testing.T) {
+func Test_NpScheduler_StartAndStop(t *testing.T) {
 	sysConfigs := map[string]any{
 		"network_path.enabled": true,
 	}
