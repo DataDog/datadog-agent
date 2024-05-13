@@ -568,7 +568,11 @@ func getSizeOfUpid(kv *kernel.Version) uint64 {
 	case kv.IsRH8Kernel():
 		sizeOfUpid = 16
 	case kv.IsSuse12Kernel():
-		sizeOfUpid = 16
+		if kv.IsInRangeCloseOpen(kernel.Kernel4_12, kernel.Kernel4_13) && kv.Code.Patch() >= 14 {
+			sizeOfUpid = 32
+		} else {
+			sizeOfUpid = 16
+		}
 	case kv.IsSuse15Kernel():
 		if kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4) {
 			sizeOfUpid = 16
