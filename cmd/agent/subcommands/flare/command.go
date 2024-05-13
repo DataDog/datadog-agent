@@ -153,7 +153,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	flareCmd.Flags().IntVarP(&cliParams.profileMutexFraction, "profile-mutex-fraction", "", 100, "Set the fraction of mutex contention events that are reported in the mutex profile")
 	flareCmd.Flags().BoolVarP(&cliParams.profileBlocking, "profile-blocking", "B", false, "Add gorouting blocking profile to the performance data in the flare")
 	flareCmd.Flags().IntVarP(&cliParams.profileBlockingRate, "profile-blocking-rate", "", 10000, "Set the fraction of goroutine blocking events that are reported in the blocking profile")
-	flareCmd.Flags().BoolVarP(&cliParams.withStreamLogs, "with-stream-logs", "L", false, "Log 60s of the stream-logs command to the agent log file")
+	flareCmd.Flags().BoolVarP(&cliParams.withStreamLogs, "with-stream-logs", "L", false, "60s default; use --stream-logs-duration flag to change")
 	flareCmd.Flags().DurationVarP(&cliParams.streamLogsDuration, "stream-logs-duration", "D", 60*time.Second, "To be used with --with-stream-logs flag. Duration of the attached log stream")
 	flareCmd.SetArgs([]string{"caseID"})
 
@@ -280,14 +280,23 @@ func makeFlare(flareComp flare.Component,
 		err     error
 	)
 
+	if cliParams.streamLogsDuration <= 0 {
+		return fmt.Errorf("stream-logs-duration must be a positive value")
+	}
+
 	streamLogParams := streamlogs.CliParams{
 		FilePath: commonpath.DefaultStreamlogsLogFile,
 		Duration: cliParams.streamLogsDuration,
 		Quiet:    true,
 	}
 
+	streamLogDuration := 60 * time.Second // default duration
+	if streamLogParams.Duration != 0 {
+		streamLogDuration = streamLogParams.Duration
+	}
+
 	// Check if Duration is set but withStreamLogs is not.
-	if streamLogParams.Duration != 60 && !cliParams.withStreamLogs {
+	if streamLogDuration != 0 && !cliParams.withStreamLogs {
 		return fmt.Errorf("the --stream-logs-duration flag is set but --with-stream-logs is not. Please enable --with-stream-logs to use Duration")
 	}
 
