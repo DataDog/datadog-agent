@@ -24,5 +24,11 @@ func getPTraceProbes(fentry bool) []*manager.Probe {
 			EBPFFuncName: "hook_ptrace_check_attach",
 		},
 	})
+	ptraceProbes = append(ptraceProbes, &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "hook_arch_ptrace",
+		},
+	})
 	return ptraceProbes
 }
