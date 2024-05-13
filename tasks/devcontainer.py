@@ -14,7 +14,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
-from tasks.commands.docker import DockerCLI, AGENT_REPOSITORY_PATH
+from tasks.commands.docker import AGENT_REPOSITORY_PATH, DockerCLI
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 
