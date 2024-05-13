@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "replay",
+    srcs = ["tagger.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/replay",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/taggerimpl/empty",
+        "//comp/core/tagger/taggerimpl/tagstore",
+        "//comp/core/tagger/taggerimpl/telemetry",
+        "//comp/core/tagger/types",
+        "//pkg/proto/pbgo/core",
+        "//pkg/tagset",
+        "//pkg/util/log",
+        "//pkg/util/proto",
+    ],
+)

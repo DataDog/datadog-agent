@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "compressionimpl",
+    srcs = [
+        "common.go",
+        "no_compression.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/serializer/compression",
+        "//comp/serializer/compression/compressionimpl/strategy",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:go_default_library",
+    ],
+)

@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tagenrichmentprocessor",
+    srcs = [
+        "config.go",
+        "doc.go",
+        "factory.go",
+        "logs.go",
+        "metadata.go",
+        "metrics.go",
+        "traces.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/tagenrichmentprocessor",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_opentelemetry_go_collector_component//:go_default_library",
+        "@io_opentelemetry_go_collector_consumer//:go_default_library",
+        "@io_opentelemetry_go_collector_pdata//plog:go_default_library",
+        "@io_opentelemetry_go_collector_pdata//pmetric:go_default_library",
+        "@io_opentelemetry_go_collector_pdata//ptrace:go_default_library",
+        "@io_opentelemetry_go_collector_processor//:go_default_library",
+        "@io_opentelemetry_go_collector_processor//processorhelper:go_default_library",
+        "@io_opentelemetry_go_otel_metric//:go_default_library",
+        "@io_opentelemetry_go_otel_trace//:go_default_library",
+        "@org_uber_go_zap//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "tagenrichmentprocessor_test",
+    srcs = [
+        "config_test.go",
+        "factory_test.go",
+        "logs_test.go",
+        "metrics_test.go",
+        "package_test.go",
+        "traces_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":tagenrichmentprocessor"],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@io_opentelemetry_go_collector_component//:go_default_library",
+        "@io_opentelemetry_go_collector_component//componenttest:go_default_library",
+        "@io_opentelemetry_go_collector_confmap//confmaptest:go_default_library",
+        "@io_opentelemetry_go_collector_consumer//consumertest:go_default_library",
+        "@io_opentelemetry_go_collector_pdata//plog:go_default_library",
+        "@io_opentelemetry_go_collector_pdata//pmetric:go_default_library",
+        "@io_opentelemetry_go_collector_pdata//ptrace:go_default_library",
+        "@io_opentelemetry_go_collector_processor//processortest:go_default_library",
+        "@org_uber_go_goleak//:go_default_library",
+    ],
+)

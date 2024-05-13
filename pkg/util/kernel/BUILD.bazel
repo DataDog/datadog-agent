@@ -1,0 +1,136 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kernel",
+    srcs = [
+        "arch.go",
+        "cpu.go",
+        "download_headers.go",
+        "find_headers.go",
+        "fs.go",
+        "fs_nolinux.go",
+        "ip.go",
+        "ip_unsupported.go",
+        "lockdown.go",
+        "netns.go",
+        "netns_darwin.go",
+        "netns_windows.go",
+        "platform.go",
+        "proc.go",
+        "uname.go",
+        "version.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kernel",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/util/funcs",
+            "//pkg/util/log",
+            "//pkg/version",
+            "@com_github_avast_retry_go_v4//:go_default_library",
+            "@com_github_cilium_ebpf//features:go_default_library",
+            "@com_github_datadog_agent_payload_v5//process:go_default_library",
+            "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
+            "@com_github_datadog_gopsutil//host:go_default_library",
+            "@com_github_datadog_nikos//apt:go_default_library",
+            "@com_github_datadog_nikos//cos:go_default_library",
+            "@com_github_datadog_nikos//rpm:go_default_library",
+            "@com_github_datadog_nikos//types:go_default_library",
+            "@com_github_datadog_nikos//wsl:go_default_library",
+            "@com_github_mholt_archiver_v3//:go_default_library",
+            "@com_github_moby_sys_mountinfo//:go_default_library",
+            "@com_github_vishvananda_netns//:go_default_library",
+            "@org_golang_x_exp//maps:go_default_library",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/funcs",
+            "@com_github_vishvananda_netns//:go_default_library",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/funcs",
+            "@com_github_vishvananda_netns//:go_default_library",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/funcs",
+            "//pkg/util/log",
+            "//pkg/version",
+            "@com_github_avast_retry_go_v4//:go_default_library",
+            "@com_github_cilium_ebpf//features:go_default_library",
+            "@com_github_datadog_agent_payload_v5//process:go_default_library",
+            "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
+            "@com_github_datadog_gopsutil//host:go_default_library",
+            "@com_github_datadog_nikos//apt:go_default_library",
+            "@com_github_datadog_nikos//cos:go_default_library",
+            "@com_github_datadog_nikos//rpm:go_default_library",
+            "@com_github_datadog_nikos//types:go_default_library",
+            "@com_github_datadog_nikos//wsl:go_default_library",
+            "@com_github_mholt_archiver_v3//:go_default_library",
+            "@com_github_moby_sys_mountinfo//:go_default_library",
+            "@com_github_vishvananda_netns//:go_default_library",
+            "@org_golang_x_exp//maps:go_default_library",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/funcs",
+            "@com_github_vishvananda_netns//:go_default_library",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "kernel_test",
+    srcs = [
+        "cpu_test.go",
+        "download_headers_test.go",
+        "find_headers_test.go",
+        "lockdown_test.go",
+        "platform_test.go",
+        "proc_linux_test.go",
+        "version_test.go",
+    ],
+    embed = [":kernel"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_datadog_nikos//apt:go_default_library",
+            "@com_github_datadog_nikos//types:go_default_library",
+            "@com_github_stretchr_testify//assert:go_default_library",
+            "@com_github_stretchr_testify//require:go_default_library",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_datadog_nikos//apt:go_default_library",
+            "@com_github_datadog_nikos//types:go_default_library",
+            "@com_github_stretchr_testify//assert:go_default_library",
+            "@com_github_stretchr_testify//require:go_default_library",
+        ],
+        "//conditions:default": [],
+    }),
+)

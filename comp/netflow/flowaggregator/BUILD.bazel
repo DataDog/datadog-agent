@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "flowaggregator",
+    srcs = [
+        "aggregator.go",
+        "buildpayload.go",
+        "flowaccumulator.go",
+        "testutil.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow/flowaggregator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log",
+        "//comp/forwarder/eventplatform",
+        "//comp/netflow/common",
+        "//comp/netflow/config",
+        "//comp/netflow/format",
+        "//comp/netflow/goflowlib",
+        "//comp/netflow/payload",
+        "//comp/netflow/portrollup",
+        "//pkg/aggregator/sender",
+        "//pkg/logs/message",
+        "//pkg/metrics",
+        "//pkg/networkdevice/metadata",
+        "@com_github_prometheus_client_golang//prometheus:go_default_library",
+        "@org_uber_go_atomic//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "flowaggregator_test",
+    srcs = [
+        "buildpayload_test.go",
+        "flowaccumulator_test.go",
+    ],
+    embed = [":flowaggregator"],
+    deps = [
+        "//comp/core/log",
+        "//comp/core/log/logimpl",
+        "//comp/netflow/common",
+        "//comp/netflow/payload",
+        "//comp/netflow/portrollup",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert:go_default_library",
+    ],
+)

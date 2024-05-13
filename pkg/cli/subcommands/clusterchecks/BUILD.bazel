@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "clusterchecks",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/cli/subcommands/clusterchecks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log",
+        "//comp/core/log/logimpl",
+        "//comp/core/secrets",
+        "//pkg/api/util",
+        "//pkg/clusteragent/clusterchecks/types",
+        "//pkg/config",
+        "//pkg/flare",
+        "//pkg/util/fxutil",
+        "@com_github_fatih_color//:go_default_library",
+        "@com_github_spf13_cobra//:go_default_library",
+        "@org_uber_go_fx//:go_default_library",
+    ],
+)

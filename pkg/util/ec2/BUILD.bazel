@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ec2",
+    srcs = [
+        "diagnosis.go",
+        "dmi.go",
+        "ec2.go",
+        "ec2_account_id_unsupported.go",
+        "ec2_no_tags.go",
+        "imds_helpers.go",
+        "network.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/ec2",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config",
+        "//pkg/diagnose/diagnosis",
+        "//pkg/util/cachedfetch",
+        "//pkg/util/common",
+        "//pkg/util/dmi",
+        "//pkg/util/fargate",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "@com_github_google_uuid//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "ec2_test",
+    srcs = [
+        "dmi_test.go",
+        "ec2_test.go",
+        "network_test.go",
+    ],
+    embed = [":ec2"],
+    deps = [
+        "//pkg/config",
+        "//pkg/util/dmi",
+        "//pkg/util/http",
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+    ],
+)

@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "events",
+    srcs = ["types_linux.go"],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/events",
+    visibility = ["//visibility:public"],
+)

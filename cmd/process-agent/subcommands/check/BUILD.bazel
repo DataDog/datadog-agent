@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "check",
+    srcs = ["check.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/check",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/process-agent/command",
+        "//cmd/system-probe/config",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log",
+        "//comp/core/log/logimpl",
+        "//comp/core/sysprobeconfig",
+        "//comp/core/tagger",
+        "//comp/core/tagger/taggerimpl",
+        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/collectors",
+        "//comp/metadata/host/hostimpl/utils",
+        "//comp/process",
+        "//comp/process/hostinfo",
+        "//comp/process/types",
+        "//pkg/process/checks",
+        "//pkg/util/fxutil",
+        "//pkg/version",
+        "@com_github_datadog_agent_payload_v5//process:go_default_library",
+        "@com_github_fatih_color//:go_default_library",
+        "@com_github_spf13_cobra//:go_default_library",
+        "@org_uber_go_fx//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "check_test",
+    srcs = ["check_test.go"],
+    embed = [":check"],
+    deps = [
+        "//cmd/process-agent/command",
+        "//pkg/util/fxutil",
+    ],
+)

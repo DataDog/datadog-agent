@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "stream",
+    srcs = [
+        "compressor.go",
+        "json_payload_builder.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serializer/internal/stream",
+    visibility = ["//pkg/serializer:__subpackages__"],
+    deps = [
+        "//comp/core/config",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//comp/serializer/compression",
+        "//pkg/serializer/marshaler",
+        "//pkg/telemetry",
+        "//pkg/util/log",
+        "@com_github_json_iterator_go//:go_default_library",
+    ],
+)

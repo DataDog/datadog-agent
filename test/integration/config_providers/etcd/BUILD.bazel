@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "etcd_test",
+    srcs = ["etcd_provider_test.go"],
+    data = glob(["testdata/**"]),
+    deps = [
+        "//comp/core/autodiscovery/providers",
+        "//pkg/config",
+        "//test/integration/utils",
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//suite:go_default_library",
+        "@io_etcd_go_etcd_client_v2//:go_default_library",
+    ],
+)

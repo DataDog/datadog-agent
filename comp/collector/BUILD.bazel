@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "collector",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/collector",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/collector/collector/collectorimpl",
+        "//pkg/util/fxutil",
+    ],
+)

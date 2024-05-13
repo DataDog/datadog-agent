@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "managerhelper",
+    srcs = ["managerhelper.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_cilium_ebpf//:go_default_library",
+            "@com_github_datadog_ebpf_manager//:go_default_library",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_cilium_ebpf//:go_default_library",
+            "@com_github_datadog_ebpf_manager//:go_default_library",
+        ],
+        "//conditions:default": [],
+    }),
+)

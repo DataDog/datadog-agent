@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "logs",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent",
+        "//pkg/util/fxutil",
+    ],
+)

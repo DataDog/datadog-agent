@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "messagestrings",
+    srcs = ["messages.go"],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings",
+    visibility = ["//visibility:public"],
+)

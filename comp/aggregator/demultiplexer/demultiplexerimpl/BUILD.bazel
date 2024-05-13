@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "demultiplexerimpl",
+    srcs = [
+        "demultiplexer.go",
+        "params.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/aggregator.tmpl",
+        "status_templates/aggregatorHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/aggregator/diagnosesendermanager",
+        "//comp/core/log",
+        "//comp/core/status",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/eventplatform",
+        "//comp/forwarder/orchestrator",
+        "//comp/serializer/compression",
+        "//pkg/aggregator",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check/stats",
+        "//pkg/util/fxutil",
+        "//pkg/util/hostname",
+        "@org_uber_go_fx//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "demultiplexerimpl_test",
+    srcs = ["status_test.go"],
+    embed = [":demultiplexerimpl"],
+    deps = [
+        "//comp/core",
+        "//comp/core/status",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//comp/forwarder/orchestrator/orchestratorimpl",
+        "//comp/serializer/compression/compressionimpl",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@org_uber_go_fx//:go_default_library",
+    ],
+)

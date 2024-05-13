@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "otlp",
+    srcs = [
+        "no_otlp.go",
+        "otlp.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/config"],
+)

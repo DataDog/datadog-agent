@@ -1,0 +1,50 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "corechecks",
+    srcs = [
+        "checkbase.go",
+        "loader.go",
+        "longrunning.go",
+        "safesender.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/defaults",
+        "//pkg/collector/check/id",
+        "//pkg/collector/check/stats",
+        "//pkg/collector/loaders",
+        "//pkg/config",
+        "//pkg/config/utils",
+        "//pkg/diagnose/diagnosis",
+        "//pkg/metrics/servicecheck",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "@in_gopkg_yaml_v2//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "corechecks_test",
+    srcs = [
+        "checkbase_test.go",
+        "loader_test.go",
+        "safesender_test.go",
+    ],
+    embed = [":corechecks"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/defaults",
+        "//pkg/collector/check/stub",
+        "//pkg/util/optional",
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+    ],
+)

@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "collector",
+    srcs = ["no_otlp.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/collector",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:go_default_library",
+    ],
+)

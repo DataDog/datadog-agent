@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "netflow",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/netflow/config",
+        "//comp/netflow/server",
+        "//pkg/util/fxutil",
+    ],
+)

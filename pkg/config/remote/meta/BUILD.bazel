@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "meta",
+    srcs = ["meta.go"],
+    embedsrcs = [
+        "prod.1.config.json",
+        "prod.1.director.json",
+        "staging.1.config.json",
+        "staging.1.director.json",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/remote/meta",
+    visibility = ["//visibility:public"],
+)

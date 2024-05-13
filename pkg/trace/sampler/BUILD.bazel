@@ -1,0 +1,61 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sampler",
+    srcs = [
+        "catalog.go",
+        "coresampler.go",
+        "dynamic_config.go",
+        "env.go",
+        "prioritysampler.go",
+        "probabilistic.go",
+        "rare_sampler.go",
+        "sampler.go",
+        "scoresampler.go",
+        "signature.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/sampler",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/config",
+        "//pkg/trace/log",
+        "//pkg/trace/traceutil",
+        "//pkg/trace/watchdog",
+        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
+        "@org_golang_x_time//rate:go_default_library",
+        "@org_uber_go_atomic//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "sampler_test",
+    srcs = [
+        "catalog_test.go",
+        "coresampler_test.go",
+        "dynamic_config_test.go",
+        "prioritysampler_test.go",
+        "probabilistic_test.go",
+        "rare_sampler_test.go",
+        "scoresampler_test.go",
+        "signature_test.go",
+        "spansampler_test.go",
+    ],
+    embed = [":sampler"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/config",
+        "//pkg/trace/traceutil",
+        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_processor_probabilisticsamplerprocessor//:go_default_library",
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@io_k8s_apimachinery//pkg/util/rand:go_default_library",
+        "@io_opentelemetry_go_collector_consumer//:go_default_library",
+        "@io_opentelemetry_go_collector_pdata//pcommon:go_default_library",
+        "@io_opentelemetry_go_collector_pdata//ptrace:go_default_library",
+        "@io_opentelemetry_go_collector_processor//processortest:go_default_library",
+        "@org_golang_google_protobuf//proto",
+        "@org_uber_go_atomic//:go_default_library",
+    ],
+)

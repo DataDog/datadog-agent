@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "runcmd",
+    srcs = ["runcmd.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/internal/runcmd",
+    visibility = ["//cmd:__subpackages__"],
+    deps = [
+        "@com_github_spf13_cobra//:go_default_library",
+        "@org_uber_go_dig//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "runcmd_test",
+    srcs = ["runcmd_test.go"],
+    embed = [":runcmd"],
+    deps = [
+        "@com_github_spf13_cobra//:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@org_uber_go_fx//:go_default_library",
+    ],
+)

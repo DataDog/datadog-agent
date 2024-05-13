@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tar",
+    srcs = ["tar.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/internal/tar",
+    visibility = ["//pkg/fleet:__subpackages__"],
+    deps = ["//pkg/util/log"],
+)

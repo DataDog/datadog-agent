@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "util",
+    srcs = [
+        "moving_sum.go",
+        "service_name.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/util",
+    visibility = ["//pkg/logs:__subpackages__"],
+    deps = [
+        "//comp/core/tagger",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "util_test",
+    srcs = [
+        "moving_sum_test.go",
+        "service_name_test.go",
+    ],
+    embed = [":util"],
+    deps = [
+        "@com_github_benbjohnson_clock//:go_default_library",
+        "@com_github_stretchr_testify//assert:go_default_library",
+    ],
+)

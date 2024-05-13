@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "stub",
+    srcs = ["stub.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/check/stub",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check/id",
+        "//pkg/collector/check/stats",
+        "//pkg/diagnose/diagnosis",
+    ],
+)

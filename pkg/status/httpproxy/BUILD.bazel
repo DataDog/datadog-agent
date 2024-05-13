@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "httpproxy",
+    srcs = ["status.go"],
+    embedsrcs = [
+        "status_templates/http.tmpl",
+        "status_templates/httpHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/status/httpproxy",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/status",
+        "//pkg/util/http",
+    ],
+)

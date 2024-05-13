@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = ["cgo_free.go"],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/rtloader/test/common",
+    visibility = ["//visibility:public"],
+    deps = ["//rtloader/test/helpers"],
+)
+
+go_test(
+    name = "common_test",
+    srcs = ["cgo_free_test.go"],
+    embed = [":common"],
+    deps = ["//rtloader/test/helpers"],
+)

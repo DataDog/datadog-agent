@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "processcollector",
+    srcs = ["process_collector.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/collectors/internal/remote",
+        "//pkg/config",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/proto/pbgo/process",
+        "//pkg/util/flavor",
+        "//pkg/util/grpc",
+        "//pkg/util/log",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//grpclog",
+        "@org_uber_go_fx//:go_default_library",
+    ],
+)

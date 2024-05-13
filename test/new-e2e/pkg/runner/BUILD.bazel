@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "runner",
+    srcs = [
+        "ci_profile.go",
+        "configmap.go",
+        "local_profile.go",
+        "profile.go",
+        "runner.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/pkg/runner/parameters",
+        "@com_github_datadog_test_infra_definitions//common/config:go_default_library",
+        "@com_github_datadog_test_infra_definitions//resources/aws:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/auto:go_default_library",
+    ],
+)

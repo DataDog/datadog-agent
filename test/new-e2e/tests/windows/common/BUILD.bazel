@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "common",
+    srcs = [
+        "cert.go",
+        "defender.go",
+        "eventlog.go",
+        "filesystem_snapshot.go",
+        "hostinfo.go",
+        "msi.go",
+        "network.go",
+        "process.go",
+        "product.go",
+        "registry.go",
+        "service.go",
+        "temp.go",
+        "user.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/pkg/components",
+        "//test/new-e2e/tests/windows/common/powershell",
+        "@org_golang_x_text//encoding/unicode",
+    ],
+)

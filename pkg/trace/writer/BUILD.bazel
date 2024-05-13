@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "writer",
+    srcs = [
+        "sender.go",
+        "stats.go",
+        "trace.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/writer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/config",
+        "//pkg/trace/info",
+        "//pkg/trace/log",
+        "//pkg/trace/telemetry",
+        "//pkg/trace/timing",
+        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
+        "@com_github_tinylib_msgp//msgp:go_default_library",
+        "@org_uber_go_atomic//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "writer_test",
+    srcs = [
+        "sender_test.go",
+        "stats_test.go",
+        "testserver_test.go",
+        "trace_test.go",
+    ],
+    embed = [":writer"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/config",
+        "//pkg/trace/info",
+        "//pkg/trace/log",
+        "//pkg/trace/stats",
+        "//pkg/trace/telemetry",
+        "//pkg/trace/testutil",
+        "//pkg/trace/timing",
+        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_tinylib_msgp//msgp:go_default_library",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

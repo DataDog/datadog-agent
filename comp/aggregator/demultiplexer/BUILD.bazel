@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "demultiplexer",
+    srcs = ["component.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator",
+        "//pkg/aggregator/sender",
+        "//pkg/serializer",
+    ],
+)

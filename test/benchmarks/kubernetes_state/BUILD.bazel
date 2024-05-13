@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "kubernetes_state_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/benchmarks/kubernetes_state",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/aggregator",
+        "//pkg/collector/corechecks/cluster",
+        "//pkg/kubestatemetrics/builder",
+        "@io_k8s_api//apps/v1:go_default_library",
+        "@io_k8s_api//batch/v1:go_default_library",
+        "@io_k8s_api//core/v1:go_default_library",
+        "@io_k8s_client_go//kubernetes/fake:go_default_library",
+        "@io_k8s_kube_state_metrics_v2//pkg/allowdenylist:go_default_library",
+        "@io_k8s_kube_state_metrics_v2//pkg/options:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "kubernetes_state",
+    embed = [":kubernetes_state_lib"],
+    visibility = ["//visibility:public"],
+)

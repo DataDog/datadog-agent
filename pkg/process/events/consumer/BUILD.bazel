@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "consumer",
+    srcs = [
+        "events_consumer.go",
+        "events_consumer_linux.go",
+        "events_consumer_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/events/consumer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/eventmonitor",
+        "//pkg/eventmonitor/proto/api",
+        "//pkg/process/events/model",
+        "//pkg/security/metrics",
+        "//pkg/security/secl/model",
+        "//pkg/util/log",
+        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
+        "@org_uber_go_atomic//:go_default_library",
+    ],
+)

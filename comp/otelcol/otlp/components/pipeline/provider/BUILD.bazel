@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "provider",
+    srcs = ["provider.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline/provider",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_opentelemetry_go_collector_confmap//:go_default_library",
+        "@io_opentelemetry_go_collector_confmap_converter_expandconverter//:go_default_library",
+        "@io_opentelemetry_go_collector_confmap_provider_envprovider//:go_default_library",
+        "@io_opentelemetry_go_collector_confmap_provider_fileprovider//:go_default_library",
+        "@io_opentelemetry_go_collector_confmap_provider_httpprovider//:go_default_library",
+        "@io_opentelemetry_go_collector_confmap_provider_httpsprovider//:go_default_library",
+        "@io_opentelemetry_go_collector_confmap_provider_yamlprovider//:go_default_library",
+        "@io_opentelemetry_go_collector_otelcol//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "provider_test",
+    srcs = ["provider_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":provider"],
+    deps = [
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@io_opentelemetry_go_collector_component//:go_default_library",
+        "@io_opentelemetry_go_collector_config_configtelemetry//:go_default_library",
+        "@io_opentelemetry_go_collector_connector//:go_default_library",
+        "@io_opentelemetry_go_collector_connector//connectortest:go_default_library",
+        "@io_opentelemetry_go_collector_exporter//:go_default_library",
+        "@io_opentelemetry_go_collector_exporter//exportertest:go_default_library",
+        "@io_opentelemetry_go_collector_extension//:go_default_library",
+        "@io_opentelemetry_go_collector_extension//extensiontest:go_default_library",
+        "@io_opentelemetry_go_collector_otelcol//:go_default_library",
+        "@io_opentelemetry_go_collector_processor//:go_default_library",
+        "@io_opentelemetry_go_collector_processor//processortest:go_default_library",
+        "@io_opentelemetry_go_collector_receiver//:go_default_library",
+        "@io_opentelemetry_go_collector_receiver//receivertest:go_default_library",
+        "@io_opentelemetry_go_collector_service//:go_default_library",
+        "@io_opentelemetry_go_collector_service//pipelines:go_default_library",
+        "@io_opentelemetry_go_collector_service//telemetry:go_default_library",
+        "@org_uber_go_zap//zapcore:go_default_library",
+    ],
+)

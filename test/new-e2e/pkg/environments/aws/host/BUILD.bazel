@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "host",
+    srcs = ["host.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/runner",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclientparams",
+        "//test/new-e2e/pkg/utils/optional",
+        "@com_github_datadog_test_infra_definitions//common/utils:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agent:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/updater:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/docker:go_default_library",
+        "@com_github_datadog_test_infra_definitions//resources/aws:go_default_library",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2:go_default_library",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/fakeintake:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi:go_default_library",
+    ],
+)

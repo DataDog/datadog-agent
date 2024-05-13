@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "datadogexporter",
+    srcs = [
+        "config.go",
+        "config_warnings.go",
+        "factory.go",
+        "metadata.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/otelcol/logsagentpipeline",
+        "//comp/otelcol/otlp/components/exporter/logsagentexporter",
+        "//comp/otelcol/otlp/components/exporter/serializerexporter",
+        "//pkg/logs/message",
+        "//pkg/serializer",
+        "//pkg/util/hostname/validate",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:go_default_library",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_metrics//:go_default_library",
+        "@io_opentelemetry_go_collector_component//:go_default_library",
+        "@io_opentelemetry_go_collector_config_confighttp//:go_default_library",
+        "@io_opentelemetry_go_collector_config_confignet//:go_default_library",
+        "@io_opentelemetry_go_collector_config_configopaque//:go_default_library",
+        "@io_opentelemetry_go_collector_config_configretry//:go_default_library",
+        "@io_opentelemetry_go_collector_confmap//:go_default_library",
+        "@io_opentelemetry_go_collector_exporter//:go_default_library",
+        "@io_opentelemetry_go_collector_exporter//exporterhelper:go_default_library",
+        "@io_opentelemetry_go_collector_featuregate//:go_default_library",
+        "@io_opentelemetry_go_otel_metric//:go_default_library",
+        "@io_opentelemetry_go_otel_trace//:go_default_library",
+        "@org_uber_go_zap//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "datadogexporter_test",
+    srcs = [
+        "config_test.go",
+        "config_warnings_test.go",
+    ],
+    embed = [":datadogexporter"],
+    deps = [
+        "//comp/otelcol/otlp/components/exporter/serializerexporter",
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@io_opentelemetry_go_collector_component//:go_default_library",
+        "@io_opentelemetry_go_collector_config_configauth//:go_default_library",
+        "@io_opentelemetry_go_collector_config_confighttp//:go_default_library",
+        "@io_opentelemetry_go_collector_config_configopaque//:go_default_library",
+        "@io_opentelemetry_go_collector_config_configtls//:go_default_library",
+        "@io_opentelemetry_go_collector_confmap//:go_default_library",
+    ],
+)

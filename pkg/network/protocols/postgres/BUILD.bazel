@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "postgres",
+    srcs = [
+        "server.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network/protocols/http/testutil",
+        "//pkg/network/protocols/testutil",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_uptrace_bun//:go_default_library",
+        "@com_github_uptrace_bun_dialect_pgdialect//:go_default_library",
+        "@com_github_uptrace_bun_driver_pgdriver//:go_default_library",
+    ],
+)

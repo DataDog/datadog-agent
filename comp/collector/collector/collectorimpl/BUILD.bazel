@@ -1,0 +1,57 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "collectorimpl",
+    srcs = [
+        "agent_check_metadata.go",
+        "collector.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/common",
+        "//comp/collector/collector",
+        "//comp/collector/collector/collectorimpl/internal/middleware",
+        "//comp/core/autodiscovery/autodiscoveryimpl",
+        "//comp/core/config",
+        "//comp/core/log",
+        "//comp/core/status",
+        "//comp/metadata/host/hostimpl/utils",
+        "//comp/metadata/runner/runnerimpl",
+        "//pkg/aggregator/sender",
+        "//pkg/collector",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/externalhost",
+        "//pkg/collector/runner",
+        "//pkg/collector/runner/expvars",
+        "//pkg/collector/scheduler",
+        "//pkg/serializer",
+        "//pkg/serializer/marshaler",
+        "//pkg/status/collector",
+        "//pkg/status/jmx",
+        "//pkg/util/fxutil",
+        "//pkg/util/hostname",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "@org_uber_go_atomic//:go_default_library",
+        "@org_uber_go_fx//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "collectorimpl_test",
+    srcs = ["agent_check_metadata_test.go"],
+    embed = [":collectorimpl"],
+    deps = [
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core",
+        "//comp/core/config",
+        "//pkg/collector/externalhost",
+        "//pkg/serializer",
+        "//pkg/util/fxutil",
+        "//pkg/util/optional",
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@org_uber_go_fx//:go_default_library",
+    ],
+)

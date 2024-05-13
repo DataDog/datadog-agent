@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "serverdebugimpl",
+    srcs = ["debug.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/common/path",
+        "//comp/core/config",
+        "//comp/core/log",
+        "//comp/core/log/logimpl",
+        "//comp/dogstatsd/serverDebug",
+        "//pkg/aggregator/ckey",
+        "//pkg/config",
+        "//pkg/metrics",
+        "//pkg/tagset",
+        "//pkg/util/fxutil",
+        "@com_github_benbjohnson_clock//:go_default_library",
+        "@com_github_cihub_seelog//:go_default_library",
+        "@org_uber_go_atomic//:go_default_library",
+        "@org_uber_go_fx//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "serverdebugimpl_test",
+    srcs = ["debug_test.go"],
+    embed = [":serverdebugimpl"],
+    deps = [
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/dogstatsd/serverDebug",
+        "//pkg/aggregator/ckey",
+        "//pkg/metrics",
+        "//pkg/tagset",
+        "//pkg/util/fxutil",
+        "@com_github_benbjohnson_clock//:go_default_library",
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@org_uber_go_fx//:go_default_library",
+    ],
+)

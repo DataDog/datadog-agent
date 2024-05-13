@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kindfilelogging",
+    srcs = ["kind.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/kindfilelogging",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/runner",
+        "//test/new-e2e/pkg/utils/optional",
+        "@com_github_datadog_test_infra_definitions//common/utils:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agent:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/kubernetesagentparams:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/kubernetes:go_default_library",
+        "@com_github_datadog_test_infra_definitions//resources/aws:go_default_library",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2:go_default_library",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/fakeintake:go_default_library",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi:go_default_library",
+    ],
+)

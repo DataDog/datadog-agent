@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "containercheckimpl",
+    srcs = ["check.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta",
+        "//comp/process/containercheck",
+        "//comp/process/types",
+        "//pkg/process/checks",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:go_default_library",
+    ],
+)

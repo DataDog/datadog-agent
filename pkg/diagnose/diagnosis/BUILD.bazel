@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "diagnosis",
+    srcs = ["loader.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)

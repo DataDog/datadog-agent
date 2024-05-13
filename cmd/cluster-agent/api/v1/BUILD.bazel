@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "api",
+    srcs = [
+        "cloudfoundry_metadata_nocompile.go",
+        "clusterchecks_nocompile.go",
+        "endpointschecks_nocompile.go",
+        "install.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/clusteragent",
+        "//pkg/config",
+        "//pkg/util/log",
+        "@com_github_gorilla_mux//:go_default_library",
+    ],
+)

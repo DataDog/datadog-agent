@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "log",
+    srcs = [
+        "klog_redirect.go",
+        "log.go",
+        "log_limit.go",
+        "log_not_serverless.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/log",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/scrubber",
+        "@com_github_cihub_seelog//:go_default_library",
+        "@org_uber_go_atomic//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "log_test",
+    srcs = [
+        "log_bench_test.go",
+        "log_limit_test.go",
+        "log_not_serverless_test.go",
+        "log_test.go",
+    ],
+    embed = [":log"],
+    deps = [
+        "//pkg/util/scrubber",
+        "@com_github_cihub_seelog//:go_default_library",
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@org_uber_go_atomic//:go_default_library",
+    ],
+)

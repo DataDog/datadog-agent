@@ -1,0 +1,60 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "serializerexporter",
+    srcs = [
+        "config.go",
+        "consumer.go",
+        "exporter.go",
+        "factory.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/metrics",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/serializer",
+        "//pkg/tagset",
+        "//pkg/util/log",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:go_default_library",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//source:go_default_library",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_metrics//:go_default_library",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_quantile//:go_default_library",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_resourcetotelemetry//:go_default_library",
+        "@com_github_tinylib_msgp//msgp:go_default_library",
+        "@io_opentelemetry_go_collector_component//:go_default_library",
+        "@io_opentelemetry_go_collector_confmap//:go_default_library",
+        "@io_opentelemetry_go_collector_consumer//:go_default_library",
+        "@io_opentelemetry_go_collector_exporter//:go_default_library",
+        "@io_opentelemetry_go_collector_exporter//exporterhelper:go_default_library",
+        "@io_opentelemetry_go_collector_pdata//pmetric:go_default_library",
+        "@org_uber_go_multierr//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "serializerexporter_test",
+    srcs = [
+        "config_test.go",
+        "consumer_test.go",
+        "exporter_test.go",
+    ],
+    embed = [":serializerexporter"],
+    deps = [
+        "//pkg/metrics",
+        "//pkg/metrics/event",
+        "//pkg/metrics/servicecheck",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/serializer",
+        "//pkg/serializer/marshaler",
+        "//pkg/serializer/types",
+        "//pkg/tagset",
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_tinylib_msgp//msgp:go_default_library",
+        "@io_opentelemetry_go_collector_component//componenttest:go_default_library",
+        "@io_opentelemetry_go_collector_confmap//:go_default_library",
+        "@io_opentelemetry_go_collector_exporter//exportertest:go_default_library",
+        "@io_opentelemetry_go_collector_pdata//pmetric:go_default_library",
+    ],
+)

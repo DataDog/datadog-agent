@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "languagemodels",
+    srcs = [
+        "detector.go",
+        "language.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels",
+    visibility = ["//visibility:public"],
+)

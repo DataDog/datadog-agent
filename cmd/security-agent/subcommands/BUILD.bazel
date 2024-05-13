@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "subcommands",
+    srcs = ["subcommands.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/security-agent/command",
+        "//cmd/security-agent/subcommands/check",
+        "//cmd/security-agent/subcommands/compliance",
+        "//cmd/security-agent/subcommands/config",
+        "//cmd/security-agent/subcommands/flare",
+        "//cmd/security-agent/subcommands/runtime",
+        "//cmd/security-agent/subcommands/start",
+        "//cmd/security-agent/subcommands/status",
+        "//cmd/security-agent/subcommands/version",
+    ],
+)

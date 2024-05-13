@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "external_unix_proxy_server_lib",
+    srcs = ["external_unix_proxy_server.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy/external_unix_proxy_server",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "external_unix_proxy_server",
+    embed = [":external_unix_proxy_server_lib"],
+    visibility = ["//visibility:public"],
+)

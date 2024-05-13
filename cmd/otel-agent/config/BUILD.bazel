@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = ["agent_config.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/otel-agent/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/otelcol/otlp/components/exporter/datadogexporter",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "@io_opentelemetry_go_collector_confmap//:go_default_library",
+        "@io_opentelemetry_go_collector_confmap_converter_expandconverter//:go_default_library",
+        "@io_opentelemetry_go_collector_confmap_provider_envprovider//:go_default_library",
+        "@io_opentelemetry_go_collector_confmap_provider_fileprovider//:go_default_library",
+        "@io_opentelemetry_go_collector_confmap_provider_httpprovider//:go_default_library",
+        "@io_opentelemetry_go_collector_confmap_provider_httpsprovider//:go_default_library",
+        "@io_opentelemetry_go_collector_confmap_provider_yamlprovider//:go_default_library",
+        "@io_opentelemetry_go_collector_service//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "config_test",
+    srcs = ["agent_config_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":config"],
+    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+)

@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "client",
+    srcs = [
+        "client.go",
+        "client_linux.go",
+        "client_others.go",
+        "client_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/api/client",
+    visibility = ["//visibility:public"],
+)

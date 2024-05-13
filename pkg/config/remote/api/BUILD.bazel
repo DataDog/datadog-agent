@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "api",
+    srcs = ["http.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/remote/api",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

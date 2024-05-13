@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "split",
+    srcs = ["split.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serializer/split",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//comp/serializer/compression",
+        "//pkg/serializer/marshaler",
+        "//pkg/telemetry",
+        "//pkg/util/log",
+    ],
+)

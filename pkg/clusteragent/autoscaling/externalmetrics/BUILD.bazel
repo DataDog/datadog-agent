@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "externalmetrics",
+    srcs = [
+        "doc.go",
+        "status_stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics",
+    visibility = ["//visibility:public"],
+)
