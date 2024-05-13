@@ -150,7 +150,9 @@ func (cf *containerFilter) handleEvent(ev workloadmeta.Event) {
 	}
 	switch ev.Type {
 	case workloadmeta.EventTypeSet:
-		cf.trie.Insert(cont.CgroupPath, cont.ID)
+		if cont.CgroupPath != "" {
+			cf.trie.Insert(cont.CgroupPath, cont.ID)
+		}
 	case workloadmeta.EventTypeUnset:
 		cf.trie.Delete(cont.CgroupPath)
 	default:
