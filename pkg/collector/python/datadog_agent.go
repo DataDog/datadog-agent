@@ -530,3 +530,19 @@ var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 func getProcessStartTime() float64 {
 	return float64(config.StartTime.Unix())
 }
+
+// ObfuscateMongoDBString obfuscates the MongoDB query
+//
+//export ObfuscateMongoDBString
+func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
+	obfuscatedMongoDBString, err := lazyInitObfuscator().ObfuscateMongoDBString(
+		C.GoString(cmd),
+	)
+	if err != nil {
+		// memory will be freed by caller
+		*errResult = TrackedCString(err.Error())
+		return nil
+	}
+	// memory will be freed by caller
+	return TrackedCString(obfuscatedMongoDBString)
+}
