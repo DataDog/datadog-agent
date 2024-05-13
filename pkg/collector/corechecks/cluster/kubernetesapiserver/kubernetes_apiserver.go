@@ -170,7 +170,7 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, integrationC
 		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes)
 	} else {
 		k.eventCollection.Filter = convertFilters(k.instance.FilteredEventTypes)
-		k.eventCollection.Transformer = newBundledTransformer(clusterName)
+		k.eventCollection.Transformer = newBundledTransformer(clusterName, tagger.GetTaggerInstance())
 	}
 
 	return nil

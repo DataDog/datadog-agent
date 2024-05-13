@@ -15,6 +15,7 @@ from invoke import task
 from invoke.exceptions import Exit, ParseError
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
 from tasks.libs.common.utils import (
@@ -103,6 +104,7 @@ LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {int
 
 
 @task(iterable=['bundle'])
+@run_on_devcontainer
 def build(
     ctx,
     rebuild=False,
@@ -128,6 +130,7 @@ def build(
     bundle=None,
     bundle_ebpf=False,
     agent_bin=None,
+    run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -705,6 +708,7 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
         integrations.append(entry)
 
     print(' '.join(sorted(integrations)))
+
 
 @task
 def clean(ctx):

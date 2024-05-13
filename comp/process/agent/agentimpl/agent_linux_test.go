@@ -116,6 +116,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
 				taggerimpl.MockModule(),
+				telemetryimpl.Module(),
 				Module(),
 
 				fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
@@ -176,6 +177,7 @@ func TestStatusProvider(t *testing.T) {
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
 				taggerimpl.MockModule(),
+				telemetryimpl.Module(),
 				Module(),
 				fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
 					"process_config.run_in_core_agent.enabled": true,

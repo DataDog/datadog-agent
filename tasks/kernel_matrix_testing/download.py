@@ -170,10 +170,14 @@ def download_rootfs(
         raise Exit("Failed to set permissions 0766 to rootfs")
 
 
-def full_arch(arch: ArchOrLocal) -> Arch:
+def full_arch(arch: str) -> Arch:
     if arch == "local":
         return arch_mapping[platform.machine()]
-    return arch
+    else:
+        try:
+            return arch_mapping[arch]
+        except KeyError:
+            raise Exit(f"Invalid architecture {arch}, valid values are {', '.join(arch_mapping.keys())}")
 
 
 def update_rootfs(
