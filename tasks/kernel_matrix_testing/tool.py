@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import invoke.exceptions as ie
 from invoke.context import Context
 
+from tasks.kernel_matrix_testing.types import PathOrStr
 from tasks.kernel_matrix_testing.vars import arch_mapping
 
 if TYPE_CHECKING:
@@ -60,7 +61,7 @@ def full_arch(arch: str):
     return arch_mapping[arch]
 
 
-def get_binary_target_arch(ctx: Context, file: str) -> Arch | None:
+def get_binary_target_arch(ctx: Context, file: PathOrStr) -> Arch | None:
     res = ctx.run(f"file {file}")
     if res is None or not res.ok:
         return None

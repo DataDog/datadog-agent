@@ -643,6 +643,7 @@ def gen_config_for_stack(
     new: bool,
     ci: bool,
     template: str,
+    yes=False,
 ):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack) and not init_stack:
@@ -677,7 +678,7 @@ def gen_config_for_stack(
     else:
         ctx.run(f"git diff {vmconfig_file} {tmpfile}", warn=True)
 
-    if ask("are you sure you want to apply the diff? (y/n)") != "y":
+    if not yes and ask("are you sure you want to apply the diff? (y/n)") != "y":
         warn("[-] diff not applied")
         return
 
@@ -713,6 +714,7 @@ def gen_config(
     arch: str,
     output_file: PathOrStr,
     template: Component,
+    yes: bool = False,
 ):
     vcpu_ls = vcpu.split(',')
     memory_ls = memory.split(',')
@@ -724,16 +726,7 @@ def gen_config(
 
     if not ci:
         return gen_config_for_stack(
-            ctx,
-            stack,
-            vms,
-            set_ls,
-            init_stack,
-            ls_to_int(vcpu_ls),
-            ls_to_int(memory_ls),
-            new,
-            ci,
-            template,
+            ctx, stack, vms, set_ls, init_stack, ls_to_int(vcpu_ls), ls_to_int(memory_ls), new, ci, template, yes=yes
         )
 
     arch_ls: list[Arch] = ["x86_64", "arm64"]

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Iterable, cast
 from invoke.context import Context
 from invoke.tasks import task
 
+from tasks.kernel_matrix_testing import selftest as selftests
 from tasks.kernel_matrix_testing import stacks, vmconfig
 from tasks.kernel_matrix_testing.ci import KMTTestRunJob, get_all_jobs_for_pipeline
 from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, all_compilers, get_compiler
@@ -101,6 +102,7 @@ def create_stack(ctx, stack=None):
         "from-ci-pipeline": "Generate a vmconfig.json file with the VMs that failed jobs in pipeline with the given ID.",
         "use-local-if-possible": "(Only when --from-ci-pipeline is used) If the VM is for the same architecture as the host, use the local VM instead of the remote one.",
         "vmconfig_template": "Template to use for the generated vmconfig.json file. Defaults to 'system-probe'. A file named 'vmconfig-<vmconfig_template>.json' must exist in 'tasks/new-e2e/system-probe/config/'",
+        "yes": "Do not ask for confirmation",
     }
 )
 def gen_config(
@@ -118,6 +120,7 @@ def gen_config(
     from_ci_pipeline: str | None = None,
     use_local_if_possible=False,
     vmconfig_template: Component = "system-probe",
+    yes=False,
 ):
     """
     Generate a vmconfig.json file with the given VMs.
@@ -136,12 +139,13 @@ def gen_config(
             output_file=output_file,
             use_local_if_possible=use_local_if_possible,
             vmconfig_template=vmconfig_template,
+            yes=yes,
         )
     else:
         vcpu = DEFAULT_VCPU if vcpu is None else vcpu
         memory = DEFAULT_MEMORY if memory is None else memory
         vmconfig.gen_config(
-            ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template
+            ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
         )
 
 
@@ -158,6 +162,7 @@ def gen_config_from_ci_pipeline(
     arch: str = "",
     output_file="vmconfig.json",
     vmconfig_template: Component = "system-probe",
+    yes=False,
 ):
     """
     Generate a vmconfig.json file with the VMs that failed jobs in the given pipeline.
@@ -200,7 +205,7 @@ def gen_config_from_ci_pipeline(
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
     memory = DEFAULT_MEMORY if memory is None else memory
     vmconfig.gen_config(
-        ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template
+        ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
     )
     info("[+] You can run the following command to execute only packages with failed tests")
     print(f"inv kmt.test --packages=\"{' '.join(failed_packages)}\"")
@@ -549,6 +554,7 @@ def kmt_secagent_prepare(
     packages: str | None = None,
     verbose: bool = True,
     ci: bool = True,
+    compile_only: bool = True,
 ):
     kmt_paths = KMTPaths(stack, arch)
     kmt_paths.secagent_tests.mkdir(exist_ok=True, parents=True)
@@ -594,6 +600,7 @@ def prepare(
     packages=None,
     verbose=True,
     ci=False,
+    compile_only=True,
 ):
     if not ci:
         stack = check_and_get_stack(stack)
@@ -660,7 +667,7 @@ def prepare(
         if os.path.exists(sf) and not os.path.exists(df):
             ctx.run(f"install -D {sf} {df}")
 
-    if ci:
+    if ci or compile_only:
         return
 
     if vms is None or vms == "":
@@ -1613,3 +1620,8 @@ def tmux(ctx: Context, stack: str | None = None):
             ctx.run(f"tmux select-layout -t kmt-{stack_name}:{i} tiled")
 
     info(f"[+] Tmux session kmt-{stack_name} created. Attach with 'tmux attach -t kmt-{stack_name}'")
+
+
+@task
+def selftest(ctx: Context, allow_infra_changes=False, filter: str | None = None):
+    selftests.selftest(ctx, allow_infra_changes=allow_infra_changes, filter=filter)
