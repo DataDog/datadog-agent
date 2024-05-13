@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os/user"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,7 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 // Host is a remote host environment.
@@ -53,6 +54,7 @@ func (h *Host) State() State {
 		Users:  h.users(),
 		Groups: h.groups(),
 		FS:     h.fs(),
+		Units:  h.getSystemdUnitInfo(),
 	}
 }
 
@@ -65,7 +67,7 @@ func (h *Host) users() []user.User {
 			continue
 		}
 		parts := strings.Split(line, ":")
-		require.Len(h.t, parts, 7)
+		assert.Len(h.t, parts, 7)
 		users = append(users, user.User{
 			Username: parts[0],
 			Uid:      parts[2],
@@ -89,7 +91,7 @@ func (h *Host) groups() []user.Group {
 			continue
 		}
 		parts := strings.Split(line, ":")
-		require.Len(h.t, parts, 4)
+		assert.Len(h.t, parts, 4)
 		groups = append(groups, user.Group{
 			Name: parts[0],
 			Gid:  parts[2],
@@ -108,13 +110,12 @@ func (h *Host) fs() map[string]FileInfo {
 		"/dev",
 		"/run/utmp",
 		"/tmp",
-		"/opt/datadog-packages",
 	}
 	cmd := "sudo find / "
 	for _, dir := range ignoreDirs {
 		cmd += fmt.Sprintf("-path '%s' -prune -o ", dir)
 	}
-	cmd += `-printf '%p\\|//%s\\|//%TY-%Tm-%Td %TH:%TM:%TS\\|//%f\\|//%m\\|//%u\\|//%g\n' 2>/dev/null`
+	cmd += `-printf '%p\\|//%s\\|//%TY-%Tm-%Td %TH:%TM:%TS\\|//%f\\|//%m\\|//%u\\|//%g\\|//%y\\|//%l\n' 2>/dev/null`
 	output := h.remote.MustExecute(cmd)
 	lines := strings.Split(output, "\n")
 
@@ -124,26 +125,24 @@ func (h *Host) fs() map[string]FileInfo {
 			continue
 		}
 		parts := strings.Split(line, "\\|//")
-		require.Len(h.t, parts, 7)
+		assert.Len(h.t, parts, 9)
 
 		path := parts[0]
 		size, _ := strconv.ParseInt(parts[1], 10, 64)
 		modTime, _ := time.Parse("2006-01-02 15:04:05", parts[2])
 		name := parts[3]
-		mode, _ := strconv.ParseUint(parts[4], 10, 32)
+		mode, _ := strconv.ParseUint(parts[4], 8, 32)
 		user := parts[5]
 		group := parts[6]
-		isDir := fs.FileMode(mode).IsDir()
-		isSymlink := fs.FileMode(mode)&fs.ModeSymlink != 0
-		var link string
-		if isSymlink {
-			link = h.remote.MustExecute(fmt.Sprintf("sudo readlink -f %s", path))
-		}
+		fileType := parts[7]
+		isDir := fileType == "d"
+		isSymlink := fileType == "l"
+		link := parts[8]
 
 		fileInfos[path] = FileInfo{
 			name:      name,
 			size:      size,
-			mode:      fs.FileMode(mode),
+			perms:     fs.FileMode(mode).Perm(),
 			modTime:   modTime,
 			isDir:     isDir,
 			isSymlink: isSymlink,
@@ -155,11 +154,99 @@ func (h *Host) fs() map[string]FileInfo {
 	return fileInfos
 }
 
+func (h *Host) getSystemdUnitInfo() map[string]SystemdUnitInfo {
+	// Retrieve the status of all units
+	output := h.remote.MustExecute("sudo systemctl list-units --all --no-legend --no-pager")
+	output = strings.ReplaceAll(output, "●", "") // Remove the bullet point
+	unitsOutput := strings.Split(string(output), "\n")
+	units := make(map[string]SystemdUnitInfo)
+
+	// Retrieve the enabled state of unit files
+	enabledOutput := h.remote.MustExecute("sudo systemctl list-unit-files --no-legend --no-pager")
+	enabledOutput = strings.ReplaceAll(enabledOutput, "●", "") // Remove the bullet point
+	enabledLines := strings.Split(string(enabledOutput), "\n")
+	enabledMap := make(map[string]string)
+	for _, line := range enabledLines {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		enabledMap[fields[0]] = fields[1] // Map full unit name to enabled status
+	}
+
+	// Parse active state and match with enabled state
+	for _, line := range unitsOutput {
+		fields := strings.Fields(line)
+		if len(fields) < 4 {
+			continue
+		}
+
+		name := fields[0] // Full unit name with extension
+		loadState := LoadState(fields[1])
+		active := fields[2]
+		subState := SubState(fields[3])
+
+		enabled, exists := enabledMap[name]
+		if !exists {
+			enabled = "unknown" // Handle cases where the unit file is not listed
+		}
+
+		units[name] = SystemdUnitInfo{
+			Name:      name,
+			Active:    active,
+			SubState:  subState,
+			LoadState: loadState,
+			Enabled:   enabled,
+		}
+	}
+
+	return units
+}
+
+// LoadState is the load state of a systemd unit.
+type LoadState string
+
+// SubState is the sub state of a systemd unit.
+type SubState string
+
+const (
+	// Loaded is the load state of a systemd unit.
+	Loaded LoadState = "loaded"
+	// NotLoaded is the load state of a systemd unit.
+	NotLoaded LoadState = "not-found"
+	// Masked is the load state of a systemd unit.
+	Masked LoadState = "masked"
+	// Error is the load state of a systemd unit.
+	Error LoadState = "error"
+
+	// Active is the sub state of a systemd unit.
+	Active SubState = "active"
+	// Inactive is the sub state of a systemd unit.
+	Inactive SubState = "inactive"
+	// Failed is the sub state of a systemd unit.
+	Failed SubState = "failed"
+	// Activating is the sub state of a systemd unit.
+	Activating SubState = "activating"
+	// Deactivating is the sub state of a systemd unit.
+	Deactivating SubState = "deactivating"
+	// Exited is the sub state of a systemd unit.
+	Exited SubState = "exited"
+)
+
+// SystemdUnitInfo is the info of a systemd unit.
+type SystemdUnitInfo struct {
+	Name      string
+	Active    string
+	Enabled   string
+	SubState  SubState
+	LoadState LoadState
+}
+
 // FileInfo struct mimics os.FileInfo
 type FileInfo struct {
 	name      string
 	size      int64
-	mode      fs.FileMode
+	perms     fs.FileMode
 	modTime   time.Time
 	isDir     bool
 	isSymlink bool
@@ -174,6 +261,7 @@ type State struct {
 	Users  []user.User
 	Groups []user.Group
 	FS     map[string]FileInfo
+	Units  map[string]SystemdUnitInfo
 }
 
 // AssertUserExists asserts that a user exists on the host.
@@ -183,7 +271,7 @@ func (s *State) AssertUserExists(userName string) {
 			return
 		}
 	}
-	require.Fail(s.t, "user does not exist", userName)
+	assert.Fail(s.t, "user does not exist", userName)
 }
 
 // AssertGroupExists asserts that a group exists on the host.
@@ -193,7 +281,7 @@ func (s *State) AssertGroupExists(groupName string) {
 			return
 		}
 	}
-	require.Fail(s.t, "group does not exist", groupName)
+	assert.Fail(s.t, "group does not exist", groupName)
 }
 
 // AssertUserHasGroup asserts that a user has a group on the host.
@@ -209,41 +297,111 @@ func (s *State) AssertUserHasGroup(userName, groupName string) {
 			}
 		}
 	}
-	require.Fail(s.t, "user does not have group", userName, groupName)
+	assert.Fail(s.t, "user does not have group", userName, groupName)
 }
 
-// AssertDirExists asserts that a directory exists on the host with the given mode, user, and group.
-func (s *State) AssertDirExists(path string, mode fs.FileMode, user string, group string) {
+// evalSymlinkPath resolves the absolute path, resolving symlinks
+func evalSymlinkPath(path string, fs map[string]FileInfo) string {
+	// Normalize the path to clean up any .. or .
+	path = filepath.Clean(path)
+
+	// Split the path into components
+	parts := strings.Split(path, "/")
+	resolvedPath := "/"
+
+	for _, part := range parts {
+		if part == "" || part == "." {
+			// Ignore empty part or current directory marker
+			continue
+		}
+
+		// Append the current part to the resolved path
+		nextPath := filepath.Join(resolvedPath, part)
+		nextPath = filepath.Clean(nextPath) // Clean to ensure no trailing slashes
+
+		// Check if the current path component is a symlink
+		if fileInfo, exists := fs[nextPath]; exists && fileInfo.isSymlink {
+			// Resolve the symlink
+			symlinkTarget := fileInfo.link
+			// Handle recursive symlink resolution
+			symlinkTarget = evalSymlinkPath(symlinkTarget, fs)
+			// Update the resolvedPath to be the target of the symlink
+			resolvedPath = symlinkTarget
+		} else {
+			// Not a symlink, or doesn't exist in fs; move to next component
+			resolvedPath = nextPath
+		}
+
+		// Ensure the path ends correctly for the next iteration
+		if !strings.HasSuffix(resolvedPath, "/") && len(resolvedPath) > 1 {
+			resolvedPath += "/"
+		}
+	}
+
+	return filepath.Clean(resolvedPath)
+}
+
+// AssertDirExists asserts that a directory exists on the host with the given perms, user, and group.
+func (s *State) AssertDirExists(path string, perms fs.FileMode, user string, group string) {
+	path = evalSymlinkPath(path, s.FS)
 	fileInfo, ok := s.FS[path]
-	require.True(s.t, ok, "directory does not exist", path)
-	require.True(s.t, fileInfo.isDir, "not a directory", path)
-	require.Equal(s.t, mode, fileInfo.mode, "unexpected mode", path)
-	require.Equal(s.t, user, fileInfo.user, "unexpected user", path)
-	require.Equal(s.t, group, fileInfo.group, "unexpected group", path)
+	assert.True(s.t, ok, "dir %v does not exist", path)
+	assert.True(s.t, fileInfo.isDir, "%v is not a directory", path)
+	assert.Equal(s.t, perms, fileInfo.perms, "%v has unexpected perms", path)
+	assert.Equal(s.t, user, fileInfo.user, "%v has unexpected user", path)
+	assert.Equal(s.t, group, fileInfo.group, "%v has unexpected group", path)
 }
 
 // AssertPathDoesNotExist asserts that a path does not exist on the host.
 func (s *State) AssertPathDoesNotExist(path string) {
+	path = evalSymlinkPath(path, s.FS)
 	_, ok := s.FS[path]
-	require.False(s.t, ok, "something exists at path", path)
+	assert.False(s.t, ok, "something exists at path", path)
 }
 
-// AssertFileExists asserts that a file exists on the host with the given mode, user, and group.
-func (s *State) AssertFileExists(path string, mode fs.FileMode, user string, group string) {
+// AssertFileExists asserts that a file exists on the host with the given perms, user, and group.
+func (s *State) AssertFileExists(path string, perms fs.FileMode, user string, group string) {
+	path = evalSymlinkPath(path, s.FS)
 	fileInfo, ok := s.FS[path]
-	require.True(s.t, ok, "file does not exist", path)
-	require.False(s.t, fileInfo.isDir, "not a file", path)
-	require.Equal(s.t, mode, fileInfo.mode, "unexpected mode", path)
-	require.Equal(s.t, user, fileInfo.user, "unexpected user", path)
-	require.Equal(s.t, group, fileInfo.group, "unexpected group", path)
+	assert.True(s.t, ok, "file %v does not exist", path)
+	assert.False(s.t, fileInfo.isDir, "%v is not a file", path)
+	assert.Equal(s.t, perms, fileInfo.perms, "%v has unexpected perms", path)
+	assert.Equal(s.t, user, fileInfo.user, "%v has unexpected user", path)
+	assert.Equal(s.t, group, fileInfo.group, "%v has unexpected group", path)
 }
 
 // AssertSymlinkExists asserts that a symlink exists on the host with the given target, user, and group.
 func (s *State) AssertSymlinkExists(path string, target string, user string, group string) {
 	fileInfo, ok := s.FS[path]
-	require.True(s.t, ok, "symlink does not exist", path)
-	require.True(s.t, fileInfo.isSymlink, "not a symlink", path)
-	require.Equal(s.t, target, fileInfo.link, "unexpected target", path)
-	require.Equal(s.t, user, fileInfo.user, "unexpected user", path)
-	require.Equal(s.t, group, fileInfo.group, "unexpected group", path)
+	assert.True(s.t, ok, "syminlk %v does not exist", path)
+	assert.True(s.t, fileInfo.isSymlink, "%v is not a symlink", path)
+	assert.Equal(s.t, target, fileInfo.link, "%v has unexpected target", path)
+	assert.Equal(s.t, user, fileInfo.user, "%v has unexpected user", path)
+	assert.Equal(s.t, group, fileInfo.group, "%v has unexpected group", path)
+}
+
+// AssertUnitsLoaded asserts that units are enabled on the host.
+func (s *State) AssertUnitsLoaded(names ...string) {
+	for _, name := range names {
+		unit, ok := s.Units[name]
+		assert.True(s.t, ok, "unit %v is not loaded", name)
+		assert.Equal(s.t, Loaded, unit.LoadState, "unit %v is not loaded", name)
+	}
+}
+
+// AssertUnitsEnabled asserts that a systemd unit is not loaded.
+func (s *State) AssertUnitsEnabled(names ...string) {
+	for _, name := range names {
+		unit, ok := s.Units[name]
+		assert.True(s.t, ok, "unit %v is not enabled", name)
+		assert.NotEqual(s.t, "unknown", unit.Enabled, "unit %v is not enabled", name)
+	}
+}
+
+// AssertUnitsNotLoaded asserts that a systemd unit is not loaded.
+func (s *State) AssertUnitsNotLoaded(names ...string) {
+	for _, name := range names {
+		_, ok := s.Units[name]
+		assert.True(s.t, !ok, "unit %v is loaded", name)
+	}
 }

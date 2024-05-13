@@ -6,8 +6,6 @@
 package installer
 
 import (
-	"path/filepath"
-
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,7 +22,7 @@ func testInstaller(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
 
 func (s *packageInstallerSuite) TestInstall() {
 	s.RunInstallScript()
-	defer s.RemoveInstallerPackage()
+	defer s.Purge()
 
 	bootstraperVersion := s.BootstraperVersion()
 	installerVersion := s.InstallerVersion()
@@ -36,7 +34,6 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertUserHasGroup("dd-agent", "dd-agent")
 
 	state.AssertDirExists("/var/log/datadog", 0755, "dd-agent", "dd-agent")
-	state.AssertDirExists("/var/run/datadog", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/run/datadog-packages", 0777, "root", "root")
 
 	state.AssertDirExists("/opt/datadog-installer", 0755, "root", "root")
@@ -45,12 +42,14 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertDirExists("/opt/datadog-packages/datadog-installer/stable/run", 0755, "dd-agent", "dd-agent")
 
 	state.AssertSymlinkExists("/usr/bin/datadog-bootstrap", "/opt/datadog-installer/bin/installer/installer", "root", "root")
-	state.AssertSymlinkExists("/usr/bin/datadog-installer", filepath.Join("/opt/datadog-packages/datadog-installer", installerVersion, "bin", "installer", "installer"), "root", "root")
+	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "root", "root")
+
+	state.AssertUnitsNotLoaded("datadog-installer.service", "datadog-installer-exp.service")
 }
 
 func (s *packageInstallerSuite) TestUninstall() {
 	s.RunInstallScript()
-	s.RemoveInstallerPackage()
+	s.Purge()
 
 	state := s.host.State()
 
@@ -60,11 +59,10 @@ func (s *packageInstallerSuite) TestUninstall() {
 	state.AssertUserHasGroup("dd-agent", "dd-agent")
 
 	state.AssertDirExists("/var/log/datadog", 0755, "dd-agent", "dd-agent")
-	state.AssertDirExists("/var/run/datadog", 0755, "dd-agent", "dd-agent")
-	state.AssertDirExists("/var/run/datadog-packages", 0777, "root", "root")
 
 	// state that should get removed
 	state.AssertPathDoesNotExist("/opt/datadog-installer")
+	state.AssertPathDoesNotExist("/var/run/datadog-packages")
 	state.AssertPathDoesNotExist("/opt/datadog-packages")
 
 	state.AssertPathDoesNotExist("/usr/bin/datadog-bootstrap")
