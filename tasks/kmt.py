@@ -435,7 +435,10 @@ def ninja_define_rules(nw: NinjaWriter):
     nw.rule(name="copyfiles", command="mkdir -p $$(dirname $out) && install $in $out $mode")
 
 
-def ninja_build_dependencies(nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str):
+def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str, arch: Arch):
+    _, _, env = get_build_flags(ctx, arch=arch)
+    env_str = " ".join([f"{k}=\"{v.strip()}\"" for k, v in env.items()])
+
     test_runner_files = glob("test/new-e2e/system-probe/test-runner/*.go")
     nw.build(
         rule="gobin",
@@ -445,6 +448,7 @@ def ninja_build_dependencies(nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str)
         variables={
             "go": go_path,
             "chdir": "cd test/new-e2e/system-probe/test-runner",
+            "env": env_str,
         },
     )
     test_runner_config = glob("test/new-e2e/system-probe/test-runner/files/*.json")
@@ -464,6 +468,7 @@ def ninja_build_dependencies(nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str)
         variables={
             "go": go_path,
             "chdir": "cd test/new-e2e/system-probe/test-json-review/",
+            "env": env_str,
         },
     )
 
@@ -476,7 +481,7 @@ def ninja_build_dependencies(nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str)
             "ldflags": "-ldflags=\"-s -w\"",
             "chdir": "true",
             "tool": "cmd/test2json",
-            "env": "CGO_ENABLED=0",
+            "env": f"{env_str} CGO_ENABLED=0",
         },
     )
 
@@ -544,7 +549,7 @@ def kmt_secagent_prepare(
         nw = NinjaWriter(ninja_file)
 
         ninja_define_rules(nw)
-        ninja_build_dependencies(nw, kmt_paths, go_path)
+        ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(
             nw, "security-agent", kmt_paths, filter_fn=lambda x: os.path.basename(x).startswith("runtime-security")
         )
@@ -742,7 +747,7 @@ def kmt_sysprobe_prepare(
         env_str.rstrip()
 
         ninja_define_rules(nw)
-        ninja_build_dependencies(nw, kmt_paths, go_path)
+        ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths)
 
         for pkg in target_packages:
