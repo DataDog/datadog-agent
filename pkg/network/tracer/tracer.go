@@ -20,6 +20,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
+	"go4.org/intern"
 
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -338,12 +339,9 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	if len(p.Tags) > 0 {
-		if c.Tags == nil {
-			c.Tags = make(map[string]struct{}, len(p.Tags))
-		}
-
+		c.Tags = make(map[*intern.Value]struct{}, len(p.Tags))
 		for _, t := range p.Tags {
-			c.Tags[t.Get().(string)] = struct{}{}
+			c.Tags[t] = struct{}{}
 		}
 	}
 
