@@ -738,6 +738,8 @@ func getNetNSOffset(kv *kernel.Version) uint64 {
 	// and is part of master since 5.1
 	case kv.IsRH8Kernel():
 		fallthrough
+	case kv.IsSuse12Kernel():
+		fallthrough
 	case (kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_10) && kv.Code.Patch() >= 168) ||
 		(kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15) && kv.Code.Patch() >= 111) ||
 		kv.Code >= kernel.Kernel5_1:
