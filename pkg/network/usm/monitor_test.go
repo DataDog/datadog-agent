@@ -296,7 +296,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.New()
-			cfg.HTTPMapCleanerInterval = time.Duration(tt.mapCleanerIntervalSeconds) * time.Second
+			cfg.MapCleanerInterval = time.Duration(tt.mapCleanerIntervalSeconds) * time.Second
 			cfg.HTTPIdleConnectionTTL = time.Duration(tt.httpIdleConnectionTTLSeconds) * time.Second
 			monitor := newHTTPMonitorWithCfg(t, cfg)
 

@@ -33,6 +33,8 @@ func adjustUSM(cfg config.Config) {
 	applyDefault(cfg, smNS("max_http_stats_buffered"), 100000)
 	deprecateInt(cfg, spNS("http_map_cleaner_interval_in_s"), smNS("http_map_cleaner_interval_in_s"))
 	applyDefault(cfg, smNS("http_map_cleaner_interval_in_s"), 300)
+	deprecateInt(cfg, spNS("http_map_cleaner_interval_in_s"), smNS("map_cleaner_interval_in_s"))
+	applyDefault(cfg, smNS("map_cleaner_interval_in_s"), 300)
 	deprecateInt(cfg, spNS("http_idle_connection_ttl_in_s"), smNS("http_idle_connection_ttl_in_s"))
 	applyDefault(cfg, smNS("http_idle_connection_ttl_in_s"), 30)
 	deprecateInt64(cfg, netNS("http_notification_threshold"), smNS("http_notification_threshold"))

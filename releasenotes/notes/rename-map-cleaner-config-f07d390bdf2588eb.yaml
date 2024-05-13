@@ -1,0 +1,3 @@
+---
+deprecations:
+  - The `service_monitoring_config.http_map_cleaner_interval_in_s` configuration has been deprecated. Use `service_monitoring_config.map_cleaner_interval_in_s` instead.
