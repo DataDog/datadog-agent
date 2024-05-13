@@ -48,13 +48,8 @@ def selftest_platforms_json(ctx: Context, _: bool) -> SelftestResult:
     return True, "platforms.json file exists, is readable and is correct"
 
 
-def selftest_prepare(
-    ctx: Context, allow_infra_changes: bool, component: Component, cross_compile: bool
-) -> SelftestResult:
-    """Ensures that we can run kmt.prepare for a given component.
-
-    If allow_infra_changes is true, the stack will be created if it doesn't exist.
-    """
+def selftest_prepare(ctx: Context, _: bool, component: Component, cross_compile: bool) -> SelftestResult:
+    """Ensures that we can run kmt.prepare for a given component."""
     stack = f"selftest-prepare-{component}-xbuild{cross_compile}"
     arch = get_arch("local")
     target = arch
@@ -74,13 +69,7 @@ def selftest_prepare(
     if res is None or not res.ok:
         return None, "Cannot generate config with inv kmt.gen-config"
 
-    if allow_infra_changes:
-        res = ctx.run(f"inv kmt.launch-stack --stack={stack}", warn=True)
-        if res is None or not res.ok:
-            return None, "Cannot create stack with inv kmt.create-stack"
-
-    compile_only = "--compile-only" if not allow_infra_changes else ""
-    res = ctx.run(f"inv -e kmt.prepare --stack={stack} --component={component} {compile_only} {arch_arg}", warn=True)
+    res = ctx.run(f"inv -e kmt.prepare --stack={stack} --component={component} --compile-only {arch_arg}", warn=True)
     if res is None or not res.ok:
         return False, "Cannot run inv -e kmt.prepare"
 
@@ -109,6 +98,31 @@ def selftest_prepare(
     return True, f"inv -e kmt.prepare ran successfully for {component}"
 
 
+def selftest_multiarch_test(ctx: Context, allow_infra_changes: bool) -> SelftestResult:
+    stack = "selftest-test-multiarch"
+    vms = "x64-debian11-distro,arm64-debian11-distro"
+
+    if not allow_infra_changes:
+        return None, "Skipping multiarch test, infra changes not allowed"
+
+    ctx.run(f"inv kmt.destroy-stack --stack={stack}", warn=True, hide=True)
+    res = ctx.run(f"inv -e kmt.gen-config --stack={stack} --vms={vms} --init-stack --yes", warn=True)
+    if res is None or not res.ok:
+        return None, "Cannot generate config with inv kmt.gen-config"
+
+    res = ctx.run(f"inv kmt.launch-stack --stack={stack}", warn=True)
+    if res is None or not res.ok:
+        return None, "Cannot create stack with inv kmt.create-stack"
+
+    # We just test the printk patcher as it's simple, owned by eBPF platform,
+    # loads eBPF files and does not depend on other components
+    res = ctx.run(f"inv -e kmt.test --stack={stack} --packages=pkg/ebpf --run='*TestPatchPrintkNewline*'", warn=True)
+    if res is None or not res.ok:
+        return False, "Cannot run inv -e kmt.test"
+
+    return True, "inv -e kmt.test ran successfully for multiarch"
+
+
 def selftest(ctx: Context, allow_infra_changes: bool = False, filter: str | None = None):
     """Run all defined selftests
 
@@ -122,6 +136,7 @@ def selftest(ctx: Context, allow_infra_changes: bool = False, filter: str | None
         ("secagent-prepare", functools.partial(selftest_prepare, component="security-agent", cross_compile=False)),
         ("sysprobe x-compile", functools.partial(selftest_prepare, component="system-probe", cross_compile=True)),
         ("secagent x-compile", functools.partial(selftest_prepare, component="security-agent", cross_compile=True)),
+        ("multiarch test", selftest_multiarch_test),
     ]
     results: list[tuple[str, SelftestResult]] = []
 

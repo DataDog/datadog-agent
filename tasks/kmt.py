@@ -589,6 +589,7 @@ def prepare(
     if packages:
         pkgs = f"--packages {packages}"
 
+    info(f"[+] Compiling artifacts for {arch_obj}, component = {component}")
     if component == "security-agent":
         if ci:
             kmt_secagent_prepare(ctx, vms, stack, arch_obj, ssh_key, packages, verbose, ci)
@@ -615,7 +616,7 @@ def prepare(
     if not ci:
         download_gotestsum(ctx, arch_obj, f"{go_root}/bin/gotestsum")
 
-    info(f"[+] Compiling test binaries for {arch_obj}")
+    info(f"[+] Compiling helper test binaries for {arch_obj}")
 
     paths = KMTPaths(stack, arch_obj)
 
@@ -913,6 +914,7 @@ def test(
 
     if not quick:
         for arch in used_archs:
+            info(f"[+] Preparing {component} for {arch}")
             prepare(ctx, component, stack=stack, vms=vms, packages=packages, ssh_key=ssh_key, arch=arch)
 
     if run is not None and packages is None:
