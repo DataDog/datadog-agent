@@ -15,12 +15,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
+	"go4.org/intern"
 
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -189,7 +189,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer)
 
 	if cfg.EnableProcessEventMonitoring {
-		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
+		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
 		coretelemetry.GetCompatComponent().RegisterCollector(tr.processCache)
@@ -339,22 +339,16 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		log.Tracef("got process cache entry for pid %d: %+v", c.Pid, p)
 	}
 
-	if c.Tags == nil {
-		c.Tags = make(map[string]struct{}, 3)
-	}
-
-	addTag := func(k, v string) {
-		if v == "" {
-			return
+	if len(p.Tags) > 0 {
+		c.Tags = make(map[*intern.Value]struct{}, len(p.Tags))
+		for _, t := range p.Tags {
+			c.Tags[t] = struct{}{}
 		}
-		c.Tags[k+":"+v] = struct{}{}
 	}
 
-	addTag("env", p.Env("DD_ENV"))
-	addTag("version", p.Env("DD_VERSION"))
-	addTag("service", p.Env("DD_SERVICE"))
-
-	c.ContainerID.Source = p.ContainerID
+	if p.ContainerID != nil {
+		c.ContainerID.Source = p.ContainerID
+	}
 }
 
 // Stop stops the tracer
