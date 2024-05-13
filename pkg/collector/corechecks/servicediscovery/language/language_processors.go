@@ -1,0 +1,78 @@
+package language
+
+import (
+	"bytes"
+	"errors"
+	"io"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language/reader"
+)
+
+func hasScript(r io.Reader, name string) bool {
+	buf := make([]byte, 512)
+	i, err := r.Read(buf)
+	buf = buf[:i]
+	if err != nil && !errors.Is(err, io.EOF) {
+		return false
+	}
+	if !bytes.HasPrefix(buf, []byte{'#', '!'}) {
+		return false
+	}
+	// clamp to first line
+	pos := bytes.IndexByte(buf, '\n')
+	if pos != -1 {
+		buf = buf[:pos]
+	}
+	return bytes.Contains(buf, []byte(name))
+}
+
+type PythonScript struct{}
+
+func (PythonScript) Match(pi ProcessInfo) bool {
+	f, found := pi.FileReader()
+	if !found {
+		return false
+	}
+	defer f.Close()
+	return hasScript(f, "python")
+}
+
+// Language returns the Language of the launching process
+func (PythonScript) Language() Language {
+	return Python
+}
+
+type RubyScript struct{}
+
+func (RubyScript) Match(pi ProcessInfo) bool {
+	f, found := pi.FileReader()
+	if !found {
+		return false
+	}
+	defer f.Close()
+	return hasScript(f, "ruby")
+}
+
+// Language returns the Language of the launching process
+func (RubyScript) Language() Language {
+	return Ruby
+}
+
+type DotNetBinary struct{}
+
+func (DotNetBinary) Match(pi ProcessInfo) bool {
+	f, found := pi.FileReader()
+	if !found {
+		return false
+	}
+	defer f.Close()
+	// scan the binary to see if it's a .net binary
+	// as far as I know, all .net binaries have the string "DOTNET_ROOT" in them
+	offset, err := reader.Index(f, "DOTNET_ROOT")
+	return offset > -1 && err == nil
+}
+
+// Language returns the Language of the launching process
+func (DotNetBinary) Language() Language {
+	return DotNet
+}
