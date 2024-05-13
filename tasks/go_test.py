@@ -24,6 +24,7 @@ from invoke.exceptions import Exit
 from tasks.agent import integration_tests as agent_integration_tests
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.cluster_agent import integration_tests as dca_integration_tests
+from tasks.devcontainer import run_on_devcontainer
 from tasks.dogstatsd import integration_tests as dsd_integration_tests
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
@@ -326,6 +327,7 @@ def process_test_result(test_results: ModuleTestResult, junit_tar: str, flavor: 
 
 
 @task
+@run_on_devcontainer
 def test(
     ctx,
     module=None,
@@ -358,6 +360,7 @@ def test(
     skip_flakes=False,
     build_stdlib=False,
     test_washer=False,
+    run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
     Run go tests on the given module and targets.
