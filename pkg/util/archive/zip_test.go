@@ -9,6 +9,7 @@ import (
 	"archive/zip"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -21,7 +22,7 @@ func TestZip_WrongDestinationFile(t *testing.T) {
 	assert.Error(t, err, "must have a .zip extension")
 }
 
-func TestZip_ExtistingDestuination(t *testing.T) {
+func TestZip_ExistingDestination(t *testing.T) {
 	tmpDir := t.TempDir()
 	tempLocation := filepath.Join(tmpDir, "destination.zip")
 	_, err := os.Create(tempLocation)
@@ -33,6 +34,10 @@ func TestZip_ExtistingDestuination(t *testing.T) {
 }
 
 func TestZip_DoNotZipSymlinks(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows. Symlinks are not supported.")
+	}
+
 	tmpDestinationDir := t.TempDir()
 	zipTempLocation := filepath.Join(tmpDestinationDir, "destination.zip")
 
@@ -59,7 +64,7 @@ func TestZip_DoNotZipSymlinks(t *testing.T) {
 
 	// Unzip the archive
 	destinmationDir := t.TempDir()
-	err = UnZip(zipTempLocation, destinmationDir)
+	err = Unzip(zipTempLocation, destinmationDir)
 	assert.Nil(t, err)
 
 	// 'symtarget.txt' safely extracted without errors inside the destination path
@@ -75,12 +80,12 @@ func TestZip_DoNotZipSymlinks(t *testing.T) {
 	assert.Nil(t, err, "nested/nested_file.txt should be extracted inside the destination folder")
 }
 
-func TestUnZip(t *testing.T) {
-	destinationZip := createUnSafedZip(t, false)
+func TestUnzip(t *testing.T) {
+	destinationZip := createUnsafeZip(t, false)
 
 	tmpDir := t.TempDir()
 
-	err := UnZip(destinationZip, tmpDir)
+	err := Unzip(destinationZip, tmpDir)
 
 	assert.Nil(t, err)
 
@@ -94,23 +99,29 @@ func TestUnZip(t *testing.T) {
 	assert.True(t, fileInfo.Mode() != os.ModeSymlink)
 }
 
-func TestUnZip_OutsideRoot(t *testing.T) {
-	destinationZip := createUnSafedZip(t, true)
+func TestUnzip_OutsideRoot(t *testing.T) {
+	destinationZip := createUnsafeZip(t, true)
 
-	err := UnZip(destinationZip, "fixtures")
+	tmpDir := t.TempDir()
+
+	err := Unzip(destinationZip, tmpDir)
 
 	assert.Error(t, err, "illegal file path: ../badfile.txt")
+
+	// '../../badfile.txt' is not a symlink and should be extracted without errors inside the destination path
+	_, err = os.Stat(filepath.Join(tmpDir, "../../badfile.txt"))
+	assert.Error(t, err, "../../badfile.txt should not be extracted outside the destination folder")
 }
 
 type file struct {
 	Name, Body string
 }
 
-func createUnSafedZip(t *testing.T, createFileOutsideRoot bool) string {
+func createUnsafeZip(t *testing.T, createFileOutsideRoot bool) string {
 	// Create a buffer to write our archive to.
 	tmpDir := t.TempDir()
 
-	path := filepath.Join(tmpDir, "evil.zip")
+	path := filepath.Join(tmpDir, "unsafe.zip")
 	fw, err := os.Create(path)
 	if nil != err {
 		t.Fatalf("Failed to create zip file: %s", err)
@@ -119,7 +130,7 @@ func createUnSafedZip(t *testing.T, createFileOutsideRoot bool) string {
 	// Create a new zip archive.
 	w := zip.NewWriter(fw)
 
-	// Write the evil symlink
+	// Write the unsafe symlink
 	h := &zip.FileHeader{
 		Name:     "bad/file.txt",
 		Method:   zip.Deflate,
@@ -130,7 +141,7 @@ func createUnSafedZip(t *testing.T, createFileOutsideRoot bool) string {
 	if err != nil {
 		t.Fatalf("Failed to create file header: %s", err)
 	}
-	// The evil symlink points outside of the target directory
+	// The unsafe symlink points outside of the target directory
 	_, err = header.Write([]byte("../../badfile.txt"))
 	if err != nil {
 		t.Fatalf("Failed to write file: %s", err)
