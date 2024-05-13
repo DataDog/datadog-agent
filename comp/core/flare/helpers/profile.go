@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
+// ReadProfileData collects profiles from the agent and returns them in a ProfileData object.
 func ReadProfileData(seconds int) (types.ProfileData, error) {
 	type agentProfileCollector func(service string) error
 
