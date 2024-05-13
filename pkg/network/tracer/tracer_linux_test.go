@@ -2240,6 +2240,9 @@ func BenchmarkAddProcessInfo(b *testing.B) {
 	tr := setupTracer(b, cfg)
 	var c network.ConnectionStats
 	c.Pid = 1
+	ts, err := ddebpf.NowNanoseconds()
+	require.NoError(b, err)
+	c.LastUpdateEpoch = uint64(ts)
 	tr.processCache.add(&events.Process{
 		Pid: 1,
 		Tags: []*intern.Value{
