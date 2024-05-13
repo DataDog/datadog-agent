@@ -59,7 +59,7 @@ static __always_inline long pktbuf_load_bytes_with_telemetry(pktbuf_t pkt, u32 o
     case PKTBUF_SKB:
         return bpf_skb_load_bytes_with_telemetry(pkt.skb, offset, to, len);
     case PKTBUF_TLS:
-        return bpf_probe_read_user(to, len, pkt.tls->buffer_ptr + offset);
+        return bpf_probe_read_user_with_telemetry(to, len, pkt.tls->buffer_ptr + offset);
     }
 
     pktbuf_invalid_operation();
