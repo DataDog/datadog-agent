@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	// using process.AllProcesses()
 	"github.com/DataDog/gopsutil/process"
 )
 

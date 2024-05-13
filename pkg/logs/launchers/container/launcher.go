@@ -5,6 +5,7 @@
 
 //go:build docker
 
+//nolint:revive // TODO(AML) Fix revive linter
 package container
 
 import (
@@ -16,9 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+
+	//nolint:revive // TODO(AML) Fix revive linter
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -54,28 +58,30 @@ type Launcher struct {
 
 	// tailers contains the tailer for each source
 	tailers map[*sourcesPkg.LogSource]tailerfactory.Tailer
+
+	wmeta optional.Option[workloadmeta.Component]
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *sourcesPkg.LogSources) *Launcher {
+func NewLauncher(sources *sourcesPkg.LogSources, wmeta optional.Option[workloadmeta.Component]) *Launcher {
 	launcher := &Launcher{
 		sources: sources,
 		tailers: make(map[*sourcesPkg.LogSource]tailerfactory.Tailer),
+		wmeta:   wmeta,
 	}
 	return launcher
 }
 
 // Start starts the Launcher
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	// only start this launcher once it's determined that we should be logging containers, and not pods.
 	ctx, cancel := context.WithCancel(context.Background())
 	l.cancel = cancel
 	l.stopped = make(chan struct{})
 
-	// TODO: (components) WARNING - this implicitly references a global state that must be set up before Start is
-	// called otherwise the agent will panic. Remove this comment when workloadmeta is converted to a component.
-	workloadmetaStore := workloadmeta.GetGlobalStore()
-	l.tailerFactory = tailerfactory.New(l.sources, pipelineProvider, registry, workloadmetaStore)
+	l.tailerFactory = tailerfactory.New(l.sources, pipelineProvider, registry, l.wmeta)
 	go l.run(ctx, sourceProvider)
 }
 

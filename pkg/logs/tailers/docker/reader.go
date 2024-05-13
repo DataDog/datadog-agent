@@ -5,6 +5,7 @@
 
 //go:build docker
 
+//nolint:revive // TODO(AML) Fix revive linter
 package docker
 
 import (

@@ -62,6 +62,15 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 
 		testFunc(t, t.Name(), &entry)
 	})
+
+	t.Run("empty container id", func(t *testing.T) {
+		entry := events.Process{
+			Pid:         1234,
+			ContainerID: intern.GetByString(""),
+		}
+
+		testFunc(t, &entry)
+	})
 }
 
 func TestProcessCacheAdd(t *testing.T) {

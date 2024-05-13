@@ -5,6 +5,7 @@
 
 //go:build !kubeapiserver
 
+// Package config holds config related files
 package config
 
 import (
@@ -12,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Commands returns the config commands
 func Commands(*command.GlobalParams) []*cobra.Command {
 	return nil
 }

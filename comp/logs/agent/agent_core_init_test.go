@@ -18,7 +18,7 @@ import (
 
 func TestBuildEndpoints(t *testing.T) {
 	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule,
+		config.MockModule(),
 	))
 
 	endpoints, err := buildEndpoints(config)

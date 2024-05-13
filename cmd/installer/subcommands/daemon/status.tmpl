@@ -1,0 +1,16 @@
+Datadog Installer v{{ .Version }}
+{{ range $name, $package := .Packages }}
+{{ boldText $name }}
+  State: {{ if $package.Stable }}{{ yellowText "unknown (unimplemented)" }}{{ else }} {{ redText "no stable version" }}{{ end }}
+  Installed versions:
+  {{ if $package.Stable -}}
+    {{ yellowText "●" }} stable: v{{$package.Stable}}
+  {{- else -}}
+    {{ redText "●" }} stable: none
+  {{- end }}
+  {{ if $package.Experiment -}}
+    {{ yellowText "●" }} experiment: v{{$package.Experiment}}
+  {{- else -}}
+    ● experiment: none
+  {{- end }}
+{{ end -}}

@@ -15,7 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 )
 
-type RunParams struct {
+// Params contains the flags of the run subcommand.
+type Params struct {
 	*subcommands.GlobalParams
 
 	// PIDFilePath contains the value of the --pidfile flag.
@@ -26,8 +27,8 @@ type RunParams struct {
 	MemProfile string
 }
 
-func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {}
+func setOSSpecificParamFlags(_ *cobra.Command, _ *Params) {}
 
-func runTraceAgent(cliParams *RunParams, defaultConfPath string) error {
-	return runFx(context.Background(), cliParams, defaultConfPath)
+func runTraceAgentCommand(cliParams *Params, defaultConfPath string) error {
+	return runTraceAgentProcess(context.Background(), cliParams, defaultConfPath)
 }

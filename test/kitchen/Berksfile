@@ -1,6 +1,6 @@
 source 'https://supermarket.chef.io'
 
-cookbook 'datadog', '~> 4.18.0'
+cookbook 'datadog', '~> 4.19.0'
 
 # We pin an old version of the apt cookbook because this cookbook triggers an "apt update" by default
 # and in newer versions this update is not allowed to fail, while in 3.X it is. For some reason
@@ -15,12 +15,9 @@ cookbook 'docker', '< 7.3.0'
 cookbook 'selinux', '< 4.0.0'
 
 cookbook 'dd-agent-disable-system-repos', path: './site-cookbooks/dd-agent-disable-system-repos'
-cookbook 'dd-agent-enable-fips', path: './site-cookbooks/dd-agent-enable-fips'
 cookbook 'dd-agent-install', path: './site-cookbooks/dd-agent-install'
 cookbook 'dd-agent-reinstall', path: './site-cookbooks/dd-agent-reinstall'
 cookbook 'dd-agent-upgrade', path: './site-cookbooks/dd-agent-upgrade'
-cookbook 'dd-agent-install-script', path: './site-cookbooks/dd-agent-install-script'
-cookbook 'dd-agent-step-by-step', path: './site-cookbooks/dd-agent-step-by-step'
 cookbook 'dd-agent-import-conf', path: './site-cookbooks/dd-agent-import-conf'
 cookbook 'dd-agent-5', path: './site-cookbooks/dd-agent-5'
 cookbook 'dd-agent-sles-workaround', path: './site-cookbooks/dd-agent-sles-workaround'

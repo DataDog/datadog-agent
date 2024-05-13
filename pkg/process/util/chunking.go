@@ -5,6 +5,7 @@
 
 package util
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type WeightAt func(int) int
 
 // PayloadList is a wrapper for payloads subject to chunking
@@ -26,7 +27,10 @@ type chunkProps struct {
 	size   int
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type AppendToChunk[T any, P any] func(t *T, ps []P)
+
+//nolint:revive // TODO(PROC) Fix revive linter
 type OnAccept[T any] func(t *T)
 
 // ChunkAllocator manages operations for chunk allocation. The type T is the type of the chunk, and the type P is the
@@ -97,6 +101,7 @@ func (c *ChunkAllocator[T, P]) Accept(ps []P, weight int) {
 	c.props[c.idx].weight += weight
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (c *ChunkAllocator[T, P]) GetChunks() *[]T {
 	return &c.chunks
 }

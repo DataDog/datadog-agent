@@ -6,13 +6,14 @@
 package trigger
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	json "github.com/json-iterator/go"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 )
 
 // GetAWSPartitionByRegion parses an AWS region and returns an AWS partition
@@ -21,9 +22,8 @@ func GetAWSPartitionByRegion(region string) string {
 		return "aws-us-gov"
 	} else if strings.HasPrefix(region, "cn-") {
 		return "aws-cn"
-	} else {
-		return "aws"
 	}
+	return "aws"
 }
 
 // ExtractAPIGatewayEventARN returns an ARN from an APIGatewayProxyRequest
@@ -110,6 +110,9 @@ func GetTagsFromAPIGatewayEvent(event events.APIGatewayProxyRequest) map[string]
 	}
 	httpTags["http.url_details.path"] = event.RequestContext.Path
 	httpTags["http.method"] = event.RequestContext.HTTPMethod
+	if event.Resource != "" {
+		httpTags["http.route"] = event.Resource
+	}
 	if event.Headers != nil {
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
@@ -128,6 +131,9 @@ func GetTagsFromAPIGatewayV2HTTPRequest(event events.APIGatewayV2HTTPRequest) ma
 	httpTags["http.url"] = event.RequestContext.DomainName
 	httpTags["http.url_details.path"] = event.RequestContext.HTTP.Path
 	httpTags["http.method"] = event.RequestContext.HTTP.Method
+	if event.RouteKey != "" {
+		httpTags["http.route"] = event.RouteKey
+	}
 	if event.Headers != nil {
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
@@ -164,6 +170,9 @@ func GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(event events.APIGatew
 	httpTags := make(map[string]string)
 	httpTags["http.url_details.path"] = event.RequestContext.Path
 	httpTags["http.method"] = event.HTTPMethod
+	if event.Resource != "" {
+		httpTags["http.route"] = event.Resource
+	}
 	if referer := event.Headers["Referer"]; referer != "" {
 		httpTags["http.referer"] = referer
 	}

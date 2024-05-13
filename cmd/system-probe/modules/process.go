@@ -16,15 +16,19 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+
+	//nolint:revive // TODO(PROC) Fix revive linter
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // ErrProcessUnsupported is an error type indicating that the process module is not support in the running environment
@@ -34,7 +38,7 @@ var ErrProcessUnsupported = errors.New("process module unsupported")
 var Process = module.Factory{
 	Name:             config.ProcessModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *config.Config) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component]) (module.Module, error) {
 		log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
 
 		// we disable returning zero values for stats to reduce parsing work on process-agent side
@@ -43,6 +47,9 @@ var Process = module.Factory{
 			probe:     p,
 			lastCheck: atomic.NewInt64(0),
 		}, nil
+	},
+	NeedsEBPF: func() bool {
+		return false
 	},
 }
 
@@ -87,11 +94,6 @@ func (t *process) Register(httpMux *module.Router) error {
 		logProcTracerRequests(count, len(stats), start)
 	}).Methods("POST")
 
-	return nil
-}
-
-// RegisterGRPC register to system probe gRPC server
-func (t *process) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package session
 
 import (
@@ -21,6 +23,8 @@ type MockSession struct {
 }
 
 // Configure configures the session
+//
+//nolint:revive // TODO(NDM) Fix revive linter
 func (s *MockSession) Configure(config checkconfig.CheckConfig) error {
 	return nil
 }
@@ -66,10 +70,13 @@ func CreateMockSession() *MockSession {
 }
 
 // NewMockSession creates a mock session
+//
+//nolint:revive // TODO(NDM) Fix revive linter
 func NewMockSession(config *checkconfig.CheckConfig) (Session, error) {
 	return CreateMockSession(), nil
 }
 
+//nolint:revive // TODO(NDM) Fix revive linter
 func CreateGetNextPacket(oid string, varType gosnmp.Asn1BER, value interface{}) *gosnmp.SnmpPacket {
 	packet := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{

@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
@@ -24,9 +25,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newSubmitter),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newSubmitter))
+}
 
 // submitter implements the Component.
 type submitterImpl struct {
@@ -35,12 +37,13 @@ type submitterImpl struct {
 
 type dependencies struct {
 	fx.In
-	Lc fx.Lifecycle
+	Lc  fx.Lifecycle
+	Log log.Component
 
-	HostInfo   hostinfo.Component
 	Config     config.Component
-	Log        log.Component
+	Checks     []types.CheckComponent `group:"check"`
 	Forwarders forwarders.Component
+	HostInfo   hostinfo.Component
 }
 
 type result struct {
@@ -56,15 +59,18 @@ func newSubmitter(deps dependencies) (result, error) {
 		return result{}, err
 	}
 
-	deps.Lc.Append(fx.Hook{
-		OnStart: func(context.Context) error {
-			return s.Start()
-		},
-		OnStop: func(context.Context) error {
-			s.Stop()
-			return nil
-		},
-	})
+	if agent.Enabled(deps.Config, deps.Checks, deps.Log) {
+		deps.Lc.Append(fx.Hook{
+			OnStart: func(context.Context) error {
+				return s.Start()
+			},
+			OnStop: func(context.Context) error {
+				s.Stop()
+				return nil
+			},
+		})
+	}
+
 	return result{
 		Submitter: &submitterImpl{
 			s: s,

@@ -1,0 +1,96 @@
+---
+# deps_build stage
+# Contains jobs which build various libraries needed for system-probe.
+
+.build_clang_common:
+  rules:
+    !reference [.manual]
+  stage: deps_build
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
+  script:
+    # use tmpdir to prevent git remote capture by clang build
+    - mkdir /tmp/clangbuild && cd /tmp/clangbuild
+    - CLANG_MAJOR_VER=$(echo "${CLANG_LLVM_VER}" | cut -d '.' -f 1)
+    - CLANG_SHA256SUM=6e912133bcf56e9cfe6a346fa7e5c52c2cde3e4e48b7a6cc6fcc7c75047da45f
+    - LLVM_SHA256SUM=7d9a8405f557cefc5a21bf5672af73903b64749d9bc3a50322239f56f34ffddf
+    - wget ${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/llvm/clang-${CLANG_LLVM_VER}.src.tar.xz -O clang.src.tar.xz
+    - wget ${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/llvm/llvm-${CLANG_LLVM_VER}.src.tar.xz -O llvm.src.tar.xz
+    - echo -e "${LLVM_SHA256SUM} llvm.src.tar.xz\n${CLANG_SHA256SUM} clang.src.tar.xz" | sha256sum --check -
+    - mkdir clang && tar xf clang.src.tar.xz --strip-components=1 --no-same-owner -C clang
+    - mkdir llvm && tar xf llvm.src.tar.xz --strip-components=1 --no-same-owner -C llvm
+    - mkdir build && cd build
+    # copy llvm cmake modules into the correct directory to ensure discovery
+    # Build runs into this issue if the correct modules cannot be discovered:
+    # https://github.com/llvm/llvm-project/issues/53281
+    - cp ../llvm/Modules/* ../llvm/cmake/modules || echo "LLVM common cmake utils not found in directory 'Modules'"
+    # patch references to glibc >= 2.18
+    - patch -ruN ../llvm/CMakeLists.txt < $CI_PROJECT_DIR/pkg/ebpf/c/cmakelists.patch
+    - patch -ruN ../llvm/lib/Analysis/ConstantFolding.cpp < $CI_PROJECT_DIR/pkg/ebpf/c/constant_folding.patch
+    - |
+      cmake -DLLVM_ENABLE_PROJECTS=clang \
+      -DLLVM_TARGETS_TO_BUILD="BPF" \
+      -DCMAKE_INSTALL_PREFIX=$DATADOG_AGENT_EMBEDDED_PATH \
+      -G "Ninja" \
+      -DCMAKE_BUILD_TYPE=MinSizeRel \
+      -DLLVM_BUILD_TOOLS=ON \
+      -DLLVM_ENABLE_TERMINFO=OFF \
+      -DLLVM_INCLUDE_EXAMPLES=OFF \
+      -DLLVM_INCLUDE_TESTS=OFF \
+      -DLLVM_INCLUDE_BENCHMARKS=OFF \
+      -DLLVM_STATIC_LINK_CXX_STDLIB=ON \
+      -DLLVM_ENABLE_BINDINGS=OFF \
+      -DLLVM_PARALLEL_COMPILE_JOBS=4 \
+      -DLLVM_PARALLEL_LINK_JOBS=4 \
+      -DLLVM_ENABLE_UNWIND_TABLES=OFF \
+      ../llvm
+    - cmake --build . --target install
+    # fail if references to glibc >= 2.18
+    - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
+    - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/llc | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
+    # fail if clang or llc targets anything other than bpf
+    - $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} -print-targets > clang_targets.txt
+    - diff $CI_PROJECT_DIR/pkg/ebpf/c/expected_targets.txt clang_targets.txt
+    - $DATADOG_AGENT_EMBEDDED_PATH/bin/llc --version | tail -n +7 > llc_targets.txt # remove first 6 lines of llc version output; we only care about the registered targets
+    - diff $CI_PROJECT_DIR/pkg/ebpf/c/expected_targets.txt llc_targets.txt
+    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $S3_PERMANENT_ARTIFACTS_URI/clang-${CLANG_LLVM_VER}.${ARCH}
+    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_PERMANENT_ARTIFACTS_URI/llc-${CLANG_LLVM_VER}.${ARCH}
+    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $S3_DD_AGENT_OMNIBUS_LLVM_URI/clang-${CLANG_LLVM_VER}.${ARCH} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - $S3_CP_CMD $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $S3_DD_AGENT_OMNIBUS_LLVM_URI/llc-${CLANG_LLVM_VER}.${ARCH} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - mkdir -p $CI_PROJECT_DIR/.tmp
+    - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $CI_PROJECT_DIR/.tmp/clang
+    - cp $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $CI_PROJECT_DIR/.tmp/llc
+  timeout: 2h 00m
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $CI_PROJECT_DIR/.tmp/clang
+      - $CI_PROJECT_DIR/.tmp/llc
+
+build_clang_x64:
+  extends: .build_clang_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:amd64"]
+  variables:
+    ARCH: amd64
+
+build_clang_arm64:
+  extends: .build_clang_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:arm64"]
+  variables:
+    ARCH: arm64
+
+build_processed_btfhub_archive:
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.on_scheduled_main_or_manual]
+  stage: deps_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
+  tags: ["arch:amd64"]
+  variables:
+    KUBERNETES_CPU_REQUEST: 32
+  script:
+    - inv -e system-probe.process-btfhub-archive --branch $BTFHUB_ARCHIVE_BRANCH
+    - $S3_CP_CMD btfs-x86_64.tar $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-x86_64.tar --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - $S3_CP_CMD btfs-arm64.tar $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-arm64.tar --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers

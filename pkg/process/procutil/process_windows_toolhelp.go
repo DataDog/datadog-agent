@@ -16,7 +16,7 @@ import (
 	"github.com/shirou/w32"
 	"golang.org/x/sys/windows"
 
-	process "github.com/DataDog/gopsutil/process"
+	process "github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -30,6 +30,7 @@ var (
 	procGetProcessIoCounters  = modkernel.NewProc("GetProcessIoCounters")
 )
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type IO_COUNTERS struct {
 	ReadOperationCount  uint64
 	WriteOperationCount uint64

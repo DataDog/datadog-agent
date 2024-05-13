@@ -19,6 +19,7 @@ func TestGetContainerAppTags(t *testing.T) {
 	t.Setenv("CONTAINER_APP_NAME", "test_app_name")
 	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
 	t.Setenv("CONTAINER_APP_REVISION", "test_revision")
+	t.Setenv("CONTAINER_APP_REPLICA_NAME", "test--6nyz8z7-b845f7667-m7hlv")
 
 	t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "test_subscription_id")
 	t.Setenv("DD_AZURE_RESOURCE_GROUP", "test_resource_group")
@@ -26,11 +27,12 @@ func TestGetContainerAppTags(t *testing.T) {
 	tags := service.GetTags()
 
 	assert.Equal(t, map[string]string{
-		"app_name":   "test_app_name",
-		"origin":     "containerapp",
-		"region":     "eastus",
-		"revision":   "test_revision",
-		"_dd.origin": "containerapp",
+		"app_name":     "test_app_name",
+		"origin":       "containerapp",
+		"region":       "eastus",
+		"revision":     "test_revision",
+		"replica_name": "test--6nyz8z7-b845f7667-m7hlv",
+		"_dd.origin":   "containerapp",
 	}, tags)
 }
 
@@ -40,6 +42,7 @@ func TestGetContainerAppTagsWithOptionalEnvVars(t *testing.T) {
 	t.Setenv("CONTAINER_APP_NAME", "test_app_name")
 	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
 	t.Setenv("CONTAINER_APP_REVISION", "test_revision")
+	t.Setenv("CONTAINER_APP_REPLICA_NAME", "test--6nyz8z7-b845f7667-m7hlv")
 
 	t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "test_subscription_id")
 	t.Setenv("DD_AZURE_RESOURCE_GROUP", "test_resource_group")
@@ -54,6 +57,7 @@ func TestGetContainerAppTagsWithOptionalEnvVars(t *testing.T) {
 		"origin":          "containerapp",
 		"region":          "eastus",
 		"revision":        "test_revision",
+		"replica_name":    "test--6nyz8z7-b845f7667-m7hlv",
 		"_dd.origin":      "containerapp",
 		"subscription_id": "test_subscription_id",
 		"resource_id":     "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.app/containerapps/test_app_name",
@@ -69,6 +73,7 @@ func TestInitHasErrorsWhenMissingSubscriptionId(t *testing.T) {
 		t.Setenv("CONTAINER_APP_NAME", "test_app_name")
 		t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
 		t.Setenv("CONTAINER_APP_REVISION", "test_revision")
+		t.Setenv("CONTAINER_APP_REPLICA_NAME", "test--6nyz8z7-b845f7667-m7hlv")
 
 		t.Setenv("DD_AZURE_RESOURCE_GROUP", "test_resource_group")
 
@@ -82,7 +87,7 @@ func TestInitHasErrorsWhenMissingSubscriptionId(t *testing.T) {
 	err := cmd.Run()
 	if e, ok := err.(*exec.ExitError); ok && !e.Success() {
 		return
-	} else {
+	} else { //nolint:revive // TODO(SERV) Fix revive linter
 		assert.FailNow(t, "Process didn't exit when not specifying DD_AZURE_SUBSCRIPTION_ID")
 	}
 }
@@ -93,6 +98,7 @@ func TestInitHasErrorsWhenMissingResourceGroup(t *testing.T) {
 		t.Setenv("CONTAINER_APP_NAME", "test_app_name")
 		t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
 		t.Setenv("CONTAINER_APP_REVISION", "test_revision")
+		t.Setenv("CONTAINER_APP_REPLICA_NAME", "test--6nyz8z7-b845f7667-m7hlv")
 
 		t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "test_subscription_id")
 
@@ -106,7 +112,7 @@ func TestInitHasErrorsWhenMissingResourceGroup(t *testing.T) {
 	err := cmd.Run()
 	if e, ok := err.(*exec.ExitError); ok && !e.Success() {
 		return
-	} else {
+	} else { //nolint:revive // TODO(SERV) Fix revive linter
 		assert.FailNow(t, "Process didn't exit when not specifying DD_AZURE_RESOURCE_GROUP")
 	}
 }

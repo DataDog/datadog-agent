@@ -16,8 +16,10 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type ComposeConf struct {
@@ -56,7 +58,7 @@ func (c *ComposeConf) Start() ([]byte, error) {
 		"--project-name", c.ProjectName,
 		"--file", c.FilePath,
 	}
-	pullCmd := exec.Command("docker-compose", append(args, "pull", "--parallel")...)
+	pullCmd := exec.Command("compose", append(args, "pull", "--parallel")...)
 	pullCmd.Env = customEnv
 	output, err := pullCmd.CombinedOutput()
 	if err != nil {
@@ -68,7 +70,7 @@ func (c *ComposeConf) Start() ([]byte, error) {
 		*/
 		log.Infof("retrying pull...")
 		// We need to rebuild a new command because the file-descriptors of stdout/err are already set
-		retryPull := exec.Command("docker-compose", append(args, "pull", "--parallel")...)
+		retryPull := exec.Command("compose", append(args, "pull", "--parallel")...)
 		retryPull.Env = customEnv
 		output, err = retryPull.CombinedOutput()
 		if err != nil {
@@ -80,7 +82,7 @@ func (c *ComposeConf) Start() ([]byte, error) {
 	if c.RemoveRebuildImages {
 		args = append(args, "--build")
 	}
-	runCmd := exec.Command("docker-compose", args...)
+	runCmd := exec.Command("compose", args...)
 	runCmd.Env = customEnv
 
 	return runCmd.CombinedOutput()
@@ -96,17 +98,23 @@ func (c *ComposeConf) Stop() ([]byte, error) {
 	if c.RemoveRebuildImages {
 		args = append(args, "--rmi", "all")
 	}
-	runCmd := exec.Command("docker-compose", args...)
+	runCmd := exec.Command("compose", args...)
 	return runCmd.CombinedOutput()
 }
 
 // ListContainers lists the running container IDs
 func (c *ComposeConf) ListContainers() ([]string, error) {
+	customEnv := os.Environ()
+	for k, v := range c.Variables {
+		customEnv = append(customEnv, fmt.Sprintf("%s=%s", k, v))
+	}
+
 	runCmd := exec.Command(
-		"docker-compose",
+		"compose",
 		"--project-name", c.ProjectName,
 		"--file", c.FilePath,
 		"ps", "-q")
+	runCmd.Env = customEnv
 
 	out, err := runCmd.Output()
 	if err != nil {
@@ -131,7 +139,7 @@ func getNetworkMode() (string, error) {
 	}
 
 	// Get container id if containerized
-	selfContainerID, err := metrics.GetProvider().GetMetaCollector().GetSelfContainerID()
+	selfContainerID, err := metrics.GetProvider(optional.NewNoneOption[workloadmeta.Component]()).GetMetaCollector().GetSelfContainerID()
 	if err != nil {
 		return "host", nil
 	}

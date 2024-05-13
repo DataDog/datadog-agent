@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package api defines the HTTP interface for the remote config backend
 package api
 
 import (
@@ -16,8 +17,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,8 +48,9 @@ type API interface {
 	FetchOrgStatus(context.Context) (*pbgo.OrgStatusResponse, error)
 }
 
+// Auth defines the possible Authentication data to access the RC backend
 type Auth struct {
-	ApiKey    string
+	APIKey    string
 	AppKey    string
 	UseAppKey bool
 }
@@ -62,36 +63,31 @@ type HTTPClient struct {
 }
 
 // NewHTTPClient returns a new HTTP configuration client
-func NewHTTPClient(auth Auth) (*HTTPClient, error) {
+func NewHTTPClient(auth Auth, cfg model.Reader, baseURL *url.URL) (*HTTPClient, error) {
 	header := http.Header{
 		"Content-Type": []string{"application/x-protobuf"},
-		"DD-Api-Key":   []string{auth.ApiKey},
+		"DD-Api-Key":   []string{auth.APIKey},
 	}
 	if auth.UseAppKey {
 		header["DD-Application-Key"] = []string{auth.AppKey}
 	}
-	transport := httputils.CreateHTTPTransport(config.Datadog)
+	transport := httputils.CreateHTTPTransport(cfg)
 	// Set the keep-alive timeout to 30s instead of the default 90s, so the http RC client is not closed by the backend
 	transport.IdleConnTimeout = 30 * time.Second
 
 	httpClient := &http.Client{
 		Transport: transport,
 	}
-	baseRawURL := utils.GetMainEndpoint(config.Datadog, "https://config.", "remote_configuration.rc_dd_url")
-	baseURL, err := url.Parse(baseRawURL)
-	if err != nil {
-		return nil, err
+	if baseURL.Scheme != "https" && !cfg.GetBool("remote_configuration.no_tls") {
+		return nil, fmt.Errorf("remote Configuration URL %s is invalid as TLS is required by default. While it is not advised, the `remote_configuration.no_tls` config option can be set to `true` to disable this protection", baseURL)
 	}
-	if baseURL.Scheme != "https" && !config.Datadog.GetBool("remote_configuration.no_tls") {
-		return nil, fmt.Errorf("Remote Configuration URL %s is invalid as TLS is required by default. While it is not advised, the `remote_configuration.no_tls` config option can be set to `true` to disable this protection.", baseRawURL)
-	}
-	if transport.TLSClientConfig.InsecureSkipVerify && !config.Datadog.GetBool("remote_configuration.no_tls_validation") {
-		return nil, fmt.Errorf("Remote Configuration does not allow skipping TLS validation by default (currently skipped because `skip_ssl_validation` is set to true). While it is not advised, the `remote_configuration.no_tls_validation` config option can be set to `true` to disable this protection.")
+	if transport.TLSClientConfig.InsecureSkipVerify && !cfg.GetBool("remote_configuration.no_tls_validation") {
+		return nil, fmt.Errorf("remote Configuration does not allow skipping TLS validation by default (currently skipped because `skip_ssl_validation` is set to true). While it is not advised, the `remote_configuration.no_tls_validation` config option can be set to `true` to disable this protection")
 	}
 	return &HTTPClient{
 		client:  httpClient,
 		header:  header,
-		baseURL: baseRawURL,
+		baseURL: baseURL.String(),
 	}, nil
 }
 
@@ -103,7 +99,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 	}
 
 	url := c.baseURL + pollEndpoint
-	log.Debugf("Querying url %s with %+v", url, request)
+	log.Debugf("fetching configurations at %s", url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create org data request: %w", err)
@@ -149,7 +145,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 // FetchOrgData org data
 func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, error) {
 	url := c.baseURL + orgDataEndpoint
-	log.Debugf("Querying url %s", url)
+	log.Debugf("fetching org data at %s", url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, &bytes.Buffer{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create org data request: %w", err)
@@ -186,7 +182,7 @@ func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, e
 // FetchOrgStatus returns the org and key status
 func (c *HTTPClient) FetchOrgStatus(ctx context.Context) (*pbgo.OrgStatusResponse, error) {
 	url := c.baseURL + orgStatusEndpoint
-	log.Debugf("Querying url %s", url)
+	log.Debugf("fetching org status at %s", url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, &bytes.Buffer{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create org data request: %w", err)

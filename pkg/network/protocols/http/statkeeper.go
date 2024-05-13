@@ -13,20 +13,20 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// StatKeeper is responsible for aggregating HTTP stats.
 type StatKeeper struct {
 	mux                         sync.Mutex
-	cfg                         *config.Config
 	stats                       map[Key]*RequestStats
-	incomplete                  *incompleteBuffer
+	incomplete                  IncompleteBuffer
 	maxEntries                  int
 	quantizer                   *URLQuantizer
 	telemetry                   *Telemetry
+	connectionAggregator        *utils.ConnectionAggregator
 	enableStatusCodeAggregation bool
-	enableQuantization          bool
 
 	// replace rules for HTTP path
 	replaceRules []*config.ReplaceRule
@@ -34,28 +34,37 @@ type StatKeeper struct {
 	// http path buffer
 	buffer []byte
 
-	oversizedLogLimit *util.LogLimit
+	oversizedLogLimit *log.Limit
 }
 
-func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
+// NewStatkeeper returns a new StatKeeper.
+func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer IncompleteBuffer) *StatKeeper {
+	var quantizer *URLQuantizer
 	// For now we're only enabling path quantization for HTTP/1 traffic
-	enableQuantization := c.EnableUSMQuantization && telemetry.protocol == "http"
+	if c.EnableUSMQuantization && telemetry.protocol == "http" {
+		quantizer = NewURLQuantizer()
+	}
+
+	var connectionAggregator *utils.ConnectionAggregator
+	if c.EnableUSMConnectionRollup {
+		connectionAggregator = utils.NewConnectionAggregator()
+	}
 
 	return &StatKeeper{
-		cfg:                         c,
 		stats:                       make(map[Key]*RequestStats),
-		incomplete:                  newIncompleteBuffer(c, telemetry),
+		incomplete:                  incompleteBuffer,
 		maxEntries:                  c.MaxHTTPStatsBuffered,
-		quantizer:                   NewURLQuantizer(),
+		quantizer:                   quantizer,
 		replaceRules:                c.HTTPReplaceRules,
 		enableStatusCodeAggregation: c.EnableHTTPStatsByStatusCode,
-		enableQuantization:          enableQuantization,
+		connectionAggregator:        connectionAggregator,
 		buffer:                      make([]byte, getPathBufferSize(c)),
 		telemetry:                   telemetry,
-		oversizedLogLimit:           util.NewLogLimit(10, time.Minute*10),
+		oversizedLogLimit:           log.NewLogLimit(10, time.Minute*10),
 	}
 }
 
+// Process processes a transaction and updates the stats accordingly.
 func (h *StatKeeper) Process(tx Transaction) {
 	h.mux.Lock()
 	defer h.mux.Unlock()
@@ -68,19 +77,36 @@ func (h *StatKeeper) Process(tx Transaction) {
 	h.add(tx)
 }
 
-func (h *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
-	h.mux.Lock()
-	defer h.mux.Unlock()
+// GetAndResetAllStats returns all the stats and resets the internal state.
+func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
+	var previousAggregationState *utils.ConnectionAggregator
+	func() {
+		h.mux.Lock()
+		defer h.mux.Unlock()
 
-	for _, tx := range h.incomplete.Flush(time.Now()) {
-		h.add(tx)
-	}
+		for _, tx := range h.incomplete.Flush(time.Now()) {
+			h.add(tx)
+		}
 
-	ret := h.stats // No deep copy needed since `h.stats` gets reset
-	h.stats = make(map[Key]*RequestStats)
-	return ret
+		// Rotate stats
+		stats = h.stats
+		h.stats = make(map[Key]*RequestStats)
+
+		// Rotate ConnectionAggregator
+		if h.connectionAggregator == nil {
+			// Feature not enabled
+			return
+		}
+
+		previousAggregationState = h.connectionAggregator
+		h.connectionAggregator = utils.NewConnectionAggregator()
+	}()
+
+	h.clearEphemeralPorts(previousAggregationState, stats)
+	return stats
 }
 
+// Close closes the stat keeper.
 func (h *StatKeeper) Close() {
 	h.oversizedLogLimit.Close()
 }
@@ -94,7 +120,7 @@ func (h *StatKeeper) add(tx Transaction) {
 
 	// Quantize HTTP path
 	// (eg. this turns /orders/123/view` into `/orders/*/view`)
-	if h.enableQuantization {
+	if h.quantizer != nil {
 		rawPath = h.quantizer.Quantize(rawPath)
 	}
 
@@ -121,6 +147,10 @@ func (h *StatKeeper) add(tx Transaction) {
 	}
 
 	key := NewKeyWithConnection(tx.ConnTuple(), path, fullPath, tx.Method())
+	if h.connectionAggregator != nil {
+		key.ConnectionKey = h.connectionAggregator.RollupKey(key.ConnectionKey)
+	}
+
 	stats, ok := h.stats[key]
 	if !ok {
 		if len(h.stats) >= h.maxEntries {
@@ -169,4 +199,23 @@ func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) ([]byte, bool)
 		return nil, true
 	}
 	return path, false
+}
+
+func (h *StatKeeper) clearEphemeralPorts(aggregator *utils.ConnectionAggregator, stats map[Key]*RequestStats) {
+	if aggregator == nil {
+		return
+	}
+
+	// Re-index entries that were generated from multiple connections
+	// See comments on `ConnectionAggregator.ClearEphemeralPort()` for more context
+	for key, aggregation := range stats {
+		newConnKey := aggregator.ClearEphemeralPort(key.ConnectionKey)
+		if newConnKey == key.ConnectionKey {
+			continue
+		}
+
+		delete(stats, key)
+		key.ConnectionKey = newConnKey
+		stats[key] = aggregation
+	}
 }

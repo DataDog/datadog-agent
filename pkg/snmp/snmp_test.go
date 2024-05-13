@@ -6,9 +6,10 @@
 package snmp
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 
@@ -159,16 +160,174 @@ snmp_listener:
 	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
 }
 
+func TestNewNetworkDevicesListenerConfig(t *testing.T) {
+	config.Datadog.SetConfigType("yaml")
+
+	// default collect_device_metadata should be true
+	err := config.Datadog.ReadConfig(strings.NewReader(`
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 127.0.0.1/30
+     - network: 127.0.0.2/30
+       collect_device_metadata: true
+     - network: 127.0.0.3/30
+       collect_device_metadata: false
+`))
+	assert.NoError(t, err)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, "127.0.0.1/30", conf.Configs[0].Network)
+	assert.Equal(t, true, conf.Configs[0].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.2/30", conf.Configs[1].Network)
+	assert.Equal(t, true, conf.Configs[1].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.3/30", conf.Configs[2].Network)
+	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
+
+	// collect_device_metadata: false
+	err = config.Datadog.ReadConfig(strings.NewReader(`
+network_devices:
+  autodiscovery:
+    collect_device_metadata: false
+    configs:
+     - network: 127.0.0.1/30
+     - network: 127.0.0.2/30
+       collect_device_metadata: true
+     - network: 127.0.0.3/30
+       collect_device_metadata: false
+`))
+	assert.NoError(t, err)
+
+	conf, err = NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, "127.0.0.1/30", conf.Configs[0].Network)
+	assert.Equal(t, false, conf.Configs[0].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.2/30", conf.Configs[1].Network)
+	assert.Equal(t, true, conf.Configs[1].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.3/30", conf.Configs[2].Network)
+	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
+
+	// collect_device_metadata: true
+	err = config.Datadog.ReadConfig(strings.NewReader(`
+network_devices:
+  autodiscovery:
+    collect_device_metadata: true
+    configs:
+     - network: 127.0.0.1/30
+     - network: 127.0.0.2/30
+       collect_device_metadata: true
+     - network: 127.0.0.3/30
+       collect_device_metadata: false
+`))
+	assert.NoError(t, err)
+
+	conf, err = NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, "127.0.0.1/30", conf.Configs[0].Network)
+	assert.Equal(t, true, conf.Configs[0].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.2/30", conf.Configs[1].Network)
+	assert.Equal(t, true, conf.Configs[1].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.3/30", conf.Configs[2].Network)
+	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
+}
+
+func TestBothListenersConfig(t *testing.T) {
+	config.Datadog.SetConfigType("yaml")
+
+	// check that network_devices config override the snmp_listener config
+	err := config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  collect_device_metadata: true
+  configs:
+   - network: 127.0.0.1/30
+   - network: 127.0.0.2/30
+     collect_device_metadata: true
+   - network: 127.0.0.3/30
+     collect_device_metadata: false
+network_devices:
+  autodiscovery:
+    collect_device_metadata: false
+    configs:
+     - network: 127.0.0.4/30
+     - network: 127.0.0.5/30
+       collect_device_metadata: false
+     - network: 127.0.0.6/30
+       collect_device_metadata: true
+`))
+	assert.NoError(t, err)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, 3, len(conf.Configs))
+	assert.Equal(t, "127.0.0.4/30", conf.Configs[0].Network)
+	assert.Equal(t, false, conf.Configs[0].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.5/30", conf.Configs[1].Network)
+	assert.Equal(t, false, conf.Configs[1].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.6/30", conf.Configs[2].Network)
+	assert.Equal(t, true, conf.Configs[2].CollectDeviceMetadata)
+
+	// incorrect snmp_listener config and correct network_devices config
+	err = config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  configs:
+   - foo: bar
+network_devices:
+  autodiscovery:
+    collect_device_metadata: false
+    configs:
+     - network: 127.0.0.4/30
+     - network: 127.0.0.5/30
+       collect_device_metadata: false
+     - network: 127.0.0.6/30
+       collect_device_metadata: true
+`))
+	assert.NoError(t, err)
+
+	conf, err = NewListenerConfig()
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(conf.Configs))
+	assert.Equal(t, "127.0.0.4/30", conf.Configs[0].Network)
+	assert.Equal(t, false, conf.Configs[0].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.5/30", conf.Configs[1].Network)
+	assert.Equal(t, false, conf.Configs[1].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.6/30", conf.Configs[2].Network)
+	assert.Equal(t, true, conf.Configs[2].CollectDeviceMetadata)
+
+	// incorrect snmp_listener config and correct network_devices config
+	err = config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  configs:
+  - network: 127.0.0.4/30
+  - network: 127.0.0.5/30
+    collect_device_metadata: false
+  - network: 127.0.0.6/30
+    collect_device_metadata: true
+network_devices:
+  autodiscovery:
+    - foo: bar
+`))
+	assert.NoError(t, err)
+
+	conf, err = NewListenerConfig()
+	assert.Error(t, err)
+}
+
 func Test_LoaderConfig(t *testing.T) {
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.ReadConfig(strings.NewReader(`
-snmp_listener:
-  configs:
-   - network: 127.1.0.0/30
-   - network: 127.2.0.0/30
-     loader: core
-   - network: 127.3.0.0/30
-     loader: python
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 127.1.0.0/30
+     - network: 127.2.0.0/30
+       loader: core
+     - network: 127.3.0.0/30
+       loader: python
 `))
 	assert.NoError(t, err)
 
@@ -180,14 +339,15 @@ snmp_listener:
 	assert.Equal(t, "python", conf.Configs[2].Loader)
 
 	err = config.Datadog.ReadConfig(strings.NewReader(`
-snmp_listener:
-  loader: core
-  configs:
-   - network: 127.1.0.0/30
-   - network: 127.2.0.0/30
-     loader: core
-   - network: 127.3.0.0/30
-     loader: python
+network_devices:
+  autodiscovery:
+    loader: core
+    configs:
+     - network: 127.1.0.0/30
+     - network: 127.2.0.0/30
+       loader: core
+     - network: 127.3.0.0/30
+       loader: python
 `))
 	assert.NoError(t, err)
 
@@ -203,12 +363,13 @@ snmp_listener:
 func Test_MinCollectionInterval(t *testing.T) {
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.ReadConfig(strings.NewReader(`
-snmp_listener:
-  min_collection_interval: 60
-  configs:
-   - network: 127.1.0.0/30
-     min_collection_interval: 30
-   - network: 127.2.0.0/30
+network_devices:
+  autodiscovery:
+    min_collection_interval: 60
+    configs:
+     - network: 127.1.0.0/30
+       min_collection_interval: 30
+     - network: 127.2.0.0/30
 `))
 	assert.NoError(t, err)
 
@@ -222,26 +383,27 @@ snmp_listener:
 func Test_Configs(t *testing.T) {
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.ReadConfig(strings.NewReader(`
-snmp_listener:
-  workers: 10
-  discovery_interval: 11
-  discovery_allowed_failures: 5
-  loader: core
-  collect_device_metadata: true
-  configs:
-   - authProtocol: someAuthProtocol
-     authKey: someAuthKey
-     privProtocol: somePrivProtocol
-     privKey: somePrivKey
-     community_string: someCommunityString
-     snmp_version: someSnmpVersion
-     network_address: 127.1.0.0/30
-     interface_configs:
-       '127.1.0.1':
-         - match_field: "name"
-           match_value: "eth0"
-           in_speed: 50
-           out_speed: 25
+network_devices:
+  autodiscovery:
+    workers: 10
+    discovery_interval: 11
+    discovery_allowed_failures: 5
+    loader: core
+    collect_device_metadata: true
+    configs:
+     - authProtocol: someAuthProtocol
+       authKey: someAuthKey
+       privProtocol: somePrivProtocol
+       privKey: somePrivKey
+       community_string: someCommunityString
+       snmp_version: someSnmpVersion
+       network_address: 127.1.0.0/30
+       interface_configs:
+         '127.1.0.1':
+           - match_field: "name"
+             match_value: "eth0"
+             in_speed: 50
+             out_speed: 25
 `))
 	assert.NoError(t, err)
 
@@ -277,16 +439,17 @@ snmp_listener:
 	// legacy configs
 	/////////////////
 	err = config.Datadog.ReadConfig(strings.NewReader(`
-snmp_listener:
-  allowed_failures: 15
-  configs:
-   - authentication_protocol: legacyAuthProtocol
-     authentication_key: legacyAuthKey
-     privacy_protocol: legacyPrivProtocol
-     privacy_key: legacyPrivKey
-     community: legacyCommunityString
-     version: legacySnmpVersion
-     network: 127.2.0.0/30
+network_devices:
+  autodiscovery:
+    allowed_failures: 15
+    configs:
+     - authentication_protocol: legacyAuthProtocol
+       authentication_key: legacyAuthKey
+       privacy_protocol: legacyPrivProtocol
+       privacy_key: legacyPrivKey
+       community: legacyCommunityString
+       version: legacySnmpVersion
+       network: 127.2.0.0/30
 `))
 	assert.NoError(t, err)
 	conf, err = NewListenerConfig()
@@ -307,10 +470,11 @@ func Test_NamespaceConfig(t *testing.T) {
 	// Default Namespace
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.ReadConfig(strings.NewReader(`
-snmp_listener:
-  configs:
-   - community_string: someCommunityString
-     network_address: 127.1.0.0/30
+network_devices:
+  autodiscovery:
+    configs:
+     - community_string: someCommunityString
+       network_address: 127.1.0.0/30
 `))
 	assert.NoError(t, err)
 	conf, err := NewListenerConfig()
@@ -323,10 +487,10 @@ snmp_listener:
 	err = config.Datadog.ReadConfig(strings.NewReader(`
 network_devices:
   namespace: ponyo
-snmp_listener:
-  configs:
-  - community_string: someCommunityString
-    network_address: 127.1.0.0/30
+  autodiscovery:
+    configs:
+    - community_string: someCommunityString
+      network_address: 127.1.0.0/30
 `))
 	assert.NoError(t, err)
 	conf, err = NewListenerConfig()
@@ -337,14 +501,15 @@ snmp_listener:
 	// Custom Namespace in snmp_listener
 	config.Datadog.SetConfigType("yaml")
 	err = config.Datadog.ReadConfig(strings.NewReader(`
-snmp_listener:
-  namespace: totoro
-  configs:
-  - community_string: someCommunityString
-    network_address: 127.1.0.0/30
-  - community_string: someCommunityString
-    network_address: 127.2.0.0/30
-    namespace: mononoke
+network_devices:
+  autodiscovery:
+    namespace: totoro
+    configs:
+    - community_string: someCommunityString
+      network_address: 127.1.0.0/30
+    - community_string: someCommunityString
+      network_address: 127.2.0.0/30
+      namespace: mononoke
 `))
 	assert.NoError(t, err)
 	conf, err = NewListenerConfig()
@@ -365,12 +530,13 @@ func TestFirstNonEmpty(t *testing.T) {
 func Test_UseDeviceIDAsHostname(t *testing.T) {
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.ReadConfig(strings.NewReader(`
-snmp_listener:
-  use_device_id_as_hostname: true
-  configs:
-   - network: 127.1.0.0/30
-     use_device_id_as_hostname: false
-   - network: 127.2.0.0/30
+network_devices:
+  autodiscovery:
+    use_device_id_as_hostname: true
+    configs:
+     - network: 127.1.0.0/30
+       use_device_id_as_hostname: false
+     - network: 127.2.0.0/30
 `))
 	assert.NoError(t, err)
 
@@ -384,14 +550,15 @@ snmp_listener:
 func Test_CollectTopology_withRootCollectTopologyFalse(t *testing.T) {
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.ReadConfig(strings.NewReader(`
-snmp_listener:
-  collect_topology: false
-  configs:
-   - network: 127.1.0.0/30
-     collect_topology: true
-   - network: 127.2.0.0/30
-     collect_topology: false
-   - network: 127.3.0.0/30
+network_devices:
+  autodiscovery:
+    collect_topology: false
+    configs:
+     - network: 127.1.0.0/30
+       collect_topology: true
+     - network: 127.2.0.0/30
+       collect_topology: false
+     - network: 127.3.0.0/30
 `))
 	assert.NoError(t, err)
 
@@ -406,14 +573,15 @@ snmp_listener:
 func Test_CollectTopology_withRootCollectTopologyTrue(t *testing.T) {
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.ReadConfig(strings.NewReader(`
-snmp_listener:
-  collect_topology: true
-  configs:
-   - network: 127.1.0.0/30
-     collect_topology: true
-   - network: 127.2.0.0/30
-     collect_topology: false
-   - network: 127.3.0.0/30
+network_devices:
+  autodiscovery:
+    collect_topology: true
+    configs:
+     - network: 127.1.0.0/30
+       collect_topology: true
+     - network: 127.2.0.0/30
+       collect_topology: false
+     - network: 127.3.0.0/30
 `))
 	assert.NoError(t, err)
 
@@ -428,13 +596,14 @@ snmp_listener:
 func Test_CollectTopology_withRootCollectTopologyUnset(t *testing.T) {
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.ReadConfig(strings.NewReader(`
-snmp_listener:
-  configs:
-   - network: 127.1.0.0/30
-     collect_topology: true
-   - network: 127.2.0.0/30
-     collect_topology: false
-   - network: 127.3.0.0/30
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 127.1.0.0/30
+       collect_topology: true
+     - network: 127.2.0.0/30
+       collect_topology: false
+     - network: 127.3.0.0/30
 `))
 	assert.NoError(t, err)
 

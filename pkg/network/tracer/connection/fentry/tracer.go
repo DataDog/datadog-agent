@@ -17,23 +17,25 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
 const probeUID = "net"
 
+//nolint:revive // TODO(NET) Fix revive linter
 var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate")
 
 // LoadTracer loads a new tracer
-func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (*manager.Manager, func(), error) {
+func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 	if !fargate.IsFargateInstance() {
 		return nil, nil, ErrorNotSupported
 	}
 
-	m := &manager.Manager{}
+	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, &ebpftelemetry.ErrorsTelemetryModifier{})
 	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RLimit = mgrOpts.RLimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
@@ -45,14 +47,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *
 			return fmt.Errorf("invalid probe configuration: %v", err)
 		}
 
-		initManager(m, config, perfHandlerTCP)
-
-		if err := errtelemetry.ActivateBPFTelemetry(m, nil); err != nil {
-			return fmt.Errorf("could not activate ebpf telemetry: %w", err)
-		}
-
-		telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
-		o.ConstantEditors = append(o.ConstantEditors, telemetryMapKeys...)
+		initManager(m, connCloseEventHandler, config)
 
 		file, err := os.Stat("/proc/self/ns/pid")
 
@@ -62,6 +57,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *
 
 		device := file.Sys().(*syscall.Stat_t).Dev
 		inode := file.Sys().(*syscall.Stat_t).Ino
+		ringbufferEnabled := config.RingBufferSupportedNPM()
 
 		o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
 			Name:  "systemprobe_device",
@@ -71,6 +67,10 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *
 			Name:  "systemprobe_ino",
 			Value: inode,
 		})
+		util.AddBoolConst(&o, "ringbuffers_enabled", ringbufferEnabled)
+		if ringbufferEnabled {
+			util.EnableRingbuffersViaMapEditor(&mgrOpts)
+		}
 
 		// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 		for _, p := range m.Probes {
@@ -89,12 +89,12 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *
 				})
 		}
 
-		return m.InitWithOptions(ar, o)
+		return m.InitWithOptions(ar, &o)
 	})
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return m, nil, nil
+	return m.Manager, nil, nil
 }

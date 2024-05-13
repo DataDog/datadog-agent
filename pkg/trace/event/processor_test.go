@@ -148,17 +148,19 @@ func TestProcessor(t *testing.T) {
 	}
 }
 
+// MockExtractor is a mock implementation of the Extractor interface
 type MockExtractor struct {
 	Rate float64
 }
 
-func (e *MockExtractor) Extract(s *pb.Span, priority sampler.SamplingPriority) (float64, bool) {
+func (e *MockExtractor) Extract(_ *pb.Span, _ sampler.SamplingPriority) (float64, bool) {
 	if e.Rate < 0 {
 		return 0, false
 	}
 	return e.Rate, true
 }
 
+// MockEventSampler is a mock implementation of the EventSampler interface
 type MockEventSampler struct {
 	Rate float64
 
@@ -175,7 +177,7 @@ func (s *MockEventSampler) Stop() {
 	s.StopCalls++
 }
 
-func (s *MockEventSampler) Sample(event *pb.Span) (bool, float64) {
+func (s *MockEventSampler) Sample(_ *pb.Span) (bool, float64) {
 	s.SampleCalls++
 
 	return rand.Float64() < s.Rate, s.Rate

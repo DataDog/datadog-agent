@@ -12,13 +12,14 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/aws/aws-lambda-go/events"
 )
 
 // Define and initialize serviceMapping as a global variable.
 var serviceMapping map[string]string
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func CreateServiceMapping(val string) map[string]string {
 	newServiceMapping := make(map[string]string)
 
@@ -46,10 +47,13 @@ func SetServiceMapping(newServiceMapping map[string]string) {
 }
 
 // This function gets a snapshot of the current service mapping without modifying it.
+//
+//nolint:revive // TODO(SERV) Fix revive linter
 func GetServiceMapping() map[string]string {
 	return serviceMapping
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func DetermineServiceName(serviceMapping map[string]string, specificKey string, genericKey string, defaultValue string) string {
 	var serviceName string
 	if val, ok := serviceMapping[specificKey]; ok {
@@ -72,6 +76,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(even
 	domain := requestContext.DomainName
 	httpurl := fmt.Sprintf("%s%s", domain, eventPayload.Path)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
+	//nolint:revive // TODO(SERV) Fix revive linter
 	apiId := requestContext.APIID
 	serviceName := DetermineServiceName(serviceMapping, apiId, "lambda_api_gateway", domain)
 	inferredSpan.Span.Name = "aws.apigateway"
@@ -105,6 +110,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(even
 	domainName := requestContext.DomainName
 	httpurl := fmt.Sprintf("%s%s", domainName, path)
 	startTime := calculateStartTime(requestContext.TimeEpoch)
+	//nolint:revive // TODO(SERV) Fix revive linter
 	apiId := requestContext.APIID
 	serviceName := DetermineServiceName(serviceMapping, apiId, "lambda_api_gateway", domainName)
 	inferredSpan.Span.Name = "aws.httpapi"
@@ -170,6 +176,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent
 	routeKey := requestContext.RouteKey
 	httpurl := fmt.Sprintf("%s%s", requestContext.DomainName, routeKey)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
+	//nolint:revive // TODO(SERV) Fix revive linter
 	apiId := requestContext.APIID
 	serviceName := DetermineServiceName(serviceMapping, apiId, "lambda_api_gateway", requestContext.DomainName)
 	inferredSpan.Span.Name = "aws.apigateway.websocket"
@@ -280,7 +287,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 // EnrichInferredSpanWithEventBridgeEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from an EventBridge event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPayload EventBridgeEvent) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPayload events.EventBridgeEvent) {
 	source := eventPayload.Source
 	serviceName := DetermineServiceName(serviceMapping, source, "lambda_eventbridge", "eventbridge")
 	inferredSpan.IsAsync = true

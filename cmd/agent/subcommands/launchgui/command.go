@@ -41,7 +41,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 		SilenceUsage: true,
@@ -50,14 +50,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{launchCmd}
 }
 
-func launchGui(config config.Component, cliParams *cliParams) error {
+func launchGui(config config.Component, _ *cliParams) error {
 	guiPort := pkgconfig.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
 		return fmt.Errorf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
 	}
 
 	// Read the authentication token: can only be done if user can read from datadog.yaml
-	authToken, err := security.FetchAuthToken()
+	authToken, err := security.FetchAuthToken(config)
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func launchGui(config config.Component, cliParams *cliParams) error {
 		return err
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/agent/gui/csrf-token", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
-	err = util.SetAuthToken()
+	err = util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}

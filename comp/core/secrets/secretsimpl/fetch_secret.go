@@ -133,11 +133,11 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 	for _, sec := range secretsHandle {
 		v, ok := secrets[sec]
 		if !ok {
-			return nil, fmt.Errorf("secret handle '%s' was not decrypted by the secret_backend_command", sec)
+			return nil, fmt.Errorf("secret handle '%s' was not resolved by the secret_backend_command", sec)
 		}
 
 		if v.ErrorMsg != "" {
-			return nil, fmt.Errorf("an error occurred while decrypting '%s': %s", sec, v.ErrorMsg)
+			return nil, fmt.Errorf("an error occurred while resolving '%s': %s", sec, v.ErrorMsg)
 		}
 
 		if r.removeTrailingLinebreak {
@@ -145,11 +145,8 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 		}
 
 		if v.Value == "" {
-			return nil, fmt.Errorf("decrypted secret for '%s' is empty", sec)
+			return nil, fmt.Errorf("resolved secret for '%s' is empty", sec)
 		}
-
-		// add it to the cache
-		r.cache[sec] = v.Value
 		res[sec] = v.Value
 	}
 	return res, nil

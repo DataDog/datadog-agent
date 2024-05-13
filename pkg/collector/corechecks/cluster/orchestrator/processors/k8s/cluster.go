@@ -5,6 +5,7 @@
 
 //go:build orchestrator
 
+// Package k8s defines handlers for processing kubernetes resources
 package k8s
 
 import (
@@ -43,22 +44,24 @@ func NewClusterProcessor() *ClusterProcessor {
 }
 
 // Process is used to process a list of node resources forming a cluster.
-func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interface{}) (processResult processors.ProcessResult, processed int, err error) {
+func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interface{}) (processResult processors.ProcessResult, processed int, err error) {
 	processed = -1
 
 	defer processors.RecoverOnPanic()
 
 	// Cluster information is an aggregation of node list data.
 	var (
-		kubeletVersions   = make(map[string]int32)
-		cpuAllocatable    uint64
-		cpuCapacity       uint64
-		memoryAllocatable uint64
-		memoryCapacity    uint64
-		podAllocatable    uint32
-		podCapacity       uint32
+		kubeletVersions              = make(map[string]int32)
+		cpuAllocatable               uint64
+		cpuCapacity                  uint64
+		memoryAllocatable            uint64
+		memoryCapacity               uint64
+		podAllocatable               uint32
+		podCapacity                  uint32
+		extendedResourcesCapacity    = make(map[string]int64)
+		extendedResourcesAllocatable = make(map[string]int64)
 	)
-
+	pctx := ctx.(*processors.K8sProcessorContext)
 	resourceList := p.nodeHandlers.ResourceList(ctx, list)
 	nodeCount := int32(len(resourceList))
 
@@ -79,25 +82,42 @@ func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interf
 		// Pod allocatable and capacity.
 		podAllocatable += uint32(r.Status.Allocatable.Pods().Value())
 		podCapacity += uint32(r.Status.Capacity.Pods().Value())
+
+		// Extended resources capacity and allocatable.
+		for name, quantity := range r.Status.Capacity {
+			if name == corev1.ResourceCPU || name == corev1.ResourceMemory || name == corev1.ResourcePods {
+				continue
+			}
+			extendedResourcesCapacity[name.String()] += quantity.Value()
+		}
+
+		for name, quantity := range r.Status.Allocatable {
+			if name == corev1.ResourceCPU || name == corev1.ResourceMemory || name == corev1.ResourcePods {
+				continue
+			}
+			extendedResourcesAllocatable[name.String()] += quantity.Value()
+		}
 	}
 
 	clusterModel := &model.Cluster{
-		CpuAllocatable:    cpuAllocatable,
-		CpuCapacity:       cpuCapacity,
-		KubeletVersions:   kubeletVersions,
-		MemoryAllocatable: memoryAllocatable,
-		MemoryCapacity:    memoryCapacity,
-		NodeCount:         nodeCount,
-		PodAllocatable:    podAllocatable,
-		PodCapacity:       podCapacity,
+		CpuAllocatable:               cpuAllocatable,
+		CpuCapacity:                  cpuCapacity,
+		KubeletVersions:              kubeletVersions,
+		MemoryAllocatable:            memoryAllocatable,
+		MemoryCapacity:               memoryCapacity,
+		NodeCount:                    nodeCount,
+		PodAllocatable:               podAllocatable,
+		PodCapacity:                  podCapacity,
+		ExtendedResourcesCapacity:    extendedResourcesCapacity,
+		ExtendedResourcesAllocatable: extendedResourcesAllocatable,
 	}
 
-	kubeSystemCreationTimestamp, err := getKubeSystemCreationTimeStamp(ctx.APIClient.Cl.CoreV1())
+	kubeSystemCreationTimestamp, err := getKubeSystemCreationTimeStamp(pctx.APIClient.Cl.CoreV1())
 	if err != nil {
 		return processResult, 0, fmt.Errorf("error getting server kube system creation timestamp: %s", err.Error())
 	}
 
-	apiVersion, err := ctx.APIClient.Cl.Discovery().ServerVersion()
+	apiVersion, err := pctx.APIClient.Cl.Discovery().ServerVersion()
 	if err != nil {
 		return processResult, 0, fmt.Errorf("error getting server apiVersion: %s", err.Error())
 	}
@@ -112,7 +132,7 @@ func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interf
 		return processResult, 0, fmt.Errorf("failed to compute resource version: %s", err.Error())
 	}
 
-	if orchestrator.SkipKubernetesResource(types.UID(ctx.ClusterID), clusterModel.ResourceVersion, orchestrator.K8sCluster) {
+	if orchestrator.SkipKubernetesResource(types.UID(pctx.ClusterID), clusterModel.ResourceVersion, orchestrator.K8sCluster) {
 		stats := orchestrator.CheckStats{
 			CacheHits: 1,
 			CacheMiss: 0,
@@ -124,11 +144,11 @@ func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interf
 
 	messages := []model.MessageBody{
 		&model.CollectorCluster{
-			ClusterName: ctx.Cfg.KubeClusterName,
-			ClusterId:   ctx.ClusterID,
-			GroupId:     ctx.MsgGroupID,
+			ClusterName: pctx.Cfg.KubeClusterName,
+			ClusterId:   pctx.ClusterID,
+			GroupId:     pctx.MsgGroupID,
 			Cluster:     clusterModel,
-			Tags:        ctx.Cfg.ExtraTags,
+			Tags:        pctx.Cfg.ExtraTags,
 		},
 	}
 	processResult = processors.ProcessResult{

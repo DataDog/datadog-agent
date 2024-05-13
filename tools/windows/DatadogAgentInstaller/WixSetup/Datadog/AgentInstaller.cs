@@ -129,13 +129,6 @@ namespace WixSetup.Datadog
                 }
             );
 
-            // Conditionally include the PROCMON MSM while it is in active development to make it easier
-            // to build/ship without it.
-            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
-            {
-                project.AddProperty(new Property("INSTALL_CWS", "1"));
-            }
-
             // Always generate a new GUID otherwise WixSharp will generate one based on
             // the version
             project.ProductId = Guid.NewGuid();
@@ -296,20 +289,15 @@ namespace WixSetup.Datadog
                         .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
                         .AddElement("MergeRef", "Id=ddapminstall");
                 }
-                // Conditionally include the PROCMON MSM while it is in active development to make it easier
-                // to build/ship without it.
-                if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
-                {
-                    document
-                        .FindAll("Directory")
-                        .First(x => x.HasAttribute("Id", value => value == "AGENT"))
-                        .AddElement("Merge",
-                            $"Id=ddprocmoninstall; SourceFile={BinSource}\\agent\\ddprocmon.msm; DiskId=1; Language=1033");
-                    document
-                        .FindAll("Feature")
-                        .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
-                        .AddElement("MergeRef", "Id=ddprocmoninstall");
-                }
+                document
+                    .FindAll("Directory")
+                    .First(x => x.HasAttribute("Id", value => value == "AGENT"))
+                    .AddElement("Merge",
+                        $"Id=ddprocmoninstall; SourceFile={BinSource}\\agent\\ddprocmon.msm; DiskId=1; Language=1033");
+                document
+                    .FindAll("Feature")
+                    .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
+                    .AddElement("MergeRef", "Id=ddprocmoninstall");
             };
             project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
             project.WixSourceSaved += name => WixSourceSaved?.Invoke(name);
@@ -375,19 +363,6 @@ namespace WixSetup.Datadog
             return new Dir(new Id("DatadogAppRoot"), "%ProgramFiles%\\Datadog", datadogAgentFolder);
         }
 
-        private static PermissionEx DefaultPermissions()
-        {
-            return new PermissionEx
-            {
-                User = "[DDAGENTUSER_PROCESSED_FQ_NAME]",
-                ServicePauseContinue = true,
-                ServiceQueryStatus = true,
-                ServiceStart = true,
-                ServiceStop = true,
-                ServiceUserDefinedControl = true
-            };
-        }
-
         private static ServiceInstaller GenerateServiceInstaller(string name, string displayName, string description)
         {
             return new ServiceInstaller
@@ -410,7 +385,6 @@ namespace WixSetup.Datadog
                 RestartServiceDelayInSeconds = 60,
                 ResetPeriodInDays = 0,
                 PreShutdownDelay = 1000 * 60 * 3,
-                PermissionEx = DefaultPermissions(),
                 // Account must be a fully qualified name.
                 Account = "[DDAGENTUSER_PROCESSED_FQ_NAME]",
                 Password = "[DDAGENTUSER_PROCESSED_PASSWORD]"
@@ -445,7 +419,6 @@ namespace WixSetup.Datadog
                 RestartServiceDelayInSeconds = 60,
                 ResetPeriodInDays = 0,
                 PreShutdownDelay = 1000 * 60 * 3,
-                PermissionEx = DefaultPermissions(),
                 Interactive = false,
                 Type = SvcType.ownProcess,
                 // Account must be a fully qualified name.
@@ -517,26 +490,23 @@ namespace WixSetup.Datadog
                     }
 
             );
-            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
-            {
-                var securityAgentService = GenerateDependentServiceInstaller(
-                    new Id("ddagentsecurityservice"),
-                    Constants.SecurityAgentServiceName,
-                    "Datadog Security Service",
-                    "Send Security events to Datadog",
-                    "[DDAGENTUSER_PROCESSED_FQ_NAME]",
-                    "[DDAGENTUSER_PROCESSED_PASSWORD]");
-                agentBinDir.AddFile(new WixSharp.File(_agentBinaries.SecurityAgent, securityAgentService));
+            var securityAgentService = GenerateDependentServiceInstaller(
+                new Id("ddagentsecurityservice"),
+                Constants.SecurityAgentServiceName,
+                "Datadog Security Service",
+                "Send Security events to Datadog",
+                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
+                "[DDAGENTUSER_PROCESSED_PASSWORD]");
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.SecurityAgent, securityAgentService));
 
-                agentBinDir.Add(new EventSource
-                {
-                    Name = Constants.SecurityAgentServiceName,
-                    Log = "Application",
-                    EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.SecurityAgent)}",
-                    AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
-                }
-                );
+            agentBinDir.Add(new EventSource
+            {
+                Name = Constants.SecurityAgentServiceName,
+                Log = "Application",
+                EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.SecurityAgent)}",
+                AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
             }
+            );
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
                 // Each EventSource must have KeyPath=yes to avoid having the parent directory placed in the CreateFolder table.
@@ -574,13 +544,10 @@ namespace WixSetup.Datadog
                     new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
                 ));
 
-            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
-            {
-                appData.AddDir(new Dir(new Id("security.d"),
-                                       "runtime-security.d",
-                                       new WixSharp.File($@"{EtcSource}\runtime-security.d\default.policy.example")
-                ));
-            }
+            appData.AddDir(new Dir(new Id("security.d"),
+                                    "runtime-security.d",
+                                    new WixSharp.File($@"{EtcSource}\runtime-security.d\default.policy.example")
+            ));
             return new Dir(new Id("%CommonAppData%"), appData)
             {
                 Attributes = { { "Name", "CommonAppData" } }

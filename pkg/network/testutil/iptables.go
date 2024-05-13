@@ -48,6 +48,8 @@ func IptablesRestore(tb testing.TB, state []byte) {
 
 // Ip6tablesSave saves the current iptables state to a file
 // and returns its path
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func Ip6tablesSave(tb testing.TB) {
 	cmd := exec.Command("ip6tables-save")
 	state, err := cmd.Output()
@@ -69,6 +71,8 @@ func Ip6tablesSave(tb testing.TB) {
 }
 
 // Ip6tablesRestore restores iptables state from a file
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func Ip6tablesRestore(tb testing.TB, state []byte) {
 	cmd := exec.Command("ip6tables-restore", "--counters")
 	cmd.Stdin = bytes.NewReader(state)

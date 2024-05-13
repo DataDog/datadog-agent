@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package cloudproviders provides utilities to detect the cloud provider.
 package cloudproviders
 
 import (

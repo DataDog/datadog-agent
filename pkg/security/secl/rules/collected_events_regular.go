@@ -15,7 +15,7 @@ type EventCollector struct {
 }
 
 // CollectEvent collects event
-func (ec *EventCollector) CollectEvent(rs *RuleSet, event eval.Event, result bool) {
+func (ec *EventCollector) CollectEvent(_ *RuleSet, _ eval.Event, _ bool) {
 	// no-op
 }
 

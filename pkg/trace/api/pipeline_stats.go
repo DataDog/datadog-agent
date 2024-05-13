@@ -19,7 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -57,7 +57,7 @@ func (r *HTTPReceiver) pipelineStatsProxyHandler() http.Handler {
 		tag := fmt.Sprintf("orchestrator:fargate_%s", strings.ToLower(string(orch)))
 		tags = tags + "," + tag
 	}
-	return newPipelineStatsProxy(r.conf, urls, apiKeys, tags)
+	return newPipelineStatsProxy(r.conf, urls, apiKeys, tags, r.statsd)
 }
 
 func pipelineStatsErrorHandler(err error) http.Handler {
@@ -69,7 +69,7 @@ func pipelineStatsErrorHandler(err error) http.Handler {
 
 // newPipelineStatsProxy creates an http.ReverseProxy which forwards requests to the pipeline stats intake.
 // The tags will be added as a header to all proxied requests.
-func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []string, tags string) *httputil.ReverseProxy {
+func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
 	log.Debug("[pipeline_stats] Creating reverse proxy")
 	cidProvider := NewIDProvider(conf.ContainerProcRoot)
 	director := func(req *http.Request) {
@@ -83,9 +83,11 @@ func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []
 		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
 		if ctags := getContainerTags(conf.ContainerTags, containerID); ctags != "" {
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
+			log.Debugf("Setting header X-Datadog-Container-Tags=%s for pipeline stats proxy", ctags)
 		}
 		req.Header.Set("X-Datadog-Additional-Tags", tags)
-		metrics.Count("datadog.trace_agent.pipelines_stats", 1, nil, 1)
+		log.Debugf("Setting header X-Datadog-Additional-Tags=%s for pipeline stats proxy", tags)
+		_ = statsd.Count("datadog.trace_agent.pipelines_stats", 1, nil, 1)
 	}
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{

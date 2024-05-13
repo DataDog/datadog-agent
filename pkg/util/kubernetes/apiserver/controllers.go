@@ -53,16 +53,14 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 
 // ControllerContext holds all the attributes needed by the controllers
 type ControllerContext struct {
-	informers          map[InformerName]cache.SharedInformer
-	InformerFactory    informers.SharedInformerFactory
-	WPAClient          dynamic.Interface
-	WPAInformerFactory dynamicinformer.DynamicSharedInformerFactory
-	DDClient           dynamic.Interface
-	DDInformerFactory  dynamicinformer.DynamicSharedInformerFactory
-	Client             kubernetes.Interface
-	IsLeaderFunc       func() bool
-	EventRecorder      record.EventRecorder
-	StopCh             chan struct{}
+	informers              map[InformerName]cache.SharedInformer
+	InformerFactory        informers.SharedInformerFactory
+	DynamicClient          dynamic.Interface
+	DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
+	Client                 kubernetes.Interface
+	IsLeaderFunc           func() bool
+	EventRecorder          record.EventRecorder
+	StopCh                 chan struct{}
 }
 
 // StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is
@@ -116,10 +114,11 @@ func StartControllers(ctx ControllerContext) errors.Aggregate {
 
 // startMetadataController starts the informers needed for metadata collection.
 // The synchronization of the informers is handled by the controller.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func startMetadataController(ctx ControllerContext, c chan error) {
 	metaController := NewMetadataController(
 		ctx.InformerFactory.Core().V1().Nodes(),
-		ctx.InformerFactory.Core().V1().Namespaces(),
 		ctx.InformerFactory.Core().V1().Endpoints(),
 	)
 	go metaController.Run(ctx.StopCh)
@@ -144,8 +143,9 @@ func startAutoscalersController(ctx ControllerContext, c chan error) {
 		c <- err
 		return
 	}
-	if ctx.WPAInformerFactory != nil {
-		go autoscalersController.RunWPA(ctx.StopCh, ctx.WPAClient, ctx.WPAInformerFactory)
+
+	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
+		go autoscalersController.RunWPA(ctx.StopCh, ctx.DynamicClient, ctx.DynamicInformerFactory)
 	}
 
 	autoscalersController.enableHPA(ctx.Client, ctx.InformerFactory)
@@ -155,11 +155,15 @@ func startAutoscalersController(ctx ControllerContext, c chan error) {
 }
 
 // registerServicesInformer registers the services informer.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func registerServicesInformer(ctx ControllerContext, c chan error) {
 	ctx.informers[ServicesInformer] = ctx.InformerFactory.Core().V1().Services().Informer()
 }
 
 // registerEndpointsInformer registers the endpoints informer.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func registerEndpointsInformer(ctx ControllerContext, c chan error) {
 	ctx.informers[endpointsInformer] = ctx.InformerFactory.Core().V1().Endpoints().Informer()
 }

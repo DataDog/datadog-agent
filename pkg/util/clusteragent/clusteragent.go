@@ -20,6 +20,8 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -29,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"google.golang.org/protobuf/proto"
 )
 
 /*
@@ -115,7 +116,7 @@ func (c *DCAClient) init() error {
 		return err
 	}
 
-	authToken, err := security.GetClusterAgentAuthToken()
+	authToken, err := security.GetClusterAgentAuthToken(config.Datadog)
 	if err != nil {
 		return err
 	}

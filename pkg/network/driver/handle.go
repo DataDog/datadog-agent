@@ -12,11 +12,9 @@ import (
 	"fmt"
 	"unsafe"
 
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-
 	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,11 +25,14 @@ const (
 )
 
 var (
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	// Buffer holding datadog driver filterapi (ddnpmapi) signature to ensure consistency with driver.
 	DdAPIVersionBuf = makeDDAPIVersionBuffer(Signature)
 )
 
 // Telemetry
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 var HandleTelemetry = struct {
 	numFlowCollisions     telemetry.Gauge
 	newFlowsSkippedMax    telemetry.Gauge
@@ -71,7 +72,7 @@ var HandleTelemetry = struct {
 	httpTxnNoLatency      telemetry.Gauge
 	httpTxnBatchedOnRead  telemetry.Gauge
 
-	ReadPacketsSkipped *nettelemetry.StatGaugeWrapper
+	ReadPacketsSkipped *telemetry.StatGaugeWrapper
 	readsRequested     telemetry.Gauge
 	readsCompleted     telemetry.Gauge
 	readsCancelled     telemetry.Gauge
@@ -114,7 +115,7 @@ var HandleTelemetry = struct {
 	telemetry.NewGauge(handleModuleName, "txn_zero_latency", []string{}, "Gauge measuring number of http transactions computed zero latency"),
 	telemetry.NewGauge(handleModuleName, "txn_batched_on_read", []string{}, "Gauge measuring number of http transactions computed zero latency"),
 
-	nettelemetry.NewStatGaugeWrapper(handleModuleName, "read_packets_skipped", []string{}, "Gauge measuring the number of read packets skipped"),
+	telemetry.NewStatGaugeWrapper(handleModuleName, "read_packets_skipped", []string{}, "Gauge measuring the number of read packets skipped"),
 	telemetry.NewGauge(handleModuleName, "reads_requested", []string{}, "Gauge measuring the number of reads requested"),
 	telemetry.NewGauge(handleModuleName, "reads_completed", []string{}, "Gauge measuring the number of reads completed"),
 	telemetry.NewGauge(handleModuleName, "reads_cancelled", []string{}, "Gauge measuring the number of reads_cancelled"),
@@ -150,6 +151,7 @@ var handleTypeToPathName = map[HandleType]string{
 	StatsHandle: "driverstatshandle", // for now just use that; any path will do
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type Handle interface {
 	ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error
 	DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error)
@@ -160,6 +162,8 @@ type Handle interface {
 }
 
 // Handle struct stores the windows handle for the driver as well as information about what type of filter is set
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 type RealDriverHandle struct {
 	Handle     windows.Handle
 	handleType HandleType
@@ -169,17 +173,22 @@ type RealDriverHandle struct {
 	lastNumClosedFlowsMissed uint64
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (dh *RealDriverHandle) GetWindowsHandle() windows.Handle {
 	return dh.Handle
 }
+
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (dh *RealDriverHandle) ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error {
 	return windows.ReadFile(dh.Handle, p, bytesRead, ol)
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (dh *RealDriverHandle) DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error) {
 	return windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, bytesReturned, overlapped)
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (dh *RealDriverHandle) CancelIoEx(ol *windows.Overlapped) error {
 	return windows.CancelIoEx(dh.Handle, ol)
 }

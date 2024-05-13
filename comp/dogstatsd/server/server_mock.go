@@ -19,6 +19,7 @@ func newMock() Component {
 	return &serverMock{}
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *serverMock) Start(demultiplexer aggregator.Demultiplexer) error {
 	s.isRunning = true
 	return nil
@@ -32,6 +33,7 @@ func (s *serverMock) IsRunning() bool {
 	return s.isRunning
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *serverMock) Capture(p string, d time.Duration, compressed bool) (string, error) {
 	return "", nil
 }
@@ -46,4 +48,5 @@ func (s *serverMock) UDPLocalAddr() string {
 
 func (s *serverMock) ServerlessFlush(time.Duration) {}
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *serverMock) SetExtraTags(tags []string) {}

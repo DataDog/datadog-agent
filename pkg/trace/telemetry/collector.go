@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(TEL) Fix revive linter
 package telemetry
 
 import (
@@ -22,13 +23,16 @@ import (
 // Error codes associated with each startup error
 // The full list, and associated description is contained in the Tracking APM Onboarding RFC
 const (
-	GenericError               = 1
-	CantCreateLogger           = 8
-	TraceAgentNotEnabled       = 9
-	CantWritePIDFile           = 10
-	CantSetupAutoExit          = 11
-	CantConfigureDogstatsd     = 12
-	CantCreateRCCLient         = 13
+	GenericError         = 1
+	CantCreateLogger     = 8
+	TraceAgentNotEnabled = 9
+	CantWritePIDFile     = 10
+	// CantSetupAutoExit is no longer used. To avoid conflicting issues in the future
+	// rather than removing from the codebase we will keep it here so no one use 11 for a new error code.
+	// CantSetupAutoExit      = 11
+	CantConfigureDogstatsd = 12
+	CantCreateRCCLient     = 13
+	//nolint:revive // TODO(TEL) Fix revive linter
 	CantStartHttpServer        = 14
 	CantStartUdsServer         = 15
 	CantStartWindowsPipeServer = 16
@@ -42,9 +46,10 @@ const maxFirstTraceFailures = 5
 
 // OnboardingEvent contains
 type OnboardingEvent struct {
-	RequestType string                 `json:"request_type"`
-	ApiVersion  string                 `json:"api_version"`
-	Payload     OnboardingEventPayload `json:"payload,omitempty"`
+	RequestType string `json:"request_type"`
+	//nolint:revive // TODO(TEL) Fix revive linter
+	ApiVersion string                 `json:"api_version"`
+	Payload    OnboardingEventPayload `json:"payload,omitempty"`
 }
 
 // OnboardingEventPayload ...
@@ -74,6 +79,8 @@ type OnboardingEventError struct {
 }
 
 // TelemetryCollector is the interface used to send reports about startup to the instrumentation telemetry intake
+//
+//nolint:revive // TODO(TEL) Fix revive linter
 type TelemetryCollector interface {
 	SendStartupSuccess()
 	SendStartupError(code int, err error)
@@ -187,6 +194,7 @@ func (f *telemetryCollector) SendStartupSuccess() {
 	}
 	ev := newOnboardingTelemetryPayload(f.cfg)
 	ev.Payload.EventName = "agent.startup.success"
+	//nolint:errcheck // TODO(TEL) Fix errcheck linter
 	f.sendEvent(&ev)
 }
 
@@ -199,7 +207,6 @@ func (f *telemetryCollector) SendFirstTrace() {
 	ev := newOnboardingTelemetryPayload(f.cfg)
 	ev.Payload.EventName = "agent.first_trace.sent"
 	err := f.sendEvent(&ev)
-	fmt.Println(err)
 	if err != nil {
 		if f.firstTraceFailures.Inc() < maxFirstTraceFailures {
 			f.collectedFirstTrace.Store(false)
@@ -213,12 +220,15 @@ func (f *telemetryCollector) SendStartupError(code int, err error) {
 	ev.Payload.EventName = "agent.startup.error"
 	ev.Payload.Error.Code = code
 	ev.Payload.Error.Message = err.Error()
+	//nolint:errcheck // TODO(TEL) Fix errcheck linter
 	f.sendEvent(&ev)
 }
 
 type noopTelemetryCollector struct{}
 
-func (*noopTelemetryCollector) SendStartupSuccess()                  {}
+func (*noopTelemetryCollector) SendStartupSuccess() {}
+
+//nolint:revive // TODO(TEL) Fix revive linter
 func (*noopTelemetryCollector) SendStartupError(code int, err error) {}
 func (*noopTelemetryCollector) SendFirstTrace()                      {}
 func (*noopTelemetryCollector) SentFirstTrace() bool                 { return true }

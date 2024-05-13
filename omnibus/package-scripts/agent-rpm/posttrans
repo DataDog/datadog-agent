@@ -47,11 +47,12 @@ if [ "$INSTALL_SELINUX_POLICY" = "true" ]; then
             echo "Then run the following commands, or reinstall datadog-agent:"
             echo "    semodule -i $CONFIG_DIR/selinux/system_probe_policy.pp"
             echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe"
-            echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe"
+            echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/bin/agent/agent"
+            echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe $INSTALL_DIR/bin/agent/agent"
         else
             echo "Labeling SELinux type for the system-probe binary."
             if command -v semanage >/dev/null 2>&1 && command -v restorecon >/dev/null 2>&1;then
-                semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe && restorecon -v $INSTALL_DIR/embedded/bin/system-probe
+                semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe && semanage fcontext -a -t system_probe_t $INSTALL_DIR/bin/agent/agent && restorecon -v $INSTALL_DIR/embedded/bin/system-probe && restorecon -v $INSTALL_DIR/bin/agent/agent
                 if [ "$?" != "0" ]; then
                     echo "Couldn’t install system-probe policy."
                     echo "To be able to run system-probe on your host, please install or update the selinux-policy-targeted and"
@@ -59,7 +60,8 @@ if [ "$INSTALL_SELINUX_POLICY" = "true" ]; then
                     echo "Then run the following commands, or reinstall datadog-agent:"
                     echo "    semodule -i $CONFIG_DIR/selinux/system_probe_policy.pp"
                     echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe"
-                    echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe"
+                    echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/bin/agent/agent"
+                    echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe $INSTALL_DIR/bin/agent/agent"
                 fi
             else
                 echo "Couldn’t load system-probe policy (missing selinux utilities)."
@@ -68,7 +70,8 @@ if [ "$INSTALL_SELINUX_POLICY" = "true" ]; then
                 echo "Then run the following commands, or reinstall datadog-agent:"
                 echo "    semodule -i $CONFIG_DIR/selinux/system_probe_policy.pp"
                 echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe"
-                echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe"
+                echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/bin/agent/agent"
+                echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe $INSTALL_DIR/bin/agent/agent"
             fi
         fi
     fi
@@ -105,8 +108,39 @@ install_method:
   installer_version: $installer_version
 "
     echo "$install_info_content" > $CONFIG_DIR/install_info
+fi
+
+set +e
+generate_install_id()
+{
+    # Try generating a UUID based on /proc/sys/kernel/random/uuid
+    uuid=$(cat /proc/sys/kernel/random/uuid 2>/dev/null)
+    # If that does not work, then try uuidgen
+    if [ ${#uuid} -ne 36 ]; then
+        uuid=$(uuidgen 2>/dev/null)
+    fi
+    # Convert to lowercase
+    uuid=$(echo "$uuid" | tr '[:upper:]' '[:lower:]')
+    printf "$uuid"
+}
+
+generate_install_signature()
+{
+    install_id="$1"
+    install_type="$2"
+    install_time="$3"
+    printf "{\"install_id\":\"$install_id\",\"install_type\":\"$install_type\",\"install_time\":$install_time}"
+}
+
+if [ ! -f "$CONFIG_DIR/install.json" ]; then
+    install_id=$(generate_install_id)
+    install_type="linux_manual_with_rpm"
+    install_time=$(date +%s)
+    install_signature=$(generate_install_signature "$install_id" "$install_type" "$install_time")
+    echo "$install_signature" > $CONFIG_DIR/install.json
     chown -R dd-agent:dd-agent ${CONFIG_DIR}
 fi
+set -e
 
 # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
 # and avoid restarting when a check conf is invalid

@@ -39,7 +39,7 @@ a.out
 *.com
 *.class
 *.dll
-*.exe
+## *.exe need exe files to be copied (testsuite.exe)
 */rdoc/
 
 # Testing #

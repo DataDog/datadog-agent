@@ -9,9 +9,11 @@
 package probe
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -23,8 +25,8 @@ func bestGuessServiceTag(serviceValues []string) string {
 	firstGuess := serviceValues[0]
 
 	// first we sort base on len, biggest len first
-	sort.Slice(serviceValues, func(i, j int) bool {
-		return len(serviceValues[j]) < len(serviceValues[i]) // reverse
+	slices.SortFunc(serviceValues, func(a, b string) int {
+		return cmp.Compare(len(b), len(a)) // reverse
 	})
 
 	// we then compare [i] and [i + 1] to check if [i + 1] is a prefix of [i]
@@ -41,7 +43,7 @@ func bestGuessServiceTag(serviceValues []string) string {
 }
 
 // getProcessService returns the service tag based on the process context
-func getProcessService(entry *model.ProcessCacheEntry) string {
+func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) string {
 	var serviceValues []string
 
 	// first search in the process context itself
@@ -66,5 +68,9 @@ func getProcessService(entry *model.ProcessCacheEntry) string {
 		}
 	}
 
-	return bestGuessServiceTag(serviceValues)
+	if service := bestGuessServiceTag(serviceValues); service != "" {
+		return service
+	}
+
+	return config.RuntimeSecurity.HostServiceName
 }

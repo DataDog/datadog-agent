@@ -19,6 +19,7 @@ const (
 	trackerTick
 )
 
+//nolint:revive // TODO(AML) Fix revive linter
 type UtilizationTracker struct {
 	Output chan float64
 
@@ -55,6 +56,8 @@ func NewUtilizationTracker(
 //
 // Does not start the background goroutines, so that the tests can call update() to get
 // deterministic results.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func newUtilizationTrackerWithClock(workerName string, interval time.Duration, clk clock.Clock) *UtilizationTracker {
 	ut := &UtilizationTracker{
 		clock: clk,

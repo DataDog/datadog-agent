@@ -16,7 +16,7 @@ import (
 )
 
 // connContext is unimplemented for non-linux builds.
-func connContext(ctx context.Context, c net.Conn) context.Context {
+func connContext(ctx context.Context, _ net.Conn) context.Context {
 	return ctx
 }
 
@@ -32,6 +32,7 @@ func NewIDProvider(_ string) IDProvider {
 	return &idProvider{}
 }
 
-func (_ *idProvider) GetContainerID(_ context.Context, h http.Header) string {
+// GetContainerID returns the container ID from the http header.
+func (*idProvider) GetContainerID(_ context.Context, h http.Header) string {
 	return h.Get(header.ContainerID)
 }

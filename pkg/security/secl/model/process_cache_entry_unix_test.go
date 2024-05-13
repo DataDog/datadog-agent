@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build unix
-// +build unix
 
 // Package model holds model related files
 package model
@@ -43,7 +42,7 @@ func TestHasValidLineage(t *testing.T) {
 
 		isValid, err := child2.HasValidLineage()
 		assert.True(t, isValid)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("pid1-missing", func(t *testing.T) {

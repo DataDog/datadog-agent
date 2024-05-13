@@ -17,11 +17,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestUDS(t *testing.T) {
@@ -43,7 +44,7 @@ func TestUDS(t *testing.T) {
 	t.Run("off", func(t *testing.T) {
 		// running the tests on different ports to prevent
 		// flaky panics related to the port being already taken
-		port := 8126
+		port := 8127
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"
 		conf.ReceiverPort = port

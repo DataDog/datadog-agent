@@ -34,7 +34,7 @@ namespace Datadog.CustomActions.RollbackData
         /// is called with SeRestorePrivilege enabled. The error is NOT returned by the .NET API, so there's no way to tell that this occurred
         /// until looking at the DACL of the child.
         /// </remarks>
-        public void Restore(ISession session, IFileSystemServices fileSystemServices)
+        public void Restore(ISession session, IFileSystemServices fileSystemServices, IServiceController _)
         {
             var fileSystemSecurity = fileSystemServices.GetAccessControl(_filePath);
             session.Log(

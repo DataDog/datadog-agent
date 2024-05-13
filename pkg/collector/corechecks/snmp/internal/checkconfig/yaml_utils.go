@@ -75,6 +75,7 @@ func (ic *InterfaceConfigs) UnmarshalYAML(unmarshal func(interface{}) error) err
 	var ifConfigs []snmpintegration.InterfaceConfig
 	err := unmarshal(&ifConfigs)
 	if err != nil {
+		//nolint:revive // TODO(NDM) Fix revive linter
 		var ifConfigJson string
 		err := unmarshal(&ifConfigJson)
 		if err != nil {

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package file
 
 import (
@@ -13,14 +14,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -39,18 +41,21 @@ type Launcher struct {
 	tailingLimit        int
 	fileProvider        *fileprovider.FileProvider
 	tailers             *tailers.TailerContainer[*tailer.Tailer]
+	rotatedTailers      []*tailer.Tailer
 	registry            auditor.Registry
 	tailerSleepDuration time.Duration
 	stop                chan struct{}
+	done                chan struct{}
 	// set to true if we want to use `ContainersLogsDir` to validate that a new
 	// pod log file is being attached to the correct containerID.
 	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
 	validatePodContainerID bool
 	scanPeriod             time.Duration
+	flarecontroller        *flareController.FlareController
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string) *Launcher {
+func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string, flarecontroller *flareController.FlareController) *Launcher {
 
 	var wildcardStrategy fileprovider.WildcardSelectionStrategy
 	switch wildcardMode {
@@ -67,10 +72,13 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		tailingLimit:           tailingLimit,
 		fileProvider:           fileprovider.NewFileProvider(tailingLimit, wildcardStrategy),
 		tailers:                tailers.NewTailerContainer[*tailer.Tailer](),
+		rotatedTailers:         []*tailer.Tailer{},
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
+		done:                   make(chan struct{}),
 		validatePodContainerID: validatePodContainerID,
 		scanPeriod:             scanPeriod,
+		flarecontroller:        flarecontroller,
 	}
 }
 
@@ -87,13 +95,17 @@ func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 // this call returns only when all the tailers are stopped
 func (s *Launcher) Stop() {
 	s.stop <- struct{}{}
-	s.cleanup()
+	<-s.done
 }
 
 // run checks periodically if there are new files to tail and the state of its tailers until stop
 func (s *Launcher) run() {
 	scanTicker := time.NewTicker(s.scanPeriod)
-	defer scanTicker.Stop()
+	defer func() {
+		scanTicker.Stop()
+		close(s.done)
+	}()
+
 	for {
 		select {
 		case source := <-s.addedSources:
@@ -101,10 +113,12 @@ func (s *Launcher) run() {
 		case source := <-s.removedSources:
 			s.removeSource(source)
 		case <-scanTicker.C:
+			s.cleanUpRotatedTailers()
 			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
 			s.scan()
 		case <-s.stop:
 			// no more file should be tailed
+			s.cleanup()
 			return
 		}
 	}
@@ -113,6 +127,12 @@ func (s *Launcher) run() {
 // cleanup all tailers
 func (s *Launcher) cleanup() {
 	stopper := startstop.NewParallelStopper()
+	s.cleanUpRotatedTailers()
+	for _, tailer := range s.rotatedTailers {
+		stopper.Add(tailer)
+	}
+	s.rotatedTailers = []*tailer.Tailer{}
+
 	for _, tailer := range s.tailers.All() {
 		stopper.Add(tailer)
 		s.tailers.Remove(tailer)
@@ -127,6 +147,7 @@ func (s *Launcher) cleanup() {
 func (s *Launcher) scan() {
 	files := s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources)
 	filesTailed := make(map[string]bool)
+	var allFiles []string
 
 	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(files), s.tailers.Count())
 
@@ -134,6 +155,7 @@ func (s *Launcher) scan() {
 	// stop the tailers.
 	// Defer creation of new tailers until second pass.
 	for _, file := range files {
+		allFiles = append(allFiles, file.Path)
 		// We're using generated key here: in case this file has been found while
 		// scanning files for container, the key will use the format:
 		//   <filepath>/<containerID>
@@ -154,6 +176,7 @@ func (s *Launcher) scan() {
 		if isTailed {
 			didRotate, err := tailer.DidRotate()
 			if err != nil {
+				log.Debugf("failed to detect log rotation: %v", err)
 				continue
 			}
 			if didRotate {
@@ -172,6 +195,8 @@ func (s *Launcher) scan() {
 
 		filesTailed[scanKey] = true
 	}
+
+	s.flarecontroller.SetAllFiles(allFiles)
 
 	for _, tailer := range s.tailers.All() {
 		// stop all tailers which have not been selected
@@ -206,6 +231,17 @@ func (s *Launcher) scan() {
 	if err == nil {
 		CheckProcessTelemetry(fileStats)
 	}
+}
+
+// cleanUpRotatedTailers removes any rotated tailers that have stopped from the list
+func (s *Launcher) cleanUpRotatedTailers() {
+	pendingTailers := []*tailer.Tailer{}
+	for _, tailer := range s.rotatedTailers {
+		if !tailer.IsFinished() {
+			pendingTailers = append(pendingTailers, tailer)
+		}
+	}
+	s.rotatedTailers = pendingTailers
 }
 
 // addSource keeps track of the new source and launch new tailers for this source.
@@ -321,17 +357,22 @@ func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 
 // restartTailer safely stops tailer and starts a new one
 // returns true if the new tailer is up and running, false if an error occurred
-func (s *Launcher) restartTailerAfterFileRotation(tailer *tailer.Tailer, file *tailer.File) bool {
+func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file *tailer.File) bool {
 	log.Info("Log rotation happened to ", file.Path)
-	tailer.StopAfterFileRotation()
-	tailer = s.createRotatedTailer(tailer, file, tailer.GetDetectedPattern())
+	oldTailer.StopAfterFileRotation()
+
+	newTailer := s.createRotatedTailer(oldTailer, file, oldTailer.GetDetectedPattern())
 	// force reading file from beginning since it has been log-rotated
-	err := tailer.StartFromBeginning()
+	err := newTailer.StartFromBeginning()
 	if err != nil {
 		log.Warn(err)
 		return false
 	}
-	s.tailers.Add(tailer)
+
+	// Since newTailer and oldTailer share the same ID, tailers.Add will replace the old tailer.
+	// We will keep track of the rotated tailer until it is finished.
+	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
+	s.tailers.Add(newTailer)
 	return true
 }
 
@@ -351,10 +392,11 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 }
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {
-	tailerInfo := status.NewInfoRegistry()
+	tailerInfo := t.GetInfo()
 	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func CheckProcessTelemetry(stats *util.ProcessFileStats) {
 	ratio := float64(stats.AgentOpenFiles) / float64(stats.OsFileLimit)
 	if ratio > 0.9 {

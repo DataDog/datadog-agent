@@ -208,6 +208,8 @@ func getSymbols(f *elf.File, typ elf.SectionType, wanted map[string]struct{}) ([
 	return nil, errors.New("not implemented")
 }
 
+// GetAllSymbolsByName returns all symbols (from the symbolSet) in the given elf file, by the given names.
+// In case of a missing symbol, an error is returned.
 func GetAllSymbolsByName(elfFile *elf.File, symbolSet common.StringSet) (map[string]elf.Symbol, error) {
 	regularSymbols, regularSymbolsErr := getSymbols(elfFile, elf.SHT_SYMTAB, symbolSet)
 	if regularSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {

@@ -36,6 +36,7 @@ type filePermsInfo struct {
 	err  error
 }
 
+//nolint:revive
 const (
 	DD_FILE_READ            = (windows.FILE_READ_DATA | windows.FILE_READ_ATTRIBUTES | windows.FILE_READ_EA)
 	DD_FILE_WRITE           = (windows.FILE_WRITE_DATA | windows.FILE_WRITE_ATTRIBUTES | windows.FILE_WRITE_EA | windows.FILE_APPEND_DATA)

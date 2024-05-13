@@ -5,15 +5,14 @@
 
 //go:build systemd
 
+//nolint:revive // TODO(AML) Fix revive linter
 package journald
 
 import (
-	"context"
-
 	"github.com/coreos/go-systemd/sdjournal"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,23 +28,16 @@ func (t *Tailer) isContainerEntry(entry *sdjournal.JournalEntry) bool {
 
 // getContainerID returns the container identifier of the journal entry.
 func (t *Tailer) getContainerID(entry *sdjournal.JournalEntry) string {
+	//nolint:gosimple // TODO(AML) Fix gosimple linter
 	containerID, _ := entry.Fields[containerIDKey]
 	return containerID
 }
 
 // getContainerTags returns all the tags of a given container.
 func (t *Tailer) getContainerTags(containerID string) []string {
-	tags, err := tagger.Tag(containers.BuildTaggerEntityName(containerID), collectors.HighCardinality)
+	tags, err := tagger.Tag(containers.BuildTaggerEntityName(containerID), types.HighCardinality)
 	if err != nil {
 		log.Warn(err)
 	}
 	return tags
-}
-
-// initializeTagger initializes the tag collector.
-func (t *Tailer) initializeTagger() {
-	err := tagger.Init(context.TODO())
-	if err != nil {
-		log.Errorf("failed to start the tagger: %s", err)
-	}
 }

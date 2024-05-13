@@ -22,18 +22,20 @@ import (
 	"time"
 
 	sysctl "github.com/lorenzosaino/go-sysctl"
+	"golang.org/x/net/netutil"
 )
 
 // Options wraps all configurable params for the HTTPServer
 type Options struct {
 	// If TLS is enabled, allows to upgrade the connections to http/2.
-	EnableHTTP2        bool
-	EnableTLS          bool
-	EnableKeepAlive    bool
-	EnableTCPTimestamp *bool
-	ReadTimeout        time.Duration
-	WriteTimeout       time.Duration
-	SlowResponse       time.Duration
+	EnableHTTP2         bool
+	EnableTLS           bool
+	EnableKeepAlive     bool
+	EnableLimitListener bool
+	EnableTCPTimestamp  *bool
+	ReadTimeout         time.Duration
+	WriteTimeout        time.Duration
+	SlowResponse        time.Duration
 }
 
 func isNetIPV4TCPTimestampEnabled(t *testing.T) bool {
@@ -63,6 +65,7 @@ func setNetIPV4TCPTimestamp(t *testing.T, enable bool) {
 	}
 }
 
+// SetupNetIPV4TCPTimestamp sets the net.ipv4.tcp_timestamps to the provided value.
 func SetupNetIPV4TCPTimestamp(t *testing.T, enable bool) {
 	oldTCPTS := isNetIPV4TCPTimestampEnabled(t)
 	setNetIPV4TCPTimestamp(t, enable)
@@ -109,6 +112,13 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 
 	listenFn := func() error {
 		ln, err := net.Listen("tcp", srv.Addr)
+
+		// LimitListener is widely used at internal services so it's important
+		// to test it as well as it modifies how GoTLS tracing is done
+		if options.EnableLimitListener {
+			ln = netutil.LimitListener(ln, 1)
+		}
+
 		if err == nil {
 			go func() { _ = srv.Serve(ln) }()
 		}
@@ -163,6 +173,18 @@ func StatusFromPath(path string) uint16 {
 	return 0
 }
 
+// GetCertsPaths returns the absolute paths to the certs located in the testdata
+// directory, so they can be used in test throughout the project
+func GetCertsPaths() (string, string, error) {
+	curDir, err := CurDir()
+	if err != nil {
+		return "", "", err
+	}
+
+	return filepath.Join(curDir, "testdata/cert.pem.0"), filepath.Join(curDir, "testdata/server.key"), nil
+}
+
+// CurDir returns the current directory of the caller.
 func CurDir() (string, error) {
 	_, file, _, ok := runtime.Caller(1)
 	if !ok {

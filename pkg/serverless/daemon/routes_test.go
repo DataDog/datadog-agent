@@ -8,19 +8,25 @@ package daemon
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/slices"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type mockLifecycleProcessor struct {
@@ -155,6 +161,30 @@ func TestTraceContext(t *testing.T) {
 	}
 }
 
+func TestHello(t *testing.T) {
+	assert := assert.New(t)
+
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	time.Sleep(100 * time.Millisecond)
+	defer d.Stop()
+	d.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
+		ExtraTags:           d.ExtraTags,
+		Demux:               nil,
+		ProcessTrace:        nil,
+		DetectLambdaLibrary: d.IsLambdaLibraryDetected,
+	}
+	client := &http.Client{}
+	body := bytes.NewBuffer([]byte(`{}`))
+	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/hello", port), body)
+	assert.Nil(err)
+	assert.False(d.IsLambdaLibraryDetected())
+	response, err := client.Do(request)
+	assert.Nil(err)
+	response.Body.Close()
+	assert.True(d.IsLambdaLibraryDetected())
+}
+
 func TestStartEndInvocationSpanParenting(t *testing.T) {
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
@@ -237,13 +267,12 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			expPriority: 1,
 		},
 		{
-			// NOTE: sns trace extraction not yet implemented
 			name:        "sns",
 			payload:     getEventFromFile("sns.json"),
 			expInfSpans: 1,
-			expTraceID:  0,
-			expParentID: 0,
-			expPriority: -128,
+			expTraceID:  4948377316357291421,
+			expParentID: 6746998015037429512,
+			expPriority: 1,
 		},
 		{
 			name:        "sns-sqs",
@@ -327,6 +356,36 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 	}
 }
 
+func TestStartEndInvocationIsExecutionSpanIncomplete(t *testing.T) {
+	assert := assert.New(t)
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	time.Sleep(100 * time.Millisecond)
+	defer d.Stop()
+
+	m := &mockLifecycleProcessor{}
+	d.InvocationProcessor = m
+
+	client := &http.Client{}
+	body := bytes.NewBuffer([]byte(`{"key": "value"}`))
+	startReq, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/start-invocation", port), body)
+	assert.Nil(err)
+	startResp, err := client.Do(startReq)
+	assert.Nil(err)
+	startResp.Body.Close()
+	assert.True(m.OnInvokeStartCalled)
+	assert.True(d.IsExecutionSpanIncomplete())
+
+	body = bytes.NewBuffer([]byte(`{}`))
+	endReq, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/end-invocation", port), body)
+	assert.Nil(err)
+	endResp, err := client.Do(endReq)
+	assert.Nil(err)
+	endResp.Body.Close()
+	assert.True(m.OnInvokeEndCalled)
+	assert.False(d.IsExecutionSpanIncomplete())
+}
+
 // Helper function for reading test file
 func getEventFromFile(filename string) string {
 	event, err := os.ReadFile("../trace/testdata/event_samples/" + filename)
@@ -334,4 +393,69 @@ func getEventFromFile(filename string) string {
 		panic(err)
 	}
 	return "a5a" + string(event) + "0"
+}
+
+func BenchmarkStartEndInvocation(b *testing.B) {
+	// Set the logger up, so that it does not buffer all entries forever (some of these are BIG as they include the
+	// JSON payload). We're not interested in any output here, so we send it all to `io.Discard`.
+	l, err := seelog.LoggerFromWriterWithMinLevel(io.Discard, seelog.ErrorLvl)
+	assert.Nil(b, err)
+	log.SetupLogger(l, "error")
+
+	// relative to location of this test file
+	payloadFiles, err := os.ReadDir("../trace/testdata/event_samples")
+	if err != nil {
+		b.Fatal(err)
+	}
+	endBody := `{"hello":"world"}`
+	for _, file := range payloadFiles {
+		startBody := getEventFromFile(file.Name())
+		b.Run("event="+file.Name(), func(b *testing.B) {
+			startReq := httptest.NewRequest("GET", "/lambda/start-invocation", nil)
+			endReq := httptest.NewRequest("GET", "/lambda/end-invocation", nil)
+			rr := httptest.NewRecorder()
+
+			d := startAgents()
+			defer d.Stop()
+			start := &StartInvocation{d}
+			end := &EndInvocation{d}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				// reset request bodies
+				startReq.Body = io.NopCloser(strings.NewReader(startBody))
+				endReq.Body = io.NopCloser(strings.NewReader(endBody))
+				b.StartTimer()
+
+				start.ServeHTTP(rr, startReq)
+				end.ServeHTTP(rr, endReq)
+			}
+			b.StopTimer()
+		})
+	}
+}
+
+func startAgents() *Daemon {
+	d := StartDaemon(fmt.Sprint("127.0.0.1:", testutil.FreeTCPPort(nil)))
+
+	ta := &trace.ServerlessTraceAgent{}
+	ta.Start(true, &trace.LoadConfig{Path: "/some/path/datadog.yml"}, nil, 123)
+	d.SetTraceAgent(ta)
+
+	ma := &metrics.ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 10,
+	}
+	ma.Start(FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
+	d.SetStatsdServer(ma)
+
+	d.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
+		ExtraTags:            d.ExtraTags,
+		Demux:                d.MetricAgent.Demux,
+		ProcessTrace:         d.TraceAgent.Get().Process,
+		DetectLambdaLibrary:  func() bool { return false },
+		InferredSpansEnabled: true,
+	}
+	return d
 }

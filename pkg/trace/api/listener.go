@@ -14,7 +14,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // measuredListener wraps an existing net.Listener and emits metrics upon accepting connections.
@@ -28,12 +28,13 @@ type measuredListener struct {
 	exit     chan struct{}  // exit signal channel (on Close call)
 	sem      chan struct{}  // Used to limit active connections
 	stop     sync.Once
+	statsd   statsd.ClientInterface
 }
 
 // NewMeasuredListener wraps ln and emits metrics every 10 seconds. The metric name is
 // datadog.trace_agent.receiver.<name>. Additionally, a "status" tag will be added with
 // potential values "accepted", "timedout" or "errored".
-func NewMeasuredListener(ln net.Listener, name string, maxConn int) net.Listener {
+func NewMeasuredListener(ln net.Listener, name string, maxConn int, statsd statsd.ClientInterface) net.Listener {
 	if maxConn == 0 {
 		maxConn = 1
 	}
@@ -46,6 +47,7 @@ func NewMeasuredListener(ln net.Listener, name string, maxConn int) net.Listener
 		errored:  atomic.NewUint32(0),
 		exit:     make(chan struct{}),
 		sem:      make(chan struct{}, maxConn),
+		statsd:   statsd,
 	}
 	go ml.run()
 	return ml
@@ -71,7 +73,7 @@ func (ln *measuredListener) flushMetrics() {
 		"status:errored":  ln.errored,
 	} {
 		if v := int64(stat.Swap(0)); v > 0 {
-			metrics.Count(ln.name, v, []string{tag}, 1)
+			_ = ln.statsd.Count(ln.name, v, []string{tag}, 1)
 		}
 	}
 }
@@ -91,6 +93,7 @@ func (c *onCloseConn) Close() error {
 	return err
 }
 
+// OnCloseConn returns a net.Conn that calls onclose when closed.
 func OnCloseConn(c net.Conn, onclose func()) net.Conn {
 	return &onCloseConn{c, onclose, sync.Once{}}
 }
@@ -106,10 +109,11 @@ func (ln *measuredListener) Accept() (net.Conn, error) {
 		} else {
 			ln.errored.Inc()
 		}
-	} else {
-		ln.accepted.Inc()
-		log.Tracef("Accepted connection named %q.", ln.name)
+		<-ln.sem
+		return nil, err
 	}
+	ln.accepted.Inc()
+	log.Tracef("Accepted connection named %q.", ln.name)
 	conn = OnCloseConn(conn, func() {
 		<-ln.sem
 	})
@@ -142,10 +146,12 @@ type rateLimitedListener struct {
 	rejected *atomic.Uint32
 	timedout *atomic.Uint32
 	errored  *atomic.Uint32
+
+	statsd statsd.ClientInterface
 }
 
 // newRateLimitedListener returns a new wrapped listener, which is non-initialized
-func newRateLimitedListener(l net.Listener, conns int) (*rateLimitedListener, error) {
+func newRateLimitedListener(l net.Listener, conns int, statsd statsd.ClientInterface) (*rateLimitedListener, error) {
 	tcpL, ok := l.(*net.TCPListener)
 
 	if !ok {
@@ -161,6 +167,7 @@ func newRateLimitedListener(l net.Listener, conns int) (*rateLimitedListener, er
 		rejected:    atomic.NewUint32(0),
 		timedout:    atomic.NewUint32(0),
 		errored:     atomic.NewUint32(0),
+		statsd:      statsd,
 	}, nil
 }
 
@@ -185,7 +192,7 @@ func (sl *rateLimitedListener) Refresh(conns int) {
 				"status:errored":  sl.errored,
 			} {
 				v := int64(stat.Swap(0))
-				metrics.Count("datadog.trace_agent.receiver.tcp_connections", v, []string{tag}, 1)
+				_ = sl.statsd.Count("datadog.trace_agent.receiver.tcp_connections", v, []string{tag}, 1)
 			}
 		case <-t.C:
 			sl.lease.Store(int32(conns))
@@ -225,11 +232,11 @@ func (sl *rateLimitedListener) Accept() (net.Conn, error) {
 				if ne.Temporary() {
 					// deadline expired; continue
 					continue
-				} else {
-					// don't count temporary errors; they usually signify expired deadlines
-					// see (golang/go/src/internal/poll/fd.go).TimeoutError
-					sl.timedout.Inc()
 				}
+				// don't count temporary errors; they usually signify expired deadlines
+				// see (golang/go/src/internal/poll/fd.go).TimeoutError
+				sl.timedout.Inc()
+
 			} else {
 				sl.errored.Inc()
 			}
@@ -246,8 +253,7 @@ func (sl *rateLimitedListener) Accept() (net.Conn, error) {
 // Close wraps the Close method of the underlying tcp listener
 func (sl *rateLimitedListener) Close() error {
 	if !sl.closed.CompareAndSwap(0, 1) {
-		// already closed; avoid multiple calls if we're on go1.10
-		// https://golang.org/issue/24803
+		// already closed
 		return nil
 	}
 	sl.exit <- struct{}{}

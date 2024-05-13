@@ -3,16 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package message
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,6 +35,8 @@ type Message struct {
 	Status             string
 	IngestionTimestamp int64
 	RawDataLen         int
+	// Tags added on processing
+	ProcessingTags []string
 	// Extra information from the parsers
 	ParsingExtra
 	// Extra information for Serverless Logs messages
@@ -306,20 +307,12 @@ func (m *Message) GetLatency() int64 {
 	return time.Now().UnixNano() - m.IngestionTimestamp
 }
 
-// GetHostname returns the hostname to applied the given log message
-func (m *Message) GetHostname() string {
-	if m.Hostname != "" {
-		return m.Hostname
-	}
+// Message returns all tags that this message is attached with.
+func (m *Message) Tags() []string {
+	return m.Origin.Tags(m.ProcessingTags)
+}
 
-	if m.Lambda != nil {
-		return m.Lambda.ARN
-	}
-	hname, err := hostname.Get(context.TODO())
-	if err != nil {
-		// this scenario is not likely to happen since
-		// the agent cannot start without a hostname
-		hname = "unknown"
-	}
-	return hname
+// Message returns all tags that this message is attached with, as a string.
+func (m *Message) TagsToString() string {
+	return m.Origin.TagsToString(m.ProcessingTags)
 }

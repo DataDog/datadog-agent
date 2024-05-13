@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -26,12 +27,19 @@ import (
 
 type MockJournal struct{}
 
-func (m *MockJournal) AddMatch(match string) error                { return nil }
-func (m *MockJournal) AddDisjunction() error                      { return nil }
-func (m *MockJournal) SeekTail() error                            { return nil }
-func (m *MockJournal) SeekHead() error                            { return nil }
-func (m *MockJournal) Wait(timeout time.Duration) int             { return 0 }
-func (m *MockJournal) SeekCursor(cursor string) error             { return nil }
+//nolint:revive // TODO(AML) Fix revive linter
+func (m *MockJournal) AddMatch(match string) error { return nil }
+func (m *MockJournal) AddDisjunction() error       { return nil }
+func (m *MockJournal) SeekTail() error             { return nil }
+func (m *MockJournal) SeekHead() error             { return nil }
+
+//nolint:revive // TODO(AML) Fix revive linter
+func (m *MockJournal) Wait(timeout time.Duration) int { return 0 }
+
+//nolint:revive // TODO(AML) Fix revive linter
+func (m *MockJournal) SeekCursor(cursor string) error { return nil }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) NextSkip(skip uint64) (uint64, error)       { return 0, nil }
 func (m *MockJournal) Close() error                               { return nil }
 func (m *MockJournal) Next() (uint64, error)                      { return 0, nil }
@@ -46,12 +54,13 @@ func (s *MockJournalFactory) NewJournal() (tailer.Journal, error) {
 	return &MockJournal{}, nil
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *MockJournalFactory) NewJournalFromPath(path string) (tailer.Journal, error) {
 	return &MockJournal{}, nil
 }
 
 func newTestLauncher() *Launcher {
-	launcher := NewLauncherWithFactory(&MockJournalFactory{})
+	launcher := NewLauncherWithFactory(&MockJournalFactory{}, flare.NewFlareController())
 	launcher.Start(launchers.NewMockSourceProvider(), pipeline.NewMockProvider(), auditor.New("", "registry.json", time.Hour, health.RegisterLiveness("fake")), tailers.NewTailerTracker())
 	return launcher
 }

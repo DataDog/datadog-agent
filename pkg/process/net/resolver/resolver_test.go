@@ -3,22 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux
-
 package resolver
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/benbjohnson/clock"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+
+	proccontainersmocks "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 )
 
 func TestLocalResolver(t *testing.T) {
 	assert := assert.New(t)
 
-	resolver := &LocalResolver{}
+	resolver := NewLocalResolver(nil, nil, 10, 0)
 	containers := []*model.Container{
 		{
 			Id: "container-1",
@@ -200,6 +202,44 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			expectedRaddrID: "foo3",
 		},
 		{
+			name: "raddr resolution within same netns (1)",
+			conn: &model.Connection{
+				Pid:   3,
+				NetNS: 3,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1235,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1240,
+				},
+				IntraHost: true,
+				Direction: model.ConnectionDirection_incoming,
+			},
+			expectedLaddrID: "foo3",
+			expectedRaddrID: "foo5",
+		},
+		{
+			name: "raddr resolution within same netns (2)",
+			conn: &model.Connection{
+				Pid:   5,
+				NetNS: 3,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1240,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1235,
+				},
+				IntraHost: true,
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			expectedLaddrID: "foo5",
+			expectedRaddrID: "foo3",
+		},
+		{
 			name: "raddr failed resolution, known address in different netns",
 			conn: &model.Connection{
 				Pid:   5,
@@ -294,9 +334,45 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			expectedLaddrID: "foo7",
 			expectedRaddrID: "foo6",
 		},
+		{
+			name: "zero src netns failed resolution",
+			conn: &model.Connection{
+				Pid:   22,
+				NetNS: 0,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 8282,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1250,
+				},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			expectedLaddrID: "foo22",
+			expectedRaddrID: "", // should NOT resolve to foo7
+		},
+		{
+			name: "zero src and dst netns failed resolution",
+			conn: &model.Connection{
+				Pid:   21,
+				NetNS: 0,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 8181,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 8282,
+				},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			expectedLaddrID: "foo21",
+			expectedRaddrID: "", // should NOT resolve to foo22
+		},
 	}
 
-	resolver := &LocalResolver{}
+	resolver := NewLocalResolver(nil, nil, 20, 20)
 	resolver.LoadAddrs(nil, map[int]string{
 		1:  "foo1",
 		2:  "foo2",
@@ -308,6 +384,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		8:  "bar",
 		20: "foo20",
 		21: "foo21",
+		22: "foo22",
 	})
 
 	conns := &model.Connections{}
@@ -322,4 +399,361 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			assert.Equal(t, te.expectedRaddrID, te.conn.Raddr.ContainerId, "raddr container id does not match expected value")
 		})
 	}
+}
+
+func TestLocalResolverPeriodicUpdates(t *testing.T) {
+	assert := assert.New(t)
+	mockCtrl := gomock.NewController(t)
+	mockedClock := clock.NewMock()
+	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
+	resolver := NewLocalResolver(mockContainerProvider, mockedClock, 10, 10)
+	containers := []*model.Container{
+		{
+			Id: "container-1",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "10.0.2.15",
+					Port:     32769,
+					Protocol: model.ConnectionType_tcp,
+				},
+				{
+					Ip:       "172.17.0.4",
+					Port:     6379,
+					Protocol: model.ConnectionType_tcp,
+				},
+			},
+		},
+		{
+			Id: "container-2",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "172.17.0.2",
+					Port:     80,
+					Protocol: model.ConnectionType_tcp,
+				},
+			},
+		},
+		{
+			Id: "container-3",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "10.0.2.15",
+					Port:     32769,
+					Protocol: model.ConnectionType_udp,
+				},
+			},
+		},
+	}
+	mockContainerProvider.EXPECT().GetContainers(2*time.Second, nil).Return(containers, nil, nil, nil).MinTimes(1)
+	resolver.Run()
+	mockedClock.Add(11 * time.Second)
+
+	connections := &model.Connections{
+		Conns: []*model.Connection{
+			// connection 0
+			{
+				Type: model.ConnectionType_tcp,
+				Raddr: &model.Addr{
+					Ip:   "10.0.2.15",
+					Port: 32769,
+				},
+			},
+			// connection 1
+			{
+				Type: model.ConnectionType_tcp,
+				Raddr: &model.Addr{
+					Ip:   "172.17.0.4",
+					Port: 6379,
+				},
+			},
+			// connection 2
+			{
+				Type: model.ConnectionType_tcp,
+				Raddr: &model.Addr{
+					Ip:   "172.17.0.2",
+					Port: 80,
+				},
+			},
+			// connection 3
+			{
+				Type: model.ConnectionType_udp,
+				Raddr: &model.Addr{
+					Ip:   "10.0.2.15",
+					Port: 32769,
+				},
+			},
+		},
+	}
+	resolver.Resolve(connections)
+	assert.Equal("container-1", connections.Conns[0].Raddr.ContainerId)
+	assert.Equal("container-1", connections.Conns[1].Raddr.ContainerId)
+	assert.Equal("container-2", connections.Conns[2].Raddr.ContainerId)
+	assert.Equal("container-3", connections.Conns[3].Raddr.ContainerId)
+}
+
+func TestLocalResolverCachePersistence(t *testing.T) {
+	assert := assert.New(t)
+	mockCtrl := gomock.NewController(t)
+	mockedClock := clock.NewMock()
+	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
+	resolver := NewLocalResolver(mockContainerProvider, mockedClock, 10, 10)
+	containers := []*model.Container{
+		{
+			Id: "container-1",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "10.0.2.15",
+					Port:     32769,
+					Protocol: model.ConnectionType_tcp,
+				},
+				{
+					Ip:       "172.17.0.4",
+					Port:     6379,
+					Protocol: model.ConnectionType_tcp,
+				},
+			},
+		},
+		{
+			Id: "container-2",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "172.17.0.2",
+					Port:     80,
+					Protocol: model.ConnectionType_tcp,
+				},
+			},
+		},
+		{
+			Id: "container-3",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "10.0.2.15",
+					Port:     32769,
+					Protocol: model.ConnectionType_udp,
+				},
+			},
+		},
+	}
+	mockContainerProvider.EXPECT().GetContainers(2*time.Second, nil).Return(containers, nil, nil, nil).MaxTimes(1)
+	resolver.Run()
+	mockedClock.Add(11 * time.Second)
+
+	func() {
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
+
+		assert.Len(resolver.addrToCtrID, 4)
+		for _, cid := range resolver.addrToCtrID {
+			assert.True(cid.inUse)
+		}
+	}()
+
+	connections := &model.Connections{
+		Conns: []*model.Connection{
+			// connection 0
+			{
+				Type: model.ConnectionType_tcp,
+				Raddr: &model.Addr{
+					Ip:   "10.0.2.15",
+					Port: 32769,
+				},
+			},
+			// connection 1
+			{
+				Type: model.ConnectionType_tcp,
+				Raddr: &model.Addr{
+					Ip:   "172.17.0.4",
+					Port: 6379,
+				},
+			},
+			// connection 2
+			{
+				Type: model.ConnectionType_tcp,
+				Raddr: &model.Addr{
+					Ip:   "172.17.0.2",
+					Port: 80,
+				},
+			},
+			// connection 3
+			{
+				Type: model.ConnectionType_udp,
+				Raddr: &model.Addr{
+					Ip:   "10.0.2.15",
+					Port: 32769,
+				},
+			},
+		},
+	}
+	resolver.Resolve(connections)
+	assert.Equal("container-1", connections.Conns[0].Raddr.ContainerId)
+	assert.Equal("container-1", connections.Conns[1].Raddr.ContainerId)
+	assert.Equal("container-2", connections.Conns[2].Raddr.ContainerId)
+	assert.Equal("container-3", connections.Conns[3].Raddr.ContainerId)
+
+	func() {
+		// have to lock here otherwise
+		// we get data race errors
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
+
+		assert.Len(resolver.addrToCtrID, 4)
+		for _, cid := range resolver.addrToCtrID {
+			assert.True(cid.inUse)
+		}
+	}()
+
+	// now do another container update but with the entries
+	// for container-1 missing
+	containers = []*model.Container{
+		{
+			Id: "container-2",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "172.17.0.2",
+					Port:     80,
+					Protocol: model.ConnectionType_tcp,
+				},
+			},
+		},
+		{
+			Id: "container-3",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "10.0.2.15",
+					Port:     32769,
+					Protocol: model.ConnectionType_udp,
+				},
+			},
+		},
+	}
+
+	mockContainerProvider.EXPECT().GetContainers(2*time.Second, nil).Return(containers, nil, nil, nil)
+	mockedClock.Add(10 * time.Second)
+
+	// still should have 4 entries in the addr cache,
+	// missing entries should be just marked as not
+	// in use
+	func() {
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
+
+		assert.Len(resolver.addrToCtrID, 4)
+	}()
+
+	missingAddrs := []model.ContainerAddr{
+		{
+			Ip:       "10.0.2.15",
+			Port:     32769,
+			Protocol: model.ConnectionType_tcp,
+		},
+		{
+			Ip:       "172.17.0.4",
+			Port:     6379,
+			Protocol: model.ConnectionType_tcp,
+		},
+	}
+
+	// verify the missing address entries were marked
+	// as not in use
+	func() {
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
+
+	addrLoop:
+		for addr, cid := range resolver.addrToCtrID {
+			for _, missing := range missingAddrs {
+				if missing == addr {
+					assert.False(cid.inUse)
+					break addrLoop
+				}
+			}
+
+			assert.True(cid.inUse)
+		}
+	}()
+
+	// all connections should still resolve since we haven't removed
+	// the not in use entries yet
+	resolver.Resolve(connections)
+	assert.Equal("container-1", connections.Conns[0].Raddr.ContainerId)
+	assert.Equal("container-1", connections.Conns[1].Raddr.ContainerId)
+	assert.Equal("container-2", connections.Conns[2].Raddr.ContainerId)
+	assert.Equal("container-3", connections.Conns[3].Raddr.ContainerId)
+
+	func() {
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
+
+		// the not in use entries should have been removed
+		for _, missing := range missingAddrs {
+			assert.NotContains(resolver.addrToCtrID, missing)
+		}
+	}()
+}
+
+func TestLocalResolverCacheLimits(t *testing.T) {
+	assert := assert.New(t)
+	mockCtrl := gomock.NewController(t)
+	mockedClock := clock.NewMock()
+	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
+	resolver := NewLocalResolver(mockContainerProvider, mockedClock, 1, 1)
+	containers := []*model.Container{
+		{
+			Id: "container-1",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "10.0.2.15",
+					Port:     32769,
+					Protocol: model.ConnectionType_tcp,
+				},
+				{
+					Ip:       "172.17.0.4",
+					Port:     6379,
+					Protocol: model.ConnectionType_tcp,
+				},
+			},
+		},
+		{
+			Id: "container-2",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "172.17.0.2",
+					Port:     80,
+					Protocol: model.ConnectionType_tcp,
+				},
+			},
+		},
+		{
+			Id: "container-3",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "10.0.2.15",
+					Port:     32769,
+					Protocol: model.ConnectionType_udp,
+				},
+			},
+		},
+	}
+	pidToCid := map[int]string{
+		1: "container-1",
+		2: "container-1",
+	}
+
+	mockContainerProvider.EXPECT().GetContainers(2*time.Second, nil).Return(containers, nil, pidToCid, nil).MaxTimes(1)
+	resolver.Run()
+	mockedClock.Add(11 * time.Second)
+
+	func() {
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
+
+		assert.Len(resolver.addrToCtrID, 1)
+		assert.Contains(resolver.addrToCtrID, model.ContainerAddr{
+			Ip:       "10.0.2.15",
+			Port:     32769,
+			Protocol: model.ConnectionType_tcp,
+		})
+
+		assert.Len(resolver.ctrForPid, 1)
+	}()
 }

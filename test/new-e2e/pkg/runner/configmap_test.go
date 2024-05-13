@@ -29,14 +29,16 @@ func Test_BuildStackParameters(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, configMap)
 	assert.Equal(t, ConfigMap{
-		"ddagent:apiKey":                    auto.ConfigValue{Value: "api_key", Secret: true},
-		"ddagent:appKey":                    auto.ConfigValue{Value: "app_key", Secret: true},
-		"namespace:key/foo":                 auto.ConfigValue{Value: "42", Secret: false},
-		"ddinfra:aws/defaultKeyPairName":    auto.ConfigValue{Value: "key_pair_name", Secret: false},
-		"ddinfra:env":                       auto.ConfigValue{Value: "", Secret: false},
-		"ddinfra:extraResourcesTags":        auto.ConfigValue{Value: "extra_resources_tags", Secret: false},
-		"ddinfra:aws/defaultPublicKeyPath":  auto.ConfigValue{Value: "public_key_path", Secret: false},
-		"ddinfra:aws/defaultPrivateKeyPath": auto.ConfigValue{Value: "private_key_path", Secret: false},
-		"ddagent:pipeline_id":               auto.ConfigValue{Value: "pipeline_id", Secret: false},
+		"ddagent:apiKey":                        auto.ConfigValue{Value: "api_key", Secret: true},
+		"ddagent:appKey":                        auto.ConfigValue{Value: "app_key", Secret: true},
+		"namespace:key/foo":                     auto.ConfigValue{Value: "42", Secret: false},
+		"ddinfra:aws/defaultKeyPairName":        auto.ConfigValue{Value: "key_pair_name", Secret: false},
+		"ddinfra:env":                           auto.ConfigValue{Value: "", Secret: false},
+		"ddinfra:extraResourcesTags":            auto.ConfigValue{Value: "extra_resources_tags", Secret: false},
+		"ddinfra:aws/defaultPublicKeyPath":      auto.ConfigValue{Value: "public_key_path", Secret: false},
+		"ddinfra:aws/defaultPrivateKeyPath":     auto.ConfigValue{Value: "private_key_path", Secret: false},
+		"ddinfra:aws/defaultPrivateKeyPassword": auto.ConfigValue{Value: "private_key_password", Secret: true},
+		"ddagent:pipeline_id":                   auto.ConfigValue{Value: "pipeline_id", Secret: false},
+		"ddagent:commit_sha":                    auto.ConfigValue{Value: "commit_sha", Secret: false},
 	}, configMap)
 }

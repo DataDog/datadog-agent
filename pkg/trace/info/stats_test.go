@@ -11,13 +11,10 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 
-	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 
 	"github.com/stretchr/testify/assert"
@@ -36,6 +33,7 @@ func TestTracesDropped(t *testing.T) {
 			"payload_too_large": 0,
 			"decoding_error":    1,
 			"foreign_span":      1,
+			"msgp_short_bytes":  0,
 			"trace_id_zero":     1,
 			"span_id_zero":      1,
 			"timeout":           0,
@@ -169,36 +167,8 @@ func TestSamplingPriorityStats(t *testing.T) {
 	})
 }
 
-var _ metrics.StatsClient = (*testStatsClient)(nil)
-
-type testStatsClient struct {
-	counts atomic.Int64
-}
-
-func (ts *testStatsClient) Gauge(name string, value float64, tags []string, rate float64) error {
-	return nil
-}
-
-func (ts *testStatsClient) Count(name string, value int64, tags []string, rate float64) error {
-	ts.counts.Inc()
-	return nil
-}
-
-func (ts *testStatsClient) Histogram(name string, value float64, tags []string, rate float64) error {
-	return nil
-}
-
-func (ts *testStatsClient) Timing(name string, value time.Duration, tags []string, rate float64) error {
-	return nil
-}
-
-func (ts *testStatsClient) Flush() error { return nil }
-
 func TestReceiverStats(t *testing.T) {
-	statsclient := &testStatsClient{}
-	defer func(old metrics.StatsClient) { metrics.Client = statsclient }(metrics.Client)
-	metrics.Client = statsclient
-
+	statsclient := &teststatsd.Client{}
 	tags := Tags{
 		Lang:            "go",
 		LangVersion:     "1.12",
@@ -206,6 +176,7 @@ func TestReceiverStats(t *testing.T) {
 		Interpreter:     "gcc",
 		TracerVersion:   "1.33",
 		EndpointVersion: "v0.4",
+		Service:         "service",
 	}
 	testStats := func() *ReceiverStats {
 		stats := Stats{}
@@ -264,8 +235,8 @@ func TestReceiverStats(t *testing.T) {
 
 	t.Run("PublishAndReset", func(t *testing.T) {
 		rs := testStats()
-		rs.PublishAndReset()
-		assert.EqualValues(t, 41, statsclient.counts.Load())
+		rs.PublishAndReset(statsclient)
+		assert.EqualValues(t, 42, len(statsclient.CountCalls))
 		assertStatsAreReset(t, rs)
 	})
 
@@ -285,9 +256,9 @@ func TestReceiverStats(t *testing.T) {
 
 		log.Flush()
 		logs := strings.Split(b.String(), "\n")
-		assert.Equal(t, "[INFO] [lang:go lang_version:1.12 lang_vendor:gov interpreter:gcc tracer_version:1.33 endpoint_version:v0.4] -> traces received: 1, traces filtered: 4, traces amount: 9 bytes, events extracted: 13, events sampled: 14",
+		assert.Equal(t, "[INFO] [lang:go lang_version:1.12 lang_vendor:gov interpreter:gcc tracer_version:1.33 endpoint_version:v0.4 service:service] -> traces received: 1, traces filtered: 4, traces amount: 9 bytes, events extracted: 13, events sampled: 14",
 			logs[0])
-		assert.Equal(t, "[WARN] [lang:go lang_version:1.12 lang_vendor:gov interpreter:gcc tracer_version:1.33 endpoint_version:v0.4] -> traces_dropped(decoding_error:1, empty_trace:3, foreign_span:6, payload_too_large:2, span_id_zero:5, timeout:7, trace_id_zero:4, unexpected_eof:8), spans_malformed(duplicate_span_id:1, invalid_duration:13, invalid_http_status_code:14, invalid_start_date:12, peer_service_invalid:8, peer_service_truncate:7, resource_empty:10, service_empty:2, service_invalid:4, service_truncate:3, span_name_empty:5, span_name_invalid:9, span_name_truncate:6, type_truncate:11). Enable debug logging for more details.",
+		assert.Equal(t, "[WARN] [lang:go lang_version:1.12 lang_vendor:gov interpreter:gcc tracer_version:1.33 endpoint_version:v0.4 service:service] -> traces_dropped(decoding_error:1, empty_trace:3, foreign_span:6, payload_too_large:2, span_id_zero:5, timeout:7, trace_id_zero:4, unexpected_eof:8), spans_malformed(duplicate_span_id:1, invalid_duration:13, invalid_http_status_code:14, invalid_start_date:12, peer_service_invalid:8, peer_service_truncate:7, resource_empty:10, service_empty:2, service_invalid:4, service_truncate:3, span_name_empty:5, span_name_invalid:9, span_name_truncate:6, type_truncate:11). Enable debug logging for more details.",
 			logs[1])
 
 		assertStatsAreReset(t, rs)

@@ -8,6 +8,7 @@
 package tracer
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -72,6 +73,8 @@ func newProcessCache(maxProcs int) (*processCache, error) {
 
 	var err error
 	pc.cache, err = lru.NewWithEvict(maxProcs, func(_ processCacheKey, p *events.Process) {
+		log.TraceFunc(func() string { return fmt.Sprintf("evicting process %+v", p) })
+		//nolint:gosimple // TODO(NET) Fix gosimple linter
 		pl, _ := pc.cacheByPid[p.Pid]
 		if pl = pl.remove(p); len(pl) == 0 {
 			delete(pc.cacheByPid, p.Pid)
@@ -143,6 +146,9 @@ func (pc *processCache) Trim() {
 		if now > v.Expiry {
 			// Remove will call the evict callback which will
 			// delete from the cacheByPid map
+			log.TraceFunc(func() string {
+				return fmt.Sprintf("trimming process %+v", v)
+			})
 			pc.cache.Remove(processCacheKey{pid: v.Pid, startTime: v.StartTime})
 			trimmed++
 		}
@@ -177,7 +183,8 @@ func (pc *processCache) add(p *events.Process) {
 	if evicted := pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p); evicted {
 		processCacheTelemetry.cacheEvicts.Inc()
 	}
-	pl, _ := pc.cacheByPid[p.Pid]
+
+	pl := pc.cacheByPid[p.Pid]
 	pc.cacheByPid[p.Pid] = pl.update(p)
 }
 
@@ -189,13 +196,17 @@ func (pc *processCache) Get(pid uint32, ts int64) (*events.Process, bool) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
-	pl, _ := pc.cacheByPid[pid]
+	log.TraceFunc(func() string { return fmt.Sprintf("looking up pid %d", pid) })
+
+	pl := pc.cacheByPid[pid]
 	if closest := pl.closest(ts); closest != nil {
 		closest.Expiry = time.Now().Add(defaultExpiry).Unix()
 		pc.cache.Get(processCacheKey{pid: closest.Pid, startTime: closest.StartTime})
+		log.TraceFunc(func() string { return fmt.Sprintf("found entry for pid %d: %+v", pid, closest) })
 		return closest, true
 	}
 
+	log.TraceFunc(func() string { return fmt.Sprintf("entry not found for process %d", pid) })
 	return nil, false
 }
 

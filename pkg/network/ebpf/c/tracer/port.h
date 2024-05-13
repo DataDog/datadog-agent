@@ -24,7 +24,7 @@ static __always_inline void remove_port_bind(port_binding_t *pb, void *pb_map) {
     __sync_fetch_and_add(port_count, -1);
     if (*port_count == 0) {
         bpf_map_delete_elem(pb_map, pb);
-        log_debug("remove_port_bind: netns=%u port=%u marked as closed\n", pb->netns, pb->port);
+        log_debug("remove_port_bind: netns=%u port=%u marked as closed", pb->netns, pb->port);
     }
 }
 

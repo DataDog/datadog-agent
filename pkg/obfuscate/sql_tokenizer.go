@@ -610,8 +610,9 @@ func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 	return ID, t
 }
 
-func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (TokenKind, []byte) {
+func (tkn *SQLTokenizer) scanVariableIdentifier(_ rune) (TokenKind, []byte) {
 	for tkn.advance(); tkn.lastChar != ')' && tkn.lastChar != EndChar; tkn.advance() {
+		continue
 	}
 	tkn.advance()
 	if !isLetter(tkn.lastChar) {
@@ -622,7 +623,7 @@ func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (TokenKind, []byte)
 	return Variable, tkn.bytes()
 }
 
-func (tkn *SQLTokenizer) scanFormatParameter(prefix rune) (TokenKind, []byte) {
+func (tkn *SQLTokenizer) scanFormatParameter(_ rune) (TokenKind, []byte) {
 	tkn.advance()
 	return Variable, tkn.bytes()
 }
@@ -675,7 +676,7 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 	return DollarQuotedString, buf.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (TokenKind, []byte) {
+func (tkn *SQLTokenizer) scanPreparedStatement(_ rune) (TokenKind, []byte) {
 	// a prepared statement expect a digit identifier like $1
 	if !isDigit(tkn.lastChar) {
 		tkn.setErr(`prepared statements must start with digits, got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
@@ -692,7 +693,7 @@ func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (TokenKind, []byte) 
 	return PreparedStatement, buff
 }
 
-func (tkn *SQLTokenizer) scanEscapeSequence(braces rune) (TokenKind, []byte) {
+func (tkn *SQLTokenizer) scanEscapeSequence(_ rune) (TokenKind, []byte) {
 	for tkn.lastChar != '}' && tkn.lastChar != EndChar {
 		tkn.advance()
 	}
@@ -821,7 +822,7 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 	return kind, buf.Bytes()
 }
 
-func (tkn *SQLTokenizer) scanCommentType1(prefix string) (TokenKind, []byte) {
+func (tkn *SQLTokenizer) scanCommentType1(_ string) (TokenKind, []byte) {
 	for tkn.lastChar != EndChar {
 		if tkn.lastChar == '\n' {
 			tkn.advance()

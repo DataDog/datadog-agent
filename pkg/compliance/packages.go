@@ -12,9 +12,9 @@ import (
 	"io"
 	"net/textproto"
 	"os"
+	"slices"
 
 	rpmdb "github.com/knqyf263/go-rpmdb/pkg"
-	"golang.org/x/exp/slices"
 )
 
 type packageInfo struct {
@@ -135,6 +135,7 @@ func findRpmPackage(path string, names []string) *packageInfo {
 	if err != nil {
 		return nil
 	}
+	defer db.Close()
 	pkgs, err := db.ListPackages()
 	if err != nil {
 		return nil

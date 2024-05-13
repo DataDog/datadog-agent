@@ -29,6 +29,7 @@ var validMetadataResources = map[string]map[string]bool{
 		"os_name":       true,
 		"os_version":    true,
 		"os_hostname":   true,
+		"type":          true,
 	},
 	"interface": {
 		"name":         true,

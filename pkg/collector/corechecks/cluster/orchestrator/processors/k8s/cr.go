@@ -8,47 +8,58 @@
 package k8s
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"k8s.io/apimachinery/pkg/types"
+
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 )
 
 // CRHandlers implements the Handlers interface for Kubernetes CronJobs.
 type CRHandlers struct {
-	BaseHandlers
+	common.BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
-func (cr *CRHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (cr *CRHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	return
 }
 
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
-func (cr *CRHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (cr *CRHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
 	return nil
 }
 
-func (cr *CRHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
-	cm := ExtractModelManifests(ctx, resourceManifests, groupSize)
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (cr *CRHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
+	pctx := ctx.(*processors.K8sProcessorContext)
+	cm := common.ExtractModelManifests(ctx, resourceManifests, groupSize)
 	return &model.CollectorManifestCR{
 		Manifest: cm,
-		Tags:     append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
+		Tags:     append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
 	}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
-func (cr *CRHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (cr *CRHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	return nil
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
-func (cr *CRHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (cr *CRHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]runtime.Object)
 	resources = make([]interface{}, 0, len(resourceList))
 
@@ -60,18 +71,24 @@ func (cr *CRHandlers) ResourceList(ctx *processors.ProcessorContext, list interf
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (cr *CRHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (cr *CRHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*unstructured.Unstructured).GetUID()
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
-func (cr *CRHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (cr *CRHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*unstructured.Unstructured).GetResourceVersion()
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
-func (cr *CRHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (cr *CRHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*unstructured.Unstructured)
 	annotations := r.GetAnnotations()
 	redact.RemoveLastAppliedConfigurationAnnotation(annotations)

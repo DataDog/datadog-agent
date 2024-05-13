@@ -16,14 +16,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/gopsutil/host"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// CompiledOutput is the interface for a compiled output from runtime compilation
 type CompiledOutput interface {
 	io.Reader
 	io.ReaderAt
@@ -53,7 +52,7 @@ var defaultFlags = []string{
 }
 
 // compileToObjectFile compiles the input ebpf program & returns the compiled output
-func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalFlags, kernelHeaders []string) (CompiledOutput, CompilationResult, error) {
+func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalFlags, llcFlags, kernelHeaders []string) (CompiledOutput, CompilationResult, error) {
 	flags, flagHash := computeFlagsAndHash(additionalFlags)
 
 	outputFile, err := getOutputFilePath(outputDir, filename, inHash, flagHash)
@@ -71,7 +70,7 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 		if err != nil {
 			return nil, kernelVersionErr, fmt.Errorf("unable to get kernel version: %w", err)
 		}
-		_, family, _, err := host.PlatformInformation()
+		family, err := kernel.Family()
 		if err != nil {
 			return nil, kernelVersionErr, fmt.Errorf("unable to get kernel family: %w", err)
 		}
@@ -87,7 +86,7 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 			flags = append(flags, fmt.Sprintf("-include%s", helperPath))
 		}
 
-		if err := compiler.CompileToObjectFile(inFile, outputFile, flags, kernelHeaders); err != nil {
+		if err := compiler.CompileToObjectFile(inFile, outputFile, flags, llcFlags, kernelHeaders); err != nil {
 			return nil, compilationErr, fmt.Errorf("failed to compile runtime version of %s: %s", filename, err)
 		}
 

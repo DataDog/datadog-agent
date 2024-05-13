@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+//go:build test
+
 package config
 
 import (
@@ -22,7 +24,8 @@ func newMock(conf *NetflowConfig, logger log.Component) (Component, error) {
 // Injecting MockModule will provide default config;
 // override this with fx.Replace(&config.NetflowConfig{...}).
 // Defaults will always be populated.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-	fx.Supply(&NetflowConfig{}),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock),
+		fx.Supply(&NetflowConfig{}))
+}

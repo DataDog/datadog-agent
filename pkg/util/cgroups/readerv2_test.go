@@ -27,9 +27,10 @@ func TestReaderV2(t *testing.T) {
 		"libpod_parent/libpod-6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-poda2acd1bccd50fd7790183537181f658e.slice/docker-1575e8b4a92a9c340a657f3df4ddc0f6a6305c200879f3898b26368ad019b503.scope",
 	}
 
+	// Create mock directories for paths and corresponding inodes.
 	for _, p := range paths {
-		finalPath := filepath.Join(fakeFsPath, p)
-		assert.NoErrorf(t, os.MkdirAll(finalPath, 0o750), "impossible to create temp directory '%s'", finalPath)
+		fullPath := filepath.Join(fakeFsPath, p)
+		assert.NoErrorf(t, os.MkdirAll(fullPath, 0o750), "impossible to create temp directory '%s'", fullPath)
 	}
 
 	assert.NoError(t, os.WriteFile(filepath.Join(fakeFsPath, "cgroup.controllers"), []byte("cpu io memory"), 0o640))
@@ -47,11 +48,24 @@ func TestReaderV2(t *testing.T) {
 
 	cgroups, err := r.parseCgroups()
 	assert.NoError(t, err)
-	assert.Empty(t, cmp.Diff(map[string]Cgroup{
+
+	expected := map[string]Cgroup{
 		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc40": newCgroupV2("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc40", fakeFsPath, paths[0], controllers, r.pidMapper),
 		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc41": newCgroupV2("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc41", fakeFsPath, paths[1], controllers, r.pidMapper),
 		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc42": newCgroupV2("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc42", fakeFsPath, paths[3], controllers, r.pidMapper),
 		"1575e8b4a92a9c340a657f3df4ddc0f6a6305c200879f3898b26368ad019b503": newCgroupV2("1575e8b4a92a9c340a657f3df4ddc0f6a6305c200879f3898b26368ad019b503", fakeFsPath, paths[5], controllers, r.pidMapper),
 		"6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2": newCgroupV2("6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2", fakeFsPath, "libpod_parent/libpod-6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2", controllers, r.pidMapper),
-	}, cgroups, cmp.AllowUnexported(cgroupV2{})))
+	}
+
+	// Initialize Inodes
+	for i := range cgroups {
+		inode := cgroups[i].Inode()
+		assert.NotEqual(t, uint64(0), inode)
+	}
+	for _, cgroup := range expected {
+		inode := cgroup.Inode()
+		assert.NotEqual(t, uint64(0), inode)
+	}
+
+	assert.Empty(t, cmp.Diff(expected, cgroups, cmp.AllowUnexported(cgroupV2{})))
 }

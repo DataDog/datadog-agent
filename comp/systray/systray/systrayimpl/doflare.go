@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"sync"
 	"unsafe"
 
 	"github.com/lxn/win"
-	"go.uber.org/atomic"
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -32,7 +32,7 @@ var (
 	procGetWindowRect    = moduser32.NewProc("GetWindowRect")
 	procGetDesktopWindow = moduser32.NewProc("GetDesktopWindow")
 	info                 flareInfo
-	inProgress           = atomic.NewBool(false)
+	inProgress           = sync.Mutex{}
 )
 
 type flareInfo struct {
@@ -134,12 +134,11 @@ func onFlare(s *systrayImpl) {
 	// however, we're using a single instance of the info structure to
 	// pass data around.  Don't allow multiple dialogs to be displayed
 
-	// (in go1.18, this could be done with sync.Mutex#TryLock)
-	if !inProgress.CompareAndSwap(false, true) {
+	if !inProgress.TryLock() {
 		s.log.Warn("Dialog already in progress, skipping")
 		return
 	}
-	defer inProgress.Store(false)
+	defer inProgress.Unlock()
 
 	myInst := win.GetModuleHandle(nil)
 	if myInst == win.HINSTANCE(0) {
@@ -179,7 +178,7 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = util.SetAuthToken(config.Datadog)
 	if e != nil {
 		return
 	}

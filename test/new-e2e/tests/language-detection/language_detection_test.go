@@ -20,16 +20,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
-
-const versionStr = "7.48.0~rc.1-1"
 
 //go:embed etc/process_config.yaml
 var configStr string
 
 type languageDetectionSuite struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.BaseSuite[environments.Host]
 }
 
 func TestLanguageDetectionSuite(t *testing.T) {
@@ -37,12 +37,16 @@ func TestLanguageDetectionSuite(t *testing.T) {
 		agentparams.WithAgentConfig(configStr),
 	}
 
-	isCI, _ := strconv.ParseBool(os.Getenv("CI"))
-	if !isCI {
-		agentParams = append(agentParams, agentparams.WithVersion(versionStr))
+	options := []e2e.SuiteOption{
+		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentParams...))),
 	}
 
-	e2e.Run(t, &languageDetectionSuite{}, e2e.AgentStackDef(e2e.WithAgentParams(agentParams...)))
+	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
+	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
+		options = append(options, e2e.WithDevMode())
+	}
+
+	e2e.Run(t, &languageDetectionSuite{}, options...)
 }
 
 func (s *languageDetectionSuite) checkDetectedLanguage(command string, language string) {
@@ -52,7 +56,7 @@ func (s *languageDetectionSuite) checkDetectedLanguage(command string, language 
 			pid = s.getPidForCommand(command)
 			return len(pid) > 0
 		},
-		1*time.Second, 10*time.Millisecond,
+		10*time.Second, 10*time.Millisecond,
 		fmt.Sprintf("pid not found for command %s", command),
 	)
 
@@ -68,19 +72,22 @@ func (s *languageDetectionSuite) checkDetectedLanguage(command string, language 
 			pid, language, actualLanguage, err),
 	)
 
-	s.Env().VM.Execute(fmt.Sprintf("kill -SIGTERM %s", pid))
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("kill -SIGTERM %s", pid))
 }
 
 func (s *languageDetectionSuite) getPidForCommand(command string) string {
-	pid, err := s.Env().VM.ExecuteWithError(fmt.Sprintf("ps -C %s -o pid=", command))
+	pid, err := s.Env().RemoteHost.Execute(fmt.Sprintf("ps -C %s -o pid=", command))
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(pid)
+	pid = strings.TrimSpace(pid)
+	// special handling in case multiple commands match
+	pids := strings.Split(pid, "\n")
+	return pids[0]
 }
 
 func (s *languageDetectionSuite) getLanguageForPid(pid string) (string, error) {
-	wl := s.Env().VM.Execute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
+	wl := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
 	if len(strings.TrimSpace(wl)) == 0 {
 		return "", errors.New("agent workload-list was empty")
 	}

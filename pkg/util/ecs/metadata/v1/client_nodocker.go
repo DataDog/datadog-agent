@@ -5,6 +5,7 @@
 
 //go:build !docker
 
+//nolint:revive // TODO(CINT) Fix revive linter
 package v1
 
 // Client represents a client for a metadata v1 API endpoint.

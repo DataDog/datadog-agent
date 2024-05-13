@@ -50,6 +50,7 @@ func getCounterStrings(fb flaretypes.FlareBuilder) error {
 			for {
 				var regtype uint32
 				counterlist = make([]uint16, bufferSize)
+				//nolint:gosimple // TODO(WINA) Fix gosimple linter
 				var sz uint32
 				sz = bufferSize
 				regerr := windows.RegQueryValueEx(windows.HKEY_PERFORMANCE_DATA,

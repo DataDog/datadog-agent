@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package modrestart is the module-restart system-probe subcommand
 package modrestart
 
 import (
@@ -12,11 +13,11 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -47,10 +48,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath)),
-					LogParams:            log.ForOneShot("SYS-PROBE", "off", false),
+					LogParams:            logimpl.ForOneShot("SYS-PROBE", "off", false),
 				}),
 				// no need to provide sysprobe logger since ForOneShot ignores config values
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -60,7 +61,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func moduleRestart(sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
 	cfg := sysprobeconfig.SysProbeObject()
-	client := api.GetClient(cfg.SocketAddress)
+	client := client.Get(cfg.SocketAddress)
 	url := fmt.Sprintf("http://localhost/module-restart/%s", cliParams.args[0])
 	resp, err := client.Post(url, "", nil)
 	if err != nil {

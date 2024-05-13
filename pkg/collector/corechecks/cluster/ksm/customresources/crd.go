@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	crd "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	//nolint:revive // TODO(CINT) Fix revive linter
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,7 +40,7 @@ var (
 // metric family generator factory.
 func NewCustomResourceDefinitionFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &crdFactory{
-		client: client.CRDClient,
+		client: client.CRDInformerClient,
 	}
 }
 
@@ -120,14 +121,18 @@ func (f *crdFactory) Name() string {
 }
 
 // CreateClient is not implemented
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *crdFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *crdFactory) ExpectedType() interface{} {
 	return &crd.CustomResourceDefinition{}
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *crdFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(clientset.Interface)
 	return &cache.ListWatch{

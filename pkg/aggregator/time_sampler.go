@@ -11,9 +11,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags_limiter"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,21 +45,22 @@ type TimeSampler struct {
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, contextsLimiter *limiter.Limiter, tagsLimiter *tags_limiter.Limiter, hostname string) *TimeSampler {
+func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, hostname string) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
 
-	log.Infof("Creating TimeSampler #%d", id)
+	idString := strconv.Itoa(int(id))
+	log.Infof("Creating TimeSampler #%s", idString)
 
 	s := &TimeSampler{
 		interval:                    interval,
-		contextResolver:             newTimestampContextResolver(cache, contextsLimiter, tagsLimiter),
+		contextResolver:             newTimestampContextResolver(cache, idString),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
 		id:                          id,
-		idString:                    strconv.Itoa(int(id)),
+		idString:                    idString,
 		hostname:                    hostname,
 	}
 
@@ -83,11 +82,7 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 	}
 
 	// Keep track of the context
-	contextKey, ok := s.contextResolver.trackContext(metricSample, timestamp)
-	if !ok {
-		return
-	}
-
+	contextKey := s.contextResolver.trackContext(metricSample, timestamp)
 	bucketStart := s.calculateBucketStart(timestamp)
 
 	switch metricSample.Mtype {
@@ -113,7 +108,11 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 }
 
 func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
-	ctx, _ := s.contextResolver.get(ck)
+	ctx, ok := s.contextResolver.get(ck)
+	if !ok {
+		return nil
+	}
+
 	ss := &metrics.SketchSeries{
 		Name:       ctx.Name,
 		Tags:       ctx.Tags(),
@@ -219,7 +218,12 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
 	})
 	for ck, points := range pointsByCtx {
-		sketchesSink.Append(s.newSketchSeries(ck, points))
+		ss := s.newSketchSeries(ck, points)
+		if ss == nil {
+			log.Errorf("TimeSampler #%d Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, ck)
+			continue
+		}
+		sketchesSink.Append(ss)
 	}
 }
 
@@ -238,19 +242,26 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketche
 		})
 	s.lastCutOffTime = cutoffTime
 
+	s.updateMetrics()
+	s.sendTelemetry(timestamp, series)
+}
+
+// We do this here mostly because we want to avoid slow operations when we track/remove
+// contexts in the contextResolver. Keeping references to the metrics in the contextResolver
+// would probably be enough to avoid this.
+func (s *TimeSampler) updateMetrics() {
 	totalContexts := s.contextResolver.length()
 	aggregatorDogstatsdContexts.Set(int64(totalContexts))
 	tlmDogstatsdContexts.Set(float64(totalContexts), s.idString)
 	tlmDogstatsdTimeBuckets.Set(float64(len(s.metricsByTimestamp)), s.idString)
 
-	byMtype := s.contextResolver.countsByMtype()
-	for i, count := range byMtype {
-		mtype := metrics.MetricType(i).String()
-		aggregatorDogstatsdContextsByMtype[i].Set(int64(count))
-		tlmDogstatsdContextsByMtype.Set(float64(count), s.idString, mtype)
-	}
+	countByMtype := s.contextResolver.countsByMtype()
+	for i := 0; i < int(metrics.NumMetricTypes); i++ {
+		count := countByMtype[i]
 
-	s.sendTelemetry(timestamp, series)
+		aggregatorDogstatsdContextsByMtype[i].Set(int64(count))
+	}
+	s.contextResolver.updateMetrics(tlmDogstatsdContextsByMtype, tlmDogstatsdContextsBytesByMtype)
 }
 
 // flushContextMetrics flushes the contextMetrics inside contextMetricsFlusher, handles its errors,
@@ -312,10 +323,6 @@ func (s *TimeSampler) sendTelemetry(timestamp float64, series metrics.SerieSink)
 
 	if config.Datadog.GetBool("telemetry.dogstatsd_origin") {
 		s.contextResolver.sendOriginTelemetry(timestamp, series, s.hostname, tags)
-	}
-
-	if config.Datadog.GetBool("telemetry.dogstatsd_limiter") {
-		s.contextResolver.sendLimiterTelemetry(timestamp, series, s.hostname, tags)
 	}
 }
 

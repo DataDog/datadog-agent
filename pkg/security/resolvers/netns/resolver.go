@@ -235,7 +235,20 @@ func (nr *Resolver) GetState() int64 {
 // SaveNetworkNamespaceHandle inserts the provided process network namespace in the list of tracked network. Returns
 // true if a new entry was added.
 func (nr *Resolver) SaveNetworkNamespaceHandle(nsID uint32, nsPath *utils.NetNSPath) (*NetworkNamespace, bool) {
-	if !nr.config.NetworkEnabled || nsID == 0 || nsPath == nil {
+	return nr.SaveNetworkNamespaceHandleLazy(nsID, func() *utils.NetNSPath {
+		return nsPath
+	})
+}
+
+// SaveNetworkNamespaceHandleLazy inserts the provided process network namespace in the list of tracked network. Returns
+// true if a new entry was added.
+func (nr *Resolver) SaveNetworkNamespaceHandleLazy(nsID uint32, nsPathFunc func() *utils.NetNSPath) (*NetworkNamespace, bool) {
+	if !nr.config.NetworkEnabled || nsID == 0 || nsPathFunc == nil {
+		return nil, false
+	}
+
+	nsPath := nsPathFunc()
+	if nsPath == nil {
 		return nil, false
 	}
 

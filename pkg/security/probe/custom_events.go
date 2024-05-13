@@ -11,7 +11,9 @@
 package probe
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -93,7 +95,7 @@ func (a AbnormalEvent) ToJSON() ([]byte, error) {
 func NewAbnormalEvent(id string, description string, event *model.Event, err error) (*rules.Rule, *events.CustomEvent) {
 	marshalerCtor := func() events.EventMarshaler {
 		evt := AbnormalEvent{
-			Event: serializers.NewEventSerializer(event),
+			Event: serializers.NewEventSerializer(event, nil),
 			Error: err.Error(),
 		}
 		evt.FillCustomEventCommonFields()
@@ -104,4 +106,45 @@ func NewAbnormalEvent(id string, description string, event *model.Event, err err
 	}
 
 	return events.NewCustomRule(id, description), events.NewCustomEventLazy(errorToEventType(err), marshalerCtor)
+}
+
+// EBPFLessHelloMsgEvent defines a hello message
+// easyjson:json
+type EBPFLessHelloMsgEvent struct {
+	events.CustomEventCommonFields
+
+	NSID      uint64 `json:"nsid,omitempty"`
+	Container struct {
+		ID             string `json:"id,omitempty"`
+		Name           string `json:"name,omitempty"`
+		ImageShortName string `json:"short_name,omitempty"`
+		ImageTag       string `json:"image_tag,omitempty"`
+	} `json:"container,omitempty"`
+	EntrypointArgs []string `json:"args,omitempty"`
+}
+
+// ToJSON marshal using json format
+func (e EBPFLessHelloMsgEvent) ToJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
+}
+
+// NewEBPFLessHelloMsgEvent returns a eBPFLess hello custom event
+func NewEBPFLessHelloMsgEvent(msg *ebpfless.HelloMsg, scrubber *procutil.DataScrubber) (*rules.Rule, *events.CustomEvent) {
+	args := msg.EntrypointArgs
+	if scrubber != nil {
+		args, _ = scrubber.ScrubCommand(msg.EntrypointArgs)
+	}
+
+	evt := EBPFLessHelloMsgEvent{
+		NSID: msg.NSID,
+	}
+	evt.Container.ID = msg.ContainerContext.ID
+	evt.Container.Name = msg.ContainerContext.Name
+	evt.Container.ImageShortName = msg.ContainerContext.ImageShortName
+	evt.Container.ImageTag = msg.ContainerContext.ImageTag
+	evt.EntrypointArgs = args
+
+	evt.FillCustomEventCommonFields()
+
+	return events.NewCustomRule(events.EBPFLessHelloMessageRuleID, events.EBPFLessHelloMessageRuleDesc), events.NewCustomEvent(model.UnknownEventType, evt)
 }

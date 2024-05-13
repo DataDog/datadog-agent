@@ -11,9 +11,11 @@ import (
 	"fmt"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/gopsutil/cpu"
+	// difference between methods for collecting macOS platform, kernel version
+	// between shirou and Datadog psutil
 	"github.com/DataDog/gopsutil/host"
-	"github.com/DataDog/gopsutil/mem"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
 	"golang.org/x/sys/unix"
 )
 
@@ -23,6 +25,7 @@ type statsProvider interface {
 
 type sysctlStatsProvider struct{}
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (_ *sysctlStatsProvider) getThreadCount() (int32, error) {
 	threadCount, err := unix.SysctlUint32("machdep.cpu.thread_count")
 	return int32(threadCount), err
@@ -46,6 +49,7 @@ func patchCPUInfo(gopsutilCPUInfo []cpu.InfoStat) ([]cpu.InfoStat, error) {
 
 	cpuStat := make([]cpu.InfoStat, 0, physicalCoreCount)
 	for i := 0; i < physicalCoreCount; i++ {
+		//nolint:revive // TODO(PROC) Fix revive linter
 		currentCpuInfo := cpuInfo
 		currentCpuInfo.Cores = threadCount / int32(physicalCoreCount)
 		cpuStat = append(cpuStat, currentCpuInfo)
@@ -79,15 +83,7 @@ func CollectSystemInfo() (*model.SystemInfo, error) {
 	cpus := make([]*model.CPUInfo, 0, len(cpuInfo))
 	for _, c := range cpuInfo {
 		cpus = append(cpus, &model.CPUInfo{
-			Number:     c.CPU,
-			Vendor:     c.VendorID,
-			Family:     c.Family,
-			Model:      c.Model,
-			PhysicalId: c.PhysicalID,
-			CoreId:     c.CoreID,
-			Cores:      c.Cores,
-			Mhz:        int64(c.Mhz),
-			CacheSize:  c.CacheSize,
+			Cores: c.Cores,
 		})
 	}
 

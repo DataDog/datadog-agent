@@ -8,10 +8,12 @@ package telemetry
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
 )
 
 const (
-	subsystem = "sbom"
+	// Subsystem is the subsystem name for the provided telemetry for sbom
+	Subsystem = "sbom"
 )
 
 var commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
@@ -19,7 +21,7 @@ var commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
 var (
 	// SBOMAttempts tracks sbom collection attempts.
 	SBOMAttempts = telemetry.NewCounterWithOpts(
-		subsystem,
+		Subsystem,
 		"attempts",
 		[]string{"source", "type"},
 		"Number of sbom failures by (source, type)",
@@ -27,7 +29,7 @@ var (
 	)
 	// SBOMFailures tracks sbom collection attempts that fail.
 	SBOMFailures = telemetry.NewCounterWithOpts(
-		subsystem,
+		Subsystem,
 		"errors",
 		[]string{"source", "type", "reason"},
 		"Number of sbom failures by (source, type, reason)",
@@ -37,7 +39,7 @@ var (
 	// SBOMGenerationDuration measures the time that it takes to generate SBOMs
 	// in seconds.
 	SBOMGenerationDuration = telemetry.NewHistogramWithOpts(
-		subsystem,
+		Subsystem,
 		"generation_duration",
 		[]string{"source", "scan_type"},
 		"SBOM generation duration (in seconds)",
@@ -47,7 +49,7 @@ var (
 
 	// SBOMExportSize is the size of the archive written on disk
 	SBOMExportSize = telemetry.NewHistogramWithOpts(
-		subsystem,
+		Subsystem,
 		"export_size",
 		[]string{"source", "scan_ref"},
 		"Size of the archive written on disk",
@@ -57,7 +59,7 @@ var (
 
 	// SBOMCacheDiskSize size in disk of the custom cache used for SBOM collection
 	SBOMCacheDiskSize = telemetry.NewGaugeWithOpts(
-		subsystem,
+		Subsystem,
 		"cache_disk_size",
 		[]string{},
 		"SBOM size in disk of the custom cache (in bytes)",
@@ -66,7 +68,7 @@ var (
 
 	// SBOMCacheHits number of cache hits during SBOM collection
 	SBOMCacheHits = telemetry.NewCounterWithOpts(
-		subsystem,
+		Subsystem,
 		"cache_hits_total",
 		[]string{},
 		"SBOM total number of cache hits during SBOM collection",
@@ -75,10 +77,13 @@ var (
 
 	// SBOMCacheMisses number of cache misses during SBOM collection
 	SBOMCacheMisses = telemetry.NewCounterWithOpts(
-		subsystem,
+		Subsystem,
 		"cache_misses_total",
 		[]string{},
 		"SBOM total number of cache misses during SBOM collection",
 		commonOpts,
 	)
+
+	// QueueMetricsProvider is the metrics provider for the sbom scanner retry queue
+	QueueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
 )

@@ -15,6 +15,6 @@ import (
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 )
 
-func extractIP(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf) (string, error) {
+func extractIP(_ string, _ containerd.Container, _ cutil.ContainerdItf) (string, error) {
 	return "", errors.New("can't get the IPs on this OS")
 }

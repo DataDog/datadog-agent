@@ -10,24 +10,23 @@ import (
 	"errors"
 	"fmt"
 	"runtime/pprof"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/gorilla/mux"
-	"google.golang.org/grpc"
-
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/gorilla/mux"
 )
 
 var l *loader
 
 func init() {
 	l = &loader{
-		modules: make(map[config.ModuleName]Module),
-		errors:  make(map[config.ModuleName]error),
-		routers: make(map[config.ModuleName]*Router),
+		modules: make(map[sysconfigtypes.ModuleName]Module),
+		errors:  make(map[sysconfigtypes.ModuleName]error),
+		routers: make(map[sysconfigtypes.ModuleName]*Router),
 	}
 }
 
@@ -37,11 +36,11 @@ func init() {
 // * Module telemetry consolidation;
 type loader struct {
 	sync.Mutex
-	modules map[config.ModuleName]Module
-	errors  map[config.ModuleName]error
+	modules map[sysconfigtypes.ModuleName]Module
+	errors  map[sysconfigtypes.ModuleName]error
 	stats   map[string]interface{}
-	cfg     *config.Config
-	routers map[config.ModuleName]*Router
+	cfg     *sysconfigtypes.Config
+	routers map[sysconfigtypes.ModuleName]*Router
 	closed  bool
 }
 
@@ -53,7 +52,7 @@ func (l *loader) forEachModule(fn func(name string, mod Module)) {
 	}
 }
 
-func withModule(name config.ModuleName, fn func()) {
+func withModule(name sysconfigtypes.ModuleName, fn func()) {
 	pprof.Do(context.Background(), pprof.Labels("module", string(name)), func(_ context.Context) {
 		fn()
 	})
@@ -63,21 +62,25 @@ func withModule(name config.ModuleName, fn func()) {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 // * Register the gRPC server;
-func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, factories []Factory) error {
-	if err := preRegister(cfg); err != nil {
-		return fmt.Errorf("error in pre-register hook: %w", err)
-	}
-
+func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Factory, wmeta optional.Option[workloadmeta.Component]) error {
+	var enabledModulesFactories []Factory
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
 			log.Infof("module %s disabled", factory.Name)
 			continue
 		}
+		enabledModulesFactories = append(enabledModulesFactories, factory)
+	}
 
+	if err := preRegister(cfg, enabledModulesFactories); err != nil {
+		return fmt.Errorf("error in pre-register hook: %w", err)
+	}
+
+	for _, factory := range enabledModulesFactories {
 		var err error
 		var module Module
 		withModule(factory.Name, func() {
-			module, err = factory.Fn(cfg)
+			module, err = factory.Fn(cfg, wmeta)
 		})
 
 		// In case a module failed to be started, do not make the whole `system-probe` abort.
@@ -101,21 +104,13 @@ func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, 
 			continue
 		}
 
-		if grpcServer != nil {
-			if err = module.RegisterGRPC(&systemProbeGRPCServer{sr: grpcServer, ns: factory.Name}); err != nil {
-				l.errors[factory.Name] = err
-				log.Errorf("error registering grpc endpoints for module %s: %s", factory.Name, err)
-				continue
-			}
-		}
-
 		l.routers[factory.Name] = subRouter
 		l.modules[factory.Name] = module
 
 		log.Infof("module %s started", factory.Name)
 	}
 
-	if err := postRegister(cfg); err != nil {
+	if err := postRegister(cfg, enabledModulesFactories); err != nil {
 		return fmt.Errorf("error in post-register hook: %w", err)
 	}
 
@@ -143,7 +138,7 @@ func GetStats() map[string]interface{} {
 }
 
 // RestartModule triggers a module restart
-func RestartModule(factory Factory) error {
+func RestartModule(factory Factory, wmeta optional.Option[workloadmeta.Component]) error {
 	l.Lock()
 	defer l.Unlock()
 
@@ -160,7 +155,7 @@ func RestartModule(factory Factory) error {
 	var err error
 	withModule(factory.Name, func() {
 		currentModule.Close()
-		newModule, err = factory.Fn(l.cfg)
+		newModule, err = factory.Fn(l.cfg, wmeta)
 	})
 	if err != nil {
 		l.errors[factory.Name] = err
@@ -227,32 +222,4 @@ func updateStats() {
 		then = now
 		now = <-ticker.C
 	}
-}
-
-type systemProbeGRPCServer struct {
-	sr grpc.ServiceRegistrar
-	ns config.ModuleName
-}
-
-func (s *systemProbeGRPCServer) RegisterService(desc *grpc.ServiceDesc, impl interface{}) {
-	modName := NameFromGRPCServiceName(desc.ServiceName)
-	if modName != string(s.ns) {
-		panic(fmt.Sprintf("module name `%s` from service name `%s` does not match `%s`", modName, desc.ServiceName, s.ns))
-	}
-	s.sr.RegisterService(desc, impl)
-}
-
-// NameFromGRPCServiceName extracts a system-probe module name from the gRPC service name.
-// It expects a form of `datadog.agent.systemprobe.<module_name>.ServiceName`.
-func NameFromGRPCServiceName(service string) string {
-	prefix := "datadog.agent.systemprobe."
-	if !strings.HasPrefix(service, prefix) {
-		return ""
-	}
-	s := strings.TrimPrefix(service, prefix)
-	mod, _, ok := strings.Cut(s, ".")
-	if !ok {
-		return ""
-	}
-	return mod
 }

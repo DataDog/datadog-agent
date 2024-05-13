@@ -18,11 +18,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners/ratelimit"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var (
@@ -49,12 +52,21 @@ type UDSListener struct {
 	sharedPacketPoolManager *packets.PoolManager
 	oobPoolManager          *packets.PoolManager
 	trafficCapture          replay.Component
+	pidMap                  pidmap.Component
 	OriginDetection         bool
 	config                  config.Reader
+
+	wmeta optional.Option[workloadmeta.Component]
 
 	transport string
 
 	dogstatsdMemBasedRateLimiter bool
+
+	packetBufferSize         uint
+	packetBufferFlushTimeout time.Duration
+	telemetryWithListenerID  bool
+
+	listenWg *sync.WaitGroup
 }
 
 // CloseFunction is a function that closes a connection
@@ -120,7 +132,7 @@ func NewUDSOobPoolManager() *packets.PoolManager {
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, transport string) (*UDSListener, error) {
+func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, transport string, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component) (*UDSListener, error) {
 	originDetection := cfg.GetBool("dogstatsd_origin_detection")
 
 	listener := &UDSListener{
@@ -128,9 +140,15 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		packetOut:                    packetOut,
 		sharedPacketPoolManager:      sharedPacketPoolManager,
 		trafficCapture:               capture,
+		pidMap:                       pidMap,
 		dogstatsdMemBasedRateLimiter: cfg.GetBool("dogstatsd_mem_based_rate_limiter.enabled"),
 		config:                       cfg,
 		transport:                    transport,
+		packetBufferSize:             uint(cfg.GetInt("dogstatsd_packet_buffer_size")),
+		packetBufferFlushTimeout:     cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout"),
+		telemetryWithListenerID:      cfg.GetBool("dogstatsd_telemetry_enabled_listener_id"),
+		listenWg:                     &sync.WaitGroup{},
+		wmeta:                        wmeta,
 	}
 
 	// Init the oob buffer pool if origin detection is enabled
@@ -149,15 +167,15 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFunction) error {
 	listenerID := l.getListenerID(conn)
 	tlmListenerID := listenerID
-	telemetryWithFullListenerID := l.config.GetBool("dogstatsd_telemetry_enabled_listener_id")
+	telemetryWithFullListenerID := l.telemetryWithListenerID
 	if !telemetryWithFullListenerID {
 		// In case we don't want the full listener id, we only keep the transport.
 		tlmListenerID = "uds-" + conn.LocalAddr().Network()
 	}
 
 	packetsBuffer := packets.NewBuffer(
-		uint(l.config.GetInt("dogstatsd_packet_buffer_size")),
-		l.config.GetDuration("dogstatsd_packet_buffer_flush_timeout"),
+		l.packetBufferSize,
+		l.packetBufferFlushTimeout,
 		l.packetOut,
 		tlmListenerID,
 	)
@@ -259,7 +277,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 			} else {
 				n, _, err = conn.ReadFromUnix(packet.Buffer[n:maxPacketLength])
 			}
-			if n == 0 && oobn == 0 {
+			if n == 0 && oobn == 0 && l.transport == "unix" {
 				log.Debugf("dogstatsd-uds: %s connection closed", l.transport)
 				return nil
 			}
@@ -281,7 +299,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 
 		if oob != nil {
 			// Extract container id from credentials
-			pid, container, taggingErr := processUDSOrigin(oobS[:oobn])
+			pid, container, taggingErr := processUDSOrigin(oobS[:oobn], l.wmeta, l.pidMap)
 			if taggingErr != nil {
 				log.Warnf("dogstatsd-uds: error processing origin, data will not be tagged : %v", taggingErr)
 				udsOriginDetectionErrors.Add(1)
@@ -295,6 +313,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 			if capBuff != nil {
 				capBuff.Oob = oob
 				capBuff.Pid = int32(pid)
+				capBuff.Pb.Pid = int32(pid)
 				capBuff.Pb.AncillarySize = int32(oobn)
 				capBuff.Pb.Ancillary = oobS[:oobn]
 			}
@@ -362,6 +381,7 @@ func (l *UDSListener) getListenerID(conn *net.UnixConn) string {
 // Stop closes the UDS connection and stops listening
 func (l *UDSListener) Stop() {
 	// Socket cleanup on exit is not necessary as sockets are automatically removed by go.
+	l.listenWg.Wait()
 }
 
 func (l *UDSListener) clearTelemetry(id string) {

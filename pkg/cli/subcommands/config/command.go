@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -59,8 +60,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
-					LogParams:    log.ForOneShot(globalParams.LoggerName, "off", true)}),
-				core.Bundle,
+					LogParams:    logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
+				core.Bundle(),
 			)
 		}
 	}
@@ -99,8 +100,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func showRuntimeConfiguration(log log.Component, config config.Component, cliParams *cliParams) error {
-	err := util.SetAuthToken()
+func showRuntimeConfiguration(_ log.Component, config config.Component, cliParams *cliParams) error {
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}
@@ -120,8 +121,8 @@ func showRuntimeConfiguration(log log.Component, config config.Component, cliPar
 	return nil
 }
 
-func listRuntimeConfigurableValue(log log.Component, config config.Component, cliParams *cliParams) error {
-	err := util.SetAuthToken()
+func listRuntimeConfigurableValue(_ log.Component, config config.Component, cliParams *cliParams) error {
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}
@@ -146,12 +147,12 @@ func listRuntimeConfigurableValue(log log.Component, config config.Component, cl
 	return nil
 }
 
-func setConfigValue(log log.Component, config config.Component, cliParams *cliParams) error {
+func setConfigValue(_ log.Component, config config.Component, cliParams *cliParams) error {
 	if len(cliParams.args) != 2 {
 		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
 	}
 
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}
@@ -175,12 +176,12 @@ func setConfigValue(log log.Component, config config.Component, cliParams *cliPa
 	return nil
 }
 
-func getConfigValue(log log.Component, config config.Component, cliParams *cliParams) error {
+func getConfigValue(_ log.Component, config config.Component, cliParams *cliParams) error {
 	if len(cliParams.args) != 1 {
 		return fmt.Errorf("a single setting name must be specified")
 	}
 
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}

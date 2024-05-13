@@ -11,6 +11,7 @@ variables:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
     - when: manual
+      allow_failure: true
   # If you have a problem with Gitlab cache, see Troubleshooting section in Benchmarking Platform docs
   image: $BENCHMARKS_CI_IMAGE
   needs: ["setup_agent_version"]
@@ -26,6 +27,10 @@ variables:
   variables:
     FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true" # Important tweak for stability of benchmarks
 
+    TRACE_AGENT_CPUS: 40-41
+    DD_APM_MAX_CPU_PERCENT: 0
+    DD_APM_MAX_MEMORY: 0
+
     # Uncomment to force k8s memory limits for CI job container.
     # KUBERNETES_MEMORY_REQUEST: "4Gi"
     # KUBERNETES_MEMORY_LIMIT: "4Gi"
@@ -39,9 +44,6 @@ trace-agent-v04-2cpus-normal_load-fixed_sps:
   extends: .trace_agent_benchmarks
   variables:
     TRACE_AGENT_ENDPOINT: v04
-    TRACE_AGENT_CPUS: 40-41
-    DD_APM_MAX_CPU_PERCENT: 0
-    DD_APM_MAX_MEMORY: 0
     DD_BENCHMARKS_CONFIGURATION: trace-agent-v04-2cpus-normal_load-fixed_sps
     SCENARIOS: >
       normal_load-10traces210spans-65ksps|
@@ -50,12 +52,8 @@ trace-agent-v04-2cpus-normal_load-fixed_sps:
 
 trace-agent-v04-2cpus-stress_load-fixed_sps:
   extends: .trace_agent_benchmarks
-  when: manual
   variables:
     TRACE_AGENT_ENDPOINT: v04
-    TRACE_AGENT_CPUS: 40-41
-    DD_APM_MAX_CPU_PERCENT: 0
-    DD_APM_MAX_MEMORY: 0
     DD_BENCHMARKS_CONFIGURATION: trace-agent-v04-2cpus-stress_load-fixed_sps
     SCENARIOS: >
       stress_load-10traces210spans-525ksps|
@@ -66,23 +64,16 @@ trace-agent-v05-2cpus-normal_load-fixed_sps:
   extends: .trace_agent_benchmarks
   variables:
     TRACE_AGENT_ENDPOINT: v05
-    TRACE_AGENT_CPUS: 40-41
-    DD_APM_MAX_CPU_PERCENT: 0
-    DD_APM_MAX_MEMORY: 0
     DD_BENCHMARKS_CONFIGURATION: trace-agent-v05-2cpus-normal_load-fixed_sps
-    SCENARIO: >
+    SCENARIOS: >
       normal_load-10traces210spans-65ksps|
       normal_load-500traces8617spans-65ksps|
       normal_load-3885traces3891spans-65ksps
 
 trace-agent-v05-2cpus-stress_load-fixed_sps:
   extends: .trace_agent_benchmarks
-  when: manual
   variables:
     TRACE_AGENT_ENDPOINT: v05
-    TRACE_AGENT_CPUS: 40-41
-    DD_APM_MAX_CPU_PERCENT: 0
-    DD_APM_MAX_MEMORY: 0
     DD_BENCHMARKS_CONFIGURATION: trace-agent-v05-2cpus-stress_load-fixed_sps
     SCENARIOS: >
       stress_load-10traces210spans-525ksps|

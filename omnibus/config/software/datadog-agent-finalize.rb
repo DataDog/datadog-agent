@@ -14,6 +14,8 @@ default_version "1.0.0"
 
 skip_transitive_dependency_licensing true
 
+always_build true
+
 build do
     license :project_license
 
@@ -23,6 +25,9 @@ build do
         if windows_target?
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
+            # delete the directory if it exists, then recreate it, because
+            # move will skip/silently fail if the destination directory exists
+            delete conf_dir
             mkdir conf_dir
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
             if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty? and not windows_arch_i386?
@@ -85,17 +90,6 @@ build do
         end
 
         if linux_target?
-            # Fix pip after building on extended toolchain in CentOS builder
-            if redhat? && ohai["platform_version"].to_i == 6
-              unless arm_target?
-                rhel_toolchain_root = "/opt/rh/devtoolset-1.1/root"
-                # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
-                command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec grep -inH '#{rhel_toolchain_root}' {} \\; |  egrep '.*'"
-                # replace paths with expected target toolchain location
-                command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec sed -i 's##{rhel_toolchain_root}##g' {} \\;"
-              end
-            end
-
             # Move system service files
             mkdir "/etc/init"
             move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
@@ -126,15 +120,17 @@ build do
             mkdir "/etc/datadog-agent"
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
-            move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
-            move "#{install_dir}/etc/datadog-agent/runtime-security.d", "/etc/datadog-agent", :force=>true
-            move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "/etc/datadog-agent", :force=>true
-            move "#{install_dir}/etc/datadog-agent/compliance.d", "/etc/datadog-agent"
+            unless heroku_target?
+              move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
+              move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "/etc/datadog-agent", :force=>true
+              move "#{install_dir}/etc/datadog-agent/runtime-security.d", "/etc/datadog-agent", :force=>true
+              move "#{install_dir}/etc/datadog-agent/compliance.d", "/etc/datadog-agent"
 
-            # Move SELinux policy
-            if debian_target? || redhat_target?
-              move "#{install_dir}/etc/datadog-agent/selinux", "/etc/datadog-agent/selinux"
+              # Move SELinux policy
+              if debian_target? || redhat_target?
+                move "#{install_dir}/etc/datadog-agent/selinux", "/etc/datadog-agent/selinux"
+              end
             end
 
             # Create empty directories so that they're owned by the package

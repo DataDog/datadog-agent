@@ -95,7 +95,7 @@ func getSender(t *testing.T) *mocksender.MockSender {
 
 // getManifestBuffer returns a manifest buffer for test with buffer size = 2
 func getManifestBuffer() *ManifestBuffer {
-	orchCheck := OrchestratorFactory().(*OrchestratorCheck)
+	orchCheck := newCheck().(*OrchestratorCheck)
 	mb := NewManifestBuffer(orchCheck)
 	mb.Cfg.MaxBufferedManifests = 2
 	mb.Cfg.ManifestBufferFlushInterval = 3 * time.Second

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+//nolint:revive // TODO(TEL) Fix revive linter
 func testCfg(serverUrl string) *config.AgentConfig {
 	cfg := config.New()
 	cfg.TelemetryConfig.Endpoints[0].Host = serverUrl
@@ -129,6 +130,7 @@ func TestTelemetryPath(t *testing.T) {
 	var reqCount int
 	var path string
 	server.assertReq = func(req *http.Request) {
+		//nolint:revive // TODO(TEL) Fix revive linter
 		reqCount += 1
 		path = req.URL.Path
 	}
@@ -191,12 +193,14 @@ func TestDualShipping(t *testing.T) {
 	var reqCount, reqCount2 int
 
 	server.assertReq = func(req *http.Request) {
+		//nolint:revive // TODO(TEL) Fix revive linter
 		reqCount += 1
 		b, err := io.ReadAll(req.Body)
 		assert.NoError(t, err)
 		body = b
 	}
 	server2.assertReq = func(req *http.Request) {
+		//nolint:revive // TODO(TEL) Fix revive linter
 		reqCount2 += 1
 		b, err := io.ReadAll(req.Body)
 		assert.NoError(t, err)

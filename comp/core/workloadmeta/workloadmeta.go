@@ -7,14 +7,21 @@ package workloadmeta
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"go.uber.org/fx"
 )
 
 // store is a central storage of metadata about workloads. A workload is any
@@ -43,7 +50,7 @@ type workloadmeta struct {
 
 // InitHelper this should be provided as a helper to allow passing the component into
 // the inithook for additional start-time configutation.
-type InitHelper func(context.Context, Component) error
+type InitHelper func(context.Context, Component, config.Component) error
 
 type dependencies struct {
 	fx.In
@@ -57,9 +64,25 @@ type dependencies struct {
 	Params Params
 }
 
-func newWorkloadMeta(deps dependencies) Component {
+type provider struct {
+	fx.Out
+
+	Comp          Component
+	FlareProvider flaretypes.Provider
+	Endpoint      api.AgentEndpointProvider
+}
+
+type optionalProvider struct {
+	fx.Out
+
+	Comp          optional.Option[Component]
+	FlareProvider flaretypes.Provider
+	Endpoint      api.AgentEndpointProvider
+}
+
+func newWorkloadMeta(deps dependencies) provider {
 	candidates := make(map[string]Collector)
-	for _, c := range deps.Catalog {
+	for _, c := range fxutil.GetAndFilterGroup(deps.Catalog) {
 		if (c.GetTargetCatalog() & deps.Params.AgentType) > 0 {
 			candidates[c.GetID()] = c
 		}
@@ -76,9 +99,6 @@ func newWorkloadMeta(deps dependencies) Component {
 		ongoingPulls: make(map[string]time.Time),
 	}
 
-	// Set global
-	SetGlobalStore(wm)
-
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
 
 		var err error
@@ -88,14 +108,13 @@ func newWorkloadMeta(deps dependencies) Component {
 		//                   context provided to the OnStart hook.
 		mainCtx, _ := common.GetMainCtxCancel()
 
-		// create and setup the Autoconfig instance
 		if deps.Params.InitHelper != nil {
-			err = deps.Params.InitHelper(mainCtx, wm)
+			err = deps.Params.InitHelper(mainCtx, wm, deps.Config)
 			if err != nil {
 				return err
 			}
 		}
-		wm.Start(mainCtx)
+		wm.start(mainCtx)
 		return nil
 	}})
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
@@ -103,14 +122,43 @@ func newWorkloadMeta(deps dependencies) Component {
 		return nil
 	}})
 
-	return wm
+	return provider{
+		Comp:          wm,
+		FlareProvider: flaretypes.NewProvider(wm.sbomFlareProvider),
+		Endpoint:      api.NewAgentEndpointProvider(wm.writeResponse, "/workload-list", "GET"),
+	}
 }
 
-func newWorkloadMetaOptional(deps dependencies) optional.Option[Component] {
+func newWorkloadMetaOptional(deps dependencies) optionalProvider {
 	if deps.Params.NoInstance {
-		return optional.NewNoneOption[Component]()
+		return optionalProvider{
+			Comp: optional.NewNoneOption[Component](),
+		}
 	}
 	c := newWorkloadMeta(deps)
 
-	return optional.NewOption[Component](c)
+	return optionalProvider{
+		Comp:          optional.NewOption(c.Comp),
+		FlareProvider: c.FlareProvider,
+		Endpoint:      c.Endpoint,
+	}
+}
+
+func (wm *workloadmeta) writeResponse(w http.ResponseWriter, r *http.Request) {
+	verbose := false
+	params := r.URL.Query()
+	if v, ok := params["verbose"]; ok {
+		if len(v) >= 1 && v[0] == "true" {
+			verbose = true
+		}
+	}
+
+	response := wm.Dump(verbose)
+	jsonDump, err := json.Marshal(response)
+	if err != nil {
+		utils.SetJSONError(w, wm.log.Errorf("Unable to marshal workload list response: %v", err), 500)
+		return
+	}
+
+	w.Write(jsonDump)
 }

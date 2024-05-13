@@ -53,7 +53,9 @@ type Source struct {
 	Info          map[string][]string    `json:"info"`
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 type Tailer struct {
+	//nolint:revive // TODO(AML) Fix revive linter
 	Id   string              `json:"id"`
 	Type string              `json:"type"`
 	Info map[string][]string `json:"info"`
@@ -69,7 +71,7 @@ type Integration struct {
 type Status struct {
 	IsRunning        bool              `json:"is_running"`
 	Endpoints        []string          `json:"endpoints"`
-	StatusMetrics    map[string]int64  `json:"metrics"`
+	StatusMetrics    map[string]string `json:"metrics"`
 	ProcessFileStats map[string]uint64 `json:"process_file_stats"`
 	Integrations     []Integration     `json:"integrations"`
 	Tailers          []Tailer          `json:"tailers"`

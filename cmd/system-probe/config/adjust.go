@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package config contains the general configuration for system-probe
 package config
 
 import (
@@ -28,12 +29,11 @@ func Adjust(cfg config.Config) {
 	deprecateString(cfg, spNS("log_file"), "log_file")
 
 	usmEnabled := cfg.GetBool(smNS("enabled"))
-	dsmEnabled := cfg.GetBool(dsmNS("enabled"))
+	npmEnabled := cfg.GetBool(netNS("enabled"))
 	// this check must come first, so we can accurately tell if system_probe was explicitly enabled
 	if cfg.GetBool(spNS("enabled")) &&
 		!cfg.IsSet(netNS("enabled")) &&
-		!usmEnabled &&
-		!dsmEnabled {
+		!usmEnabled {
 		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
 		// enable the connections/network check.
 		log.Warn(deprecationMessage(spNS("enabled"), netNS("enabled")))
@@ -46,6 +46,13 @@ func Adjust(cfg config.Config) {
 	adjustNetwork(cfg)
 	adjustUSM(cfg)
 	adjustSecurity(cfg)
+
+	if cfg.GetBool(spNS("process_service_inference", "enabled")) &&
+		!usmEnabled &&
+		!npmEnabled {
+		log.Warn("universal service monitoring and network monitoring are disabled, disabling process service inference")
+		cfg.Set(spNS("process_service_inference", "enabled"), false, model.SourceAgentRuntime)
+	}
 
 	cfg.Set(spNS("adjusted"), true, model.SourceAgentRuntime)
 }

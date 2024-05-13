@@ -100,7 +100,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(1)
 				// compute pid from path
-				pid, err := strconv.Atoi(ctx.path[start:end])
+				pid, err := strconv.ParseUint(ctx.path[start:end], 10, 32)
 				if err != nil {
 					return
 				}
@@ -161,7 +161,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
-			Pattern: regexp.MustCompile(`secrets/kubernetes.io/serviceaccount/([0-9._]+)`), // service account token date
+			Pattern: regexp.MustCompile(`secrets/kubernetes\.io/serviceaccount/([0-9._]+)`), // service account token date
 			Hint:    "serviceaccount",
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(1)

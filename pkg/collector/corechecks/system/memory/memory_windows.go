@@ -7,12 +7,12 @@
 package memory
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
 // For testing purpose

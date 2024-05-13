@@ -8,7 +8,7 @@
 package types
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
 const (
@@ -37,6 +37,14 @@ type RebalanceResponse struct {
 
 	DestNodeName string `json:"dest_node_name"`
 	DestDiff     int    `json:"dest_diff"`
+}
+
+// IsolateResponse holds the DCA response for an isolate request
+type IsolateResponse struct {
+	CheckID    string `json:"check_id"`
+	CheckNode  string `json:"check_node"`
+	IsIsolated bool   `json:"is_isolated"`
+	Reason     string `json:"reason"`
 }
 
 // ConfigResponse holds the DCA response for a config query

@@ -5,6 +5,7 @@
 
 //go:build !windows && clusterchecks
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 package subcommands
 
 import (

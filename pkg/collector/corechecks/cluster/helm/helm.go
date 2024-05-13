@@ -22,8 +22,8 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
@@ -31,20 +31,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
-	checkName               = "helm"
+	// CheckName is the name of the check
+	CheckName               = "helm"
 	serviceCheckName        = "helm.release_state"
 	maximumWaitForAPIServer = 10 * time.Second
 	defaultExtraSyncTimeout = 120 * time.Second
 	defaultResyncInterval   = 10 * time.Minute
 	labelSelector           = "owner=helm"
 )
-
-func init() {
-	core.RegisterCheck(checkName, factory)
-}
 
 type helmStorage string
 
@@ -86,9 +85,14 @@ func (cc *checkConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, cc)
 }
 
-func factory() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return &HelmCheck{
-		CheckBase:         core.NewCheckBase(checkName),
+		CheckBase:         core.NewCheckBase(CheckName),
 		instance:          &checkConfig{},
 		store:             newReleasesStore(),
 		runLeaderElection: !config.IsCLCRunner(),
@@ -119,7 +123,6 @@ func (hc *HelmCheck) Configure(senderManager sender.SenderManager, integrationCo
 
 	hc.setSharedInformerFactory(apiClient)
 	hc.startTS = time.Now()
-
 	hc.informersStopCh = make(chan struct{})
 
 	return nil
@@ -205,13 +208,11 @@ func (hc *HelmCheck) setupInformers() error {
 }
 
 func (hc *HelmCheck) setSharedInformerFactory(apiClient *apiserver.APIClient) {
-	hc.informerFactory = informers.NewSharedInformerFactoryWithOptions(
-		apiClient.Cl,
-		hc.getInformersResyncPeriod(),
+	hc.informerFactory = apiClient.GetInformerWithOptions(
+		pointer.Ptr(hc.getInformersResyncPeriod()),
 		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
 			opts.LabelSelector = labelSelector
-		}),
-	)
+		}))
 }
 
 func (hc *HelmCheck) allTags(release *release, storageDriver helmStorage, includeRevision bool) []string {

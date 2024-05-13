@@ -16,6 +16,7 @@ HOOK_SYSCALL_ENTRY0(splice) {
 
     struct syscall_cache_t syscall = {
         .type = EVENT_SPLICE,
+        .policy = policy,
     };
 
     cache_syscall(&syscall);
@@ -91,7 +92,7 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
     }
 
     if (filter_syscall(syscall, splice_approvers)) {
-        return 0;
+        return mark_as_discarded(syscall);
     }
 
     struct splice_event_t event = {

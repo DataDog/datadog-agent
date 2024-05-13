@@ -27,6 +27,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	kv410 := kernel.VersionCode(4, 1, 0)
 	kv470 := kernel.VersionCode(4, 7, 0)
+	kv4180 := kernel.VersionCode(4, 18, 0)
 	kv5180 := kernel.VersionCode(5, 18, 0)
 	kv5190 := kernel.VersionCode(5, 19, 0)
 	kv650 := kernel.VersionCode(6, 5, 0)
@@ -67,18 +68,12 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		// runtime compiled implementation
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer || coreTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
 		enableProbe(enabled, probes.TCPRetransmitRet)
-
-		missing, err := ebpf.VerifyKernelFuncs("sockfd_lookup_light")
-		if err == nil && len(missing) == 0 {
-			enableProbe(enabled, probes.SockFDLookup)
-			enableProbe(enabled, probes.SockFDLookupRet)
-		}
 	}
 
 	if c.CollectUDPv4Conns {
 		enableProbe(enabled, probes.UDPDestroySock)
 		enableProbe(enabled, probes.UDPDestroySockReturn)
-		enableProbe(enabled, probes.IPMakeSkb)
+		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IPMakeSkb, probes.IPMakeSkbPre4180, kv4180))
 		enableProbe(enabled, probes.IPMakeSkbReturn)
 		enableProbe(enabled, probes.InetBind)
 		enableProbe(enabled, probes.InetBindRet)

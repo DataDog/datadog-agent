@@ -5,18 +5,24 @@
 
 //go:build !otlp
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package otlp
 
 import "github.com/DataDog/datadog-agent/pkg/serializer"
 
+//nolint:revive // TODO(SERV) Fix revive linter
 type ServerlessOTLPAgent struct{}
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func NewServerlessOTLPAgent(serializer.MetricSerializer) *ServerlessOTLPAgent {
 	return nil
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (o *ServerlessOTLPAgent) Start() {}
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (o *ServerlessOTLPAgent) Stop() {}
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func IsEnabled() bool { return false }

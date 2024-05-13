@@ -26,7 +26,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -240,6 +240,7 @@ func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
 	h.enqueueWPA(newAutoscaler)
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
 	newAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
 	if err := UnstructuredIntoWPA(obj, newAutoscaler); err != nil {

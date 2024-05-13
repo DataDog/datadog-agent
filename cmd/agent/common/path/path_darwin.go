@@ -26,6 +26,8 @@ const (
 	DefaultJMXFlareDirectory = "/opt/datadog-agent/logs/jmxinfo/"
 	//DefaultDogstatsDLogFile points to the dogstatsd stats log file that will be used if not configured
 	DefaultDogstatsDLogFile = "/opt/datadog-agent/logs/dogstatsd_info/dogstatsd-stats.log"
+	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
+	DefaultStreamlogsLogFile = "/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"
 )
 
 var (
@@ -40,9 +42,4 @@ var (
 // GetDistPath returns the fully qualified path to the 'dist' directory
 func GetDistPath() string {
 	return distPath
-}
-
-// GetViewsPath returns the fully qualified path to the 'gui/views' directory
-func GetViewsPath() string {
-	return filepath.Join(distPath, "views")
 }

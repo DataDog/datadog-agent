@@ -32,8 +32,11 @@ type Component interface {
 	// Warnings returns config warnings collected during setup.
 	Warnings() *config.Warnings
 
-	// SetHandler sets http handler for config
+	// SetHandler returns a handler for runtime configuration changes.
 	SetHandler() http.Handler
+
+	// GetConfigHandler returns a handler to fetch the runtime configuration.
+	GetConfigHandler() http.Handler
 
 	// SetMaxMemCPU
 	SetMaxMemCPU(isContainerized bool)
@@ -43,9 +46,10 @@ type Component interface {
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newConfig),
-	fx.Supply(Params{
-		FailIfAPIKeyMissing: true,
-	}),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newConfig),
+		fx.Supply(Params{
+			FailIfAPIKeyMissing: true,
+		}))
+}

@@ -533,7 +533,7 @@ func stateNul(s *scanner, c byte) int {
 
 // stateError is the state after reaching a syntax error,
 // such as after reading `[1}` or `5.1.2`.
-func stateError(s *scanner, c byte) int {
+func stateError(_ *scanner, _ byte) int {
 	return scanError
 }
 

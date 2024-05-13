@@ -25,6 +25,7 @@ func (r *Rate) addSample(sample *MetricSample, timestamp float64) {
 
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (r *Rate) flush(timestamp float64) ([]*Serie, error) {
 	if r.previousTimestamp == 0 || r.timestamp == 0 {
 		return []*Serie{}, NoSerieError{}

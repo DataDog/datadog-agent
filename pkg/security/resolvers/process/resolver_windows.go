@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,11 +41,12 @@ type Resolver struct {
 	cacheSize *atomic.Int64
 
 	processCacheEntryPool *Pool
+
+	exitedQueue []uint32
 }
 
 // NewResolver returns a new process resolver
-func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, //nolint:revive // TODO fix revive unused-parameter
-	opts ResolverOpts) (*Resolver, error) {
+func NewResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts ResolverOpts) (*Resolver, error) {
 
 	p := &Resolver{
 		processes:    make(map[Pid]*model.ProcessCacheEntry),
@@ -87,6 +89,39 @@ func (p *Resolver) deleteEntry(pid uint32, exitTime time.Time) {
 	entry.Release()
 }
 
+// AddToExitedQueue adds the exited processes to a queue
+func (p *Resolver) AddToExitedQueue(pid uint32) {
+	p.Lock()
+	defer p.Unlock()
+	p.exitedQueue = append(p.exitedQueue, pid)
+}
+
+// DequeueExited dequeue exited process
+func (p *Resolver) DequeueExited() {
+	p.Lock()
+	defer p.Unlock()
+	delEntry := func(pid uint32, exitTime time.Time) {
+		p.deleteEntry(pid, exitTime)
+	}
+
+	var toKeep []uint32
+	now := time.Now()
+	for _, pid := range p.exitedQueue {
+		entry := p.processes[pid]
+		if entry == nil {
+			continue
+		}
+
+		if tm := entry.ExecTime; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
+			delEntry(pid, now)
+		} else {
+			toKeep = append(toKeep, pid)
+		}
+	}
+
+	p.exitedQueue = toKeep
+}
+
 // DeleteEntry tries to delete an entry in the process cache
 func (p *Resolver) DeleteEntry(pid uint32, exitTime time.Time) {
 	p.Lock()
@@ -96,16 +131,15 @@ func (p *Resolver) DeleteEntry(pid uint32, exitTime time.Time) {
 }
 
 // AddNewEntry add a new process entry to the cache
-func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine string) (*model.ProcessCacheEntry, error) {
+func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine string, OwnerSidString string) (*model.ProcessCacheEntry, error) {
 	e := p.processCacheEntryPool.Get()
 	e.PIDContext.Pid = pid
 	e.PPid = ppid
-
-	e.Process.CmdLine = commandLine
-	e.Process.FileEvent.PathnameStr = file
+	e.Process.CmdLine = utils.NormalizePath(commandLine)
+	e.Process.FileEvent.PathnameStr = utils.NormalizePath(file)
 	e.Process.FileEvent.BasenameStr = filepath.Base(e.Process.FileEvent.PathnameStr)
 	e.ExecTime = time.Now()
-
+	e.Process.OwnerSidString = OwnerSidString
 	p.insertEntry(e)
 
 	return e, nil
@@ -122,7 +156,7 @@ func (p *Resolver) GetEntry(pid Pid) *model.ProcessCacheEntry {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *Resolver) Resolve(pid uint32) *model.ProcessCacheEntry { //nolint:revive // TODO fix revive unused-parameter
+func (p *Resolver) Resolve(pid uint32) *model.ProcessCacheEntry {
 	return p.GetEntry(pid)
 }
 
@@ -149,19 +183,23 @@ func (p *Resolver) GetEnvp(pr *model.Process) []string {
 
 // GetProcessCmdLineScrubbed returns the scrubbed cmdline
 func (p *Resolver) GetProcessCmdLineScrubbed(pr *model.Process) string {
+
 	if pr.ScrubbedCmdLineResolved {
-		return pr.CmdLine
+		return pr.CmdLineScrubbed
 	}
+
+	pr.CmdLineScrubbed = pr.CmdLine
 
 	if p.scrubber != nil && len(pr.CmdLine) > 0 {
 		// replace with the scrubbed version
 		scrubbed, _ := p.scrubber.ScrubCommand([]string{pr.CmdLine})
 		if len(scrubbed) > 0 {
-			pr.CmdLine = strings.Join(scrubbed, " ")
+			pr.CmdLineScrubbed = strings.Join(scrubbed, " ")
 		}
 	}
+	pr.ScrubbedCmdLineResolved = true
 
-	return pr.CmdLine
+	return pr.CmdLineScrubbed
 }
 
 // getCacheSize returns the cache size of the process resolver
@@ -203,11 +241,10 @@ func (p *Resolver) Snapshot() {
 		e.PIDContext.Pid = Pid(pid)
 		e.PPid = Pid(proc.Ppid)
 
-		e.Process.CmdLine = strings.Join(proc.GetCmdline(), " ")
-		e.Process.FileEvent.PathnameStr = proc.Exe
+		e.Process.CmdLine = utils.NormalizePath(strings.Join(proc.GetCmdline(), " "))
+		e.Process.FileEvent.PathnameStr = utils.NormalizePath(proc.Exe)
 		e.Process.FileEvent.BasenameStr = filepath.Base(e.Process.FileEvent.PathnameStr)
 		e.ExecTime = time.Unix(0, proc.Stats.CreateTime*int64(time.Millisecond))
-
 		entries = append(entries, e)
 
 		log.Tracef("PID %d  %d PPID %d\n", pid, proc.Pid, proc.Ppid)

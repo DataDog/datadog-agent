@@ -5,6 +5,7 @@
 
 //go:build clusterchecks
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 package cloudfoundry
 
 import (

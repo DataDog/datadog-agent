@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,14 +31,16 @@ import (
 // The API is only meant to expose stats used by the Cluster Agent
 // Check configs and any data that could contain sensitive information
 // MUST NEVER be sent via this API
-func SetupHandlers(r *mux.Router) {
+func SetupHandlers(r *mux.Router, ac autodiscovery.Component) {
 	r.HandleFunc("/clcrunner/version", common.GetVersion).Methods("GET")
-	r.HandleFunc("/clcrunner/stats", getCLCRunnerStats).Methods("GET")
+	r.HandleFunc("/clcrunner/stats", func(w http.ResponseWriter, r *http.Request) {
+		getCLCRunnerStats(w, r, ac)
+	}).Methods("GET")
 	r.HandleFunc("/clcrunner/workers", getCLCRunnerWorkers).Methods("GET")
 }
 
 // getCLCRunnerStats retrieves Cluster Level Check runners stats
-func getCLCRunnerStats(w http.ResponseWriter, r *http.Request) {
+func getCLCRunnerStats(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Component) {
 	log.Info("Got a request for the runner stats. Making stats.")
 	w.Header().Set("Content-Type", "application/json")
 	stats, err := status.GetExpvarRunnerStats()
@@ -48,7 +51,7 @@ func getCLCRunnerStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	flattenedStats := flattenCLCStats(stats)
-	statsWithIDsKnownByDCA := replaceIDsWithIDsKnownByDCA(flattenedStats)
+	statsWithIDsKnownByDCA := replaceIDsWithIDsKnownByDCA(ac, flattenedStats)
 	jsonStats, err := json.Marshal(statsWithIDsKnownByDCA)
 	if err != nil {
 		log.Errorf("Error marshalling stats. Error: %v, Stats: %v", err, statsWithIDsKnownByDCA)
@@ -79,11 +82,11 @@ func flattenCLCStats(stats status.CLCChecks) map[string]status.CLCStats {
 // Agent won't recognize the check as a cluster check.
 // The API defined in this file is only used by the Cluster Agent, so it makes
 // sense to use the IDs that it recognizes.
-func replaceIDsWithIDsKnownByDCA(stats map[string]status.CLCStats) map[string]status.CLCStats {
+func replaceIDsWithIDsKnownByDCA(ac autodiscovery.Component, stats map[string]status.CLCStats) map[string]status.CLCStats {
 	res := make(map[string]status.CLCStats, len(stats))
 
 	for checkID, checkStats := range stats {
-		originalID := common.AC.GetIDOfCheckWithEncryptedSecrets(checkid.ID(checkID))
+		originalID := ac.GetIDOfCheckWithEncryptedSecrets(checkid.ID(checkID))
 
 		if originalID != "" {
 			res[string(originalID)] = checkStats
@@ -95,7 +98,7 @@ func replaceIDsWithIDsKnownByDCA(stats map[string]status.CLCStats) map[string]st
 	return res
 }
 
-func getCLCRunnerWorkers(w http.ResponseWriter, r *http.Request) {
+func getCLCRunnerWorkers(w http.ResponseWriter, _ *http.Request) {
 	log.Info("Got a request for the runner workers")
 	w.Header().Set("Content-Type", "application/json")
 	stats, err := status.GetExpvarRunnerStats()

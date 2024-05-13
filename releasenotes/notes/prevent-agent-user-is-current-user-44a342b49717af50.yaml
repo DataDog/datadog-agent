@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    To prevent misconfigurations, the Windows Datadog Agent installer now raises an error if
+    the user account running the installer MSI is provided as the ``ddagentuser`` (``DDAGENTUSER_NAME``) account.
+    If the account is a service account, such as LocalSystem or a gMSA account, no action is needed.
+    If the account is a regular account, configure a different Datadog Agent service account.

@@ -11,11 +11,11 @@ import (
 	"debug/elf"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -28,7 +28,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -120,11 +119,11 @@ type goTLSProgram struct {
 	// analysis
 	binAnalysisMetric *libtelemetry.Counter
 
-	// sockFDMap is the user mode handler of `sock_by_pid_fd` map, which is shared among NPM and USM.
-	sockFDMap *ebpf.Map
-
 	registry *utils.FileRegistry
 }
+
+// Validate that goTLSProgram implements the Attacher interface.
+var _ utils.Attacher = &goTLSProgram{}
 
 var goTLSSpec = &protocols.ProtocolSpec{
 	Maps: []*manager.Map{
@@ -162,13 +161,13 @@ var goTLSSpec = &protocols.ProtocolSpec{
 	},
 }
 
-func newGoTLSProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map) protocols.ProtocolFactory {
+func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
 		if !c.EnableGoTLSSupport {
 			return nil, nil
 		}
 
-		if !http.HTTPSSupported(c) {
+		if !http.TLSSupported(c) {
 			return nil, errors.New("goTLS not supported by this platform")
 		}
 
@@ -181,7 +180,6 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map) pro
 			cfg:               c,
 			manager:           m,
 			procRoot:          c.ProcRoot,
-			sockFDMap:         sockFDMap,
 			binAnalysisMetric: libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
 			registry:          utils.NewFileRegistry("go-tls"),
 		}, nil
@@ -204,19 +202,9 @@ func (p *goTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Opt
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
-
-	if options.MapEditors == nil {
-		options.MapEditors = make(map[string]*ebpf.Map)
-	}
-
-	options.MapSpecEditors[probes.SockByPidFDMap] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxTrackedConnections,
-		EditorFlag: manager.EditMaxEntries,
-	}
-	options.MapEditors[probes.SockByPidFDMap] = p.sockFDMap
 }
 
-// Start launches the goTLS main goroutine to handle events.
+// PreStart launches the goTLS main goroutine to handle events.
 func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 	var err error
 
@@ -227,7 +215,7 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 
 	procMonitor := monitor.GetProcessMonitor()
 	cleanupExec := procMonitor.SubscribeExec(p.handleProcessStart)
-	cleanupExit := procMonitor.SubscribeExit(p.registry.Unregister)
+	cleanupExit := procMonitor.SubscribeExit(p.handleProcessExit)
 
 	p.wg.Add(1)
 	go func() {
@@ -250,7 +238,7 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 				processSet := p.registry.GetRegisteredProcesses()
 				deletedPids := monitor.FindDeletedProcesses(processSet)
 				for deletedPid := range deletedPids {
-					p.registry.Unregister(deletedPid)
+					_ = p.registry.Unregister(deletedPid)
 				}
 			}
 		}
@@ -259,18 +247,22 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 	return nil
 }
 
-func (p *goTLSProgram) PostStart(_ *manager.Manager) error {
+// PostStart registers the goTLS program to the attacher list.
+func (p *goTLSProgram) PostStart(*manager.Manager) error {
+	utils.AddAttacher(p.Name(), p)
 	return nil
 }
 
-func (p *goTLSProgram) DumpMaps(_ *strings.Builder, _ string, _ *ebpf.Map) {}
+// DumpMaps is a no-op.
+func (p *goTLSProgram) DumpMaps(io.Writer, string, *ebpf.Map) {}
 
+// GetStats is a no-op.
 func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
 	return nil
 }
 
 // Stop terminates goTLS main goroutine.
-func (p *goTLSProgram) Stop(_ *manager.Manager) {
+func (p *goTLSProgram) Stop(*manager.Manager) {
 	close(p.done)
 	// Waiting for the main event loop to finish.
 	p.wg.Wait()
@@ -279,6 +271,58 @@ func (p *goTLSProgram) Stop(_ *manager.Manager) {
 var (
 	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace)-agent|system-probe|agent)")
 )
+
+// DetachPID detaches the provided PID from the eBPF program.
+func (p *goTLSProgram) DetachPID(pid uint32) error {
+	return p.registry.Unregister(pid)
+}
+
+var (
+	// ErrSelfExcluded is returned when the PID is the same as the agent's PID.
+	ErrSelfExcluded = errors.New("self-excluded")
+	// ErrInternalDDogProcessRejected is returned when the PID is an internal datadog process.
+	ErrInternalDDogProcessRejected = errors.New("internal datadog process rejected")
+)
+
+// AttachPID attaches the provided PID to the eBPF program.
+func (p *goTLSProgram) AttachPID(pid uint32) error {
+	if p.cfg.GoTLSExcludeSelf && pid == uint32(os.Getpid()) {
+		return ErrSelfExcluded
+	}
+
+	pidAsStr := strconv.FormatUint(uint64(pid), 10)
+	exePath := filepath.Join(p.procRoot, pidAsStr, "exe")
+
+	binPath, err := os.Readlink(exePath)
+	if err != nil {
+		// We receive the Exec event, /proc could be slow to update
+		end := time.Now().Add(10 * time.Millisecond)
+		for end.After(time.Now()) {
+			binPath, err = os.Readlink(exePath)
+			if err == nil {
+				break
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	if err != nil {
+		// we can't access to the binary path here (pid probably ended already)
+		// there are not much we can do, and we don't want to flood the logs
+		return err
+	}
+
+	// Check if the process is datadog's internal process, if so, we don't want to hook the process.
+	if internalProcessRegex.MatchString(binPath) {
+		if log.ShouldLog(seelog.DebugLvl) {
+			log.Debugf("ignoring pid %d, as it is an internal datadog component (%q)", pid, binPath)
+		}
+		return ErrInternalDDogProcessRejected
+	}
+
+	// Check go process
+	probeList := make([]manager.ProbeIdentificationPair, 0)
+	return p.registry.Register(binPath, pid, registerCBCreator(p.manager, p.offsetsDataMap, &probeList, p.binAnalysisMetric), unregisterCBCreator(p.manager, &probeList, p.offsetsDataMap))
+}
 
 func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs *[]manager.ProbeIdentificationPair, binAnalysisMetric *libtelemetry.Counter) func(path utils.FilePath) error {
 	return func(filePath utils.FilePath) error {
@@ -319,39 +363,12 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 	}
 }
 
+func (p *goTLSProgram) handleProcessExit(pid pid) {
+	_ = p.DetachPID(pid)
+}
+
 func (p *goTLSProgram) handleProcessStart(pid pid) {
-	pidAsStr := strconv.FormatUint(uint64(pid), 10)
-	exePath := filepath.Join(p.procRoot, pidAsStr, "exe")
-
-	binPath, err := os.Readlink(exePath)
-	if err != nil {
-		// We receive the Exec event, /proc could be slow to update
-		end := time.Now().Add(10 * time.Millisecond)
-		for end.After(time.Now()) {
-			binPath, err = os.Readlink(exePath)
-			if err == nil {
-				break
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}
-	if err != nil {
-		// we can't access to the binary path here (pid probably ended already)
-		// there are not much we can do, and we don't want to flood the logs
-		return
-	}
-
-	// Check if the process is datadog's internal process, if so, we don't want to hook the process.
-	if internalProcessRegex.MatchString(binPath) {
-		if log.ShouldLog(seelog.DebugLvl) {
-			log.Debugf("ignoring pid %d, as it is an internal datadog component (%q)", pid, binPath)
-		}
-		return
-	}
-
-	// Check go process
-	probeList := make([]manager.ProbeIdentificationPair, 0)
-	p.registry.Register(binPath, pid, registerCBCreator(p.manager, p.offsetsDataMap, &probeList, p.binAnalysisMetric), unregisterCBCreator(p.manager, &probeList, p.offsetsDataMap))
+	_ = p.AttachPID(pid)
 }
 
 // addInspectionResultToMap runs a binary inspection and adds the result to the

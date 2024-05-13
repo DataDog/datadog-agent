@@ -16,12 +16,33 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 )
 
+func ebpfPrebuiltConntrackerSupportedOnKernelT(t *testing.T) bool {
+	supported, err := ebpfPrebuiltConntrackerSupportedOnKernel()
+	require.NoError(t, err)
+	return supported
+}
+
+func ebpfCOREConntrackerSupportedOnKernelT(t *testing.T) bool {
+	supported, err := ebpfCOREConntrackerSupportedOnKernel()
+	require.NoError(t, err)
+	return supported
+}
+
+func skipPrebuiltEbpfConntrackerTestOnUnsupportedKernel(t *testing.T) {
+	if !ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
+		t.Skip("Skipping prebuilt ebpf conntracker related test on unsupported kernel")
+	}
+}
+
 func TestEbpfConntrackerLoadTriggersOffsetGuessing(t *testing.T) {
+	skipPrebuiltEbpfConntrackerTestOnUnsupportedKernel(t)
+
 	offsetguess.TracerOffsets.Reset()
 
 	cfg := testConfig()
 	cfg.EnableRuntimeCompiler = false
-	conntracker, err := NewEBPFConntracker(cfg, nil)
+	cfg.EnableCORE = false
+	conntracker, err := NewEBPFConntracker(cfg)
 	assert.NoError(t, err)
 	require.NotNil(t, conntracker)
 	t.Cleanup(conntracker.Close)
@@ -29,4 +50,37 @@ func TestEbpfConntrackerLoadTriggersOffsetGuessing(t *testing.T) {
 	offsets, err := offsetguess.TracerOffsets.Offsets(cfg)
 	require.NoError(t, err)
 	require.NotEmpty(t, offsets)
+}
+
+func TestEbpfConntrackerSkipsLoadOnOlderKernels(t *testing.T) {
+	if ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
+		t.Skip("This test should only run on pre-4.14 kernels without backported eBPF support, like RHEL/CentOS")
+	}
+
+	offsetguess.TracerOffsets.Reset()
+
+	cfg := testConfig()
+	cfg.EnableRuntimeCompiler = false
+	cfg.EnableCORE = false
+	conntracker, err := NewEBPFConntracker(cfg)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, errPrebuiltConntrackerUnsupported)
+	require.Nil(t, conntracker)
+}
+
+func TestCOREEbpfConntrackerSkipsLoadOnOlderKernels(t *testing.T) {
+	if ebpfCOREConntrackerSupportedOnKernelT(t) {
+		t.Skip("This test should only run on pre-4.14 kernels without backported eBPF support, like RHEL/CentOS")
+	}
+
+	offsetguess.TracerOffsets.Reset()
+
+	cfg := testConfig()
+	cfg.EnableRuntimeCompiler = false
+	cfg.EnableCORE = true
+	cfg.AllowPrecompiledFallback = false
+	conntracker, err := NewEBPFConntracker(cfg)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, errCOREConntrackerUnsupported)
+	require.Nil(t, conntracker)
 }

@@ -19,11 +19,11 @@ func TestWritePID(t *testing.T) {
 
 	pidFilePath := filepath.Join(dir, "this_should_be_created", "agent.pid")
 	err := WritePID(pidFilePath)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	data, err := os.ReadFile(pidFilePath)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	pid, err := strconv.Atoi(string(data))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, pid, os.Getpid())
 }
 

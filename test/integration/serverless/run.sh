@@ -4,9 +4,9 @@
 # NOTE: Use aws-vault clear before running tests to ensure credentials do not expire during a test run
 
 # Run tests:
-#   aws-vault clear && aws-vault exec serverless-sandbox-account-admin -- ./run.sh [suite]
+#   aws-vault clear && aws-vault exec sso-serverless-sandbox-account-admin -- ./run.sh [suite]
 # Regenerate snapshots:
-#   aws-vault clear && UPDATE_SNAPSHOTS=true aws-vault exec serverless-sandbox-account-admin -- ./run.sh [suite]
+#   aws-vault clear && UPDATE_SNAPSHOTS=true aws-vault exec sso-serverless-sandbox-account-admin -- ./run.sh [suite]
 
 # Optionally specify a [suite] to limit tests executed to a specific group (all tests are run if none is provided).
 # Valid values are:
@@ -14,6 +14,7 @@
 #   - log
 #   - trace
 #   - appsec
+#   - proxy
 
 # Optional environment variables:
 
@@ -26,10 +27,10 @@
 # ENABLE_RACE_DETECTION [true|false] - Enables go race detection for the lambda extension
 # ARCHITECTURE [arm64|amd64] - Specify the architecture to test. The default is amd64
 
-DEFAULT_NODE_LAYER_VERSION=99
-DEFAULT_PYTHON_LAYER_VERSION=77
-DEFAULT_JAVA_TRACE_LAYER_VERSION=11
-DEFAULT_DOTNET_TRACE_LAYER_VERSION=9
+DEFAULT_NODE_LAYER_VERSION=108
+DEFAULT_PYTHON_LAYER_VERSION=92
+DEFAULT_JAVA_TRACE_LAYER_VERSION=14
+DEFAULT_DOTNET_TRACE_LAYER_VERSION=15
 DEFAULT_ARCHITECTURE=amd64
 
 # Text formatting constants
@@ -153,6 +154,17 @@ appsec_functions=(
     "appsec-go"
     "appsec-csharp"
 )
+proxy_functions=(
+    "proxy-env-apikey"
+    "proxy-yaml-apikey"
+    "proxy-yaml-env-apikey"
+    "proxy-env-secret"
+    "proxy-yaml-secret"
+    "proxy-yaml-env-secret"
+    "proxy-env-kms"
+    "proxy-yaml-kms"
+    "proxy-yaml-env-kms"
+)
 
 declare -a all_functions # This is an array
 if [ $# == 1 ]; then
@@ -169,14 +181,17 @@ if [ $# == 1 ]; then
         appsec)
             all_functions=("${appsec_functions[@]}")
         ;;
+        proxy)
+            all_functions=("${proxy_functions[@]}")
+        ;;
         *)
-            echo "Unknown test suite: '$1' (valid names are: metric, log, trace, appsec)"
+            echo "Unknown test suite: '$1' (valid names are: metric, log, trace, appsec, proxy)"
             exit 1
         ;;
     esac
     echo "Selected test suite '$1' contains ${#all_functions[@]} functions..."
 else
-    all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}" "${appsec_functions[@]}")
+    all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}" "${appsec_functions[@]}" "${proxy_functions[@]}")
 fi
 
 # Set feature environment for the Serverless stack to avoid deploying useless stuff...
@@ -187,6 +202,7 @@ export RUN_SUITE_LOG=false
 export RUN_SUITE_TRACE=false
 export RUN_SUITE_OTLP=false
 export RUN_SUITE_APPSEC=false
+export RUN_SUITE_PROXY=false
 for function_name in "${all_functions[@]}"; do
     case $function_name in
     metric-*)
@@ -209,6 +225,9 @@ for function_name in "${all_functions[@]}"; do
     ;;
     appsec-*)
         export RUN_SUITE_APPSEC=true
+    ;;
+    proxy-*)
+        export RUN_SUITE_PROXY=true
     ;;
     *)
         echo "⚠️ Un-mapped test function: ${function_name}, the necessary components may not be deployed!"
@@ -288,8 +307,8 @@ for function_name in "${all_functions[@]}"; do
             sleep 10
             continue
         fi
-        if [[ "${function_name}" = timeout-* ]]; then
-            echo "Ignoring Lambda report check count as this is a timeout example..."
+        if [[ "${function_name}" = timeout-* || "${function_name}" = proxy-* ]]; then
+            echo "Ignoring Lambda report check count as this is a timeout or proxy example..."
         else
             count=$(echo $raw_logs | grep -o 'REPORT RequestId' | wc -l)
             if [ $count -lt 2 ]; then
@@ -313,10 +332,12 @@ for function_name in "${all_functions[@]}"; do
         norm_type=logs
     elif [[ " ${appsec_functions[*]} " =~ " ${function_name} " ]]; then
         norm_type=appsec
-    else
+    elif [[ " ${trace_functions[*]} " =~ " ${function_name} " ]]; then
         norm_type=traces
+    elif [[ " ${proxy_functions[*]} " =~ " ${function_name} " ]]; then
+        norm_type=proxy
     fi
-    logs=$(python3 log_normalize.py --accountid ${aws_account} --type $norm_type --logs "$raw_logs" --stage $stage)
+    logs=$(python3 log_normalize.py --accountid ${aws_account} --type $norm_type --logs "file:$RAWLOGS_DIR/$function_name" --stage $stage)
 
     function_snapshot_path="./snapshots/${function_name}"
 

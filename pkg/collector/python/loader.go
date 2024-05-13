@@ -15,12 +15,14 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config"
+
+	//nolint:revive // TODO(AML) Fix revive linter
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -80,6 +82,8 @@ func init() {
 }
 
 // PythonCheckLoader is a specific loader for checks living in Python modules
+//
+//nolint:revive // TODO(AML) Fix revive linter
 type PythonCheckLoader struct{}
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
@@ -97,6 +101,8 @@ func getRtLoaderError() error {
 }
 
 // Load returns Python loader name
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (cl *PythonCheckLoader) Name() string {
 	return "python"
 }

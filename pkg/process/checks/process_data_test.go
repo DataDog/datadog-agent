@@ -23,6 +23,7 @@ type mockExtractor struct {
 }
 
 func (e *mockExtractor) Extract(p map[int32]*procutil.Process) {
+	//nolint:revive // TODO(PROC) Fix revive linter
 	e.called += 1
 	e.procs = p
 }

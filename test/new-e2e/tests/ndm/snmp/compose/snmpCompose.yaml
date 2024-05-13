@@ -11,5 +11,3 @@ services:
   agent:
     volumes:
       - ${CONFIG_DIR}/snmp.yaml:/etc/datadog-agent/conf.d/snmp.d/snmp.yaml
-    container_name: dd-agent
-

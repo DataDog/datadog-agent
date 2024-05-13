@@ -14,12 +14,13 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	datadogHttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	datadogHttp "github.com/DataDog/datadog-agent/pkg/util/http"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -175,17 +176,8 @@ func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error
 	return arnObject.Region, nil
 }
 
-// HasAPIKey returns true if an API key has been set in any of the supported ways.
-func HasAPIKey() bool {
-	return config.Datadog.IsSet("api_key") ||
-		len(os.Getenv(apiKeyKmsEncryptedEnvVar)) > 0 ||
-		len(os.Getenv(apiKeyKmsEnvVar)) > 0 ||
-		len(os.Getenv(apiKeySecretManagerEnvVar)) > 0 ||
-		len(os.Getenv(apiKeyEnvVar)) > 0
-}
-
-// CheckForSingleAPIKey checks if an API key has been set in multiple places and logs a warning if so.
-func CheckForSingleAPIKey() {
+// checkForSingleAPIKey checks if an API key has been set in multiple places and logs a warning if so.
+func checkForSingleAPIKey() {
 	var apikeySetIn = []string{}
 	if len(os.Getenv(apiKeyKmsEncryptedEnvVar)) > 0 {
 		apikeySetIn = append(apikeySetIn, "KMS_ENCRYPTED")

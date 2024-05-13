@@ -11,15 +11,17 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-func setupShutdown(ctx context.Context, shutdowner fx.Shutdowner) {
+func setupShutdown(ctx context.Context, shutdowner fx.Shutdowner, statsd statsd.ClientInterface) {
 	// Handle stops properly
-	go handleSignal(shutdowner)
+	go handleSignal(shutdowner, statsd)
 
 	// Support context cancellation approach (required for Windows service, as it doesn't use signals)
 	go func() {
-		defer watchdog.LogOnPanic()
+		defer watchdog.LogOnPanic(statsd)
 		<-ctx.Done()
 		_ = shutdowner.Shutdown()
 	}()

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -19,13 +19,13 @@ import (
 func TestDump(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		log.MockModule,
-		config.MockModule,
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadmetaObject(deps)
 
 	container := &Container{
 		EntityID: EntityID{
@@ -38,7 +38,8 @@ func TestDump(t *testing.T) {
 		Image: ContainerImage{
 			Name: "ctr-image",
 		},
-		Runtime: ContainerRuntimeDocker,
+		Runtime:       ContainerRuntimeDocker,
+		RuntimeFlavor: ContainerRuntimeFlavorKata,
 		EnvVars: map[string]string{
 			"DD_SERVICE":  "my-svc",
 			"DD_ENV":      "prod",
@@ -89,6 +90,7 @@ Name: ctr-image
 Tag: latest
 ----------- Container Info -----------
 Runtime: docker
+RuntimeFlavor: kata
 Running: false
 ----------- Resources -----------
 `,
@@ -117,8 +119,10 @@ Tag:
 ID: 
 Raw Name: 
 Short Name: 
+Repo Digest: 
 ----------- Container Info -----------
 Runtime: docker
+RuntimeFlavor: kata
 Running: false
 Status: 
 Health: 
@@ -144,8 +148,10 @@ Tag: latest
 ID: 
 Raw Name: 
 Short Name: 
+Repo Digest: 
 ----------- Container Info -----------
 Runtime: 
+RuntimeFlavor: 
 Running: false
 Status: 
 Health: 
@@ -171,8 +177,10 @@ Tag: latest
 ID: 
 Raw Name: 
 Short Name: 
+Repo Digest: 
 ----------- Container Info -----------
 Runtime: docker
+RuntimeFlavor: kata
 Running: false
 Status: 
 Health: 

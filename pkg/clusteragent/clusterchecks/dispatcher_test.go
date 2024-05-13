@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -591,6 +591,7 @@ var dummyClcRunnerClient dummyClientStruct
 
 type dummyClientStruct struct{}
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (d *dummyClientStruct) GetVersion(IP string) (version.Version, error) {
 	return version.Version{}, nil
 }

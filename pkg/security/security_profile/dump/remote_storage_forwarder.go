@@ -11,10 +11,10 @@ package dump
 import (
 	"bytes"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ActivityDumpRemoteStorageForwarder is a remote storage that forwards dumps to the security-agent
@@ -57,4 +57,4 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.Storag
 }
 
 // SendTelemetry sends telemetry for the current storage
-func (storage *ActivityDumpRemoteStorageForwarder) SendTelemetry(sender sender.Sender) {}
+func (storage *ActivityDumpRemoteStorageForwarder) SendTelemetry(_ statsd.ClientInterface) {}

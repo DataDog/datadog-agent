@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"runtime"
 	"sync"
 	"syscall"
@@ -54,6 +55,9 @@ type Tracer struct {
 
 	// polling loop for connection event
 	closedEventLoop sync.WaitGroup
+
+	// windows event handle for stopping the closed connection event loop
+	hStopClosedLoopEvent windows.Handle
 }
 
 // NewTracer returns an initialized tracer struct
@@ -77,6 +81,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
 		config.MaxKafkaStatsBuffered,
+		config.EnableNPMConnectionRollup,
+		config.EnableProcessEventMonitoring,
 	)
 
 	reverseDNS := dns.NewNullReverseDNS()
@@ -87,17 +93,22 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		}
 	}
 
+	stopEvent, err := windows.CreateEvent(nil, 0, 0, nil)
+	if err != nil {
+		return nil, fmt.Errorf("could not create stop event: %w", err)
+	}
 	tr := &Tracer{
-		config:          config,
-		driverInterface: di,
-		stopChan:        make(chan struct{}),
-		timerInterval:   defaultPollInterval,
-		state:           state,
-		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
-		reverseDNS:      reverseDNS,
-		usmMonitor:      newUSMMonitor(config, di.GetHandle()),
-		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
-		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
+		config:               config,
+		driverInterface:      di,
+		stopChan:             make(chan struct{}),
+		timerInterval:        defaultPollInterval,
+		state:                state,
+		closedBuffer:         network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
+		reverseDNS:           reverseDNS,
+		usmMonitor:           newUSMMonitor(config, di.GetHandle()),
+		sourceExcludes:       network.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:         network.ParseConnectionFilters(config.ExcludedDestinationConnections),
+		hStopClosedLoopEvent: stopEvent,
 	}
 	tr.closedEventLoop.Add(1)
 	go func() {
@@ -107,9 +118,15 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		defer runtime.UnlockOSThread()
 	waitloop:
 		for {
-			evt, _ := windows.WaitForSingleObject(di.GetClosedFlowsEvent(), windows.INFINITE)
+			handles := []windows.Handle{tr.hStopClosedLoopEvent, di.GetClosedFlowsEvent()}
+
+			evt, _ := windows.WaitForMultipleObjects(handles, false, windows.INFINITE)
 			switch evt {
 			case windows.WAIT_OBJECT_0:
+				log.Infof("stopping closed connection event loop")
+				break waitloop
+
+			case windows.WAIT_OBJECT_0 + 1:
 				_, err = tr.driverInterface.GetClosedConnectionStats(tr.closedBuffer, func(c *network.ConnectionStats) bool {
 					return !tr.shouldSkipConnection(c)
 				})
@@ -136,14 +153,17 @@ func (t *Tracer) Stop() {
 		_ = t.usmMonitor.Stop()
 	}
 	t.reverseDNS.Close()
+
+	windows.SetEvent(t.hStopClosedLoopEvent)
+	t.closedEventLoop.Wait()
 	err := t.driverInterface.Close()
 	if err != nil {
 		log.Errorf("error closing driver interface: %s", err)
 	}
-	t.closedEventLoop.Wait()
 	if err := driver.Stop(); err != nil {
 		log.Errorf("error stopping driver: %s", err)
 	}
+	windows.CloseHandle(t.hStopClosedLoopEvent)
 }
 
 // GetActiveConnections returns all active connections
@@ -194,7 +214,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns.DNS = t.reverseDNS.Resolve(ips)
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
 	conns.HTTP = delta.HTTP
-	conns.DNSStats = delta.DNSStats
 	return conns, nil
 }
 
@@ -237,21 +256,29 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 }
 
 // DebugEBPFMaps is not implemented on this OS for Tracer
-func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
-	return "", ebpf.ErrNotImplemented
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
+func (t *Tracer) DebugEBPFMaps(_ io.Writer, _ ...string) error {
+	return ebpf.ErrNotImplemented
 }
 
 // DebugCachedConntrack is not implemented on this OS for Tracer
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // DebugHostConntrack is not implemented on this OS for Tracer
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // DebugDumpProcessCache is not implemented on this OS for Tracer
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }

@@ -143,10 +143,9 @@ struct mmap_event_t {
     struct file_t file;
     u64 addr;
     u64 offset;
-    u32 len;
-    int protection;
-    int flags;
-    u32 padding;
+    u64 len;
+    u64 protection;
+    u64 flags;
 };
 
 struct dns_event_t {
@@ -373,6 +372,15 @@ struct unlink_event_t {
     struct file_t file;
     u32 flags;
     u32 padding;
+};
+
+struct chdir_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct syscall_t syscall;
+    struct file_t file;
 };
 
 #endif

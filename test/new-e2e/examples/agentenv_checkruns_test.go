@@ -9,22 +9,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type agentSuiteEx5 struct {
-	e2e.Suite[e2e.FakeIntakeEnv]
+	e2e.BaseSuite[environments.Host]
 }
 
 func TestAgentSuiteEx5(t *testing.T) {
-	e2e.Run(t, &agentSuiteEx5{}, e2e.FakeIntakeStackDef())
+	e2e.Run(t, &agentSuiteEx5{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 func (s *agentSuiteEx5) TestCheckRuns() {
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		checkRuns, err := s.Env().Fakeintake.Client.GetCheckRun("datadog.agent.up")
+		checkRuns, err := s.Env().FakeIntake.Client().GetCheckRun("datadog.agent.up")
 		require.NoError(c, err)
 		assert.Greater(c, len(checkRuns), 0)
 	}, 30*time.Second, 500*time.Millisecond)

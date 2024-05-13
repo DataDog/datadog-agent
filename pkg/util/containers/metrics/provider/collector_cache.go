@@ -11,11 +11,13 @@ import (
 )
 
 const (
-	contCoreStatsCachePrefix = "cs-"
-	contOpenFilesCachePrefix = "of-"
-	contNetStatsCachePrefix  = "cns-"
-	contPidToCidCachePrefix  = "pid-"
-	contPidsCachePrefix      = "pids-"
+	contCoreStatsCachePrefix           = "cs-"
+	contOpenFilesCachePrefix           = "of-"
+	contNetStatsCachePrefix            = "cns-"
+	contPidToCidCachePrefix            = "pid-"
+	contInodeToCidCachePrefix          = "in-"
+	contPodUIDContNameToCidCachePrefix = "pc-"
+	contPidsCachePrefix                = "pids-"
 )
 
 // collectorCache is a wrapper handling cache for collectors.
@@ -47,12 +49,14 @@ func MakeCached(providerID string, cache *Cache, collectors *Collectors) *Collec
 	}
 
 	return &Collectors{
-		Stats:             makeCached(collectors.Stats, ContainerStatsGetter(collectorCache)),
-		Network:           makeCached(collectors.Network, ContainerNetworkStatsGetter(collectorCache)),
-		OpenFilesCount:    makeCached(collectors.OpenFilesCount, ContainerOpenFilesCountGetter(collectorCache)),
-		PIDs:              makeCached(collectors.PIDs, ContainerPIDsGetter(collectorCache)),
-		ContainerIDForPID: makeCached(collectors.ContainerIDForPID, ContainerIDForPIDRetriever(collectorCache)),
-		SelfContainerID:   makeCached(collectors.SelfContainerID, SelfContainerIDRetriever(collectorCache)),
+		Stats:                           makeCached(collectors.Stats, ContainerStatsGetter(collectorCache)),
+		Network:                         makeCached(collectors.Network, ContainerNetworkStatsGetter(collectorCache)),
+		OpenFilesCount:                  makeCached(collectors.OpenFilesCount, ContainerOpenFilesCountGetter(collectorCache)),
+		PIDs:                            makeCached(collectors.PIDs, ContainerPIDsGetter(collectorCache)),
+		ContainerIDForPID:               makeCached(collectors.ContainerIDForPID, ContainerIDForPIDRetriever(collectorCache)),
+		ContainerIDForInode:             makeCached(collectors.ContainerIDForInode, ContainerIDForInodeRetriever(collectorCache)),
+		SelfContainerID:                 makeCached(collectors.SelfContainerID, SelfContainerIDRetriever(collectorCache)),
+		ContainerIDForPodUIDAndContName: makeCached(collectors.ContainerIDForPodUIDAndContName, ContainerIDForPodUIDAndContNameRetriever(collectorCache)),
 	}
 }
 
@@ -103,6 +107,30 @@ func (cc *collectorCache) GetContainerIDForPID(pid int, cacheValidity time.Durat
 
 	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() (string, error) {
 		return cc.collectors.ContainerIDForPID.Collector.GetContainerIDForPID(pid, cacheValidity)
+	})
+}
+
+// GetContainerIDForInode returns a container ID for the given inode.
+// ("", nil) will be returned if no error but the containerd ID was not found.
+func (cc *collectorCache) GetContainerIDForInode(inode uint64, cacheValidity time.Duration) (string, error) {
+	cacheKey := cc.providerID + "-" + contInodeToCidCachePrefix + strconv.FormatUint(inode, 10)
+
+	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() (string, error) {
+		return cc.collectors.ContainerIDForInode.Collector.GetContainerIDForInode(inode, cacheValidity)
+	})
+}
+
+// ContainerIDForPodUIDAndContName returns a container ID for the given pod uid
+// and container name. Returns ("", nil) if the containerd ID was not found.
+func (cc *collectorCache) ContainerIDForPodUIDAndContName(podUID, contName string, initCont bool, cacheValidity time.Duration) (string, error) {
+	initPrefix := ""
+	if initCont {
+		initPrefix = "i-"
+	}
+	cacheKey := cc.providerID + "-" + contPodUIDContNameToCidCachePrefix + podUID + "/" + initPrefix + contName
+
+	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() (string, error) {
+		return cc.collectors.ContainerIDForPodUIDAndContName.Collector.ContainerIDForPodUIDAndContName(podUID, contName, initCont, cacheValidity)
 	})
 }
 

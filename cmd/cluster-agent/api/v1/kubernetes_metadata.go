@@ -36,10 +36,11 @@ func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Compon
 		"getNodeLabels",
 		func(w http.ResponseWriter, r *http.Request) { getNodeLabels(w, r, wmeta) },
 	)).Methods("GET")
-	r.HandleFunc("/tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", getNamespaceLabels)).Methods("GET")
+	r.HandleFunc("/tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", func(w http.ResponseWriter, r *http.Request) { getNamespaceLabels(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID)).Methods("GET")
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels
@@ -109,7 +110,7 @@ func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadme
 }
 
 // getNamespaceLabels is only used when the node agent hits the DCA for the list of labels
-func getNamespaceLabels(w http.ResponseWriter, r *http.Request) {
+func getNamespaceLabels(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
 	/*
 		Input
 			localhost:5001/api/v1/tags/namespace/default
@@ -130,12 +131,13 @@ func getNamespaceLabels(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	var labelBytes []byte
 	nsName := vars["ns"]
-	nsLabels, err := as.GetNamespaceLabels(nsName)
+	namespace, err := wmeta.GetKubernetesNamespace(nsName)
 	if err != nil {
-		log.Errorf("Could not retrieve the namespace labels of %s: %v", nsName, err.Error()) //nolint:errcheck
+		log.Errorf("Could not retrieve the namespace %s: %v", nsName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	nsLabels := namespace.Labels
 	labelBytes, err = json.Marshal(nsLabels)
 	if err != nil {
 		log.Errorf("Could not process the labels of the namespace %s from the informer's cache: %v", nsName, err.Error()) //nolint:errcheck
@@ -222,6 +224,8 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 }
 
 // getAllMetadata is used by the svcmap command.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	/*
 		Input
@@ -269,6 +273,8 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 }
 
 // getClusterID is used by recent agents to get the cluster UUID, needed for enabling the orchestrator explorer
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func getClusterID(w http.ResponseWriter, r *http.Request) {
 	// As HTTP query handler, we do not retry getting the APIServer
 	// Client will have to retry query in case of failure

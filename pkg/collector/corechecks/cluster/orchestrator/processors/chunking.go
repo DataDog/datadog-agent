@@ -5,11 +5,11 @@
 
 //go:build orchestrator
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 package processors
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 

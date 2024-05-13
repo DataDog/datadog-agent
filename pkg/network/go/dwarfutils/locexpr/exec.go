@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package locexpr provides a function to statically execute a DWARF location expression.
 package locexpr
 
 import (
@@ -13,7 +14,7 @@ import (
 )
 
 // LocationPiece is the result of `Exec` (returned as a list),
-// and describes whether the a piece of the location is in a register (and if so, which one)
+// and describes whether the piece of the location is in a register (and if so, which one)
 // or if it is on the stack (and if so, at what offset).
 type LocationPiece struct {
 	// Size of this piece in bytes
@@ -101,9 +102,8 @@ func Exec(expression []byte, totalSize int64, pointerSize int) ([]LocationPiece,
 			return offset - fakeFrameBase
 		} else if offset > (fakeCFA / 2) {
 			return offset - fakeCFA
-		} else {
-			return offset
 		}
+		return offset
 	}
 
 	if len(opPieces) == 0 {

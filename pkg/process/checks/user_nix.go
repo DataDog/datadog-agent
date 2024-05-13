@@ -17,11 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type LookupIdProbe struct {
 	config config.Reader
 
 	lookupIdCache *cache.Cache
-	lookupId      func(uid string) (*user.User, error)
+	//nolint:revive // TODO(PROC) Fix revive linter
+	lookupId func(uid string) (*user.User, error)
 }
 
 // NewLookupIDProbe returns a new LookupIdProbe from the config
@@ -38,6 +40,7 @@ func NewLookupIDProbe(coreConfig config.Reader) *LookupIdProbe {
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (p *LookupIdProbe) lookupIdWithCache(uid string) (*user.User, error) {
 	result, ok := p.lookupIdCache.Get(uid)
 	if !ok {
@@ -61,6 +64,7 @@ func (p *LookupIdProbe) lookupIdWithCache(uid string) (*user.User, error) {
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (p *LookupIdProbe) LookupId(uid string) (*user.User, error) {
 	if p.config.GetBool("process_config.cache_lookupid") {
 		return p.lookupIdWithCache(uid)

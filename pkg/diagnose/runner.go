@@ -14,10 +14,17 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	_ "github.com/DataDog/datadog-agent/pkg/diagnose/connectivity" // no direct calls to connectivity but there is a callback
+	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/fatih/color"
 )
@@ -177,7 +184,7 @@ func matchConfigFilters(filter diagSuiteFilter, s string) bool {
 	return true
 }
 
-func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config) ([]diagnosis.Suite, error) {
+func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config, suites []diagnosis.Suite) ([]diagnosis.Suite, error) {
 
 	var filter diagSuiteFilter
 	var err error
@@ -198,8 +205,8 @@ func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config) ([]diagnosis.S
 		}
 	}
 
-	sortedSuites := make([]diagnosis.Suite, len(diagnosis.Catalog))
-	copy(sortedSuites, diagnosis.Catalog)
+	sortedSuites := make([]diagnosis.Suite, len(suites))
+	copy(sortedSuites, suites)
 	sort.Slice(sortedSuites, func(i, j int) bool {
 		return sortedSuites[i].SuitName < sortedSuites[j].SuitName
 	})
@@ -214,8 +221,8 @@ func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config) ([]diagnosis.S
 	return sortedFilteredSuites, nil
 }
 
-func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
-	diagnoses := ds.Diagnose(diagCfg, senderManager)
+func getSuiteDiagnoses(ds diagnosis.Suite) []diagnosis.Diagnosis {
+	diagnoses := ds.Diagnose()
 
 	// validate each diagnoses
 	for i, d := range diagnoses {
@@ -244,14 +251,16 @@ func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config, senderManag
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
-func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
+//
+//nolint:revive // TODO(CINT) Fix revive linter
+func ListStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
 	fmt.Fprintf(w, "Diagnose suites ...\n")
 
-	sortedSuites, err := getSortedAndFilteredDiagnoseSuites(diagCfg)
+	sortedSuites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, getSuites(diagCfg, deps))
 	if err != nil {
 		fmt.Fprintf(w, "Failed to get list of diagnose suites. Validate your command line options. Error: %s\n", err.Error())
 		return
@@ -266,8 +275,8 @@ func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
-func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) ([]diagnosis.Diagnoses, error) {
-	suites, err := getSortedAndFilteredDiagnoseSuites(diagCfg)
+func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, suites []diagnosis.Suite) ([]diagnosis.Diagnoses, error) {
+	suites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, suites)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +284,7 @@ func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, senderManager send
 	var suitesDiagnoses []diagnosis.Diagnoses
 	for _, ds := range suites {
 		// Run particular diagnose
-		diagnoses := getSuiteDiagnoses(ds, diagCfg, senderManager)
+		diagnoses := getSuiteDiagnoses(ds)
 		if len(diagnoses) > 0 {
 			suitesDiagnoses = append(suitesDiagnoses, diagnosis.Diagnoses{
 				SuiteName:      ds.SuitName,
@@ -296,11 +305,12 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	}
 
 	// Make sure we have a session token (for privileged information)
-	if err = util.SetAuthToken(); err != nil {
+	if err = util.SetAuthToken(pkgconfig.Datadog); err != nil {
 		return nil, fmt.Errorf("auth error: %w", err)
 	}
 
 	// Form call end-point
+	//nolint:revive // TODO(CINT) Fix revive linter
 	diagnoseUrl := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
 
 	// Serialized diag config to pass it to Agent execution context
@@ -330,15 +340,14 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 }
 
 // Run runs diagnoses.
-func Run(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) ([]diagnosis.Diagnoses, error) {
-
+func Run(diagCfg diagnosis.Config, deps SuitesDeps) ([]diagnosis.Diagnoses, error) {
 	// Make remote call to get diagnoses
 	if !diagCfg.RunLocal {
 		return requestDiagnosesFromAgentProcess(diagCfg)
 	}
 
 	// Collect local diagnoses
-	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg, senderManager)
+	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg, getSuites(diagCfg, deps))
 	if err != nil {
 		return nil, err
 	}
@@ -348,21 +357,23 @@ func Run(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) (
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
-func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) error {
+//
+//nolint:revive // TODO(CINT) Fix revive linter
+func RunStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
 
-	diagnoses, err := Run(diagCfg, senderManager)
+	diagnoses, err := Run(diagCfg, deps)
 	if err != nil && !diagCfg.RunLocal {
 		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
 		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 
 		// attempt to do so locally
 		diagCfg.RunLocal = true
-		diagnoses, err = Run(diagCfg, senderManager)
+		diagnoses, err = Run(diagCfg, deps)
 	}
 
 	if err != nil {
@@ -394,4 +405,46 @@ func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.Diagn
 	c.summary(w)
 
 	return nil
+}
+
+// SuitesDeps stores the dependencies for the diagnose suites.
+type SuitesDeps struct {
+	senderManager  sender.DiagnoseSenderManager
+	collector      optional.Option[collector.Component]
+	secretResolver secrets.Component
+	wmeta          optional.Option[workloadmeta.Component]
+	AC             optional.Option[autodiscovery.Component]
+}
+
+// GetWMeta returns the workload metadata instance
+func (s *SuitesDeps) GetWMeta() optional.Option[workloadmeta.Component] {
+	return s.wmeta
+}
+
+// NewSuitesDeps returns a new SuitesDeps.
+func NewSuitesDeps(
+	senderManager sender.DiagnoseSenderManager,
+	collector optional.Option[collector.Component],
+	secretResolver secrets.Component,
+	wmeta optional.Option[workloadmeta.Component], ac optional.Option[autodiscovery.Component]) SuitesDeps {
+	return SuitesDeps{
+		senderManager:  senderManager,
+		collector:      collector,
+		secretResolver: secretResolver,
+		wmeta:          wmeta,
+		AC:             ac,
+	}
+}
+
+func getSuites(diagCfg diagnosis.Config, deps SuitesDeps) []diagnosis.Suite {
+	catalog := diagnosis.NewCatalog()
+
+	catalog.Register("check-datadog", func() []diagnosis.Diagnosis {
+		return getDiagnose(diagCfg, deps.senderManager, deps.collector, deps.secretResolver, deps.wmeta, deps.AC)
+	})
+	catalog.Register("connectivity-datadog-core-endpoints", func() []diagnosis.Diagnosis { return connectivity.Diagnose(diagCfg) })
+	catalog.Register("connectivity-datadog-autodiscovery", connectivity.DiagnoseMetadataAutodiscoveryConnectivity)
+	catalog.Register("connectivity-datadog-event-platform", eventplatformimpl.Diagnose)
+
+	return catalog.GetSuites()
 }

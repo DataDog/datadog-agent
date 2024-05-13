@@ -14,6 +14,9 @@ type Options struct {
 	// NoDoubleUnderscoreSep is set to true when you don't want to
 	// separate the subsystem and the name with a double underscore separator.
 	NoDoubleUnderscoreSep bool
+
+	// DefaultMetric exports metric by default via built-in agent_telemetry core check.
+	DefaultMetric bool
 }
 
 // DefaultOptions for telemetry metrics which don't need to specify any option.

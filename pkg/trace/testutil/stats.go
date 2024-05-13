@@ -7,8 +7,6 @@ package testutil
 
 import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 )
 
@@ -79,13 +77,4 @@ func StatsPayloadSample() *pb.ClientStatsPayload {
 			bucket(500, 100342),
 		},
 	}
-}
-
-// WithStatsClient replaces the global metrics.StatsClient with c. It also returns
-// a function for restoring the original client.
-func WithStatsClient(c metrics.StatsClient) func() {
-	old := metrics.Client
-	timing.Stop() // https://github.com/DataDog/datadog-agent/issues/13934
-	metrics.Client = c
-	return func() { metrics.Client = old }
 }

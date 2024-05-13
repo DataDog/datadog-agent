@@ -14,14 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newRunner),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(fx.Provide(newRunner))
+}
 
 // MetadataProvider is the provider for metadata
 type MetadataProvider func(context.Context) time.Duration
@@ -30,9 +29,7 @@ type runnerImpl struct {
 	log    log.Component
 	config config.Component
 
-	// providers are the metada providers to run. They're Optional because some of them can be disabled through the
-	// configuration
-	providers []optional.Option[MetadataProvider]
+	providers []MetadataProvider
 
 	wg       sync.WaitGroup
 	stopChan chan struct{}
@@ -44,28 +41,20 @@ type dependencies struct {
 	Log    log.Component
 	Config config.Component
 
-	Providers []optional.Option[MetadataProvider] `group:"metadata_provider"`
+	Providers []MetadataProvider `group:"metadata_provider"`
 }
 
 // Provider represents the callback from a metada provider. This is returned by 'NewProvider' helper.
 type Provider struct {
 	fx.Out
 
-	Callback optional.Option[MetadataProvider] `group:"metadata_provider"`
-}
-
-// NewEmptyProvider returns a empty provider which is not going to register anything. This is useful for providers that
-// can be enabled/disabled through configuration.
-func NewEmptyProvider() Provider {
-	return Provider{
-		Callback: optional.NewNoneOption[MetadataProvider](),
-	}
+	Callback MetadataProvider `group:"metadata_provider"`
 }
 
 // NewProvider registers a new metadata provider by adding a callback to the runner.
 func NewProvider(callback MetadataProvider) Provider {
 	return Provider{
-		Callback: optional.NewOption[MetadataProvider](callback),
+		Callback: callback,
 	}
 }
 
@@ -74,7 +63,7 @@ func createRunner(deps dependencies) *runnerImpl {
 	return &runnerImpl{
 		log:       deps.Log,
 		config:    deps.Config,
-		providers: deps.Providers,
+		providers: fxutil.GetAndFilterGroup(deps.Providers),
 		stopChan:  make(chan struct{}),
 	}
 }
@@ -137,11 +126,11 @@ func (r *runnerImpl) handleProvider(p MetadataProvider) {
 // not block here.
 func (r *runnerImpl) start() error {
 	r.log.Debugf("Starting metadata runner with %d providers", len(r.providers))
-	for _, optionaP := range r.providers {
-		if p, isSet := optionaP.Get(); isSet {
-			go r.handleProvider(p)
-		}
+
+	for _, provider := range r.providers {
+		go r.handleProvider(provider)
 	}
+
 	return nil
 }
 

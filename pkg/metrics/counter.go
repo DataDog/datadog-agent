@@ -22,6 +22,7 @@ func NewCounter(interval int64) *Counter {
 	}
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (c *Counter) addSample(sample *MetricSample, timestamp float64) {
 	c.value += sample.Value * (1 / sample.SampleRate)
 	c.sampled = true

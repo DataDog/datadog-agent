@@ -234,6 +234,8 @@ func (s *controlHandler) eventlog(msgnum uint32, arg string) {
 // golang.org/x/sys/windows/svc contains the actual control handler callback and status handle, and communicates with
 // our Execute() function via the provided channels.
 // https://learn.microsoft.com/en-us/windows/win32/services/service-status-transitions
+//
+//nolint:revive // TODO(WINA) Fix revive linter
 func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
 
 	// first thing we must do is inform SCM that we are SERVICE_START_PENDING.

@@ -15,10 +15,13 @@ import (
 )
 
 const (
+	// User is the username to use for authentication
 	User = "root"
+	// Pass is the password to use for authentication
 	Pass = "password"
 )
 
+// RunServer runs a mongo server in a docker container
 func RunServer(t testing.TB, serverAddress, serverPort string) error {
 	env := []string{
 		"MONGO_ADDR=" + serverAddress,

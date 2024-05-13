@@ -80,6 +80,8 @@ type mockImage struct {
 }
 
 // Name is from the Image interface
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (i *mockImage) Size(ctx context.Context) (int64, error) {
 	return i.size, nil
 }
@@ -237,8 +239,10 @@ func TestTaskMetrics(t *testing.T) {
 			&v1.Metrics{},
 		},
 	}
+	//nolint:govet // TODO(CINT) Fix govet linter
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			//nolint:govet // TODO(CINT) Fix govet linter
 			cton := makeCtn(test.values, test.typeURL, test.taskMetricError)
 
 			m, e := mockUtil.TaskMetrics(TestNamespace, cton)
@@ -314,10 +318,12 @@ func TestIsSandbox(t *testing.T) {
 	require.False(t, isSandbox)
 }
 
+//nolint:govet // TODO(CINT) Fix govet linter
 func makeCtn(value v1.Metrics, typeURL string, taskMetricsError error) containerd.Container {
 	taskStruct := &mockTaskStruct{
 		mockMectric: func(ctx context.Context) (*types.Metric, error) {
 			typeURL := typeURL
+			//nolint:govet // TODO(CINT) Fix govet linter
 			jsonValue, _ := json.Marshal(value)
 			metric := &types.Metric{
 				Data: &anypb.Any{

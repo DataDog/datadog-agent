@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package oracle provides utilities to detect oracle cloud provider.
 package oracle
 
 import (

@@ -21,6 +21,7 @@ import (
 var prebuiltModulesInUse = map[string]struct{}{}
 var telemetrymu sync.Mutex
 
+//nolint:revive // TODO(NET) Fix revive linter
 func ModuleFileName(moduleName string, debug bool) string {
 	if debug {
 		return fmt.Sprintf("%s-debug.o", moduleName)
@@ -66,6 +67,7 @@ func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error
 	return readModule(bpfDir, "offset-guess", debug)
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, "tracer-fentry", debug)
 }
@@ -75,6 +77,7 @@ func ReadConntrackBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, er
 	return readModule(bpfDir, "conntrack", debug)
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func GetModulesInUse() []string {
 	telemetrymu.Lock()
 	defer telemetrymu.Unlock()

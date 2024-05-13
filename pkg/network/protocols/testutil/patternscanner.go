@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package testutil provides utilities for testing the network package.
 package testutil
 
 import (
@@ -12,6 +13,7 @@ import (
 	"testing"
 )
 
+// PatternScanner is a helper to scan logs for a given pattern.
 type PatternScanner struct {
 	// The log pattern to match on
 	pattern *regexp.Regexp
@@ -26,6 +28,7 @@ type PatternScanner struct {
 	buffers []string
 }
 
+// NewScanner returns a new instance of PatternScanner.
 func NewScanner(pattern *regexp.Regexp, doneChan chan struct{}) *PatternScanner {
 	return &PatternScanner{
 		pattern:  pattern,
@@ -52,6 +55,7 @@ func (ps *PatternScanner) Write(p []byte) (n int, err error) {
 	return
 }
 
+// PrintLogs writes the captured logs into the test logger.
 func (ps *PatternScanner) PrintLogs(t testing.TB) {
 	t.Log(strings.Join(ps.buffers, ""))
 }

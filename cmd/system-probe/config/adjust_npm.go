@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -77,4 +78,16 @@ func adjustNetwork(cfg config.Config) {
 		}
 		return nil
 	})
+
+	if cfg.GetBool(evNS("network_process", "enabled")) && !ProcessEventDataStreamSupported() {
+		log.Warn("disabling process event monitoring as it is not supported for this kernel version")
+		cfg.Set(evNS("network_process", "enabled"), false, model.SourceAgentRuntime)
+	}
+
+	// if npm connection rollups are enabled, but usm rollups are not,
+	// then disable npm rollups as well
+	if cfg.GetBool(netNS("enable_connection_rollup")) && !cfg.GetBool(smNS("enable_connection_rollup")) {
+		log.Warn("disabling NPM connection rollups since USM connection rollups are not enabled")
+		cfg.Set(netNS("enable_connection_rollup"), false, model.SourceAgentRuntime)
+	}
 }

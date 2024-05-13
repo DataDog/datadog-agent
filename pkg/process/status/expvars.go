@@ -5,12 +5,12 @@
 
 // This file provides methods to set various expvar values, which are then queried by the `status` command.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package status
 
 import (
 	"bufio"
 	"expvar"
-	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -20,7 +20,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -73,6 +72,7 @@ func publishDockerSocket() interface{} {
 	return infoDockerSocket
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateDockerSocket(path string) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
@@ -85,6 +85,7 @@ func publishLastCollectTime() interface{} {
 	return infoLastCollectTime
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateLastCollectTime(t time.Time) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
@@ -103,6 +104,7 @@ func publishBool(v bool) expvar.Func {
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateProcContainerCount(msgs []model.MessageBody) {
 	var procCount, containerCount int
 	for _, m := range msgs {
@@ -119,6 +121,7 @@ func UpdateProcContainerCount(msgs []model.MessageBody) {
 	infoContainerCount.Store(int64(containerCount))
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type QueueStats struct {
 	ProcessQueueSize      int
 	RtProcessQueueSize    int
@@ -132,6 +135,7 @@ type QueueStats struct {
 	PodQueueBytes         int64
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateQueueStats(stats *QueueStats) {
 	infoProcessQueueSize.Store(int64(stats.ProcessQueueSize))
 	infoRTProcessQueueSize.Store(int64(stats.RtProcessQueueSize))
@@ -145,6 +149,7 @@ func UpdateQueueStats(stats *QueueStats) {
 	infoPodQueueBytes.Store(stats.PodQueueBytes)
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateEnabledChecks(enabledChecks []string) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
@@ -224,6 +229,7 @@ func getEndpointsInfo(eps []apicfg.Endpoint) interface{} {
 	return endpointsInfo
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateDropCheckPayloads(drops []string) {
 	infoMutex.RLock()
 	defer infoMutex.RUnlock()
@@ -240,40 +246,40 @@ func publishDropCheckPayloads() interface{} {
 }
 
 // InitExpvars initializes expvars
-func InitExpvars(config ddconfig.Reader, telemetry telemetry.Component, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
+func InitExpvars(config ddconfig.Reader, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
 	infoOnce.Do(func() {
-		expvar.NewString("host").Set(hostname)
-		expvar.NewInt("pid").Set(int64(os.Getpid()))
-		expvar.Publish("uptime", expvar.Func(publishUptime))
-		expvar.Publish("uptime_nano", expvar.Func(publishUptimeNano))
-		expvar.Publish("version", expvar.Func(publishVersion))
-		expvar.Publish("docker_socket", expvar.Func(publishDockerSocket))
-		expvar.Publish("last_collect_time", expvar.Func(publishLastCollectTime))
-		expvar.Publish("process_count", publishInt(&infoProcCount))
-		expvar.Publish("container_count", publishInt(&infoContainerCount))
-		expvar.Publish("process_queue_size", publishInt(&infoProcessQueueSize))
-		expvar.Publish("rtprocess_queue_size", publishInt(&infoRTProcessQueueSize))
-		expvar.Publish("connections_queue_size", publishInt(&infoConnectionsQueueSize))
-		expvar.Publish("event_queue_size", publishInt(&infoEventQueueSize))
-		expvar.Publish("pod_queue_size", publishInt(&infoPodQueueSize))
-		expvar.Publish("process_queue_bytes", publishInt(&infoProcessQueueBytes))
-		expvar.Publish("rtprocess_queue_bytes", publishInt(&infoRTProcessQueueBytes))
-		expvar.Publish("connections_queue_bytes", publishInt(&infoConnectionsQueueBytes))
-		expvar.Publish("event_queue_bytes", publishInt(&infoEventQueueBytes))
-		expvar.Publish("pod_queue_bytes", publishInt(&infoPodQueueBytes))
-		expvar.Publish("container_id", expvar.Func(publishContainerID))
-		expvar.Publish("enabled_checks", expvar.Func(publishEnabledChecks))
-		expvar.Publish("endpoints", expvar.Func(publishEndpoints(eps)))
-		expvar.Publish("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
-		expvar.Publish("system_probe_process_module_enabled", publishBool(processModuleEnabled))
-		expvar.Publish("language_detection_enabled", publishBool(languageDetectionEnabled))
-		expvar.Publish("workloadmeta_extractor_cache_size", publishInt(&infoWlmExtractorCacheSize))
-		expvar.Publish("workloadmeta_extractor_stale_diffs", publishInt(&infoWlmExtractorStaleDiffs))
-		expvar.Publish("workloadmeta_extractor_diffs_dropped", publishInt(&infoWlmExtractorDiffsDropped))
+		processExpvars := expvar.NewMap("process_agent")
+		hostString := expvar.NewString("host")
+		hostString.Set(hostname)
+		processExpvars.Set("host", hostString)
+		pid := expvar.NewInt("pid")
+		pid.Set(int64(os.Getpid()))
+		processExpvars.Set("pid", pid)
+		processExpvars.Set("uptime", expvar.Func(publishUptime))
+		processExpvars.Set("uptime_nano", expvar.Func(publishUptimeNano))
+		processExpvars.Set("version", expvar.Func(publishVersion))
+		processExpvars.Set("docker_socket", expvar.Func(publishDockerSocket))
+		processExpvars.Set("last_collect_time", expvar.Func(publishLastCollectTime))
+		processExpvars.Set("process_count", publishInt(&infoProcCount))
+		processExpvars.Set("container_count", publishInt(&infoContainerCount))
+		processExpvars.Set("process_queue_size", publishInt(&infoProcessQueueSize))
+		processExpvars.Set("rtprocess_queue_size", publishInt(&infoRTProcessQueueSize))
+		processExpvars.Set("connections_queue_size", publishInt(&infoConnectionsQueueSize))
+		processExpvars.Set("event_queue_size", publishInt(&infoEventQueueSize))
+		processExpvars.Set("pod_queue_size", publishInt(&infoPodQueueSize))
+		processExpvars.Set("process_queue_bytes", publishInt(&infoProcessQueueBytes))
+		processExpvars.Set("rtprocess_queue_bytes", publishInt(&infoRTProcessQueueBytes))
+		processExpvars.Set("connections_queue_bytes", publishInt(&infoConnectionsQueueBytes))
+		processExpvars.Set("event_queue_bytes", publishInt(&infoEventQueueBytes))
+		processExpvars.Set("pod_queue_bytes", publishInt(&infoPodQueueBytes))
+		processExpvars.Set("container_id", expvar.Func(publishContainerID))
+		processExpvars.Set("enabled_checks", expvar.Func(publishEnabledChecks))
+		processExpvars.Set("endpoints", expvar.Func(publishEndpoints(eps)))
+		processExpvars.Set("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
+		processExpvars.Set("system_probe_process_module_enabled", publishBool(processModuleEnabled))
+		processExpvars.Set("language_detection_enabled", publishBool(languageDetectionEnabled))
+		processExpvars.Set("workloadmeta_extractor_cache_size", publishInt(&infoWlmExtractorCacheSize))
+		processExpvars.Set("workloadmeta_extractor_stale_diffs", publishInt(&infoWlmExtractorStaleDiffs))
+		processExpvars.Set("workloadmeta_extractor_diffs_dropped", publishInt(&infoWlmExtractorDiffsDropped))
 	})
-
-	// Run a profile & telemetry server.
-	if config.GetBool("telemetry.enabled") {
-		http.Handle("/telemetry", telemetry.Handler())
-	}
 }

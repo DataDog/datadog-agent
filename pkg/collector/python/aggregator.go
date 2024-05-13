@@ -5,6 +5,7 @@
 
 //go:build python
 
+//nolint:revive // TODO(AML) Fix revive linter
 package python
 
 import (

@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func setupTest() {
@@ -42,4 +43,8 @@ func TestTagsSetup(t *testing.T) {
 	defer metricAgent.Stop()
 	assert.Subset(t, metricAgent.GetExtraTags(), allTags)
 	assert.Subset(t, logs.GetLogsTags(), allTags)
+}
+
+func TestFxApp(t *testing.T) {
+	fxutil.TestOneShot(t, main)
 }

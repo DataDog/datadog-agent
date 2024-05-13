@@ -5,16 +5,17 @@
 
 //go:build linux
 
+// Package events handles process events
 package events
 
 import (
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"go.uber.org/atomic"
 	"go4.org/intern"
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -61,6 +62,12 @@ func Init() error {
 	return initErr
 }
 
+// Initialized returns true if Init() has been called successfully
+func Initialized() bool {
+	return theMonitor.Load() != nil
+}
+
+//nolint:revive // TODO(NET) Fix revive linter
 type ProcessEventHandler interface {
 	HandleProcessEvent(*Process)
 }
@@ -171,6 +178,7 @@ func (e *eventMonitor) HandleEvent(ev *Process) {
 	}
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (e *eventMonitor) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 }
 

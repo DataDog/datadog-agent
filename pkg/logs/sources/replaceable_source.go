@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package sources
 
 import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 // ReplaceableSource is a thread safe wrapper for a LogSource that allows it to be replaced with a new one.

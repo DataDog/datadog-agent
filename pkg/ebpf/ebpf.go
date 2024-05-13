@@ -13,6 +13,8 @@ import (
 	"sync"
 
 	"github.com/cilium/ebpf/rlimit"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var core struct {
@@ -20,7 +22,7 @@ var core struct {
 	loader *coreAssetLoader
 }
 
-// Setup initializes CO-RE and BTF loaders with the provided config
+// Setup initializes CO-RE and BTF loaders with the provided config.
 // [Reset] must be called first if you want a different config to take effect
 func Setup(cfg *Config) error {
 	_, err := coreLoader(cfg)
@@ -43,11 +45,18 @@ func coreLoader(cfg *Config) (*coreAssetLoader, error) {
 	core.loader = &coreAssetLoader{
 		coreDir:   filepath.Join(cfg.BPFDir, "co-re"),
 		btfLoader: initBTFLoader(cfg),
+		telemetry: struct {
+			success telemetry.Counter
+			error   telemetry.Counter
+		}{
+			success: telemetry.NewCounter("ebpf__core__load", "success", []string{"platform", "platform_version", "kernel", "arch", "asset", "btf_type"}, "gauge of CO-RE load successes"),
+			error:   telemetry.NewCounter("ebpf__core__load", "error", []string{"platform", "platform_version", "kernel", "arch", "asset", "error_type"}, "gauge of CO-RE load errors"),
+		},
 	}
 	return core.loader, nil
 }
 
-// Reset resets CO-RE and BTF loaders back to uninitialized state
+// Reset resets CO-RE and BTF loaders and manager modifiers back to uninitialized state
 func Reset() {
 	core.Lock()
 	defer core.Unlock()

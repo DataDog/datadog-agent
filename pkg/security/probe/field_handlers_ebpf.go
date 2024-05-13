@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 
@@ -23,6 +24,7 @@ import (
 
 // EBPFFieldHandlers defines a field handlers
 type EBPFFieldHandlers struct {
+	config    *config.Config
 	resolvers *resolvers.EBPFResolvers
 }
 
@@ -350,13 +352,13 @@ func (fh *EBPFFieldHandlers) ResolveEventTimestamp(ev *model.Event, e *model.Bas
 	return int(fh.ResolveEventTime(ev, e).UnixNano())
 }
 
-// GetProcessService returns the service tag based on the process context
-func (fh *EBPFFieldHandlers) GetProcessService(ev *model.Event) string {
+// ResolveService returns the service tag based on the process context
+func (fh *EBPFFieldHandlers) ResolveService(ev *model.Event, _ *model.BaseEvent) string {
 	entry, _ := fh.ResolveProcessCacheEntry(ev)
 	if entry == nil {
 		return ""
 	}
-	return getProcessService(entry)
+	return getProcessService(fh.config, entry)
 }
 
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
@@ -503,42 +505,30 @@ func (fh *EBPFFieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Pr
 	return int(e.ExecTime.UnixNano())
 }
 
-// ResolveK8SUsername resolves the k8s username of the event
-func (fh *EBPFFieldHandlers) ResolveK8SUsername(_ *model.Event, evtCtx *model.UserSessionContext) string {
+// ResolveUserSessionContext resolves and updates the provided user session context
+func (fh *EBPFFieldHandlers) ResolveUserSessionContext(evtCtx *model.UserSessionContext) {
 	if !evtCtx.Resolved {
-		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
+		ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID)
+		if ctx != nil {
 			*evtCtx = *ctx
 		}
 	}
+}
+
+// ResolveK8SUsername resolves the k8s username of the event
+func (fh *EBPFFieldHandlers) ResolveK8SUsername(_ *model.Event, evtCtx *model.UserSessionContext) string {
+	fh.ResolveUserSessionContext(evtCtx)
 	return evtCtx.K8SUsername
 }
 
 // ResolveK8SUID resolves the k8s UID of the event
 func (fh *EBPFFieldHandlers) ResolveK8SUID(_ *model.Event, evtCtx *model.UserSessionContext) string {
-	if !evtCtx.Resolved {
-		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
-			*evtCtx = *ctx
-		}
-	}
+	fh.ResolveUserSessionContext(evtCtx)
 	return evtCtx.K8SUID
 }
 
 // ResolveK8SGroups resolves the k8s groups of the event
 func (fh *EBPFFieldHandlers) ResolveK8SGroups(_ *model.Event, evtCtx *model.UserSessionContext) []string {
-	if !evtCtx.Resolved {
-		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
-			*evtCtx = *ctx
-		}
-	}
+	fh.ResolveUserSessionContext(evtCtx)
 	return evtCtx.K8SGroups
-}
-
-// ResolveK8SExtra resolves the k8s extra of the event
-func (fh *EBPFFieldHandlers) ResolveK8SExtra(_ *model.Event, evtCtx *model.UserSessionContext) map[string][]string {
-	if !evtCtx.Resolved {
-		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
-			*evtCtx = *ctx
-		}
-	}
-	return evtCtx.K8SExtra
 }

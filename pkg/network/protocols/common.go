@@ -3,9 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package protocols provides the implementation of the network tracer protocols
 package protocols
 
-import "math"
+import (
+	"math"
+)
 
 // below is copied from pkg/trace/stats/statsraw.go
 

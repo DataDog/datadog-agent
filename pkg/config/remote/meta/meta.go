@@ -3,20 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package meta provides a way to access embedded remote config TUF metadata
 package meta
 
 import (
 	_ "embed"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
-	//go:embed 1.director.json
-	rootDirector1 []byte
+	//go:embed prod.1.director.json
+	prodRootDirector1 []byte
+	//go:embed prod.1.config.json
+	prodRootConfig1 []byte
 
-	//go:embed 1.config.json
-	rootConfig1 []byte
+	//go:embed staging.1.director.json
+	stagingRootDirector1 []byte
+	//go:embed staging.1.config.json
+	stagingRootConfig1 []byte
 )
 
 // EmbeddedRoot is an embedded root
@@ -25,32 +28,42 @@ type EmbeddedRoot []byte
 // EmbeddedRoots is a map of version => EmbeddedRoot
 type EmbeddedRoots map[uint64]EmbeddedRoot
 
-var rootsDirector = EmbeddedRoots{
-	1: rootDirector1,
-}
+var (
+	prodRootsDirector = EmbeddedRoots{1: prodRootDirector1}
+	prodRootsConfig   = EmbeddedRoots{1: prodRootConfig1}
 
-var rootsConfig = EmbeddedRoots{
-	1: rootConfig1,
-}
+	stagingRootsDirector = EmbeddedRoots{1: stagingRootDirector1}
+	stagingRootsConfig   = EmbeddedRoots{1: stagingRootConfig1}
+)
 
 // RootsDirector returns all the roots of the director repo
-func RootsDirector() EmbeddedRoots {
-	if directorRoot := config.Datadog.GetString("remote_configuration.director_root"); directorRoot != "" {
+func RootsDirector(site string, directorRootOverride string) EmbeddedRoots {
+	if directorRootOverride != "" {
 		return EmbeddedRoots{
-			1: EmbeddedRoot(directorRoot),
+			1: EmbeddedRoot(directorRootOverride),
 		}
 	}
-	return rootsDirector
+	switch site {
+	case "datad0g.com":
+		return stagingRootsDirector
+	default:
+		return prodRootsDirector
+	}
 }
 
 // RootsConfig returns all the roots of the director repo
-func RootsConfig() EmbeddedRoots {
-	if configRoot := config.Datadog.GetString("remote_configuration.config_root"); configRoot != "" {
+func RootsConfig(site string, configRootOverride string) EmbeddedRoots {
+	if configRootOverride != "" {
 		return EmbeddedRoots{
-			1: EmbeddedRoot(configRoot),
+			1: EmbeddedRoot(configRootOverride),
 		}
 	}
-	return rootsConfig
+	switch site {
+	case "datad0g.com":
+		return stagingRootsConfig
+	default:
+		return prodRootsConfig
+	}
 }
 
 // Last returns the last root the EmbeddedRoots

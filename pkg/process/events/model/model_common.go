@@ -5,6 +5,7 @@
 
 //go:generate go run github.com/tinylib/msgp -tests=false
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package model
 
 import (

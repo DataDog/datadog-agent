@@ -6,17 +6,16 @@
 package invocationlifecycle
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	json "github.com/json-iterator/go"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
-
-	"github.com/aws/aws-lambda-go/events"
-
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -106,7 +105,7 @@ func (lp *LifecycleProcessor) initFromDynamoDBStreamEvent(event events.DynamoDBE
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractDynamoDBStreamEventARN(event))
 }
 
-func (lp *LifecycleProcessor) initFromEventBridgeEvent(event inferredspan.EventBridgeEvent) {
+func (lp *LifecycleProcessor) initFromEventBridgeEvent(event events.EventBridgeEvent) {
 	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, eventBridge)
 	lp.addTag(tagFunctionTriggerEventSourceArn, event.Source)

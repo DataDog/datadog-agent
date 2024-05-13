@@ -137,6 +137,13 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 				EBPFFuncName: "tail_call_target_dr_selinux_callback",
 			},
 		},
+		{
+			ProgArrayName: dentryCallbackProgs,
+			Key:           DentryResolverChdirCallbackKprobeKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tail_call_target_dr_chdir_callback",
+			},
+		},
 	}...)
 
 	routes = append(routes, []manager.TailCallRoute{
@@ -183,6 +190,13 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 				EBPFFuncName: "tracepoint_dr_rename_callback",
 			},
 		},
+		{
+			ProgArrayName: "dentry_resolver_tracepoint_callbacks",
+			Key:           DentryResolverChdirCallbackTracepointKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint_dr_chdir_callback",
+			},
+		},
 	}...)
 
 	// add routes for programs with the bpf_probe_write_user only if necessary
@@ -198,20 +212,6 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 				Key:           DentryResolverERPCKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "tail_call_target_dentry_resolver_erpc" + ebpfSuffix,
-				},
-			},
-			{
-				ProgArrayName: dentryResolverProgs,
-				Key:           DentryResolverParentERPCKey,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tail_call_target_dentry_resolver_parent_erpc" + ebpfSuffix,
-				},
-			},
-			{
-				ProgArrayName: dentryResolverProgs,
-				Key:           DentryResolverSegmentERPCKey,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tail_call_target_dentry_resolver_segment_erpc" + ebpfSuffix,
 				},
 			},
 		}...)

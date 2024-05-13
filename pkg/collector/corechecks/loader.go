@@ -9,11 +9,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // CheckFactory factory function type to instantiate checks
@@ -23,8 +24,10 @@ type CheckFactory func() check.Check
 var catalog = make(map[string]CheckFactory)
 
 // RegisterCheck adds a check to the catalog
-func RegisterCheck(name string, c CheckFactory) {
-	catalog[name] = c
+func RegisterCheck(name string, checkFactory optional.Option[func() check.Check]) {
+	if v, ok := checkFactory.Get(); ok {
+		catalog[name] = v
+	}
 }
 
 // GetRegisteredFactoryKeys get the keys for all registered factories

@@ -1,5 +1,5 @@
 ---
-title: Creating Custom Agent Rules
+title: Creating Agent Rule Expressions
 kind: documentation
 description: "Agent expression attributes and operators for CSM Threats Rules"
 disable_edit: true
@@ -17,7 +17,7 @@ Cloud Security Management Threats (CSM Threats) first evaluates activity within 
 {% raw %}
 {{< code-block lang="javascript" >}}
 {% endraw %}
-<event-type>.<event-attribute> <operator> <value> <event-attribute> ...
+<event-type>.<event-attribute> <operator> <value> [<operator> <event-type>.<event-attribute>] ...
 {% raw %}
 {{< /code-block >}}
 {% endraw %}
@@ -26,7 +26,7 @@ Using this format, an example rule looks like this:
 {% raw %}
 {{< code-block lang="javascript" >}}
 {% endraw %}
-open.file.path == "/etc/shadow" && file.path not in ["/usr/sbin/vipw"]
+open.file.path == "/etc/shadow" && process.file.path not in ["/usr/sbin/vipw"]
 {% raw %}
 {{< /code-block >}}
 {% endraw %}

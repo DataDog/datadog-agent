@@ -46,7 +46,7 @@ type SharedLibrarySuite struct {
 }
 
 func TestSharedLibrary(t *testing.T) {
-	if !http.HTTPSSupported(config.New()) {
+	if !http.TLSSupported(config.New()) {
 		t.Skip("shared library tracing not supported for this platform")
 	}
 
@@ -64,7 +64,6 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	unregisterRecorder := new(utils.CallbackRecorder)
 
 	watcher, err := NewWatcher(config.New(),
-		nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerRecorder.Callback(),
@@ -123,7 +122,6 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNamespace()
 	}
 
 	watcher, err := NewWatcher(config.New(),
-		nil,
 		Rule{
 			Re:           regexp.MustCompile(`fooroot-crypto.so`),
 			RegisterCB:   callback,
@@ -173,7 +171,6 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	unregisterRecorder := new(utils.CallbackRecorder)
 
 	watcher, err := NewWatcher(config.New(),
-		nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerRecorder.Callback(),
@@ -216,7 +213,6 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	unregisterCB := unregisterRecorder.Callback()
 
 	watcher, err := NewWatcher(config.New(),
-		nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerCB,
@@ -284,7 +280,6 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	unregisterCB := unregisterRecorder.Callback()
 
 	watcher, err := NewWatcher(config.New(),
-		nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerCB,
@@ -356,7 +351,6 @@ func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier
 
 func BenchmarkScanSOWatcherNew(b *testing.B) {
 	w, _ := NewWatcher(config.New(),
-		nil,
 		Rule{
 			Re: regexp.MustCompile(`libssl.so`),
 		},

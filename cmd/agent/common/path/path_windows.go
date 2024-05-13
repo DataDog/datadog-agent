@@ -21,8 +21,6 @@ var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
 	PyChecksPath = filepath.Join(_here, "..", "checks.d")
 	distPath     string
-	// ViewsPath holds the path to the folder containing the GUI support files
-	viewsPath string
 )
 
 var (
@@ -40,6 +38,8 @@ var (
 	DefaultJMXFlareDirectory = "c:\\programdata\\datadog\\logs\\jmxinfo\\"
 	//DefaultDogstatsDLogFile points to the dogstatsd stats log file that will be used if not configured
 	DefaultDogstatsDLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd_info\\dogstatsd-stats.log"
+	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
+	DefaultStreamlogsLogFile = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
 )
 
 func init() {
@@ -49,6 +49,7 @@ func init() {
 		DefaultLogFile = filepath.Join(pd, "logs", "agent.log")
 		DefaultDCALogFile = filepath.Join(pd, "logs", "cluster-agent.log")
 		DefaultDogstatsDLogFile = filepath.Join(pd, "logs", "dogstatsd_info", "dogstatsd-stats.log")
+		DefaultStreamlogsLogFile = filepath.Join(pd, "logs", "streamlogs_info", "streamlogs.log")
 	}
 }
 
@@ -84,17 +85,4 @@ func GetDistPath() string {
 		distPath = filepath.Join(s, `bin/agent/dist`)
 	}
 	return distPath
-}
-
-// GetViewsPath returns the fully qualified path to the GUI's 'views' directory
-func GetViewsPath() string {
-	if len(viewsPath) == 0 {
-		var s string
-		if s = getInstallPath(); s == "" {
-			return ""
-		}
-		viewsPath = filepath.Join(s, "bin", "agent", "dist", "views")
-		log.Debugf("ViewsPath is now %s", viewsPath)
-	}
-	return viewsPath
 }

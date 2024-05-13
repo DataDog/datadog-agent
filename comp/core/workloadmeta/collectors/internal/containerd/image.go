@@ -23,7 +23,6 @@ import (
 	containerdevents "github.com/containerd/containerd/events"
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/namespaces"
-	"github.com/mohae/deepcopy"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"google.golang.org/protobuf/proto"
 )
@@ -150,6 +149,23 @@ func (images *knownImages) getRepoDigests(imageID string) []string {
 	return res
 }
 
+// getPreferredName will return a user-friendly image name if it exists, otherwise
+// for example the name not including the digest.
+func (images *knownImages) getPreferredName(imageID string) string {
+	var res = ""
+	for ref := range images.namesByID[imageID] {
+		if res == "" && isAnImageID(ref) {
+			res = ref
+		} else if isARepoDigest(ref) {
+			res = ref // Prefer the repo digest
+			break
+		} else {
+			res = ref // Then repo tag
+		}
+	}
+	return res
+}
+
 // returns any of the existing references for the imageID. Returns empty if the
 // ID is not referenced.
 func (images *knownImages) getAReference(imageID string) string {
@@ -170,6 +186,30 @@ func isAnImageID(imageName string) bool {
 
 func isARepoDigest(imageName string) bool {
 	return strings.Contains(imageName, "@sha256:")
+}
+
+// pullImageReferences pulls all references from containerd for a given DIGEST
+// Note: the DIGEST here is the same as digest (repo digest) field returned from "ctr -n NAMESPACE ls"
+// rather than config.digest (imageID), which is the digest of the image config blob.
+// In general, 3 reference names are returned for a given DIGEST: repo tag, repo digest, and imageID.
+func (c *collector) pullImageReferences(namespace string, img containerd.Image) []string {
+	var refs []string
+	digest := img.Target().Digest.String()
+	if !strings.HasPrefix(digest, "sha256") {
+		return refs // not a valid digest
+	}
+
+	// Get all references for the imageID
+	referenceImages, err := c.containerdClient.ListImagesWithDigest(namespace, digest)
+	if err == nil {
+		for _, image := range referenceImages {
+			imageName := image.Name()
+			refs = append(refs, imageName)
+		}
+	} else {
+		log.Debugf("failed to get reference images for image: %s, repo digests will be missing: %v", img.Name(), err)
+	}
+	return refs
 }
 
 func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) error {
@@ -245,46 +285,60 @@ func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace str
 	return c.notifyEventForImage(ctx, namespace, img, bom)
 }
 
-func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, newSBOM *workloadmeta.SBOM) error {
+// createOrUpdateImageMetadata: Create image metadata from containerd image and manifest if not already present
+// Update image metadata by adding references when existing entity is found
+// return nil when it fails to get image manifest
+func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
+	namespace string,
+	img containerd.Image,
+	sbom *workloadmeta.SBOM) (*workloadmeta.ContainerImageMetadata, error) {
 	c.handleImagesMut.Lock()
 	defer c.handleImagesMut.Unlock()
 
 	ctxWithNamespace := namespaces.WithNamespace(ctx, namespace)
 
+	// Build initial workloadmeta.ContainerImageMetadata from manifest and image
 	manifest, err := images.Manifest(ctxWithNamespace, img.ContentStore(), img.Target(), img.Platform())
 	if err != nil {
-		return fmt.Errorf("error getting image manifest: %w", err)
+		return nil, fmt.Errorf("error getting image manifest: %w", err)
 	}
 
-	layers, err := getLayersWithHistory(ctxWithNamespace, img.ContentStore(), manifest)
-	if err != nil {
-		log.Warnf("error while getting layers with history: %s", err)
-
-		// Not sure if the layers and history are always available. Instead of
-		// returning an error, collect the image without this information.
+	totalSizeBytes := manifest.Config.Size
+	for _, layer := range manifest.Layers {
+		totalSizeBytes += layer.Size
 	}
 
-	platforms, err := images.Platforms(ctxWithNamespace, img.ContentStore(), manifest.Config)
-	if err != nil {
-		return fmt.Errorf("error getting image platforms: %w", err)
+	wlmImage := workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   manifest.Config.Digest.String(),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      img.Name(),
+			Namespace: namespace,
+		},
+		MediaType: manifest.MediaType,
+		SBOM:      sbom,
+		SizeBytes: totalSizeBytes,
+	}
+	// Only pull all image references if not already present
+	if _, found := c.knownImages.getImageID(wlmImage.Name); !found {
+		references := c.pullImageReferences(namespace, img)
+		for _, ref := range references {
+			c.knownImages.addReference(ref, wlmImage.ID)
+		}
+	}
+	// update knownImages with current reference name
+	c.knownImages.addReference(wlmImage.Name, wlmImage.ID)
+
+	// Fill image based on manifest and config, we are not failing if this step fails
+	// as we can live without layers or labels
+	if err := extractFromConfigBlob(ctxWithNamespace, img, manifest, &wlmImage); err != nil {
+		log.Infof("failed to get image config for image: %s, layers and labels will be missing: %v", img.Name(), err)
 	}
 
-	labels, err := getImageLabels(ctxWithNamespace, img)
-	if err != nil {
-		log.Warnf("error while getting all the image labels. The list might be incomplete: %s", err)
-		// Continue and use the labels available instead of returning.
-	}
-
-	imageName := img.Name()
-	imageID := manifest.Config.Digest.String()
-
-	c.knownImages.addReference(imageName, imageID)
-
-	repoTags := c.knownImages.getRepoTags(imageID)
-	repoDigests := c.knownImages.getRepoDigests(imageID)
-
-	sbom := newSBOM
-	var usingExistingSBOM bool
+	wlmImage.RepoTags = c.knownImages.getRepoTags(wlmImage.ID)
+	wlmImage.RepoDigests = c.knownImages.getRepoDigests(wlmImage.ID)
 
 	// We can get "create" events for images that already exist. That happens
 	// when the same image is referenced with different names. For example,
@@ -298,139 +352,125 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	// of the name that includes a digest. This is just to show names that are
 	// more user-friendly (the digests are already present in other attributes
 	// like ID, and repo digest).
-	existingImg, err := c.store.GetImage(imageID)
+	wlmImage.Name = c.knownImages.getPreferredName(wlmImage.ID)
+	existingImg, err := c.store.GetImage(wlmImage.ID)
 	if err == nil {
-		if strings.Contains(imageName, "sha256:") && !strings.Contains(existingImg.Name, "sha256:") {
-			imageName = existingImg.Name
-		}
-
-		if sbom == nil && existingImg.SBOM.Status != workloadmeta.Pending {
-			usingExistingSBOM = true
-			sbom = existingImg.SBOM
+		if strings.Contains(wlmImage.Name, "sha256:") && !strings.Contains(existingImg.Name, "sha256:") {
+			wlmImage.Name = existingImg.Name
 		}
 	}
 
-	if sbom == nil {
-		sbom = &workloadmeta.SBOM{
+	if wlmImage.SBOM == nil {
+		wlmImage.SBOM = &workloadmeta.SBOM{
 			Status: workloadmeta.Pending,
 		}
 	}
 
-	totalSizeBytes := manifest.Config.Size
-	for _, layer := range manifest.Layers {
-		totalSizeBytes += layer.Size
-	}
+	// The CycloneDX should contain the RepoTags and RepoDigests but the scanner might
+	// not be able to inject them. For example, if we use the scanner from filesystem or
+	// if the `imgMeta` object does not contain all the metadata when it is sent.
+	// We add them here to make sure they are present.
+	wlmImage.SBOM = util.UpdateSBOMRepoMetadata(wlmImage.SBOM, wlmImage.RepoTags, wlmImage.RepoDigests)
+	return &wlmImage, nil
+}
 
-	var os, osVersion, architecture, variant string
-	// If there are multiple platforms, return the info about the first one
-	if len(platforms) >= 1 {
-		os = platforms[0].OS
-		osVersion = platforms[0].OSVersion
-		architecture = platforms[0].Architecture
-		variant = platforms[0].Variant
+func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, sbom *workloadmeta.SBOM) error {
+	wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, img, sbom)
+	if err != nil {
+		return err
 	}
-
-	// SBOMs are generated only once. However, when they are generated it is possible that
-	// not every RepoDigest and RepoTags are attached to the image. In that case, the SBOM
-	// will also miss metadata and will not be re-generated when new metadata is detected.
-	// Because this metadata is essential for processing, it is important to inject new metadata
-	// to the existing SBOM. Generating a new SBOM can be a more robust solution but can also be
-	// costly.
-	// Moreover, it is not safe to modify the original SBOM if it is already stored in workloadmeta,
-	// so we create a copy of it. It is costly but shouldn't be called so often.
-	if usingExistingSBOM {
-		sbom = deepcopy.Copy(sbom).(*workloadmeta.SBOM)
-		sbom = util.UpdateSBOMRepoMetadata(sbom, repoTags, repoDigests)
-	}
-
-	workloadmetaImg := workloadmeta.ContainerImageMetadata{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainerImageMetadata,
-			ID:   imageID,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:      imageName,
-			Namespace: namespace,
-			Labels:    labels,
-		},
-		RepoTags:     repoTags,
-		RepoDigests:  repoDigests,
-		MediaType:    manifest.MediaType,
-		SizeBytes:    totalSizeBytes,
-		OS:           os,
-		OSVersion:    osVersion,
-		Architecture: architecture,
-		Variant:      variant,
-		Layers:       layers,
-		SBOM:         sbom,
-	}
-
 	c.store.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceRuntime,
-			Entity: &workloadmetaImg,
+			Entity: wlmImage,
 		},
 	})
-
 	return nil
 }
 
-func getLayersWithHistory(ctx context.Context, store content.Store, manifest ocispec.Manifest) ([]workloadmeta.ContainerImageLayer, error) {
-	blob, err := content.ReadBlob(ctx, store, manifest.Config)
+func extractFromConfigBlob(ctx context.Context, img containerd.Image, manifest ocispec.Manifest, outImage *workloadmeta.ContainerImageMetadata) error {
+	// First extract platform from Config descriptor
+	extractPlatform(manifest.Config.Platform, outImage)
+
+	imageConfigBlob, err := content.ReadBlob(ctx, img.ContentStore(), manifest.Config)
 	if err != nil {
-		return nil, fmt.Errorf("error while getting image contents: %w", err)
+		return fmt.Errorf("error getting image config: %w", err)
 	}
 
 	var ocispecImage ocispec.Image
-	if err = json.Unmarshal(blob, &ocispecImage); err != nil {
-		return nil, fmt.Errorf("error while unmarshaling image: %w", err)
+	if err = json.Unmarshal(imageConfigBlob, &ocispecImage); err != nil {
+		return fmt.Errorf("error while unmarshaling image config: %w", err)
 	}
 
+	// If we are able to read config, override with values from config if any
+	extractPlatform(&ocispecImage.Platform, outImage)
+
+	outImage.Layers = getLayersWithHistory(ocispecImage, manifest)
+	outImage.Labels = getImageLabels(img, ocispecImage)
+	return nil
+}
+
+func extractPlatform(platform *ocispec.Platform, outImage *workloadmeta.ContainerImageMetadata) {
+	if platform == nil {
+		return
+	}
+
+	if platform.Architecture != "" {
+		outImage.Architecture = platform.Architecture
+	}
+
+	if platform.OS != "" {
+		outImage.OS = platform.OS
+	}
+
+	if platform.OSVersion != "" {
+		outImage.OSVersion = platform.OSVersion
+	}
+
+	if platform.Variant != "" {
+		outImage.Variant = platform.Variant
+	}
+}
+
+func getLayersWithHistory(ocispecImage ocispec.Image, manifest ocispec.Manifest) []workloadmeta.ContainerImageLayer {
 	var layers []workloadmeta.ContainerImageLayer
 
 	// The layers in the manifest don't include the history, and the only way to
 	// match the history with each layer is to rely on the order and take into
 	// account that some history objects don't have an associated layer
 	// (emptyLayer = true).
+	// History is optional in OCI Spec, so we have no guarantee to be able to get it.
 
-	history := ocispecImage.History
-	manifestLayersIdx := 0
-
-	for _, historyPoint := range history {
-		layer := workloadmeta.ContainerImageLayer{
-			History: historyPoint,
+	historyIndex := 0
+	for _, manifestLayer := range manifest.Layers {
+		// Look for next history point with emptyLayer = false
+		historyFound := false
+		for ; historyIndex < len(ocispecImage.History); historyIndex++ {
+			if !ocispecImage.History[historyIndex].EmptyLayer {
+				historyFound = true
+				break
+			}
 		}
 
-		if !historyPoint.EmptyLayer {
-			if manifestLayersIdx >= len(manifest.Layers) {
-				// This should never happen. len(manifest.Layers) should equal
-				// len(history) minus the number of history points with
-				// emptyLayer = false.
-				return nil, fmt.Errorf("error while extracting image layer history")
-			}
-
-			manifestLayer := manifest.Layers[manifestLayersIdx]
-			manifestLayersIdx++
-
-			layer.MediaType = manifestLayer.MediaType
-			layer.Digest = manifestLayer.Digest.String()
-			layer.SizeBytes = manifestLayer.Size
-			layer.URLs = manifestLayer.URLs
+		layer := workloadmeta.ContainerImageLayer{
+			MediaType: manifestLayer.MediaType,
+			Digest:    manifestLayer.Digest.String(),
+			SizeBytes: manifestLayer.Size,
+			URLs:      manifestLayer.URLs,
+		}
+		if historyFound {
+			layer.History = &ocispecImage.History[historyIndex]
+			historyIndex++
 		}
 
 		layers = append(layers, layer)
 	}
 
-	if manifestLayersIdx != len(manifest.Layers) {
-		// This should never happen. Same case as above.
-		return nil, fmt.Errorf("error while extracting image layer history")
-	}
-
-	return layers, nil
+	return layers
 }
 
-func getImageLabels(ctx context.Context, img containerd.Image) (map[string]string, error) {
+func getImageLabels(img containerd.Image, ocispecImage ocispec.Image) map[string]string {
 	// Labels() does not return the labels set in the Dockerfile. They are in
 	// the config descriptor.
 	// When running on Kubernetes Labels() only returns io.cri-containerd
@@ -441,24 +481,9 @@ func getImageLabels(ctx context.Context, img containerd.Image) (map[string]strin
 		labels[labelName] = labelValue
 	}
 
-	configDescriptor, err := img.Config(ctx)
-	if err != nil {
-		return labels, err
-	}
-
-	contents, err := content.ReadBlob(ctx, img.ContentStore(), configDescriptor)
-	if err != nil {
-		return labels, err
-	}
-
-	var config ocispec.Image
-	if err = json.Unmarshal(contents, &config); err != nil {
-		return labels, err
-	}
-
-	for labelName, labelValue := range config.Config.Labels {
+	for labelName, labelValue := range ocispecImage.Config.Labels {
 		labels[labelName] = labelValue
 	}
 
-	return labels, nil
+	return labels
 }

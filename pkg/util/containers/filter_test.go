@@ -578,7 +578,7 @@ func TestValidateFilter(t *testing.T) {
 		{
 			desc:           "kube_namespace filter",
 			filter:         "kube_namespace:monitoring",
-			prefix:         kubeNamespaceFilterPrefix,
+			prefix:         KubeNamespaceFilterPrefix,
 			expectedRegexp: regexp.MustCompile("monitoring"),
 			expectedErr:    nil,
 		},

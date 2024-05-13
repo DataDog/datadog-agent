@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package daemon
 
 import (
@@ -59,11 +60,20 @@ type Daemon struct {
 	// through configuration.
 	useAdaptiveFlush bool
 
-	// stopped represents whether the Daemon has been stopped
-	stopped bool
+	// Stopped represents whether the Daemon has been Stopped
+	Stopped bool
 
 	// LambdaLibraryDetected represents whether the Datadog Lambda Library was detected in the environment
 	LambdaLibraryDetected bool
+
+	// LambdaLibraryStateLock keeps track of whether the Datadog Lambda Library was detected in the environment
+	LambdaLibraryStateLock sync.Mutex
+
+	// executionSpanIncomplete indicates whether the Lambda span has been completed by the Extension
+	executionSpanIncomplete bool
+
+	// ExecutionSpanStateLock keeps track of whether the serverless Invocation routes have been hit to complete the execution span
+	ExecutionSpanStateLock sync.Mutex
 
 	// runtimeStateMutex is used to ensure that modifying the state of the runtime is thread-safe
 	runtimeStateMutex sync.Mutex
@@ -208,10 +218,12 @@ func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 	d.TraceAgent = traceAgent
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (d *Daemon) SetOTLPAgent(otlpAgent *otlp.ServerlessOTLPAgent) {
 	d.OTLPAgent = otlpAgent
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (d *Daemon) SetColdStartSpanCreator(creator *trace.ColdStartSpanCreator) {
 	d.ColdStartCreator = creator
 }
@@ -247,7 +259,7 @@ func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 
 	timedOut := waitWithTimeout(&wg, FlushTimeout)
 	if timedOut {
-		log.Debug("Timed out while flushing")
+		log.Warn("Timed out while flushing")
 		d.flushStrategy.Failure(time.Now())
 	} else {
 		log.Debug("Finished flushing")
@@ -308,11 +320,11 @@ func (d *Daemon) Stop() {
 	// Can't shut down before starting
 	// If the DogStatsD daemon isn't ready, wait for it.
 
-	if d.stopped {
+	if d.Stopped {
 		log.Debug("Daemon.Stop() was called, but Daemon was already stopped")
 		return
 	}
-	d.stopped = true
+	d.Stopped = true
 
 	// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
 	log.Debug("Waiting to shut down HTTP server")
@@ -431,4 +443,25 @@ func (d *Daemon) setTraceTags(tagMap map[string]string) bool {
 		return true
 	}
 	return false
+}
+
+// IsLambdaLibraryDetected returns if the Lambda Library is in use
+func (d *Daemon) IsLambdaLibraryDetected() bool {
+	d.LambdaLibraryStateLock.Lock()
+	defer d.LambdaLibraryStateLock.Unlock()
+	return d.LambdaLibraryDetected
+}
+
+// IsExecutionSpanIncomplete checks if the Lambda execution span was finished
+func (d *Daemon) IsExecutionSpanIncomplete() bool {
+	d.ExecutionSpanStateLock.Lock()
+	defer d.ExecutionSpanStateLock.Unlock()
+	return d.executionSpanIncomplete
+}
+
+// SetExecutionSpanIncomplete keeps track of whether the Extension completed the Lambda execution span
+func (d *Daemon) SetExecutionSpanIncomplete(spanIncomplete bool) {
+	d.ExecutionSpanStateLock.Lock()
+	defer d.ExecutionSpanStateLock.Unlock()
+	d.executionSpanIncomplete = spanIncomplete
 }

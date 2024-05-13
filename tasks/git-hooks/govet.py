@@ -13,6 +13,8 @@ EXCLUDED_PACKAGES = {
     },
 }
 
+GO_TAGS = ["test"]
+
 
 def go_module_for_package(package_path):
     """
@@ -84,11 +86,12 @@ for module, packages in by_mod.items():
         print(f"Skipping {package} in {module}: not a valid package or all files are excluded by build tags")
         packages.remove(package)
 
+go_tags_arg = '-tags ' + ','.join(GO_TAGS) if GO_TAGS else ''
 for module, packages in by_mod.items():
     if not packages:
         continue
     try:
-        subprocess.run(f"go vet {' '.join(packages)}", shell=True, check=True, cwd=module)
+        subprocess.run(f"go vet {go_tags_arg} {' '.join(packages)}", shell=True, check=True, cwd=module)
     except subprocess.CalledProcessError:
         # Signal failure to pre-commit
         sys.exit(-1)

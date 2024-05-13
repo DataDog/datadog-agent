@@ -81,14 +81,12 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 	}
 
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Replace(compcfg.MockParams{Overrides: overrides}),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 	))
-	workloadmeta.SetGlobalStore(store)
-	defer workloadmeta.SetGlobalStore(nil)
 
 	// pass actual config component
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(store.GetConfig())

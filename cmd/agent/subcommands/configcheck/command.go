@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -47,8 +47,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot("CORE", "off", true)}),
-				core.Bundle,
+					LogParams:    logimpl.ForOneShot("CORE", "off", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -57,7 +57,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{configCheckCommand}
 }
 
-func run(config config.Component, cliParams *cliParams) error {
+func run(_ config.Component, cliParams *cliParams) error {
 	var b bytes.Buffer
 	color.Output = &b
 	err := flare.GetConfigCheck(color.Output, cliParams.verbose)

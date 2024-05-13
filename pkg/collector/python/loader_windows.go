@@ -11,6 +11,7 @@ import (
 	"github.com/go-ole/go-ole"
 )
 
+//nolint:revive // TODO(AML) Fix revive linter
 const S_FALSE = 0x00000001
 
 func platformLoaderPrep() error {

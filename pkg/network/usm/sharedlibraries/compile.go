@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package sharedlibraries contains implementation for the TLS support of USM
 package sharedlibraries
 
 import (
@@ -17,7 +18,7 @@ import (
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/shared-libraries.c pkg/ebpf/bytecode/runtime/shared-libraries.go runtime
 
 func getRuntimeCompiledSharedLibraries(config *config.Config) (runtime.CompiledOutput, error) {
-	return runtime.SharedLibraries.Compile(&config.Config, getCFlags(config), statsd.Client)
+	return runtime.SharedLibraries.Compile(&config.Config, getCFlags(config), getLlcFlags(), statsd.Client)
 }
 
 func getCFlags(config *config.Config) []string {
@@ -26,5 +27,12 @@ func getCFlags(config *config.Config) []string {
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")
 	}
+	if config.EBPFInstrumentationEnabled {
+		cflags = append(cflags, "-pg")
+	}
 	return cflags
+}
+
+func getLlcFlags() []string {
+	return nil
 }

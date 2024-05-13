@@ -6,10 +6,12 @@
 package agent
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -99,6 +101,33 @@ func TestTruncateMetaValueTooLong(t *testing.T) {
 	a.Truncate(s)
 	for _, v := range s.Meta {
 		assert.True(t, len(v) < MaxMetaValLen+4)
+	}
+}
+
+func TestTruncateStructuredMetaTag(t *testing.T) {
+	key := strings.Repeat("k", MaxMetaKeyLen+1)
+	val := strings.Repeat("v", MaxMetaValLen+1)
+
+	for _, structuredSuffix := range []string{
+		"json",
+		"protobuf",
+		"msgpack",
+	} {
+		suffix := structuredSuffix
+		t.Run(suffix, func(t *testing.T) {
+			a := &Agent{conf: config.New()}
+			s := testSpan()
+			structuredTagName := fmt.Sprintf("_dd.%s.%s", key, suffix)
+			notStructuredTagName := fmt.Sprintf("key.%s", suffix)
+			s.Meta[structuredTagName] = val
+			s.Meta[notStructuredTagName] = val
+			a.Truncate(s)
+			// The structured value must not be truncated.
+			require.Equal(t, val, s.Meta[structuredTagName])
+			// The non structured value must be truncated.
+			require.Len(t, s.Meta[notStructuredTagName], MaxMetaValLen+3) // 3 is the length of "..." added by the truncator
+			require.NotEqual(t, val, s.Meta[notStructuredTagName])
+		})
 	}
 }
 

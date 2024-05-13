@@ -50,6 +50,7 @@ func TestIterableSeriesCallback(t *testing.T) {
 	r.Equal("serie2", series[1].Name)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func TestIterableSeriesReceiverStopped(t *testing.T) {
 	iterableSeries := NewIterableSeries(func(*Serie) {}, 1, 1)
 	iterableSeries.Append(&Serie{Name: "serie1"})

@@ -17,6 +17,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -48,12 +49,14 @@ type checkPayload struct {
 	headers http.Header
 }
 
-type Runner interface {
-}
+//nolint:revive // TODO(PROC) Fix revive linter
+type Runner interface{}
 
 // CheckRunner will collect metrics from the local system and ship to the backend.
 type CheckRunner struct {
-	config ddconfig.Reader
+	config      ddconfig.Reader
+	sysProbeCfg *checks.SysProbeConfig
+	hostInfo    *checks.HostInfo
 
 	// required for being able to start and stop the collector
 	wg   *sync.WaitGroup
@@ -70,7 +73,8 @@ type CheckRunner struct {
 	orchestrator *oconfig.OrchestratorConfig
 
 	// counters for each type of check
-	runCounters   sync.Map
+	runCounters sync.Map
+
 	enabledChecks []checks.Check
 
 	// Controls the real-time interval, can change live.
@@ -86,42 +90,51 @@ type CheckRunner struct {
 	rtNotifierChan <-chan types.RTResponse
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) RunRealTime() bool {
 	return l.runRealTime
 }
 
 // NewRunner creates a new CheckRunner
-func NewRunner(config ddconfig.Reader, sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
+func NewRunner(
+	config ddconfig.Reader,
+	sysCfg *sysconfigtypes.Config,
+	hostInfo *checks.HostInfo,
+	enabledChecks []checks.Check,
+	rtNotifierChan <-chan types.RTResponse,
+) (*CheckRunner, error) {
 	runRealTime := !config.GetBool("process_config.disable_realtime_checks")
 
-	cfg := &checks.SysProbeConfig{}
+	sysProbeCfg := &checks.SysProbeConfig{}
 	if sysCfg != nil && sysCfg.Enabled {
 		// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
 		_, processModuleEnabled := sysCfg.EnabledModules[sysconfig.ProcessModule]
-		cfg.ProcessModuleEnabled = processModuleEnabled
-		cfg.MaxConnsPerMessage = sysCfg.MaxConnsPerMessage
-		cfg.SystemProbeAddress = sysCfg.SocketAddress
-		cfg.GRPCServerEnabled = sysCfg.GRPCServerEnabled
+		sysProbeCfg.ProcessModuleEnabled = processModuleEnabled
+		sysProbeCfg.MaxConnsPerMessage = sysCfg.MaxConnsPerMessage
+		sysProbeCfg.SystemProbeAddress = sysCfg.SocketAddress
 	}
 
-	for _, c := range enabledChecks {
-		if err := c.Init(cfg, hostInfo, false); err != nil {
-			return nil, err
-		}
-	}
-
-	return NewRunnerWithChecks(config, enabledChecks, runRealTime, rtNotifierChan)
+	return NewRunnerWithChecks(config, sysProbeCfg, hostInfo, enabledChecks, runRealTime, rtNotifierChan)
 }
 
 // NewRunnerWithChecks creates a new CheckRunner
-func NewRunnerWithChecks(config ddconfig.Reader, checks []checks.Check, runRealTime bool, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
+func NewRunnerWithChecks(
+	config ddconfig.Reader,
+	sysProbeCfg *checks.SysProbeConfig,
+	hostInfo *checks.HostInfo,
+	checks []checks.Check,
+	runRealTime bool,
+	rtNotifierChan <-chan types.RTResponse,
+) (*CheckRunner, error) {
 	orchestrator := oconfig.NewDefaultOrchestratorConfig()
 	if err := orchestrator.Load(); err != nil {
 		return nil, err
 	}
 
 	return &CheckRunner{
-		config: config,
+		hostInfo:    hostInfo,
+		config:      config,
+		sysProbeCfg: sysProbeCfg,
 
 		wg:   &sync.WaitGroup{},
 		stop: make(chan struct{}),
@@ -248,6 +261,7 @@ const (
 	chunkMask           = 1<<chunkNumberOfBits - 1
 )
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) Run() error {
 	realTimeAllowed := !l.config.GetBool("process_config.disable_realtime_checks")
 
@@ -276,6 +290,9 @@ func (l *CheckRunner) Run() error {
 	}
 
 	for _, c := range l.enabledChecks {
+		if err := c.Init(l.sysProbeCfg, l.hostInfo, false); err != nil {
+			return err
+		}
 		runner, err := l.runnerForCheck(c)
 		if err != nil {
 			return fmt.Errorf("error starting check %s: %s", c.Name(), err)
@@ -384,6 +401,7 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 	// If realtime mode is disabled in the config, do not change the real time status.
 	if !l.runRealTime {
@@ -431,6 +449,7 @@ func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) Stop() {
 	close(l.stop)
 	l.wg.Wait()
@@ -441,10 +460,12 @@ func (l *CheckRunner) Stop() {
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) GetChecks() []checks.Check {
 	return l.enabledChecks
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) IsRealTimeEnabled() bool {
 	return l.realTimeEnabled.Load()
 }
@@ -509,7 +530,7 @@ func readResponseStatuses(checkName string, responses <-chan defaultforwarder.Re
 
 func ignoreResponseBody(checkName string) bool {
 	switch checkName {
-	case checks.PodCheckName, checks.PodCheckManifestName, checks.ProcessEventsCheckName:
+	case checks.ProcessEventsCheckName:
 		return true
 	default:
 		return false

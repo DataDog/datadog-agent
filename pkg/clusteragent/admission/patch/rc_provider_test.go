@@ -9,10 +9,11 @@ package patch
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
+
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +40,7 @@ func TestProcess(t *testing.T) {
 `
 		return []byte(fmt.Sprintf(base, cluster, kind))
 	}
-	rcp, err := newRemoteConfigProvider(&remote.Client{}, make(chan struct{}), telemetry.NewNoopCollector(), "dev")
+	rcp, err := newRemoteConfigProvider(&rcclient.Client{}, make(chan struct{}), telemetry.NewNoopCollector(), "dev")
 	require.NoError(t, err)
 	notifs := rcp.subscribe(KindDeployment)
 	in := map[string]state.RawConfig{

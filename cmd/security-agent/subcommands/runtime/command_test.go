@@ -9,9 +9,12 @@ package runtime
 
 import (
 	"bytes"
+	"math"
 	"testing"
 
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
+	"github.com/DataDog/datadog-agent/pkg/security/agent/mocks"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -47,6 +50,47 @@ func TestDownloadCommand(t *testing.T) {
 	}
 }
 
+func newMockRSClient(t *testing.T) secagent.SecurityModuleClientWrapper {
+	m := mocks.NewSecurityModuleClientWrapper(t)
+	m.On("GetRuleSetReport").Return(&api.GetRuleSetReportResultMessage{
+		RuleSetReportMessage: &api.RuleSetReportMessage{
+			Policies: []*api.EventTypePolicy{
+				{
+					EventType: "exec",
+					Mode:      1,
+					Flags:     math.MaxUint8,
+					Approvers: nil,
+				},
+				{
+					EventType: "open",
+					Mode:      2,
+					Flags:     math.MaxUint8,
+					Approvers: &api.Approvers{
+						ApproverDetails: []*api.ApproverDetails{
+							{
+								Field: "open.file.path",
+								Value: "/etc/gshadow",
+								Type:  1,
+							},
+							{
+								Field: "open.file.path",
+								Value: "/etc/shadow",
+								Type:  1,
+							},
+							{
+								Field: "open.flags",
+								Value: "64",
+								Type:  1,
+							},
+						},
+					},
+				},
+			},
+		},
+	}, nil)
+	return m
+}
+
 // go test -v github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime --run="Test_checkPoliciesLoaded"
 func Test_checkPoliciesLoaded(t *testing.T) {
 	type args struct {
@@ -64,7 +108,7 @@ func Test_checkPoliciesLoaded(t *testing.T) {
 			wantErr: false,
 			args: args{
 				args:   &checkPoliciesCliParams{evaluateAllPolicySources: true},
-				client: secagent.NewMockRuntimeSecurityClient(),
+				client: newMockRSClient(t),
 			},
 			reportFromSysProbe: `{
 	"Policies": {

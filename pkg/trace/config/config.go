@@ -15,9 +15,12 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // ServiceName specifies the service name used in the operating system.
@@ -38,10 +41,6 @@ type Endpoint struct {
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
 const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
-
-// App Services env vars
-const RunZip = "APPSVC_RUN_ZIP"
-const AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
@@ -75,6 +74,9 @@ type OTLP struct {
 	// If spans have the "sampling.priority" attribute set, probabilistic sampling is skipped and the user's
 	// decision is followed.
 	ProbabilisticSampling float64
+
+	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
+	AttributesTranslator *attributes.Translator `mapstructure:"-"`
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -109,7 +111,7 @@ type ObfuscationConfig struct {
 	Memcached obfuscate.MemcachedConfig `mapstructure:"memcached"`
 
 	// CreditCards holds the configuration for obfuscating credit cards.
-	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
+	CreditCards obfuscate.CreditCardsConfig `mapstructure:"credit_cards"`
 }
 
 // Export returns an obfuscate.Config matching o.
@@ -129,6 +131,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 		HTTP:                 o.HTTP,
 		Redis:                o.Redis,
 		Memcached:            o.Memcached,
+		CreditCard:           o.CreditCards,
 		Logger:               new(debugLogger),
 	}
 }
@@ -137,18 +140,6 @@ type debugLogger struct{}
 
 func (debugLogger) Debugf(format string, params ...interface{}) {
 	log.Debugf(format, params...)
-}
-
-// CreditCardsConfig holds the configuration for credit card obfuscation in
-// (Meta) tags.
-type CreditCardsConfig struct {
-	// Enabled specifies whether this feature should be enabled.
-	Enabled bool `mapstructure:"enabled"`
-
-	// Luhn specifies whether Luhn checksum validation should be enabled.
-	// https://dev.to/shiraazm/goluhn-a-simple-library-for-generating-calculating-and-verifying-luhn-numbers-588j
-	// It reduces false positives, but increases the CPU time X3.
-	Luhn bool `mapstructure:"luhn"`
 }
 
 // Enablable can represent any option that has an "enabled" boolean sub-field.
@@ -308,6 +299,11 @@ type AgentConfig struct {
 	RareSamplerCooldownPeriod time.Duration
 	RareSamplerCardinality    int
 
+	// Probabilistic Sampler configuration
+	ProbabilisticSamplerEnabled            bool
+	ProbabilisticSamplerHashSeed           uint32
+	ProbabilisticSamplerSamplingPercentage float32
+
 	// Receiver
 	ReceiverHost    string
 	ReceiverPort    int
@@ -346,8 +342,7 @@ type AgentConfig struct {
 	StatsdSocket   string // for UDS Sockets
 
 	// logging
-	LogFilePath   string
-	LogThrottling bool
+	LogFilePath string
 
 	// watchdog
 	MaxMemory        float64       // MaxMemory is the threshold (bytes allocated) above which program panics and exits, to be restarted
@@ -431,14 +426,14 @@ type AgentConfig struct {
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
 
-	// Azure App Services
-	InAzureAppServices bool
-
 	// DebugServerPort defines the port used by the debug server
 	DebugServerPort int
 
 	// Install Signature
 	InstallSignature InstallSignatureConfig
+
+	// Lambda function name
+	LambdaFunctionName string
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -499,7 +494,7 @@ func New() *AgentConfig {
 		StatsdPort:    8125,
 		StatsdEnabled: true,
 
-		LogThrottling: true,
+		LambdaFunctionName: os.Getenv("AWS_LAMBDA_FUNCTION_NAME"),
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%
@@ -511,7 +506,7 @@ func New() *AgentConfig {
 		Obfuscation:                 &ObfuscationConfig{},
 		MaxResourceLen:              5000,
 
-		GlobalTags: make(map[string]string),
+		GlobalTags: computeGlobalTags(),
 
 		Proxy:         http.ProxyFromEnvironment,
 		OTLPReceiver:  &OTLP{},
@@ -524,14 +519,22 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 
-		InAzureAppServices: InAzureAppServices(),
-
 		Features: make(map[string]struct{}),
 	}
 }
 
+func computeGlobalTags() map[string]string {
+	if inAzureAppServices() {
+		return traceutil.GetAppServicesTags()
+	}
+	return make(map[string]string)
+}
+
+// ErrContainerTagsFuncNotDefined is returned when the containerTags function is not defined.
+var ErrContainerTagsFuncNotDefined = errors.New("containerTags function not defined")
+
 func noopContainerTagsFunc(_ string) ([]string, error) {
-	return nil, errors.New("ContainerTags function not defined")
+	return nil, ErrContainerTagsFuncNotDefined
 }
 
 // APIKey returns the first (main) endpoint's API key.
@@ -573,11 +576,13 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 	return transport
 }
 
+// HasFeature returns true if the agent has the given feature flag.
 func (c *AgentConfig) HasFeature(feat string) bool {
 	_, ok := c.Features[feat]
 	return ok
 }
 
+// AllFeatures returns a slice of all the feature flags the agent has.
 func (c *AgentConfig) AllFeatures() []string {
 	feats := []string{}
 	for feat := range c.Features {
@@ -586,8 +591,8 @@ func (c *AgentConfig) AllFeatures() []string {
 	return feats
 }
 
-func InAzureAppServices() bool {
-	_, existsLinux := os.LookupEnv(RunZip)
-	_, existsWin := os.LookupEnv(AppLogsTrace)
+func inAzureAppServices() bool {
+	_, existsLinux := os.LookupEnv("APPSVC_RUN_ZIP")
+	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")
 	return existsLinux || existsWin
 }

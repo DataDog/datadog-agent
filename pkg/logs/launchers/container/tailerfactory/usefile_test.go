@@ -36,6 +36,8 @@ func (r *fakeRegistry) GetOffset(identifier string) string {
 }
 
 // GetTailingMode implements auditor.Registry#GetTailingMode.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (r *fakeRegistry) GetTailingMode(identifier string) string {
 	panic("unused")
 }

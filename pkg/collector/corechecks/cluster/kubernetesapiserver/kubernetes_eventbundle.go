@@ -15,8 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
 type kubernetesEventBundle struct {
@@ -54,13 +56,13 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	return nil
 }
 
-func (b *kubernetesEventBundle) formatEvents() (event.Event, error) {
+func (b *kubernetesEventBundle) formatEvents(taggerInstance tagger.Component) (event.Event, error) {
 	if len(b.countByAction) == 0 {
 		return event.Event{}, errors.New("no event to export")
 	}
 
 	readableKey := buildReadableKey(b.involvedObject)
-	tags := getInvolvedObjectTags(b.involvedObject)
+	tags := getInvolvedObjectTags(b.involvedObject, taggerInstance)
 	tags = append(tags, fmt.Sprintf("source_component:%s", b.component))
 
 	if b.hostInfo.providerID != "" {
@@ -73,7 +75,7 @@ func (b *kubernetesEventBundle) formatEvents() (event.Event, error) {
 		Priority:       event.EventPriorityNormal,
 		Host:           b.hostInfo.hostname,
 		SourceTypeName: "kubernetes",
-		EventType:      kubernetesAPIServerCheckName,
+		EventType:      CheckName,
 		Ts:             int64(b.lastTimestamp),
 		Tags:           tags,
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.involvedObject.UID),

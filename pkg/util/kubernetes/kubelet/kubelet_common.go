@@ -79,13 +79,6 @@ func ParseMetricFromRaw(raw []byte, metric string) (string, error) {
 	return "", fmt.Errorf("%s metric not found in payload", metric)
 }
 
-// TrimRuntimeFromCID takes a full containerID with runtime prefix
-// and only returns the short cID, compatible with a docker container ID
-func TrimRuntimeFromCID(cid string) string {
-	parts := strings.SplitN(cid, "://", 2)
-	return parts[len(parts)-1]
-}
-
 // KubeContainerIDToTaggerEntityID builds an entity ID from a container ID coming from
 // the pod status (i.e. including the <runtime>:// prefix).
 func KubeContainerIDToTaggerEntityID(ctrID string) (string, error) {

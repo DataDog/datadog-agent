@@ -7,10 +7,14 @@ package vm
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 
 	"code.cloudfoundry.org/garden"
 	"code.cloudfoundry.org/garden/gardenfakes"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
@@ -18,9 +22,6 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
-	"golang.org/x/exp/slices"
 )
 
 var activeContainerWithoutProperties = gardenfakes.FakeContainer{
@@ -209,9 +210,9 @@ func TestStartError(t *testing.T) {
 	fakeGardenUtil := FakeGardenUtil{}
 
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{
@@ -227,9 +228,9 @@ func TestPullNoContainers(t *testing.T) {
 	fakeGardenUtil := FakeGardenUtil{containers: nil}
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{
@@ -255,9 +256,9 @@ func TestPullActiveContainer(t *testing.T) {
 	}
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{
@@ -298,9 +299,9 @@ func TestPullStoppedContainer(t *testing.T) {
 	}
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{
@@ -341,9 +342,9 @@ func TestPullDetectsDeletedContainers(t *testing.T) {
 	}
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{
@@ -395,9 +396,9 @@ func TestPullAppNameWithDCA(t *testing.T) {
 	}
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{
@@ -429,9 +430,9 @@ func TestPullNoAppNameWithoutDCA(t *testing.T) {
 	fakeDCAClient := FakeDCAClient{}
 
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{
@@ -465,9 +466,9 @@ func TestPullAppNameWithGardenPropertiesWithoutDCA(t *testing.T) {
 	// We do not inject any collectors here; we instantiate
 	// and initialize it out-of-band below. That's OK.
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{

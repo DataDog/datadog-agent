@@ -9,6 +9,7 @@ package kubeapiserver
 
 import (
 	"context"
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,18 +38,16 @@ func TestDeploymentParser_Parse(t *testing.T) {
 				Env:     "env",
 				Service: "service",
 				Version: "version",
-				InitContainerLanguages: map[string][]languagemodels.Language{
-					"nginx-cont": {
-						{Name: languagemodels.Go},
-						{Name: languagemodels.Java},
-						{Name: languagemodels.Python},
+				InjectableLanguages: langUtil.ContainersLanguages{
+					*langUtil.NewInitContainer("nginx-cont"): {
+						langUtil.Language(languagemodels.Go):     {},
+						langUtil.Language(languagemodels.Java):   {},
+						langUtil.Language(languagemodels.Python): {},
 					},
-				},
-				ContainerLanguages: map[string][]languagemodels.Language{
-					"nginx-cont": {
-						{Name: languagemodels.Go},
-						{Name: languagemodels.Java},
-						{Name: languagemodels.Python},
+					*langUtil.NewContainer("nginx-cont"): {
+						langUtil.Language(languagemodels.Go):     {},
+						langUtil.Language(languagemodels.Java):   {},
+						langUtil.Language(languagemodels.Python): {},
 					},
 				},
 			},
@@ -63,8 +62,8 @@ func TestDeploymentParser_Parse(t *testing.T) {
 						"tags.datadoghq.com/version": "version",
 					},
 					Annotations: map[string]string{
-						"apm.datadoghq.com/nginx-cont.languages":      "go,java,  python  ",
-						"apm.datadoghq.com/init.nginx-cont.languages": "go,java,  python  ",
+						"internal.dd.datadoghq.com/nginx-cont.detected_langs":      "go,java,  python  ",
+						"internal.dd.datadoghq.com/init.nginx-cont.detected_langs": "go,java,  python  ",
 					},
 				},
 			},
@@ -76,11 +75,10 @@ func TestDeploymentParser_Parse(t *testing.T) {
 					Kind: workloadmeta.KindKubernetesDeployment,
 					ID:   "test-namespace/test-deployment",
 				},
-				Env:                    "env",
-				Service:                "service",
-				Version:                "version",
-				InitContainerLanguages: map[string][]languagemodels.Language{},
-				ContainerLanguages:     map[string][]languagemodels.Language{},
+				Env:                 "env",
+				Service:             "service",
+				Version:             "version",
+				InjectableLanguages: make(langUtil.ContainersLanguages),
 			},
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
@@ -102,18 +100,16 @@ func TestDeploymentParser_Parse(t *testing.T) {
 					Kind: workloadmeta.KindKubernetesDeployment,
 					ID:   "test-namespace/test-deployment",
 				},
-				InitContainerLanguages: map[string][]languagemodels.Language{
-					"nginx-cont": {
-						{Name: languagemodels.Go},
-						{Name: languagemodels.Java},
-						{Name: languagemodels.Python},
+				InjectableLanguages: langUtil.ContainersLanguages{
+					*langUtil.NewInitContainer("nginx-cont"): {
+						langUtil.Language(languagemodels.Go):     {},
+						langUtil.Language(languagemodels.Java):   {},
+						langUtil.Language(languagemodels.Python): {},
 					},
-				},
-				ContainerLanguages: map[string][]languagemodels.Language{
-					"nginx-cont": {
-						{Name: languagemodels.Go},
-						{Name: languagemodels.Java},
-						{Name: languagemodels.Python},
+					*langUtil.NewContainer("nginx-cont"): {
+						langUtil.Language(languagemodels.Go):     {},
+						langUtil.Language(languagemodels.Java):   {},
+						langUtil.Language(languagemodels.Python): {},
 					},
 				},
 			},
@@ -125,13 +121,14 @@ func TestDeploymentParser_Parse(t *testing.T) {
 						"test-label": "test-value",
 					},
 					Annotations: map[string]string{
-						"apm.datadoghq.com/nginx-cont.languages":      "go,java,  python  ",
-						"apm.datadoghq.com/init.nginx-cont.languages": "go,java,  python  ",
+						"internal.dd.datadoghq.com/nginx-cont.detected_langs":      "go,java,  python  ",
+						"internal.dd.datadoghq.com/init.nginx-cont.detected_langs": "go,java,  python  ",
 					},
 				},
 			},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			parser := newdeploymentParser()
@@ -173,9 +170,8 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 								ID:   "test-namespace/test-deployment",
 								Kind: workloadmeta.KindKubernetesDeployment,
 							},
-							Env:                    "env",
-							ContainerLanguages:     map[string][]languagemodels.Language{},
-							InitContainerLanguages: map[string][]languagemodels.Language{},
+							Env:                 "env",
+							InjectableLanguages: make(langUtil.ContainersLanguages),
 						},
 					},
 				},
@@ -191,8 +187,8 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 						Name:      "test-deployment",
 						Namespace: "test-namespace",
 						Annotations: map[string]string{"test-label": "test-value",
-							"apm.datadoghq.com/nginx.languages":      "go,java",
-							"apm.datadoghq.com/init.redis.languages": "go,python"},
+							"internal.dd.datadoghq.com/nginx.detected_langs":      "go,java",
+							"internal.dd.datadoghq.com/init.redis.detected_langs": "go,python"},
 					}},
 					metav1.CreateOptions{},
 				)
@@ -207,11 +203,15 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 								ID:   "test-namespace/test-deployment",
 								Kind: workloadmeta.KindKubernetesDeployment,
 							},
-							ContainerLanguages: map[string][]languagemodels.Language{
-								"nginx": {{Name: languagemodels.Go}, {Name: languagemodels.Java}},
-							},
-							InitContainerLanguages: map[string][]languagemodels.Language{
-								"redis": {{Name: languagemodels.Go}, {Name: languagemodels.Python}},
+							InjectableLanguages: langUtil.ContainersLanguages{
+								*langUtil.NewContainer("nginx"): {
+									langUtil.Language(languagemodels.Go):   {},
+									langUtil.Language(languagemodels.Java): {},
+								},
+								*langUtil.NewInitContainer("redis"): {
+									langUtil.Language(languagemodels.Go):     {},
+									langUtil.Language(languagemodels.Python): {},
+								},
 							},
 						},
 					},
@@ -239,9 +239,8 @@ func Test_Deployment_FilteredOut(t *testing.T) {
 					ID:   "object-id",
 					Kind: workloadmeta.KindKubernetesDeployment,
 				},
-				Env:                    "env",
-				ContainerLanguages:     map[string][]languagemodels.Language{},
-				InitContainerLanguages: map[string][]languagemodels.Language{},
+				Env:                 "env",
+				InjectableLanguages: make(langUtil.ContainersLanguages),
 			},
 			expected: false,
 		},
@@ -252,13 +251,15 @@ func Test_Deployment_FilteredOut(t *testing.T) {
 					ID:   "object-id",
 					Kind: workloadmeta.KindKubernetesDeployment,
 				},
-				ContainerLanguages: map[string][]languagemodels.Language{
-					"nginx": {{Name: languagemodels.Go}},
+				InjectableLanguages: langUtil.ContainersLanguages{
+					*langUtil.NewContainer("nginx"): {
+						langUtil.Language(languagemodels.Go): {},
+					},
 				},
-				InitContainerLanguages: map[string][]languagemodels.Language{},
 			},
 			expected: false,
 		},
+
 		{
 			name: "nothing",
 			deployment: &workloadmeta.KubernetesDeployment{
@@ -266,11 +267,9 @@ func Test_Deployment_FilteredOut(t *testing.T) {
 					ID:   "object-id",
 					Kind: workloadmeta.KindKubernetesDeployment,
 				},
-				Env:                    "",
-				ContainerLanguages:     map[string][]languagemodels.Language{},
-				InitContainerLanguages: map[string][]languagemodels.Language{},
+				Env: "",
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "nil maps",
@@ -280,7 +279,7 @@ func Test_Deployment_FilteredOut(t *testing.T) {
 					Kind: workloadmeta.KindKubernetesDeployment,
 				},
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name:       "nil",

@@ -5,33 +5,14 @@
 
 package telemetry
 
-import "fmt"
+import (
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+)
 
 // Options for telemetry metrics.
 // Creating an Options struct without specifying any of its fields should be the
 // equivalent of using the DefaultOptions var.
-type Options struct {
-	// NoDoubleUnderscoreSep is set to true when you don't want to
-	// separate the subsystem and the name with a double underscore separator.
-	NoDoubleUnderscoreSep bool
-}
+type Options telemetryComponent.Options
 
 // DefaultOptions for telemetry metrics which don't need to specify any option.
-var DefaultOptions = Options{
-	// By default, we want to separate the subsystem and the metric name with a
-	// double underscore to be able to replace it later in the process.
-	NoDoubleUnderscoreSep: false,
-}
-
-// NameWithSeparator returns name prefixed according to NoDoubleUnderscoreOption.
-func (opts *Options) NameWithSeparator(subsystem, name string) string {
-	// subsystem is optional
-	if subsystem != "" && !opts.NoDoubleUnderscoreSep {
-		// Prefix metrics with a _, prometheus will add a second _
-		// It will create metrics with a custom separator and
-		// will let us replace it to a dot later in the process.
-		return fmt.Sprintf("_%s", name)
-	}
-
-	return name
-}
+var DefaultOptions Options = Options(telemetryComponent.DefaultOptions)

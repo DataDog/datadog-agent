@@ -17,27 +17,32 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // team: agent-shared-components
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	// As `config.Module` expects `config.Params` as a parameter, it is require to define how to get `config.Params` from `BundleParams`.
-	fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
-	config.Module,
-	fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
-	log.Module,
-	fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
-	secretsimpl.Module,
-	fx.Provide(func(params BundleParams) secrets.Params { return params.SecretParams }),
-	sysprobeconfigimpl.Module,
-	telemetry.Module,
-	hostnameimpl.Module,
-)
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		// As `config.Module` expects `config.Params` as a parameter, it is require to define how to get `config.Params` from `BundleParams`.
+		fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
+		config.Module(),
+		fx.Provide(func(params BundleParams) logimpl.Params { return params.LogParams }),
+		logimpl.Module(),
+		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
+		secretsimpl.Module(),
+		fx.Provide(func(params BundleParams) secrets.Params { return params.SecretParams }),
+		fx.Provide(func(secrets secrets.Component) optional.Option[secrets.Component] { return optional.NewOption(secrets) }),
+		sysprobeconfigimpl.Module(),
+		telemetryimpl.Module(),
+		hostnameimpl.Module(),
+		pidimpl.Module()) // You must supply pidimpl.NewParams in order to use it
+}

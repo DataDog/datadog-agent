@@ -3,19 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package serverless
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	json "github.com/json-iterator/go"
+
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -137,6 +140,10 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 			metricTags = tags.AddInitTypeTag(metricTags)
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
+
+			if daemon.IsExecutionSpanIncomplete() {
+				finishTimeoutExecutionSpan(daemon, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
+			}
 		}
 		err := daemon.ExecutionContext.SaveCurrentExecutionContext()
 		if err != nil {
@@ -211,4 +218,21 @@ func removeQualifierFromArn(functionArn string) string {
 		return strings.Join(functionArnTokens, ":")
 	}
 	return functionArn
+}
+
+func finishTimeoutExecutionSpan(daemon *daemon.Daemon, isColdStart bool, isProactiveInit bool) {
+	ecs := daemon.ExecutionContext.GetCurrentState()
+	timeoutDetails := &invocationlifecycle.InvocationEndDetails{
+		RequestID:          ecs.LastRequestID,
+		Runtime:            ecs.Runtime,
+		ColdStart:          isColdStart,
+		ProactiveInit:      isProactiveInit,
+		EndTime:            time.Now(),
+		IsError:            true,
+		IsTimeout:          true,
+		ResponseRawPayload: nil,
+	}
+	log.Debug("Could not complete the execution span due to a timeout. Attempting to finish the span without details from the tracer.")
+	daemon.InvocationProcessor.OnInvokeEnd(timeoutDetails)
+	daemon.SetExecutionSpanIncomplete(false)
 }

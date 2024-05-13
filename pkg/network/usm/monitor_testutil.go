@@ -8,7 +8,7 @@
 package usm
 
 import (
-	"strings"
+	"io"
 	"testing"
 
 	"github.com/cilium/ebpf"
@@ -36,10 +36,12 @@ type protocolMockSpec struct {
 	stopFn      func(*manager.Manager)
 }
 
+// Name return the program's name.
 func (p *protocolMock) Name() string {
 	return "mock"
 }
 
+// ConfigureOptions changes map attributes to the given options.
 func (p *protocolMock) ConfigureOptions(m *manager.Manager, opts *manager.Options) {
 	p.inner.ConfigureOptions(m, opts)
 }
@@ -47,17 +49,15 @@ func (p *protocolMock) ConfigureOptions(m *manager.Manager, opts *manager.Option
 func (p *protocolMock) PreStart(mgr *manager.Manager) (err error) {
 	if p.spec.preStartFn != nil {
 		return p.spec.preStartFn(mgr)
-	} else {
-		return p.inner.PreStart(mgr)
 	}
+	return p.inner.PreStart(mgr)
 }
 
 func (p *protocolMock) PostStart(mgr *manager.Manager) error {
 	if p.spec.postStartFn != nil {
 		return p.spec.postStartFn(mgr)
-	} else {
-		return p.inner.PostStart(mgr)
 	}
+	return p.inner.PostStart(mgr)
 }
 
 func (p *protocolMock) Stop(mgr *manager.Manager) {
@@ -68,8 +68,8 @@ func (p *protocolMock) Stop(mgr *manager.Manager) {
 	}
 }
 
-func (p *protocolMock) DumpMaps(*strings.Builder, string, *ebpf.Map) {}
-func (p *protocolMock) GetStats() *protocols.ProtocolStats           { return nil }
+func (p *protocolMock) DumpMaps(io.Writer, string, *ebpf.Map) {}
+func (p *protocolMock) GetStats() *protocols.ProtocolStats    { return nil }
 
 // IsBuildModeSupported returns always true, as java tls module is supported by all modes.
 func (*protocolMock) IsBuildModeSupported(buildmode.Type) bool { return true }

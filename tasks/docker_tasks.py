@@ -2,7 +2,6 @@
 Docker related tasks
 """
 
-
 import os
 import shutil
 import sys
@@ -11,7 +10,7 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from .dogstatsd import DOGSTATSD_TAG
+from tasks.dogstatsd import DOGSTATSD_TAG
 
 
 @task
@@ -54,8 +53,11 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
 
     with open(f"{temp_folder}/Dockerfile", 'w') as stream:
         stream.write(
-            """FROM docker/compose:debian-1.29.2
+            """FROM ubuntu:20.04
+COPY --from=docker/compose-bin:v2.26.1 /docker-compose /usr/bin/compose
+COPY --from=docker:26.1-cli /usr/local/bin/docker /usr/bin/docker
 ENV DOCKER_DD_AGENT=yes
+RUN apt-get update && apt-get install -y ca-certificates
 WORKDIR /
 CMD /test.bin
 COPY test.bin /test.bin
@@ -121,7 +123,7 @@ def pull_base_images(ctx, dockerfile, signed_pull=True):
     images = set()
     stages = set()
 
-    with open(dockerfile, "r") as f:
+    with open(dockerfile) as f:
         for line in f:
             words = line.split()
             # Get source images

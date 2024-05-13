@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package status
 
 import (
@@ -13,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -62,8 +63,7 @@ type MemInfo struct {
 	Alloc uint64 `json:"alloc"`
 }
 
-// ProcessExpvars holds values fetched from the exp var server
-type ProcessExpvars struct {
+type ExpvarsMap struct {
 	Pid                             int                 `json:"pid"`
 	Uptime                          int                 `json:"uptime"`
 	UptimeNano                      float64             `json:"uptime_nano"`
@@ -94,6 +94,11 @@ type ProcessExpvars struct {
 	WlmExtractorCacheSize           int                 `json:"workloadmeta_extractor_cache_size"`
 	WlmExtractorStaleDiffs          int                 `json:"workloadmeta_extractor_stale_diffs"`
 	WlmExtractorDiffsDropped        int                 `json:"workloadmeta_extractor_diffs_dropped"`
+}
+
+// ProcessExpvars holds values fetched from the exp var server
+type ProcessExpvars struct {
+	ExpvarsMap ExpvarsMap `json:"process_agent"`
 }
 
 // Status holds runtime information from process-agent

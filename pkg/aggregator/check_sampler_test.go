@@ -16,10 +16,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -31,7 +32,7 @@ func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 }
 
 func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
-	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"))
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -94,7 +95,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 }
 
 func testCheckRateSampling(t *testing.T, store *tags.Store) {
-	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"))
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -147,7 +148,7 @@ func TestCheckRateSampling(t *testing.T) {
 }
 
 func testHistogramCountSampling(t *testing.T, store *tags.Store) {
-	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"))
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -212,7 +213,7 @@ func TestHistogramCountSampling(t *testing.T) {
 }
 
 func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
-	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"))
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -289,7 +290,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 }
 
 func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store) {
-	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"))
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -344,7 +345,7 @@ func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
 }
 
 func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
-	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"))
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -379,7 +380,7 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 }
 
 func testCheckDistribution(t *testing.T, store *tags.Store) {
-	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"))
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",

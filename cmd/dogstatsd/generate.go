@@ -5,4 +5,5 @@
 
 //go:generate go run ../../pkg/config/render_config.go dogstatsd ../../pkg/config/config_template.yaml ./dist/dogstatsd.yaml
 
+//nolint:revive // TODO(AML) Fix revive linter
 package main

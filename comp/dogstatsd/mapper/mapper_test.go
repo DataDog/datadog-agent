@@ -521,7 +521,7 @@ func getMapper(t *testing.T, configString string) (*MetricMapper, error) {
 	var profiles []config.MappingProfile
 
 	cfg := fxutil.Test[configComponent.Component](t, fx.Options(
-		configComponent.MockModule,
+		configComponent.MockModule(),
 		fx.Replace(configComponent.MockParams{
 			Params: configComponent.Params{ConfFilePath: configString},
 		}),

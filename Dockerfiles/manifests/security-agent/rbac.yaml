@@ -17,6 +17,7 @@ metadata:
 rules:
   - nonResourceURLs:
       - "/metrics"
+      - "/metrics/slis"
     verbs:
       - get
   - apiGroups: # Kubelet connectivity
@@ -34,14 +35,6 @@ rules:
       - endpoints
     verbs:
       - get
-  - apiGroups:
-      - policy
-    resources:
-      - podsecuritypolicies
-    verbs:
-      - use
-    resourceNames:
-      - datadog
   - apiGroups:
       - "security.openshift.io"
     resources:

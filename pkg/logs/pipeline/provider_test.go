@@ -9,15 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/suite"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-
-	"github.com/stretchr/testify/suite"
-
-	"github.com/DataDog/datadog-agent/pkg/status/health"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 type ProviderTestSuite struct {

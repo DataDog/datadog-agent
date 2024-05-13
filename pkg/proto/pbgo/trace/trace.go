@@ -33,7 +33,7 @@ func (p *TracerPayload) Cut(i int) *TracerPayload {
 	if i > len(p.Chunks) {
 		i = len(p.Chunks)
 	}
-	new := TracerPayload{
+	newPayload := TracerPayload{
 		ContainerID:     p.GetContainerID(),
 		LanguageName:    p.GetLanguageName(),
 		LanguageVersion: p.GetLanguageVersion(),
@@ -45,8 +45,8 @@ func (p *TracerPayload) Cut(i int) *TracerPayload {
 		Tags:            p.GetTags(),
 	}
 
-	new.Chunks = p.Chunks[:i]
+	newPayload.Chunks = p.Chunks[:i]
 	p.Chunks = p.Chunks[i:]
 
-	return &new
+	return &newPayload
 }

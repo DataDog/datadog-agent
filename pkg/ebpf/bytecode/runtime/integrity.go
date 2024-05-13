@@ -46,14 +46,14 @@ func main() {
 		log.Fatalf("unable to resolve path to %s: %s", args[1], err)
 	}
 
-	err = genIntegrity(inputFile, outputFile, args[2])
+	err = genIntegrity(root, inputFile, outputFile, args[2])
 	if err != nil {
 		log.Fatalf("error generating integrity: %s", err)
 	}
 	fmt.Printf("successfully generated from %s => %s\n", inputFile, outputFile)
 }
 
-func genIntegrity(inputFile, outputFile, pkg string) error {
+func genIntegrity(root, inputFile, outputFile, pkg string) error {
 	hash, err := hashFile(inputFile)
 	if err != nil {
 		return err
@@ -68,6 +68,25 @@ func genIntegrity(inputFile, outputFile, pkg string) error {
 		return err
 	}
 	defer f.Close()
+
+	depsFile := fmt.Sprintf("%s.d", outputFile)
+	odeps, err := os.Create(depsFile)
+	if err != nil {
+		return fmt.Errorf("error opening output deps file: %s", err)
+	}
+	defer odeps.Close()
+
+	relIn, err := filepath.Rel(root, inputFile)
+	if err != nil {
+		return fmt.Errorf("error getting relative input path: %s", err)
+	}
+	relOut, err := filepath.Rel(root, outputFile)
+	if err != nil {
+		return fmt.Errorf("error getting relative output path: %s", err)
+	}
+	odeps.WriteString(fmt.Sprintf("%s: \\\n", relOut))
+	odeps.WriteString(fmt.Sprintf("  %s", relIn))
+	odeps.WriteString("\n")
 
 	base := filepath.Base(inputFile)
 

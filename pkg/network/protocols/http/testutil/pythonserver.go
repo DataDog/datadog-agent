@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package testutil provides utilities for testing the HTTP protocol.
 package testutil
 
 import (
@@ -30,7 +31,10 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
     daemon_threads = True
 
     def do_GET(self):
-        status_code = int(self.path.split("/")[1])
+        path = self.path
+        if self.path.startswith("/status"):
+            path = self.path.split("/status")[1]
+        status_code = int(path.split("/")[1])
         self.send_response(status_code)
         self.send_header('Content-type', 'application/octet-stream')
         self.send_header('Content-Length', '0')

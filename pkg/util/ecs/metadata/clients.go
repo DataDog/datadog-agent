@@ -35,12 +35,15 @@ type util struct {
 	initRetryV1     retry.Retrier
 	initRetryV2     retry.Retrier
 	initRetryV3orV4 retry.Retrier
+	initRetryV4     retry.Retrier
 	initV1          sync.Once
 	initV2          sync.Once
 	initV3orV4      sync.Once
+	initV4          sync.Once
 	v1              v1.Client
 	v2              v2.Client
 	v3or4           v3or4.Client
+	v4              v3or4.Client
 }
 
 // V1 returns a client for the ECS metadata API v1, also called introspection
@@ -116,6 +119,30 @@ func V3orV4FromCurrentTask() (v3or4.Client, error) {
 	return globalUtil.v3or4, nil
 }
 
+// V4FromCurrentTask returns a client for the ECS metadata API v4 by detecting
+// the endpoint address from the task the executable is running in. Returns an
+// error if it was not possible to detect the endpoint address.
+func V4FromCurrentTask() (v3or4.Client, error) {
+	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
+		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
+	}
+
+	globalUtil.initV4.Do(func() {
+		globalUtil.initRetryV4.SetupRetrier(&retry.Config{ //nolint:errcheck
+			Name:              "ecsutil-meta-v4",
+			AttemptMethod:     initV4,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: initialRetryDelay,
+			MaxRetryDelay:     maxRetryDelay,
+		})
+	})
+	if err := globalUtil.initRetryV4.TriggerRetry(); err != nil {
+		log.Debugf("ECS metadata v4 client init error: %s", err)
+		return nil, err
+	}
+	return globalUtil.v4, nil
+}
+
 // newAutodetectedClientV1 detects the metadata v1 API endpoint and creates a new
 // client for it. Returns an error if it was not possible to find the endpoint.
 func newAutodetectedClientV1() (v1.Client, error) {
@@ -178,4 +205,9 @@ func initV3orV4() error {
 	}
 	globalUtil.v3or4 = client
 	return nil
+}
+
+func initV4() (err error) {
+	globalUtil.v4, err = newClientV4ForCurrentTask()
+	return err
 }

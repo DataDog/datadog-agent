@@ -22,10 +22,6 @@ func RandString(n int) string {
 	return string(b)
 }
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
 // NewCookie returns a new random cookie
 func NewCookie() uint64 {
 	return uint64(rand.Uint32())<<32 | uint64(time.Now().UnixNano())

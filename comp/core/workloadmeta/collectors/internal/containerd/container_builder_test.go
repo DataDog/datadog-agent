@@ -19,9 +19,13 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type mockedContainer struct {
@@ -43,10 +47,15 @@ type mockedImage struct {
 	containerd.Image
 	mockName   func() string
 	mockConfig func() (ocispec.Descriptor, error)
+	mockTarget func() ocispec.Descriptor
 }
 
 func (m *mockedImage) Config(_ context.Context) (ocispec.Descriptor, error) {
 	return m.mockConfig()
+}
+
+func (m *mockedImage) Target() ocispec.Descriptor {
+	return m.mockTarget()
 }
 
 func TestBuildWorkloadMetaContainer(t *testing.T) {
@@ -75,6 +84,9 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		mockConfig: func() (ocispec.Descriptor, error) {
 			return ocispec.Descriptor{Digest: "my_image_id"}, nil
 		},
+		mockTarget: func() ocispec.Descriptor {
+			return ocispec.Descriptor{Digest: "my_repo_digest"}
+		},
 	}
 	container := mockedContainer{
 		mockID: func() string {
@@ -91,6 +103,9 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 				Labels:    labels,
 				CreatedAt: createdAt,
 				Image:     imgName,
+				Runtime: containers.RuntimeInfo{
+					Name: "io.containerd.kata-qemu.v2",
+				},
 			}, nil
 		},
 		MockSpec: func(namespace string, ctn containers.Container) (*oci.Spec, error) {
@@ -104,7 +119,29 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		},
 	}
 
-	result, err := buildWorkloadMetaContainer(namespace, &container, &client)
+	// Create a workload meta global store containing image metadata
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2(),
+	))
+	imageMetadata := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   "my_image_id",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "datadog/agent",
+		},
+		RepoDigests: []string{
+			"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+		},
+	}
+	workloadmetaStore.Set(imageMetadata)
+
+	result, err := buildWorkloadMetaContainer(namespace, &container, &client, workloadmetaStore)
 	assert.NoError(t, err)
 
 	expected := workloadmeta.Container{
@@ -117,15 +154,17 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 			Labels: labels,
 		},
 		Image: workloadmeta.ContainerImage{
-			RawName:   "datadog/agent:7",
-			Name:      "datadog/agent",
-			ShortName: "agent",
-			Tag:       "7",
-			ID:        "my_image_id",
+			RawName:    "datadog/agent:7",
+			Name:       "datadog/agent",
+			ShortName:  "agent",
+			Tag:        "7",
+			ID:         "my_image_id",
+			RepoDigest: "sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 		},
-		EnvVars: envVars,
-		Ports:   nil, // Not available
-		Runtime: workloadmeta.ContainerRuntimeContainerd,
+		EnvVars:       envVars,
+		Ports:         nil, // Not available
+		Runtime:       workloadmeta.ContainerRuntimeContainerd,
+		RuntimeFlavor: workloadmeta.ContainerRuntimeFlavorKata,
 		State: workloadmeta.ContainerState{
 			Running:    true,
 			Status:     workloadmeta.ContainerStatusRunning,
@@ -138,4 +177,34 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		PID:        0, // Not available
 	}
 	assert.Equal(t, expected, result)
+}
+
+func TestExtractRuntimeFlavor(t *testing.T) {
+	tests := []struct {
+		name     string
+		runtime  string
+		expected workloadmeta.ContainerRuntimeFlavor
+	}{
+		{
+			name:     "kata",
+			runtime:  "io.containerd.kata.v2",
+			expected: workloadmeta.ContainerRuntimeFlavorKata,
+		},
+		{
+			name:     "kata-qemu",
+			runtime:  "io.containerd.kata-qemu.v2",
+			expected: workloadmeta.ContainerRuntimeFlavorKata,
+		},
+		{
+			name:     "non-kata",
+			runtime:  "io.containerd.runc.v2",
+			expected: workloadmeta.ContainerRuntimeFlavorDefault,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractRuntimeFlavor(tt.runtime)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

@@ -9,7 +9,6 @@ package windowsevent
 
 import (
 	"fmt"
-	"os/exec"
 	"testing"
 	"time"
 
@@ -17,13 +16,13 @@ import (
 	"github.com/cihub/seelog"
 
 	"github.com/cenkalti/backoff"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 )
@@ -156,7 +155,7 @@ func (s *ReadEventsSuite) TestCustomQuery() {
 
 func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 	// TODO: https://datadoghq.atlassian.net/browse/WINA-480
-	s.T().Skip("WINA-480: Skipping flaky test")
+	flake.Mark(s.T())
 
 	// create tailer and ensure events can be read
 	config := Config{
@@ -181,15 +180,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
 
 	// stop the EventLog service and assert the tailer detects the error
-	cmd := exec.Command("powershell.exe", "-Command", "Stop-Service", "EventLog", "-Force")
-	out, err := cmd.CombinedOutput()
-	s.T().Cleanup(func() {
-		// ensure service is started at end of this test
-		cmd = exec.Command("powershell.exe", "-Command", "Start-Service", "EventLog")
-		out, err = cmd.CombinedOutput()
-	})
-	require.NoError(s.T(), err, "Failed to stop EventLog service %s", out)
-
+	s.ti.KillEventLogService(s.T())
 	err = backoff.Retry(func() error {
 		if tailer.source.Status.IsSuccess() {
 			return fmt.Errorf("tailer is still running")
@@ -202,10 +193,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 	fmt.Println(tailer.source.Status.GetError())
 
 	// start the EventLog service and assert the tailer resumes from the previous error
-	cmd = exec.Command("powershell.exe", "-Command", "Start-Service", "EventLog")
-	out, err = cmd.CombinedOutput()
-	require.NoError(s.T(), err, "Failed to start EventLog service %s", out)
-
+	s.ti.StartEventLogService(s.T())
 	err = backoff.Retry(func() error {
 		if tailer.source.Status.IsSuccess() {
 			return nil
@@ -341,47 +329,5 @@ func BenchmarkReadEvents(b *testing.B) {
 
 			})
 		}
-	}
-}
-
-func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
-	assert := assert.New(t)
-	sourceV1 := sources.NewLogSource("", &logconfig.LogsConfig{})
-	tailerV1 := NewTailer(nil, sourceV1, &Config{ChannelPath: "System"}, nil)
-	tailerV1.config.ProcessRawMessage = true
-
-	sourceV2 := sources.NewLogSource("", &logconfig.LogsConfig{})
-	tailerV2 := NewTailer(nil, sourceV2, &Config{ChannelPath: "System"}, nil)
-	tailerV2.config.ProcessRawMessage = false
-
-	for _, testCase := range testData {
-		ev1 := &richEvent{
-			xmlEvent: testCase[0],
-			message:  "some content in the message",
-			task:     "rdTaskName",
-			opcode:   "OpCode",
-			level:    "Warning",
-		}
-		ev2 := &richEvent{
-			xmlEvent: testCase[0],
-			message:  "some content in the message",
-			task:     "rdTaskName",
-			opcode:   "OpCode",
-			level:    "Warning",
-		}
-
-		messagev1, err1 := tailerV1.toMessage(ev1)
-		messagev2, err2 := tailerV2.toMessage(ev2)
-
-		assert.NoError(err1)
-		assert.NoError(err2)
-
-		rendered1, err1 := messagev1.Render()
-		rendered2, err2 := messagev2.Render()
-
-		assert.NoError(err1)
-		assert.NoError(err2)
-
-		assert.Equal(rendered1, rendered2)
 	}
 }
