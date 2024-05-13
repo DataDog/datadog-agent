@@ -1,3 +1,4 @@
+import sys
 import unittest
 import unittest.mock
 from datetime import datetime
@@ -34,11 +35,13 @@ class TestInvokeTaskCustomCall(unittest.TestCase):
     Testing the __call__ method (overridden with custom__call__) log generation.
     """
 
+    @unittest.mock.patch.object(sys, 'version_info', [3, 11, 0, "final", 0])
     @unittest.mock.patch('tasks.custom_task.custom_task.datetime')
     @unittest.mock.patch('tasks.custom_task.custom_task.perf_counter', side_effect=[1, 1.0123456, 10, 15])
     @unittest.mock.patch('tasks.custom_task.custom_task.getuser', side_effect=['john.doe', 'alex.smith'])
+    @unittest.mock.patch('tasks.custom_task.custom_task.get_running_modes', return_value=['ci'])
     @unittest.mock.patch("tasks.custom_task.custom_task.logging.info")
-    def test_custom__call__(self, mock_logging, _getuser, _perf_counter, mock_datetime):
+    def test_custom__call__(self, mock_logging, _get_running_modes, _getuser, _perf_counter, mock_datetime):
         """
         Testing the __call__ method (overridden with custom__call__) log generation.
         """
@@ -50,9 +53,11 @@ class TestInvokeTaskCustomCall(unittest.TestCase):
             "name": "test_task",
             "module": "my_module",
             "datetime": "2024-04-29 14:05:30",
+            'running_modes': ['ci'],
             "duration": 0.0123,
             "user": "john.doe",
             "result": None,
+            "python_version": "3.11.0",
         }
         test_task.__call__(ctx)
         mock_logging.assert_called_once_with(expected_test_log)
@@ -62,9 +67,11 @@ class TestInvokeTaskCustomCall(unittest.TestCase):
             "name": "test_task_with_error",
             "module": "my_broken_module",
             "datetime": "2024-04-29 14:05:30",
+            'running_modes': ['ci'],
             "duration": 5.0000,
             "user": "alex.smith",
             "result": unittest.mock.ANY,
+            "python_version": "3.11.0",
         }
         with self.assertRaises(TypeError):
             test_task_with_error.__call__(ctx)
@@ -85,21 +92,31 @@ class TestLogInvokeTask(unittest.TestCase):
     """
 
     @unittest.mock.patch('tasks.custom_task.custom_task.getuser', side_effect=['john.smith'])
+    @unittest.mock.patch('tasks.custom_task.custom_task.get_running_modes', return_value=['ci'])
     @unittest.mock.patch("tasks.custom_task.custom_task.logging.info")
-    def test_log_invoke_task(self, mock_logging, _getuser):
+    @unittest.mock.patch.object(sys, 'version_info', [3, 11, 0, "final", 0])
+    def test_log_invoke_task(self, mock_logging, _get_running_modes, _getuser):
         """
         Testing the log_invoke_task function.
         """
+
         log_invoke_task(
-            name="tname", module="mname", task_datetime="2024-01-29 07:50:11", duration=3.1, task_result="result"
+            log_path="/tmp/dd_invoke.log",
+            name="tname",
+            module="mname",
+            task_datetime="2024-01-29 07:50:11",
+            duration=3.1,
+            task_result="result",
         )
         mock_logging.assert_called_once_with(
             {
                 "name": "tname",
                 "module": "mname",
                 "datetime": "2024-01-29 07:50:11",
+                'running_modes': ['ci'],
                 "duration": 3.1,
                 "user": "john.smith",
                 "result": "result",
+                "python_version": "3.11.0",
             }
         )
