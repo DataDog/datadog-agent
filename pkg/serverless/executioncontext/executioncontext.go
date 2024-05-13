@@ -186,6 +186,13 @@ func (ec *ExecutionContext) getPersistedStateFilePath() string {
 	return filepath
 }
 
+// UpdatePersistedStateFilePath sets the path of the persisted state file
+func (ec *ExecutionContext) UpdatePersistedStateFilePath(path string) {
+	ec.m.Lock()
+	defer ec.m.Unlock()
+	ec.persistedStateFilePath = path
+}
+
 // SaveCurrentExecutionContext stores the current context to a file
 func (ec *ExecutionContext) SaveCurrentExecutionContext() error {
 	ecs := ec.GetCurrentState()

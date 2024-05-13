@@ -1309,6 +1309,11 @@ func TestRuntimeMetricsOnTimeout(t *testing.T) {
 	// REPORT log attributes are still reported correctly on the next invocation when the REPORT log is processed
 	demux := createDemultiplexer(t)
 
+	// Always use a unique temp file to test saving the execution context
+	tempfile, err := os.CreateTemp("/tmp", "dd-lambda-extension-cache-*.json")
+	defer os.Remove(tempfile.Name())
+	assert.Nil(t, err)
+
 	runtimeDurationMs := 10.0
 	postRuntimeDurationMs := 90.0
 	durationMs := runtimeDurationMs + postRuntimeDurationMs
@@ -1319,6 +1324,7 @@ func TestRuntimeMetricsOnTimeout(t *testing.T) {
 
 	requestID := "1a2b3c"
 	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.UpdatePersistedStateFilePath(tempfile.Name())
 	mockExecutionContext.SetInitializationTime(startTime.Add(-15 * time.Second))
 	mockExecutionContext.SetFromInvocation("arn not used", requestID)
 	mockExecutionContext.UpdateStartTime(startTime)

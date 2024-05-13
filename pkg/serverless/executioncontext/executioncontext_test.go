@@ -147,9 +147,13 @@ func TestUpdateRuntime(t *testing.T) {
 }
 
 func TestIsStateSaved(t *testing.T) {
-	ec := ExecutionContext{}
+	tempfile, err := os.CreateTemp("/tmp", "dd-lambda-extension-cache-*.json")
+	assert.Nil(t, err)
+	defer os.Remove(tempfile.Name())
+
+	ec := ExecutionContext{persistedStateFilePath: tempfile.Name()}
 	assert.False(t, ec.IsStateSaved())
-	err := ec.SaveCurrentExecutionContext()
+	err = ec.SaveCurrentExecutionContext()
 	assert.Nil(t, err)
 	assert.True(t, ec.IsStateSaved())
 
