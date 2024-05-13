@@ -466,3 +466,68 @@ func Test_npSchedulerImpl_stopWorker(t *testing.T) {
 
 	assert.Equal(t, 1, strings.Count(logs, "[worker42] Stopped worker"), logs)
 }
+
+func Test_npSchedulerImpl_flushWrapper(t *testing.T) {
+	tests := []struct {
+		name               string
+		flushStartTime     time.Time
+		flushEndTime       time.Time
+		lastFlushTime      time.Time
+		notExpectedMetrics []string
+		expectedMetrics    []teststatsd.MetricsArgs
+	}{
+		{
+			name:           "no last flush time",
+			flushStartTime: MockTimeNow(),
+			flushEndTime:   MockTimeNow().Add(500 * time.Millisecond),
+			notExpectedMetrics: []string{
+				"datadog.network_path.scheduler.flush_interval",
+			},
+			expectedMetrics: []teststatsd.MetricsArgs{
+				{Name: "datadog.network_path.scheduler.flush_duration", Value: 0.5, Tags: []string{}, Rate: 1},
+			},
+		},
+		{
+			name:               "with last flush time",
+			flushStartTime:     MockTimeNow(),
+			flushEndTime:       MockTimeNow().Add(500 * time.Millisecond),
+			lastFlushTime:      MockTimeNow().Add(-2 * time.Minute),
+			notExpectedMetrics: []string{},
+			expectedMetrics: []teststatsd.MetricsArgs{
+				{Name: "datadog.network_path.scheduler.flush_duration", Value: 0.5, Tags: []string{}, Rate: 1},
+				{Name: "datadog.network_path.scheduler.flush_interval", Value: (2 * time.Minute).Seconds(), Tags: []string{}, Rate: 1},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// GIVEN
+			sysConfigs := map[string]any{
+				"network_path.enabled": true,
+			}
+			_, npScheduler := newTestNpScheduler(t, sysConfigs)
+
+			stats := &teststatsd.Client{}
+			npScheduler.statsdClient = stats
+			npScheduler.TimeNowFn = func() time.Time {
+				return tt.flushEndTime
+			}
+
+			// WHEN
+			npScheduler.flushWrapper(tt.flushStartTime, tt.lastFlushTime)
+
+			// THEN
+			calls := stats.GaugeCalls
+			var metricNames []string
+			for _, call := range calls {
+				metricNames = append(metricNames, call.Name)
+			}
+			for _, metricName := range tt.notExpectedMetrics {
+				assert.NotContains(t, metricNames, metricName)
+			}
+			for _, metric := range tt.expectedMetrics {
+				assert.Contains(t, calls, metric)
+			}
+		})
+	}
+}

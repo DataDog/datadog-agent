@@ -51,7 +51,7 @@ type npSchedulerImpl struct {
 	runDone             chan struct{}
 	flushInterval       time.Duration
 
-	TimeNowFunction func() time.Time // Allows to mock time in tests
+	TimeNowFn func() time.Time // Allows to mock time in tests
 
 	running bool
 
@@ -93,7 +93,7 @@ func newNpSchedulerImpl(epForwarder eventplatform.Forwarder, logger log.Componen
 
 		receivedPathtestCount:    atomic.NewUint64(0),
 		processedTracerouteCount: atomic.NewUint64(0),
-		TimeNowFunction:          time.Now,
+		TimeNowFn:                time.Now,
 
 		stopChan:      make(chan struct{}),
 		runDone:       make(chan struct{}),
@@ -191,7 +191,6 @@ func (s *npSchedulerImpl) listenPathtests() {
 			s.runDone <- struct{}{}
 			return
 		case ptest := <-s.pathtestInputChan:
-			// TODO: TESTME
 			s.logger.Debugf("Pathtest received: %+v", ptest)
 			s.receivedPathtestCount.Inc()
 			s.pathtestStore.Add(ptest)
@@ -260,19 +259,21 @@ func (s *npSchedulerImpl) flushLoop() {
 			return
 		// automatic flush sequence
 		case now := <-flushTicker.C:
-			// TODO: TESTME
-			s.logger.Debugf("Flush loop at %s", now)
-			if !lastFlushTime.IsZero() {
-				flushInterval := now.Sub(lastFlushTime)
-				s.statsdClient.Gauge("datadog.network_path.scheduler.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
-			}
-			lastFlushTime = now
-
-			flushStartTime := time.Now()
-			s.flush()
-			s.statsdClient.Gauge("datadog.network_path.scheduler.flush_duration", time.Since(flushStartTime).Seconds(), []string{}, 1) //nolint:errcheck
+			s.flushWrapper(now, lastFlushTime)
 		}
 	}
+}
+
+func (s *npSchedulerImpl) flushWrapper(now time.Time, lastFlushTime time.Time) {
+	s.logger.Debugf("Flush loop at %s", now)
+	if !lastFlushTime.IsZero() {
+		flushInterval := now.Sub(lastFlushTime)
+		s.statsdClient.Gauge("datadog.network_path.scheduler.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
+	}
+	lastFlushTime = now
+
+	s.flush()
+	s.statsdClient.Gauge("datadog.network_path.scheduler.flush_duration", s.TimeNowFn().Sub(now).Seconds(), []string{}, 1) //nolint:errcheck
 }
 
 func (s *npSchedulerImpl) flush() {
@@ -282,7 +283,7 @@ func (s *npSchedulerImpl) flush() {
 
 	flowsContexts := s.pathtestStore.GetPathtestContextCount()
 	s.statsdClient.Gauge("datadog.network_path.scheduler.pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
-	flushTime := s.TimeNowFunction()
+	flushTime := s.TimeNowFn()
 	flowsToFlush := s.pathtestStore.Flush()
 	s.statsdClient.Gauge("datadog.network_path.scheduler.pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
@@ -295,8 +296,8 @@ func (s *npSchedulerImpl) flush() {
 }
 
 func (s *npSchedulerImpl) sendTelemetry(path payload.NetworkPath, startTime time.Time, ptest *pathteststore.PathtestContext) {
-	checkInterval := ptest.LastFlushInterval()          // TODO: TESTME
-	checkDuration := s.TimeNowFunction().Sub(startTime) // TODO: TESTME
+	checkInterval := ptest.LastFlushInterval()    // TODO: TESTME
+	checkDuration := s.TimeNowFn().Sub(startTime) // TODO: TESTME
 	telemetry.SubmitNetworkPathTelemetry(
 		s.metricSender,
 		path,
