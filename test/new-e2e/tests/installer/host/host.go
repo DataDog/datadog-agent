@@ -44,6 +44,7 @@ func New(t *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch 
 	for _, opt := range opts {
 		opt(t, host)
 	}
+	host.uploadFixtures()
 	return host
 }
 
@@ -219,18 +220,10 @@ const (
 	// Error is the load state of a systemd unit.
 	Error LoadState = "error"
 
-	// Active is the sub state of a systemd unit.
-	Active SubState = "active"
-	// Inactive is the sub state of a systemd unit.
-	Inactive SubState = "inactive"
-	// Failed is the sub state of a systemd unit.
-	Failed SubState = "failed"
-	// Activating is the sub state of a systemd unit.
-	Activating SubState = "activating"
-	// Deactivating is the sub state of a systemd unit.
-	Deactivating SubState = "deactivating"
-	// Exited is the sub state of a systemd unit.
-	Exited SubState = "exited"
+	// Running is the sub state of a systemd unit.
+	Running SubState = "running"
+	// Dead is the sub state of a systemd unit.
+	Dead SubState = "dead"
 )
 
 // SystemdUnitInfo is the info of a systemd unit.
@@ -398,10 +391,28 @@ func (s *State) AssertUnitsEnabled(names ...string) {
 	}
 }
 
+// AssertUnitsRunning asserts that a systemd unit is running.
+func (s *State) AssertUnitsRunning(names ...string) {
+	for _, name := range names {
+		unit, ok := s.Units[name]
+		assert.True(s.t, ok, "unit %v is not running", name)
+		assert.Equal(s.t, Running, unit.SubState, "unit %v is not running", name)
+	}
+}
+
 // AssertUnitsNotLoaded asserts that a systemd unit is not loaded.
 func (s *State) AssertUnitsNotLoaded(names ...string) {
 	for _, name := range names {
 		_, ok := s.Units[name]
 		assert.True(s.t, !ok, "unit %v is loaded", name)
+	}
+}
+
+// AssertUnitsDead asserts that a systemd unit is not running.
+func (s *State) AssertUnitsDead(names ...string) {
+	for _, name := range names {
+		unit, ok := s.Units[name]
+		assert.True(s.t, ok, "unit %v is not running", name)
+		assert.Equal(s.t, Dead, unit.SubState, "unit %v is not running", name)
 	}
 }

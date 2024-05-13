@@ -13,7 +13,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(b"Hello, World!")
 
 # Specify the port you want the server to run on
-port = 8000
+port = 8080
 
 # Create the server
 server_address = ('', port)

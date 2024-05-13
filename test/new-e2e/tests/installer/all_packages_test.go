@@ -152,6 +152,7 @@ func (s *packageBaseSuite) InstallAgentPackage() {
 		"DD_INSTALLER_REGISTRY_AUTH": "ecr",
 	}
 	s.Env().RemoteHost.MustExecute(`sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/agent-package:`+fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), components.WithEnvVariables(env))
+	s.Env().RemoteHost.MustExecute(`timeout=30; unit=datadog-agent.service; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]`)
 }
 
 func (s *packageBaseSuite) InstallPackageLatest(pkg string) {

@@ -28,5 +28,6 @@ func (s *packageAgentSuite) TestInstall() {
 
 	state.AssertUnitsLoaded("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service")
 	state.AssertUnitsEnabled("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service")
-	// FIXME: the agent currently fails to start because /etc/datadog-agent/datadog.yaml is missing
+	state.AssertUnitsRunning("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
+	state.AssertUnitsDead("datadog-agent-sysprobe.service", "datadog-agent-security.service")
 }

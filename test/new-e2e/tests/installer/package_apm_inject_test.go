@@ -6,6 +6,9 @@
 package installer
 
 import (
+	"fmt"
+	"math/rand"
+
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
@@ -25,7 +28,11 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.InstallAgentPackage()
 	s.InstallPackageLatest("datadog-apm-inject")
 	s.InstallPackageLatest("datadog-apm-library-python")
+	s.host.StartExamplePythonApp()
+	defer s.host.StopExamplePythonApp()
 
+	traceID := rand.Int63()
+	s.host.CallExamplePythonApp(fmt.Sprint(traceID))
 	state := s.host.State()
 
 	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
