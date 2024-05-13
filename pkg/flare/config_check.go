@@ -12,7 +12,6 @@ import (
 
 	"github.com/fatih/color"
 
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -51,7 +50,7 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 		return fmt.Errorf("failed to query the agent (running?): %s", err)
 	}
 
-	cr := response.ConfigCheckResponse{}
+	cr := integration.ConfigCheckResponse{}
 	err = json.Unmarshal(r, &cr)
 	if err != nil {
 		return err
