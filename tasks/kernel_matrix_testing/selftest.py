@@ -6,9 +6,10 @@ import re
 from invoke.context import Context
 
 from tasks.kernel_matrix_testing.platforms import get_platforms
-from tasks.kernel_matrix_testing.tool import error, full_arch, get_binary_target_arch, info, warn
+from tasks.kernel_matrix_testing.tool import error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.types import Component
-from tasks.kernel_matrix_testing.vars import KMTPaths, arch_ls
+from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
+from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, get_arch
 
 SelftestResult = tuple[bool | None, str]
 
@@ -29,7 +30,7 @@ def selftest_platforms_json(ctx: Context, _: bool) -> SelftestResult:
         return False, f"Cannot read platforms.json file: {e}"
 
     image_vers: set[str] = set()
-    for arch in arch_ls:
+    for arch in KMT_SUPPORTED_ARCHS:
         if arch not in plat:
             return False, f"Missing {arch} in platforms.json file"
 
@@ -47,14 +48,26 @@ def selftest_platforms_json(ctx: Context, _: bool) -> SelftestResult:
     return True, "platforms.json file exists, is readable and is correct"
 
 
-def selftest_prepare(ctx: Context, allow_infra_changes: bool, component: Component) -> SelftestResult:
+def selftest_prepare(
+    ctx: Context, allow_infra_changes: bool, component: Component, cross_compile: bool
+) -> SelftestResult:
     """Ensures that we can run kmt.prepare for a given component.
 
     If allow_infra_changes is true, the stack will be created if it doesn't exist.
     """
-    stack = "selftest-prepare"
-    arch = full_arch("local")
-    vms = f"{arch}-debian11-distro"
+    stack = f"selftest-prepare-{component}-xbuild{cross_compile}"
+    arch = get_arch("local")
+    target = arch
+    if cross_compile:
+        if target == ARCH_AMD64:
+            target = ARCH_ARM64
+        else:
+            target = ARCH_AMD64
+        arch_arg = f"--arch={target.kmt_arch}"
+    else:
+        arch_arg = ""
+
+    vms = f"{target.name}-debian11-distro"
 
     ctx.run(f"inv kmt.destroy-stack --stack={stack}", warn=True, hide=True)
     res = ctx.run(f"inv -e kmt.gen-config --stack={stack} --vms={vms} --init-stack --yes", warn=True)
@@ -67,7 +80,7 @@ def selftest_prepare(ctx: Context, allow_infra_changes: bool, component: Compone
             return None, "Cannot create stack with inv kmt.create-stack"
 
     compile_only = "--compile-only" if not allow_infra_changes else ""
-    res = ctx.run(f"inv -e kmt.prepare --stack={stack} --component={component} {compile_only}", warn=True)
+    res = ctx.run(f"inv -e kmt.prepare --stack={stack} --component={component} {compile_only} {arch_arg}", warn=True)
     if res is None or not res.ok:
         return False, "Cannot run inv -e kmt.prepare"
 
@@ -90,8 +103,8 @@ def selftest_prepare(ctx: Context, allow_infra_changes: bool, component: Compone
         return False, f"Test binary {test_binary} not found"
 
     binary_arch = get_binary_target_arch(ctx, test_binary)
-    if binary_arch != arch:
-        return False, f"Binary {test_binary} has unexpected arch {binary_arch} instead of {arch}"
+    if binary_arch != target:
+        return False, f"Binary {test_binary} has unexpected arch {binary_arch} instead of {target}"
 
     return True, f"inv -e kmt.prepare ran successfully for {component}"
 
@@ -105,8 +118,10 @@ def selftest(ctx: Context, allow_infra_changes: bool = False, filter: str | None
     all_selftests = [
         ("pulumi", selftest_pulumi),
         ("platforms.json", selftest_platforms_json),
-        ("sysprobe-prepare", functools.partial(selftest_prepare, component="system-probe")),
-        ("secagent-prepare", functools.partial(selftest_prepare, component="security-agent")),
+        ("sysprobe-prepare", functools.partial(selftest_prepare, component="system-probe", cross_compile=False)),
+        ("secagent-prepare", functools.partial(selftest_prepare, component="security-agent", cross_compile=False)),
+        ("sysprobe x-compile", functools.partial(selftest_prepare, component="system-probe", cross_compile=True)),
+        ("secagent x-compile", functools.partial(selftest_prepare, component="security-agent", cross_compile=True)),
     ]
     results: list[tuple[str, SelftestResult]] = []
 

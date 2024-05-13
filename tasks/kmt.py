@@ -508,7 +508,7 @@ def kmt_secagent_prepare(
     ctx: Context,
     vms: str | None = None,
     stack: str | None = None,
-    arch: Arch | None = None,
+    arch: Arch | str | None = None,
     ssh_key: str | None = None,
     packages: str | None = None,
     verbose: bool = True,
@@ -516,7 +516,8 @@ def kmt_secagent_prepare(
     compile_only: bool = False,
 ):
     if arch is None:
-        arch = get_arch("local")
+        arch = "local"
+    arch = get_arch(arch)
     kmt_paths = KMTPaths(stack, arch)
     kmt_paths.secagent_tests.mkdir(exist_ok=True, parents=True)
 
