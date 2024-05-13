@@ -159,8 +159,7 @@ func (p *WindowsProbe) initEtwFIM() error {
 	if err != nil {
 		return err
 	}
-	p.fimSession, err = etwcomp.NewSession(etwSessionName, func(cfg *etw.SessionConfiguration) {
-	})
+	p.fimSession, err = etwcomp.NewSession(etwSessionName, nil)
 
 	if err != nil {
 		return err
