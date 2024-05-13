@@ -160,6 +160,7 @@ DEFAULT_MODULES = {
         lint_targets=["."],
     ),
     "test/fakeintake": GoModule("test/fakeintake", independent=True),
+    "test/otel": GoModule("test/otel", independent=True, used_by_otel=True),
     "pkg/aggregator/ckey": GoModule("pkg/aggregator/ckey", independent=True),
     "pkg/errors": GoModule("pkg/errors", independent=True),
     "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True, used_by_otel=True),
