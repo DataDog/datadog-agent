@@ -314,3 +314,31 @@ func Test_npSchedulerImpl_ScheduleConns1(t *testing.T) {
 		})
 	}
 }
+
+func Test_npSchedulerImpl_stopWorker(t *testing.T) {
+	sysConfigs := map[string]any{
+		"network_path.enabled": true,
+	}
+
+	_, npScheduler := newTestNpScheduler(t, sysConfigs)
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	assert.Nil(t, err)
+	utillog.SetupLogger(l, "debug")
+
+	stopped := make(chan bool, 1)
+	go func() {
+		npScheduler.startWorker(42)
+		stopped <- true
+	}()
+	close(npScheduler.stopChan)
+	<-stopped
+
+	// Flush logs
+	w.Flush()
+	logs := b.String()
+
+	assert.Equal(t, 1, strings.Count(logs, "[worker42] Stopped worker"), logs)
+}

@@ -308,7 +308,6 @@ func (s *npSchedulerImpl) startWorker(workerID int) {
 	for {
 		select {
 		case <-s.stopChan:
-			// TODO: TESTME
 			s.logger.Debugf("[worker%d] Stopped worker", workerID)
 			return
 		case pathtestCtx := <-s.pathtestProcessChan:
