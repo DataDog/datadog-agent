@@ -14,15 +14,33 @@ from time import perf_counter
 
 from invoke import Context
 
-DD_INVOKE_LOGS_PATH = "/tmp/dd_invoke.log"
-if sys.platform == 'win32':
-    try:
-        DD_INVOKE_LOGS_PATH = f"{os.environ['TEMP']}\\dd_invoke.log"
-    except Exception as e:
-        print(f"Warning: couldn't set the DD_INVOKE_LOGS_PATH (error: {e})", file=sys.stderr)
+from tasks.libs.common.color import color_message
 
 
-def log_invoke_task(name: str, module: str, task_datetime: str, duration: float, task_result: str) -> None:
+def get_dd_invoke_logs_path() -> str:
+    """
+    Get the path to the dd_invoke.log file.
+    On Windows the default path is $Env:Temp\\dd_invoke.log
+    On Linux & MacOS the default path is /tmp/dd_invoke.log
+    """
+    if sys.platform == 'win32':
+        temp_folder = os.environ.get('TEMP')
+        if not temp_folder:
+            print(
+                color_message(
+                    message="Warning: couldn't set the dd_inv_log_path because $Env:Temp is not defined", color="orange"
+                ),
+                file=sys.stderr,
+            )
+            return ""
+        else:
+            return f"{temp_folder}\\dd_invoke.log"
+    return "/tmp/dd_invoke.log"
+
+
+def log_invoke_task(
+    filename: str, name: str, module: str, task_datetime: str, duration: float, task_result: str
+) -> None:
     """
     Logs the task information to the DD_INVOKE_LOGS_PATH file.
     This should be uploaded to Datadog's backend with a correct Log Agent configuration:
@@ -34,7 +52,7 @@ def log_invoke_task(name: str, module: str, task_datetime: str, duration: float,
         source: "invoke"
     ```
     """
-    logging.basicConfig(filename=DD_INVOKE_LOGS_PATH, level=logging.INFO, format='%(message)s')
+    logging.basicConfig(filename=filename, level=logging.INFO, format='%(message)s')
     user = getuser()
     running_mode = "pre_commit" if os.environ.get("PRE_COMMIT", 0) == "1" else "manual"
     task_info = {
@@ -56,6 +74,7 @@ class InvokeLogger:
 
     def __init__(self, task) -> None:
         self.task = task
+        self.log_path = get_dd_invoke_logs_path()
         self.datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.start = None
         self.end = None
@@ -64,6 +83,10 @@ class InvokeLogger:
         self.start = perf_counter()
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
+        # If the log_path is not set, don't log the task information.
+        # A warning was already raised in the get_dd_invoke_logs_path function.
+        if self.log_path == "":
+            return
         # Avoid disturbing the smooth running of the task by wrapping the logging in a try-except block.
         try:
             self.end = perf_counter()
@@ -74,11 +97,19 @@ class InvokeLogger:
                 None if exc_type is None else "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
             )
             log_invoke_task(
-                name=name, module=module, task_datetime=self.datetime, duration=duration, task_result=task_result
+                filename=self.log_path,
+                name=name,
+                module=module,
+                task_datetime=self.datetime,
+                duration=duration,
+                task_result=task_result,
             )
         except Exception as e:
             print(
-                f"Warning: couldn't log the invoke task in the InvokeLogger context manager (error: {e})",
+                color_message(
+                    message=f"Warning: couldn't log the invoke task in the InvokeLogger context manager (error: {e})",
+                    color="orange",
+                ),
                 file=sys.stderr,
             )
 
