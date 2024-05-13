@@ -25,7 +25,7 @@ func NewReplacer(rules []*config.ReplaceRule) *Replacer {
 	return &Replacer{rules: rules}
 }
 
-const ddTagPrefix = "_dd."
+const hiddenTagPrefix = "_"
 
 // Replace replaces all tags matching the Replacer's rules.
 func (f Replacer) Replace(trace pb.Trace) {
@@ -35,12 +35,12 @@ func (f Replacer) Replace(trace pb.Trace) {
 			switch key {
 			case "*":
 				for k := range s.Meta {
-					if !strings.HasPrefix(k, ddTagPrefix) {
+					if !strings.HasPrefix(k, hiddenTagPrefix) {
 						s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
 					}
 				}
 				for k := range s.Metrics {
-					if !strings.HasPrefix(k, ddTagPrefix) {
+					if !strings.HasPrefix(k, hiddenTagPrefix) {
 						f.replaceNumericTag(re, s, k, str)
 					}
 				}
