@@ -180,7 +180,11 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	case kv.IsRH8Kernel() || kv.IsRH9Kernel():
 		sizeOf = 648
 	case kv.IsSuse12Kernel():
-		sizeOf = 560
+		if kv.IsInRangeCloseOpen(kernel.Kernel4_12, kernel.Kernel4_13) && kv.Code.Patch() >= 14 {
+			sizeOf = 592
+		} else {
+			sizeOf = 560
+		}
 	case kv.IsSuse15Kernel():
 		sizeOf = 592
 	case kv.IsOracleUEKKernel():
