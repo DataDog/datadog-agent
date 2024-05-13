@@ -383,12 +383,6 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform btfPlatform, platformVersion,
 func (b *orderedBTFLoader) searchEmbeddedCollection(filename string) []string {
 	var matchingPaths []string
 	collectionTarball := filepath.Join(b.embeddedDir, btfArchiveName)
-	f, err := os.Open(collectionTarball)
-	if err != nil {
-		return nil
-	}
-	defer f.Close()
-
 	_ = archive.WalkTarXZArchive(collectionTarball, func(_ *tar.Reader, hdr *tar.Header) error {
 		if hdr.Typeflag&tar.TypeReg != 0 {
 			if filepath.Base(hdr.Name) == filename {
