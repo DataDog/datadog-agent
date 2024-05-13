@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -107,9 +108,10 @@ func TestSuseARM(t *testing.T) {
 }
 
 func (v *installerSuite) bootstrap(remoteUpdatesEnabled bool) {
+	v.Env().RemoteHost.MustExecute("sudo rm /opt/datadog-installer/run/installer-hash || true")
 	v.Env().RemoteHost.MustExecute(
 		"sudo -E datadog-bootstrap bootstrap",
-		components.WithEnvVariables(components.EnvVar{
+		client.WithEnvVariables(client.EnvVar{
 			"DD_INSTALLER_REGISTRY":          "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 			"DD_INSTALLER_REGISTRY_AUTH":     "ecr",
 			"DD_INSTALLER_BOOTSTRAP_VERSION": fmt.Sprintf("pipeline-%v", stdos.Getenv("E2E_PIPELINE_ID")),
@@ -179,10 +181,10 @@ func (v *installerSuite) TestInstallerUnitLoaded() {
 	if v.remoteUpdatesEnabled {
 		host.MustExecute(fmt.Sprintf("sudo %v/bin/installer/installer remove datadog-installer", bootInstallerDir))
 		v.bootstrap(false)
-		host.MustExecute(fmt.Sprintf(`DD_REMOTE_UPDATES=true sudo -E %v/bin/installer/installer install "oci://public.ecr.aws/datadog/installer-package:latest"`, bootInstallerDir))
+		host.MustExecute(fmt.Sprintf(`DD_REMOTE_UPDATES=true sudo -E %v/bin/installer/installer install "oci://gcr.io/datadoghq/installer-package:latest"`, bootInstallerDir))
 		require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(`systemctl is-enabled datadog-installer.service`))
 		host.MustExecute(fmt.Sprintf("DD_REMOTE_UPDATES=true sudo -E %v/bin/installer/installer remove datadog-installer", bootInstallerDir))
-		host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://public.ecr.aws/datadog/installer-package:latest"`, bootInstallerDir))
+		host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://gcr.io/datadoghq/installer-package:latest"`, bootInstallerDir))
 	}
 	_, err = host.Execute(`systemctl is-enabled datadog-installer.service`)
 	require.ErrorContains(t, err, "Failed to get unit file state for datadog-installer.service: No such file or directory")
@@ -199,7 +201,7 @@ func (v *installerSuite) TestAgentUnitsLoaded() {
 	}
 	host := v.Env().RemoteHost
 	v.bootstrap(false)
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://public.ecr.aws/datadog/agent-package@sha256:c942936609b7ae0f457ba4c3516b340f5e0bb3459af730892abe8f2f2f84d552"`, bootInstallerDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://gcr.io/datadoghq/agent-package@sha256:c942936609b7ae0f457ba4c3516b340f5e0bb3459af730892abe8f2f2f84d552"`, bootInstallerDir))
 	for _, unit := range stableUnits {
 		require.Equal(t, "enabled\n", host.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, unit)))
 	}
@@ -209,7 +211,7 @@ func (v *installerSuite) TestExperimentCrash() {
 	t := v.T()
 	host := v.Env().RemoteHost
 	v.bootstrap(false)
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://public.ecr.aws/datadog/agent-package@sha256:c942936609b7ae0f457ba4c3516b340f5e0bb3459af730892abe8f2f2f84d552"`, bootInstallerDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://gcr.io/datadoghq/agent-package@sha256:c942936609b7ae0f457ba4c3516b340f5e0bb3459af730892abe8f2f2f84d552"`, bootInstallerDir))
 	startTime := getMonotonicTimestamp(t, host)
 	v.Env().RemoteHost.MustExecute(`sudo systemctl start datadog-agent-exp --no-block`)
 	res := getJournalDOnCondition(t, host, startTime, stopCondition([]JournaldLog{
@@ -226,6 +228,7 @@ func (v *installerSuite) TestExperimentCrash() {
 
 func (v *installerSuite) TestUninstall() {
 	host := v.Env().RemoteHost
+	v.bootstrap(false)
 
 	installAssertions := []string{
 		"test -d /opt/datadog-packages",
@@ -301,7 +304,7 @@ func (v *installerSuite) TestPurgeAndInstallAgent() {
 	}
 
 	// bootstrap
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://public.ecr.aws/datadog/agent-package@sha256:c942936609b7ae0f457ba4c3516b340f5e0bb3459af730892abe8f2f2f84d552"`, bootInstallerDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://gcr.io/datadoghq/agent-package@sha256:c942936609b7ae0f457ba4c3516b340f5e0bb3459af730892abe8f2f2f84d552"`, bootInstallerDir))
 
 	// assert agent symlink
 	_ = host.MustExecute(`test -L /usr/bin/datadog-agent`)
@@ -379,9 +382,9 @@ func (v *installerSuite) TestPurgeAndInstallAPMInjector() {
 	// Bootstrap packages //
 	////////////////////////
 
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://public.ecr.aws/datadog/agent-package@sha256:c942936609b7ae0f457ba4c3516b340f5e0bb3459af730892abe8f2f2f84d552"`, bootInstallerDir))
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://public.ecr.aws/datadog/apm-library-java-package@sha256:d9ef5c492d19980d5bbf5105f2de71c49c39df9cc3ae57fa921fdeade8711d82"`, bootInstallerDir))
-	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://public.ecr.aws/datadog/apm-inject-package@sha256:5fc83f7127647d53d52f72b90de3f7835ec54eb5ed3760c43496e98621a6d717"`, bootInstallerDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://gcr.io/datadoghq/agent-package@sha256:c942936609b7ae0f457ba4c3516b340f5e0bb3459af730892abe8f2f2f84d552"`, bootInstallerDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://gcr.io/datadoghq/apm-library-java-package@sha256:d9ef5c492d19980d5bbf5105f2de71c49c39df9cc3ae57fa921fdeade8711d82"`, bootInstallerDir))
+	host.MustExecute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://gcr.io/datadoghq/apm-inject-package@sha256:5fc83f7127647d53d52f72b90de3f7835ec54eb5ed3760c43496e98621a6d717"`, bootInstallerDir))
 
 	////////////////////////////////
 	// Check post-bootstrap state //
@@ -464,8 +467,9 @@ func (v *installerSuite) TestPurgeAndInstallAPMInjector() {
 	require.NotNil(v.T(), err)
 	_, err = host.Execute(`grep "/opt/datadog-packages/datadog-apm-inject" /etc/docker/daemon.json`)
 	require.NotNil(v.T(), err)
-	res, err = host.Execute("grep \"LD PRELOAD CONFIG\" /etc/datadog-agent/datadog.yaml")
-	require.NotNil(v.T(), err, "expected no LD PRELOAD CONFIG in agent config, got:\n%s", res)
+	raw, err = host.ReadFile("/etc/datadog-agent/datadog.yaml")
+	require.Nil(v.T(), err)
+	require.True(v.T(), strings.Contains(string(raw), "# BEGIN LD PRELOAD CONFIG"), "missing LD_PRELOAD config, config:\n%s", string(raw))
 }
 
 func assertInstallMethod(v *installerSuite, t *testing.T, host *components.RemoteHost) {

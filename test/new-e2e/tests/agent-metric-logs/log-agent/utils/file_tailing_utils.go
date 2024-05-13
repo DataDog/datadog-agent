@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -114,10 +116,9 @@ func CheckLogFilePresence(ls LogsTestSuite, logFileName string) {
 	}
 }
 
-// FetchAndFilterLogs fetches and filters logs based on the service.
-func FetchAndFilterLogs(ls LogsTestSuite, service, content string) ([]*aggregator.Log, error) {
-	client := ls.Env().FakeIntake.Client()
-	t := ls.T()
+// FetchAndFilterLogs fetches logs from the fake intake server and filters them by service and content.
+func FetchAndFilterLogs(t *testing.T, fakeIntake *components.FakeIntake, service, content string) ([]*aggregator.Log, error) {
+	client := fakeIntake.Client()
 	t.Helper()
 
 	names, err := client.GetLogServiceNames()
@@ -137,12 +138,11 @@ func FetchAndFilterLogs(ls LogsTestSuite, service, content string) ([]*aggregato
 }
 
 // CheckLogsExpected verifies the presence of expected logs.
-func CheckLogsExpected(ls LogsTestSuite, service, content string, expectedTags ddtags) {
-	t := ls.T()
+func CheckLogsExpected(t *testing.T, fakeIntake *components.FakeIntake, service, content string, expectedTags ddtags) {
 	t.Helper()
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		logs, err := FetchAndFilterLogs(ls, service, content)
+		logs, err := FetchAndFilterLogs(t, fakeIntake, service, content)
 		if assert.NoErrorf(c, err, "Error fetching logs: %s", err) {
 			intakeLog := logsToString(logs)
 			if assert.NotEmpty(c, logs, "Expected logs with content: '%s' not found. Instead, found: %s", content, intakeLog) {
@@ -157,12 +157,11 @@ func CheckLogsExpected(ls LogsTestSuite, service, content string, expectedTags d
 }
 
 // CheckLogsNotExpected verifies the absence of unexpected logs.
-func CheckLogsNotExpected(ls LogsTestSuite, service, content string) {
-	t := ls.T()
+func CheckLogsNotExpected(t *testing.T, fakeIntake *components.FakeIntake, service, content string) {
 	t.Helper()
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		logs, err := FetchAndFilterLogs(ls, service, content)
+		logs, err := FetchAndFilterLogs(t, fakeIntake, service, content)
 		intakeLog := logsToString(logs)
 		if assert.NoErrorf(c, err, "Error fetching logs: %s", err) {
 			if assert.Empty(c, logs, "Unexpected logs with content: '%s' found. Instead, found: %s", content, intakeLog) {

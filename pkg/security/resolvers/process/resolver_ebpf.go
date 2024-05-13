@@ -290,6 +290,10 @@ func (p *EBPFResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFResolver) AddForkEntry(entry *model.ProcessCacheEntry, inode uint64) {
+	if entry.Pid == 0 {
+		return
+	}
+
 	p.Lock()
 	defer p.Unlock()
 
@@ -298,6 +302,10 @@ func (p *EBPFResolver) AddForkEntry(entry *model.ProcessCacheEntry, inode uint64
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFResolver) AddExecEntry(entry *model.ProcessCacheEntry, inode uint64) {
+	if entry.Pid == 0 {
+		return
+	}
+
 	p.Lock()
 	defer p.Unlock()
 
@@ -487,6 +495,10 @@ func (p *EBPFResolver) insertEntry(entry, prev *model.ProcessCacheEntry, source 
 }
 
 func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
+	if entry.Pid == 0 {
+		return
+	}
+
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
@@ -515,6 +527,10 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 }
 
 func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
+	if entry.Pid == 0 {
+		return
+	}
+
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		if inode != 0 && prev.FileEvent.Inode != inode {
@@ -562,6 +578,10 @@ func (p *EBPFResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 
 // Resolve returns the cache entry for the given pid
 func (p *EBPFResolver) Resolve(pid, tid uint32, inode uint64, useProcFS bool) *model.ProcessCacheEntry {
+	if pid == 0 {
+		return nil
+	}
+
 	p.Lock()
 	defer p.Unlock()
 
@@ -745,6 +765,10 @@ func (p *EBPFResolver) ResolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 }
 
 func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
+	if pid == 0 {
+		return nil
+	}
+
 	pidb := make([]byte, 4)
 	binary.NativeEndian.PutUint32(pidb, pid)
 
