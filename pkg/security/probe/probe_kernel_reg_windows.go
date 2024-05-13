@@ -175,7 +175,7 @@ func (wp *WindowsProbe) computeFullPath(cka *createKeyArgs) {
 		outstr += cka.relativeName
 	} else {
 
-		if s, ok := wp.regPathResolver.Get(cka.keyObject); ok {
+		if s, ok := wp.regPathResolver.Get(cka.baseObject); ok {
 			outstr = s + "\\" + cka.relativeName
 		} else {
 			outstr = cka.relativeName
@@ -183,6 +183,7 @@ func (wp *WindowsProbe) computeFullPath(cka *createKeyArgs) {
 	}
 	wp.regPathResolver.Add(cka.keyObject, outstr)
 	cka.computedFullPath = outstr
+
 }
 func (cka *createKeyArgs) String() string {
 
