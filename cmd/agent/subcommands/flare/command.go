@@ -9,14 +9,12 @@ package flare
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path"
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -33,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -50,7 +49,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
@@ -158,114 +156,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{flareCmd}
 }
 
-func readProfileData(seconds int) (flare.ProfileData, error) {
-	type agentProfileCollector func(service string) error
-
-	pdata := flare.ProfileData{}
-	c := util.GetClient(false)
-
-	type pprofGetter func(path string) ([]byte, error)
-
-	tcpGet := func(portConfig string) pprofGetter {
-		pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog.GetInt(portConfig))
-		return func(path string) ([]byte, error) {
-			return util.DoGet(c, pprofURL+path, util.LeaveConnectionOpen)
-		}
-	}
-
-	serviceProfileCollector := func(get func(url string) ([]byte, error), seconds int) agentProfileCollector {
-		return func(service string) error {
-			fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from %s.", seconds, service))
-			for _, prof := range []struct{ name, path string }{
-				{
-					// 1st heap profile
-					name: service + "-1st-heap.pprof",
-					path: "/heap",
-				},
-				{
-					// CPU profile
-					name: service + "-cpu.pprof",
-					path: fmt.Sprintf("/profile?seconds=%d", seconds),
-				},
-				{
-					// 2nd heap profile
-					name: service + "-2nd-heap.pprof",
-					path: "/heap",
-				},
-				{
-					// mutex profile
-					name: service + "-mutex.pprof",
-					path: "/mutex",
-				},
-				{
-					// goroutine blocking profile
-					name: service + "-block.pprof",
-					path: "/block",
-				},
-			} {
-				b, err := get(prof.path)
-				if err != nil {
-					return err
-				}
-				pdata[prof.name] = b
-			}
-			return nil
-		}
-	}
-
-	agentCollectors := map[string]agentProfileCollector{
-		"core":           serviceProfileCollector(tcpGet("expvar_port"), seconds),
-		"security-agent": serviceProfileCollector(tcpGet("security_agent.expvar_port"), seconds),
-	}
-
-	if pkgconfig.Datadog.GetBool("process_config.enabled") ||
-		pkgconfig.Datadog.GetBool("process_config.container_collection.enabled") ||
-		pkgconfig.Datadog.GetBool("process_config.process_collection.enabled") {
-
-		agentCollectors["process"] = serviceProfileCollector(tcpGet("process_config.expvar_port"), seconds)
-	}
-
-	if pkgconfig.Datadog.GetBool("apm_config.enabled") {
-		traceCpusec := pkgconfig.Datadog.GetInt("apm_config.receiver_timeout")
-		if traceCpusec > seconds {
-			// do not exceed requested duration
-			traceCpusec = seconds
-		} else if traceCpusec <= 0 {
-			// default to 4s as maximum connection timeout of trace-agent HTTP server is 5s by default
-			traceCpusec = 4
-		}
-
-		agentCollectors["trace"] = serviceProfileCollector(tcpGet("apm_config.debug.port"), traceCpusec)
-	}
-
-	if pkgconfig.SystemProbe.GetBool("system_probe_config.enabled") {
-		probeUtil, probeUtilErr := net.GetRemoteSystemProbeUtil(pkgconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
-
-		if !errors.Is(probeUtilErr, net.ErrNotImplemented) {
-			sysProbeGet := func() pprofGetter {
-				return func(path string) ([]byte, error) {
-					if probeUtilErr != nil {
-						return nil, probeUtilErr
-					}
-
-					return probeUtil.GetPprof(path)
-				}
-			}
-
-			agentCollectors["system-probe"] = serviceProfileCollector(sysProbeGet(), seconds)
-		}
-	}
-
-	var errs error
-	for name, callback := range agentCollectors {
-		if err := callback(name); err != nil {
-			errs = multierror.Append(errs, fmt.Errorf("error collecting %s agent profile: %v", name, err))
-		}
-	}
-
-	return pdata, errs
-}
-
 func makeFlare(flareComp flare.Component,
 	lc log.Component,
 	config config.Component,
@@ -274,7 +164,7 @@ func makeFlare(flareComp flare.Component,
 	_ optional.Option[workloadmeta.Component],
 	_ optional.Option[tagger.Component]) error {
 	var (
-		profile flare.ProfileData
+		profile types.ProfileData
 		err     error
 	)
 
@@ -313,7 +203,7 @@ func makeFlare(flareComp flare.Component,
 		}
 
 		err = settings.ExecWithRuntimeProfilingSettings(func() {
-			if profile, err = readProfileData(cliParams.profiling); err != nil {
+			if profile, err = helpers.ReadProfileData(cliParams.profiling); err != nil {
 				fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", err)))
 			}
 		}, profilingOpts, c)
@@ -373,7 +263,7 @@ func makeFlare(flareComp flare.Component,
 	return nil
 }
 
-func requestArchive(flareComp flare.Component, pdata flare.ProfileData) (string, error) {
+func requestArchive(flareComp flare.Component, pdata types.ProfileData) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	ipcAddress, err := pkgconfig.GetIPCAddress()
@@ -411,7 +301,7 @@ func requestArchive(flareComp flare.Component, pdata flare.ProfileData) (string,
 	return string(r), nil
 }
 
-func createArchive(flareComp flare.Component, pdata flare.ProfileData, ipcError error) (string, error) {
+func createArchive(flareComp flare.Component, pdata types.ProfileData, ipcError error) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
 	filePath, err := flareComp.Create(pdata, ipcError)
 	if err != nil {

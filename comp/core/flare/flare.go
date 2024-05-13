@@ -17,6 +17,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
@@ -29,15 +30,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
-
-// ProfileData maps (pprof) profile names to the profile data.
-type ProfileData map[string][]byte
 
 type dependencies struct {
 	fx.In
@@ -99,7 +98,33 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 		return true, fmt.Errorf("User handle was not provided in the flare agent task")
 	}
 
-	filePath, err := f.Create(nil, nil)
+	var pdata types.ProfileData
+	if enableProfiling, found := task.Config.TaskArgs["enable_profiling"]; found {
+		defaultProfilingSeconds := 60
+		if enableProfiling == "true" {
+			c, err := common.NewSettingsClient()
+			if err != nil {
+				return false, fmt.Errorf("failed to initialize settings client: %w", err)
+			}
+
+			// TODO: refine the option
+			profilingOpts := settings.ProfilingOpts{
+				ProfileMutex:         false,
+				ProfileMutexFraction: 100,
+				ProfileBlocking:      false,
+				ProfileBlockingRate:  1000,
+			}
+
+			err = settings.ExecWithRuntimeProfilingSettings(func() {
+				pdata, _ = helpers.ReadProfileData(defaultProfilingSeconds)
+			}, profilingOpts, c)
+			if err != nil {
+				return true, err
+			}
+		}
+	}
+
+	filePath, err := f.Create(pdata, nil)
 	if err != nil {
 		return true, err
 	}
@@ -111,7 +136,7 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 }
 
 func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request) {
-	var profile ProfileData
+	var profile types.ProfileData
 
 	if r.Body != http.NoBody {
 		body, err := io.ReadAll(r.Body)
@@ -154,7 +179,7 @@ func (f *flare) Send(flarePath string, caseID string, email string, source helpe
 }
 
 // Create creates a new flare and returns the path to the final archive file.
-func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
+func (f *flare) Create(pdata types.ProfileData, ipcError error) (string, error) {
 	fb, err := helpers.NewFlareBuilder(f.params.local)
 	if err != nil {
 		return "", err

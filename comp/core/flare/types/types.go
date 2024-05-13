@@ -140,6 +140,9 @@ type FlareBuilder interface {
 // be called everytime a flare is created.
 type FlareCallback func(fb FlareBuilder) error
 
+// ProfileData maps (pprof) profile names to the profile data.
+type ProfileData map[string][]byte
+
 // Provider is provided by other components to register themselves to provide flare data.
 type Provider struct {
 	fx.Out
