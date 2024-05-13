@@ -79,7 +79,7 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
 		if cfg.DestHostname == "127.0.0.2" {
 			p = payload.NetworkPath{
 				Source:      payload.NetworkPathSource{Hostname: "abc"},
-				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "127.0.0.2"},
+				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "127.0.0.2", Port: 80},
 				Hops: []payload.NetworkPathHop{
 					{Hostname: "hop_1", IPAddress: "1.1.1.1"},
 					{Hostname: "hop_2", IPAddress: "1.1.1.2"},
@@ -89,7 +89,7 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
 		if cfg.DestHostname == "127.0.0.4" {
 			p = payload.NetworkPath{
 				Source:      payload.NetworkPathSource{Hostname: "abc"},
-				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "127.0.0.4"},
+				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "127.0.0.4", Port: 80},
 				Hops: []payload.NetworkPathHop{
 					{Hostname: "hop_1", IPAddress: "1.1.1.3"},
 					{Hostname: "hop_2", IPAddress: "1.1.1.4"},
@@ -114,7 +114,7 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
     "destination": {
         "hostname": "abc",
         "ip_address": "127.0.0.2",
-        "port": 0
+        "port": 80
     },
     "hops": [
         {
@@ -149,7 +149,7 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
     "destination": {
         "hostname": "abc",
         "ip_address": "127.0.0.4",
-        "port": 0
+        "port": 80
     },
     "hops": [
         {
