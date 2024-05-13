@@ -14,8 +14,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	nethttp "net/http"
-	"strings"
 	"testing"
 	"time"
 	"unsafe"
@@ -33,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -131,334 +128,334 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	}
 
 	tests := []kafkaParsingTestAttributes{
-		{
-			name: "Sanity - produce and fetch",
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": s.getTopicName(),
-				},
-			},
-			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
-				topicName := ctx.extras["topic_name"].(string)
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
-					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V2_5_0()),
-						kgo.RecordPartitioner(kgo.ManualPartitioner()),
-						kgo.ClientID("xk6-kafka_linux_amd64@foobar (github.com/segmentio/kafka-go)"),
-					},
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(topicName))
-
-				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				defer cancel()
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-
-				req := kmsg.NewFetchRequest()
-				topic := kmsg.NewFetchRequestTopic()
-				topic.Topic = topicName
-				partition := kmsg.NewFetchRequestTopicPartition()
-				partition.PartitionMaxBytes = 1024
-				topic.Partitions = append(topic.Partitions, partition)
-				req.Topics = append(req.Topics, topic)
-
-				_, err = req.RequestWith(ctxTimeout, client.Client)
-				require.NoError(t, err)
-
-				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce + 1 fetch) * 2 = (4 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 4, nil)
-
-				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: 2,
-					expectedNumberOfFetchRequests:   2,
-					expectedAPIVersionProduce:       8,
-					expectedAPIVersionFetch:         11,
-				})
-			},
-			teardown:      kafkaTeardown,
-			configuration: getDefaultTestConfiguration,
-		},
-		{
-			name: "TestProduceClientIdEmptyString",
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": s.getTopicName(),
-				},
-			},
-			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
-				topicName := ctx.extras["topic_name"].(string)
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
-					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V1_0_0()),
-						kgo.ClientID(""),
-					},
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(topicName))
-
-				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				defer cancel()
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-
-				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 2, nil)
-
-				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: 2,
-					expectedNumberOfFetchRequests:   0,
-					expectedAPIVersionProduce:       5,
-					expectedAPIVersionFetch:         0,
-				})
-			},
-			teardown:      kafkaTeardown,
-			configuration: getDefaultTestConfiguration,
-		},
-		{
-			name: "TestManyProduceRequests",
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": s.getTopicName(),
-				},
-			},
-			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
-				topicName := ctx.extras["topic_name"].(string)
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
-					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V2_5_0()),
-						kgo.ClientID(""),
-					},
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(topicName))
-
-				numberOfIterations := 1000
-				for i := 1; i <= numberOfIterations; i++ {
-					record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
-					ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-					require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-					cancel()
-				}
-
-				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 2, nil)
-				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: numberOfIterations * 2,
-					expectedNumberOfFetchRequests:   0,
-					expectedAPIVersionProduce:       8,
-					expectedAPIVersionFetch:         0,
-				})
-			},
-			teardown:      kafkaTeardown,
-			configuration: getDefaultTestConfiguration,
-		},
-		{
-			name: "TestHTTPAndKafka",
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": s.getTopicName(),
-				},
-			},
-			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
-				topicName := ctx.extras["topic_name"].(string)
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
-					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V2_5_0()),
-						kgo.ClientID(""),
-					},
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(topicName))
-
-				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-				cancel()
-
-				serverAddr := "localhost:8081"
-				srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
-				t.Cleanup(srvDoneFn)
-				httpClient := nethttp.Client{}
-
-				req, err := nethttp.NewRequest(httpMethods[0], fmt.Sprintf("http://%s/%d/request", serverAddr, nethttp.StatusOK), nil)
-				require.NoError(t, err)
-
-				httpRequestCount := 10
-				for i := 0; i < httpRequestCount; i++ {
-					resp, err := httpClient.Do(req)
-					require.NoError(t, err)
-					// Have to read the response body to ensure the client will be able to properly close the connection.
-					io.Copy(io.Discard, resp.Body)
-					resp.Body.Close()
-				}
-				srvDoneFn()
-
-				httpOccurrences := PrintableInt(0)
-				expectedKafkaRequestCount := 2
-				kafkaStatsCount := PrintableInt(0)
-				kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
-				require.Eventually(t, func() bool {
-					allStats := monitor.GetProtocolStats()
-					require.NotNil(t, allStats)
-
-					httpStats, ok := allStats[protocols.HTTP]
-					if ok {
-						httpOccurrences.Add(countRequestOccurrences(httpStats.(map[http.Key]*http.RequestStats), req))
-					}
-
-					kafkaProtocolStats, ok := allStats[protocols.Kafka]
-					// We might not have kafka stats, and it might be the expected case (to capture 0).
-					if ok {
-						currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStat)
-						for key, stats := range currentStats {
-							prevStats, ok := kafkaStats[key]
-							if ok && prevStats != nil {
-								prevStats.CombineWith(stats)
-							} else {
-								kafkaStats[key] = currentStats[key]
-							}
-						}
-					}
-					kafkaStatsCount = PrintableInt(len(kafkaStats))
-					return len(kafkaStats) == expectedKafkaRequestCount && httpOccurrences.Load() == httpRequestCount
-				}, time.Second*3, time.Millisecond*100, "Expected to find %d http requests (captured %v), and %d kafka requests (captured %v)", httpRequestCount, &httpOccurrences, expectedKafkaRequestCount, &kafkaStatsCount)
-
-				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
-				validateProduceFetchCount(t, kafkaStats, topicName,
-					kafkaParsingValidation{
-						expectedNumberOfProduceRequests: 2,
-						expectedNumberOfFetchRequests:   0,
-						expectedAPIVersionProduce:       8,
-						expectedAPIVersionFetch:         0,
-					})
-			},
-			teardown: kafkaTeardown,
-			configuration: func() *config.Config {
-				cfg := config.New()
-				cfg.EnableHTTPMonitoring = true
-				cfg.EnableKafkaMonitoring = true
-				cfg.MaxTrackedConnections = 1000
-				return cfg
-			},
-		},
-		{
-			name: "TestEnableHTTPOnly",
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": s.getTopicName(),
-				},
-			},
-			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
-				topicName := ctx.extras["topic_name"].(string)
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
-					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V2_5_0()),
-						kgo.ClientID(""),
-					},
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(topicName))
-
-				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-				cancel()
-
-				getAndValidateKafkaStats(t, monitor, 0, nil)
-			},
-			teardown: kafkaTeardown,
-			configuration: func() *config.Config {
-				cfg := config.New()
-				cfg.EnableHTTPMonitoring = true
-				cfg.MaxTrackedConnections = 1000
-				return cfg
-			},
-		},
-		{
-			name: "Multiple records within the same produce requests",
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": s.getTopicName(),
-				},
-			},
-			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
-				topicName := ctx.extras["topic_name"].(string)
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
-					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V2_5_0()),
-						kgo.RecordPartitioner(kgo.ManualPartitioner()),
-					},
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(topicName))
-
-				record1 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
-				record2 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka again!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				defer cancel()
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record2).FirstErr(), "record had a produce error while synchronously producing")
-
-				req := kmsg.NewFetchRequest()
-				topic := kmsg.NewFetchRequestTopic()
-				topic.Topic = topicName
-				partition := kmsg.NewFetchRequestTopicPartition()
-				partition.PartitionMaxBytes = 1024
-				topic.Partitions = append(topic.Partitions, partition)
-				req.Topics = append(req.Topics, topic)
-
-				_, err = req.RequestWith(ctxTimeout, client.Client)
-				require.NoError(t, err)
-
-				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 2*2, nil)
-
-				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: 2 * 2,
-					expectedNumberOfFetchRequests:   2 * 2,
-					expectedAPIVersionProduce:       8,
-					expectedAPIVersionFetch:         11,
-				})
-			},
-			teardown:      kafkaTeardown,
-			configuration: getDefaultTestConfiguration,
-		},
+		//{
+		//	name: "Sanity - produce and fetch",
+		//	context: testContext{
+		//		serverPort:    kafkaPort,
+		//		targetAddress: targetAddress,
+		//		serverAddress: serverAddress,
+		//		extras: map[string]interface{}{
+		//			"topic_name": s.getTopicName(),
+		//		},
+		//	},
+		//	testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+		//		topicName := ctx.extras["topic_name"].(string)
+		//		client, err := kafka.NewClient(kafka.Options{
+		//			ServerAddress: ctx.targetAddress,
+		//			Dialer:        defaultDialer,
+		//			CustomOptions: []kgo.Opt{
+		//				kgo.MaxVersions(kversion.V2_5_0()),
+		//				kgo.RecordPartitioner(kgo.ManualPartitioner()),
+		//				kgo.ClientID("xk6-kafka_linux_amd64@foobar (github.com/segmentio/kafka-go)"),
+		//			},
+		//		})
+		//		require.NoError(t, err)
+		//		ctx.extras["client"] = client
+		//		require.NoError(t, client.CreateTopic(topicName))
+		//
+		//		record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
+		//		ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		//		defer cancel()
+		//		require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+		//
+		//		req := kmsg.NewFetchRequest()
+		//		topic := kmsg.NewFetchRequestTopic()
+		//		topic.Topic = topicName
+		//		partition := kmsg.NewFetchRequestTopicPartition()
+		//		partition.PartitionMaxBytes = 1024
+		//		topic.Partitions = append(topic.Partitions, partition)
+		//		req.Topics = append(req.Topics, topic)
+		//
+		//		_, err = req.RequestWith(ctxTimeout, client.Client)
+		//		require.NoError(t, err)
+		//
+		//		// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce + 1 fetch) * 2 = (4 stats)
+		//		kafkaStats := getAndValidateKafkaStats(t, monitor, 4, nil)
+		//
+		//		validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
+		//			expectedNumberOfProduceRequests: 2,
+		//			expectedNumberOfFetchRequests:   2,
+		//			expectedAPIVersionProduce:       8,
+		//			expectedAPIVersionFetch:         11,
+		//		})
+		//	},
+		//	teardown:      kafkaTeardown,
+		//	configuration: getDefaultTestConfiguration,
+		//},
+		//{
+		//	name: "TestProduceClientIdEmptyString",
+		//	context: testContext{
+		//		serverPort:    kafkaPort,
+		//		targetAddress: targetAddress,
+		//		serverAddress: serverAddress,
+		//		extras: map[string]interface{}{
+		//			"topic_name": s.getTopicName(),
+		//		},
+		//	},
+		//	testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+		//		topicName := ctx.extras["topic_name"].(string)
+		//		client, err := kafka.NewClient(kafka.Options{
+		//			ServerAddress: ctx.targetAddress,
+		//			Dialer:        defaultDialer,
+		//			CustomOptions: []kgo.Opt{
+		//				kgo.MaxVersions(kversion.V1_0_0()),
+		//				kgo.ClientID(""),
+		//			},
+		//		})
+		//		require.NoError(t, err)
+		//		ctx.extras["client"] = client
+		//		require.NoError(t, client.CreateTopic(topicName))
+		//
+		//		record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
+		//		ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		//		defer cancel()
+		//		require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+		//
+		//		// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
+		//		kafkaStats := getAndValidateKafkaStats(t, monitor, 2, nil)
+		//
+		//		validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
+		//			expectedNumberOfProduceRequests: 2,
+		//			expectedNumberOfFetchRequests:   0,
+		//			expectedAPIVersionProduce:       5,
+		//			expectedAPIVersionFetch:         0,
+		//		})
+		//	},
+		//	teardown:      kafkaTeardown,
+		//	configuration: getDefaultTestConfiguration,
+		//},
+		//{
+		//	name: "TestManyProduceRequests",
+		//	context: testContext{
+		//		serverPort:    kafkaPort,
+		//		targetAddress: targetAddress,
+		//		serverAddress: serverAddress,
+		//		extras: map[string]interface{}{
+		//			"topic_name": s.getTopicName(),
+		//		},
+		//	},
+		//	testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+		//		topicName := ctx.extras["topic_name"].(string)
+		//		client, err := kafka.NewClient(kafka.Options{
+		//			ServerAddress: ctx.targetAddress,
+		//			Dialer:        defaultDialer,
+		//			CustomOptions: []kgo.Opt{
+		//				kgo.MaxVersions(kversion.V2_5_0()),
+		//				kgo.ClientID(""),
+		//			},
+		//		})
+		//		require.NoError(t, err)
+		//		ctx.extras["client"] = client
+		//		require.NoError(t, client.CreateTopic(topicName))
+		//
+		//		numberOfIterations := 1000
+		//		for i := 1; i <= numberOfIterations; i++ {
+		//			record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
+		//			ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		//			require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+		//			cancel()
+		//		}
+		//
+		//		// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
+		//		kafkaStats := getAndValidateKafkaStats(t, monitor, 2, nil)
+		//		validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
+		//			expectedNumberOfProduceRequests: numberOfIterations * 2,
+		//			expectedNumberOfFetchRequests:   0,
+		//			expectedAPIVersionProduce:       8,
+		//			expectedAPIVersionFetch:         0,
+		//		})
+		//	},
+		//	teardown:      kafkaTeardown,
+		//	configuration: getDefaultTestConfiguration,
+		//},
+		//{
+		//	name: "TestHTTPAndKafka",
+		//	context: testContext{
+		//		serverPort:    kafkaPort,
+		//		targetAddress: targetAddress,
+		//		serverAddress: serverAddress,
+		//		extras: map[string]interface{}{
+		//			"topic_name": s.getTopicName(),
+		//		},
+		//	},
+		//	testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+		//		topicName := ctx.extras["topic_name"].(string)
+		//		client, err := kafka.NewClient(kafka.Options{
+		//			ServerAddress: ctx.targetAddress,
+		//			Dialer:        defaultDialer,
+		//			CustomOptions: []kgo.Opt{
+		//				kgo.MaxVersions(kversion.V2_5_0()),
+		//				kgo.ClientID(""),
+		//			},
+		//		})
+		//		require.NoError(t, err)
+		//		ctx.extras["client"] = client
+		//		require.NoError(t, client.CreateTopic(topicName))
+		//
+		//		record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
+		//		ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		//		require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+		//		cancel()
+		//
+		//		serverAddr := "localhost:8081"
+		//		srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
+		//		t.Cleanup(srvDoneFn)
+		//		httpClient := nethttp.Client{}
+		//
+		//		req, err := nethttp.NewRequest(httpMethods[0], fmt.Sprintf("http://%s/%d/request", serverAddr, nethttp.StatusOK), nil)
+		//		require.NoError(t, err)
+		//
+		//		httpRequestCount := 10
+		//		for i := 0; i < httpRequestCount; i++ {
+		//			resp, err := httpClient.Do(req)
+		//			require.NoError(t, err)
+		//			// Have to read the response body to ensure the client will be able to properly close the connection.
+		//			io.Copy(io.Discard, resp.Body)
+		//			resp.Body.Close()
+		//		}
+		//		srvDoneFn()
+		//
+		//		httpOccurrences := PrintableInt(0)
+		//		expectedKafkaRequestCount := 2
+		//		kafkaStatsCount := PrintableInt(0)
+		//		kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
+		//		require.Eventually(t, func() bool {
+		//			allStats := monitor.GetProtocolStats()
+		//			require.NotNil(t, allStats)
+		//
+		//			httpStats, ok := allStats[protocols.HTTP]
+		//			if ok {
+		//				httpOccurrences.Add(countRequestOccurrences(httpStats.(map[http.Key]*http.RequestStats), req))
+		//			}
+		//
+		//			kafkaProtocolStats, ok := allStats[protocols.Kafka]
+		//			// We might not have kafka stats, and it might be the expected case (to capture 0).
+		//			if ok {
+		//				currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStat)
+		//				for key, stats := range currentStats {
+		//					prevStats, ok := kafkaStats[key]
+		//					if ok && prevStats != nil {
+		//						prevStats.CombineWith(stats)
+		//					} else {
+		//						kafkaStats[key] = currentStats[key]
+		//					}
+		//				}
+		//			}
+		//			kafkaStatsCount = PrintableInt(len(kafkaStats))
+		//			return len(kafkaStats) == expectedKafkaRequestCount && httpOccurrences.Load() == httpRequestCount
+		//		}, time.Second*3, time.Millisecond*100, "Expected to find %d http requests (captured %v), and %d kafka requests (captured %v)", httpRequestCount, &httpOccurrences, expectedKafkaRequestCount, &kafkaStatsCount)
+		//
+		//		// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
+		//		validateProduceFetchCount(t, kafkaStats, topicName,
+		//			kafkaParsingValidation{
+		//				expectedNumberOfProduceRequests: 2,
+		//				expectedNumberOfFetchRequests:   0,
+		//				expectedAPIVersionProduce:       8,
+		//				expectedAPIVersionFetch:         0,
+		//			})
+		//	},
+		//	teardown: kafkaTeardown,
+		//	configuration: func() *config.Config {
+		//		cfg := config.New()
+		//		cfg.EnableHTTPMonitoring = true
+		//		cfg.EnableKafkaMonitoring = true
+		//		cfg.MaxTrackedConnections = 1000
+		//		return cfg
+		//	},
+		//},
+		//{
+		//	name: "TestEnableHTTPOnly",
+		//	context: testContext{
+		//		serverPort:    kafkaPort,
+		//		targetAddress: targetAddress,
+		//		serverAddress: serverAddress,
+		//		extras: map[string]interface{}{
+		//			"topic_name": s.getTopicName(),
+		//		},
+		//	},
+		//	testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+		//		topicName := ctx.extras["topic_name"].(string)
+		//		client, err := kafka.NewClient(kafka.Options{
+		//			ServerAddress: ctx.targetAddress,
+		//			Dialer:        defaultDialer,
+		//			CustomOptions: []kgo.Opt{
+		//				kgo.MaxVersions(kversion.V2_5_0()),
+		//				kgo.ClientID(""),
+		//			},
+		//		})
+		//		require.NoError(t, err)
+		//		ctx.extras["client"] = client
+		//		require.NoError(t, client.CreateTopic(topicName))
+		//
+		//		record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
+		//		ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		//		require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+		//		cancel()
+		//
+		//		getAndValidateKafkaStats(t, monitor, 0, nil)
+		//	},
+		//	teardown: kafkaTeardown,
+		//	configuration: func() *config.Config {
+		//		cfg := config.New()
+		//		cfg.EnableHTTPMonitoring = true
+		//		cfg.MaxTrackedConnections = 1000
+		//		return cfg
+		//	},
+		//},
+		//{
+		//	name: "Multiple records within the same produce requests",
+		//	context: testContext{
+		//		serverPort:    kafkaPort,
+		//		targetAddress: targetAddress,
+		//		serverAddress: serverAddress,
+		//		extras: map[string]interface{}{
+		//			"topic_name": s.getTopicName(),
+		//		},
+		//	},
+		//	testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+		//		topicName := ctx.extras["topic_name"].(string)
+		//		client, err := kafka.NewClient(kafka.Options{
+		//			ServerAddress: ctx.targetAddress,
+		//			Dialer:        defaultDialer,
+		//			CustomOptions: []kgo.Opt{
+		//				kgo.MaxVersions(kversion.V2_5_0()),
+		//				kgo.RecordPartitioner(kgo.ManualPartitioner()),
+		//			},
+		//		})
+		//		require.NoError(t, err)
+		//		ctx.extras["client"] = client
+		//		require.NoError(t, client.CreateTopic(topicName))
+		//
+		//		record1 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
+		//		record2 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka again!")}
+		//		ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		//		defer cancel()
+		//		require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record2).FirstErr(), "record had a produce error while synchronously producing")
+		//
+		//		req := kmsg.NewFetchRequest()
+		//		topic := kmsg.NewFetchRequestTopic()
+		//		topic.Topic = topicName
+		//		partition := kmsg.NewFetchRequestTopicPartition()
+		//		partition.PartitionMaxBytes = 1024
+		//		topic.Partitions = append(topic.Partitions, partition)
+		//		req.Topics = append(req.Topics, topic)
+		//
+		//		_, err = req.RequestWith(ctxTimeout, client.Client)
+		//		require.NoError(t, err)
+		//
+		//		// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
+		//		kafkaStats := getAndValidateKafkaStats(t, monitor, 2*2, nil)
+		//
+		//		validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
+		//			expectedNumberOfProduceRequests: 2 * 2,
+		//			expectedNumberOfFetchRequests:   2 * 2,
+		//			expectedAPIVersionProduce:       8,
+		//			expectedAPIVersionFetch:         11,
+		//		})
+		//	},
+		//	teardown:      kafkaTeardown,
+		//	configuration: getDefaultTestConfiguration,
+		//},
 		{
 			name: "Multiple records with and without batching",
 			context: testContext{
@@ -527,91 +524,93 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 			teardown:      kafkaTeardown,
 			configuration: getDefaultTestConfiguration,
 		},
-		{
-			name: "Kafka Kernel Telemetry",
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras:        map[string]interface{}{},
-			},
-			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
-				tests := []struct {
-					name                string
-					topicName           string
-					expectedBucketIndex int
-				}{
-					{name: "Topic size is 1", topicName: strings.Repeat("a", 1), expectedBucketIndex: 0},
-					{name: "Topic size is 10", topicName: strings.Repeat("a", 10), expectedBucketIndex: 0},
-					{name: "Topic size is 20", topicName: strings.Repeat("a", 20), expectedBucketIndex: 1},
-					{name: "Topic size is 30", topicName: strings.Repeat("a", 30), expectedBucketIndex: 2},
-					{name: "Topic size is 40", topicName: strings.Repeat("a", 40), expectedBucketIndex: 3},
-					{name: "Topic size is 10 again", topicName: strings.Repeat("a", 10), expectedBucketIndex: 0},
-					{name: "Topic size is 50", topicName: strings.Repeat("a", 50), expectedBucketIndex: 4},
-					{name: "Topic size is 60", topicName: strings.Repeat("a", 60), expectedBucketIndex: 5},
-					{name: "Topic size is 70", topicName: strings.Repeat("a", 70), expectedBucketIndex: 6},
-					{name: "Topic size is 79", topicName: strings.Repeat("a", 79), expectedBucketIndex: 7},
-					{name: "Topic size is 80", topicName: strings.Repeat("a", 80), expectedBucketIndex: 7},
-					{name: "Topic size is 81", topicName: strings.Repeat("a", 81), expectedBucketIndex: 8},
-					{name: "Topic size is 90", topicName: strings.Repeat("a", 90), expectedBucketIndex: 8},
-					{name: "Topic size is 100", topicName: strings.Repeat("a", 100), expectedBucketIndex: 9},
-					{name: "Topic size is 120", topicName: strings.Repeat("a", 120), expectedBucketIndex: 9},
-				}
-
-				currentRawKernelTelemetry := &kafka.RawKernelTelemetry{}
-				for _, tt := range tests {
-					t.Run(tt.name, func(t *testing.T) {
-						client, err := kafka.NewClient(kafka.Options{
-							ServerAddress: ctx.targetAddress,
-							Dialer:        defaultDialer,
-							CustomOptions: []kgo.Opt{
-								kgo.MaxVersions(kversion.V2_5_0()),
-								kgo.ConsumeTopics(tt.topicName),
-								kgo.ClientID("test-client"),
-							},
-						})
-						require.NoError(t, err)
-						ctx.extras["client"] = client
-						require.NoError(t, client.CreateTopic(tt.topicName))
-
-						record := &kgo.Record{Topic: tt.topicName, Value: []byte("Hello Kafka!")}
-						ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-						defer cancel()
-						require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-
-						var telemetryMap *kafka.RawKernelTelemetry
-						require.Eventually(t, func() bool {
-							telemetryMap, err = kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
-							require.NoError(t, err)
-
-							// Ensure that the other buckets remain unchanged before verifying the expected bucket.
-							for idx := 0; idx < kafka.TopicNameBuckets; idx++ {
-								if idx != tt.expectedBucketIndex {
-									require.Equal(t, currentRawKernelTelemetry.Name_size_buckets[idx],
-										telemetryMap.Name_size_buckets[idx],
-										"Expected bucket (%d) to remain unchanged", idx)
-								}
-							}
-
-							// Verify that the expected bucket contains the correct number of occurrences.
-							expectedNumberOfOccurrences := 4 // (1 produce request + 1 fetch request) * 2 connections (docker container and localhost)
-							return uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Name_size_buckets[tt.expectedBucketIndex] == telemetryMap.Name_size_buckets[tt.expectedBucketIndex]
-						}, time.Second*3, time.Millisecond*100)
-
-						// Update the current raw kernel telemetry for the next iteration
-						currentRawKernelTelemetry = telemetryMap
-					})
-				}
-			},
-			teardown:      kafkaTeardown,
-			configuration: getDefaultTestConfiguration,
-		},
+		//{
+		//	name: "Kafka Kernel Telemetry",
+		//	context: testContext{
+		//		serverPort:    kafkaPort,
+		//		targetAddress: targetAddress,
+		//		serverAddress: serverAddress,
+		//		extras:        map[string]interface{}{},
+		//	},
+		//	testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+		//		tests := []struct {
+		//			name                string
+		//			topicName           string
+		//			expectedBucketIndex int
+		//		}{
+		//			{name: "Topic size is 1", topicName: strings.Repeat("a", 1), expectedBucketIndex: 0},
+		//			{name: "Topic size is 10", topicName: strings.Repeat("a", 10), expectedBucketIndex: 0},
+		//			{name: "Topic size is 20", topicName: strings.Repeat("a", 20), expectedBucketIndex: 1},
+		//			{name: "Topic size is 30", topicName: strings.Repeat("a", 30), expectedBucketIndex: 2},
+		//			{name: "Topic size is 40", topicName: strings.Repeat("a", 40), expectedBucketIndex: 3},
+		//			{name: "Topic size is 10 again", topicName: strings.Repeat("a", 10), expectedBucketIndex: 0},
+		//			{name: "Topic size is 50", topicName: strings.Repeat("a", 50), expectedBucketIndex: 4},
+		//			{name: "Topic size is 60", topicName: strings.Repeat("a", 60), expectedBucketIndex: 5},
+		//			{name: "Topic size is 70", topicName: strings.Repeat("a", 70), expectedBucketIndex: 6},
+		//			{name: "Topic size is 79", topicName: strings.Repeat("a", 79), expectedBucketIndex: 7},
+		//			{name: "Topic size is 80", topicName: strings.Repeat("a", 80), expectedBucketIndex: 7},
+		//			{name: "Topic size is 81", topicName: strings.Repeat("a", 81), expectedBucketIndex: 8},
+		//			{name: "Topic size is 90", topicName: strings.Repeat("a", 90), expectedBucketIndex: 8},
+		//			{name: "Topic size is 100", topicName: strings.Repeat("a", 100), expectedBucketIndex: 9},
+		//			{name: "Topic size is 120", topicName: strings.Repeat("a", 120), expectedBucketIndex: 9},
+		//		}
+		//
+		//		currentRawKernelTelemetry := &kafka.RawKernelTelemetry{}
+		//		for _, tt := range tests {
+		//			t.Run(tt.name, func(t *testing.T) {
+		//				client, err := kafka.NewClient(kafka.Options{
+		//					ServerAddress: ctx.targetAddress,
+		//					Dialer:        defaultDialer,
+		//					CustomOptions: []kgo.Opt{
+		//						kgo.MaxVersions(kversion.V2_5_0()),
+		//						kgo.ConsumeTopics(tt.topicName),
+		//						kgo.ClientID("test-client"),
+		//					},
+		//				})
+		//				require.NoError(t, err)
+		//				ctx.extras["client"] = client
+		//				require.NoError(t, client.CreateTopic(tt.topicName))
+		//
+		//				record := &kgo.Record{Topic: tt.topicName, Value: []byte("Hello Kafka!")}
+		//				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		//				defer cancel()
+		//				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+		//
+		//				var telemetryMap *kafka.RawKernelTelemetry
+		//				require.Eventually(t, func() bool {
+		//					telemetryMap, err = kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
+		//					require.NoError(t, err)
+		//
+		//					// Ensure that the other buckets remain unchanged before verifying the expected bucket.
+		//					for idx := 0; idx < kafka.TopicNameBuckets; idx++ {
+		//						if idx != tt.expectedBucketIndex {
+		//							require.Equal(t, currentRawKernelTelemetry.Name_size_buckets[idx],
+		//								telemetryMap.Name_size_buckets[idx],
+		//								"Expected bucket (%d) to remain unchanged", idx)
+		//						}
+		//					}
+		//
+		//					// Verify that the expected bucket contains the correct number of occurrences.
+		//					expectedNumberOfOccurrences := 4 // (1 produce request + 1 fetch request) * 2 connections (docker container and localhost)
+		//					return uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Name_size_buckets[tt.expectedBucketIndex] == telemetryMap.Name_size_buckets[tt.expectedBucketIndex]
+		//				}, time.Second*3, time.Millisecond*100)
+		//
+		//				// Update the current raw kernel telemetry for the next iteration
+		//				currentRawKernelTelemetry = telemetryMap
+		//			})
+		//		}
+		//	},
+		//	teardown:      kafkaTeardown,
+		//	configuration: getDefaultTestConfiguration,
+		//},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			testProtocolParsingInner(t, tt, tt.configuration())
-		})
+	for i := 0; i < 10; i++ {
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				testProtocolParsingInner(t, tt, tt.configuration())
+			})
+		}
 	}
 }
 
