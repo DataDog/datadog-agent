@@ -8,6 +8,7 @@ package npschedulerimpl
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -18,13 +19,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl/common"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -98,6 +104,93 @@ func Test_NpScheduler_StartAndStop(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(logs, "Stopped listening for pathtests"), logs)
 	assert.Equal(t, 1, strings.Count(logs, "Stopped flush loop"), logs)
 	assert.Equal(t, 1, strings.Count(logs, "Stop NpScheduler"), logs)
+}
+
+func Test_NpScheduler_runningAndProcessing(t *testing.T) {
+	sysConfigs := map[string]any{
+		"network_path.enabled":        true,
+		"network_path.flush_interval": "1s",
+	}
+	app, npScheduler := newTestNpScheduler(t, sysConfigs)
+
+	mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
+	npScheduler.epForwarder = mockEpForwarder
+
+	app.RequireStart()
+	assert.True(t, npScheduler.running)
+
+	npScheduler.runTraceroute = func(cfg traceroute.Config) (payload.NetworkPath, error) {
+		return payload.NetworkPath{
+			Source:      payload.NetworkPathSource{Hostname: "abc"},
+			Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "1.2.3.4"},
+			Hops: []payload.NetworkPathHop{
+				{Hostname: "hop_1", IPAddress: "1.1.1.1"},
+				{Hostname: "hop_2", IPAddress: "1.1.1.2"},
+			},
+		}, nil
+	}
+
+	// EXPECT
+
+	// language=json
+	metadataEvent := []byte(`
+{
+    "timestamp": 0,
+    "namespace": "",
+    "path_id": "",
+    "source": {
+        "hostname": "abc",
+        "via": null,
+        "network_id": ""
+    },
+    "destination": {
+        "hostname": "abc",
+        "ip_address": "1.2.3.4",
+        "port": 0
+    },
+    "hops": [
+        {
+            "ttl": 0,
+            "ip_address": "1.1.1.1",
+            "hostname": "hop_1",
+            "rtt": 0,
+            "success": false
+        },
+        {
+            "ttl": 0,
+            "ip_address": "1.1.1.2",
+            "hostname": "hop_2",
+            "rtt": 0,
+            "success": false
+        }
+    ],
+    "tags": null
+}
+`)
+	compactMetadataEvent := new(bytes.Buffer)
+	err := json.Compact(compactMetadataEvent, metadataEvent)
+	assert.NoError(t, err)
+
+	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(message.NewMessage(compactMetadataEvent.Bytes(), nil, "", 0), eventplatform.EventTypeNetworkPath).Return(nil).Times(1)
+
+	// WHEN
+	conns := []*model.Connection{
+		{
+			Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
+			Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
+			Direction: model.ConnectionDirection_outgoing,
+		},
+		//{
+		//	Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
+		//	Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
+		//	Direction: model.ConnectionDirection_outgoing,
+		//},
+	}
+	npScheduler.ScheduleConns(conns)
+
+	waitForProcessedPathtests(npScheduler, 1)
+
+	app.RequireStop()
 }
 
 func Test_newNpSchedulerImpl_defaultConfigs(t *testing.T) {

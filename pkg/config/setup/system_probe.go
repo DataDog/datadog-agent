@@ -292,6 +292,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(npNS, "process_chan_size"), 1000)
 	cfg.BindEnvAndSetDefault(join(npNS, "pathtest_ttl"), "15m")
 	cfg.BindEnvAndSetDefault(join(npNS, "pathtest_interval"), "5m")
+	cfg.BindEnvAndSetDefault(join(npNS, "flush_interval"), "10s")
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)

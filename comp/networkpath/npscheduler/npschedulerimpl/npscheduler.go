@@ -31,7 +31,7 @@ import (
 )
 
 type npSchedulerImpl struct {
-	epForwarder eventplatform.Component
+	epForwarder eventplatform.Forwarder
 	logger      log.Component
 
 	enabled bool
@@ -41,30 +41,36 @@ type npSchedulerImpl struct {
 	metricSender metricsender.MetricSender
 
 	receivedPathtestConfigCount *atomic.Uint64
-	pathtestStore               *pathteststore.PathtestStore
-	pathtestInputChan           chan *common.Pathtest
-	pathtestProcessChan         chan *pathteststore.PathtestContext
-	stopChan                    chan struct{}
-	flushLoopDone               chan struct{}
-	runDone                     chan struct{}
+	processedCount              *atomic.Uint64
+
+	pathtestStore       *pathteststore.PathtestStore
+	pathtestInputChan   chan *common.Pathtest
+	pathtestProcessChan chan *pathteststore.PathtestContext
+	stopChan            chan struct{}
+	flushLoopDone       chan struct{}
+	runDone             chan struct{}
+	flushInterval       time.Duration
 
 	TimeNowFunction func() time.Time // Allows to mock time in tests
 
 	running bool
 
 	statsdClient ddgostatsd.ClientInterface
+
+	runTraceroute func(cfg traceroute.Config) (payload.NetworkPath, error)
 }
 
 func newNoopNpSchedulerImpl() *npSchedulerImpl {
 	return &npSchedulerImpl{enabled: false}
 }
 
-func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Component, sysprobeYamlConfig config.Reader) *npSchedulerImpl {
+func newNpSchedulerImpl(epForwarder eventplatform.Forwarder, logger log.Component, sysprobeYamlConfig config.Reader) *npSchedulerImpl {
 	workers := sysprobeYamlConfig.GetInt("network_path.workers")
 	pathtestInputChanSize := sysprobeYamlConfig.GetInt("network_path.input_chan_size")
 	pathtestProcessChanSize := sysprobeYamlConfig.GetInt("network_path.process_chan_size")
 	pathtestTTL := sysprobeYamlConfig.GetDuration("network_path.pathtest_ttl")
 	pathtestInterval := sysprobeYamlConfig.GetDuration("network_path.pathtest_interval")
+	flushInterval := sysprobeYamlConfig.GetDuration("network_path.flush_interval")
 
 	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d pathtest_ttl=%s pathtest_interval=%s)",
 		workers,
@@ -77,14 +83,16 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 		epForwarder: epForwarder,
 		logger:      logger,
 
-		pathtestStore:       pathteststore.NewPathtestStore(common.DefaultFlushTickerInterval, pathtestTTL, pathtestInterval, logger),
+		pathtestStore:       pathteststore.NewPathtestStore(pathtestTTL, pathtestInterval, logger),
 		pathtestInputChan:   make(chan *common.Pathtest, pathtestInputChanSize),
 		pathtestProcessChan: make(chan *pathteststore.PathtestContext, pathtestProcessChanSize),
+		flushInterval:       flushInterval,
 		workers:             workers,
 
 		metricSender: metricsender.NewMetricSenderStatsd(),
 
 		receivedPathtestConfigCount: atomic.NewUint64(0),
+		processedCount:              atomic.NewUint64(0),
 		TimeNowFunction:             time.Now,
 
 		stopChan:      make(chan struct{}),
@@ -92,6 +100,8 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 		flushLoopDone: make(chan struct{}),
 
 		statsdClient: statsd.Client,
+
+		runTraceroute: runTraceroute,
 	}
 }
 
@@ -189,7 +199,7 @@ func (s *npSchedulerImpl) listenPathtests() {
 	}
 }
 
-func (s *npSchedulerImpl) runTraceroute(ptest *pathteststore.PathtestContext) {
+func (s *npSchedulerImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) {
 	// TODO: TESTME
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
@@ -201,41 +211,44 @@ func (s *npSchedulerImpl) runTraceroute(ptest *pathteststore.PathtestContext) {
 		TimeoutMs:    1000,
 	}
 
-	tr, err := traceroute.New(cfg)
+	path, err := s.runTraceroute(cfg)
 	if err != nil {
-		s.logger.Warnf("new traceroute error: %+v", err)
-		return
-	}
-	path, err := tr.Run(context.TODO())
-	if err != nil {
-		s.logger.Warnf("run traceroute error: %+v", err)
+		s.logger.Errorf("%s", err)
 		return
 	}
 
 	s.sendTelemetry(path, startTime, ptest)
 
-	epForwarder, ok := s.epForwarder.Get()
-	if ok {
-		payloadBytes, err := json.Marshal(path)
+	payloadBytes, err := json.Marshal(path)
+	if err != nil {
+		s.logger.Errorf("json marshall error: %s", err)
+	} else {
+		s.logger.Debugf("network path event: %s", string(payloadBytes))
+		m := message.NewMessage(payloadBytes, nil, "", 0)
+		err = s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkPath)
 		if err != nil {
-			s.logger.Errorf("json marshall error: %s", err)
-		} else {
-
-			s.logger.Debugf("network path event: %s", string(payloadBytes))
-			m := message.NewMessage(payloadBytes, nil, "", 0)
-			err = epForwarder.SendEventPlatformEvent(m, eventplatform.EventTypeNetworkPath)
-			if err != nil {
-				s.logger.Errorf("SendEventPlatformEvent error: %s", err)
-			}
+			s.logger.Errorf("SendEventPlatformEvent error: %s", err)
 		}
 	}
+}
+
+func runTraceroute(cfg traceroute.Config) (payload.NetworkPath, error) {
+	tr, err := traceroute.New(cfg)
+	if err != nil {
+		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %+v", err)
+	}
+	path, err := tr.Run(context.TODO())
+	if err != nil {
+		return payload.NetworkPath{}, fmt.Errorf("run traceroute error: %+v", err)
+	}
+	return path, nil
 }
 
 func (s *npSchedulerImpl) flushLoop() {
 	s.logger.Debugf("Starting flush loop")
 	defer s.logger.Debugf("Stopped flush loop")
 
-	flushTicker := time.NewTicker(10 * time.Second)
+	flushTicker := time.NewTicker(s.flushInterval)
 
 	var lastFlushTime time.Time
 	for {
@@ -313,7 +326,8 @@ func (s *npSchedulerImpl) startWorker(workerID int) {
 		case pathtestCtx := <-s.pathtestProcessChan:
 			// TODO: TESTME
 			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.Pathtest.Hostname, pathtestCtx.Pathtest.Port)
-			s.runTraceroute(pathtestCtx)
+			s.runTracerouteForPath(pathtestCtx)
+			s.processedCount.Inc()
 		}
 	}
 }

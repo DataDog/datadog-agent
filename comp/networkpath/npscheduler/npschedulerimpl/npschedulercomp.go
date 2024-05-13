@@ -43,17 +43,23 @@ func newNpScheduler(deps dependencies) provides {
 	networkPathEnabled := deps.Sysconfig.GetBool("network_path.enabled")
 	if networkPathEnabled {
 		deps.Logger.Debugf("Network Path Scheduler enabled")
-		scheduler = newNpSchedulerImpl(deps.EpForwarder, deps.Logger, deps.Sysconfig)
-		deps.Lc.Append(fx.Hook{
-			// No need for OnStart hook since NpScheduler.Init() will be called by clients when needed.
-			OnStart: func(context.Context) error {
-				return scheduler.start()
-			},
-			OnStop: func(context.Context) error {
-				scheduler.stop()
-				return nil
-			},
-		})
+		epForwarder, ok := deps.EpForwarder.Get()
+		if !ok {
+			deps.Logger.Errorf("Error getting EpForwarder")
+			scheduler = newNoopNpSchedulerImpl()
+		} else {
+			scheduler = newNpSchedulerImpl(epForwarder, deps.Logger, deps.Sysconfig)
+			deps.Lc.Append(fx.Hook{
+				// No need for OnStart hook since NpScheduler.Init() will be called by clients when needed.
+				OnStart: func(context.Context) error {
+					return scheduler.start()
+				},
+				OnStop: func(context.Context) error {
+					scheduler.stop()
+					return nil
+				},
+			})
+		}
 	} else {
 		deps.Logger.Debugf("Network Path Scheduler disabled")
 		scheduler = newNoopNpSchedulerImpl()

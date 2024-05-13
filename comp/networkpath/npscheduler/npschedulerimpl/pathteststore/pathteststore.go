@@ -42,10 +42,6 @@ type PathtestStore struct {
 	// are called by different routines.
 	pathtestConfigsMutex sync.Mutex
 
-	// flushInterval defines how frequently we check for paths to be run
-	// TODO: NOT NEEDED, FLUSH HAPPENS AT NPSCHEDULER?
-	flushInterval time.Duration
-
 	// pathtestInterval defines how frequently pathtests should run
 	pathtestInterval time.Duration
 
@@ -63,10 +59,9 @@ func newPathtestContext(pt *common.Pathtest, runUntilDuration time.Duration) *Pa
 	}
 }
 
-func NewPathtestStore(flushInterval time.Duration, pathtestTTL time.Duration, pathtestInterval time.Duration, logger log.Component) *PathtestStore {
+func NewPathtestStore(pathtestTTL time.Duration, pathtestInterval time.Duration, logger log.Component) *PathtestStore {
 	return &PathtestStore{
 		pathtestContexts: make(map[uint64]*PathtestContext),
-		flushInterval:    flushInterval,
 		pathtestTTL:      pathtestTTL,
 		pathtestInterval: pathtestInterval,
 		logger:           logger,
