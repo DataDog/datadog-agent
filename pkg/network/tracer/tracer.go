@@ -348,8 +348,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	if p.ContainerID != nil {
-		containerID := p.ContainerID.Get().(string)
-		c.ContainerID.Source = containerID
+		c.ContainerID.Source = p.ContainerID
 	}
 }
 

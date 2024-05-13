@@ -69,7 +69,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 			ContainerID: intern.GetByString(""),
 		}
 
-		testFunc(t, &entry)
+		testFunc(t, t.Name(), &entry)
 	})
 }
 
